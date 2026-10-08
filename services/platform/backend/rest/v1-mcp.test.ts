@@ -176,6 +176,42 @@ describe('POST /api/v1/mcp', () => {
     expect(lines.join('\n')).not.toContain(sentinel);
   });
 
+  it('draws an execution from the key holder’s run-start budget for a start [MCP-R5]', async () => {
+    engine.mockResolvedValue({ runId: 'r1', version: 1, mode: 'live' });
+    const started = await post({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/call',
+      params: { name: 'start_run', arguments: { name: 'billing/dunning' } },
+    });
+    expect(started.status).toBe(200);
+    expect(checkUserRateLimit).toHaveBeenCalledExactlyOnceWith(
+      sql,
+      'rest:execute',
+      'user-ada',
+    );
+
+    vi.mocked(checkUserRateLimit).mockRejectedValueOnce(
+      new RateLimitExceededError('over', 4000),
+    );
+    const refused = await post({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'start_run', arguments: { name: 'billing/dunning' } },
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tool result's documented shape
+    const body = (await refused.json()) as {
+      result: { isError: boolean; content: Array<{ text: string }> };
+    };
+    expect(body.result.isError).toBe(true);
+    expect(JSON.parse(body.result.content[0]?.text ?? '{}')).toMatchObject({
+      code: 'RATE_LIMITED',
+      data: { retryAfterMs: 4000 },
+    });
+    expect(engine).toHaveBeenCalledTimes(1);
+  });
+
   it('refuses an Idempotency-Key header and runs nothing [MCP-R20]', async () => {
     const response = await post(
       {

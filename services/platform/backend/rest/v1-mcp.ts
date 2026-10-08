@@ -22,6 +22,24 @@ import { DEFAULT_BODY_BYTES, restBodyLimit, type RestEnv } from './shared.ts';
  * (`mcpHost`).
  */
 
+/** Charge one unit of a user-scoped lane: null when it may proceed, the
+ * wait when the budget is spent. */
+async function chargeLane(
+  sql: Sql,
+  lane: 'rest:api' | 'rest:execute',
+  userId: string,
+): Promise<{ retryAfterMs: number } | null> {
+  try {
+    await checkUserRateLimit(sql, lane, userId);
+    return null;
+  } catch (error) {
+    if (error instanceof RateLimitExceededError) {
+      return { retryAfterMs: error.retryAfter };
+    }
+    throw error;
+  }
+}
+
 export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const app = new Hono<RestEnv>();
   const host = mcpHost(deps.sql);
@@ -65,17 +83,10 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // The door charged this HTTP request once; every further tool call a
       // batch carries draws from the same `rest:api` budget, so a batch is
       // never cheaper than the requests it stands for.
-      admit: async () => {
-        try {
-          await checkUserRateLimit(deps.sql, 'rest:api', c.get('userId'));
-          return null;
-        } catch (error) {
-          if (error instanceof RateLimitExceededError) {
-            return { retryAfterMs: error.retryAfter };
-          }
-          throw error;
-        }
-      },
+      admit: () => chargeLane(deps.sql, 'rest:api', caller.userId),
+      // A tool that executes an automation draws one execution from the
+      // budget the REST API's run starts draw from, after its role check.
+      charge: (lane) => chargeLane(deps.sql, lane, caller.userId),
     });
   });
 

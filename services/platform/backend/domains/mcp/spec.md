@@ -15,15 +15,18 @@ person's role in it at the time of the request.
 
 | | Owner, admin or developer | Any other member |
 | --- | --- | --- |
-| Save a version, deploy one, set a trigger | yes | no |
-| Read, validate and test automations | yes | yes |
+| Save a version, deploy one, set or remove a trigger | yes | no |
+| Start or stop a live run | yes | no |
+| Read, validate and test automations, run them on the mocks | yes | yes |
 
 ### MCP-R17 · Only owners, admins and developers can save, deploy or set a trigger over MCP
 
-Saving a version, deploying one and setting a trigger take the owner, admin or developer role.
-Anyone else's agent gets a refusal it can read (`FORBIDDEN_DEVELOPER_SETTINGS`), and nothing is
-saved, deployed or bound. Reading, validating and testing stay open to every member. Starting and
-stopping live runs follow the [automation rules](../automations/spec.md) (`AUTO-R1`).
+Saving a version, deploying one and setting or removing a trigger take the owner, admin or
+developer role, and so do starting a live run (`run_deployed`, `start_run`) and stopping one
+(`cancel_run`), as the [automation rules](../automations/spec.md) (`AUTO-R1`) say. Anyone else's
+agent gets a refusal it can read (`FORBIDDEN_DEVELOPER_SETTINGS`) before anything runs or is
+charged, and nothing is saved, deployed, bound, started or stopped. Reading, validating, testing
+and running on the mocks stay open to every member.
 
 - **Example**: Mia is an ordinary member. Her coding agent saves a new version of
   `billing/dunning` → refused, and no version is saved; it then lists the automations → they are
@@ -67,6 +70,19 @@ quote, and the error itself is logged and reported on the server, never sent to 
   error under that request id.
 
 ## Requests and batches
+
+### MCP-R5 · Every execution over MCP draws from the run-start budget, like the REST API
+
+A tool that executes an automation — a run on the mocks (`run_automation`), its tests
+(`test_automation`), a deploy (whose gate runs the tests), a live run (`run_deployed`,
+`start_run`) or a capability (`invoke_capability`) — draws one execution from the key holder's
+run-start budget, the one the REST API's run starts draw from, once its role check has passed.
+When the budget is spent, the call is refused (`RATE_LIMITED`) with how long to wait
+(`data.retryAfterMs`) and nothing runs. Reads, validation and saving never draw from it, and
+neither does a call refused for its arguments or its role.
+
+- **Example**: Ada's agent starts its 41st run inside a minute → refused with the wait, and no run
+  starts; it reads the runs it started meanwhile → they are listed.
 
 ### MCP-R19 · A batch of calls costs as many requests as the calls it carries
 

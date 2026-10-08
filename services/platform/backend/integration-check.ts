@@ -14971,7 +14971,9 @@ async function checkMcp(
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an
   // absent row re-initializes at full capacity).
+  // The run tools above drew from the execution budget too (MCP-R5).
   await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
 }
 
 /** The retired standalone goal-authoring endpoint no longer accepts work. */

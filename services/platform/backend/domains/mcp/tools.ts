@@ -316,6 +316,24 @@ export interface ToolCallContext {
   /** Asked before the call runs when the request already spent its first
    * call (a batch); a wait refuses this call at the protocol level. */
   readonly admit?: () => Promise<{ retryAfterMs: number } | null>;
+  /** Draws one execution from the caller's budget for an `execute` tool,
+   * after its role check; a wait refuses the call as `RATE_LIMITED`. */
+  readonly charge?: (
+    lane: 'rest:execute',
+  ) => Promise<{ retryAfterMs: number } | null>;
+}
+
+/** The refusal of a call whose execution budget is spent. */
+function rateLimited(
+  tool: McpToolSpec,
+  retryAfterMs: number,
+): Record<string, unknown> {
+  return {
+    error: `${tool.name} is refused for now: this key holder has started as many executions as a minute allows; retry in ${Math.max(1, Math.ceil(retryAfterMs / 1000))} s`,
+    code: 'RATE_LIMITED',
+    hint: 'wait data.retryAfterMs before calling it again; reads, validation and saving do not draw from this budget',
+    data: { retryAfterMs },
+  };
 }
 
 /** What the protocol layer answers a `tools/call` with: a tool result, or —
@@ -360,8 +378,17 @@ export async function callTool(
         answer: answer(tool, {
           error: `${tool.name} is refused for this key: ${refusal}`,
           code: 'FORBIDDEN_DEVELOPER_SETTINGS',
-          hint: 'saving, deploying and trigger binding need a key whose holder has the developer capability; every read and run tool remains available',
+          hint: 'saving, deploying, binding or removing a trigger and starting or stopping a live run need a key whose holder has the owner, admin or developer role; reading, validating, mock runs and tests stay open to every member',
         }),
+      };
+    }
+  }
+  if (tool.lane === 'execute' && context.charge !== undefined) {
+    const wait = await context.charge('rest:execute');
+    if (wait !== null) {
+      return {
+        kind: 'answer',
+        answer: answer(tool, rateLimited(tool, wait.retryAfterMs)),
       };
     }
   }

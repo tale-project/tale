@@ -200,3 +200,48 @@ describe('MCP tool input schemas', () => {
     }
   });
 });
+
+/**
+ * Who may call a tool and what it costs, pinned tool by tool: a tool cannot
+ * enter the inventory, or change its bar or its budget, without a row here.
+ */
+describe('MCP tool roles and budgets', () => {
+  test('only owners, admins and developers persist, rebind, start or stop live work', () => {
+    expect(
+      MCP_TOOLS.filter((tool) => tool.role === 'developer').map(
+        (tool) => tool.name,
+      ),
+    ).toEqual([
+      'save_automation',
+      'deploy_automation',
+      'set_trigger',
+      'run_deployed',
+      'start_run',
+      'cancel_run',
+      'delete_trigger',
+    ]);
+  });
+
+  test('every tool that executes an automation draws from the execution budget', () => {
+    expect(
+      MCP_TOOLS.filter((tool) => tool.lane === 'execute').map(
+        (tool) => tool.name,
+      ),
+    ).toEqual([
+      'run_automation',
+      'test_automation',
+      'deploy_automation',
+      'run_deployed',
+      'start_run',
+      'invoke_capability',
+    ]);
+  });
+
+  test('a read never draws from it', () => {
+    for (const tool of MCP_TOOLS) {
+      if (tool.annotations.readOnlyHint) {
+        expect(tool.lane, tool.name).toBe('api');
+      }
+    }
+  });
+});

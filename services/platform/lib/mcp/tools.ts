@@ -65,15 +65,41 @@ export interface McpToolSpec {
    * admin or developer role (the in-app equivalent's bar); `member` leaves it
    * to the surface's own rules. A tool a role cannot use stays listed. */
   readonly role: 'member' | 'developer';
+  /** The budget a call draws from once its role check passed: `api` only
+   * the request the door already charged; `execute` also one execution
+   * (`rest:execute`, the REST API's run-start budget). */
+  readonly lane: 'api' | 'execute';
 }
 
-/** Tools that persist or rebind an automation: their in-app equivalents sit
- * behind the developer capability, so a key meets the same bar here. */
+/** Tools whose in-app equivalents sit behind the developer capability —
+ * persisting or rebinding an automation, starting or stopping a live run —
+ * so a key meets the same bar here. Live execution is also checked by the
+ * store; the check here comes first, so a refused call spends nothing. */
 const DEVELOPER_TOOLS: ReadonlySet<string> = new Set([
   'save_automation',
   'deploy_automation',
   'set_trigger',
+  'run_deployed',
+  'start_run',
+  'cancel_run',
+  'delete_trigger',
 ]);
+
+/** Tools that execute an automation — a run on the mocks, its tests, the
+ * deploy gate's tests, a live run, a capability — and draw from the same
+ * execution budget the REST API's run starts do. */
+const EXECUTE_TOOLS: ReadonlySet<string> = new Set([
+  'run_automation',
+  'test_automation',
+  'deploy_automation',
+  'run_deployed',
+  'start_run',
+  'invoke_capability',
+]);
+
+function laneOf(name: string): McpToolSpec['lane'] {
+  return EXECUTE_TOOLS.has(name) ? 'execute' : 'api';
+}
 
 /** A read: changes nothing, repeats freely, stays inside the platform. */
 const READ: McpToolAnnotations = {
@@ -247,6 +273,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     role: DEVELOPER_TOOLS.has(name)
       ? ('developer' as const)
       : ('member' as const),
+    lane: laneOf(name),
   })),
   ...CAPABILITY_TOOL_NAMES.map((name) => ({
     name,
@@ -256,6 +283,7 @@ export const MCP_TOOLS: readonly McpToolSpec[] = [
     kind: 'capability' as const,
     group: 'capability' as const,
     role: 'member' as const,
+    lane: laneOf(name),
   })),
 ];
 

@@ -973,36 +973,41 @@ describe('tools/call — the developer gate on persistence tools [MCP-R17]', () 
       error:
         'save_automation is refused for this key: Role "member" lacks the developer-settings capability required to perform this action.',
       code: 'FORBIDDEN_DEVELOPER_SETTINGS',
-      hint: 'saving, deploying and trigger binding need a key whose holder has the developer capability; every read and run tool remains available',
+      hint: 'saving, deploying, binding or removing a trigger and starting or stopping a live run need a key whose holder has the owner, admin or developer role; reading, validating, mock runs and tests stay open to every member',
     });
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it.each(['deploy_automation', 'set_trigger'])(
-    'refuses %s for a member key as data, without dispatching',
-    async (name) => {
+  it.each([
+    ['deploy_automation', { name: 'billing/dunning', version: 1 }],
+    ['set_trigger', { name: 'billing/dunning', trigger: { kind: 'webhook' } }],
+    ['delete_trigger', { name: 'billing/dunning' }],
+    ['run_deployed', { name: 'billing/dunning' }],
+    ['start_run', { name: 'billing/dunning' }],
+    ['cancel_run', { runId: 'r1' }],
+  ] as const)(
+    'refuses %s for a member key as data, without dispatching or charging',
+    async (name, args) => {
       const dispatch = vi.fn();
-      const { payload } = await call(
-        {
+      const charge = vi.fn(async () => null);
+      const response = await handleMcpRequest(
+        keyCaller('member'),
+        rpc({
           jsonrpc: '2.0',
           id: 16,
           method: 'tools/call',
-          params: {
-            name,
-            arguments:
-              name === 'deploy_automation'
-                ? { name: 'billing/dunning', version: 1 }
-                : { name: 'billing/dunning', trigger: { kind: 'webhook' } },
-          },
-        },
-        dispatch,
-        'member',
+          params: { name, arguments: args },
+        }),
+        { host: { engine: dispatch, capability: dispatch }, charge },
       );
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+      const payload = (await response.json()) as Record<string, unknown>;
       expect(isErrorFlag(payload)).toBe(true);
       expect(JSON.parse(resultText(payload))).toMatchObject({
         code: 'FORBIDDEN_DEVELOPER_SETTINGS',
       });
       expect(dispatch).not.toHaveBeenCalled();
+      expect(charge).not.toHaveBeenCalled();
     },
   );
 
@@ -1049,6 +1054,76 @@ describe('tools/call — the developer gate on persistence tools [MCP-R17]', () 
       'list_automations',
       {},
     );
+  });
+});
+
+describe('tools/call — the execution budget [MCP-R5]', () => {
+  const callWith = async (
+    name: string,
+    args: Record<string, unknown>,
+    charge: McpRequestOptions['charge'],
+    dispatch = vi.fn().mockResolvedValue({ status: 'success', trace: [] }),
+    role = 'developer',
+  ) => {
+    const response = await handleMcpRequest(
+      keyCaller(role),
+      rpc({
+        jsonrpc: '2.0',
+        id: 30,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+      { host: { engine: dispatch, capability: dispatch }, charge },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const payload = (await response.json()) as Record<string, unknown>;
+    return { payload, dispatch };
+  };
+
+  it.each([
+    ['run_automation', { automation: { name: 'x' } }],
+    ['test_automation', { automation: { name: 'x' } }],
+    ['deploy_automation', { name: 'billing/dunning', version: 2 }],
+    ['run_deployed', { name: 'billing/dunning' }],
+    ['start_run', { name: 'billing/dunning' }],
+    ['invoke_capability', { id: 'automation.billing/dunning' }],
+  ] as const)('%s draws one execution before it runs', async (name, args) => {
+    const charge = vi.fn(async () => null);
+    const { dispatch } = await callWith(name, args, charge);
+    expect(charge).toHaveBeenCalledExactlyOnceWith('rest:execute');
+    expect(dispatch).toHaveBeenCalledOnce();
+  });
+
+  it('refuses a start whose budget is spent as RATE_LIMITED with the wait, and runs nothing', async () => {
+    const charge = vi.fn(async () => ({ retryAfterMs: 2500 }));
+    const { payload, dispatch } = await callWith(
+      'start_run',
+      { name: 'billing/dunning' },
+      charge,
+    );
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(refusalOf(payload)).toMatchObject({
+      code: 'RATE_LIMITED',
+      error: expect.stringContaining('retry in 3 s'),
+      data: { retryAfterMs: 2500 },
+    });
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it('draws nothing for a read, a save, refused arguments or a refused role', async () => {
+    const charge = vi.fn(async () => null);
+    await callWith('get_run', { runId: 'r1' }, charge);
+    await callWith('list_automations', {}, charge);
+    await callWith('save_automation', { automation: { name: 'x' } }, charge);
+    await callWith('start_run', { name: '' }, charge);
+    await callWith(
+      'start_run',
+      { name: 'billing/dunning' },
+      charge,
+      vi.fn(),
+      'member',
+    );
+    expect(charge).not.toHaveBeenCalled();
   });
 });
 

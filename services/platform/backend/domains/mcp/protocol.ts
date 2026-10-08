@@ -52,7 +52,12 @@ import {
   type McpCallRecord,
 } from './activity';
 import type { McpCaller } from './caller';
-import { callTool, listTools, type McpHost } from './tools';
+import {
+  callTool,
+  listTools,
+  type McpHost,
+  type ToolCallContext,
+} from './tools';
 
 /**
  * The protocol revisions this endpoint speaks, newest first. `initialize`
@@ -124,6 +129,9 @@ export interface McpRequestOptions {
    * alone (-32000 with `data.retryAfterMs`) while the rest of the batch goes
    * on. */
   readonly admit?: () => Promise<{ retryAfterMs: number } | null>;
+  /** Draws one execution for a tool that executes an automation, after its
+   * role check (`tools.ts`); a wait refuses that call as `RATE_LIMITED`. */
+  readonly charge?: ToolCallContext['charge'];
   /** Told of every answered request message whose method the endpoint
    * serves — never of a notification, and never what the call carried.
    * The door counts it (`activity.ts`); awaited, so the count is true when
@@ -300,6 +308,7 @@ async function answerMessage(
       const reply = await callTool(caller, tool, params.arguments, {
         host: options.host,
         requestId: state.requestId,
+        ...(options.charge === undefined ? {} : { charge: options.charge }),
         // The door charged the HTTP request itself; every further call a
         // batch carries is charged here, once its arguments hold.
         admit: async () => {
