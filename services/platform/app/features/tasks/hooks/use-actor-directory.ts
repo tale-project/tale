@@ -31,7 +31,10 @@ import {
   ActorDirectoryScopeValue,
   useProvidedActorScope,
 } from './actor-directory-scope';
-import { useTaskContractAutomations } from './use-task-subject-contract';
+import {
+  useTaskContractAutomations,
+  useTaskContractAutomationsPending,
+} from './use-task-subject-contract';
 
 export interface ResolvedActor {
   type: TaskCreatorType;
@@ -85,6 +88,10 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   // and the timeline all named it by its slug before this, which is addressing
   // rather than a name.
   const automations = useTaskContractAutomations(
+    organizationId,
+    projectId === undefined ? undefined : asProjectId(projectId),
+  );
+  const automationsPending = useTaskContractAutomationsPending(
     organizationId,
     projectId === undefined ? undefined : asProjectId(projectId),
   );
@@ -324,6 +331,11 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       /** True while the project's agent list is still being fetched — an empty
        * `agents` is only "this project HAS no agents" once this settles. */
       agentsLoading,
+      /** True until the people, agents and automations a mention can name
+       * have all arrived: a mention of someone not listed yet is not yet
+       * someone gone. */
+      mentionsPending:
+        members === undefined || agentsLoading || automationsPending,
       currentUserId,
       organizationId,
       // `useActorDirectory` stays org-wide — it also resolves *historical* actors
@@ -343,6 +355,8 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       automationList,
       automations,
       agentsLoading,
+      members,
+      automationsPending,
       currentUserId,
       organizationId,
       projectId,

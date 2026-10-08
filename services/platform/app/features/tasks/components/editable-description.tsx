@@ -44,6 +44,7 @@ export function EditableDescription({
   value,
   label,
   placeholder,
+  plainMentions = true,
   onSave,
 }: {
   taskId: string;
@@ -54,6 +55,9 @@ export function EditableDescription({
   label: string;
   /** Placeholder while open — and the collapsed trigger's own label. */
   placeholder: string;
+  /** False for a description whose `@names` are another system's people (a
+   * task mirrored from GitHub or GlitchTip): typed handles stay as typed. */
+  plainMentions?: boolean;
   /** Rejects when the write failed, so the draft can be kept on screen. */
   onSave: (value: string) => void | Promise<unknown>;
 }) {
@@ -153,6 +157,7 @@ export function EditableDescription({
             body={value}
             organizationId={organizationId}
             projectId={projectId}
+            plainMentions={plainMentions}
             className="wrap-break-word"
           />
         </div>
@@ -166,6 +171,7 @@ export function EditableDescription({
         id="detail-description"
         organizationId={organizationId}
         projectId={projectId}
+        plainMentions={plainMentions}
         label={label}
         rows={6}
         value={draft}

@@ -102,6 +102,8 @@ const COMMENTS = Array.from({ length: 40 }, (_, index) => ({
     '',
     `Closing note ${index}.`,
   ].join('\n'),
+  // Whom the comment named when it was saved: its typed `@ada`s show her.
+  mentions: [{ type: 'user' as const, id: 'user-ada' }],
   // Ten minutes apart: each comment opens with its author, none continues
   // the one before.
   createdAt: 1_700_000_000_000 + index * 600_000,

@@ -60,6 +60,9 @@ export interface TaskCommentData {
   bodyByLocale?: CommentBodyByLocale;
 }
 
+/** A comment saved naming nobody: its typed `@handle`s name nobody either. */
+const NO_SAVED_MENTIONS: NonNullable<TaskCommentData['mentions']> = [];
+
 /** Submit on ⌘/Ctrl+Enter; a bare Enter stays a newline (comments are prose). */
 function onModEnter(submit: () => void) {
   return (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -205,7 +208,7 @@ function TaskCommentViewContent({
           body={displayBody}
           organizationId={organizationId}
           projectId={projectId}
-          mentions={c.mentions}
+          mentions={c.mentions ?? NO_SAVED_MENTIONS}
           className="wrap-break-word"
         />
       )}
@@ -251,6 +254,7 @@ const TaskCommentEditor = memo(
           id={`edit-comment-${c.messageId}`}
           organizationId={organizationId}
           projectId={projectId}
+          mentions={c.mentions ?? NO_SAVED_MENTIONS}
           rows={2}
           value={editDraft}
           onValueChange={setEditDraft}

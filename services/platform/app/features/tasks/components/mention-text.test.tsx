@@ -9,6 +9,8 @@ import { MentionText } from './mention-text';
 const performance = vi.hoisted(() => ({
   directoryRead: vi.fn(),
   markdownRender: vi.fn(),
+  // Whether the people, agents and automations are still on their way.
+  pending: false,
 }));
 
 vi.mock('@tale/ui/i18n/client', () => ({
@@ -38,6 +40,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
         },
       ],
       automations: [{ slug: 'vat-return-desk', name: 'Swiss VAT return desk' }],
+      mentionsPending: performance.pending,
     };
   },
 }));
@@ -56,6 +59,7 @@ vi.mock('react-markdown', async (importOriginal) => {
 beforeEach(() => {
   performance.directoryRead.mockClear();
   performance.markdownRender.mockClear();
+  performance.pending = false;
 });
 
 // Markdown renderer pulls chat chrome (images, citations) — stub the shared
@@ -120,6 +124,19 @@ describe('MentionText — markdown', () => {
       screen.getByText('Status:', { selector: 'strong' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('# Summary')).not.toBeInTheDocument();
+  });
+
+  it('renders an indented stack trace as code, as imported issues write it', () => {
+    const { container } = render(
+      <MentionText
+        body={'Stack trace:\n\n    Error: boom\n        at foo (a.js:1) @ada'}
+        organizationId="org_1"
+      />,
+    );
+    expect(container.querySelector('pre code')).toHaveTextContent(
+      'Error: boom at foo (a.js:1) @ada',
+    );
+    expect(container.querySelector('[data-slot="mention-chip"]')).toBeNull();
   });
 
   it('still mentionizes @handles inside paragraphs', () => {
@@ -215,6 +232,61 @@ describe('MentionText — stored mentions', () => {
     );
     expect(container.querySelector('[data-slot="mention-chip"]')).toBeNull();
     expect(container).toHaveTextContent('@ada and @ada and @Nobody.');
+  });
+
+  it('calls nobody gone while the directory is still on its way', () => {
+    performance.pending = true;
+    const body = `[@Old Bot](mention:agent/gone) and @${DELETED_AGENT}`;
+    const loading = render(<MentionText body={body} organizationId="org_1" />);
+    expect(
+      loading.container.querySelectorAll('[data-missing="true"]'),
+    ).toHaveLength(0);
+    const chips = loading.container.querySelectorAll(
+      '[data-slot="mention-chip"]',
+    );
+    expect(chips).toHaveLength(2);
+    expect(chips[0]).toHaveTextContent('@Old Bot');
+    expect(chips[1]).toHaveTextContent('@mentionChip.kind.agent');
+    expect(loading.container).not.toHaveTextContent(DELETED_AGENT);
+    expect(loading.container).not.toHaveTextContent('timeline.deletedAgent');
+    loading.unmount();
+
+    performance.pending = false;
+    const settled = render(<MentionText body={body} organizationId="org_1" />);
+    expect(
+      settled.container.querySelectorAll('[data-missing="true"]'),
+    ).toHaveLength(2);
+  });
+
+  it('reads a typed handle in a comment only as someone it named', () => {
+    const { container, rerender } = render(
+      <MentionText body="Ping @ada" organizationId="org_1" mentions={[]} />,
+    );
+    // Saved naming nobody: Ada was not told, so no chip says she was.
+    expect(container.querySelector('[data-slot="mention-chip"]')).toBeNull();
+    expect(container).toHaveTextContent('Ping @ada');
+    rerender(
+      <MentionText
+        body="Ping @ada"
+        organizationId="org_1"
+        mentions={[{ type: 'user', id: 'u1' }]}
+      />,
+    );
+    expect(container).toHaveTextContent('Ping @Ada');
+  });
+
+  it('keeps a mirrored description’s @names as written', () => {
+    const { container } = render(
+      <MentionText
+        body={`Reported by @ada, assigned to ${QA}`}
+        organizationId="org_1"
+        plainMentions={false}
+      />,
+    );
+    const chips = container.querySelectorAll('[data-slot="mention-chip"]');
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toHaveTextContent('@QA Bot');
+    expect(container).toHaveTextContent('Reported by @ada');
   });
 
   it('reads an older handle as whom the comment named when two answer to it', () => {

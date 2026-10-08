@@ -126,6 +126,16 @@ export function useTaskMentionActors(
   return useScopedDirectory(organizationId, projectId).mentions;
 }
 
+/** Whether the people, agents and automations a mention can name are still
+ * on their way: a mention of someone not listed yet is not someone gone. */
+export function useTaskMentionsPending(
+  organizationId: string,
+  projectId?: string,
+): boolean {
+  return useScopedDirectory(organizationId, projectId).directory
+    .mentionsPending;
+}
+
 export function useTaskAssignableActors(
   organizationId: string,
   projectId?: string,

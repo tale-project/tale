@@ -11,12 +11,14 @@ import { MENTION_KINDS, type MentionKind } from '@/lib/shared/mention-handles';
 
 import {
   useTaskMentionActors,
+  useTaskMentionsPending,
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
 import {
   type MentionActorOption,
   useMentionActorOptions,
 } from '../lib/mention-actor-options';
+import { plainMentionReader } from '../lib/plain-mentions';
 import { AssigneeAvatar } from './assignee-avatar';
 
 interface MentionTextareaProps extends Omit<
@@ -31,6 +33,12 @@ interface MentionTextareaProps extends Omit<
   /** Popover side. Composers at the bottom of a panel want 'above' (default);
    *  fields near the top of a dialog want 'below'. */
   placement?: 'above' | 'below';
+  /** Whom the text named when it was saved (a comment being edited): a typed
+   * `@handle` shows as one of them, the one it named, or as text. */
+  mentions?: ReadonlyArray<{ type: MentionKind; id: string }>;
+  /** False for a text whose `@names` are another system's people (a task
+   * mirrored from GitHub or GlitchTip): typed handles show as typed. */
+  plainMentions?: boolean;
 }
 
 const NO_MENTION_OPTIONS: readonly MentionActorOption[] = [];
@@ -74,7 +82,9 @@ function MentionOptionsSource({
  * project: `@` opens a picker that finds them by name or handle, and a
  * picked mention reads as `@` and the name while the value it hands back
  * stores whom it names (`@tale/ui/mentions/mention-textarea`). Text written
- * before that — `@handle`s — shows the names of whom the handles name.
+ * before that — `@handle`s — shows the names of whom the handles name, as
+ * the saved text shows them ({@link MentionText}), and keeps the handles as
+ * typed: whom one names is the saving server's call.
  */
 export const MentionTextarea = withTaskActorDirectory(MentionTextareaContent);
 
@@ -82,10 +92,13 @@ function MentionTextareaContent({
   organizationId,
   projectId,
   id,
+  mentions,
+  plainMentions = true,
   ...fieldProps
 }: MentionTextareaProps) {
   const { t } = useT('tasks');
   const index = useTaskMentionActors(organizationId, projectId);
+  const pending = useTaskMentionsPending(organizationId, projectId);
 
   // The mentionable people, agents and automations are read once the field
   // is first focused: a task's comment composer is on screen with every task
@@ -146,15 +159,29 @@ function MentionTextareaContent({
     (ref: MentionRef<MentionKind>) => index.byRef(ref)?.name,
     [index],
   );
-  const resolvePlain = useCallback(
-    (handle: string) => {
-      const entry = index.resolve(handle);
-      return entry === null
-        ? null
-        : { kind: entry.kind, id: entry.id, name: entry.name };
-    },
-    [index],
-  );
+  const resolvePlain = useMemo(() => {
+    const read = plainMentionReader(index, {
+      ...(mentions === undefined ? {} : { saved: mentions }),
+      plain: plainMentions,
+    });
+    return (handle: string) => {
+      const plain = read(handle);
+      if (plain === null) return null;
+      if (plain.type === 'actor') {
+        const { kind, id: actorId, name } = plain.entry;
+        return { kind, id: actorId, name };
+      }
+      // An agent's id reads as the agent, never as an id; the field writes
+      // it back as it was typed.
+      return {
+        kind: 'agent' as const,
+        id: handle,
+        name: pending
+          ? t('mentionChip.kind.agent')
+          : t('timeline.deletedAgent'),
+      };
+    };
+  }, [index, mentions, plainMentions, pending, t]);
 
   return (
     <>

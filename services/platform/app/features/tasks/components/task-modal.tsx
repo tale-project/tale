@@ -69,6 +69,7 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { TASK_TITLE_MAX } from '@/backend/core/tasks/helpers';
+import { descriptionMentionMode } from '@/backend/core/tasks/mentions';
 import { useT } from '@/lib/i18n/client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
@@ -1829,6 +1830,10 @@ export function EditTaskBody({
     />
   );
 
+  // A description mirrored from an issue tracker keeps that tracker's
+  // `@names`, which are not Tale's people.
+  const descriptionPlainMentions =
+    descriptionMentionMode(task.externalSystem) === 'full';
   const descriptionSection = (
     <section className="flex flex-col gap-1.5">
       {/* Empty + editable collapses to its own trigger: the heading and a
@@ -1844,6 +1849,7 @@ export function EditTaskBody({
           value={task.description ?? ''}
           label={t('fields.description')}
           placeholder={t('detail.addDescription')}
+          plainMentions={descriptionPlainMentions}
           onSave={(description) =>
             updateTask
               .mutateAsync({
@@ -1868,6 +1874,7 @@ export function EditTaskBody({
               body={task.description}
               organizationId={task.organizationId}
               projectId={task.projectId}
+              plainMentions={descriptionPlainMentions}
             />
           ) : (
             <Text as="p" variant="muted">

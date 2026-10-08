@@ -21,18 +21,14 @@ import {
   MENTION_KINDS,
   type MentionHandleIndex,
   type MentionKind,
-  mentionRefKey,
 } from '@/lib/shared/mention-handles';
 
 import {
   useTaskMentionActors,
+  useTaskMentionsPending,
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
-
-/** An agent id: what an older text typed after `@` for an agent whose name
- * made no handle. Unresolved, it names an agent that was deleted. */
-const AGENT_ID_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+import { type PlainMention, plainMentionReader } from '../lib/plain-mentions';
 
 function isMentionKind(kind: string | undefined): kind is MentionKind {
   return MENTION_KINDS.some((known) => known === kind);
@@ -45,29 +41,35 @@ interface MentionLabels {
 
 /** One mention: a chip with the current name of whom it names, a muted chip
  * with the name it was saved with for someone gone, never an id. A typed
- * `@handle` nobody answers to stays the words it was. */
+ * `@handle` nobody answers to stays the words it was. Until the directory
+ * has arrived, a stored mention it does not list yet shows the name it was
+ * saved with, as a plain chip: nobody is called gone before that is known. */
 function MentionElement({
   props,
   written,
   mentions,
-  prefer,
+  readPlain,
+  pending,
   labels,
 }: {
   props: MentionElementProps;
   /** The mention as the text spells it. */
   written: ReactNode;
   mentions: MentionHandleIndex;
-  prefer: ReadonlySet<string> | undefined;
+  readPlain: (handle: string) => PlainMention | null;
+  pending: boolean;
   labels: MentionLabels;
 }) {
   const kind = props['data-mention-kind'];
   const id = props['data-mention-id'];
   const handle = props['data-mention-handle'];
+  const plain =
+    id === undefined && handle !== undefined ? readPlain(handle) : null;
   const entry =
     id !== undefined && isMentionKind(kind)
       ? mentions.byRef({ kind, id })
-      : handle !== undefined
-        ? mentions.resolve(handle, prefer)
+      : plain?.type === 'actor'
+        ? plain.entry
         : null;
 
   if (entry !== null) {
@@ -90,6 +92,14 @@ function MentionElement({
     );
   }
   if (id !== undefined && isMentionKind(kind)) {
+    if (pending) {
+      return (
+        <MentionChip
+          name={props['data-mention-label'] || labels.kind[kind]}
+          kindLabel={labels.kind[kind]}
+        />
+      );
+    }
     return (
       <MentionChip
         name={props['data-mention-label'] || labels.missing[kind]}
@@ -98,8 +108,12 @@ function MentionElement({
       />
     );
   }
-  if (handle !== undefined && AGENT_ID_RE.test(handle)) {
-    return (
+  if (plain?.type === 'deletedAgent') {
+    // An agent's id is never shown: until the agents have arrived it reads
+    // as an agent, then by its name or as deleted.
+    return pending ? (
+      <MentionChip name={labels.kind.agent} kindLabel={labels.kind.agent} />
+    ) : (
       <MentionChip
         name={labels.missing.agent}
         missing
@@ -125,28 +139,30 @@ function MentionTextContent({
   organizationId,
   projectId,
   mentions: savedMentions,
+  plainMentions = true,
   className,
 }: {
   body: string;
   organizationId: string;
   projectId?: string;
   /** Whom the text named when it was saved (a comment's resolved mentions):
-   * a typed `@handle` two of them answer to shows the one it named. */
+   * a typed `@handle` shows as one of them, the one it named, or as text. */
   mentions?: ReadonlyArray<{ type: MentionKind; id: string }>;
+  /** False for a text whose `@names` are another system's people (a task
+   * mirrored from GitHub or GlitchTip): typed handles stay text. */
+  plainMentions?: boolean;
   className?: string;
 }) {
   const { t } = useT('tasks');
   const index = useTaskMentionActors(organizationId, projectId);
-  const prefer = useMemo(
+  const pending = useTaskMentionsPending(organizationId, projectId);
+  const readPlain = useMemo(
     () =>
-      savedMentions === undefined || savedMentions.length === 0
-        ? undefined
-        : new Set(
-            savedMentions.map((mention) =>
-              mentionRefKey({ kind: mention.type, id: mention.id }),
-            ),
-          ),
-    [savedMentions],
+      plainMentionReader(index, {
+        ...(savedMentions === undefined ? {} : { saved: savedMentions }),
+        plain: plainMentions,
+      }),
+    [index, savedMentions, plainMentions],
   );
   const components = useMemo(() => {
     const labels: MentionLabels = {
@@ -172,12 +188,13 @@ function MentionTextContent({
           props={props}
           written={children}
           mentions={index}
-          prefer={prefer}
+          readPlain={readPlain}
+          pending={pending}
           labels={labels}
         />
       ),
     };
-  }, [index, prefer, t]);
+  }, [index, readPlain, pending, t]);
 
   // The plugin list is the server's; the HTML-block pre-pass too, so the
   // offsets the plugin reads are the text's own.
