@@ -347,10 +347,6 @@ describe('buildDockerSessionRunArgs', () => {
     });
   });
 
-  // The crawler's headless browser runs in a `default` session. Under the
-  // one-shot pids cap of 128 Chromium could not start another renderer after
-  // two or three content pages, and the rest of every render batch failed
-  // `net::ERR_ABORTED`; it needs 160 tasks and more.
   test('sessions keep their CPU quota but yield the CPU to the control plane under contention', () => {
     // The control plane runs at Docker's default weight (1024, cgroup v2
     // weight 100). A session at that weight competes with the database and
@@ -396,6 +392,10 @@ describe('buildDockerSessionRunArgs', () => {
     ).toThrow(/profile.cpuShares value rejected/);
   });
 
+  // The crawler's headless browser runs in a `default` session. Under the
+  // one-shot pids cap of 128 Chromium could not start another renderer after
+  // two or three content pages, and the rest of every render batch failed
+  // `net::ERR_ABORTED`; it needs 160 tasks and more.
   test('default profile: one-shot caps + uid 65534, with pids room for a headless browser', () => {
     const args = buildDockerSessionRunArgs(cfg, {
       ...goodInput,
