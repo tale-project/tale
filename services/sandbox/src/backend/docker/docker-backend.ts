@@ -1,10 +1,10 @@
 // DockerBackend — the Compose host lifecycle. Every sandbox run is a session
 // now (see docker-session-backend.ts), so this backend no longer executes code:
 // it owns only the spawner's host-level lifecycle — the cross-process host-lock
-// + boot orphan sweep (init), image warm, the /health probe, graceful shutdown,
-// and the periodic orphan sweep, whose legacy one-shot half runs only hourly
-// (it finds nothing, since `tale.sandbox=1` one-shot containers are never
-// created anymore).
+// + boot orphan sweep (init), the boot live-restore check, image warm, the
+// /health probe, graceful shutdown, and the periodic orphan sweep, whose
+// legacy one-shot half runs only hourly (it finds nothing, since
+// `tale.sandbox=1` one-shot containers are never created anymore).
 
 import {
   acquireSpawnerLock,
@@ -34,6 +34,64 @@ export function dockerHealth(version: RunDockerResult): HealthResult {
     : { ok: false, error };
 }
 
+/** The self-hosted docs section that explains Docker's live restore. */
+export const LIVE_RESTORE_DOCS_URL =
+  'https://docs.tale.dev/self-hosted/operate/container-architecture#keep-sessions-running-through-a-docker-restart';
+
+/** What the daemon says about restarting under its containers: whether
+ * `live-restore` is on, and whether the node is in Swarm mode, which refuses
+ * it. Null when `docker info` gave no usable answer. */
+export function parseLiveRestore(
+  info: RunDockerResult,
+): { enabled: boolean; swarm: boolean } | null {
+  if (info.exitCode !== 0) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(info.stdout);
+  } catch (error) {
+    console.warn('[sandbox] docker info answered unreadable JSON:', error);
+    return null;
+  }
+  if (parsed === null || typeof parsed !== 'object') return null;
+  const enabled = 'liveRestore' in parsed ? parsed.liveRestore : undefined;
+  if (typeof enabled !== 'boolean') return null;
+  const swarm = 'swarm' in parsed ? parsed.swarm : undefined;
+  return { enabled, swarm: swarm === 'active' || swarm === 'locked' };
+}
+
+/**
+ * Without the daemon's live restore, any dockerd restart (a package upgrade,
+ * a daemon.json change) stops every session container and the spawner with
+ * it: running agent turns, builds and renders end mid-way. The host's daemon
+ * configuration is the operator's, so the spawner only says so, once at
+ * boot. Resolves with what it found (null when the daemon could not say).
+ */
+export async function checkLiveRestore(
+  run: typeof runDocker = runDocker,
+): Promise<{ enabled: boolean; swarm: boolean } | null> {
+  const info = await run(
+    [
+      'info',
+      '--format',
+      '{"liveRestore":{{json .LiveRestoreEnabled}},"swarm":{{json .Swarm.LocalNodeState}}}',
+    ],
+    { timeoutMs: 10_000, stdoutMaxBytes: 4_096 },
+  );
+  const found = parseLiveRestore(info);
+  if (found === null) {
+    console.warn(
+      `[sandbox] could not read the Docker daemon's live-restore setting (exit ${info.exitCode}): ${info.stderr.trim() || 'no output'}`,
+    );
+  } else if (!found.enabled) {
+    console.warn(
+      found.swarm
+        ? `[sandbox] this Docker host is a Swarm node, which cannot use live restore: restarting its Docker daemon stops every sandbox session and the spawner. See ${LIVE_RESTORE_DOCS_URL}`
+        : `[sandbox] Docker live restore is off: restarting the Docker daemon (an upgrade, a daemon.json change) stops every sandbox session and the spawner. Set "live-restore": true in /etc/docker/daemon.json and reload the daemon; see ${LIVE_RESTORE_DOCS_URL}`,
+    );
+  }
+  return found;
+}
+
 export interface DockerBackendDeps {
   /** The lock + boot sweep `init` runs. */
   boot?: (cfg: SpawnerConfig) => Promise<void>;
@@ -47,6 +105,11 @@ async function bootHost(cfg: SpawnerConfig): Promise<void> {
   // delete a peer's in-flight workspace.
   await acquireSpawnerLock(cfg);
   await bootSweep(cfg);
+  // Beside startup, never in its way: a daemon slow to answer delays no
+  // session, and the answer is only ever a warning.
+  void checkLiveRestore().catch((error: unknown) => {
+    console.warn('[sandbox] the live-restore check failed:', error);
+  });
 }
 
 export class DockerBackend implements HostBackend {

@@ -323,6 +323,13 @@ operator responsibilities and the egress IPv6 prerequisite.
 session root exists) `exec`s `entrypoint.sh` (the bun server launch) so signals
 reach the server directly. See the script headers for the split rationale.
 
+At start the Docker backend reads the daemon's live-restore setting and logs
+one warning when it is off: a daemon restart (an upgrade, a `daemon.json`
+change) then stops every session container and the spawner. The spawner never
+changes the host's daemon configuration; the
+[self-hosted docs](../../docs/en/self-hosted/operate/container-architecture.md#keep-sessions-running-through-a-docker-restart)
+describe turning it on, and why a Swarm node cannot.
+
 ```bash
 # from repo root
 docker build -f services/sandbox/Dockerfile .
