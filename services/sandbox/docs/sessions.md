@@ -376,7 +376,13 @@ the one under way, and never waits for it. A release that changes the helpers'
 image makes every organization's helpers drifted, and recreating them takes
 seconds per organization, one organization after another; the sweep goes on
 every minute meanwhile. Organizations adopted while the job runs are
-reconciled by a run right after it.
+reconciled by a run right after it. Each run lists the helpers with their
+state, so an organization whose helpers all stopped costs no inspect; its
+builder's stop time is read once and again only when the cache retention
+could have passed since. With the build cache off (as it is wherever
+sessions run no Docker inside, the `runc` default), a helper list that came
+back empty is read again only hourly, which still finds the helpers a
+deployment that had it on left behind.
 
 ### Capacity and idle reclamation
 

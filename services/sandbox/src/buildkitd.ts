@@ -21,7 +21,7 @@ import {
   waitWithinOperation,
   withOperationBudget,
 } from './operation-budget.ts';
-import { runDocker } from './spawn-util.ts';
+import { dockerTarget, runDocker } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -210,6 +210,15 @@ const idleSince = new Map<string, number>();
 // needs the builder cuts it short instead of waiting for it.
 const idlePrunes = new Map<string, AbortController>();
 let idleSweepInFlight: Promise<BuildkitIdleSweepResult> | undefined;
+/** When a stopped builder last stopped, by organization and immutable
+ * container id, as its inspect said. A container's FinishedAt only moves
+ * forward, so a remembered one is never later than the truth: the retention
+ * cannot have passed before it says so, and no inspect is needed until then.
+ * Entries go once the container leaves the helper inventory. */
+const builderFinishedAt = new Map<string, number>();
+/** Per Docker target: when the helper inventory last came back empty while
+ * the build cache was off. */
+const helperlessSince = new Map<string, number>();
 
 interface BuildkitIdleSweepResult {
   stopped: number;
@@ -550,8 +559,14 @@ function organizationHelperNames(organizationId: string): string[] {
  * SANDBOX_BUILDKITD_CACHE_RETENTION says otherwise. */
 const DEFAULT_CACHE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 
+function finishedAtKey(org: string, containerId: string): string {
+  return `${org}\t${containerId}`;
+}
+
 /** Remove an organization's helpers and caches when its builder has been
- * stopped for longer than the retention and nothing may use them now. */
+ * stopped for longer than the retention and nothing may use them now. The
+ * builder is inspected (its owner and stop time) only once the retention
+ * could have passed since the stop time last read. */
 async function expireStoppedBuildCache(
   cfg: SpawnerConfig,
   org: string,
@@ -562,11 +577,21 @@ async function expireStoppedBuildCache(
   const retentionMs =
     cfg.buildkitdCacheRetentionMs ?? DEFAULT_CACHE_RETENTION_MS;
   if (retentionMs <= 0) return;
+  const key = finishedAtKey(org, builderId);
+  const known = builderFinishedAt.get(key);
+  if (known !== undefined && nowMs - known < retentionMs) return;
   const builder = await inspectBuildkitHelper(
     builderId,
     org,
     buildkitdNetworkName(org),
   );
+  if (
+    builder !== null &&
+    !builder.running &&
+    builder.finishedAtMs !== undefined
+  ) {
+    builderFinishedAt.set(key, builder.finishedAtMs);
+  }
   if (
     builder === null ||
     builder.running ||
@@ -613,11 +638,33 @@ export function sweepIdleBuildkitd(
   return idleSweepInFlight;
 }
 
+/** Helper states `docker ps` reports for a container that is not running
+ * and is not about to: such a helper needs no inspect, since it is never
+ * stopped. Anything else (running, paused, restarting, removing, a state
+ * this code does not know) is inspected before a decision. */
+const STOPPED_HELPER_STATES = new Set(['exited', 'created', 'dead']);
+
+/** With the build cache off nothing in this process starts a helper, so an
+ * empty helper inventory is read again at most this often: often enough to
+ * find what a flip of the setting or a spawner with it on left behind. */
+const HELPERLESS_RECHECK_MS = 60 * 60_000;
+
 async function sweepIdleBuildkitdUnlocked(
   cfg: SpawnerConfig,
   nowMs: number,
   upkeep: BuildCacheUpkeep,
 ): Promise<BuildkitIdleSweepResult> {
+  const target = dockerTarget();
+  const cacheOn = cfg.dockerInContainer && cfg.dockerBuildCache;
+  const helperlessAt = helperlessSince.get(target);
+  if (
+    !cacheOn &&
+    helperlessAt !== undefined &&
+    nowMs >= helperlessAt &&
+    nowMs - helperlessAt < HELPERLESS_RECHECK_MS
+  ) {
+    return { stopped: 0, organizations: 0 };
+  }
   const helpers = await readDockerMetadata([
     'ps',
     '--all',
@@ -625,14 +672,21 @@ async function sweepIdleBuildkitdUnlocked(
     '--filter',
     'label=tale.buildkitd=1',
     '--format',
-    '{{.ID}}\t{{.Names}}\t{{.Label "tale.org"}}',
+    '{{.ID}}\t{{.Names}}\t{{.Label "tale.org"}}\t{{.State}}',
   ]);
   if (helpers.exitCode !== 0)
     throw new Error('buildkitd: cannot inventory idle helpers');
   const byOrg = new Map<string, Map<string, string>>();
+  const stateById = new Map<string, string>();
   for (const line of helpers.stdout.split('\n').filter(Boolean)) {
-    const [id, name, org, extra] = line.split('\t');
-    if (!id || !DOCKER_ID_RE.test(id) || !name || extra !== undefined) {
+    const [id, name, org, state, extra] = line.split('\t');
+    if (
+      !id ||
+      !DOCKER_ID_RE.test(id) ||
+      !name ||
+      !state ||
+      extra !== undefined
+    ) {
       throw new Error('buildkitd: invalid helper inventory during idle sweep');
     }
     // The legacy retirement lane owns global resources. Unknown org labels
@@ -648,11 +702,25 @@ async function sweepIdleBuildkitdUnlocked(
       throw new Error('buildkitd: duplicate helper inventory');
     names.set(name, id);
     byOrg.set(org, names);
+    stateById.set(id, state);
+  }
+  for (const key of builderFinishedAt.keys()) {
+    const [org, id] = key.split('\t');
+    if (
+      org === undefined ||
+      id === undefined ||
+      byOrg.get(org)?.get(buildkitdContainerName(org)) !== id
+    ) {
+      builderFinishedAt.delete(key);
+    }
   }
   if (byOrg.size === 0) {
     idleSince.clear();
+    if (cacheOn) helperlessSince.delete(target);
+    else helperlessSince.set(target, nowMs);
     return { stopped: 0, organizations: 0 };
   }
+  helperlessSince.delete(target);
   const live = await liveBuildkitOrganizations();
   for (const org of idleSince.keys()) {
     if (!byOrg.has(org)) idleSince.delete(org);
@@ -677,11 +745,14 @@ async function sweepIdleBuildkitdUnlocked(
       const runningIds: string[] = [];
       // Validate EVERY candidate before the first stop. Inspect and stop by
       // immutable ID, so same-name replacement cannot redirect a stop to an
-      // uninspected container. Stop builder first, then its mirrors.
+      // uninspected container. Stop builder first, then its mirrors. A
+      // helper the inventory just listed as stopped is no candidate: an
+      // organization whose helpers all stopped long ago costs no inspect.
       for (const name of organizationHelperNames(org)) {
         const id = names.get(name);
         if (
           id &&
+          !STOPPED_HELPER_STATES.has(stateById.get(id) ?? '') &&
           (await inspectBuildkitContainer(
             id,
             org,
