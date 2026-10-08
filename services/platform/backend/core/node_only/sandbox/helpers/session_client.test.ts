@@ -22,6 +22,7 @@ import {
   sessionCancelExec,
   sessionCreate,
   SessionFileTooLargeError,
+  sessionGetExecCheckpoint,
   sessionIsAlive,
   SessionNotFoundError,
   sessionDestroyWorkspace,
@@ -1365,6 +1366,91 @@ describe('drainSessionExecResilient riding out a spawner outage', () => {
 
     expect(await drained).toBeInstanceOf(SessionNotFoundError);
     expect(n).toBe(2);
+  });
+
+  test('a device the hub reports offline is a verdict: the drain fails on its budget, naming the device', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    globalThis.fetch = (async () => {
+      n += 1;
+      return deviceOfflineResponse('dev-9');
+    }) as unknown as typeof fetch;
+    const { events, contact } = contactLog();
+    const window = new AbortController();
+
+    const drained = drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      window.signal,
+      {},
+      { resumeSinceSeq: 3, contact },
+    ).catch((error: unknown) => error);
+    // The linear backoff of the five retries: 0.5 + 1 + 1.5 + 2 + 2.5 s.
+    await vi.advanceTimersByTimeAsync(7_500);
+    // A drain still waiting would end here on the window instead.
+    window.abort();
+
+    const error = await drained;
+    expect(error).toBeInstanceOf(SandboxDeviceOfflineError);
+    expect(error instanceof SandboxDeviceOfflineError && error.deviceId).toBe(
+      'dev-9',
+    );
+    expect(n).toBe(6);
+    // Never an outage: the caller's outage clock does not start.
+    expect(events).toEqual([]);
+  });
+
+  test("a device spawner's own 503 is still ridden out", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    globalThis.fetch = (async () => {
+      n += 1;
+      return n === 1
+        ? new Response(JSON.stringify({ error: 'session_unavailable' }), {
+            status: 503,
+            headers: {
+              'retry-after': '1',
+              'x-tale-sandbox-device': 'dev-9',
+            },
+          })
+        : sseResponse([RESULT_OK]);
+    }) as unknown as typeof fetch;
+    const { events, contact } = contactLog();
+
+    const drained = drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {},
+      { resumeSinceSeq: 3, contact },
+    );
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect((await drained).status).toBe('completed');
+    expect(n).toBe(2);
+    expect(events).toEqual(['lost', 'attached']);
+  });
+
+  test('a checkpoint read of a session whose device is offline names the device after its retries', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    globalThis.fetch = (async () => {
+      n += 1;
+      return deviceOfflineResponse('dev-9');
+    }) as unknown as typeof fetch;
+
+    const read = sessionGetExecCheckpoint('s', 'e').catch(
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(7_500);
+
+    const error = await read;
+    expect(error).toBeInstanceOf(SandboxDeviceOfflineError);
+    expect(isSpawnerTransportFailure(error)).toBe(false);
+    expect(n).toBe(6);
   });
 
   test('without contact, a spawner that stays away still fails the drain on its budget', async () => {

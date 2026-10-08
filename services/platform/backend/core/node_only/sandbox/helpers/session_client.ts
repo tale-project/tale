@@ -406,14 +406,28 @@ export class SpawnerStatusError extends Error {
   }
 }
 
-/** The {@link SpawnerStatusError} a refused stream request is, its body
- * released: a drain that asks again every few seconds must not hold a
- * connection per refused answer until it is collected. Not awaited — a
- * cancel acknowledgement can stall. */
-function spawnerStatusErrorOf(
+/**
+ * The error a refused exec, attach or checkpoint request is. A 503 the
+ * device hub gave because the session's device is not connected is
+ * {@link SandboxDeviceOfflineError}: the spawner did answer, and a device
+ * can stay away for hours (a closed laptop), so a drain fails on it as on
+ * any verdict, naming the device, instead of waiting it out as a spawner
+ * outage. Only a device's 503 is read, to tell that answer from the device
+ * spawner's own "not now". Anything else is a {@link SpawnerStatusError}, its
+ * body released: a drain that asks again every few seconds must not hold a
+ * connection per refused answer until it is collected. The release is not
+ * awaited — a cancel acknowledgement can stall.
+ */
+async function refusedAnswerErrorOf(
   message: string,
   res: Response,
-): SpawnerStatusError {
+): Promise<SpawnerStatusError | SandboxDeviceOfflineError> {
+  if (res.status === 503 && res.headers.get(DEVICE_HEADER) !== null) {
+    return (
+      deviceOfflineIn(res, await safeText(res)) ??
+      new SpawnerStatusError(message, res)
+    );
+  }
   void res.body?.cancel().catch((error: unknown) => {
     console.warn('[session_client] releasing a refused answer failed:', error);
   });
@@ -423,7 +437,9 @@ function spawnerStatusErrorOf(
 /** The answers that say "not now" rather than anything about the exec: the
  * spawner is at capacity (429), nothing answered behind a proxy (502), it is
  * booting, adopting its sessions or could not list them in time (503
- * `session_unavailable`), or a gateway stopped waiting for it (504). */
+ * `session_unavailable`), or a gateway stopped waiting for it (504). A
+ * device's offline answer is no such status: it arrives as
+ * {@link SandboxDeviceOfflineError}. */
 const SPAWNER_NOT_NOW_STATUSES: ReadonlySet<number> = new Set([
   429, 502, 503, 504,
 ]);
@@ -447,7 +463,8 @@ class ExecStreamDroppedError extends Error {
  * and unresolved connections a restart causes included), the stream broke
  * mid-read, the spawner answered "not now" ({@link SPAWNER_NOT_NOW_STATUSES}),
  * or a call to it timed out. Everything else is a verdict: a 404
- * ({@link SessionNotFoundError}), a replay or protocol gap, an error the
+ * ({@link SessionNotFoundError}), a device the hub reports not connected
+ * ({@link SandboxDeviceOfflineError}), a replay or protocol gap, an error the
  * stream itself reported.
  *
  * Wider than the connection codes an acquire or a create waits out
@@ -1833,16 +1850,24 @@ export async function sessionGetExecCheckpoint(
         signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) {
-        // No error body is needed for recovery. Release it rather than
-        // leaving a failed attempt's connection alive through the backoff.
-        void response.body?.cancel().catch(() => {
-          // A failed transport may already have closed its response body.
-        });
-        if (response.status === 404) return null;
+        if (response.status === 404) {
+          // No error body is needed. Release it rather than leaving the
+          // connection alive until it is collected.
+          void response.body?.cancel().catch((error: unknown) => {
+            console.warn(
+              '[session_client] releasing a checkpoint answer failed:',
+              error,
+            );
+          });
+          return null;
+        }
         transientStatus = [408, 429, 500, 502, 503, 504].includes(
           response.status,
         );
-        throw new SpawnerStatusError(
+        // Released by refusedAnswerErrorOf rather than kept alive through the
+        // backoff; a device that is not connected is retried like any 503
+        // and then named, never taken for the spawner being away.
+        throw await refusedAnswerErrorOf(
           `sandbox exec checkpoint read failed (${response.status})`,
           response,
         );
@@ -1965,7 +1990,7 @@ async function sessionExec(
     });
     if (res.status === 404) throw new SessionNotFoundError(sessionId);
     if (!res.ok || !res.body) {
-      throw spawnerStatusErrorOf(
+      throw await refusedAnswerErrorOf(
         `sandbox session exec failed (${res.status})`,
         res,
       );
@@ -2023,7 +2048,7 @@ async function sessionAttachExec(
     });
     if (res.status === 404) throw new SessionNotFoundError(sessionId);
     if (!res.ok || !res.body) {
-      throw spawnerStatusErrorOf(
+      throw await refusedAnswerErrorOf(
         `sandbox session attach failed (${res.status})`,
         res,
       );

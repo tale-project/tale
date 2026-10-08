@@ -285,7 +285,10 @@ still lost ends `running`; the next window follows five seconds later, resumes f
 checkpoint and carries when the outage began. Only an outage that lasts 10 minutes — at most a third
 of runnerd's orphan window (`TALE_EXTERNAL_TURN_DEADLINE_MS`, counted from the last attach) —
 settles the run as failed, once and with the exec cancelled first; the work-turn deadline still
-applies. A 404, a replay or protocol gap and an error the stream itself reports stay verdicts.
+applies. A 404, a replay or protocol gap and an error the stream itself reports stay verdicts, and
+so does the hub's `503 device_offline` for a session on a connected device that went away: the
+spawner answered and the device may stay away for hours, so the drain fails on its budget of five
+consecutive failures (about 7.5 s), naming the device, instead of waiting 10 minutes for it.
 
 A restarted spawner answers before it has re-adopted its sessions. Once its host lock and boot sweep
 are done it opens its listener, and until boot adoption has run and the device hub has loaded its
