@@ -1,10 +1,12 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { standingWorkerSessionId } from '../../core/sandbox/session_naming.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   AGENT_RUN_FEEDBACK_EXCERPT_CHARS,
+  agentRunWorkerNumber,
   cancelAgentRunInTx,
   failAgentRun,
   failAgentRunFromTurn,
@@ -1303,5 +1305,66 @@ describe('the run card tells a final failure from one about to be retried', () =
       'task-1',
     );
     expect(card?.retryPending).toBeUndefined();
+  });
+});
+
+describe('the worker a run reads as working in [TASK-R24]', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+  const run = {
+    agentId: AGENT,
+    sessionId: standingWorkerSessionId(AGENT, 2),
+    status: 'queued',
+    sessionClaimedAt: null as number | null,
+    waitingForCapacityAt: null as number | null,
+  };
+
+  it('names the worker of a running run, or of a queued run that claimed it', () => {
+    expect(agentRunWorkerNumber({ ...run, status: 'running' })).toBe(2);
+    expect(agentRunWorkerNumber({ ...run, sessionClaimedAt: 5 })).toBe(2);
+  });
+
+  it('names none for a run that has not claimed one, waits, or ended', () => {
+    expect(agentRunWorkerNumber(run)).toBeUndefined();
+    expect(
+      agentRunWorkerNumber({
+        ...run,
+        sessionClaimedAt: 5,
+        waitingForCapacityAt: 6,
+      }),
+    ).toBeUndefined();
+    expect(
+      agentRunWorkerNumber({ ...run, status: 'settled', sessionClaimedAt: 5 }),
+    ).toBeUndefined();
+  });
+
+  it('puts the worker on the task’s run card', async () => {
+    const { sql } = fakeSql((text) =>
+      text.includes('LEFT JOIN app.project_agents a')
+        ? [
+            {
+              id: 'run-1',
+              status: 'running',
+              agentId: AGENT,
+              agentName: 'Scribe',
+              harness: 'claude-code',
+              model: 'm',
+              error: null,
+              failureCode: null,
+              resultText: null,
+              waitingForCapacityAt: null,
+              waitingReason: null,
+              sessionId: standingWorkerSessionId(AGENT, 3),
+              sessionClaimedAt: 4,
+              trigger: 'manual',
+              autoRetryAttempt: null,
+              startedBy: 'user-ada',
+              startedAt: 1,
+              settledAt: null,
+            },
+          ]
+        : [],
+    );
+    const card = await getLatestAgentRunCardForTask(sql, 'org-1', 'task-1');
+    expect(card?.worker).toBe(3);
   });
 });

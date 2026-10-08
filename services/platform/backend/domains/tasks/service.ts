@@ -8,6 +8,10 @@ import {
 } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import {
   defaultTaskLabelColor,
@@ -25,6 +29,7 @@ import {
   checkProjectAccess,
   EDITOR_ROLES,
 } from '../../core/projects/access.ts';
+import { projectAgentWorker } from '../../core/sandbox/session_naming.ts';
 import {
   canWorkTask,
   TASK_ANCESTRY_DEPTH_MAX,
@@ -4944,6 +4949,25 @@ export async function deferredAgentKickRefusal(
 const TASK_OPS_INDICATOR_CAP = 50;
 const TASK_OPS_RUN_SCAN_CAP = 100;
 
+/** One live agent run, as the board shows it beside its card. */
+export interface TaskOpsRun {
+  taskId: string;
+  runId: string;
+  agentId: string;
+  status: 'queued' | 'running';
+  /** It waits for room: a worker, the host, a Destroy, or its sandbox. */
+  waiting: boolean;
+  /** Why it waits, while it waits and a reason was kept. */
+  waitingReason?: AgentRunWaitingReason;
+  /** When it was asked for. */
+  startedAt: number;
+  /** When it began work in its sandbox. */
+  launchedAt?: number;
+  /** The worker it works in, once it took one: its number among the
+   * agent's workers (or the member's, for a run a member started). */
+  worker?: number;
+}
+
 export interface TaskOpsIndicators {
   runningTaskIds: string[];
   askingTaskIds: string[];
@@ -4953,6 +4977,74 @@ export interface TaskOpsIndicators {
     requestedFor?: string;
     reviewer: TaskReviewRecipient | null;
   }[];
+  /** Live agent runs, running first, then waiting and queued ones oldest
+   * first; at most {@link TASK_OPS_INDICATOR_CAP}. */
+  runs: TaskOpsRun[];
+  /** More live runs exist than `runs` lists. A card whose task is missing
+   * from a truncated list may still have a run, waiting or working: read it
+   * as unknown, never as idle, and count the list as "50+". */
+  runsTruncated: boolean;
+}
+
+/** The live agent runs of the given projects (`TaskOpsIndicators.runs`):
+ * one bounded read, the cap plus one row to tell a truncated list. */
+async function readLiveAgentRuns(
+  sql: Sql,
+  organizationId: string,
+  projectIds: readonly string[],
+): Promise<Pick<TaskOpsIndicators, 'runs' | 'runsTruncated'>> {
+  const rows = await sql<
+    {
+      runId: string;
+      taskId: string;
+      agentId: string;
+      status: 'queued' | 'running';
+      sessionId: string;
+      claimed: boolean;
+      waiting: boolean;
+      waitingReason: string | null;
+      startedAt: number;
+      launchedAt: number | null;
+    }[]
+  >`
+    SELECT id AS "runId", task_id AS "taskId", agent_id AS "agentId", status,
+           session_id AS "sessionId",
+           session_claimed_at_ms IS NOT NULL AS claimed,
+           waiting_for_capacity_at_ms IS NOT NULL AS waiting,
+           CASE WHEN waiting_for_capacity_at_ms IS NOT NULL
+             THEN waiting_reason END AS "waitingReason",
+           started_at_ms::float8 AS "startedAt",
+           launched_at_ms::float8 AS "launchedAt"
+    FROM app.project_agent_runs
+    WHERE org_id = ${organizationId} AND project_id = ANY(${projectIds})
+      AND status IN ('queued', 'running')
+    ORDER BY (status = 'running') DESC, started_at_ms, seq
+    LIMIT ${TASK_OPS_INDICATOR_CAP + 1}
+  `;
+  const runs = rows.slice(0, TASK_OPS_INDICATOR_CAP).map((row): TaskOpsRun => {
+    const waiting = row.status === 'queued' && row.waiting;
+    // A worker is the run's only once it holds one: running, or claimed
+    // and not given back by a park.
+    const worker =
+      row.status === 'running' || (row.claimed && !waiting)
+        ? projectAgentWorker(row.agentId, row.sessionId)?.worker
+        : undefined;
+    const run: TaskOpsRun = {
+      taskId: row.taskId,
+      runId: row.runId,
+      agentId: row.agentId,
+      status: row.status,
+      waiting,
+      startedAt: row.startedAt,
+    };
+    if (waiting && isAgentRunWaitingReason(row.waitingReason)) {
+      run.waitingReason = row.waitingReason;
+    }
+    if (row.launchedAt !== null) run.launchedAt = row.launchedAt;
+    if (worker !== undefined) run.worker = worker;
+    return run;
+  });
+  return { runs, runsTruncated: rows.length > TASK_OPS_INDICATOR_CAP };
 }
 
 function projectPendingReviews(
@@ -5030,6 +5122,7 @@ export async function getTaskOpsIndicators(
     runningTaskIds,
     askingTaskIds,
     pendingReviews: projectPendingReviews(pending),
+    ...(await readLiveAgentRuns(sql, auth.organizationId, [projectId])),
   };
 }
 
@@ -5044,7 +5137,13 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
 ): Promise<TaskOpsIndicators> {
   const projects = await listProjects(sql, auth, { summary: true });
   if (projects.length === 0) {
-    return { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
+    return {
+      runningTaskIds: [],
+      askingTaskIds: [],
+      pendingReviews: [],
+      runs: [],
+      runsTruncated: false,
+    };
   }
   const projectIds = projects.map((project) => project.id);
   const running = await sql<{ taskId: string }[]>`
@@ -5062,6 +5161,7 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
     runningTaskIds: running.map((row) => row.taskId),
     askingTaskIds: [],
     pendingReviews: projectPendingReviews(pending),
+    ...(await readLiveAgentRuns(sql, auth.organizationId, projectIds)),
   };
 }
 

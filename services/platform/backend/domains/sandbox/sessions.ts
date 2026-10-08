@@ -1,6 +1,11 @@
 import type { SandboxQuotaConfig } from '@tale/shared/schemas/governance';
+import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import { readCheckpoints } from '../../core/automations/checkpoints.ts';
 import type { TurnConnectorCaller } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import {
@@ -18,7 +23,10 @@ import {
   SANDBOX_SESSION_MAX_LIFETIME_MS,
   WORKFLOW_AGENT_OP_KIND,
 } from '../../core/sandbox/session_constants.ts';
-import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
+import {
+  projectAgentWorker,
+  sessionIdForWorkflowExecution,
+} from '../../core/sandbox/session_naming.ts';
 import type { TurnOpRef } from '../../core/sandbox/tool_names.ts';
 import { SANDBOX_SESSION_HELD_REASON } from '../../core/tasks/run_park_reason.ts';
 import { toJson } from '../../db/sql.ts';
@@ -740,6 +748,10 @@ export async function listRunningOpsBySession(
 export interface SandboxCurrentOpView {
   kind?: 'task-agent' | 'workflow-agent';
   taskId?: string;
+  /** The task a project agent's op works, as a reader knows it: its key
+   * (`KEY-12`, when its project has one) and title. Absent for a task gone
+   * since. */
+  task?: { id: string; projectId: string; key?: string; title: string };
   workflowRunId?: string;
   threadId?: string;
   execId: string;
@@ -761,6 +773,10 @@ export interface SandboxSessionView {
   ownerEmail?: string | null;
   ownerLabel?: string | null;
   agentKind: string | null;
+  /** Which of its agent's workers a project agent's session is: the
+   * agent's own (`agent`) or one a member's runs work in (`member`), and its
+   * number within that family. Absent for any other session. */
+  worker?: { number: number; scope: 'agent' | 'member' };
   pinned: boolean;
   createdAt: number;
   lastActivityAt: number | null;
@@ -900,7 +916,7 @@ export async function listSandboxViewsForOrg(
     );
     runningOps.sort((a, b) => a.startedAt - b.startedAt);
     const owner = userById.get(session.createdBy);
-    return {
+    const view: SandboxSessionView = {
       sessionId: session.sessionId,
       ownerType: session.ownerType,
       ownerId: session.ownerId,
@@ -918,6 +934,14 @@ export async function listSandboxViewsForOrg(
       runningOps,
       totalSpentCents,
     };
+    const worker =
+      session.ownerType === 'project_agent'
+        ? projectAgentWorker(session.ownerId, session.sessionId)
+        : null;
+    if (worker !== null) {
+      view.worker = { number: worker.worker, scope: worker.scope };
+    }
+    return view;
   });
   // Resolve task ownership only for the displayed operations (the lead op
   // plus every running one), in one org-scoped read. Joining every
@@ -941,23 +965,47 @@ export async function listSandboxViewsForOrg(
   }
   const taskOps = [...taskOpsByKey.values()];
   if (taskOps.length > 0) {
+    // The task's key and title ride the same read: an Owner or Admin reads
+    // every project of the organization, so naming the task leaks nothing.
     const runs = await sql<
-      { sessionId: string; execId: string; taskId: string }[]
+      {
+        sessionId: string;
+        execId: string;
+        taskId: string;
+        projectId: string | null;
+        title: string | null;
+        number: number | null;
+        projectKey: string | null;
+      }[]
     >`
-      SELECT DISTINCT ON (session_id, exec_id)
-        session_id AS "sessionId", exec_id AS "execId", task_id AS "taskId"
-      FROM app.project_agent_runs
-      WHERE org_id = ${organizationId}
-        AND session_id = ANY(${taskOps.map((entry) => entry.sessionId)})
-        AND exec_id = ANY(${taskOps.map((entry) => entry.op.execId)})
-      ORDER BY session_id, exec_id, seq DESC
+      SELECT DISTINCT ON (r.session_id, r.exec_id)
+        r.session_id AS "sessionId", r.exec_id AS "execId",
+        r.task_id AS "taskId", t.project_id AS "projectId", t.title,
+        t.number, p.key AS "projectKey"
+      FROM app.project_agent_runs r
+      LEFT JOIN app.tasks t ON t.id = r.task_id AND t.org_id = r.org_id
+      LEFT JOIN app.projects p ON p.id = t.project_id AND p.org_id = r.org_id
+      WHERE r.org_id = ${organizationId}
+        AND r.session_id = ANY(${taskOps.map((entry) => entry.sessionId)})
+        AND r.exec_id = ANY(${taskOps.map((entry) => entry.op.execId)})
+      ORDER BY r.session_id, r.exec_id, r.seq DESC
     `;
     const tasks = new Map(
-      runs.map((run) => [`${run.sessionId}:${run.execId}`, run.taskId]),
+      runs.map((run) => [`${run.sessionId}:${run.execId}`, run]),
     );
     for (const { sessionId, op } of taskOps) {
-      const taskId = tasks.get(`${sessionId}:${op.execId}`);
-      if (taskId !== undefined) op.taskId = taskId;
+      const run = tasks.get(`${sessionId}:${op.execId}`);
+      if (run === undefined) continue;
+      op.taskId = run.taskId;
+      if (run.projectId !== null && run.title !== null) {
+        const key = formatTaskIdentifier(run.projectKey, run.number);
+        op.task = {
+          id: run.taskId,
+          projectId: run.projectId,
+          ...(key !== null ? { key } : {}),
+          title: run.title,
+        };
+      }
     }
   }
   views.sort((a, b) => {
@@ -965,6 +1013,41 @@ export async function listSandboxViewsForOrg(
     return b.createdAt - a.createdAt;
   });
   return views;
+}
+
+/** How many of the organization's agent runs wait for room, all of them
+ * counted (no page cap), by why they wait: the demand behind a full limit
+ * of agent workers. `unknown` counts a run parked without a kept reason. */
+export interface WaitingAgentRunCounts {
+  total: number;
+  byReason: Record<AgentRunWaitingReason | 'unknown', number>;
+}
+
+export async function countWaitingAgentRuns(
+  sql: Sql,
+  organizationId: string,
+): Promise<WaitingAgentRunCounts> {
+  const rows = await sql<{ reason: string | null; count: number }[]>`
+    SELECT waiting_reason AS reason, count(*)::int AS count
+    FROM app.project_agent_runs
+    WHERE org_id = ${organizationId} AND status = 'queued'
+      AND waiting_for_capacity_at_ms IS NOT NULL
+    GROUP BY waiting_reason
+  `;
+  const byReason: Record<AgentRunWaitingReason | 'unknown', number> = {
+    org_limit: 0,
+    host: 0,
+    destroy_pending: 0,
+    exec_limit: 0,
+    unknown: 0,
+  };
+  let total = 0;
+  for (const row of rows) {
+    const reason = isAgentRunWaitingReason(row.reason) ? row.reason : 'unknown';
+    byReason[reason] += row.count;
+    total += row.count;
+  }
+  return { total, byReason };
 }
 
 /**

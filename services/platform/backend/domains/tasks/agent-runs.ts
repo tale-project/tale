@@ -9,6 +9,7 @@ import {
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
+import { projectAgentWorker } from '../../core/sandbox/session_naming.ts';
 import {
   dropPartialTaskMention,
   type MentionSource,
@@ -111,6 +112,9 @@ export interface AgentRunRow {
   /** Why the run waits (migration 0167) — only while it is parked; null
    * otherwise, and on a park that kept no reason. */
   waitingReason: AgentRunWaitingReason | null;
+  /** When the run took its worker (migration 0167); null while it holds
+   * none — before its start claimed one, and after a park gave it back. */
+  sessionClaimedAt: number | null;
   agentSessionId: string | null;
   startedBy: string;
   startedAt: number;
@@ -141,6 +145,7 @@ const RUN_COLUMNS = `
   result_message_id AS "resultMessageId", trigger, feedback,
   waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
   ${PARKED_WAITING_REASON_SQL} AS "waitingReason",
+  session_claimed_at_ms::float8 AS "sessionClaimedAt",
   agent_session_id AS "agentSessionId", started_by AS "startedBy",
   started_at_ms::float8 AS "startedAt", launched_at_ms::float8 AS "launchedAt",
   deadline_at_ms::float8 AS "deadlineAt", settled_at_ms::float8 AS "settledAt",
@@ -149,6 +154,29 @@ const RUN_COLUMNS = `
   started_via_automation AS "startedViaAutomation",
   started_via_agent_id AS "startedViaAgentId"
 `;
+
+/**
+ * The worker a run works in, as its number among its agent's workers (or
+ * the member's, for a run a member started): only while it holds one —
+ * running, or queued with a claim and not parked. Undefined otherwise: a
+ * run that has not started yet, waits, or has ended names no worker.
+ */
+export function agentRunWorkerNumber(run: {
+  agentId: string;
+  sessionId: string;
+  status: string;
+  sessionClaimedAt: number | null;
+  waitingForCapacityAt: number | null;
+}): number | undefined {
+  const holds =
+    run.status === 'running' ||
+    (run.status === 'queued' &&
+      run.sessionClaimedAt !== null &&
+      run.waitingForCapacityAt === null);
+  return holds
+    ? projectAgentWorker(run.agentId, run.sessionId)?.worker
+    : undefined;
+}
 
 /** How a run was kicked — the `trigger` column (migrations 0021, 0139). */
 export type TaskAgentRunTrigger =
@@ -1071,6 +1099,8 @@ export interface TaskAgentRunCard {
   waitingForCapacity?: boolean;
   /** Why the run waits, while it is parked and a reason was kept. */
   waitingReason?: AgentRunWaitingReason;
+  /** The worker it works in, while it holds one ({@link agentRunWorkerNumber}). */
+  worker?: number;
   trigger?: string;
   autoRetryAttempt?: number;
   autoRetryMax: number;
@@ -1098,6 +1128,8 @@ export async function getLatestAgentRunCardForTask(
       resultText: string | null;
       waitingForCapacityAt: number | null;
       waitingReason: string | null;
+      sessionId: string;
+      sessionClaimedAt: number | null;
       trigger: string | null;
       autoRetryAttempt: number | null;
       startedBy: string;
@@ -1112,6 +1144,8 @@ export async function getLatestAgentRunCardForTask(
            CASE WHEN r.status = 'queued'
              AND r.waiting_for_capacity_at_ms IS NOT NULL
              THEN r.waiting_reason END AS "waitingReason",
+           r.session_id AS "sessionId",
+           r.session_claimed_at_ms::float8 AS "sessionClaimedAt",
            r.trigger, r.auto_retry_attempt AS "autoRetryAttempt",
            r.started_by AS "startedBy",
            r.started_at_ms::float8 AS "startedAt",
@@ -1128,6 +1162,7 @@ export async function getLatestAgentRunCardForTask(
     run.status === 'failed' && run.agentName !== null
       ? await failedRunRetryPending(sql, taskId, run.id)
       : false;
+  const worker = agentRunWorkerNumber(run);
   return {
     _id: run.id,
     status: run.status,
@@ -1143,6 +1178,7 @@ export async function getLatestAgentRunCardForTask(
     ...(isAgentRunWaitingReason(run.waitingReason)
       ? { waitingReason: run.waitingReason }
       : {}),
+    ...(worker !== undefined ? { worker } : {}),
     ...(run.trigger !== null ? { trigger: run.trigger } : {}),
     ...(run.autoRetryAttempt !== null
       ? { autoRetryAttempt: run.autoRetryAttempt }
