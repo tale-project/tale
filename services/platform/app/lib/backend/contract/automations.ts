@@ -102,6 +102,10 @@ export interface AutomationsContract {
       organizationId: string;
       runId: string;
       attemptId: string;
+      /** The attempt the choice is about (`RunInDoubt.attempt`): a write run
+       * again keeps its `attemptId`, so a choice about an earlier attempt
+       * is refused (409) instead of deciding a later one. */
+      attempt: number;
       resolution: InDoubtResolution;
     };
     returns: null;

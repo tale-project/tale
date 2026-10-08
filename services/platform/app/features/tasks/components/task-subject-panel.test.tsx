@@ -676,6 +676,7 @@ describe('TaskSubjectPanel', () => {
       organizationId: 'org_1',
       runId: 'run_1',
       attemptId: 'attempt_1',
+      attempt: 1,
       resolution: 'skip',
     });
   });

@@ -68,6 +68,16 @@ function stringArg(args: Record<string, unknown>, key: string): string {
   return value;
 }
 
+/** The attempt an in-doubt decision is about: without it the door could
+ * not tell an earlier attempt of a write from a later one. */
+function attemptArg(args: Record<string, unknown>): number {
+  const value = args.attempt;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) {
+    throw new Error('Missing attempt for adapted write');
+  }
+  return value;
+}
+
 /** Automation names are '/'-separated paths — encode per segment. */
 export function namePath(name: string): string {
   return name.split('/').map(encodeURIComponent).join('/');
@@ -473,7 +483,10 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
         `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/in-doubt/${encodeURIComponent(stringArg(args, 'attemptId'))}`,
         {
           orgId: requireOrg(args, ctx),
-          body: { resolution: stringArg(args, 'resolution') },
+          body: {
+            resolution: stringArg(args, 'resolution'),
+            attempt: attemptArg(args),
+          },
         },
       ).then(() => null),
     invalidate: invalidateRuns,

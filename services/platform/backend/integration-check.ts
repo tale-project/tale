@@ -13506,6 +13506,7 @@ async function checkAutomationRunLifecycle(
       organizationId: orgId,
       runId: ledgerId,
       attemptId: open?.attemptId ?? '',
+      attempt: open?.attempt ?? 0,
       resolution: 'skip',
       actor: 'itest-user',
     }),
@@ -13524,6 +13525,7 @@ async function checkAutomationRunLifecycle(
         organizationId: orgId,
         runId: ledgerId,
         attemptId: open?.attemptId ?? '',
+        attempt: open?.attempt ?? 0,
         resolution: 'retry',
         actor: 'itest-user',
       }),
@@ -13551,6 +13553,153 @@ async function checkAutomationRunLifecycle(
         secondDecision,
       ),
     `race=[${raceKinds.join(',')}] (want go,in_doubt), stale=${staleBegin.kind}, staleRows=${goneItem[0]?.count} (want 0), reused=${reused.kind} (want done), open item=${open?.itemIndex} (want 0), audit=${decidedAudit[0]?.count} (want 1), events=${decidedEvents.length}, steps=${decidedSteps} (want 1), second decision=${secondDecision} (want a refusal)`,
+  );
+
+  // ---- #4g3: a decision about an earlier attempt of a write [AUTO-R19].
+  // Run it again keeps the write's row and takes the next number; when that
+  // attempt is interrupted too, the run parks on the same row again. A
+  // choice made about attempt 1 that lands only now (a second tab, a slow
+  // network) is refused: it never sends the write once more, skips it (its
+  // output lost) or fails the run without anyone deciding about attempt 2.
+  // Stamped by a newer engine, so no worker of this one steps the run while
+  // the probe moves it by hand: a claim defers, and only records that once.
+  const staleId = await insertProbeRun('itest:stale-decision', {
+    status: 'running',
+    mode: 'live',
+  });
+  await sql`
+    UPDATE app.automation_runs SET
+      engine_protocol = ${protocol.ENGINE_PROTOCOL + 98}
+    WHERE id = ${staleId}
+  `;
+  /** The walker at `epoch` holds a live lease on the run. */
+  const holdStale = (epoch: number) => sql`
+    UPDATE app.automation_runs SET
+      status = 'running', detail = NULL, wake_at_ms = NULL,
+      claim_epoch = ${epoch}, lease_epoch = ${epoch},
+      lease_owner = ${instance.instanceId()},
+      lease_expires_at_ms = ${Date.now() + 60_000}
+    WHERE id = ${staleId}
+  `;
+  /** A walker found the write open and parked the run on it. */
+  const parkStale = () => sql`
+    UPDATE app.automation_runs SET
+      status = 'waiting', detail = 'in_doubt:send', lease_owner = NULL,
+      lease_expires_at_ms = NULL, wake_at_ms = ${Date.now() + 3_600_000}
+    WHERE id = ${staleId}
+  `;
+  /** The walker at `epoch` begins the write (or learns what it left). */
+  const beginStale = async (epoch: number) => {
+    await holdStale(epoch);
+    return ledger.beginNodeAttempt(sql, {
+      ...beginArgs(epoch, 0),
+      runId: staleId,
+    });
+  };
+  const firstSend = await beginStale(3);
+  const firstPark = await beginStale(4);
+  await parkStale();
+  const firstOpen = await ledger.readOpenInDoubt(sql, orgId, staleId);
+  const decideStale = async (
+    attempt: number,
+    resolution: 'retry' | 'skip' | 'fail',
+  ): Promise<string> => {
+    try {
+      await sql.begin((tx) =>
+        ledger.resolveInDoubtInTx(tx, {
+          organizationId: orgId,
+          runId: staleId,
+          attemptId: firstOpen?.attemptId ?? '',
+          attempt,
+          resolution,
+          actor: 'itest-user',
+        }),
+      );
+      return 'decided';
+    } catch (error) {
+      return error instanceof store.AutomationError
+        ? `${error.code}:${error.status}`
+        : String(error);
+    }
+  };
+  // Mia's tab: Run it again, about attempt 1. The next walker sends the
+  // write again as attempt 2, and its server stops mid-call as well.
+  const retried = await decideStale(1, 'retry');
+  const secondSend = await beginStale(5);
+  const secondPark = await beginStale(6);
+  await parkStale();
+  const secondOpen = await ledger.readOpenInDoubt(sql, orgId, staleId);
+  const staleEventsBefore = await runEvents(staleId, 'in_doubt_resolved');
+  const staleStepsBefore = await stepJobs(staleId);
+  // Noah's tab still shows attempt 1: each of its choices lands late.
+  const staleRefusals = [
+    await decideStale(1, 'retry'),
+    await decideStale(1, 'skip'),
+    await decideStale(1, 'fail'),
+  ];
+  const staleRow = await sql<
+    {
+      attempt: number;
+      status: string;
+      resolution: string | null;
+      output: unknown;
+    }[]
+  >`
+    SELECT attempt, status, resolution, output
+    FROM app.automation_node_attempts
+    WHERE id = ${firstOpen?.attemptId ?? ''}
+  `;
+  const staleAudit = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${staleId}
+      AND action = 'automation.run.in_doubt_resolved'
+  `;
+  const staleEventsAfter = await runEvents(staleId, 'in_doubt_resolved');
+  const staleStepsAfter = await stepJobs(staleId);
+  const stillOpen = await ledger.readOpenInDoubt(sql, orgId, staleId);
+  // The next walker still finds attempt 2 undecided, and a choice about
+  // attempt 2 itself is taken.
+  const thirdPark = await beginStale(7);
+  await parkStale();
+  const current = await decideStale(2, 'skip');
+  const currentRow = await sql<
+    { attempt: number; resolution: string | null }[]
+  >`
+    SELECT attempt, resolution FROM app.automation_node_attempts
+    WHERE id = ${firstOpen?.attemptId ?? ''}
+  `;
+  await cancelProbeRun(staleId);
+  const staleAt = staleRow[0];
+  record(
+    'a decision about an earlier attempt of a write is refused once the run waits on a later one: no write, no output discarded, the later attempt still undecided [AUTO-R19]',
+    firstSend.kind === 'go' &&
+      firstSend.attempt === 1 &&
+      firstPark.kind === 'in_doubt' &&
+      firstOpen?.attempt === 1 &&
+      retried === 'decided' &&
+      secondSend.kind === 'go' &&
+      secondSend.attempt === 2 &&
+      secondPark.kind === 'in_doubt' &&
+      secondOpen?.attemptId === firstOpen.attemptId &&
+      secondOpen.attempt === 2 &&
+      staleRefusals.every(
+        (answer) => answer === 'IN_DOUBT_ALREADY_RESOLVED:409',
+      ) &&
+      staleAt?.attempt === 2 &&
+      staleAt.status === 'started' &&
+      staleAt.resolution === null &&
+      staleAt.output === null &&
+      Number(staleAudit[0]?.count ?? '0') === 1 &&
+      staleEventsBefore.length === 1 &&
+      staleEventsAfter.length === 1 &&
+      staleStepsAfter === staleStepsBefore &&
+      stillOpen?.attempt === 2 &&
+      thirdPark.kind === 'in_doubt' &&
+      thirdPark.attempt === 2 &&
+      current === 'decided' &&
+      currentRow[0]?.attempt === 2 &&
+      currentRow[0]?.resolution === 'skip',
+    `begins=${firstSend.kind},${firstPark.kind} (want go,in_doubt), open=${firstOpen?.attempt} (want 1), retry=${retried} (want decided), again=${secondSend.kind}@${secondSend.kind === 'go' ? secondSend.attempt : '-'},${secondPark.kind} (want go@2,in_doubt), reparked=${secondOpen?.attempt} same row=${secondOpen?.attemptId === firstOpen?.attemptId} (want 2 true), late choices=[${staleRefusals.join(',')}] (want IN_DOUBT_ALREADY_RESOLVED:409 x3), row=${staleAt?.attempt}/${staleAt?.status}/${String(staleAt?.resolution)}/${JSON.stringify(staleAt?.output)} (want 2/started/null/null), audit=${staleAudit[0]?.count} (want 1), events=${staleEventsBefore.length}→${staleEventsAfter.length} (want 1→1), steps=${staleStepsBefore}→${staleStepsAfter} (want unchanged), still open=${stillOpen?.attempt} (want 2), next walker=${thirdPark.kind}@${thirdPark.kind === 'in_doubt' ? thirdPark.attempt : '-'} (want in_doubt@2), current choice=${current} → ${currentRow[0]?.attempt}/${String(currentRow[0]?.resolution)} (want decided → 2/skip)`,
   );
 
   // ---- #4g2: a write that ends after another walker parked the run on it
