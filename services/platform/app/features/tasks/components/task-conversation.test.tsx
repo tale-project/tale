@@ -3,7 +3,9 @@ import {
   act,
   render as renderWithoutShell,
   screen,
+  type RenderOptions,
 } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { useSyncExternalStore } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,7 +13,7 @@ import type { TaskActivityRow } from '../utils/task-timeline';
 import { TaskConversation } from './task-conversation';
 
 /** The app shell provides tooltips; a comment's icon actions carry one. */
-const render: typeof renderWithoutShell = (ui, options) =>
+const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
   renderWithoutShell(ui, { wrapper: TooltipProvider, ...options });
 
 const DAY = 24 * 60 * 60 * 1000;

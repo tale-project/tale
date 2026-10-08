@@ -8,7 +8,9 @@ import {
   screen,
   waitFor,
   within,
+  type RenderOptions,
 } from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { useRef, useSyncExternalStore } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { userEvent } from 'vitest/browser';
@@ -24,7 +26,7 @@ import { TaskTimeline } from './task-timeline';
 import '@/app/globals.css';
 
 /** The app shell provides tooltips; a comment's icon actions carry one. */
-const render: typeof renderWithoutShell = (ui, options) =>
+const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
   renderWithoutShell(ui, { wrapper: TooltipProvider, ...options });
 
 const state = vi.hoisted(() => ({
