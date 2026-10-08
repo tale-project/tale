@@ -122,6 +122,59 @@ function exampleDocumentYaml(): string {
     .join('\n');
 }
 
+/** The four core node kinds — the grammar the reference teaches, not catalog
+ * capabilities. */
+export type CoreNodeKind = 'transform' | 'llm' | 'agent' | 'subautomation';
+
+/**
+ * Each core node kind's own section of the reference, as the reference
+ * numbers it. `get_catalog` narrowed to a core kind answers its section, so
+ * an agent asking the catalog about `agent` reads the same words the
+ * reference gives it.
+ */
+export const CORE_NODE_KIND_REFERENCE: Readonly<Record<CoreNodeKind, string>> =
+  {
+    transform: `1. transform — pure JavaScript for reshaping data (no network, no imports).
+   "code" is a function body; "input" is this node's own evaluated input object (define what the code needs). It MUST return a value.`,
+    llm: `2. llm — call a language model. "model" is required and always explicit — the engine never picks one for you; it must be a model one of the organization's connected providers serves (validate_automation warns LLM_MODEL_UNAVAILABLE otherwise, and a live run fails at the node).
+   {id, type: llm, model: "<model id>", system?: "...", prompt: "... {{ nodes.get.output }} ..."} → output {text: string}
+   With "outputSchema" (a JSON Schema), the output becomes the schema-shaped OBJECT instead — this is the one bridge from free text to structured data, and the fix for "an unstructured output has no fields".`,
+    agent: `3. agent — run ONE turn of an external coding agent (Claude Code, Codex, …) in the sandbox. "model" and "prompt" are required and explicit.
+   {id, type: agent, model: "<model id>", modelProvider?: "<provider slug>", prompt: "...", system?: "...", harness?: "claude-code", skills?: ["<skill slug>"], connectors?: ["<connector slug>"], tools?: ["task_find", "task_create", …], secrets?: ["GLITCHTIP_TOKEN"], files?: {"setup": "{{ input.setupFolderId }}"}} → output {text, files: [{name, storageId, size, contentType}], status}
+   "modelProvider" pins which configured provider serves (and bills) the model, honored fail-closed at run time. Set it only when the user names a provider; omit it otherwise — the host resolves one.
+   Name only what the organization has: validate_automation warns when a skill is not one a run of the automation can reach (SKILL_UNKNOWN), a connector is not connected (CONNECTOR_NOT_CONNECTED), a secret was never stored (SECRET_UNKNOWN) or the harness cannot run here (HARNESS_UNKNOWN). A missing skill or harness fails the step, a missing connector leaves it without that app, a missing secret is simply absent; list_skills, list_connectors, list_agent_secrets and list_harnesses show what exists.
+   "files" stages folders/documents into the agent workspace; whatever the agent writes to its output directory comes back as output.files. "tools" grants platform workspace tools — reads (task_find, task_get, document_find, knowledge_entry_find, contact_find, product_find, website_find) and writes (task_create, task_comment, task_update_status, task_upsert_by_external_ref, document_create); a write grant is the standing authorization (no per-call approval). To put a project's existing agent to work, use a task.start_agent capability node, not an agent node: the task_start_agent tool is a project agent's own and is never granted here. "secrets" injects the org's named agentSecrets as environment variables (a scoped API key for a service with no connector). Use llm for a one-shot completion; use agent ONLY when the step needs tools, staged files, or multiple turns — it is slower and costs more.
+   Task and workflow agents preserve the task title/description language for writes and operator questions, using the organization's default agent language when no human-authored task language is clear. UI locale, generated title templates and workflow examples do not select it. For translated UI progress, task.comment and task_comment accept bodyByLocale alongside canonical body: en/de/fr are required, extra language or language-region keys are allowed, and each translation is nonblank with a 10,000-character limit. Readers select exact locale, base language, en, then body. Prefer predefined translated progress text; for variable reports request structured output containing body and equivalent bodyByLocale values.`,
+    subautomation: `4. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
+   A scheduled issue import that must cover every open issue imports one batch per occurrence and keeps its place between them: read the position with task.get_import_cursor, pass its cursor as the importer's cursor, then task.save_import_cursor with revision = the read's revision and next = the importer's nextCursor ('' once drained); the revision is the compare token, never the cursor text, so a stale save from an earlier pass or from before a restart is refused. Give all three onError: continue — a failed import saves nothing, so the next occurrence retries the same batch.`,
+  };
+
+/**
+ * How to read what `validate_automation` answers — the issue fields, the
+ * analysis and the types. Part of the authoring reference, and the opening of
+ * the validation reference the MCP endpoint serves on its own
+ * (`lib/mcp/docs/validation.ts`).
+ */
+export function validationResultsReference(): string {
+  return `## Reading validation results
+validate_automation answers {valid, errors, warnings, analysis, types}. Errors block saving and deploying; warnings never do. Every issue is:
+- code: the stable key to branch on (REF_UNKNOWN_FIELD, MAYBE_NULL, …); message and hint are English and stable, but match on code, never on the text.
+- nodeId: the node it is about, when there is one.
+- at.pointer: an RFC 6901 JSON Pointer into the document you sent ("/nodes/2/input/to", "/output/summary", "" for the whole document).
+- at.range: [start, end) — UTF-16 offsets into the STRING at at.pointer (a template, a condition or code), when the issue is one expression inside it.
+- at.subject: "key" when the pointer names a member that should not exist, "missing" when it names one that should and does not (then only its parent exists).
+- params: the facts the sentence is built from (node, field, ref, key, suggestion, …) — read them instead of parsing message.
+- related: other places involved: the node read ("source"), the node whose condition or failure causes it ("cause"), an elseOf partner, readers, the members of a cycle.
+
+analysis describes how runs can go:
+- analysis.nodes[id]: reachable (it runs on at least one path), alwaysRuns, maySkip (each way it is skipped: reason when | else | upstream | error, via the skipped node it reads), failureHandling ("halts": a failure ends the run there; "continues": onError: continue), reads/readBy (data and control references).
+- analysis.paths: success (the possible ways a run succeeds — the conditions consulted, the nodes that ran and were skipped; at most 32 listed), count, halts (the nodes whose failure ends the run), truncated (too many conditions to list them).
+- analysis.output: which nodes the output reads, and whether it may be empty.
+types is the JSON Schema of the data: types.inputs (the run input), types.nodes[id].output (what nodes.<id>.output holds when it ran; item under forEach; ts, the same as a TypeScript type) and types.output (what a run returns). get_catalog gives each capability's outputSchema the same way.
+
+A skipped node's output is null. A node that reads a skipped node in its input, prompt, system, files, code or forEach is skipped too (upstream), so alternative branches meet in the automation "output", never in a node; a read in when or repeatUntil does not skip the node — the condition runs and reads null. Reading a field of a node that may be skipped — or that continues on error — fails where nothing guards it (MAYBE_NULL, UNCAUGHT_FAILURE), and so does placing its value inside text, even through ?. ("Summary: {{ nodes.x.output?.text }}"). Guard such a read with optional chaining and a fallback: "{{ nodes.check.output?.ok ?? false }}" in a condition, "{{ nodes.summary.output?.text ?? null }}" in the output.`;
+}
+
 /**
  * The automation authoring reference — the grammar and the method table,
  * addressed to whoever reads it and instructing nobody. Served whole by the
@@ -205,44 +258,19 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
 - "repeatUntil": "{{ <boolean> }}" with "maxRepeats": <1..20> — re-run the node until true (poll async jobs). The in-flight result is available as output (or this node's own nodes.<id>.output).
 - "onError": "continue" — record the failure, skip dependents, keep running (default stops the run).
 
-1. transform — pure JavaScript for reshaping data (no network, no imports).
-   "code" is a function body; "input" is this node's own evaluated input object (define what the code needs). It MUST return a value.
+${CORE_NODE_KIND_REFERENCE.transform}
 
-2. llm — call a language model. "model" is required and always explicit — the engine never picks one for you; it must be a model one of the organization's connected providers serves (validate_automation warns LLM_MODEL_UNAVAILABLE otherwise, and a live run fails at the node).
-   {id, type: llm, model: "<model id>", system?: "...", prompt: "... {{ nodes.get.output }} ..."} → output {text: string}
-   With "outputSchema" (a JSON Schema), the output becomes the schema-shaped OBJECT instead — this is the one bridge from free text to structured data, and the fix for "an unstructured output has no fields".
+${CORE_NODE_KIND_REFERENCE.llm}
 
-3. agent — run ONE turn of an external coding agent (Claude Code, Codex, …) in the sandbox. "model" and "prompt" are required and explicit.
-   {id, type: agent, model: "<model id>", modelProvider?: "<provider slug>", prompt: "...", system?: "...", harness?: "claude-code", skills?: ["<skill slug>"], connectors?: ["<connector slug>"], tools?: ["task_find", "task_create", …], secrets?: ["GLITCHTIP_TOKEN"], files?: {"setup": "{{ input.setupFolderId }}"}} → output {text, files: [{name, storageId, size, contentType}], status}
-   "modelProvider" pins which configured provider serves (and bills) the model, honored fail-closed at run time. Set it only when the user names a provider; omit it otherwise — the host resolves one.
-   Name only what the organization has: validate_automation warns when a skill is not one a run of the automation can reach (SKILL_UNKNOWN), a connector is not connected (CONNECTOR_NOT_CONNECTED), a secret was never stored (SECRET_UNKNOWN) or the harness cannot run here (HARNESS_UNKNOWN). A missing skill or harness fails the step, a missing connector leaves it without that app, a missing secret is simply absent; list_skills, list_connectors, list_agent_secrets and list_harnesses show what exists.
-   "files" stages folders/documents into the agent workspace; whatever the agent writes to its output directory comes back as output.files. "tools" grants platform workspace tools — reads (task_find, task_get, document_find, knowledge_entry_find, contact_find, product_find, website_find) and writes (task_create, task_comment, task_update_status, task_upsert_by_external_ref, document_create); a write grant is the standing authorization (no per-call approval). To put a project's existing agent to work, use a task.start_agent capability node, not an agent node: the task_start_agent tool is a project agent's own and is never granted here. "secrets" injects the org's named agentSecrets as environment variables (a scoped API key for a service with no connector). Use llm for a one-shot completion; use agent ONLY when the step needs tools, staged files, or multiple turns — it is slower and costs more.
-   Task and workflow agents preserve the task title/description language for writes and operator questions, using the organization's default agent language when no human-authored task language is clear. UI locale, generated title templates and workflow examples do not select it. For translated UI progress, task.comment and task_comment accept bodyByLocale alongside canonical body: en/de/fr are required, extra language or language-region keys are allowed, and each translation is nonblank with a 10,000-character limit. Readers select exact locale, base language, en, then body. Prefer predefined translated progress text; for variable reports request structured output containing body and equivalent bodyByLocale values.
+${CORE_NODE_KIND_REFERENCE.agent}
 
-4. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
-   A scheduled issue import that must cover every open issue imports one batch per occurrence and keeps its place between them: read the position with task.get_import_cursor, pass its cursor as the importer's cursor, then task.save_import_cursor with revision = the read's revision and next = the importer's nextCursor ('' once drained); the revision is the compare token, never the cursor text, so a stale save from an earlier pass or from before a restart is refused. Give all three onError: continue — a failed import saves nothing, so the next occurrence retries the same batch.
+${CORE_NODE_KIND_REFERENCE.subautomation}
 
 5. capability nodes — connectors to external apps and platform tools. Set "type" to the capability's own name (never "connector"); data goes in "input" and must match its schema:
 ${connectorLines()}
    Capability nodes accept NO other fields. During testing they are deterministic mocks: same input → same output. Discover more with search_catalog.
 
-## Reading validation results
-validate_automation answers {valid, errors, warnings, analysis, types}. Errors block saving and deploying; warnings never do. Every issue is:
-- code: the stable key to branch on (REF_UNKNOWN_FIELD, MAYBE_NULL, …); message and hint are English and stable, but match on code, never on the text.
-- nodeId: the node it is about, when there is one.
-- at.pointer: an RFC 6901 JSON Pointer into the document you sent ("/nodes/2/input/to", "/output/summary", "" for the whole document).
-- at.range: [start, end) — UTF-16 offsets into the STRING at at.pointer (a template, a condition or code), when the issue is one expression inside it.
-- at.subject: "key" when the pointer names a member that should not exist, "missing" when it names one that should and does not (then only its parent exists).
-- params: the facts the sentence is built from (node, field, ref, key, suggestion, …) — read them instead of parsing message.
-- related: other places involved: the node read ("source"), the node whose condition or failure causes it ("cause"), an elseOf partner, readers, the members of a cycle.
-
-analysis describes how runs can go:
-- analysis.nodes[id]: reachable (it runs on at least one path), alwaysRuns, maySkip (each way it is skipped: reason when | else | upstream | error, via the skipped node it reads), failureHandling ("halts": a failure ends the run there; "continues": onError: continue), reads/readBy (data and control references).
-- analysis.paths: success (the possible ways a run succeeds — the conditions consulted, the nodes that ran and were skipped; at most 32 listed), count, halts (the nodes whose failure ends the run), truncated (too many conditions to list them).
-- analysis.output: which nodes the output reads, and whether it may be empty.
-types is the JSON Schema of the data: types.inputs (the run input), types.nodes[id].output (what nodes.<id>.output holds when it ran; item under forEach; ts, the same as a TypeScript type) and types.output (what a run returns). get_catalog gives each capability's outputSchema the same way.
-
-A skipped node's output is null. A node that reads a skipped node in its input, prompt, system, files, code or forEach is skipped too (upstream), so alternative branches meet in the automation "output", never in a node; a read in when or repeatUntil does not skip the node — the condition runs and reads null. Reading a field of a node that may be skipped — or that continues on error — fails where nothing guards it (MAYBE_NULL, UNCAUGHT_FAILURE), and so does placing its value inside text, even through ?. ("Summary: {{ nodes.x.output?.text }}"). Guard such a read with optional chaining and a fallback: "{{ nodes.check.output?.ok ?? false }}" in a condition, "{{ nodes.summary.output?.text ?? null }}" in the output.
+${validationResultsReference()}
 
 ## Results you get back
 run_automation returns {status, output, trace, effects}:
