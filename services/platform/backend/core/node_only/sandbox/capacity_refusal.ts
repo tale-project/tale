@@ -1,8 +1,10 @@
 /**
  * A start refused for want of sandbox room, not for a fault: the
  * organization's session budget is spent (`QUOTA_EXCEEDED` from the slot
- * reserve or the cap-checked resume), or the spawner's host is at capacity
- * or short of memory (HTTP 429). Each work lane waits instead of failing —
+ * reserve or the cap-checked resume), the spawner's host is at capacity
+ * or short of memory (HTTP 429), or the workspace's runtime already runs
+ * its maximum of live execs (`EXEC_LIMIT`, a task run's exec refused after
+ * its launch). Each work lane waits instead of failing —
  * the task lane parks the run, the automation lane re-kicks the node once
  * the refusal's retry hint has passed, the crawler polls for a slot —
  * because the room frees as soon as other work settles.
@@ -16,6 +18,7 @@
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { SANDBOX_DESTROY_PENDING_REASON } from '../../sandbox/session_constants';
 import {
+  SessionExecLimitError,
   SpawnerBusyError,
   type SpawnerQueuePlace,
 } from './helpers/session_client';
@@ -26,8 +29,9 @@ import {
 const DEFAULT_CAPACITY_RETRY_MS = 15_000;
 
 export interface CapacityRefusal {
-  /** Whose room ran out: the organization's budget, or the shared host. */
-  scope: 'organization' | 'host';
+  /** Whose room ran out: the organization's budget, the shared host, or
+   * the one workspace's places for live execs. */
+  scope: 'organization' | 'host' | 'session';
   retryAfterMs: number;
   /** The start's place in the spawner's first-come line for host room, when
    * the spawner keeps one: `retryAfterMs` is then when that place comes up,
@@ -58,6 +62,9 @@ export function sandboxCapacityRefusal(err: unknown): CapacityRefusal | null {
       retryAfterMs: err.retryAfterMs ?? DEFAULT_CAPACITY_RETRY_MS,
       ...(err.queue !== undefined ? { queue: err.queue } : {}),
     };
+  }
+  if (err instanceof SessionExecLimitError) {
+    return { scope: 'session', retryAfterMs: DEFAULT_CAPACITY_RETRY_MS };
   }
   if (quotaRefusal(err) === 'budget') {
     return { scope: 'organization', retryAfterMs: DEFAULT_CAPACITY_RETRY_MS };

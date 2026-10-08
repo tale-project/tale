@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reportError } from '../error-reporting.ts';
 import { startWorker } from './runner.ts';
+import { physicalTaskQueue } from './tasks.ts';
 
 vi.mock('../error-reporting.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../error-reporting.ts')>()),
@@ -101,6 +102,44 @@ const job = {
 } as unknown as Job;
 
 describe('startWorker shouldDefer', () => {
+  it('subscribes and hands over automation work on its physical protocol queue', async () => {
+    const { boss, handlers, workOptions, complete, send, getQueue, calls } =
+      fakeBoss();
+    const sql = fakeSql(calls);
+    const handler = vi.fn();
+    send.mockResolvedValueOnce(null);
+    getQueue.mockResolvedValueOnce({
+      name: 'automation.v2.step',
+      policy: 'short',
+    });
+    await startWorker({
+      boss,
+      sql,
+      taskList: { 'automation.step': handler },
+      shouldDefer: async () => true,
+      automationOrgConcurrency: 8,
+    });
+    expect([...handlers.keys()]).toEqual(['automation.v2.step']);
+    expect(workOptions.get('automation.v2.step')).toMatchObject({
+      batchSize: 1,
+      groupConcurrency: 8,
+    });
+    await handlers.get('automation.v2.step')?.([job]);
+    expect(complete).toHaveBeenCalledWith(
+      'automation.v2.step',
+      job.id,
+      null,
+      expect.anything(),
+    );
+    expect(send).toHaveBeenCalledWith(
+      'automation.v2.step',
+      job.data,
+      expect.anything(),
+    );
+    expect(getQueue).toHaveBeenCalledWith('automation.v2.step');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('persists a successful handler result without deriving it from the job payload', async () => {
     const { boss, handlers } = fakeBoss();
     await startWorker({
@@ -413,6 +452,31 @@ describe('startWorker shouldDefer', () => {
     );
   });
 
+  // An automation step counts against its organization's limit through its
+  // group: a successor without it would walk outside that limit.
+  it("keeps the job's group on its successor", async () => {
+    const { boss, send, handlers } = fakeBoss();
+    await startWorker({
+      boss,
+      taskList: { 'automation.step': vi.fn() },
+      shouldDefer: async () => true,
+      sql: fakeSql([]),
+    });
+
+    await handlers.get('automation.v2.step')?.([
+      { ...job, groupId: 'org-1', groupTier: null } as unknown as Job,
+    ]);
+    expect(send).toHaveBeenCalledWith(
+      'automation.v2.step',
+      { seq: 1 },
+      expect.objectContaining({ startAfter: 5, group: { id: 'org-1' } }),
+    );
+
+    send.mockClear();
+    await handlers.get('automation.v2.step')?.([job]);
+    expect(send.mock.calls[0]?.[2]).not.toHaveProperty('group');
+  });
+
   it('keeps the claim when the hand-over fails, for pg-boss to retry', async () => {
     const { boss, send, calls, handlers } = fakeBoss();
     send.mockRejectedValueOnce(new Error('insert refused'));
@@ -497,7 +561,9 @@ describe('startWorker slot queues', () => {
   // Regression: a batch is fetched whole and awaited whole, so one website's
   // scan link (five to nine minutes) held every other site's queued scan —
   // a site added meanwhile sat on "Scanning · 0" until that link ended.
-  it.each(['websites.scan', 'chat.api_turn'] as const)(
+  // The same for an automation step: one step walking its minute-long
+  // budget held every step fetched with it.
+  it.each(['websites.scan', 'chat.api_turn', 'automation.step'] as const)(
     'works %s through independent one-job slots',
     async (queue) => {
       const { boss, workOptions } = fakeBoss();
@@ -507,7 +573,7 @@ describe('startWorker slot queues', () => {
         taskList: { noop: vi.fn(), [queue]: vi.fn() },
       });
 
-      expect(workOptions.get(queue)).toMatchObject({
+      expect(workOptions.get(physicalTaskQueue(queue))).toMatchObject({
         batchSize: 1,
         localConcurrency: 5,
       });
@@ -516,6 +582,52 @@ describe('startWorker slot queues', () => {
       expect(workOptions.get('noop')?.localConcurrency).toBeUndefined();
     },
   );
+});
+
+describe('startWorker organization limit', () => {
+  // One organization's burst of runs took every step slot of every worker,
+  // and another organization's runs waited behind it.
+  it('limits automation steps per organization across workers, and nothing else', async () => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      concurrency: 5,
+      automationOrgConcurrency: 8,
+      taskList: {
+        noop: vi.fn(),
+        'automation.step': vi.fn(),
+        'automation.agent_turn': vi.fn(),
+      },
+    });
+    expect(workOptions.get('automation.v2.step')).toMatchObject({
+      groupConcurrency: 8,
+      batchSize: 1,
+      localConcurrency: 5,
+    });
+    // Counted in the database, never per process: pg-boss refuses both.
+    expect(workOptions.get('automation.v2.step')).not.toHaveProperty(
+      'localGroupConcurrency',
+    );
+    expect(workOptions.get('noop')).not.toHaveProperty('groupConcurrency');
+    expect(workOptions.get('automation.v2.agent_turn')).not.toHaveProperty(
+      'groupConcurrency',
+    );
+  });
+
+  it.each([
+    ['0', 0],
+    ['unset', undefined],
+  ])('sets no limit when the operator turns it off (%s)', async (_case, n) => {
+    const { boss, workOptions } = fakeBoss();
+    await startWorker({
+      boss,
+      automationOrgConcurrency: n,
+      taskList: { 'automation.step': vi.fn() },
+    });
+    expect(workOptions.get('automation.v2.step')).not.toHaveProperty(
+      'groupConcurrency',
+    );
+  });
 });
 
 describe('startWorker agent turn slots', () => {
@@ -535,13 +647,13 @@ describe('startWorker agent turn slots', () => {
       },
     });
     for (const start of ['task.agent_turn', 'automation.agent_turn']) {
-      expect(workOptions.get(start)).toMatchObject({
+      expect(workOptions.get(physicalTaskQueue(start))).toMatchObject({
         batchSize: 1,
         localConcurrency: 8,
       });
     }
     for (const drive of ['task.agent_drive', 'automation.agent_drive']) {
-      expect(workOptions.get(drive)).toMatchObject({
+      expect(workOptions.get(physicalTaskQueue(drive))).toMatchObject({
         batchSize: 1,
         localConcurrency: 16,
         // Sixteen idle slots poll every ten seconds, not every two: a drive
@@ -581,9 +693,11 @@ describe('startWorker agent turn slots', () => {
       },
     });
     expect(workOptions.get('task.agent_turn')?.localConcurrency).toBe(3);
-    expect(workOptions.get('automation.agent_turn')?.localConcurrency).toBe(3);
+    expect(workOptions.get('automation.v2.agent_turn')?.localConcurrency).toBe(
+      3,
+    );
     expect(workOptions.get('task.agent_drive')?.localConcurrency).toBe(48);
-    expect(workOptions.get('automation.agent_drive')?.localConcurrency).toBe(
+    expect(workOptions.get('automation.v2.agent_drive')?.localConcurrency).toBe(
       48,
     );
     // Other slot queues keep the worker concurrency.

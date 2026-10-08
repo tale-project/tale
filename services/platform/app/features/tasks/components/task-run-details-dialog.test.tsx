@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { TaskRunDetailsDialog } from './task-run-details-dialog';
 
@@ -99,10 +99,12 @@ describe('TaskRunDetailsDialog', () => {
     expect(reads.automation).not.toHaveBeenCalled();
   });
 
-  it('waits for the run before reading the version it actually executed', () => {
+  it('waits for the run before reading the version it actually executed', async () => {
     reads.runData = undefined;
     const { unmount } = renderDialog('developer');
-    expect(reads.run).toHaveBeenCalledWith('org-1', 'run-1');
+    await waitFor(() => {
+      expect(reads.run).toHaveBeenCalledWith('org-1', 'run-1');
+    });
     expect(reads.automation).not.toHaveBeenCalled();
     unmount();
 
@@ -113,13 +115,17 @@ describe('TaskRunDetailsDialog', () => {
       trace: [],
     };
     renderDialog('developer');
-    expect(reads.automation).toHaveBeenCalledWith('org-1', 'mail-sync', 7);
+    await waitFor(() => {
+      expect(reads.automation).toHaveBeenCalledWith('org-1', 'mail-sync', 7);
+    });
   });
 
-  it('links a developer to the full run page', () => {
+  it('links a developer to the full run page', async () => {
     renderDialog('developer');
 
-    expect(screen.getByRole('list', { name: 'steps' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('list', { name: 'steps' }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'tasks.run.openFull' }),
     ).toHaveAttribute(
@@ -130,10 +136,12 @@ describe('TaskRunDetailsDialog', () => {
 
   it.each(['editor', 'member'] as const)(
     'shows the %s role the steps without a link into Automations',
-    (role) => {
+    async (role) => {
       renderDialog(role);
 
-      expect(screen.getByRole('list', { name: 'steps' })).toBeInTheDocument();
+      expect(
+        await screen.findByRole('list', { name: 'steps' }),
+      ).toBeInTheDocument();
       expect(
         screen.queryByRole('link', { name: 'tasks.run.openFull' }),
       ).not.toBeInTheDocument();

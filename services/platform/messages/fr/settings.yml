@@ -265,7 +265,7 @@ organization:
   deleteLoading: Suppression…
   deleteSuccess: Organisation supprimée
   deleteFailed: Échec de la suppression de l'organisation
-  deleteBlockedByLegalHold: Un legal hold actif préserve les données de cette organisation. Lève chaque hold dans Gouvernance > Conservation légale, puis réessaie.
+  deleteBlockedByLegalHold: Une conservation légale active préserve les données de cette organisation. Lève chaque conservation dans Gouvernance > Conservation légale, puis réessaie.
   deleteTypeNameLabel: Tape le nom de l'organisation pour confirmer
   deleteConfirmNameMismatch: La confirmation ne correspond pas au nom de l'organisation. Recharge la page et réessaie.
   editMember: Modifier le membre
@@ -1325,24 +1325,24 @@ logs:
       chat_thread.trashed: Chat mis à la corbeille
       chat_thread.cascade_deleted: Chat supprimé en cascade
       chat_thread.cascade_depth_exceeded: Profondeur de cascade dépassée
-      chat_thread.cascade_skipped_hold: Cascade ignorée (legal hold)
+      chat_thread.cascade_skipped_hold: Cascade ignorée (conservation légale)
       gdpr_erasure_requested: Effacement RGPD demandé
       gdpr_erasure_executed: Effacement RGPD exécuté
       gdpr_erasure_denied: Effacement RGPD refusé
       gdpr_erasure_cancelled: Effacement RGPD annulé
       gdpr_erasure_extended: Effacement RGPD prolongé
       gdpr_erasure_retried: Effacement RGPD relancé
-      gdpr_erasure_blocked_by_hold: Effacement RGPD bloqué par legal hold
+      gdpr_erasure_blocked_by_hold: Effacement RGPD bloqué par conservation légale
       gdpr_erasure_cascade_attempts_exhausted: Tentatives de cascade RGPD épuisées
       gdpr_erasure_late_finalize_dropped: Finalisation RGPD tardive abandonnée
       gdpr_erasure_watchdog_failed: Watchdog RGPD en échec
-      legal_hold_placed: Legal hold placé
-      legal_hold_place_denied: Placement de legal hold refusé
-      legal_hold_bulk_placed: Legal hold placé en lot
-      legal_hold_release_requested: Levée de legal hold demandée
-      legal_hold_release_effected: Levée de legal hold effectuée
-      legal_hold_release_rejected: Levée de legal hold refusée
-      legal_hold.effect_releases_failed: Levées de legal hold en échec
+      legal_hold_placed: Conservation légale placée
+      legal_hold_place_denied: Placement de conservation légale refusé
+      legal_hold_bulk_placed: Conservation légale placée en lot
+      legal_hold_release_requested: Levée de conservation légale demandée
+      legal_hold_release_effected: Levée de conservation légale effectuée
+      legal_hold_release_rejected: Levée de conservation légale refusée
+      legal_hold.effect_releases_failed: Levées de conservation légale en échec
       legal_matter_created: Affaire légale créée
       legal_matter_updated: Affaire légale mise à jour
       legal_matter_closed: Affaire légale clôturée
@@ -1388,6 +1388,11 @@ logs:
       ai.completion: Réponse IA
       ai.budget_blocked: Budget IA bloqué
       automation.trigger.paused: Planification d'automatisation mise en pause
+      automation.run.success: Exécution d'automatisation réussie
+      automation.run.failed: Exécution d'automatisation en échec
+      automation.run.cancelled: Exécution d'automatisation arrêtée
+      automation.run.deleted: Exécution d'automatisation supprimée
+      automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
       create_connector: Connector créée
       delete_connector: Connector supprimée
       update_credential: Identifiants mis à jour
@@ -1432,8 +1437,8 @@ logs:
       policy.retention_bounds_initial_applied: Bornes de rétention initialement appliquées
       retention.run_completed: Cycle de rétention terminé
       retention.run_failed: Cycle de rétention en échec
-      legal_hold_release_approved: Levée de legal hold approuvée
-      legal_hold_release_approved_self: Levée de legal hold auto-approuvée
+      legal_hold_release_approved: Levée de conservation légale approuvée
+      legal_hold_release_approved_self: Levée de conservation légale auto-approuvée
       ai.completion_failed: Réponse IA en échec
       pii.blocked_in_chat: PII bloqué dans le chat
       chat_filter.blocked_in_chat: Filtre de chat a bloqué le message
@@ -1540,8 +1545,8 @@ logs:
       memory_audit: Audit mémoire
       governance_policy: Politique de gouvernance
       legal_matter: Affaire légale
-      legal_hold: Legal hold
-      legal_hold_batch: Lot de legal hold
+      legal_hold: Conservation légale
+      legal_hold_batch: Lot de conservations légales
       retention_run: Cycle de rétention
       retentionRun: Cycle de rétention
       cron_run: Exécution cron

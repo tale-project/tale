@@ -1,6 +1,9 @@
-import { describe, expect, test } from 'vitest';
+import type { PgBoss } from 'pg-boss';
+import type { Sql } from 'postgres';
+import { describe, expect, test, vi } from 'vitest';
 
-import { SCHEDULES } from './schedules.ts';
+import { setEnqueueBoss } from './enqueue.ts';
+import { SCHEDULES, sweepRunsAtBoot } from './schedules.ts';
 
 /** `m h dom mon dow` — these three are all daily, so hour and minute suffice. */
 function timeOf(name: string): { hour: number; minute: number } {
@@ -93,5 +96,41 @@ describe('the schedule roster is well formed', () => {
       (row) => row.cron.trim().split(/\s+/).length !== 5,
     );
     expect(malformed.map((row) => row.name)).toEqual([]);
+  });
+});
+
+describe('a booting worker sweeps automation runs at once', () => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the send is faked, so the pool is never reached
+  const sql = {} as Sql;
+
+  test('it queues one liveness sweep beside the minute schedule', async () => {
+    // A worker restarted after a crash pokes the runs the dead one left
+    // without waiting for the next minute.
+    const send = vi.fn().mockResolvedValue('job-1');
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the façade calls `send` alone
+    setEnqueueBoss({ send } as unknown as PgBoss);
+    await sweepRunsAtBoot(sql);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledWith(
+      'automation.liveness',
+      {},
+      expect.objectContaining({ db: expect.any(Object) }),
+    );
+    expect(
+      SCHEDULES.find((row) => row.name === 'automation.liveness')?.cron,
+    ).toBe('* * * * *');
+  });
+
+  test('a send that fails is logged and never fails the boot', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const send = vi.fn().mockRejectedValue(new Error('queue unavailable'));
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the façade calls `send` alone
+    setEnqueueBoss({ send } as unknown as PgBoss);
+    await expect(sweepRunsAtBoot(sql)).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('boot liveness sweep'),
+      expect.objectContaining({ message: 'queue unavailable' }),
+    );
+    warn.mockRestore();
   });
 });

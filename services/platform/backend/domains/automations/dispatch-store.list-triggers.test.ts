@@ -129,3 +129,23 @@ describe('the MCP trigger view carries the failure streak', () => {
     expect(view).not.toHaveProperty('lastSkipReason');
   });
 });
+
+describe('the validator reads the kinds of the enabled triggers', () => {
+  it('names each enabled kind once and leaves a paused trigger out', async () => {
+    const { engine, statements } = store([
+      row(),
+      row({ id: 'trg_2', kind: 'webhook', cron: null }),
+      row({ id: 'trg_3', kind: 'schedule', cron: '0 7 * * *' }),
+      row({ id: 'trg_4', kind: 'event', cron: null, enabled: false }),
+    ]);
+    expect(await engine.triggerKinds?.('ops/nightly')).toEqual([
+      'schedule',
+      'webhook',
+    ]);
+    const select = statements.find((s) =>
+      s.text.includes('FROM app.automation_triggers'),
+    );
+    expect(select?.values).toContain('org_1');
+    expect(select?.values).toContain('ops/nightly');
+  });
+});

@@ -132,7 +132,14 @@ export async function resolveTaskKickStartArgs(
     // terminal row that is not this agent's failure.
     if (collectingHashes && terminal) {
       if (run.status === 'failed' && run.agentId === args.agentId) {
-        if (run.brokerTokenHash !== null && !freeRotations[index]) {
+        // Model capacity says nothing about the account's health. Keep it
+        // eligible without changing counted retry/circuit budgets, and
+        // continue collecting every other failed account in the prefix.
+        if (
+          run.brokerTokenHash !== null &&
+          !freeRotations[index] &&
+          run.failureCode !== 'model_capacity'
+        ) {
           excludeBrokerTokenHashes.add(run.brokerTokenHash);
         }
       } else {

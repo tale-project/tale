@@ -25,7 +25,8 @@ function fakeSql(execId = 'exec-current') {
         },
       ];
     }
-    writes.push(values[0]);
+    if (strings.join('?').includes('UPDATE app.automation_runs'))
+      writes.push(values[0]);
     return [];
   };
   sql.json = (value: unknown) => value;

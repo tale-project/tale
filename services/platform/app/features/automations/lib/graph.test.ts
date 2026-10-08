@@ -92,6 +92,39 @@ describe('deriveEdges', () => {
     expect(edges).toEqual([]);
   });
 
+  it("draws an agent's files mapping as a data edge", () => {
+    const edges = deriveEdges(
+      nodes(
+        {
+          id: 'agent_a',
+          type: 'agent',
+          model: 'm',
+          prompt: 'Work.',
+          files: { setup: '{{ nodes.prep.output.folder }}' },
+        },
+        { id: 'prep', type: 'transform', code: 'return { folder: "f" };' },
+      ),
+    );
+    expect(edges).toEqual([
+      { id: 'prep->agent_a', source: 'prep', target: 'agent_a', kind: 'data' },
+    ]);
+  });
+
+  it('draws no edge for a node named only in a comment or a string', () => {
+    const edges = deriveEdges(
+      nodes(
+        { id: 'a', type: 'transform', code: 'return 1;' },
+        {
+          id: 'b',
+          type: 'transform',
+          input: { label: "{{ 'nodes.a.output' }}" },
+          code: '// reads nodes.a later\nreturn input.label;',
+        },
+      ),
+    );
+    expect(edges).toEqual([]);
+  });
+
   it('derives the engine worked example the same way the executor orders it', () => {
     const edges = deriveEdges(DOC_EXAMPLE.automation.nodes);
     // `summary` names `calc` in BOTH its `when` and its prompt. A source that

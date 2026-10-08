@@ -28,6 +28,8 @@ run:
   missingInput: Lege zuerst die Eingabedateien ab — unter Dateien ist bei dieser Aufgabe noch nichts.
   working: '{name} arbeitet an dieser Aufgabe.'
   waitingAnswer: '{name} hat eine Frage und wartet — sobald du unten antwortest, geht es weiter.'
+  waitingDecision: '{name} wartet auf eine Entscheidung zu einem Schritt, der vielleicht schon gelaufen ist — wähle unten, wie es weitergeht.'
+  waitingDecisionOther: '{name} wartet auf eine Entscheidung zu einem Schritt, der vielleicht schon gelaufen ist.'
   label: Lauf
   details: Details
   detailsTitle: '{name} — Laufdetails'

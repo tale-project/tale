@@ -28,7 +28,8 @@
         "$TURBO_ROOT$/services/platform/backend/lib/org-config.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/lib/docker.ts",
         "$TURBO_ROOT$/services/platform/tests/integration/lib/exec.ts",
-        "$TURBO_ROOT$/.github/release-candidate-contract.json"
+        "$TURBO_ROOT$/.github/release-candidate-contract.json",
+        "$TURBO_ROOT$/packages/ui/src/server/serving-identity.ts"
       ]
     },
     "build": {

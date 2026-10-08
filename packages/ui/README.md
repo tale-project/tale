@@ -18,10 +18,18 @@ and stories live together under `src/components/<family>/`.
 | Tables and values | `data-table/data-table`, `data-table/column-builders`, `copyable-field`, `json-viewer` |
 | Layout and navigation | `page-layout`, `adaptive-header`, `sub-panel`, `header-breadcrumbs`, `tab-navigation` |
 | Dialogs and feedback | `dialog/form-dialog`, `dialog/delete-dialog`, `toaster`, `use-toast`, `use-retry-focus` |
+| Problems a check found | `issue-list`, `issue-summary`, `issue-severity`, `field-issue-messages`, `issue-focus`, `flow/node-issue-marker` |
 | Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/*` |
 | Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
 | Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `theme`, `testing/*` |
 | Large custom collections | `use-virtual-list`; [windowing and focus guidance](https://ui.tale.dev/docs/patterns/list-page#bound-a-custom-collections-rendering) |
+
+`startReactServer` accepts an optional fixed `servingService` name. On its health
+route this adds `Tale-Serving-Identity: v1;service=<name>;instance=<UUIDv4>` while
+preserving the existing JSON and custom health checks. The identity is generated
+once per server bootstrap in memory. It allows an operator to correlate a captured
+local container with an origin response; it is public metadata, not authentication.
+`server/serving-identity` exposes the same producer for another HTTP server.
 
 Browse interactive stories from a Tale source checkout:
 

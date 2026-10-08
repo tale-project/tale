@@ -3,6 +3,7 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { setEnqueueBoss } from '../../jobs/enqueue.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import { recoverAnsweredAskResumes } from './reattach.ts';
 
 /**
@@ -50,7 +51,7 @@ describe('recoverAnsweredAskResumes', () => {
 
     expect(result).toEqual({ examined: 1, requeued: 1 });
     expect(sent).toHaveLength(1);
-    expect(sent[0]?.name).toBe('automation.ask_resume');
+    expect(sent[0]?.name).toBe(physicalTaskQueue('automation.ask_resume'));
     expect(sent[0]?.data).toEqual({ organizationId: 'org_1', askId: 'ask_1' });
   });
 

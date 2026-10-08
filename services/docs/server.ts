@@ -50,6 +50,7 @@ startReactServer({
   port: Number(process.env.PORT ?? 3002),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'docs',
+  servingService: 'docs',
   localeCookieDomain: LOCALE_COOKIE_DOMAIN,
   redirectPrefix: BASE_PATH,
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,

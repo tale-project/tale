@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import type { Sql } from 'postgres';
+import { describe, expect, it, vi } from 'vitest';
 
+vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
+
+import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import {
   reachableHandlerNames,
   unansweredHandlerNames,
@@ -69,5 +75,59 @@ describe('automationShimHandlers', () => {
         'sandbox/session_mutations:upsertSessionOp',
       ]),
     );
+  });
+});
+
+/**
+ * A settled agent turn wakes its parked run with a step job. The run's
+ * promise covers that job's claim — it used to be stamped `now`, so every
+ * settle read as overdue at once and the next sweep tick queued a second
+ * step for the same run.
+ */
+describe('recordAgentTurnSettled', () => {
+  it('wakes the parked run with the claim promise, never overdue', async () => {
+    const writes: { text: string; values: unknown[] }[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      if (text.includes('FOR UPDATE')) {
+        return Promise.resolve([
+          {
+            status: 'waiting',
+            checkpoints: {
+              nodes: {},
+              cursor: { node: 'agent', agent: { execId: 'exec_1' } },
+              executions: 1,
+            },
+          },
+        ]);
+      }
+      writes.push({ text, values });
+      return Promise.resolve([]);
+    };
+    const sql = Object.assign(tag, {
+      json: (value: unknown) => ({ json: value }),
+      begin: (body: (tx: typeof tag) => Promise<unknown>) => body(tag),
+    });
+    const before = Date.now();
+    const handlers = automationShimHandlers(sql as unknown as Sql);
+    await expect(
+      handlers['automations/mutations:recordAgentTurnSettled']?.({
+        organizationId: 'org_1',
+        runId: 'run_1',
+        nodeId: 'agent',
+        execId: 'exec_1',
+        result: { text: 'done' },
+      }),
+    ).resolves.toEqual({ recorded: true });
+    const wake = writes.find((write) =>
+      write.text.includes('UPDATE app.automation_runs'),
+    );
+    expect(wake?.values[1]).toBeGreaterThanOrEqual(
+      before + RUN_CLAIM_PROMISE_MS,
+    );
+    expect(addJobInTx).toHaveBeenCalledWith(sql, 'automation.step', {
+      organizationId: 'org_1',
+      runId: 'run_1',
+    });
   });
 });

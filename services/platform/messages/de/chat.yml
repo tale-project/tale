@@ -451,7 +451,7 @@ backendUnavailable:
 providerSetup:
   title: Noch kein KI-Anbieter verbunden
   descriptionAdmin: Verbinde einen KI-Anbieter, um den Chat zu starten.
-  descriptionMember: Bitte deinen Workspace-Admin, einen KI-Anbieter zu verbinden.
+  descriptionMember: Bitte einen Admin deines Arbeitsbereichs, einen KI-Anbieter zu verbinden.
   action: KI-Anbieter öffnen
 skills:
   label: Skills
@@ -486,7 +486,7 @@ errorHintContextLength:
   Modells. Versuche, einen neuen Chat zu starten.
 errorHintCreditExhausted: Das Guthaben des KI-Anbieters wurde überschritten.
   Kontaktiere deinen Administrator, um Guthaben aufzuladen.
-errorHintMissingApiKey: Für diesen Workspace ist noch kein API-Schlüssel konfiguriert.
+errorHintMissingApiKey: Für diesen Arbeitsbereich ist noch kein API-Schlüssel konfiguriert.
 errorHintModelNotFound: Das ausgewählte Modell wurde nicht gefunden oder ist
   nicht verfügbar. Kontaktiere deinen Administrator.
 errorHintOutputCapTooHigh: Die maximalen Ausgabe-Tokens dieses Modells lassen
@@ -556,12 +556,12 @@ thinking:
   label: Denkt nach
   done: Hat {seconds}s nachgedacht
   reading: Liest {hostname}
-  searchingKnowledgeBase: Durchsucht den Workspace nach "{query}"
+  searchingKnowledgeBase: Durchsucht den Arbeitsbereich nach "{query}"
   readingDocument: Liest {name}
   readingDocumentUnnamed: Liest ein Dokument
   readingTask: Liest Aufgabe {name}
   listing:
-    generic: Listet den Workspace auf
+    generic: Listet den Arbeitsbereich auf
     tasks: Listet Aufgaben auf
     projects: Listet Projekte auf
     contacts: Listet Kontakte auf

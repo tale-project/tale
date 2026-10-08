@@ -38,7 +38,7 @@ Zum Pflegen der Organisationsdatensätze brauchst du die Rolle Redakteur oder h�
 2. Prüfe **Sprache**. Das Feld ist mit `en` vorbelegt; passe es an die Sprache des Kontakts an.
 3. Wähle **Speichern**. Der Kontakt erscheint mit seinen Angaben und dem Erstellungsdatum in der Tabelle.
 
-Vor dem Speichern prüft das Formular jedes Feld gegen das, was Tale speichert: **Name** bis 300 Zeichen, **Telefon** bis 50, **Sprache** bis 20 und bei der **E-Mail** höchstens 64 Zeichen vor dem `@`. Ein Wert über einer Grenze wird unter seinem Feld genannt, und gespeichert wird erst, wenn du ihn korrigiert hast.
+Vor dem Speichern prüft das Formular jedes Feld gegen das, was Tale speichert: **Name** bis 300 Zeichen, **Telefon** bis 50, **Sprache** bis 20 und bei der **E-Mail** höchstens 64 Zeichen vor dem `@`. Ein Wert über einer Grenze wird unter seinem Feld genannt, und gespeichert wird erst, wenn du ihn korrigiert hast. **Telefon** nimmt nur Ziffern, Leerzeichen und `+ ( ) . -` an. Ein anderes Zeichen bleibt stehen, wo du es eingegeben hast, ein Hinweis unter dem Feld sagt es dir, und gespeichert wird erst, wenn du es entfernt hast.
 
 Um nur die Kontakte einer Sprache zu sehen, wähle über der Kontaktliste **Filter** und unter **Sprache** die gewünschte Sprache. Eine Sprache schließt ihre regionalen Varianten ein: **FR** zeigt Kontakte mit der Sprache `fr`, `fr-CH` oder `fr_CA`. Ein Kontakt ohne Sprache erscheint nur, solange keine Sprache gewählt ist.
 

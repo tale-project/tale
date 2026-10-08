@@ -75,7 +75,7 @@ Keep descriptions in one place rather than repeating them in the summary and bod
 | `hideClose` | Hides the close control; provide an accessible dismiss path unless the current operation deliberately blocks it. |
 | `className`, `headerClassName`, `bodyClassName`, `footerClassName` | Targeted layout adjustments. |
 | `restoreFocusRef` | Stable fallback when the captured opener unmounts or moves, for example a toolbar button the first row replaces. A dialog opened from a menu item needs none: it returns to that menu's button. |
-| `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. |
+| `preventCloseAutoFocus` | Opt out of automatic restoration only when the caller explicitly manages the next focus target. `ResponsiveDialogContent` takes it too, for a close that hands the reader on to another panel. |
 | `onCloseAutoFocus` | Called after the close focus handler runs. Available on `Dialog`, `ConfirmDialog` and `DeleteDialog`; use it to release a retained virtual row after focus returns to its opener. |
 
 ## Handle lifecycle and focus deliberately
