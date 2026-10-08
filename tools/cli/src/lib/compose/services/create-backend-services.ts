@@ -24,7 +24,7 @@ export interface BackendServiceOptions {
 }
 
 /** The api's stop grace, in seconds, under its default 15 s drain. */
-export const BACKEND_API_STOP_GRACE_S = 30;
+const BACKEND_API_STOP_GRACE_S = 30;
 /** The worker's stop grace, in seconds, under its default 90 s drain. */
 export const BACKEND_WORKER_STOP_GRACE_S = 120;
 /** How far a role's stop grace stays above its drain budget. */
