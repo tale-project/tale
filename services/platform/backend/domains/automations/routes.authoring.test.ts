@@ -40,7 +40,7 @@ vi.mock('./dispatch-store.ts', () => ({
   }),
 }));
 
-import { createAutomationRoutes } from './routes.ts';
+import { authoringRefusalBody, createAutomationRoutes } from './routes.ts';
 import { AutomationError } from './store.ts';
 
 function document(multiplier: number) {
@@ -211,7 +211,33 @@ describe('app automation acceptance gate', () => {
       ]),
     );
     expect(typeof body.data?.hint).toBe('string');
+    // Older readers keep finding them at the top level.
+    const top = body as unknown as Record<string, unknown>;
+    expect(top.errors).toEqual(body.data?.errors);
+    expect(top.warnings).toEqual(body.data?.warnings);
+    expect(top.hint).toBe(body.data?.hint);
     expect(io.save).not.toHaveBeenCalled();
+  });
+  it("keeps a refusal's own data beside the detail it nests there", () => {
+    const refusal = authoringRefusalBody({
+      error: 'the run input does not fit the schema',
+      code: 'RUN_INPUT_INVALID',
+      hint: 'send the fields the schema requires',
+      data: { schemaErrors: [{ path: '/city', message: 'required' }] },
+    });
+    expect(refusal).toEqual({
+      status: 400,
+      body: {
+        error: 'RUN_INPUT_INVALID',
+        code: 'RUN_INPUT_INVALID',
+        message: 'the run input does not fit the schema',
+        hint: 'send the fields the schema requires',
+        data: {
+          schemaErrors: [{ path: '/city', message: 'required' }],
+          hint: 'send the fields the schema requires',
+        },
+      },
+    });
   });
   it('refuses to deploy a stored version that no longer validates, naming its problems [AUTO-R23]', async () => {
     io.document = { ...document(2), output: '{{ nodes.nope.output }}' };

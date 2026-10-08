@@ -227,10 +227,9 @@ const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
  * a refused save or deploy reaches the editor with every issue and where it
  * is, not as one flattened message.
  */
-function authoringRefusal(
-  c: Context<OrgEnv>,
+export function authoringRefusalBody(
   result: unknown,
-): Response | null {
+): { body: Record<string, unknown>; status: 400 | 404 | 409 } | null {
   if (!isRecord(result) || typeof result.error !== 'string') return null;
   const code =
     typeof result.code === 'string' ? result.code : 'AUTOMATION_INVALID';
@@ -242,19 +241,31 @@ function authoringRefusal(
           code === 'AUTOMATION_DEPLOY_REJECTED'
         ? 409
         : 400;
-  const data: Record<string, unknown> = {};
+  // A refusal's own `data` (a refused run input's schema problems, say)
+  // stays; the detail keys join it.
+  const data: Record<string, unknown> = isRecord(result.data)
+    ? { ...result.data }
+    : {};
   for (const key of REFUSAL_DETAIL_KEYS) {
     if (result[key] !== undefined) data[key] = result[key];
   }
-  return c.json(
-    {
+  return {
+    body: {
       ...result,
       error: code,
       message: result.error,
       ...(Object.keys(data).length > 0 && { data }),
     },
     status,
-  );
+  };
+}
+
+function authoringRefusal(
+  c: Context<OrgEnv>,
+  result: unknown,
+): Response | null {
+  const refusal = authoringRefusalBody(result);
+  return refusal === null ? null : c.json(refusal.body, refusal.status);
 }
 
 /** Agent nodes whose `model` is set but `modelProvider` is not — the
