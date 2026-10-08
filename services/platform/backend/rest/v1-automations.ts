@@ -7,14 +7,12 @@ import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
-import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
-import { createAuditLog } from '../domains/audit_logs/service.ts';
+import { answerRunAskAs } from '../domains/automations/ask-answer.ts';
 import {
   automationVisible,
   readableProjectIds,
 } from '../domains/automations/project-visibility.ts';
 import {
-  answerAsk,
   AutomationError,
   automationExists,
   automationRunsExist,
@@ -46,7 +44,6 @@ import {
   versionRow,
 } from '../domains/automations/store.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
-import { addTaskComment } from '../domains/tasks/comments.ts';
 import {
   actedBy,
   actorBodySchema,
@@ -1123,56 +1120,15 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
       const answeredBy = actedBy(actor, c);
-      const answered = await answerAsk(deps.sql, {
+      const answered = await answerRunAskAs(deps.sql, {
         organizationId,
+        run,
         askId,
-        runId,
         answer: body.answer,
         answeredBy,
+        author,
+        auditMetadata: { via: 'api-key', keyHolderUserId: c.get('userId') },
       });
-      await deps.sql.begin(async (tx) => {
-        await createAuditLog(tx, {
-          organizationId,
-          actorId: author.userId,
-          ...(author.email !== undefined ? { actorEmail: author.email } : {}),
-          actorType: 'user',
-          action: 'automation.ask_answered',
-          category: 'data',
-          resourceType: 'automation_run',
-          resourceId: runId,
-          resourceName: run.name,
-          newState: { askId, answeredBy },
-          metadata: {
-            askId,
-            via: 'api-key',
-            keyHolderUserId: c.get('userId'),
-            ...(answered.taskId !== null ? { taskId: answered.taskId } : {}),
-          },
-          status: 'success',
-        });
-      });
-      // The mirror is best effort, exactly as in the app: the answer and
-      // its resume are recorded already, so a comment that cannot land
-      // (the person cannot read the task's project, say) only warns.
-      if (answered.taskId !== null) {
-        const taskId = answered.taskId;
-        try {
-          await deps.sql.begin(async (tx) => {
-            // The ask accepts twice what a comment holds; the mirror keeps
-            // the head, the answer itself is stored whole on the ask.
-            await addTaskComment(tx, author, {
-              taskId,
-              body: body.answer.slice(0, TASK_COMMENT_MAX),
-            });
-          });
-        } catch (error) {
-          console.warn('[rest] ask answer comment mirror failed', {
-            runId,
-            askId,
-            error: String(error),
-          });
-        }
-      }
       return c.json({
         ok: true,
         askId,
