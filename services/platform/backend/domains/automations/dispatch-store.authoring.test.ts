@@ -581,3 +581,83 @@ describe('listRunsPage', () => {
     ).not.toBeNull();
   });
 });
+
+/**
+ * Nothing of another organization is reachable through the store: every
+ * read and write is keyed by the caller's own organization, and a project
+ * or run id that belongs to another answers "not found" before anything
+ * is written. Bea's key is for org-2; `hr/onboarding`, its project p-1 and
+ * run-1 belong to org-1.
+ */
+describe("another organization's automations, projects and runs stay out of reach", () => {
+  beforeEach(() => {
+    vi.mocked(versionRow).mockImplementation(
+      async (_sql, org, _name, version) =>
+        org === ORG ? versionOf(version ?? 7) : null,
+    );
+    vi.mocked(listDeployments).mockImplementation(async (_sql, org) =>
+      org === ORG
+        ? [
+            {
+              version: 7,
+              previousVersion: 6,
+              deployedAt: 1,
+              deployedBy: 'user-1',
+              via: null,
+            },
+          ]
+        : [],
+    );
+    vi.mocked(getRun).mockImplementation(async (_sql, org) =>
+      org === ORG
+        ? ({ id: 'run-1', name: NAME, projectId: null } as never)
+        : null,
+    );
+  });
+  const bea = () => store({ organizationId: 'org-2' });
+
+  it("reads org-1's automation and its deployments as nothing", async () => {
+    expect(await bea().getVersionView?.(NAME)).toBeNull();
+    expect(await bea().listDeployments?.(NAME)).toEqual([]);
+    expect(versionRow).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-2',
+      NAME,
+      undefined,
+    );
+    expect(listDeployments).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-2',
+      NAME,
+    );
+  });
+
+  it("deletes only within org-2, never org-1's automation of the same name", async () => {
+    vi.mocked(deleteAutomationCascade).mockResolvedValue({ versions: 0 });
+    await bea().deleteAutomation?.(NAME, 7);
+    expect(deleteAutomationCascade).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'org-2', name: NAME }),
+    );
+  });
+
+  it("refuses to install into org-1's project as not found, and installs nothing", async () => {
+    vi.mocked(loadProjectOrThrow).mockImplementation(async (_sql, id) => ({
+      ...projectRow(id),
+      organizationId: ORG,
+    }));
+    await expect(
+      bea().setAutomationProjects?.(NAME, { add: ['p-1'], remove: [] }),
+    ).rejects.toMatchObject({ code: 'PROJECT_NOT_FOUND' });
+    expect(bindProjectInTx).not.toHaveBeenCalled();
+    expect(unbindProjectInTx).not.toHaveBeenCalled();
+  });
+
+  it("answers org-1's run as not found, and records no answer", async () => {
+    await expect(
+      bea().answerAsk?.('run-1', 'ask-1', 'Yes'),
+    ).rejects.toMatchObject({ code: 'RUN_NOT_FOUND' });
+    expect(getRun).toHaveBeenCalledWith(expect.anything(), 'org-2', 'run-1');
+    expect(answerRunAskAs).not.toHaveBeenCalled();
+  });
+});
