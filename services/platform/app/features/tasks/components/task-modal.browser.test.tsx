@@ -95,6 +95,7 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 }));
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
@@ -261,6 +262,26 @@ describe.each([
     await expectTrapped(dialog);
   });
 
+  it('reaches Copy link and Open as page just before Close', async () => {
+    render(<Harness defaultOpen />);
+    const dialog = await screen.findByRole('dialog', { name: task.title });
+    const open = within(dialog).getByRole('link', { name: 'Open as page' });
+    const copy = within(dialog).getByRole('button', { name: 'Copy link' });
+    const closes = within(dialog).getAllByRole('button', { name: 'Close' });
+    const close = closes[closes.length - 1]!;
+    close.focus();
+    await userEvent.tab({ shift: true });
+    expect(open).toHaveFocus();
+    await userEvent.tab({ shift: true });
+    expect(copy).toHaveFocus();
+    // The house icon buttons: a 32px target each. Layout size, not the
+    // painted box, which the dialog's entrance zoom still scales.
+    for (const control of [copy, open, close]) {
+      expect(control.offsetWidth).toBeGreaterThanOrEqual(32);
+      expect(control.offsetHeight).toBeGreaterThanOrEqual(32);
+    }
+  });
+
   it('preserves the new task title autofocus', async () => {
     render(<Harness view="create" />);
     const opener = screen.getByRole('button', { name: 'New task' });
@@ -377,21 +398,18 @@ describe.each([
       way: 'Escape',
       close: () => userEvent.keyboard('{Escape}'),
     },
-    // The phone's drawer has no X: it closes by the backdrop, a swipe, Back.
-    ...(mobile
-      ? []
-      : [
-          {
-            way: 'the X',
-            close: async () => {
-              const dialog = screen.getByRole('dialog');
-              const buttons = within(dialog).getAllByRole('button', {
-                name: 'Close',
-              });
-              await userEvent.click(buttons[buttons.length - 1]!);
-            },
-          },
-        ]),
+    // The dialog and the phone's drawer both carry the X, last in the
+    // header cluster.
+    {
+      way: 'the X',
+      close: async () => {
+        const dialog = screen.getByRole('dialog');
+        const buttons = within(dialog).getAllByRole('button', {
+          name: 'Close',
+        });
+        await userEvent.click(buttons[buttons.length - 1]!);
+      },
+    },
     {
       way: 'the backdrop',
       close: async () => {

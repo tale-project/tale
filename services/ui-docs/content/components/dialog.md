@@ -46,6 +46,14 @@ For a type-to-confirm decision, set `requireConfirmPhrase`. The trimmed input mu
 
 The base Dialog itself uses a bottom-sheet layout below `md` and a centered modal above it. Its header and footer remain outside the scrollable body. Test long content on a phone; choosing a large desktop size does not remove the need for that check.
 
+## Put actions beside Close
+
+<Demo name="dialog/header-actions" />
+
+Open the example and look at the top-right corner: **Copy link** and **Open as page** sit in one cluster with **Close**. Copy link only changes the example's text; Open as page points at an anchor on this page.
+
+`ResponsiveDialogContent` takes `headerActions` for icon actions that belong to the dialog's chrome rather than to its content, such as opening a record on its own page. They render in one cluster before Close, on the centred dialog and on the phone's drawer alike, and follow the content in the tab order, so Close stays the last stop. Give each action its own accessible name, make an action that navigates a real link, and leave room for the cluster on the content's first row. The close control reads the shared translated "Close" unless `closeLabel` names a more specific verb; `hideClose` removes it on both layouts.
+
 ## Keep record details scannable
 
 `EntityViewDialog` uses the `lg` reading width and sizes its height to the content.
