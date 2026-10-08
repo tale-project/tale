@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 133 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 136 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -75,12 +75,14 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (`tasks.actions.openCreated`); the card lands in **To do**
   (`tasks.status.todo`, the create default) at **Medium** priority
   (`tasks.priority.p2`) with today as **Start date** (`tasks.startDate.label`),
-  and is present in **both** views and after reload; the same header button
-  is the only create affordance (no per-lane +)
+  and is present in **both** views and after reload; on the board each lane
+  also creates in its own status (TASK-F74)
 - [ ] `TASK-F3` · **Board lanes** — `…/tasks/board` → Six lanes render in
   order — **Backlog / To do / In progress / In review / Done / Cancelled**
-  (`tasks.status.backlog` … `tasks.status.cancelled`); an empty lane shows
-  **No tasks** (`tasks.board.noTasks`) and still accepts drops.
+  (`tasks.status.backlog` … `tasks.status.cancelled`), each headed by its
+  status glyph, word and count; an empty lane still accepts drops and shows
+  **Add task** (`tasks.board.addTask`) to a viewer who may create, **No tasks**
+  (`tasks.board.noTasks`) to one who may not.
 - [ ] `TASK-F4` · **Board drag-and-drop** — Drag a card across lanes (e.g. To
   do → In progress → Done), including into an empty lane → The card re-homes
   and the new status survives reload **and** shows in the list view; dragging
@@ -790,6 +792,22 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Link copied** (`tasks.detail.linkCopied`). An archived task shows its badge
   on that line.
 
+- [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
+  lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with
+  Status **In progress** → in the **Backlog** lane press **Add task**
+  (`tasks.board.addTask`), type a title, **Enter** → the card appears at the
+  lane's end with Medium priority, the field stays open and focused for the
+  next title; **Esc** closes it, and leaving it empty closes it too. With the
+  board filtered to **Priority: High** and an assignee, a task added this way
+  carries both. A reader of an archived project sees neither control.
+- [ ] `TASK-F75` · **A card says what is happening** — Open the board with a
+  task whose agent is running → it shows **{agent} is working**
+  (`tasks.board.agentWorking`) under its
+  title with a pulsing glyph; one whose agent asked a question shows **Waiting
+  for your answer** instead; one at the review gate shows **Waiting on you** or
+  **Waiting on {name}**. An agent-assigned card names its agent beside the
+  avatar. The card's title reads the same sentence to a screen reader.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -1343,6 +1361,12 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Title** and the switch **Create another** with its on/off state; Space
   toggles the switch; the schedule message is announced when it appears
   (`role=alert`).
+
+- [ ] `TASK-A20` · **Lane controls by keyboard** — Tab into a lane → its **+**
+  shows on focus with a visible ring and is named **Add task to {status}**;
+  **Add task** opens its field with the caret in it, **Enter** adds and a screen
+  reader hears **Added "{title}"** (`tasks.board.quickAdded`), **Esc** closes it
+  and focus stays in the lane.
 
 ## Performance
 
