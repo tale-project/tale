@@ -171,7 +171,7 @@ export function buildConnectionUrl(
  *
  * Returns `null` when the organization has not configured one — retrieval then
  * refuses rather than guessing, because there is no default model whose
- * dimensions would happen to match whatever is already in the corpus.
+ * vectors would happen to be the ones already in the corpus.
  *
  * A present-but-invalid file throws. In particular a file missing `dimensions`
  * fails here: the width is required, never inferred from the model name.

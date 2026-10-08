@@ -9,11 +9,12 @@
 //      cache volumes carry a different label and MUST NOT be reaped. It also
 //      empties, in the background, the trash of destroyed workspaces that the
 //      previous process left (session/workspace-trash.ts).
-//   2. Periodic sweep: every 5 min, kill any tale-sbx-* container whose
-//      `tale.started=<ms>` label is older than 2× max_timeout AND whose
-//      session id isn't in the live in-flight set. Same host-dir sweep
-//      for orphan one-shot dirs, and another pass over the workspace trash
-//      for what an earlier one could not remove.
+//   2. Periodic sweep: every 5 min, another pass over the workspace trash
+//      for what an earlier one could not remove, and the orphaned DinD
+//      volumes. Hourly (the boot sweep counts as the first), also kill any
+//      tale-sbx-* one-shot container whose `tale.started=<ms>` label is older
+//      than 2× max_timeout AND whose session id isn't in the live in-flight
+//      set, with the same host-dir sweep for orphan one-shot dirs.
 //   3. SIGTERM handler (in server.ts after refactor): stop accepting new
 //      requests, wait for in-flight count to drop, then exit.
 
@@ -387,58 +388,78 @@ export async function bootSweep(cfg?: SpawnerConfig): Promise<void> {
   }
 }
 
+/** How often the legacy one-shot sweep runs after the boot sweep. No current
+ * code creates a one-shot (`tale.sandbox=1`) container or its exec dir; the
+ * boot sweep removes what an older release left, and this re-check only
+ * catches one a peer still running that release starts later. */
+export const LEGACY_SWEEP_INTERVAL_MS = 60 * 60_000;
+
+export interface DockerSweepOptions {
+  /** Run the legacy one-shot half: the `tale.sandbox=1` container listing
+   * and the one-shot exec dirs it gates. */
+  legacy: boolean;
+  docker?: typeof runDocker;
+}
+
+export interface DockerSweepResult {
+  removed: number;
+  /** The legacy half ran and its `docker ps` answered. */
+  legacySwept: boolean;
+}
+
 /**
- * Docker-specific orphan reap: kill any `tale-sbx-*` container whose
- * `tale.started` label predates `staleThreshold` and whose session id is no
- * longer live, then sweep orphaned host session dirs. Called by
- * `DockerBackend.sweepOrphans` (boot + periodic). Returns the count removed
- * (containers + dirs); errors are logged, never thrown, so the periodic
- * scheduler keeps running.
+ * Docker-specific orphan reap, called by `DockerBackend.sweepOrphans` every
+ * periodic tick. Every tick retries the workspace trash and reaps orphaned
+ * DinD volumes. With `legacy`, it also kills any `tale-sbx-*` one-shot
+ * container whose `tale.started` label predates `staleThreshold` and whose
+ * session id is no longer live, then sweeps orphaned host one-shot dirs.
+ * Errors are logged, never thrown, so the periodic scheduler keeps running.
  */
 export async function dockerSweepOrphans(
   cfg: SpawnerConfig,
   staleThreshold: number,
   isLive: (executionId: string) => boolean,
-): Promise<number> {
+  { legacy, docker = runDocker }: DockerSweepOptions = { legacy: true },
+): Promise<DockerSweepResult> {
   let removed = 0;
-  // Match the prior startPeriodicSweep semantics: a failed/throwing `docker
-  // ps` short-circuits the whole tick (neither the container loop NOR the
-  // host-dir sweep runs), so we don't reap host session dirs while the daemon
-  // is unreachable.
+  // A failed/throwing `docker ps` skips the host-dir sweep too, so host
+  // session dirs are not reaped while the daemon is unreachable.
   let containerProbeOk = false;
-  try {
-    const result = await runDocker(
-      [
-        'ps',
-        '-a',
-        '--filter',
-        'label=tale.sandbox=1',
-        '--format',
-        '{{.Names}}\t{{.Labels}}',
-      ],
-      { timeoutMs: 15_000 },
-    );
-    if (result.exitCode === 0) {
-      containerProbeOk = true;
-      for (const line of result.stdout.split('\n')) {
-        const [name, labels] = line.split('\t');
-        if (!name) continue;
-        const m = labels?.match(/tale\.started=(\d+)/);
-        if (!m) continue;
-        const started = Number.parseInt(m[1] ?? '0', 10);
-        if (Number.isNaN(started) || started >= staleThreshold) continue;
-        // session id is the second component of the name (tale-sbx-<id>).
-        const sessionId = name.replace(/^tale-sbx-/, '');
-        if (isLive(sessionId)) continue;
-        if (!(await sweepRm(name, '[sandbox.periodic] stale'))) continue;
-        removed += 1;
-        console.log(
-          `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,
-        );
+  if (legacy) {
+    try {
+      const result = await docker(
+        [
+          'ps',
+          '-a',
+          '--filter',
+          'label=tale.sandbox=1',
+          '--format',
+          '{{.Names}}\t{{.Labels}}',
+        ],
+        { timeoutMs: 15_000 },
+      );
+      if (result.exitCode === 0) {
+        containerProbeOk = true;
+        for (const line of result.stdout.split('\n')) {
+          const [name, labels] = line.split('\t');
+          if (!name) continue;
+          const m = labels?.match(/tale\.started=(\d+)/);
+          if (!m) continue;
+          const started = Number.parseInt(m[1] ?? '0', 10);
+          if (Number.isNaN(started) || started >= staleThreshold) continue;
+          // session id is the second component of the name (tale-sbx-<id>).
+          const sessionId = name.replace(/^tale-sbx-/, '');
+          if (isLive(sessionId)) continue;
+          if (!(await sweepRm(name, '[sandbox.periodic] stale'))) continue;
+          removed += 1;
+          console.log(
+            `[sandbox] periodic sweep removed stale container ${name} (started ${new Date(started).toISOString()})`,
+          );
+        }
       }
+    } catch (err) {
+      console.warn(`[sandbox.periodic] container sweep error:`, err);
     }
-  } catch (err) {
-    console.warn(`[sandbox.periodic] container sweep error:`, err);
   }
   // Retry what an earlier pass over the workspace trash could not remove. Not
   // awaited, and not gated on the daemon: the trash needs no Docker, and a
@@ -446,40 +467,93 @@ export async function dockerSweepOrphans(
   void workspaceTrash(cfg.hostSessionRoot).empty();
   // Host-dir sweep: legacy one-shot exec dirs that lived past the stale
   // threshold without an active in-flight entry are orphaned (session
-  // workspaces are never touched — see sweepHostSessionDirs). Replaces the
-  // old volume-sweep block that targeted volumes nobody creates (audit
-  // finding R2-3 C5). Gated on the container probe so a wedged daemon defers
-  // dir reaping to the next cycle (matches the prior short-circuit).
+  // workspaces are never touched — see sweepHostSessionDirs).
   if (containerProbeOk) {
     removed += await sweepHostSessionDirs(
       cfg.hostSessionRoot,
       staleThreshold,
       isLive,
     );
-    // Reap orphaned per-session inner-docker (DinD) storage volumes. A volume
-    // still attached to a live session container fails `volume rm` and is
-    // skipped; only volumes whose session is gone (crash, missed teardown) are
-    // removed. Cheap + opportunistic — runs even if DinD is currently disabled
-    // so a config flip-back doesn't leak the old volumes.
-    removed += await sweepOrphanDindVolumes();
   }
-  return removed;
+  // Reap orphaned per-session inner-docker (DinD) storage volumes: only
+  // those no container references (a crash, a missed teardown). Cheap — one
+  // `docker volume ls` when there are none, which also fails harmlessly while
+  // the daemon is unreachable — and run even if DinD is currently disabled
+  // so a config flip-back doesn't leak the old volumes.
+  removed += await sweepOrphanDindVolumes(docker);
+  return { removed, legacySwept: containerProbeOk };
 }
 
-/** Best-effort removal of dangling DinD storage volumes (label
- * tale.sandbox-dind=1). In-use volumes fail `volume rm` and are left alone. */
-async function sweepOrphanDindVolumes(): Promise<number> {
+/** A DinD volume is created a moment before the `docker run` that mounts it,
+ * with the build-cache provisioning in between; until then no container
+ * references it. One younger than this is left to the create that made it. */
+export const DIND_VOLUME_MIN_AGE_MS = 10 * 60_000;
+
+/** Best-effort removal of orphaned DinD storage volumes (label
+ * tale.sandbox-dind=1). Only volumes no container references are listed,
+ * so a running session's volume is never even attempted; a volume whose
+ * creation time the daemon does not report is left alone. */
+export async function sweepOrphanDindVolumes(
+  docker: typeof runDocker = runDocker,
+  now: () => number = Date.now,
+): Promise<number> {
   let removed = 0;
   try {
-    const ls = await runDocker(
-      ['volume', 'ls', '-q', '--filter', 'label=tale.sandbox-dind=1'],
+    const ls = await docker(
+      [
+        'volume',
+        'ls',
+        '-q',
+        '--filter',
+        'label=tale.sandbox-dind=1',
+        '--filter',
+        'dangling=true',
+      ],
       { timeoutMs: 15_000 },
     );
     if (ls.exitCode !== 0) return 0;
-    for (const name of ls.stdout.split('\n')) {
-      const vol = name.trim();
-      if (!vol) continue;
-      const rmRes = await runDocker(['volume', 'rm', vol], {
+    const names = ls.stdout
+      .split('\n')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    if (names.length === 0) return 0;
+    // One inspect for all of them. A volume removed since the listing makes
+    // the command fail but the others still print, so read stdout either way.
+    const inspected = await docker(
+      [
+        'volume',
+        'inspect',
+        '--format',
+        '{{json .Name}}\t{{json .CreatedAt}}',
+        ...names,
+      ],
+      { timeoutMs: 15_000 },
+    );
+    for (const line of inspected.stdout.split('\n')) {
+      const [rawName, rawCreated] = line.split('\t');
+      if (!rawName || !rawCreated) continue;
+      let vol: unknown;
+      let created: unknown;
+      try {
+        vol = JSON.parse(rawName);
+        created = JSON.parse(rawCreated);
+      } catch (err) {
+        console.warn(
+          `[sandbox.periodic] unreadable dind volume inspect line ${JSON.stringify(line)}:`,
+          err,
+        );
+        continue;
+      }
+      if (typeof vol !== 'string' || !names.includes(vol)) continue;
+      const createdAtMs =
+        typeof created === 'string' ? Date.parse(created) : Number.NaN;
+      if (
+        !Number.isFinite(createdAtMs) ||
+        now() - createdAtMs < DIND_VOLUME_MIN_AGE_MS
+      ) {
+        continue;
+      }
+      const rmRes = await docker(['volume', 'rm', vol], {
         timeoutMs: 10_000,
       });
       if (rmRes.exitCode === 0) {
@@ -487,8 +561,13 @@ async function sweepOrphanDindVolumes(): Promise<number> {
         console.log(
           `[sandbox] periodic sweep removed orphan dind volume ${vol}`,
         );
+      } else {
+        // A container started using it since the listing, or the daemon
+        // refused: left for the next sweep.
+        console.warn(
+          `[sandbox.periodic] dind volume rm ${vol} failed (exit ${rmRes.exitCode}): ${rmRes.stderr.trim()}`,
+        );
       }
-      // Non-zero = in use by a live session → expected, skip silently.
     }
   } catch (err) {
     console.warn('[sandbox.periodic] dind volume sweep error:', err);

@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { isKnowledgeVectorWidth } from '@tale/shared/schemas/knowledge';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { resolveSystemConfigRoot } from '../../../../lib/shared/config/system-root';
@@ -461,6 +462,12 @@ describe('shipped static model catalogs', () => {
         expect(entry.embedding.dimensions).toBeLessThanOrEqual(
           HNSW_DIMENSION_LIMIT,
         );
+        // And a width the knowledge database has no table for would hand it
+        // a pick the settings refuse to save.
+        expect(
+          isKnowledgeVectorWidth(entry.embedding.dimensions),
+          `${provider}/${entry.id}`,
+        ).toBe(true);
       }
     }
     expect(curated).toEqual([

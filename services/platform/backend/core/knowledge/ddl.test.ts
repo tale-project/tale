@@ -318,8 +318,12 @@ describe('applyCorpusSchema — version-aware application', () => {
   function insertedVersions(
     executed: { statement: string; params?: unknown[] }[],
   ) {
+    // The ledger's own inserts — a migration may copy rows with an INSERT of
+    // its own (the vectors' move to a table per width does).
     return executed
-      .filter(({ statement }) => statement.includes('INSERT INTO'))
+      .filter(({ statement }) =>
+        /INSERT INTO \w+\.schema_migrations/.test(statement),
+      )
       .map(({ params }) => params?.[0]);
   }
 
