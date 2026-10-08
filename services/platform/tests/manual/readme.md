@@ -45,7 +45,7 @@ directory and greppable as one token.
 | [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 26 |
 | [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 83 |
 | [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 68 |
-| [mcp](suites/mcp.md) | `MCP-` | the MCP endpoint from a coding agent: connecting five clients with a key on either protocol era, a stale save, mock runs in Runs, the ask before a deploy, prompts, resources and the Tale skill, its saves in the audit log | 12 |
+| [mcp](suites/mcp.md) | `MCP-` | the MCP endpoint from a coding agent: connecting five clients with a key on either protocol era, a stale save, mock runs in Runs, the ask before a deploy, answering a run's question, prompts, resources and the Tale skill, its saves in the audit log | 12 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 20 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 70 |
 | [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 32 |

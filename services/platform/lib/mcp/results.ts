@@ -58,7 +58,15 @@ export const READ_TOOL_RESULTS = {
     runs: z.array(runSummary),
     nextCursor: z.string().nullable(),
   }),
-  get_run: z.looseObject({ run: runSummary }),
+  get_run: z.looseObject({
+    run: runSummary.extend({
+      // The question a run waiting on a person asked: answer_run_ask takes
+      // its askId.
+      ask: z
+        .looseObject({ askId: z.string(), question: z.string() })
+        .optional(),
+    }),
+  }),
   list_versions: z.looseObject({
     deployedVersion: z.number().nullable(),
     versions: z.array(z.looseObject({ version: z.number() })),

@@ -374,7 +374,7 @@ export const ENGINE_TOOL_ARGS = {
   answer_run_ask: z.strictObject({
     runId,
     askId: nonBlank().describe(
-      'The question to answer — get_run answers it while the run waits on one (waitingFor: "ask").',
+      'The question to answer — get_run answers it as run.ask.askId while the run waits on one (waitingFor: "ask").',
     ),
     answer: nonBlank()
       .max(20_000)

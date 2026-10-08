@@ -31,6 +31,7 @@ import {
   deleteAutomationCascade,
   deploy,
   deployedVersion,
+  getPendingAskForRun,
   getRun,
   listRunsPage,
   listTriggers,
@@ -47,6 +48,7 @@ vi.mock('./store.ts', async (original) => ({
   deleteAutomationCascade: vi.fn(),
   deploy: vi.fn(),
   deployedVersion: vi.fn(),
+  getPendingAskForRun: vi.fn(),
   getRun: vi.fn(),
   listRunsPage: vi.fn(),
   listTriggers: vi.fn(),
@@ -453,6 +455,79 @@ describe('answerAsk', () => {
       store().answerAsk?.('run-1', 'ask-1', 'Yes'),
     ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN' });
     expect(answerRunAskAs).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A run waiting on a person's answer names the question in `get_run` — the
+ * only place an agent learns the `askId` `answer_run_ask` needs (the REST
+ * door has `GET /runs/{id}/ask`). Read only for a run that waits on one.
+ */
+describe('getRun names the question a waiting run asks', () => {
+  const waitingRow = {
+    id: 'run-7',
+    name: NAME,
+    version: 3,
+    projectId: null as string | null,
+    status: 'waiting',
+    mode: 'live',
+    startedBy: 'api-key:user-1',
+    input: { _tale: {} },
+    output: null,
+    trace: null,
+    effects: null,
+    detail: 'agent:review',
+    failureCode: null,
+    startedAt: 1,
+    finishedAt: null,
+    askPending: true,
+    resumeCount: 0,
+    lastResumeReason: null,
+    lastResumedAt: null,
+    stalled: false,
+  };
+  const pending = {
+    askId: 'ask-42',
+    runId: 'run-7',
+    nodeId: 'review',
+    question: 'Send the reminder to Acme today?',
+    createdAt: 10,
+    expiresAt: 20,
+  };
+
+  it("Ada's agent reads the question her run asks, with the askId to answer it [MCP-R27]", async () => {
+    vi.mocked(getRun).mockResolvedValue(waitingRow as never);
+    vi.mocked(getPendingAskForRun).mockResolvedValue(pending);
+    const run = await store().getRun?.('run-7');
+    expect(run).toMatchObject({
+      waitingFor: 'ask',
+      ask: {
+        askId: 'ask-42',
+        nodeId: 'review',
+        question: 'Send the reminder to Acme today?',
+        expiresAt: 20,
+      },
+    });
+    expect(run?.ask).not.toHaveProperty('runId');
+    expect(getPendingAskForRun).toHaveBeenCalledWith(
+      expect.anything(),
+      ORG,
+      'run-7',
+    );
+  });
+
+  it('reads no question for a run that waits on none, and none of a run the person cannot see', async () => {
+    vi.mocked(getRun).mockResolvedValue({
+      ...waitingRow,
+      askPending: false,
+    } as never);
+    expect(await store().getRun?.('run-7')).not.toHaveProperty('ask');
+    vi.mocked(getRun).mockResolvedValue({
+      ...waitingRow,
+      projectId: 'p-hidden',
+    } as never);
+    expect(await store().getRun?.('run-7')).toBeNull();
+    expect(getPendingAskForRun).not.toHaveBeenCalled();
   });
 });
 

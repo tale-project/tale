@@ -416,7 +416,10 @@
  * with `cursor` / `nextCursor`; `list_versions` answers `createdVia`,
  * `clientName` and `deployments`. New tools: `delete_automation`,
  * `set_automation_projects`, `answer_run_ask` (each asking the person first,
- * like `deploy_automation` and `set_trigger`) and `get_automation_metrics`.
+ * like `deploy_automation` and `set_trigger`) and `get_automation_metrics`;
+ * `get_run` names the question a run waiting on a person asked under
+ * `run.ask` (`askId`, `question`, `nodeId`, `expiresAt`), which
+ * `answer_run_ask` answers.
  * Member reads tighten on MCP and REST alike: an automation installed only in
  * projects the key holder cannot read is left out of `list_automations` and
  * `GET /api/v1/automations`, and its reads answer `AUTOMATION_NOT_FOUND`

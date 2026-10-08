@@ -298,10 +298,11 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
     'Start a run in the background and return a run handle immediately; poll get_run for the result. mode "live" (default) runs the deployed version for real; mode "mock" runs any saved version against the mocks and is recorded — use it while testing.',
   list_runs:
     'Recent runs the caller can read, newest first — of one automation or of the current scope; filter by mode and statuses, and page with nextCursor.',
-  get_run: 'One run in full: status, output, trace and effects.',
+  get_run:
+    'One run in full: status, output, trace and effects. A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
   cancel_run: 'Stop a run at its next node boundary.',
   answer_run_ask:
-    'Answer the question a waiting run asked a person (get_run shows it); the run resumes on the answer. The answer speaks for the person.',
+    'Answer the question a waiting run asked a person (get_run answers it as run.ask: askId and question); the run resumes on the answer. The answer speaks for the person: ask them first.',
   list_versions:
     "One automation's immutable version history — who saved each version through which door — and when each version went live (deployments).",
   set_automation_projects:

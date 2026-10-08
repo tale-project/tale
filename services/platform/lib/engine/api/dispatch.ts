@@ -110,6 +110,22 @@ export interface RunSummary {
   finishedAt?: number;
 }
 
+/** The question a run waits on a person to answer (`waitingFor: "ask"`):
+ * what `answer_run_ask` answers, by `askId`. */
+export interface RunAsk {
+  askId: string;
+  /** The node that asked. */
+  nodeId: string;
+  question: string;
+  /** The structured questions, when the step asked several at once. */
+  questions?: unknown;
+  createdAt: number;
+  /** When the run goes on without an answer, epoch ms. */
+  expiresAt: number;
+  /** The task the question is mirrored on, when there is one. */
+  taskId?: string;
+}
+
 /** One run in full — what `get_run` answers with once the host has recorded
  * the outcome. The trace and effects are the engine's own result fields, so a
  * polled run reads exactly like a synchronous one. */
@@ -118,6 +134,9 @@ export interface RunDetail extends RunSummary {
   output?: unknown;
   trace?: unknown;
   effects?: unknown;
+  /** The question the run waits on, while it waits on one: the one place an
+   * agent learns the `askId` and what to answer. */
+  ask?: RunAsk;
 }
 
 /** One entry of an automation's immutable version history. */
@@ -487,7 +506,7 @@ const HOST_REFUSAL_HINTS: Readonly<Record<string, string>> = {
   AUTOMATION_PROJECT_UNKNOWN:
     'list_automations shows the projects an automation is installed in; the project must exist in this organization',
   HUMAN_ASK_NOT_FOUND:
-    'get_run {runId} shows whether the run is waiting on a question (waitingFor: "ask")',
+    'get_run {runId} answers the question the run waits on as run.ask (its askId and the question); no run.ask means it waits on none',
   HUMAN_ASK_NOT_PENDING:
     'the question was answered or closed already — get_run {runId} shows where the run stands',
   HUMAN_ASK_EXPIRED:
@@ -1745,7 +1764,7 @@ export async function dispatch(
         return {
           error: 'answer_run_ask takes {runId, askId, answer}',
           code: 'INVALID_PARAMS',
-          hint: 'get_run {runId} shows the question a waiting run asks (waitingFor: "ask")',
+          hint: 'get_run {runId} answers the question a waiting run asks as run.ask (askId, question)',
         };
       }
       const answer = asString(p.answer).trim();

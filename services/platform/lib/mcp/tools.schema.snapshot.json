@@ -761,6 +761,19 @@
             },
             "status": {
               "type": "string"
+            },
+            "ask": {
+              "type": "object",
+              "properties": {
+                "askId": {
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                }
+              },
+              "required": ["askId", "question"],
+              "additionalProperties": {}
             }
           },
           "required": ["runId", "status"],
@@ -800,7 +813,7 @@
           "type": "string",
           "minLength": 1,
           "pattern": "\\S",
-          "description": "The question to answer — get_run answers it while the run waits on one (waitingFor: \"ask\")."
+          "description": "The question to answer — get_run answers it as run.ask.askId while the run waits on one (waitingFor: \"ask\")."
         },
         "answer": {
           "type": "string",

@@ -110,6 +110,18 @@ history as a mock run like one started in the app. Both draw from the run-start 
   `mode: "mock"` → the run starts and appears in the run history as a mock run; the same start with
   `mode: "live"` → refused, and no run starts.
 
+### MCP-R27 · An agent reads the question a waiting run asked, and answers it for the person
+
+A run whose step asked a person a question waits on the answer (`waitingFor: "ask"`). `get_run`,
+and the run resource, name that question while the run waits on it — its id, the words asked, the
+step that asked and when the run goes on without an answer — so the agent can tell the person and,
+once they have answered, pass the answer on with `answer_run_ask`. A run that waits on nothing, or
+on something else, names no question.
+
+- **Example**: Ada's run of `ops/confirm-send` waits on "Send it?" → `get_run` names the question
+  and its id; Ada tells her agent "Yes, send it" → the agent answers it, and the run goes on with
+  her answer.
+
 ### MCP-R6 · No tool decides an approval; a gated step waits for a person in Tale
 
 A step the organization gates for approval parks its run whichever door started it. An agent that

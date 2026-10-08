@@ -4,8 +4,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import type {
   DeploymentEntry,
   DispatchStore,
+  RunAsk,
   RunDetail,
   RunPage,
+  RunSummary,
   TriggerView,
   VersionSummary,
   VersionView,
@@ -62,6 +64,7 @@ import {
   deleteTrigger,
   deployedVersion,
   deploy as deployVersion,
+  getPendingAskForRun,
   getRun,
   listAutomations,
   listRuns,
@@ -735,8 +738,19 @@ export function pgAutomationStore(
         (await readableProject(sql, auth, row.projectId)) === null
       )
         return null;
+      const summary = toRunSummary(row);
+      /** The question the run waits on — the askId `answer_run_ask` needs,
+       * read only for a run that waits on one (the REST door's
+       * `GET /runs/{id}/ask`, folded into the run). */
+      const waitingAsk = async (run: RunSummary): Promise<{ ask?: RunAsk }> => {
+        if (run.status !== 'waiting' || run.waitingFor !== 'ask') return {};
+        const pending = await getPendingAskForRun(sql, organizationId, runId);
+        if (pending === null) return {};
+        const { runId: _sameRun, ...ask } = pending;
+        return { ask };
+      };
       return {
-        ...toRunSummary(row),
+        ...summary,
         input: decodeRunInput(row.input),
         ...(row.output !== null && row.output !== undefined
           ? { output: row.output }
@@ -747,6 +761,7 @@ export function pgAutomationStore(
         ...(row.effects !== null && row.effects !== undefined
           ? { effects: row.effects }
           : {}),
+        ...(await waitingAsk(summary)),
       };
     },
     listVersions: async (name): Promise<VersionSummary[]> => {

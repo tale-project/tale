@@ -125,6 +125,13 @@ earlier boxes left.
   decline when Claude Code asks → the list is answered without a question; Claude Code asks you
   before it calls `deploy_automation`; after you decline, a reload of
   `/dashboard/{org}/automations` shows the same deployed version of `billing/dunning` as before.
+- [ ] `MCP-F14` · **Answer a run's question through the agent** — Ask the agent to build and save
+  `ops/confirm-send`, whose agent step asks you "Send it?" before it finishes, and to deploy it
+  (accept when Claude Code asks); start it live from the editor's **Run** button; once the run
+  waits, ask the agent what it is waiting for, then tell it "Yes, send it" → the agent quotes the
+  question the run asked, word for word, without guessing an id; Claude Code asks you before it
+  calls `answer_run_ask`; after you accept, the run in
+  `/dashboard/{org}/automations/{slug}/runs` leaves **Waiting** and goes on with your answer.
 
 ## What the organization sees
 
