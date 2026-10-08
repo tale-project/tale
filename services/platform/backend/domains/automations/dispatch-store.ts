@@ -56,6 +56,7 @@ import {
   beginRunIdempotent,
   beginRunIdempotentInTx,
 } from './store.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * The engine's `DispatchStore` over the 0.5 automations store — what the
@@ -400,6 +401,7 @@ export function pgAutomationStore(
           ? truncateRunDetail(result.error.message)
           : undefined;
       await transactSerializable(sql, async (tx) => {
+        await markAutomationWriterInTx(tx);
         const projectId = await authorizeInlineRun(tx, name, mode);
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.automation_runs (

@@ -21,11 +21,18 @@ L’onglet **Exécutions** présente les 50 dernières exécutions que tu peux v
 | **En cours** | Le moteur traite le workflow. | Suivre les nœuds. |
 | **Interrompue — reprise en cours** | Le serveur qui l’exécutait s’est arrêté ; un autre la reprend en une minute et demie environ. | Attendre : rien à faire. |
 | **En attente** | Une décision, une réponse, un agent ou une condition reste attendu. | Lire ce qui manque. |
+| **Suspendue** | Le résultat du travail commencé avant la mise à jour est inconnu. | Consulte les détails de la suspension ; ne suppose pas qu’une relance est sans risque. |
 | **Réussie** | Les nœuds atteints ont terminé et la sortie est produite. | Examiner sortie et effets. |
 | **En échec** | L’exécution s’est terminée sur un échec non traité. | Ouvrir le nœud concerné et lire l’erreur. |
 | **Arrêtée** | L’exécution a été annulée. | Vérifier le travail déjà fait avant de relancer. |
 
 Une approbation, une question ou une étape peut-être déjà exécutée attend une personne ; un agent au travail ou une interrogation répétée peut poursuivre seul. Une décision ou une réponse peut aussi être refusée ou expirer. Utilise la cause affichée, pas le seul statut **En attente**, pour décider d’intervenir. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique les commandes de décision.
+
+## Une exécution suspendue après une mise à jour
+
+**Suspendue** signifie que Tale ne peut pas vérifier le résultat du travail commencé avant la mise à jour. L’exécution ne reprend pas et n’est pas relancée automatiquement ; sa tâche reste réservée. Les points de contrôle et les effets enregistrés restent consultables. L’absence d’effets ne prouve pas qu’un service externe n’a rien reçu.
+
+Laisse l’exécution suspendue pendant tes vérifications. **Demander l’arrêt** demande à Tale d’arrêter les sessions qu’il peut identifier et explique l’incertitude avant ta confirmation. **Arrêt demandé** ne confirme pas l’arrêt du travail : la suspension reste en place jusqu’à confirmation de l’arrêt du travail précédent. La demande n’annule aucune action externe antérieure. Si la suspension change pendant que la fenêtre de confirmation est ouverte, ferme-la et consulte les détails actualisés.
 
 ## Examiner le nœud concerné
 

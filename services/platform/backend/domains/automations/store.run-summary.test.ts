@@ -146,6 +146,40 @@ describe('runStartedVia', () => {
 });
 
 describe('toRunSummary', () => {
+  it('publishes the same bounded legacy hold on list/detail without original lease facts', () => {
+    const held = row({
+      status: 'quarantined',
+      legacyQuarantine: {
+        schemaVersion: 1,
+        reason: 'legacy_execution_unproven',
+        observedAtMs: 100,
+        prior: {
+          status: 'waiting',
+          claimEpoch: 1,
+          chainSeq: 3,
+          engineProtocol: 1,
+          wakeAtMs: null,
+          leaseEpoch: 1,
+          leaseOwner: 'private-incarnation',
+          leaseExpiresAtMs: null,
+        },
+        resolution: null,
+      },
+    });
+    const expected = {
+      reason: 'legacy_execution_unproven',
+      observedAt: 100,
+      claimEpoch: 2,
+      priorStatus: 'waiting',
+      resolution: null,
+    };
+    for (const read of [toRunSummary(held), toRunDetail(held)]) {
+      expect(read.status).toBe('quarantined');
+      expect(read.legacyQuarantine).toEqual(expected);
+      expect(read.waitingFor).toBeUndefined();
+      expect(JSON.stringify(read)).not.toContain('private-incarnation');
+    }
+  });
   it('carries startedVia on a trigger run and omits it otherwise', () => {
     const scheduled = toRunSummary(
       row({

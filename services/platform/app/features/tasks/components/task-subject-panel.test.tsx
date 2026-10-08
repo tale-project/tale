@@ -81,6 +81,7 @@ vi.mock('../hooks/mutations', () => ({
 
 vi.mock('@/app/features/automations/hooks/mutations', () => ({
   useAnswerHumanAsk: () => ({ mutateAsync: mocks.answerAsk }),
+  useRequestLegacyRunStop: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useResolveRunInDoubt: () => ({
     mutateAsync: mocks.resolveInDoubt,
     isPending: false,
@@ -917,4 +918,27 @@ describe('TaskSubjectPanel', () => {
       variant: 'destructive',
     });
   });
+});
+
+it('shows a held subject without offering ordinary cancellation or replay', () => {
+  mocks.run = {
+    runId: 'run-held',
+    name: 'archive',
+    status: 'quarantined',
+    legacyQuarantine: {
+      reason: 'legacy_execution_unproven',
+      observedAt: 123,
+      claimEpoch: 4,
+      priorStatus: 'running',
+      resolution: null,
+    },
+  };
+  const { container } = renderPanel(ownedBy(), true, 'in_progress');
+  expect(screen.getByText('Outcome unknown')).toBeInTheDocument();
+  expect(
+    screen.getByRole('button', { name: 'Request stop' }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Start/ })).toBeNull();
+  expect(container.querySelector('.animate-spin')).toBeNull();
 });

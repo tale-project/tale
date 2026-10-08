@@ -202,6 +202,21 @@ const STATIC_IMPORTS = [
       'tests/docs-screenshots/manifest.test.ts imports the marketing capture source registry',
   },
   {
+    path: 'tools/cli/src/lib/deployment/automation-floor.ts',
+    importers:
+      'backend/jobs/automation-floor.integration.ts proves the maintained CLI protocol ledger query',
+  },
+  {
+    path: 'tools/cli/src/lib/deployment/automation-model.ts',
+    importers:
+      'backend/jobs/automation-floor.integration.ts proves the maintained CLI protocol ledger query',
+  },
+  {
+    path: 'tools/cli/src/lib/deployment/migration-model.ts',
+    importers:
+      'backend/jobs/automation-floor.integration.ts proves the maintained CLI protocol ledger query',
+  },
+  {
     path: 'services/sandbox-runtime/build-gemini-settings.ts',
     importers:
       'lib/harnesses/gemini-settings-build.test.ts imports its geminiPolicies and settings placeholders',

@@ -199,6 +199,9 @@ describe('the automation work a drain waits for [CTRL-R5]', () => {
     expect(runs?.values).toContain('blue');
     const drives = statements.find((s) => s.text.includes('FROM pgboss.job'));
     expect(drives?.text).toContain("state = 'active'");
+    expect(drives?.values).toContain('automation.v2.agent_drive');
+    expect(drives?.text).toContain("'automation.agent_drive'");
+    expect(drives?.text).toContain("'task.agent_drive'");
     expect(drives?.values).toContain(1_000_000);
   });
 

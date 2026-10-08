@@ -374,6 +374,9 @@ jobs:
           fi
           echo "created=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
           echo "revision=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
+          AUTOMATION_PROTOCOL=$(sed -n 's/^export const ENGINE_PROTOCOL = \([1-9][0-9]*\);$/\1/p' services/platform/lib/engine/core/protocol.ts)
+          case "$AUTOMATION_PROTOCOL" in 1|2) ;; *) echo '::error::Unsupported automation writer protocol'; exit 1;; esac
+          echo "automation-protocol=${AUTOMATION_PROTOCOL}" >> "$GITHUB_OUTPUT"
 
       # Fail the build (not just the separate test job) on a broken builtin
       # config catalog — build.yml and test.yml otherwise run independently,
@@ -406,6 +409,7 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
           build-args: |
             VERSION=${{ needs.changes.outputs.image_tag }}
+            ${{ matrix.service == 'platform' && format('AUTOMATION_WRITER_PROTOCOL={0}', steps.meta.outputs.automation-protocol) || '' }}
           cache-from: type=gha,scope=${{ matrix.service }}
           # Publish the large shared stack cache only from main. PR-local
           # exports took 148s and cannot seed other PRs; old candidates must
@@ -419,6 +423,7 @@ jobs:
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.version=${{ needs.changes.outputs.image_tag }}
+            ${{ matrix.service == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
           provenance: false
 
       # One receipt per pushed image: the digest this run pushed and the

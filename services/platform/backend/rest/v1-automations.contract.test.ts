@@ -1620,3 +1620,78 @@ describe('changing an automation over REST', () => {
     },
   );
 });
+
+describe('quarantined run reads', () => {
+  it('filters and projects the public hold without exposing stored custody', async () => {
+    const legacyQuarantine = {
+      reason: 'legacy_execution_unproven',
+      observedAt: 1700000000000,
+      claimEpoch: 4,
+      priorStatus: 'running',
+      resolution: null,
+    };
+    const heldRun = {
+      ...runRow,
+      status: 'quarantined',
+      claimEpoch: 4,
+      finishedAt: null,
+      legacyQuarantine: {
+        schemaVersion: 1,
+        reason: 'legacy_execution_unproven',
+        observedAtMs: legacyQuarantine.observedAt,
+        prior: {
+          status: 'running',
+          claimEpoch: 3,
+          chainSeq: 2,
+          engineProtocol: 1,
+          wakeAtMs: null,
+          leaseEpoch: 3,
+          leaseOwner: 'private-owner',
+          leaseExpiresAtMs: 1700000000050,
+        },
+        resolution: null,
+      },
+    };
+    vi.mocked(getRun).mockResolvedValue(heldRun as never);
+    vi.mocked(listRunsPage).mockResolvedValue({
+      runs: [heldRun],
+      isDone: true,
+      next: null,
+    } as never);
+    const { app } = mount();
+    const detail = await app.request(
+      '/api/v1/runs/run-1?fields=status,legacyQuarantine',
+    );
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toEqual({
+      status: 'quarantined',
+      legacyQuarantine,
+    });
+    const list = await app.request('/api/v1/runs?status=quarantined');
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({
+      runs: [{ status: 'quarantined', legacyQuarantine }],
+    });
+    expect(listRunsPage).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      expect.objectContaining({ statuses: ['quarantined'] }),
+    );
+  });
+});
+
+it('preserves the held-run cancel refusal instead of claiming cancellation', async () => {
+  vi.mocked(getRun).mockResolvedValue({
+    ...runRow,
+    status: 'quarantined',
+  } as never);
+  vi.mocked(cancelRun).mockRejectedValue(
+    new AutomationError('RUN_QUARANTINED', 'Run is held', 409),
+  );
+  const response = await mount().app.request(
+    '/api/v1/runs/run-1/cancel',
+    json('POST'),
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ code: 'RUN_QUARANTINED' });
+});

@@ -70,10 +70,13 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
+import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
 import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
+import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
@@ -175,6 +178,11 @@ import {
   routeVendorFetch,
   startItestVendorStub,
 } from './integration-vendor-stub.ts';
+import { checkAutomationProtocolFloor } from './jobs/automation-floor.integration.ts';
+import {
+  checkAutomationProtocolQueues,
+  checkAutomationProtocolReadback,
+} from './jobs/automation-protocol.integration.ts';
 import { alignQueuePolicies, createBoss, ensureQueues } from './jobs/boss.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
@@ -182,7 +190,7 @@ import { startWorker } from './jobs/runner.ts';
 import { registerSchedules } from './jobs/schedules.ts';
 import { checkTaskCompletionEvidence } from './jobs/task-completion.integration.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import type { TaskIdentifier } from './jobs/tasks.ts';
+import { physicalTaskQueue, type TaskIdentifier } from './jobs/tasks.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -3068,7 +3076,9 @@ async function checkTasksOrgIsolation(
   // A live automation run on the victim task: the rival's cancel answers
   // 404 and the run keeps running (on the old org-blind guards the task
   // flipped to cancelled cross-org).
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, project_id, name, version, status, mode, started_by, input,
       started_at_ms
@@ -3077,6 +3087,7 @@ async function checkTasksOrgIsolation(
       ${userId}, ${sql.json({ task: { id: taskId } })}, ${now}
     )
   `;
+  });
   const crossCancel = await api(`/api/app/tasks/${taskId}/workflow/cancel`, {
     ...rival,
     method: 'POST',
@@ -3130,10 +3141,13 @@ async function checkTasksOrgIsolation(
       runAfterViewer[0]?.status === 'running',
     `read=${viewerRead.status} (want 200), start=${viewerStart.status}/cancel=${viewerCancel.status} (want 403), run=${runAfterViewer[0]?.status} (want running)`,
   );
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'failed'
     WHERE org_id = ${orgId} AND name = 'itest-iso-run'
   `;
+  });
 
   // Deciding a review is deciding the task: a member's move to Done (the
   // approve gesture) on someone else's task refuses on the task's work gate
@@ -12700,7 +12714,9 @@ async function checkAutomations(
 
     // Liveness: a queued run whose step job was LOST (inserted directly, no
     // enqueue) is overdue — the sweep must re-poke it to completion.
-    const orphan = await sql<{ id: string }[]>`
+    const orphan = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input, checkpoints,
         wake_at_ms, claim_epoch, started_at_ms
@@ -12710,6 +12726,7 @@ async function checkAutomations(
         ${Date.now() - 60_000}, 0, ${Date.now() - 60_000}
       ) RETURNING id
     `;
+    });
     const automationsStore = await import('./domains/automations/store.ts');
     const swept = await automationsStore.sweepOverdueRuns(sql);
     const orphanSettled = await waitFor(async () => {
@@ -12720,12 +12737,13 @@ async function checkAutomations(
       return rows[0]?.status === 'success';
     }, 30_000);
 
-    // A running run an image without leases was stepping when its worker
-    // died: claim 3, no lease, its promise lapsed. The sweep turns the
-    // promise into a lapsed lease, and the step it queues takes the run
-    // over and walks it to the end — instead of reading the fresh promise
-    // the poke wrote and refusing the run every sweep, for good.
-    const leaseless = await sql<{ id: string }[]>`
+    // A synthetic current-protocol run with no lease and a lapsed promise
+    // still exercises the sweep's lease repair. This marked setup is not
+    // evidence of safe legacy takeover: the separate boot-cutover proof
+    // requires genuinely pre-protocol active runs to remain quarantined.
+    const leaseless = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input, checkpoints,
         wake_at_ms, claim_epoch, claimed_at_ms, started_at_ms
@@ -12736,6 +12754,7 @@ async function checkAutomations(
         ${Date.now() - 300_000}
       ) RETURNING id
     `;
+    });
     const leaselessId = leaseless[0]?.id ?? '';
     await automationsStore.sweepOverdueRuns(sql);
     const leaselessSettled = await waitFor(async () => {
@@ -12757,7 +12776,7 @@ async function checkAutomations(
       ORDER BY kind
     `;
     record(
-      'a running run an image without leases left is taken over once the sweep finds its promise lapsed [AUTO-R16]',
+      'a current-protocol lease-less run is taken over once its promise lapses [AUTO-R16]',
       leaselessSettled &&
         leaselessRow[0]?.resumeCount === 1 &&
         leaselessRow[0]?.reason === 'lease_expired' &&
@@ -13129,7 +13148,9 @@ async function checkAutomationRunLifecycle(
       future?: string;
     } = {},
   ): Promise<string> => {
-    const rows = await sql<{ id: string }[]>`
+    const rows = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input, checkpoints,
         wake_at_ms, claim_epoch, started_at_ms
@@ -13144,6 +13165,7 @@ async function checkAutomationRunLifecycle(
         ${null}, ${fields.claimEpoch ?? 0}, ${Date.now()}
       ) RETURNING id
     `;
+    });
     return rows[0]?.id ?? '';
   };
   const runEvents = async (runId: string, kind: string) =>
@@ -13154,16 +13176,20 @@ async function checkAutomationRunLifecycle(
   const stepJobs = async (runId: string): Promise<number> => {
     const rows = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'automation.step' AND data->>'runId' = ${runId}
+      WHERE name = ${physicalTaskQueue('automation.step')} AND data->>'runId' = ${runId}
     `;
     return Number(rows[0]?.count ?? '0');
   };
   /** Stop a probe run that is still live, so no queued job steps it later. */
-  const cancelProbeRun = (runId: string): Promise<unknown> => sql`
+  const cancelProbeRun = (runId: string): Promise<unknown> =>
+    sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL,
       lease_owner = NULL, lease_expires_at_ms = NULL
     WHERE id = ${runId} AND status IN ('queued', 'running', 'waiting')
   `;
+    });
 
   const claimRunId = await insertProbeRun('itest:claim');
   const claims = await Promise.all(
@@ -13199,10 +13225,13 @@ async function checkAutomationRunLifecycle(
     FROM app.automation_runs WHERE id = ${claimRunId}
   `;
   const second = await store.claimRun(sql, orgId, claimRunId);
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET lease_expires_at_ms = ${Date.now() - 1}
     WHERE id = ${claimRunId}
   `;
+  });
   const takeover = await store.claimRun(sql, orgId, claimRunId);
   const resumed = await sql<
     { resumeCount: number; reason: string | null; owner: string | null }[]
@@ -13354,13 +13383,16 @@ async function checkAutomationRunLifecycle(
       status: 'running',
       claimEpoch: 1,
     });
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       UPDATE app.automation_runs SET
         lease_owner = ${owner}, lease_epoch = 1,
         lease_expires_at_ms = ${Date.now() + 30_000},
         wake_at_ms = ${Date.now() + 30_000}
       WHERE id = ${runId}
     `;
+    });
     return runId;
   };
   const ownedId = await leaseRun('itest:release-own', instance.instanceId());
@@ -13415,12 +13447,15 @@ async function checkAutomationRunLifecycle(
   // ---- #4f: a run a newer engine stepped is never read by this one; while
   // the roll is recent its step goes back to the queue, recorded once.
   const newerId = await insertProbeRun('itest:engine-protocol');
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET
       engine_protocol = ${protocol.ENGINE_PROTOCOL + 98},
       claimed_at_ms = ${Date.now() - 60_000}
     WHERE id = ${newerId}
   `;
+  });
   const deferred = await store.claimRun(sql, orgId, newerId);
   const deferredAgain = await store.claimRun(sql, orgId, newerId);
   const deferredRow = await sql<{ status: string; claimEpoch: number }[]>`
@@ -13430,7 +13465,7 @@ async function checkAutomationRunLifecycle(
   const deferredEvents = await runEvents(newerId, 'engine_deferred');
   const requeued = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
-    WHERE name = 'automation.step' AND data->>'runId' = ${newerId}
+    WHERE name = ${physicalTaskQueue('automation.step')} AND data->>'runId' = ${newerId}
       AND start_after > now()
   `;
   await cancelProbeRun(newerId);
@@ -13455,12 +13490,15 @@ async function checkAutomationRunLifecycle(
     claimEpoch: 2,
   });
   // The walker at epoch 2 holds a live lease: a begin needs one.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET
       lease_epoch = 2, lease_owner = ${instance.instanceId()},
       lease_expires_at_ms = ${Date.now() + 60_000}
     WHERE id = ${ledgerId}
   `;
+  });
   const beginArgs = (epoch: number, itemIndex: number) => ({
     organizationId: orgId,
     runId: ledgerId,
@@ -13496,10 +13534,13 @@ async function checkAutomationRunLifecycle(
   });
   const reused = await ledger.beginNodeAttempt(sql, beginArgs(2, 2));
   // Park the run on the undecided write, then decide it.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'waiting', detail = 'in_doubt:send'
     WHERE id = ${ledgerId}
   `;
+  });
   const open = await ledger.readOpenInDoubt(sql, orgId, ledgerId);
   await sql.begin((tx) =>
     ledger.resolveInDoubtInTx(tx, {
@@ -13567,27 +13608,38 @@ async function checkAutomationRunLifecycle(
     status: 'running',
     mode: 'live',
   });
-  await sql`
-    UPDATE app.automation_runs SET
-      engine_protocol = ${protocol.ENGINE_PROTOCOL + 98}
-    WHERE id = ${staleId}
-  `;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    await fixtureTx`
+      UPDATE app.automation_runs SET
+        engine_protocol = ${protocol.ENGINE_PROTOCOL + 98}
+      WHERE id = ${staleId}
+    `;
+  });
   /** The walker at `epoch` holds a live lease on the run. */
-  const holdStale = (epoch: number) => sql`
-    UPDATE app.automation_runs SET
-      status = 'running', detail = NULL, wake_at_ms = NULL,
-      claim_epoch = ${epoch}, lease_epoch = ${epoch},
-      lease_owner = ${instance.instanceId()},
-      lease_expires_at_ms = ${Date.now() + 60_000}
-    WHERE id = ${staleId}
-  `;
+  const holdStale = (epoch: number) =>
+    sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
+        UPDATE app.automation_runs SET
+          status = 'running', detail = NULL, wake_at_ms = NULL,
+          claim_epoch = ${epoch}, lease_epoch = ${epoch},
+          lease_owner = ${instance.instanceId()},
+          lease_expires_at_ms = ${Date.now() + 60_000}
+        WHERE id = ${staleId}
+      `;
+    });
   /** A walker found the write open and parked the run on it. */
-  const parkStale = () => sql`
-    UPDATE app.automation_runs SET
-      status = 'waiting', detail = 'in_doubt:send', lease_owner = NULL,
-      lease_expires_at_ms = NULL, wake_at_ms = ${Date.now() + 3_600_000}
-    WHERE id = ${staleId}
-  `;
+  const parkStale = () =>
+    sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
+        UPDATE app.automation_runs SET
+          status = 'waiting', detail = 'in_doubt:send', lease_owner = NULL,
+          lease_expires_at_ms = NULL, wake_at_ms = ${Date.now() + 3_600_000}
+        WHERE id = ${staleId}
+      `;
+    });
   /** The walker at `epoch` begins the write (or learns what it left). */
   const beginStale = async (epoch: number) => {
     await holdStale(epoch);
@@ -13713,30 +13765,39 @@ async function checkAutomationRunLifecycle(
     mode: 'live',
     claimEpoch: 5,
   });
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET
       lease_epoch = 5, lease_owner = ${instance.instanceId()},
       lease_expires_at_ms = ${Date.now() + 60_000}
     WHERE id = ${lateId}
   `;
+  });
   const lateArgs = { ...beginArgs(5, 0), runId: lateId };
   const lateBegin = await ledger.beginNodeAttempt(sql, lateArgs);
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET
       lease_expires_at_ms = ${Date.now() - 1}
     WHERE id = ${lateId}
   `;
+  });
   const lapsedBegin = await ledger.beginNodeAttempt(sql, {
     ...lateArgs,
     itemIndex: 1,
   });
   const parkedUntil = Date.now() + 3_600_000;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET
       status = 'waiting', detail = 'in_doubt:send', lease_owner = NULL,
       lease_expires_at_ms = NULL, wake_at_ms = ${parkedUntil}
     WHERE id = ${lateId}
   `;
+  });
   const stepsBeforeFinish = await stepJobs(lateId);
   const lateFinishWrite = await ledger.finishNodeAttempt(sql, {
     organizationId: orgId,
@@ -13770,7 +13831,7 @@ async function checkAutomationRunLifecycle(
   // ---- #4h: what the run read says about a run that moved between servers
   // [AUTO-R18]. A lapsed lease, and a shutdown hand-off nobody claimed yet,
   // read stalled; a live lease, a budget hand-off after a takeover and a row
-  // an image without leases claimed last do not. The count and the last
+  // a synthetic current-protocol run without a lease do not. The count and last
   // move ride the read as `resumeCount` and `lastResume`, an in-doubt park
   // as `waitingFor: in_doubt`, and no owner ever leaves the backend.
   const readNow = Date.now();
@@ -13788,7 +13849,9 @@ async function checkAutomationRunLifecycle(
       status: 'running',
       claimEpoch: 1,
     });
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       UPDATE app.automation_runs SET
         lease_owner = ${lease.expiresAt === null ? null : 'probe-host:1:0.5.0:none'},
         lease_epoch = ${lease.leaseEpoch},
@@ -13800,6 +13863,7 @@ async function checkAutomationRunLifecycle(
         last_resumed_at_ms = ${lease.resumedAt ?? null}
       WHERE id = ${runId}
     `;
+    });
     return runId;
   };
   const lapsedId = await stalledProbe('itest:stalled-lapsed', {
@@ -13827,7 +13891,7 @@ async function checkAutomationRunLifecycle(
     resumedAt: readNow - 60_000,
     reason: 'lease_expired',
   });
-  const oldImageId = await stalledProbe('itest:stalled-old-image', {
+  const noLeaseId = await stalledProbe('itest:stalled-no-lease', {
     leaseEpoch: null,
     expiresAt: null,
     claimedAt: readNow - 60_000,
@@ -13835,21 +13899,24 @@ async function checkAutomationRunLifecycle(
   const parkedId = await insertProbeRun('itest:in-doubt-read', {
     status: 'waiting',
   });
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET detail = 'in_doubt:send'
     WHERE id = ${parkedId}
   `;
+  });
   const readRun = async (runId: string) => {
     const row = await store.getRun(sql, orgId, runId);
     return row === null ? null : store.toRunDetail(row);
   };
-  const [lapsed, live, handedOn, budget, oldImage, parked] = await Promise.all(
-    [lapsedId, liveId, handedOnId, budgetId, oldImageId, parkedId].map(readRun),
+  const [lapsed, live, handedOn, budget, noLease, parked] = await Promise.all(
+    [lapsedId, liveId, handedOnId, budgetId, noLeaseId, parkedId].map(readRun),
   );
   const handedOnSummary = (await store.listRuns(sql, orgId, { limit: 200 }))
     .filter((row) => row.id === handedOnId)
     .map(store.toRunSummary)[0];
-  for (const runId of [lapsedId, liveId, handedOnId, budgetId, oldImageId]) {
+  for (const runId of [lapsedId, liveId, handedOnId, budgetId, noLeaseId]) {
     await cancelProbeRun(runId);
   }
   await cancelProbeRun(parkedId);
@@ -13861,7 +13928,7 @@ async function checkAutomationRunLifecycle(
       live?.stalled === false &&
       handedOn?.stalled === true &&
       budget?.stalled === false &&
-      oldImage?.stalled === false &&
+      noLease?.stalled === false &&
       handedOn?.resumeCount === 1 &&
       handedOn?.lastResume?.reason === 'shutdown' &&
       handedOn?.lastResume?.at === readNow - 2_000 &&
@@ -13870,12 +13937,14 @@ async function checkAutomationRunLifecycle(
       handedOnSummary?.lastResume?.reason === 'shutdown' &&
       parked?.waitingFor === 'in_doubt' &&
       !/probe-host|leaseOwner|lease_owner/.test(wireKeys),
-    `stalled: lapsed=${lapsed?.stalled} (want true), live=${live?.stalled} (want false), handedOn=${handedOn?.stalled} (want true), budget=${budget?.stalled} (want false), oldImage=${oldImage?.stalled} (want false); handedOn resumeCount=${handedOn?.resumeCount} lastResume=${JSON.stringify(handedOn?.lastResume)}; summary=${JSON.stringify(handedOnSummary === undefined ? null : { stalled: handedOnSummary.stalled, resumeCount: handedOnSummary.resumeCount })}; parked waitingFor=${parked?.waitingFor} (want in_doubt); owner on the wire=${/probe-host/.test(wireKeys)}`,
+    `stalled: lapsed=${lapsed?.stalled} (want true), live=${live?.stalled} (want false), handedOn=${handedOn?.stalled} (want true), budget=${budget?.stalled} (want false), noLease=${noLease?.stalled} (want false); handedOn resumeCount=${handedOn?.resumeCount} lastResume=${JSON.stringify(handedOn?.lastResume)}; summary=${JSON.stringify(handedOnSummary === undefined ? null : { stalled: handedOnSummary.stalled, resumeCount: handedOnSummary.resumeCount })}; parked waitingFor=${parked?.waitingFor} (want in_doubt); owner on the wire=${/probe-host/.test(wireKeys)}`,
   );
 
   // ---- #5: the live-op query identifies an in-flight agent turn (adopt, not
   // re-kick) and returns null once it settles.
-  const opRun = await sql<{ id: string }[]>`
+  const opRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       wake_at_ms, claim_epoch, started_at_ms
@@ -13885,6 +13954,7 @@ async function checkAutomationRunLifecycle(
       ${null}, 1, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const opRunId = opRun[0]?.id ?? '';
   const opSessionId = naming.sessionIdForWorkflowExecution(opRunId);
   await sql`
@@ -13919,7 +13989,10 @@ async function checkAutomationRunLifecycle(
   const settledOp = opHandler
     ? await opHandler({ organizationId: orgId, runId: opRunId })
     : 'no-handler';
-  await sql`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${opRunId}`;
+  });
   record(
     'live-op query adopts an in-flight agent turn and clears once settled',
     liveOpView.success &&
@@ -14010,7 +14083,9 @@ async function checkAutomationRunLifecycle(
   );
 
   // ---- #6: cancelRun honors the terminal contract — audit row + session stop.
-  const cancelRun = await sql<{ id: string }[]>`
+  const cancelRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       wake_at_ms, claim_epoch, started_at_ms
@@ -14020,6 +14095,7 @@ async function checkAutomationRunLifecycle(
       ${null}, 1, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const cancelRunId = cancelRun[0]?.id ?? '';
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -14078,7 +14154,9 @@ async function checkAutomationRunLifecycle(
   await post(`/api/app/automations/ops/delguard/deploy?orgId=${orgId}`, {
     version: 1,
   });
-  const liveForDelete = await sql<{ id: string }[]>`
+  const liveForDelete = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       wake_at_ms, claim_epoch, started_at_ms
@@ -14088,6 +14166,7 @@ async function checkAutomationRunLifecycle(
       ${null}, 1, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const delRunId = liveForDelete[0]?.id ?? '';
   const deleteBlocked = await del(
     `/api/app/automations/ops/delguard?orgId=${orgId}`,
@@ -14096,10 +14175,13 @@ async function checkAutomationRunLifecycle(
     SELECT count(*)::text AS count FROM app.automations
     WHERE org_id = ${orgId} AND name = 'ops/delguard'
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
     WHERE id = ${delRunId}
   `;
+  });
   const deleteOk = await del(
     `/api/app/automations/ops/delguard?orgId=${orgId}`,
   );
@@ -14112,11 +14194,14 @@ async function checkAutomationRunLifecycle(
   );
 
   // Clean up the lifecycle automation's remaining live runs before delete.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled', wake_at_ms = NULL
     WHERE org_id = ${orgId} AND name = 'ops/lifecycle'
       AND status IN ('queued', 'running', 'waiting')
   `;
+  });
   await del(`/api/app/automations/ops/lifecycle?orgId=${orgId}`);
 }
 
@@ -21115,7 +21200,7 @@ async function checkWorkflowTurnReattach(
   // before the assertion reads it (missing SANDBOX_TOKEN fails immediately).
   // Stop only this queue, using the worker-drain integration's offWork fence;
   // every other real worker stays available throughout the lane.
-  await boss.offWork(queue, { wait: true });
+  await boss.offWork(physicalTaskQueue(queue), { wait: true });
   try {
     await checkWorkflowTurnReattachRows(sql, ctx);
   } finally {
@@ -21123,7 +21208,7 @@ async function checkWorkflowTurnReattach(
       // Never unleash an external drive for a fixture, even if a probe threw.
       await sql`
         DELETE FROM pgboss.job
-        WHERE name = 'automation.agent_drive'
+        WHERE name = ${physicalTaskQueue('automation.agent_drive')}
           AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
       `;
     } finally {
@@ -21155,7 +21240,9 @@ async function checkWorkflowTurnReattachRows(
     const sessionId = `wf-reattach-session-${suffix}`;
     const execId = `wf-reattach-exec-${suffix}`;
     const deadlineAt = now + 3_600_000;
-    const runs = await sql<{ id: string }[]>`
+    const runs = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input, checkpoints,
         claim_epoch, started_at_ms
@@ -21186,6 +21273,7 @@ async function checkWorkflowTurnReattachRows(
         0, ${now - 600_000}
       ) RETURNING id
     `;
+    });
     const runId = runs[0]?.id ?? '';
     await sql`
       INSERT INTO app.sandbox_sessions (
@@ -21230,7 +21318,9 @@ async function checkWorkflowTurnReattachRows(
   // waiting rows of any kind and filter in JS, so this fleet pushed the
   // stalled turn out of the page on every sweep; the predicates now live in
   // SQL and the walk is oldest first, so the fleet is never a candidate.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, input, checkpoints,
       claim_epoch, started_at_ms
@@ -21244,12 +21334,13 @@ async function checkWorkflowTurnReattachRows(
            0, ${now - 60_000}::bigint + g
     FROM generate_series(1, 120) AS g
   `;
+  });
 
   const { recoverStalledWorkflowAgentTurns } =
     await import('./domains/automations/reattach.ts');
   const jobsBefore = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
+    WHERE name = ${physicalTaskQueue('automation.agent_drive')}
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
   // An unreachable spawner must leave everything for the next sweep — a
@@ -21259,12 +21350,15 @@ async function checkWorkflowTurnReattachRows(
   });
   const jobsAfterUnreachable = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
+    WHERE name = ${physicalTaskQueue('automation.agent_drive')}
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
 
-  await sql`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL
     WHERE id = ANY(${[abandoned.runId, noOp.runId]})`;
+  });
   // Reachable: the abandoned turn and the op-less one re-attach; the live
   // one is refused by the claim; the ask-parked one is spared by the listing.
   const recovered = await recoverStalledWorkflowAgentTurns(sql, {
@@ -21272,7 +21366,7 @@ async function checkWorkflowTurnReattachRows(
   });
   const driveJobs = await sql<{ data: unknown }[]>`
     SELECT data FROM pgboss.job
-    WHERE name = 'automation.agent_drive'
+    WHERE name = ${physicalTaskQueue('automation.agent_drive')}
       AND data ->> 'execId' LIKE 'wf-reattach-exec-%'
   `;
   const drivenRunIds = new Set(
@@ -21325,8 +21419,11 @@ async function checkWorkflowTurnReattachRows(
   for (let n = 0; n < 26; n++) {
     const run = await mkRun(`fair-${n}`, { withOp: false });
     fairRuns.push(run);
-    await sql`UPDATE app.automation_runs SET started_at_ms = ${now - 600_000 + n}
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`UPDATE app.automation_runs SET started_at_ms = ${now - 600_000 + n}
       WHERE id = ${run.runId}`;
+    });
   }
   const fairIds = fairRuns.map((run) => run.runId);
   const visits: string[] = [];
@@ -21352,7 +21449,10 @@ async function checkWorkflowTurnReattachRows(
       reserved[0]?.live === 26,
     `visits=${visits.length}/26 unique=${new Set(visits).size}/26 reserved=${reserved[0]?.visited} unchanged=${reserved[0]?.live}`,
   );
-  await sql`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`UPDATE app.automation_runs SET recovery_checked_at_ms = NULL WHERE id = ANY(${fairIds})`;
+  });
   const reachable = fairRuns[25];
   const selectivelyReachable = async (sessionId: string) => {
     if (sessionId !== reachable?.sessionId) throw new Error('offline device');
@@ -21372,23 +21472,32 @@ async function checkWorkflowTurnReattachRows(
       nextBatch.resumed === 1,
     `first=${failedBatch.examined}/${failedBatch.resumed}, next=${nextBatch.examined}/${nextBatch.resumed}`,
   );
-  await sql`DELETE FROM pgboss.job WHERE name = 'automation.agent_drive' AND data ->> 'runId' = ANY(${fairIds})`;
-  await sql`UPDATE app.automation_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  await sql`DELETE FROM pgboss.job WHERE name = ${physicalTaskQueue('automation.agent_drive')} AND data ->> 'runId' = ANY(${fairIds})`;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`UPDATE app.automation_runs SET status = 'cancelled' WHERE id = ANY(${fairIds})`;
+  });
   const fairSessions = fairRuns.map((run) => run.sessionId);
   await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fairSessions})`;
   await sql`UPDATE app.sandbox_sessions SET status = 'destroyed', destroyed_at_ms = ${Date.now()}
     WHERE session_id = ANY(${fairSessions})`;
 
   // Leave nothing for later sweeps or metrics folds to trip over.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled',
                                    finished_at_ms = ${Date.now()}
     WHERE org_id = ${orgId} AND name = 'wf-reattach-probe'
   `;
-  await sql`
+  });
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     DELETE FROM app.automation_runs
     WHERE org_id = ${orgId} AND name = 'wf-reattach-fleet'
   `;
+  });
   await sql`
     DELETE FROM app.sandbox_session_ops
     WHERE org_id = ${orgId} AND session_id LIKE 'wf-reattach-session-%'
@@ -22564,7 +22673,9 @@ async function checkRunProvenance(
 
   // ---- an automation-driven task keeps its automation ------------------
   const automationHeldTaskId = await seedTask('Automation held task', null);
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, project_id, name, version, status, mode, started_by, input,
       started_at_ms
@@ -22574,6 +22685,7 @@ async function checkRunProvenance(
       ${Date.now()}
     )
   `;
+  });
   await sql.begin((tx) =>
     addTaskComment(tx, auth, {
       taskId: automationHeldTaskId,
@@ -22594,10 +22706,13 @@ async function checkRunProvenance(
       automationHeldTask[0]?.assigneeType === null,
     `runs=${automationHeldRuns[0]?.count} (want 0), assignee=${String(automationHeldTask[0]?.assigneeType)} (want null — never reassigned)`,
   );
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'failed'
     WHERE org_id = ${orgId} AND name = 'itest-mention-block'
   `;
+  });
 
   // ---- deleting a task closes the approvals that named it --------------
   const strayApproval = await sql<{ id: string }[]>`
@@ -23493,7 +23608,9 @@ async function checkTasksCollabIntegrity(
     'exec-integrity-doomed',
     'running',
   );
-  const doomedAutomation = await sql<{ id: string }[]>`
+  const doomedAutomation = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, project_id, status, mode, started_by, input,
       checkpoints, claim_epoch, started_at_ms
@@ -23503,6 +23620,7 @@ async function checkTasksCollabIntegrity(
       ${sql.json({ nodes: {}, executions: 0 })}, 0, ${Date.now()}
     ) RETURNING id
   `;
+  });
   const doomedAutomationId = doomedAutomation[0]?.id ?? '';
   const blobLane = itestObjectStore() !== null;
   let deliverableRef = '';
@@ -39745,7 +39863,7 @@ async function checkAutomationAgentNode(
     }
     const seamJobs = await sql<{ data: unknown }[]>`
       SELECT data FROM pgboss.job
-      WHERE name = 'automation.agent_drive'
+      WHERE name = ${physicalTaskQueue('automation.agent_drive')}
         AND data ->> 'execId' = 'wf-seam-probe-exec'
     `;
     const seamJob = objectAt(seamJobs[0]?.data, '');
@@ -39759,7 +39877,7 @@ async function checkAutomationAgentNode(
     );
     await sql`
       DELETE FROM pgboss.job
-      WHERE name = 'automation.agent_drive'
+      WHERE name = ${physicalTaskQueue('automation.agent_drive')}
         AND data ->> 'execId' = 'wf-seam-probe-exec'
     `;
 
@@ -40009,7 +40127,7 @@ async function checkAutomationAgentNode(
     `;
     const subAgentJobs = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name IN ('automation.agent_turn', 'automation.agent_drive')
+      WHERE name IN (${physicalTaskQueue('automation.agent_turn')}, ${physicalTaskQueue('automation.agent_drive')})
         AND data ->> 'runId' = ${subAgentRun.runId}
     `;
     record(
@@ -40699,10 +40817,13 @@ async function checkSandboxSettingsViews(
     INSERT INTO app.tasks (id, org_id, project_id, title, status, rank, created_by, created_by_type, created_at_ms, updated_at_ms)
     VALUES (${taskId}, ${orgId}, ${projectId}, 'Review source material', 'in_review', 'a0', ${userId}, 'user', ${now}, ${now})
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (id, org_id, project_id, name, version, status, mode, started_by, input, checkpoints, started_at_ms)
     VALUES (${runId}, ${orgId}, ${projectId}, 'Daily research', 1, 'success', 'live', ${userId}, ${sql.json({})}, ${sql.json({})}, ${now})
   `;
+  });
   for (const [id, type, owner] of [
     [sessionId, 'project_agent', agentId],
     [workflowSessionId, 'workflow_run', `${runId}:agent`],
@@ -40890,7 +41011,10 @@ async function checkSandboxSettingsViews(
   const fixtureSessionIds = [sessionId, workflowSessionId, busySessionId];
   await sql`DELETE FROM app.sandbox_session_ops WHERE session_id = ANY(${fixtureSessionIds})`;
   await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${fixtureSessionIds})`;
-  await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+  });
   await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
   const remaining = await sql<{ ops: number; sessions: number }[]>`
     SELECT
@@ -40951,7 +41075,9 @@ async function checkAutomationRunToolLane(
   // and carries no result yet.
   const liveCursor = { cursor: { node: 'agent', agent: { execId: 'exec-1' } } };
   const now = Date.now();
-  const pinnedRun = await sql<{ id: string }[]>`
+  const pinnedRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, project_id, name, version, status, mode, started_by,
       input, checkpoints, started_at_ms
@@ -40961,7 +41087,10 @@ async function checkAutomationRunToolLane(
       ${now}
     ) RETURNING id
   `;
-  const orgRun = await sql<{ id: string }[]>`
+  });
+  const orgRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by,
       input, checkpoints, started_at_ms
@@ -40970,6 +41099,7 @@ async function checkAutomationRunToolLane(
       ${sql.json({})}, ${sql.json(toJson(liveCursor))}, ${now}
     ) RETURNING id
   `;
+  });
   const pinnedRunId = pinnedRun[0]?.id ?? '';
   const orgRunId = orgRun[0]?.id ?? '';
   // The org-level automation is bound to TWO projects — its runs act across
@@ -41312,7 +41442,9 @@ async function checkAutomationRunToolLane(
   // A TRULY org-level run (no bindings) writes the hub, or a project it
   // names — which must exist in this org: an unknown id is refused as
   // not_found rather than filed where no listing or retrieval reaches it.
-  const freeRun = await sql<{ id: string }[]>`
+  const freeRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by,
       input, checkpoints, started_at_ms
@@ -41321,6 +41453,7 @@ async function checkAutomationRunToolLane(
       ${sql.json({})}, ${sql.json(toJson(liveCursor))}, ${now}
     ) RETURNING id
   `;
+  });
   const freeToken = 'itest-vk-run-free';
   await seedSession('itest-run-free', freeRun[0]?.id ?? '', freeToken);
   const freeHub = await dispatch(freeToken, 'document_create', {
@@ -42094,7 +42227,9 @@ async function checkSandboxGatewayKeyReclaim(
     ];
     const attribSettled: string[] = [];
     for (const run of attribRuns) {
-      await sql`
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`
         INSERT INTO app.automation_runs (
           id, org_id, name, version, status, mode, started_by, api_key_id,
           checkpoints, started_at_ms, finished_at_ms
@@ -42104,6 +42239,7 @@ async function checkSandboxGatewayKeyReclaim(
           ${sql.json({ nodes: {}, executions: 0 })}, ${now}, ${now}
         )
       `;
+      });
       await seedSession(run.id, {
         expiresAt: now + 3_600_000,
         ownerType: 'workflow_run',
@@ -43731,7 +43867,9 @@ async function checkAnsweredAskRecovery(
     executions: {},
   });
   const mkRun = async (node: string, execId: string): Promise<string> => {
-    const rows = await sql<{ id: string }[]>`
+    const rows = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, checkpoints,
         started_at_ms
@@ -43740,6 +43878,7 @@ async function checkAnsweredAskRecovery(
         'itest:ask-recovery', ${sql.json(toJson(cursor(node, execId)))}, ${now}
       ) RETURNING id
     `;
+    });
     return rows[0]?.id ?? '';
   };
   const mkAsk = async (
@@ -43806,7 +43945,7 @@ async function checkAnsweredAskRecovery(
   const result = await recoverAnsweredAskResumes(sql, { staleMs: 60_000 });
   const resumeJobs = await sql<{ askId: string }[]>`
     SELECT data ->> 'askId' AS "askId" FROM pgboss.job
-    WHERE name = 'automation.ask_resume'
+    WHERE name = ${physicalTaskQueue('automation.ask_resume')}
   `;
   const enqueued = new Set(resumeJobs.map((job) => job.askId));
 
@@ -43821,10 +43960,13 @@ async function checkAnsweredAskRecovery(
     `examined=${result.examined}/1 requeued=${result.requeued}/1 lost=${enqueued.has(lostAsk)} moved=${!enqueued.has(movedAsk)} pending=${!enqueued.has(pendingAsk)} fresh=${!enqueued.has(freshAsk)}`,
   );
 
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     UPDATE app.automation_runs SET status = 'cancelled'
     WHERE org_id = ${orgId} AND started_by = 'itest:ask-recovery'
   `;
+  });
 }
 
 /**
@@ -43854,7 +43996,9 @@ async function checkAskAnswer(
     },
     executions: {},
   };
-  const runA = await sql<{ id: string }[]>`
+  const runA = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, checkpoints,
       started_at_ms
@@ -43863,6 +44007,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsA))}, ${now}
     ) RETURNING id
   `;
+  });
   const runAId = runA[0]?.id ?? '';
   await sql`
     INSERT INTO app.automation_human_asks (
@@ -43943,7 +44088,7 @@ async function checkAskAnswer(
   `;
   const resumeJobs = await sql<{ count: string }[]>`
     SELECT count(*)::text AS count FROM pgboss.job
-    WHERE name = 'automation.ask_resume'
+    WHERE name = ${physicalTaskQueue('automation.ask_resume')}
       AND data ->> 'askId' = ${liveAskId}
   `;
   record(
@@ -43989,7 +44134,9 @@ async function checkAskAnswer(
     },
     executions: { seq: 3 },
   };
-  const runB = await sql<{ id: string }[]>`
+  const runB = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, checkpoints,
       started_at_ms
@@ -43998,6 +44145,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsB))}, ${now}
     ) RETURNING id
   `;
+  });
   const runBId = runB[0]?.id ?? '';
   const askB = await sql<{ id: string }[]>`
     INSERT INTO app.automation_human_asks (
@@ -44142,7 +44290,9 @@ async function checkAskAnswer(
       : (Object.entries(bellFixture).find(
           ([, fixtureId]) => fixtureId === id,
         )?.[0] ?? `stranger:${id}`);
-  const bellRun = await sql<{ id: string }[]>`
+  const bellRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, checkpoints,
       started_at_ms
@@ -44151,6 +44301,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsA))}, ${now}
     ) RETURNING id
   `;
+  });
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -44383,7 +44534,9 @@ async function checkAskAnswer(
     ) RETURNING id
   `;
   const askTaskId = askTask[0]?.id ?? '';
-  const boundRun = await sql<{ id: string }[]>`
+  const boundRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, project_id, input,
       checkpoints, started_at_ms
@@ -44394,6 +44547,7 @@ async function checkAskAnswer(
       ${sql.json(toJson(checkpointsA))}, ${now}
     ) RETURNING id
   `;
+  });
   await sql`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
@@ -48245,7 +48399,9 @@ async function checkRetention(
   `;
 
   // Three aged automation runs: only the TERMINAL one may be swept.
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms,
       finished_at_ms
@@ -48257,6 +48413,7 @@ async function checkRetention(
       (${orgId}, 'rt-wf-running', 1, 'running', 'live', 'trigger:itest',
        ${ancient}, NULL)
   `;
+  });
 
   // Phase-2 seeds: an ancient document, an ancient chat thread (with a
   // message), an ancient settled agent run, ancient audit rows (the chain's
@@ -48842,12 +48999,15 @@ async function checkErasure(
               ${sql.json({ email: `${subject}@example.com`, ip: '203.0.113.9' })},
               ${subject}, ${now})
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms
     ) VALUES (${orgId}, 'erasure-fixture', 1, 'success', 'live',
               ${`user:${subject}`}, ${now})
   `;
+  });
   await sql`
     INSERT INTO app.approvals (
       org_id, resource_type, resource_id, status, approved_by, metadata,
@@ -53024,7 +53184,9 @@ async function checkMetricsSurface(
   // ---- the run dialog's execution log ---------------------------------
   const { sessionIdForWorkflowExecution } =
     await import('./core/sandbox/session_naming.ts');
-  const logRun = await sql<{ id: string }[]>`
+  const logRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms
     ) VALUES (
@@ -53032,6 +53194,7 @@ async function checkMetricsSurface(
       ${Date.now()}
     ) RETURNING id
   `;
+  });
   const logRunId = logRun[0]?.id ?? '';
   const logSessionId = sessionIdForWorkflowExecution(logRunId);
   await sql`
@@ -57364,7 +57527,9 @@ async function checkWatchdogs(
     name: string,
     status: 'success' | 'running' | 'cancelled',
   ): Promise<string> => {
-    const rows = await sql<{ id: string }[]>`
+    const rows = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, status, mode, started_by, input,
         started_at_ms, finished_at_ms
@@ -57374,6 +57539,7 @@ async function checkWatchdogs(
         ${status === 'running' ? null : now - 3_600_000}
       ) RETURNING id
     `;
+    });
     return rows[0]?.id ?? '';
   };
   const endedRunId = await wdRun('itest-wd-ended', 'success');
@@ -60703,6 +60869,11 @@ async function main(): Promise<void> {
     await checkSerializableRetry(sql);
     await checkAuditChainConcurrentAppenders(sql);
     await checkTransactionalEnqueue(sql);
+    await checkLegacyAutomationProtocol(databaseUrl, record);
+    await checkLegacyAgentFlow(databaseUrl, record);
+    await checkAutomationProtocolFloor(databaseUrl, record);
+    await checkAutomationProtocolQueues(databaseUrl, boss, record);
+    await checkAutomationProtocolReadback(sql, boss, record);
     await checkPickupLatency(sql, boss);
 
     const orgSuffix = String(Date.now() % 100_000);

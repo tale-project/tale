@@ -1212,7 +1212,7 @@ async function chainUntouched(
     SELECT id FROM app.automation_runs
     WHERE org_id = ${task.organizationId}
       AND (project_id = ${task.projectId} OR project_id IS NULL)
-      AND status IN ('queued', 'running', 'waiting')
+      AND status IN ('queued', 'running', 'waiting', 'quarantined')
       AND input -> 'task' ->> 'id' = ANY(${ids})
     LIMIT 1
   `;

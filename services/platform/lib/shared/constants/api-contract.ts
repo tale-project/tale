@@ -380,5 +380,14 @@
  * codes (MAYBE_NULL, UNCAUGHT_FAILURE, UNREACHABLE, TYPE_MISMATCH and the
  * rest of the analysis) and one more error (ITEM_WITHOUT_FOREACH, a
  * warning before). No REST operation changes. Additive.
+ *
+ * 3.20.0 — 2026-10-08: runs may be `quarantined` and carry
+ * `legacyQuarantine`, a bounded description of legacy execution whose
+ * external effects remain uncertain. Both run scopes expose
+ * `POST …/runs/{runId}/legacy-quarantine`: an exact-observation stop
+ * request with explicit acknowledgement, behind the existing developer
+ * and project-write gates. The request does not clear the hold or prove
+ * termination. Ordinary cancel refuses held runs (`RUN_QUARANTINED`);
+ * stale stop requests answer `RUN_QUARANTINE_CHANGED`. Additive.
  */
-export const API_CONTRACT_VERSION = '3.19.0';
+export const API_CONTRACT_VERSION = '3.20.0';

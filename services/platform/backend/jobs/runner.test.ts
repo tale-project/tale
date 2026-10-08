@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { reportError } from '../error-reporting.ts';
 import { startWorker } from './runner.ts';
+import { physicalTaskQueue } from './tasks.ts';
 
 vi.mock('../error-reporting.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../error-reporting.ts')>()),
@@ -101,6 +102,44 @@ const job = {
 } as unknown as Job;
 
 describe('startWorker shouldDefer', () => {
+  it('subscribes and hands over automation work on its physical protocol queue', async () => {
+    const { boss, handlers, workOptions, complete, send, getQueue, calls } =
+      fakeBoss();
+    const sql = fakeSql(calls);
+    const handler = vi.fn();
+    send.mockResolvedValueOnce(null);
+    getQueue.mockResolvedValueOnce({
+      name: 'automation.v2.step',
+      policy: 'short',
+    });
+    await startWorker({
+      boss,
+      sql,
+      taskList: { 'automation.step': handler },
+      shouldDefer: async () => true,
+      automationOrgConcurrency: 8,
+    });
+    expect([...handlers.keys()]).toEqual(['automation.v2.step']);
+    expect(workOptions.get('automation.v2.step')).toMatchObject({
+      batchSize: 1,
+      groupConcurrency: 8,
+    });
+    await handlers.get('automation.v2.step')?.([job]);
+    expect(complete).toHaveBeenCalledWith(
+      'automation.v2.step',
+      job.id,
+      null,
+      expect.anything(),
+    );
+    expect(send).toHaveBeenCalledWith(
+      'automation.v2.step',
+      job.data,
+      expect.anything(),
+    );
+    expect(getQueue).toHaveBeenCalledWith('automation.v2.step');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('persists a successful handler result without deriving it from the job payload', async () => {
     const { boss, handlers } = fakeBoss();
     await startWorker({
@@ -424,17 +463,17 @@ describe('startWorker shouldDefer', () => {
       sql: fakeSql([]),
     });
 
-    await handlers.get('automation.step')?.([
+    await handlers.get('automation.v2.step')?.([
       { ...job, groupId: 'org-1', groupTier: null } as unknown as Job,
     ]);
     expect(send).toHaveBeenCalledWith(
-      'automation.step',
+      'automation.v2.step',
       { seq: 1 },
       expect.objectContaining({ startAfter: 5, group: { id: 'org-1' } }),
     );
 
     send.mockClear();
-    await handlers.get('automation.step')?.([job]);
+    await handlers.get('automation.v2.step')?.([job]);
     expect(send.mock.calls[0]?.[2]).not.toHaveProperty('group');
   });
 
@@ -534,7 +573,7 @@ describe('startWorker slot queues', () => {
         taskList: { noop: vi.fn(), [queue]: vi.fn() },
       });
 
-      expect(workOptions.get(queue)).toMatchObject({
+      expect(workOptions.get(physicalTaskQueue(queue))).toMatchObject({
         batchSize: 1,
         localConcurrency: 5,
       });
@@ -560,17 +599,17 @@ describe('startWorker organization limit', () => {
         'automation.agent_turn': vi.fn(),
       },
     });
-    expect(workOptions.get('automation.step')).toMatchObject({
+    expect(workOptions.get('automation.v2.step')).toMatchObject({
       groupConcurrency: 8,
       batchSize: 1,
       localConcurrency: 5,
     });
     // Counted in the database, never per process: pg-boss refuses both.
-    expect(workOptions.get('automation.step')).not.toHaveProperty(
+    expect(workOptions.get('automation.v2.step')).not.toHaveProperty(
       'localGroupConcurrency',
     );
     expect(workOptions.get('noop')).not.toHaveProperty('groupConcurrency');
-    expect(workOptions.get('automation.agent_turn')).not.toHaveProperty(
+    expect(workOptions.get('automation.v2.agent_turn')).not.toHaveProperty(
       'groupConcurrency',
     );
   });
@@ -585,7 +624,7 @@ describe('startWorker organization limit', () => {
       automationOrgConcurrency: n,
       taskList: { 'automation.step': vi.fn() },
     });
-    expect(workOptions.get('automation.step')).not.toHaveProperty(
+    expect(workOptions.get('automation.v2.step')).not.toHaveProperty(
       'groupConcurrency',
     );
   });
@@ -608,13 +647,13 @@ describe('startWorker agent turn slots', () => {
       },
     });
     for (const start of ['task.agent_turn', 'automation.agent_turn']) {
-      expect(workOptions.get(start)).toMatchObject({
+      expect(workOptions.get(physicalTaskQueue(start))).toMatchObject({
         batchSize: 1,
         localConcurrency: 8,
       });
     }
     for (const drive of ['task.agent_drive', 'automation.agent_drive']) {
-      expect(workOptions.get(drive)).toMatchObject({
+      expect(workOptions.get(physicalTaskQueue(drive))).toMatchObject({
         batchSize: 1,
         localConcurrency: 16,
         // Sixteen idle slots poll every ten seconds, not every two: a drive
@@ -654,9 +693,11 @@ describe('startWorker agent turn slots', () => {
       },
     });
     expect(workOptions.get('task.agent_turn')?.localConcurrency).toBe(3);
-    expect(workOptions.get('automation.agent_turn')?.localConcurrency).toBe(3);
+    expect(workOptions.get('automation.v2.agent_turn')?.localConcurrency).toBe(
+      3,
+    );
     expect(workOptions.get('task.agent_drive')?.localConcurrency).toBe(48);
-    expect(workOptions.get('automation.agent_drive')?.localConcurrency).toBe(
+    expect(workOptions.get('automation.v2.agent_drive')?.localConcurrency).toBe(
       48,
     );
     // Other slot queues keep the worker concurrency.

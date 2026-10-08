@@ -724,15 +724,15 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   `backend/domains/erasure/service.ts`), so the id stays on a run someone else started
   (2026-10). Paying it down means a pass that pseudonymises both columns the way review
   decisions are, with its breakdown category and a case in the erasure tests.
-- **The first roll onto run leases is protected one way** — while the image before run leases
-  still serves, it claims a run without honouring a live lease and repeats a write without the
-  effect ledger, keeps its containers' 10 s stop grace, and answers the deploy's `drain-status`
-  without counting automation steps. A run it was stepping when it stopped is taken over once
-  its own three-minute promise lapsed and a sweep found it (`sweepOverdueRuns` turns the lapsed
-  promise into a lapsed lease), so about four minutes after its last heartbeat. A write inside a
-  subautomation that it was making is sent again under a new idempotency key: it keyed a nested
-  write by the inner node's id alone (2026-10). Nothing is left to build: once every deployment
-  has rolled past the release that brought leases, delete this entry.
+- **Legacy execution holds need a proven retirement before release** — migration 0163 preserves
+  pre-protocol queued/running/waiting runs as `quarantined`, fences legacy database writers and
+  keeps their task subjects occupied. An already-admitted legacy external call can still finish;
+  the database cannot establish its outcome. The app and REST stop-request doors record an
+  explicit acknowledgement and request owned session cancellation, but deliberately keep the
+  run, asks and task exclusion on hold (2026-10). Paying this down requires source-bound proof
+  that the old execution is retired, an authorized decision about unknown external effects, and
+  a guarded release contract. Never clear the hold or manufacture node-attempt evidence merely
+  because a stop was requested, a lease expired, or the old containers disappeared.
 - **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
   30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
   read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by

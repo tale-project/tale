@@ -215,7 +215,10 @@ describe('finishRun — a stop that committed first wins', () => {
     await expect(finish(fake.sql, { status: 'success' })).resolves.toEqual({
       status: 'cancelled',
     });
-    const [write] = fake.statements;
+    const [setup, write] = fake.statements;
+    expect(setup?.text).toContain(
+      "set_config('tale.automation_writer_protocol'",
+    );
     expect(write?.text).toContain('UPDATE app.automation_runs');
     expect(write?.text).toContain('AND claim_epoch = ?');
     expect(write?.text).toContain(
@@ -223,9 +226,10 @@ describe('finishRun — a stop that committed first wins', () => {
     );
     expect(createAuditLog).not.toHaveBeenCalled();
     expect(recordTriggerRunOutcome).not.toHaveBeenCalled();
-    // Only the fenced write and the read that explains it: no session stop,
-    // no approval or question closed, no hint.
+    // Protocol setup, the fenced write and the read that explains it: no
+    // session stop, approval or question closed, or hint.
     expect(fake.statements.map((s) => s.text.trim().split(/\s+/)[0])).toEqual([
+      'SELECT',
       'UPDATE',
       'SELECT',
     ]);

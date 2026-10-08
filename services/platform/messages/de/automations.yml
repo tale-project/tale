@@ -371,6 +371,18 @@ runs:
   # Ein Schreibvorgang, der seinen Dienst vielleicht schon erreicht hat, als
   # der Lauf unterbrochen wurde: Tale kann es nicht wissen, also entscheidet
   # eine Person, wie es weitergeht.
+  quarantine:
+    title: "Ergebnis unbekannt"
+    reason: "Zurückgehalten: Das Ergebnis der bisherigen Arbeit ist unbekannt."
+    body: "Dieser Lauf begann vor dem Upgrade. Tale kann nicht prüfen, ob die bisherige Arbeit gestoppt wurde oder einen externen Dienst erreicht hat. Der Lauf bleibt zurückgehalten und wird nicht automatisch erneut ausgeführt."
+    missing: "Die Angaben zur Sperre konnten nicht geladen werden. Lade sie erneut, bevor du einen Stopp anforderst."
+    stop: "Stopp anfordern"
+    requested: "Stopp angefordert. Der Lauf bleibt zurückgehalten, bis bestätigt ist, dass die bisherige Arbeit gestoppt wurde. Bereits ausgeführte Aktionen werden nicht rückgängig gemacht."
+    confirmTitle: "Einen Stopp für diesen Lauf anfordern?"
+    confirmBody: "Tale fordert einen Stopp für die Sitzungen an, die es zuordnen kann. Das bestätigt nicht, dass die bisherige Arbeit gestoppt wurde, und macht nichts rückgängig, was ein externer Dienst erhalten hat. Der Lauf bleibt zurückgehalten."
+    changed: "Die Sperre hat sich geändert. Schließ diesen Dialog und prüfe die aktuellen Angaben, bevor du entscheidest."
+    failed: "Die Stoppanforderung konnte nicht gespeichert werden."
+    reload: "Angaben neu laden"
   inDoubt:
     title: 'Dieser Schritt ist vielleicht schon gelaufen: {node}'
     body: '{item, select, none {Der Lauf wurde unterbrochen, während dieser Schritt an {connector} gesendet hat.} other {Der Lauf wurde unterbrochen, während dieser Schritt Element {item} an {connector} gesendet hat.}} Tale kann nicht erkennen, ob {connector} es erhalten hat. Prüfe in {connector}, ob es angekommen ist: Wenn ja, überspring den Schritt, sonst führ ihn erneut aus.'
@@ -447,6 +459,7 @@ runs:
     mock: Test
     live: Live
   status:
+    quarantined: Zurückgehalten
     queued: In der Warteschlange
     running: Läuft
     waiting: Wartet

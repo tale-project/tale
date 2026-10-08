@@ -46,6 +46,7 @@ const RUN_STATUS_STYLE: Record<
   queued: { variant: 'slate', icon: Clock },
   running: { variant: 'blue', icon: RunningIcon },
   waiting: { variant: 'yellow', icon: Clock },
+  quarantined: { variant: 'yellow', icon: Clock },
   success: { variant: 'green', icon: CheckCircle2 },
   failed: { variant: 'destructive', icon: XCircle },
   cancelled: { variant: 'slate', icon: Ban },

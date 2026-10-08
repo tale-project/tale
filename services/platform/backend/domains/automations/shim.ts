@@ -36,6 +36,7 @@ import {
   suspendRun,
   versionRow,
 } from './store.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * ONE projection for every ask read the agent host consumes through
@@ -395,6 +396,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         result: unknown;
       };
       return sql.begin(async (tx) => {
+        await markAutomationWriterInTx(tx);
         const rows = await tx<{ status: string; checkpoints: unknown }[]>`
           SELECT status, checkpoints FROM app.automation_runs
           WHERE id = ${args.runId} AND org_id = ${args.organizationId}
@@ -475,6 +477,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         brokerTokenHash?: string | null;
       };
       return sql.begin(async (tx) => {
+        await markAutomationWriterInTx(tx);
         const rows = await tx<
           { status: string; checkpoints: unknown; detail: string | null }[]
         >`
@@ -787,6 +790,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       // stale resume retargets nothing. FOR UPDATE serializes racing resumes
       // so exactly one wins the retarget.
       return sql.begin(async (tx) => {
+        await markAutomationWriterInTx(tx);
         const rows = await tx<{ status: string; checkpoints: unknown }[]>`
           SELECT status, checkpoints FROM app.automation_runs
           WHERE id = ${args.runId} AND org_id = ${args.organizationId}

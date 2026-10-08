@@ -1,7 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { parseCron } from '../../../lib/automations/cron.ts';
-import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
+import type {
+  LegacyRunQuarantine,
+  RunSummary,
+} from '../../../lib/engine/api/dispatch.ts';
 import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -57,12 +60,17 @@ import {
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import {
+  describeLegacyQuarantine,
+  legacyRunStopSchema,
+} from './legacy-quarantine.ts';
+import {
   managedConfigurationHash,
   managedDefinitionValue,
   managedScheduleValue,
 } from './managed-configuration-value';
 import { type RunEventKind, recordRunEventInTx } from './run-events.ts';
 import { recordTriggerRunOutcome } from './trigger-failures.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
@@ -1561,6 +1569,7 @@ export interface RunRow {
    * other status, and for a failure recorded before the code existed. */
   failureCode: string | null;
   claimEpoch: number;
+  legacyQuarantine?: unknown;
   chainSeq: number;
   startedAt: number;
   finishedAt: number | null;
@@ -1613,7 +1622,7 @@ const RUN_COLUMNS = `
   id, org_id AS "organizationId", name, version, project_id AS "projectId",
   status, mode, started_by AS "startedBy", input, output, checkpoints, trace,
   effects, detail, failure_code AS "failureCode",
-  claim_epoch AS "claimEpoch", chain_seq AS "chainSeq",
+  claim_epoch AS "claimEpoch", legacy_quarantine AS "legacyQuarantine", chain_seq AS "chainSeq",
   started_at_ms::float8 AS "startedAt", finished_at_ms::float8 AS "finishedAt",
   EXISTS (
     SELECT 1 FROM app.automation_human_asks a
@@ -1788,7 +1797,8 @@ export function toRunSummary(
     | 'lastResumeReason'
     | 'lastResumedAt'
     | 'stalled'
-  >,
+  > &
+    Partial<Pick<RunRow, 'legacyQuarantine' | 'claimEpoch'>>,
 ): RunSummary {
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
@@ -1805,6 +1815,7 @@ export function toRunSummary(
     // hand out run handles without saying which project they belong to.
     projectId: row.projectId,
     status: row.status,
+    ...legacyRunReadFields(row),
     mode: row.mode,
     startedBy: row.startedBy,
     ...(startedVia !== undefined ? { startedVia } : {}),
@@ -1896,14 +1907,16 @@ export function runWaitingFor(
  * resume stamps. */
 export function toRunDetail(row: RunRow): Omit<
   RunRow,
-  'askPending' | 'lastResumeReason' | 'lastResumedAt'
+  'askPending' | 'lastResumeReason' | 'lastResumedAt' | 'legacyQuarantine'
 > & {
+  legacyQuarantine?: LegacyRunQuarantine;
   waitingFor?: RunSummary['waitingFor'];
   startedVia?: RunSummary['startedVia'];
   lastResume?: RunLastResume;
 } {
   const {
     askPending: _askPending,
+    legacyQuarantine: _legacyQuarantine,
     lastResumeReason: _lastResumeReason,
     lastResumedAt: _lastResumedAt,
     ...rest
@@ -1913,10 +1926,24 @@ export function toRunDetail(row: RunRow): Omit<
   const lastResume = runLastResume(row);
   return {
     ...rest,
+    ...legacyRunReadFields(row),
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
     ...(lastResume !== undefined ? { lastResume } : {}),
   };
+}
+
+function legacyRunReadFields(row: {
+  legacyQuarantine?: unknown;
+  claimEpoch?: number;
+}): {
+  legacyQuarantine?: LegacyRunQuarantine;
+} {
+  const hold = describeLegacyQuarantine(
+    row.legacyQuarantine,
+    row.claimEpoch ?? Number.NaN,
+  );
+  return hold === undefined ? {} : { legacyQuarantine: hold };
 }
 
 export interface ListRunsOptions {
@@ -2138,6 +2165,7 @@ export async function beginRunInTx(
   tx: TransactionSql,
   args: BeginRunArgs,
 ): Promise<{ runId: string; version: number } | null> {
+  await markAutomationWriterInTx(tx);
   {
     const deployed =
       args.mode === 'live' || args.version === undefined
@@ -2228,6 +2256,7 @@ export async function cancelRunInTx(
    * row attributes to the run's starter as `system`. */
   actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
+  await markAutomationWriterInTx(tx);
   {
     const now = Date.now();
     const rows = await tx<
@@ -2250,6 +2279,13 @@ export async function cancelRunInTx(
       // no-op, so a client needs no second read to learn whether the run
       // finished on its own, was already cancelled, or is not there.
       const current = await runRow(tx, organizationId, runId);
+      if (current?.status === 'quarantined') {
+        throw new AutomationError(
+          'RUN_QUARANTINED',
+          'This run is on hold with unknown external effects; use the explicit stop request.',
+          409,
+        );
+      }
       return current === null
         ? { cancelled: false }
         : { cancelled: false, status: current.status };
@@ -2300,6 +2336,91 @@ export async function cancelRun(
   actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
   return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId, actor));
+}
+
+/** Records an explicit stop request without asserting termination, clearing
+ * the hold, changing task state, or rewriting historical asks/checkpoints. */
+export async function requestLegacyRunStopInTx(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    runId: string;
+    actor: string;
+    request: unknown;
+  },
+): Promise<{
+  requested: true;
+  status: 'quarantined';
+  legacyQuarantine: LegacyRunQuarantine;
+}> {
+  const request = legacyRunStopSchema.parse(args.request);
+  await markAutomationWriterInTx(tx);
+  const [row] = await tx<
+    { status: string; claimEpoch: number; hold: unknown }[]
+  >`
+    SELECT status, claim_epoch AS "claimEpoch", legacy_quarantine AS hold
+    FROM app.automation_runs WHERE org_id = ${args.organizationId} AND id = ${args.runId}
+    FOR UPDATE
+  `;
+  const hold =
+    row === undefined
+      ? undefined
+      : describeLegacyQuarantine(row.hold, row.claimEpoch);
+  if (
+    row?.status !== 'quarantined' ||
+    hold === undefined ||
+    hold.claimEpoch !== request.expectedClaimEpoch ||
+    hold.observedAt !== request.expectedObservedAt
+  ) {
+    throw new AutomationError(
+      'RUN_QUARANTINE_CHANGED',
+      'The held run changed; read it again before requesting a stop.',
+      409,
+    );
+  }
+  // An identical retry answers the already recorded decision; it never
+  // substitutes another actor or emits duplicate cleanup/audit work.
+  if (hold.resolution !== null)
+    return { requested: true, status: 'quarantined', legacyQuarantine: hold };
+  const decision = {
+    action: 'stop' as const,
+    actor: args.actor,
+    at: Date.now(),
+  };
+  await tx`SELECT set_config('tale.automation_legacy_stop_run', ${args.runId}, true)`;
+  await tx`UPDATE app.automation_runs SET legacy_quarantine =
+    jsonb_set(legacy_quarantine, '{resolution}', ${tx.json(toJson(decision))}::jsonb)
+    WHERE org_id = ${args.organizationId} AND id = ${args.runId}`;
+  // Reuse owned session cancellation. It is a request, not evidence that a
+  // sandbox or an already-sent external operation has actually terminated.
+  await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.actor,
+    actorType: 'user',
+    action: 'automation.run.legacy_stop_requested',
+    category: 'ai',
+    resourceType: 'automation_run',
+    resourceId: args.runId,
+    status: 'success',
+    metadata: {
+      expectedClaimEpoch: hold.claimEpoch,
+      observedAt: hold.observedAt,
+      unknownExternalEffectsAcknowledged: true,
+    },
+  });
+  await recordRunEventInTx(tx, {
+    organizationId: args.organizationId,
+    runId: args.runId,
+    kind: 'legacy_stop_requested',
+    detail: { actor: args.actor, at: decision.at },
+  });
+  await emitRunHint(tx, args.organizationId, args.runId);
+  return {
+    requested: true,
+    status: 'quarantined',
+    legacyQuarantine: { ...hold, resolution: decision },
+  };
 }
 
 // ---------------------------------------------------- idempotent starts
@@ -2454,6 +2575,7 @@ export async function deleteRunInTx(
   tx: TransactionSql,
   args: { organizationId: string; runId: string; actor: string },
 ): Promise<{ deleted: boolean }> {
+  await markAutomationWriterInTx(tx);
   const rows = await tx<
     { name: string; version: number; mode: string; status: string }[]
   >`
@@ -2463,6 +2585,13 @@ export async function deleteRunInTx(
   `;
   const row = rows[0];
   if (row === undefined) return { deleted: false };
+  if (row.status === 'quarantined') {
+    throw new AutomationError(
+      'RUN_QUARANTINED',
+      'The run is on hold because its external outcome is unknown. A stop request does not authorize deletion.',
+      409,
+    );
+  }
   if (!TERMINAL_RUN_STATUSES.has(row.status)) {
     throw new AutomationError(
       'RUN_ACTIVE',
@@ -2580,6 +2709,7 @@ export async function claimRun(
   runId: string,
 ): Promise<{ claimed: boolean; status: string; epoch: number }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
     const rows = await tx<ClaimPrior[]>`
       SELECT status, claim_epoch AS "claimEpoch", lease_epoch AS "leaseEpoch",
@@ -2702,8 +2832,10 @@ export async function heartbeatRun(
   runId: string,
   epoch: number,
 ): Promise<{ alive: boolean }> {
-  const now = Date.now();
-  const rows = await sql<{ id: string }[]>`
+  return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    const rows = await tx<{ id: string }[]>`
     UPDATE app.automation_runs SET
       lease_expires_at_ms = ${now + RUN_LEASE_MS},
       wake_at_ms = ${now + RUN_LEASE_MS}
@@ -2712,7 +2844,8 @@ export async function heartbeatRun(
       AND lease_epoch = ${epoch} AND lease_expires_at_ms IS NOT NULL
     RETURNING id
   `;
-  return { alive: rows.length > 0 };
+    return { alive: rows.length > 0 };
+  });
 }
 
 /**
@@ -2806,6 +2939,7 @@ export async function recordProgress(
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
     const nodeKey =
       args.nodeId !== undefined && args.checkpoint !== undefined
@@ -2886,6 +3020,7 @@ export async function suspendRun(
   },
 ): Promise<{ suspended: boolean }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
     // An agent node's park merges what the stored cursor gained while its
     // walker was on its way here; the row is locked first, so a settle or a
@@ -3028,6 +3163,7 @@ export async function pollParkedRun(
   args: { organizationId: string; runId: string; seq: number; pollMs: number },
 ): Promise<{ due: boolean; rearmed: boolean }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const row = await runRow(tx, args.organizationId, args.runId);
     if (!row || row.status !== 'waiting' || row.chainSeq !== args.seq) {
       return { due: false, rearmed: false };
@@ -3116,6 +3252,7 @@ export async function continueRun(
   },
 ): Promise<{ scheduled: boolean }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
     const handedOff = args.handoff !== undefined;
     const rows = await tx<{ id: string }[]>`
@@ -3190,6 +3327,7 @@ export async function finishRun(
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
     const rows = await tx<
       {
@@ -3324,6 +3462,7 @@ export async function sweepOverdueRuns(
   let poked = 0;
   for (const row of rows) {
     const won = await sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
       const at = Date.now();
       // Every right-hand side reads the row as it was before this write.
       const updated = await tx<{ id: string }[]>`
@@ -3372,6 +3511,7 @@ export async function pokeParkedRunInTx(
   tx: TransactionSql,
   args: { organizationId: string; runId: string },
 ): Promise<boolean> {
+  await markAutomationWriterInTx(tx);
   const rows = await tx<{ id: string }[]>`
     UPDATE app.automation_runs SET
       wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
@@ -3398,6 +3538,7 @@ export async function wakeSettledInDoubtPark(
   args: { organizationId: string; runId: string },
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const rows = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
         wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
@@ -3452,6 +3593,7 @@ export async function releaseOwnedRunLeases(sql: Sql): Promise<number> {
   const owner = instanceId();
   try {
     return await sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
       const now = Date.now();
       const rows = await tx<{ id: string; orgId: string }[]>`
         UPDATE app.automation_runs SET
@@ -3480,8 +3622,10 @@ export async function releaseOwnedRunLeases(sql: Sql): Promise<number> {
       '[automations] could not hand this process’s runs on; releasing their leases for the sweep instead:',
       error,
     );
-    const now = Date.now();
-    const rows = await sql<{ id: string }[]>`
+    return sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const now = Date.now();
+      const rows = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
         lease_owner = NULL, lease_expires_at_ms = NULL,
         wake_at_ms = ${now},
@@ -3491,7 +3635,8 @@ export async function releaseOwnedRunLeases(sql: Sql): Promise<number> {
         AND lease_epoch = claim_epoch AND lease_expires_at_ms IS NOT NULL
       RETURNING id
     `;
-    return rows.length;
+      return rows.length;
+    });
   }
 }
 
@@ -3507,14 +3652,20 @@ export async function deleteAutomationCascade(
     // dropped): deleting mid-run would remove the versions the stepper needs
     // to load, stranding the run non-terminal forever — the liveness sweep
     // re-claims it every ~3min and its sandbox session is never freed. Refuse
-    // while any run is live; cancel it (which now stops sessions + audits) or
-    // let it finish first.
+    // while any run is live or held. A hold is not released by cancellation.
     const active = await tx<{ status: string }[]>`
       SELECT status FROM app.automation_runs
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
-        AND status IN ('queued', 'running', 'waiting')
+        AND status IN ('queued', 'running', 'waiting', 'quarantined')
       LIMIT 1
     `;
+    if (active[0]?.status === 'quarantined') {
+      throw new AutomationError(
+        'RUN_QUARANTINED',
+        'A run of this automation is on hold because its external outcome is unknown. Preserve its definition and evidence.',
+        409,
+      );
+    }
     if (active[0]) {
       throw new AutomationError(
         'AUTOMATION_HAS_ACTIVE_RUNS',
