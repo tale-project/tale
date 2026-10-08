@@ -15,7 +15,7 @@ afterEach(() => {
 
 const SWEEP = { staleBeforeMs: 0, isLive: () => false };
 
-test('the legacy one-shot sweep runs at boot and then hourly; a failed one is retried at the next tick', async () => {
+test('the legacy one-shot sweep runs at the first tick after boot and then hourly; a failed one is retried at the next tick', async () => {
   process.env.SANDBOX_TOKEN = 'docker-backend-test';
   let now = 1_000_000;
   let probeAnswers = true;
@@ -36,13 +36,17 @@ test('the legacy one-shot sweep runs at boot and then hourly; a failed one is re
   const legacyRuns = () =>
     sweep.mock.calls.map(([, , , options]) => options?.legacy);
 
-  // The boot sweep counts as the first: the five-minute ticks in the hour
-  // after it skip the legacy half.
+  // The boot sweep's listing reads an unanswered daemon as empty, so the
+  // first tick lists once more; the five-minute ticks in the hour after it
+  // skip the legacy half.
+  now += 5 * 60_000;
+  await backend.sweepOrphans(SWEEP);
+  expect(legacyRuns()).toEqual([true]);
   for (let tick = 0; tick < 11; tick += 1) {
     now += 5 * 60_000;
     await backend.sweepOrphans(SWEEP);
   }
-  expect(legacyRuns()).toEqual(Array(11).fill(false));
+  expect(legacyRuns()).toEqual([true, ...Array(11).fill(false)]);
 
   now += 5 * 60_000;
   probeAnswers = false;

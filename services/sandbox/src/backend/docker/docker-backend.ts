@@ -44,7 +44,7 @@ export interface DockerBackendDeps {
 async function bootHost(cfg: SpawnerConfig): Promise<void> {
   // Cross-process lock BEFORE bootSweep — refuses to start if another live
   // spawner shares this hostSessionRoot, so bootSweep's host-dir sweep can't
-  // delete a peer's in-flight workspace (audit finding R2-B5).
+  // delete a peer's in-flight workspace.
   await acquireSpawnerLock(cfg);
   await bootSweep(cfg);
 }
@@ -67,10 +67,11 @@ export class DockerBackend implements HostBackend {
   }
 
   async init(): Promise<void> {
-    // Throwing here is fatal (server.ts exits 1).
+    // Throwing here is fatal (server.ts exits 1). The first periodic sweep
+    // runs the legacy one-shot half once more: the boot sweep's listing
+    // reads a daemon that did not answer as an empty list, and one extra
+    // listing per boot is cheaper than trusting it for an hour.
     await this.boot(this.cfg);
-    // The boot sweep has just listed every one-shot container.
-    this.legacySweepDueAtMs = this.now() + LEGACY_SWEEP_INTERVAL_MS;
   }
 
   async shutdown(): Promise<void> {

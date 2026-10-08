@@ -187,6 +187,9 @@ export class CapacityReader {
   private previousCpuAt = 0;
   private hostFacts: HostFacts | null = null;
   private hostFactsInFlight: Promise<HostFacts> | null = null;
+  /** Whether the current run of unresolvable endpoints has been reported:
+   * once per run, not every 30 s while the page is polled. */
+  private endpointWarned = false;
   private readonly docker: typeof runDocker;
   private readonly read: (path: string) => Promise<string>;
   private readonly kernelRelease: () => string;
@@ -414,13 +417,17 @@ export class CapacityReader {
               ),
             );
     } catch (error) {
-      console.warn(
-        `[sandbox] cannot resolve the Docker endpoint; host usage stays unknown (asked again in ${UNRESOLVED_ENDPOINT_TTL_MS / 1000} s):`,
-        error,
-      );
+      if (!this.endpointWarned) {
+        this.endpointWarned = true;
+        console.warn(
+          `[sandbox] cannot resolve the Docker endpoint; host usage stays unknown (asked again every ${UNRESOLVED_ENDPOINT_TTL_MS / 1000} s, reported once until it resolves):`,
+          error,
+        );
+      }
       facts.ttlMs = UNRESOLVED_ENDPOINT_TTL_MS;
       return facts;
     }
+    this.endpointWarned = false;
     facts.local =
       (endpoint === 'unix:///var/run/docker.sock' ||
         endpoint === 'unix:///run/docker.sock') &&

@@ -11,7 +11,11 @@ import {
   type HostDisk,
   type HostDiskSource,
 } from './host-disk.ts';
-import { runDocker, type RunDockerResult } from './spawn-util.ts';
+import {
+  isDockerNoSuchObject,
+  runDocker,
+  type RunDockerResult,
+} from './spawn-util.ts';
 
 interface DockerDataDiskConfig {
   path: string;
@@ -113,9 +117,12 @@ export class DockerDataDiskProbe implements HostDiskSource {
   private async json(args: string[]): Promise<unknown> {
     const result = await this.docker(args);
     if (result.exitCode !== 0 || result.stdoutTruncated) {
-      throw new DockerUnansweredError(
-        'Docker data filesystem identity could not be read',
-      );
+      const message = 'Docker data filesystem identity could not be read';
+      // A daemon that answered "no such object" refuted the mount; only one
+      // that did not answer is asked again at the first delay.
+      throw result.exitCode !== 0 && isDockerNoSuchObject(result.stderr)
+        ? new Error(message)
+        : new DockerUnansweredError(message);
     }
     return JSON.parse(result.stdout);
   }
@@ -241,10 +248,10 @@ export class DockerDataDiskProbe implements HostDiskSource {
       await this.ensureVerified(this.cfg.path);
       this.reading = (await this.disk?.read(fresh)) ?? null;
       if (this.reading === null) {
-        const unreadable = new Error('Docker data filesystem is unreadable');
-        this.verified = null;
-        this.fail(unreadable);
-        throw unreadable;
+        // A statfs that fails says nothing about which filesystem the bind
+        // is: the mount stays verified, and the next read tries statfs again
+        // without asking Docker.
+        throw new Error('Docker data filesystem is unreadable');
       }
       this.warned = false;
     } catch (error) {

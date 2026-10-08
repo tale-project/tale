@@ -212,7 +212,10 @@ describe('Docker data filesystem admission', () => {
   describe('an explicit mount is verified with the daemon once per process', () => {
     const bindLine = (mountId: number) =>
       `${mountId} 25 8:17 /srv/docker /docker-data ro,relatime - ext4 /dev/sdb1 rw`;
-    function explicit(binding: { RW: boolean } = { RW: false }) {
+    function explicit(
+      binding: { RW: boolean } = { RW: false },
+      inspect?: () => RunDockerResult,
+    ) {
       const state = {
         now: 0,
         readable: true,
@@ -227,6 +230,7 @@ describe('Docker data filesystem admission', () => {
           readFile: async () => state.mountinfo,
           docker: async (args) => {
             state.calls.push(args);
+            if (args[0] !== 'info' && inspect !== undefined) return inspect();
             return args[0] === 'info'
               ? result('/srv/docker')
               : result([
@@ -257,7 +261,7 @@ describe('Docker data filesystem admission', () => {
       }
     };
 
-    test('again only when the mount it lives on changes or its disk cannot be read', async () => {
+    test('again only when the mount it lives on changes', async () => {
       const { state, data } = explicit();
       expect((await data.read(true))?.availableBytes).toBe(50 * GIB);
       expect(state.calls).toHaveLength(2);
@@ -272,18 +276,37 @@ describe('Docker data filesystem admission', () => {
       state.now += 60_000;
       expect((await data.read(true))?.availableBytes).toBe(50 * GIB);
       expect(state.calls).toHaveLength(4);
-      // Its free space cannot be read: unavailable, and verified again once
-      // the retry delay has passed.
+      // Its free space cannot be read: unavailable for that read only. The
+      // mount it lives on is still the one verified, so the first readable
+      // statfs reopens admission without asking Docker again.
       state.readable = false;
       state.now += 5_000;
       expect(await quietly(() => data.read(true))).toBeNull();
       state.readable = true;
       state.now += 5_000;
-      expect(await quietly(() => data.read(true))).toBeNull();
-      expect(state.calls).toHaveLength(4);
-      state.now += 25_000;
       expect((await data.read(true))?.availableBytes).toBe(50 * GIB);
-      expect(state.calls).toHaveLength(6);
+      expect(state.calls).toHaveLength(4);
+    });
+
+    test('a daemon that answers "no such container" refutes the mount, and its retry delay grows', async () => {
+      const { state, data } = explicit({ RW: false }, () => ({
+        ...result(null),
+        exitCode: 1,
+        stdout: '',
+        stderr: 'Error: No such container: aaaaaaaaaaaa',
+      }));
+      await quietly(async () => {
+        expect(await data.read(true)).toBeNull();
+        for (const [after, calls] of [
+          [30_000, 4],
+          [59_999, 4],
+          [1, 6],
+        ] as const) {
+          state.now += after;
+          expect(await data.read(true)).toBeNull();
+          expect(state.calls).toHaveLength(calls);
+        }
+      });
     });
 
     test('a refuted mount stays unavailable and is asked again after 30 s, then 60 s', async () => {

@@ -42,8 +42,8 @@ async function startErrorReporting(dsn: string): Promise<boolean> {
       initialScope: { tags: { 'tale.role': 'sandbox' } },
     });
     sentry = Sentry;
-  } catch {
-    console.warn('[sandbox] error reporting could not initialize');
+  } catch (error) {
+    console.warn('[sandbox] error reporting could not initialize:', error);
   }
   return sentry !== null;
 }

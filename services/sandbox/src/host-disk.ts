@@ -12,7 +12,11 @@
 
 import { statfs } from 'node:fs/promises';
 
-import { runDocker, type RunDockerResult } from './spawn-util.ts';
+import {
+  isDockerNoSuchObject,
+  runDocker,
+  type RunDockerResult,
+} from './spawn-util.ts';
 
 const GIB = 1024 ** 3;
 
@@ -349,10 +353,14 @@ export class DockerDataRootMount {
 
   private async dockerJson(args: string[]): Promise<unknown> {
     const result = await this.docker(args);
-    if (result.exitCode !== 0)
-      throw new DockerUnansweredError(
-        `docker ${args[0]} failed while verifying its data-root (exit ${result.exitCode})`,
-      );
+    if (result.exitCode !== 0) {
+      const message = `docker ${args[0]} failed while verifying its data-root (exit ${result.exitCode})`;
+      // A daemon that answered "no such object" refuted the mount; only one
+      // that did not answer is asked again at the first delay.
+      throw isDockerNoSuchObject(result.stderr)
+        ? new Error(message)
+        : new DockerUnansweredError(message);
+    }
     return JSON.parse(result.stdout);
   }
 }
