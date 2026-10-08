@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-/** Animation period of `.animate-thinking-dot` (see locals.css). */
+/** Animation period of `.animate-thinking-dot` (see globals.css). */
 const DOT_PERIOD_MS = 1200;
 /** Per-dot phase offset — the wave glides across the three dots. */
 const DOT_STAGGER_MS = [0, 150, 300];

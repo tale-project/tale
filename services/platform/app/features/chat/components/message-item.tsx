@@ -15,6 +15,7 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
+import { ThinkingDots } from '@tale/ui/thread/thinking-dots';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { CircleStop, Pencil } from 'lucide-react';
 import {
@@ -60,7 +61,6 @@ import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
 import { SourceCards } from './source-cards';
 import { StepLimitNotice, stepLimitHit } from './step-limit-notice';
-import { ThinkingDots } from './thinking-dots';
 import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 

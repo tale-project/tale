@@ -8,6 +8,7 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SendButton } from '@tale/ui/send-button';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
+import { THREAD_COMPOSER_FRAME_CLASS } from '@tale/ui/thread/layout';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
@@ -22,7 +23,6 @@ import {
   useState,
 } from 'react';
 
-import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
@@ -297,7 +297,7 @@ const TaskCommentEditor = memo(
 export function TaskCommentComposerSkeleton() {
   const { t } = useT('tasks');
   return (
-    <Stack gap={2} className={cn(CHAT_COMPOSER_FRAME_CLASS, 'pb-3')}>
+    <Stack gap={2} className={cn(THREAD_COMPOSER_FRAME_CLASS, 'pb-3')}>
       <div className="min-h-[44px]" />
       <Row gap={2} align="center" justify="between">
         <Text as="p" variant="caption" className="w-28 max-md:invisible">
@@ -398,7 +398,7 @@ export function TaskCommentComposer({
     return (
       <Stack
         gap={2}
-        className={cn(CHAT_COMPOSER_FRAME_CLASS, 'pb-3', className)}
+        className={cn(THREAD_COMPOSER_FRAME_CLASS, 'pb-3', className)}
       >
         {field}
         <MentionTriggerChips
