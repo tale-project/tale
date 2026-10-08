@@ -135,6 +135,43 @@ describe.each(['light', 'dark'])('TimeField in %s', (theme) => {
       contrast(getComputedStyle(minute).backgroundColor, field),
     ).toBeGreaterThanOrEqual(3);
   });
+
+  it('reads as text while read-only, in the same footprint', async () => {
+    await page.viewport(1024, 768);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    render(
+      <div className="bg-background flex flex-col gap-4 p-4">
+        <Field aria-label="Edit" hourCycle={24} />
+        <Field aria-label="Read" readOnly hourCycle={24} />
+      </div>,
+    );
+    const editable = screen.getByRole('group', { name: 'Edit' });
+    const readOnly = screen.getByRole('group', { name: 'Read' });
+    const style = getComputedStyle(readOnly);
+    expect(style.borderTopColor).toBe('rgba(0, 0, 0, 0)');
+    expect(style.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+    expect(getComputedStyle(editable).borderTopColor).not.toBe(
+      'rgba(0, 0, 0, 0)',
+    );
+    const [box, readBox] = [editable, readOnly].map((group) =>
+      group.getBoundingClientRect(),
+    );
+    expect(readBox?.width).toBe(box?.width);
+    expect(readBox?.height).toBe(box?.height);
+    // No ring around the text, and the focused part still shows.
+    const hour = within(readOnly).getByRole('spinbutton', { name: 'Hours' });
+    await userEvent.click(hour);
+    expect(hour).toHaveFocus();
+    expect(getComputedStyle(readOnly).boxShadow).toBe('none');
+    const surface = readOnly.parentElement;
+    if (surface === null) throw new Error('No surface around the field');
+    expect(
+      contrast(
+        getComputedStyle(hour).backgroundColor,
+        getComputedStyle(surface).backgroundColor,
+      ),
+    ).toBeGreaterThanOrEqual(3);
+  });
 });
 
 describe('TimeField in English', () => {

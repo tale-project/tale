@@ -4,6 +4,10 @@ import { useState } from 'react';
 
 export default function TimeFieldStates() {
   const [reminder, setReminder] = useState<TimeOfDay>({ hour: 7, minute: 0 });
+  const [quietHours, setQuietHours] = useState<TimeOfDay>({
+    hour: 22,
+    minute: 0,
+  });
   const tooEarly = reminder.hour < 8;
 
   return (
@@ -24,9 +28,14 @@ export default function TimeFieldStates() {
       <TimeField
         label="Created at"
         readOnly
-        size="sm"
         value={{ hour: 14, minute: 45 }}
         onValueChange={() => {}}
+      />
+      <TimeField
+        label="Quiet hours start (compact)"
+        size="sm"
+        value={quietHours}
+        onValueChange={setQuietHours}
       />
     </div>
   );

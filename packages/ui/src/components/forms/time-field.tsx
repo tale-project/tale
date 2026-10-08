@@ -630,9 +630,17 @@ export function TimeField({
         onPaste={handlePaste}
         onMouseDown={handleMouseDown}
         className={cn(
-          'bg-input inline-flex w-fit shrink-0 items-center rounded-lg border border-[color:var(--color-border-input)] px-2 text-base tabular-nums transition-[border-color,box-shadow] duration-150 md:text-sm',
+          'inline-flex w-fit shrink-0 items-center rounded-lg border px-2 text-base tabular-nums transition-[border-color,box-shadow] duration-150 md:text-sm',
           size === 'sm' ? 'h-8' : 'h-9',
-          FIELD_FOCUS_WITHIN,
+          // Read-only reads as text, as a read-only Input does: no fill, no
+          // border and no ring, in the same footprint. The focused part's
+          // fill still shows where focus is.
+          readOnly
+            ? 'border-transparent bg-transparent'
+            : cn(
+                'bg-input border-[color:var(--color-border-input)]',
+                FIELD_FOCUS_WITHIN,
+              ),
           invalid && FIELD_INVALID_WITHIN,
           disabled && 'cursor-not-allowed opacity-50',
           className,

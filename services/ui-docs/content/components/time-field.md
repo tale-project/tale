@@ -50,7 +50,7 @@ A `label` or `description` puts the field in the standard label-and-field frame;
 | Need                                          | Use                                                                                     |
 | --------------------------------------------- | --------------------------------------------------------------------------------------- |
 | The time cannot change now                    | `disabled`. The parts are dimmed and leave the tab order.                               |
-| People may read and select the time but not edit it | `readOnly`. The parts stay focusable; the arrows, typing and pasting change nothing. |
+| People may read and select the time but not edit it | `readOnly`. The time shows as text, without the field's border or fill, and keeps the field's size. The parts stay focusable and the focused one is still filled; the arrows, typing and pasting change nothing. |
 | A denser row                                  | `size="sm"`, a 32px field instead of the default 36px.                                  |
 
 ## Accessibility
