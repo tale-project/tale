@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { EVENT_PAYLOAD_EXAMPLES } from '../../../lib/shared/event-types.ts';
 import { toJson } from '../../db/sql.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -285,7 +286,7 @@ export async function checkTriggerStreakLockOrder(
         emitEvent(tx, {
           organizationId: orgId,
           eventType: event,
-          eventData: { itest: order },
+          eventData: EVENT_PAYLOAD_EXAMPLES[event],
         });
       const [first, second] =
         order === 'audit first' ? [audit, emit] : [emit, audit];

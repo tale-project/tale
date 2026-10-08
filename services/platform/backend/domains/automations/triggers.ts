@@ -15,6 +15,7 @@ import {
   scheduleOfTrigger,
 } from '../../../lib/automations/schedule/occurrences.ts';
 import { triggerRunInput } from '../../../lib/engine/core/slots.ts';
+import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   deliveryIdentity,
@@ -40,6 +41,7 @@ import {
   checkKeyedRateLimit,
 } from '../../lib/rate-limit.ts';
 import { lockAuditChain } from '../audit_logs/service.ts';
+import type { EventOrigin } from '../events/origin.ts';
 import {
   AutomationError,
   beginRunInTx,
@@ -71,8 +73,9 @@ import {
  *    before the token is hashed (`webhook:ip`), and per verified trigger
  *    (`webhook:trigger`), so a leaked URL starts a bounded number of runs;
  *  - `dispatchAutomationEvent` — platform events fan out to enabled `event`
- *    triggers (never events raised BY an automation — loop safety), wired
- *    into the events emit seam.
+ *    triggers, wired into the events emit seam. An event a run raised never
+ *    starts that run's automation, nor anything when the run was itself
+ *    event-started (loop safety).
  *
  * On all three doors, a binding whose organization no longer exists (a
  * deletion before 0.5.9 left every automation row behind, and 0125 keeps
@@ -696,10 +699,45 @@ export async function scanScheduledTriggers(
   return result;
 }
 
-/** Platform events → enabled `event` triggers of the org. Events raised BY
- * an automation run never fire triggers (loop safety), and neither does an
- * event of an organization that no longer exists: its listening triggers
- * are disabled instead (`refused` answers both).
+/** The run whose work raised an event, as the loop rule reads it: its
+ * automation, and whether an event trigger started it — the run input's
+ * `trigger` says which kind of trigger did (the trigger's own fields are set
+ * over any fixed input, so no input can claim another kind), and only a
+ * trigger door starts a run with it. */
+interface RaisingRun {
+  name: string;
+  eventStarted: boolean;
+}
+
+async function raisingRun(
+  tx: TransactionSql,
+  organizationId: string,
+  runId: string,
+): Promise<RaisingRun | null> {
+  const rows = await tx<
+    { name: string; startedBy: string; via: string | null }[]
+  >`
+    SELECT name, started_by AS "startedBy", input->>'trigger' AS via
+    FROM app.automation_runs
+    WHERE id = ${runId} AND org_id = ${organizationId}
+    LIMIT 1
+  `;
+  const row = rows[0];
+  if (row === undefined) return null;
+  return {
+    name: row.name,
+    eventStarted:
+      parseRunStarter(row.startedBy).kind === 'trigger' && row.via === 'event',
+  };
+}
+
+/** Platform events → enabled `event` triggers of the org. An event that an
+ * automation run raised starts other automations, but never the one whose
+ * run raised it, and nothing at all when that run was itself started by an
+ * event (AUTO-R12): a chain of event starts is one long, so no automation
+ * loops on itself or with another. An event of an organization that no
+ * longer exists starts nothing either: its listening triggers are disabled
+ * instead (`refused` answers that and a loop-held event).
  *
  * Before it stamps a trigger, the dispatch takes the organization's audit
  * chain (`lockAuditChain`): a run of that trigger landing meanwhile holds
@@ -716,16 +754,10 @@ export async function dispatchAutomationEvent(
     organizationId: string;
     event: string;
     payload?: unknown;
-    origin: 'platform' | 'automation';
+    origin: EventOrigin;
   },
 ): Promise<{ started: string[]; refused: boolean }> {
-  if (args.origin === 'automation') {
-    console.warn(
-      `[automations] event "${args.event}" raised by an automation run does not fire triggers (loop safety)`,
-    );
-    return { started: [], refused: true };
-  }
-  const triggers = await tx<OrgCheckedTriggerRow[]>`
+  const listening = await tx<OrgCheckedTriggerRow[]>`
     SELECT ${tx.unsafe(TRIGGER_COLUMNS)},
       NOT EXISTS (
         SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
@@ -734,7 +766,26 @@ export async function dispatchAutomationEvent(
     WHERE org_id = ${args.organizationId} AND kind = 'event'
       AND enabled = true AND event = ${args.event}
   `;
-  if (triggers.length === 0) return { started: [], refused: false };
+  if (listening.length === 0) return { started: [], refused: false };
+  let triggers: OrgCheckedTriggerRow[] = listening;
+  if (args.origin.kind === 'automation') {
+    const run = await raisingRun(tx, args.organizationId, args.origin.runId);
+    if (run === null || run.eventStarted) {
+      // A run the dispatch cannot read is held like an event-started one:
+      // the loop rule must not depend on a row it could not see.
+      console.warn(
+        `[automations] event "${args.event}" raised by run ${args.origin.runId}${run === null ? ', which could not be read,' : ` (${run.name}), itself started by an event,`} starts no automation (loop safety)`,
+      );
+      return { started: [], refused: true };
+    }
+    triggers = listening.filter((trigger) => trigger.name !== run.name);
+    if (triggers.length < listening.length) {
+      console.warn(
+        `[automations] event "${args.event}" raised by run ${args.origin.runId} does not start its own automation ${run.name} (loop safety)`,
+      );
+    }
+    if (triggers.length === 0) return { started: [], refused: false };
+  }
   await lockAuditChain(tx, args.organizationId);
   if (triggers.some((trigger) => trigger.orgMissing)) {
     // The event names an organization that no longer exists: a producer

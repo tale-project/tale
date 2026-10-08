@@ -83,7 +83,7 @@ L’URL autorise le démarrage. Protège-la comme un identifiant et ne la transm
 
 ## Réagir à un événement de la plateforme
 
-Choisis **Événement de la plateforme**, puis le **Nom de l’événement**. Enregistre et active le déclencheur quand il est prêt. Le schéma du workflow doit accepter l’enveloppe `trigger`, `event` et `payload` du tableau. Les événements produits par une exécution d’automatisation ne déclenchent pas d’autres départs : le workflow ne peut ainsi se relancer sans fin par ses propres changements.
+Choisis **Événement de la plateforme**, puis le **Nom de l’événement**. Enregistre et active le déclencheur quand il est prêt. Le schéma du workflow doit accepter l’enveloppe `trigger`, `event` et `payload` du tableau. Un événement produit par l’exécution d’une automatisation ne relance jamais cette même automatisation, et une exécution lancée par un événement ne lance pas d’autres automatisations : un workflow ne peut ainsi se relancer sans fin par ses propres changements, ni seul ni avec un autre.
 
 Un workflow qui exige des champs de premier niveau comme `owner` et `repo` n’accepte pas automatiquement les métadonnées d’un horaire ou le corps enveloppé d’un webhook. Adapte son schéma et ses références, ou utilise un démarrage API qui fournit ces champs. Les réglages du déclencheur ne permettent pas de définir des données d’entrée arbitraires enregistrées.
 

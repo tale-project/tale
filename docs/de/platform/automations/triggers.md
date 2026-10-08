@@ -83,7 +83,7 @@ Die URL berechtigt zum Start. Bewahre sie wie Zugangsdaten auf und gib sie nur d
 
 ## Auf ein Plattform-Ereignis reagieren
 
-Wähle **Plattform-Ereignis** und unter **Ereignisname** das Ereignis. Speichere und aktiviere den fertigen Trigger. Das Eingabeschema muss die Struktur mit `trigger`, `event` und `payload` aus der Tabelle akzeptieren. Von Automatisierungsläufen ausgelöste Ereignisse starten keine Trigger. So erzeugt ein Workflow durch seine eigenen Änderungen keine endlose Startschleife.
+Wähle **Plattform-Ereignis** und unter **Ereignisname** das Ereignis. Speichere und aktiviere den fertigen Trigger. Das Eingabeschema muss die Struktur mit `trigger`, `event` und `payload` aus der Tabelle akzeptieren. Ein Ereignis, das ein Lauf einer Automatisierung auslöst, startet nie dieselbe Automatisierung, und ein Lauf, den ein Ereignis gestartet hat, startet keine weiteren Automatisierungen. So erzeugt ein Workflow durch seine eigenen Änderungen keine endlose Startschleife, weder allein noch mit einem anderen.
 
 Erwartet ein Workflow Pflichtfelder wie `owner` und `repo` auf oberster Ebene, passen Zeitplan-Metadaten oder eine eingepackte Webhook-Nutzlast nicht unverändert dazu. Passe Schema und Verweise an oder starte per API mit diesen Feldern. Die Trigger-Einstellungen bieten keine frei definierbaren gespeicherten Eingabefelder.
 

@@ -12,9 +12,10 @@ import {
   type TurnOpRef,
 } from '../../core/sandbox/tool_names.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { withAutomationOrigin } from '../events/origin.ts';
 import { sandboxDoorBodyLimit, toolResultTooLarge } from './door-body-limit.ts';
 import { servingPlatform } from './serving-platform.ts';
-import { getSessionTokenByHash } from './sessions.ts';
+import { getSessionTokenByHash, workflowRunOfSession } from './sessions.ts';
 import { sandboxToolShimHandlers } from './shim.ts';
 
 /**
@@ -30,9 +31,10 @@ import { sandboxToolShimHandlers } from './shim.ts';
  * body — a container cannot spoof another org, widen its grants, or claim
  * another thread, user or run. The body itself is capped before it is read (the 413 is the
  * one other non-2xx; see door-body-limit.ts). The dispatch itself is the
- * REUSED bridge running on the ctx shim. `/status` lists the token's grants
- * and the release version this backend's build is labelled with (`platform`,
- * see serving-platform.ts).
+ * REUSED bridge running on the ctx shim, as the automation run a
+ * `workflow_run` session works for when there is one (`events/origin.ts`).
+ * `/status` lists the token's grants and the release version this backend's
+ * build is labelled with (`platform`, see serving-platform.ts).
  */
 
 const BEARER_PREFIX = 'Bearer ';
@@ -121,24 +123,35 @@ export function createToolDispatchRoutes(deps: { sql: Sql }): Hono {
       });
     }
     const shim = createCtxShim(sandboxToolShimHandlers(deps.sql));
-    const result = await dispatchWorkspaceToolImpl(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 bridge; every ctx facility it touches is covered by sandboxToolShimHandlers
-      shim as unknown as Parameters<typeof dispatchWorkspaceToolImpl>[0],
-      {
-        organizationId: auth.organizationId,
-        sessionId: auth.sessionId,
-        ...(auth.userId !== undefined ? { userId: auth.userId } : {}),
-        ...(auth.mintedKeyId !== undefined
-          ? { mintedKeyId: auth.mintedKeyId }
-          : {}),
-        ...(auth.taskRunExecId !== undefined
-          ? { taskRunExecId: auth.taskRunExecId }
-          : {}),
-        ...(auth.turn !== undefined ? { turn: auth.turn } : {}),
-        tool,
-        callArgs,
-      },
+    const dispatch = () =>
+      dispatchWorkspaceToolImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 bridge; every ctx facility it touches is covered by sandboxToolShimHandlers
+        shim as unknown as Parameters<typeof dispatchWorkspaceToolImpl>[0],
+        {
+          organizationId: auth.organizationId,
+          sessionId: auth.sessionId,
+          ...(auth.userId !== undefined ? { userId: auth.userId } : {}),
+          ...(auth.mintedKeyId !== undefined
+            ? { mintedKeyId: auth.mintedKeyId }
+            : {}),
+          ...(auth.taskRunExecId !== undefined
+            ? { taskRunExecId: auth.taskRunExecId }
+            : {}),
+          ...(auth.turn !== undefined ? { turn: auth.turn } : {}),
+          tool,
+          callArgs,
+        },
+      );
+    // An automation's agent step acts as its run: the events its writes
+    // raise name the run, so they cannot start its automation again.
+    const runId = await workflowRunOfSession(
+      deps.sql,
+      auth.organizationId,
+      auth.sessionId,
     );
+    const result = await (runId === null
+      ? dispatch()
+      : withAutomationOrigin(runId, dispatch));
     return c.json(result);
   });
 

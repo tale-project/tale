@@ -83,7 +83,7 @@ The URL authorizes a run. Store it as a credential and share it only with the se
 
 ## React to a platform event
 
-Choose **Platform event**, select **Event name**, then save and enable when ready. Match the workflow’s schema to the `trigger`, `event` and `payload` wrapper in the table. Events raised by automation runs do not fire triggers, preventing a workflow from repeatedly starting itself through its own changes.
+Choose **Platform event**, select **Event name**, then save and enable when ready. Match the workflow’s schema to the `trigger`, `event` and `payload` wrapper in the table. An event that an automation’s run raises never starts that same automation, and a run that an event started doesn’t start other automations, so a workflow cannot keep starting itself, or another one, through its own changes.
 
 A workflow expecting required top-level fields such as `owner` and `repo` cannot accept schedule metadata or a wrapped webhook unchanged. Adapt its input schema and references, or use an API-started run that supplies those fields. The trigger settings do not provide arbitrary saved input fields.
 

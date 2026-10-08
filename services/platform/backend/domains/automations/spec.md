@@ -233,14 +233,19 @@ apart.
 - **Example**: Noah saves a webhook trigger and copies the address. A week later he opens the
   trigger and saves it unchanged → no address is shown, and the one he copied still works.
 
-### AUTO-R12 · An event raised by an automation run starts no automation
+### AUTO-R12 · An event a run raises never starts that run's own automation again
 
-Event triggers fire on events that come from the platform itself. An event that an
-automation's own run raises fires none of them, so an automation cannot start itself, or
-another one, in a loop.
+An event that an automation's run raises, through a connector step or its agent's tools,
+starts the other automations listening for it, but never the automation whose run raised it.
+When that run was itself started by an event, its events start nothing at all. A chain of
+event starts is therefore one start long, and no automation starts itself, or another one, in
+a loop. Events a person, an import or the platform raise start every listening automation.
 
-- **Example**: An automation listens for "contact created", and its run creates a contact →
-  that event starts no run.
+- **Example**: The mailbox sync runs on a schedule and files an incoming email. The triage
+  automation listening for "message received" starts. The reply the triage run drafts raises
+  events too → they start no automation.
+- **Example**: An automation listens for "task created", and its run creates a task → that
+  event starts no run of it.
 
 ### AUTO-R13 · A schedule turns itself off after five failures in a row a retry cannot fix
 

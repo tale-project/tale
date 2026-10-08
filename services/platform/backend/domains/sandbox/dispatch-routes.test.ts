@@ -18,15 +18,21 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { workspaceToolStatusImpl } from '../../core/node_only/sandbox/workspace_tools_bridge.ts';
+import { currentEventOrigin } from '../events/origin.ts';
 import { SANDBOX_DOOR_MAX_BODY_BYTES } from './door-body-limit.ts';
 
 const { workspaceToolStatusImpl: listGrantedTools } = await vi.importActual<
   typeof import('../../core/node_only/sandbox/workspace_tools_bridge.ts')
 >('../../core/node_only/sandbox/workspace_tools_bridge.ts');
 
-const { dispatchWorkspaceToolImpl, getSessionTokenByHash } = vi.hoisted(() => ({
+const {
+  dispatchWorkspaceToolImpl,
+  getSessionTokenByHash,
+  workflowRunOfSession,
+} = vi.hoisted(() => ({
   dispatchWorkspaceToolImpl: vi.fn(),
   getSessionTokenByHash: vi.fn(),
+  workflowRunOfSession: vi.fn(),
 }));
 
 vi.mock(
@@ -45,7 +51,10 @@ vi.mock(
 );
 vi.mock('../../lib/ctx-shim.ts', () => ({ createCtxShim: vi.fn(() => ({})) }));
 vi.mock('./shim.ts', () => ({ sandboxToolShimHandlers: vi.fn(() => ({})) }));
-vi.mock('./sessions.ts', () => ({ getSessionTokenByHash }));
+vi.mock('./sessions.ts', () => ({
+  getSessionTokenByHash,
+  workflowRunOfSession,
+}));
 
 const { createToolDispatchRoutes } = await import('./dispatch-routes.ts');
 
@@ -74,6 +83,7 @@ describe('POST /api/tools/execute — request-body cap', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
+    workflowRunOfSession.mockResolvedValue(null);
     dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
   });
 
@@ -134,6 +144,7 @@ describe('POST /api/tools/execute — request-body cap', () => {
 describe('POST /api/tools/execute — the turn a token serves', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    workflowRunOfSession.mockResolvedValue(null);
     dispatchWorkspaceToolImpl.mockResolvedValue({ status: 'ok', output: {} });
   });
 
@@ -416,5 +427,50 @@ describe('POST /api/tools/status — the serving platform version', () => {
     });
     // The label itself is never echoed: an image can be stamped with anything.
     expect(text).not.toContain(SHA);
+  });
+});
+
+/**
+ * An automation's agent step writes through this door, so an event its
+ * write raises must name the run (`events/origin.ts`): the run's own
+ * automation must not start again from it. Every other session acts as
+ * the platform.
+ */
+describe('POST /api/tools/execute — the run a session works for', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { toolGrants: ['task_create'] },
+    });
+  });
+
+  it('dispatches a workflow_run session’s call as its run [AUTO-R12]', async () => {
+    workflowRunOfSession.mockResolvedValue('run_7');
+    let seen: unknown;
+    dispatchWorkspaceToolImpl.mockImplementation(() => {
+      seen = currentEventOrigin();
+      return Promise.resolve({ status: 'ok', output: {} });
+    });
+    const res = await post(JSON.stringify({ tool: 'task_create', args: {} }));
+    expect(res.status).toBe(200);
+    expect(workflowRunOfSession).toHaveBeenCalledWith(
+      expect.anything(),
+      'org_1',
+      'sess_1',
+    );
+    expect(seen).toEqual({ kind: 'automation', runId: 'run_7' });
+    expect(currentEventOrigin()).toEqual({ kind: 'platform' });
+  });
+
+  it('dispatches any other session’s call as the platform', async () => {
+    workflowRunOfSession.mockResolvedValue(null);
+    let seen: unknown;
+    dispatchWorkspaceToolImpl.mockImplementation(() => {
+      seen = currentEventOrigin();
+      return Promise.resolve({ status: 'ok', output: {} });
+    });
+    await post(JSON.stringify({ tool: 'task_create', args: {} }));
+    expect(seen).toEqual({ kind: 'platform' });
   });
 });
