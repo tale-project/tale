@@ -17,7 +17,10 @@ import {
   type SandboxWorkspaceInventory,
   type WorkspaceDestroyAnswer,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
-import { revokeVirtualKey } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
+import {
+  removeOrganizationFromGateway,
+  revokeVirtualKey,
+} from '../../core/node_only/sandbox/llm_gateway_admin.ts';
 import {
   isProjectAgentSession,
   isStandingProjectAgentSession,
@@ -194,6 +197,9 @@ export interface WorkspaceSpawner {
   teardownOrganization: (organizationId: string) => Promise<unknown>;
   disconnectDevice: (deviceId: string) => Promise<unknown>;
   revokeKey: (keyId: string) => Promise<void>;
+  /** Remove a deleted organization's provider keys and its own provider
+   * records from the gateway; throws until all of them are gone. */
+  removeOrganizationFromGateway: (organizationId: string) => Promise<unknown>;
   /** Drop the spawner's own pin, so a container a refused destroy leaves
    * behind is reaped like any other. */
   unpin: (sessionId: string) => Promise<unknown>;
@@ -209,6 +215,7 @@ const DEFAULT_SPAWNER: WorkspaceSpawner = {
   teardownOrganization: sandboxOrganizationTeardown,
   disconnectDevice: sandboxDeviceDisconnect,
   revokeKey: revokeVirtualKey,
+  removeOrganizationFromGateway,
   unpin: (sessionId) => sessionSetPinned(sessionId, false),
 };
 
@@ -1442,15 +1449,17 @@ export type RetireOrganizationPayload =
  * The `sandbox.retire_organization` job, in the order that keeps every step
  * reachable: the gateway keys minted for the organization's sessions are
  * revoked first (a key has no TTL of its own, and spends against providers
- * nobody answers for any more); then its workspaces are destroyed, whatever
- * runs in them — the organization is gone. An organization with a long
- * history is split over several jobs, and the last one alone lets the hub go
- * of its devices and removes what the spawner still holds for it — once its
- * own workspaces and every other slice's are gone, since a device's
- * workspaces are reachable only while the hub still knows where they live.
- * Every step is idempotent; the job THROWS until all of them have succeeded,
- * so the queue's backoff retries, and the hourly sweep's inventory is the
- * backstop past its last retry.
+ * nobody answers for any more), and the last slice removes the provider keys
+ * and provider records the organization gave the gateway; then its
+ * workspaces are destroyed, whatever runs in them — the organization is
+ * gone. An organization with a long history is split over several jobs, and
+ * the last one alone lets the hub go of its devices and removes what the
+ * spawner still holds for it — once its own workspaces and every other
+ * slice's are gone, since a device's workspaces are reachable only while the
+ * hub still knows where they live. Every step is idempotent; the job THROWS
+ * until all of them have succeeded, so the queue's backoff retries, and the
+ * hourly sweep's inventory is the backstop past its last retry (for the
+ * spawner; the gateway has none).
  */
 export async function retireOrganizationSandboxes(
   payload: RetireOrganizationPayload,
@@ -1471,6 +1480,22 @@ export async function retireOrganizationSandboxes(
         error,
       );
       failures.push(`key ${keyId}`);
+    }
+  }
+  // Revoked virtual keys leave the credentials they spent through in the
+  // gateway's store. The last slice removes them, not held back for the other
+  // slices or the devices: a virtual key whose provider key is gone reaches
+  // nothing, the slice that revokes it still does, and an offline device must
+  // not keep an organization's credentials in the gateway.
+  if (payload.teardown) {
+    try {
+      await spawner.removeOrganizationFromGateway(payload.organizationId);
+    } catch (error) {
+      console.error(
+        `[sandbox.cleanup] removing deleted organization ${payload.organizationId} from the gateway failed:`,
+        error,
+      );
+      failures.push('gateway provider keys');
     }
   }
   for (const sessionId of payload.sessionIds) {

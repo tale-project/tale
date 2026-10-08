@@ -1152,6 +1152,140 @@ async function deleteGatewayProvider(name: string): Promise<void> {
   }
 }
 
+/** GET /api/providers — the name of every provider record the gateway
+ * holds. Throws when the gateway does not answer with the list: a teardown
+ * must never read a failed listing as "nothing left". */
+async function listGatewayProviderNames(): Promise<string[]> {
+  const res = await managementFetch('/api/providers');
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway list providers failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  const parsed: unknown = await res.json();
+  if (!isRecord(parsed) || !Array.isArray(parsed.providers)) {
+    throw new Error('llm-gateway list providers answered without a list');
+  }
+  return parsed.providers.flatMap((provider: unknown) =>
+    isRecord(provider) && typeof provider.name === 'string'
+      ? [provider.name]
+      : [],
+  );
+}
+
+/** GET /api/providers/:provider/keys for a teardown: a record that is gone
+ * has no keys, and any other failure throws rather than reading as none. */
+async function readProviderKeysForRemoval(
+  provider: string,
+): Promise<{ id: string; name: string }[]> {
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(provider)}/keys`,
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway list keys for provider ${provider} failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  const parsed: unknown = await res.json();
+  if (!isRecord(parsed)) {
+    throw new Error(
+      `llm-gateway list keys for provider ${provider} answered without a list`,
+    );
+  }
+  if (parsed.keys === null || parsed.keys === undefined) return [];
+  if (!Array.isArray(parsed.keys)) {
+    throw new Error(
+      `llm-gateway list keys for provider ${provider} answered without a list`,
+    );
+  }
+  return parsed.keys.flatMap((key: unknown) =>
+    isRecord(key) && typeof key.id === 'string' && typeof key.name === 'string'
+      ? [{ id: key.id, name: key.name }]
+      : [],
+  );
+}
+
+/** DELETE /api/providers/:provider/keys/:id — one upstream key. A 404 means
+ * it (or its record) is already gone. */
+async function deleteProviderKey(
+  provider: string,
+  keyId: string,
+): Promise<void> {
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(provider)}/keys/${encodeURIComponent(keyId)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(
+      `llm-gateway delete key ${keyId} of provider ${provider} failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+}
+
+/** What {@link removeOrganizationFromGateway} removed. */
+export interface GatewayOrganizationRemoval {
+  /** The organization's own per-(connector, model) records, keys and all. */
+  records: number;
+  /** Its upstream keys on records it shares with other organizations. */
+  keys: number;
+}
+
+/**
+ * Remove what the gateway still holds for a deleted organization. Revoking
+ * its virtual keys leaves the provider credentials they spent through in the
+ * gateway's store: its upstream key on every shared record (each standard
+ * provider's, found by the exact name {@link gatewayKeyName} gives it), and
+ * its own records — the per-(org, connector, model) ones
+ * {@link customGatewayProviderName} names, which go with their keys.
+ *
+ * Idempotent: a record or key already gone counts as removed, and a second
+ * run finds nothing to do. Every record is tried; the call throws when the
+ * gateway cannot be listed or any removal failed, so the caller retries.
+ * Organization ids carry no `__`, so the `<org>__` prefix of an own record
+ * never matches another organization's.
+ */
+export async function removeOrganizationFromGateway(
+  organizationId: string,
+): Promise<GatewayOrganizationRemoval> {
+  const ownPrefix = `${organizationId}__`.replace(/\//g, '_');
+  const keyName = (provider: string) =>
+    gatewayKeyName(organizationId, provider);
+  const removed: GatewayOrganizationRemoval = { records: 0, keys: 0 };
+  const failed: string[] = [];
+  for (const provider of await listGatewayProviderNames()) {
+    // Nothing this process remembers of the organization's keys holds any
+    // more, whether the removal lands or not.
+    const memoKey = providerMemoKey(organizationId, provider);
+    pushedProviderFingerprints.delete(memoKey);
+    recentProviderKeys.delete(memoKey);
+    try {
+      if (provider.startsWith(ownPrefix)) {
+        await deleteGatewayProvider(provider);
+        removed.records += 1;
+        continue;
+      }
+      for (const key of await readProviderKeysForRemoval(provider)) {
+        if (key.name !== keyName(provider)) continue;
+        await deleteProviderKey(provider, key.id);
+        removed.keys += 1;
+      }
+    } catch (error) {
+      console.error(
+        `[llm-gateway] removing organization ${organizationId} from provider ${provider} failed:`,
+        error,
+      );
+      failed.push(provider);
+    }
+  }
+  if (failed.length > 0) {
+    throw new Error(
+      `llm-gateway still holds organization ${organizationId} on: ${failed.join(', ')}`,
+    );
+  }
+  return removed;
+}
+
 /** PUT /api/providers/:name — provider RECORD config only (network +
  * concurrency; keys are a sub-resource, a keys[] in this body is refused;
  * concurrency must be > 0 or the config validator 400s). Idempotent.
