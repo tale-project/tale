@@ -271,9 +271,12 @@ export default defineConfig({
       // discovers it mid-session and triggers a re-optimization that 504s the
       // in-flight dynamic import (an "Outdated Optimize Dep"), crashing the
       // feature into its error boundary:
-      //   - `elkjs`       -> the shared flow layout engine (lazy `elk.bundled.js`)
+      //   - `elkjs`       -> the shared flow layout engine (lazy `elk-api`,
+      //     which starts the layout worker, and `elk.bundled.js`, the
+      //     main-thread fallback)
       //   - react-json-view -> the JSON input/viewer (workflow step config panel)
       // Pre-bundling them keeps the optimizer hash stable from cold start.
+      'elkjs/lib/elk-api',
       'elkjs/lib/elk.bundled.js',
       '@microlink/react-json-view',
     ],

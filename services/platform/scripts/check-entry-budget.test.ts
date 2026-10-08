@@ -56,12 +56,13 @@ describe('findForbiddenPreloads', () => {
 });
 
 describe('forbiddenPackagesIn', () => {
-  it('names the charts, the flow canvas, KaTeX and the single-page libraries a chunk carries', () => {
+  it('names the charts, the flow canvas and its layout engine, KaTeX and the single-page libraries a chunk carries', () => {
     expect(
       forbiddenPackagesIn([
         '../../app/main.tsx',
         '../../../../node_modules/recharts/es6/chart/LineChart.js',
         '../../../../node_modules/@xyflow/react/dist/esm/index.js',
+        '../../../../node_modules/elkjs/lib/elk-api.js',
         '../../../../node_modules/katex/dist/katex.mjs',
         '../../../../node_modules/jszip/dist/jszip.min.js',
         '../../../../node_modules/ajv/dist/ajv.js',
@@ -75,6 +76,7 @@ describe('forbiddenPackagesIn', () => {
     ).toEqual([
       'recharts',
       '@xyflow/react',
+      'elkjs',
       'katex',
       'jszip',
       'ajv',

@@ -30,7 +30,9 @@ export const FORBIDDEN_PRELOADS = [
 /**
  * Packages no preloaded chunk may carry, whatever chunk they land in: the
  * charts (recharts has no chunk of its own; its dependencies are the
- * entry's too), the flow canvas, KaTeX, and what single pages need: zip
+ * entry's too), the flow canvas and its layout engine (elkjs: its worker
+ * file and the main-thread build load with the first canvas), KaTeX, and
+ * what single pages need: zip
  * files (skill uploads, document previews), the automation engine's schema
  * validation and YAML (the MCP settings page), its expression parser and
  * scope analysis (the automation editor and the run dialogs), cron schedules
@@ -42,6 +44,7 @@ export const FORBIDDEN_PRELOADS = [
 export const FORBIDDEN_PACKAGES = [
   'recharts',
   '@xyflow/react',
+  'elkjs',
   'katex',
   'jszip',
   'ajv',
