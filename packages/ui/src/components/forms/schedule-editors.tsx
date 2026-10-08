@@ -367,11 +367,15 @@ export function ScheduleIntervalEditor({
   });
 
   const rule = scheduleFromDraft(draft, 'interval');
-  const spoken = useSettledAnnouncement(
-    format.schedule(rule, hourCycle),
-    format.schedule(rule, hourCycle),
-  );
   const hint = windowHint(draft, t, (time) => format.time(time, hourCycle));
+  // A window no start falls in cannot be saved, and Enter then does
+  // nothing: the settled rule says why, so the reason is heard without
+  // moving focus onto the hours.
+  const sentence = format.schedule(rule, hourCycle);
+  const announced = hint?.neverFires
+    ? `${sentence}${/[.!?]$/.test(sentence) ? '' : '.'} ${hint.text}`
+    : sentence;
+  const spoken = useSettledAnnouncement(announced, announced);
   const unit = draft.every.unit;
   const count = unit === 'minutely' ? draft.every.minutes : draft.every.hours;
   const options = [

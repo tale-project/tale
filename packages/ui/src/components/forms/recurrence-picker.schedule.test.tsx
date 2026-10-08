@@ -557,6 +557,18 @@ describe('RecurrencePicker in time mode', () => {
       expect(until).toHaveAccessibleDescription(
         /No run falls between these times/,
       );
+      // Enter will not save it, so the settled rule says why.
+      await waitFor(() =>
+        expect(
+          within(dialog)
+            .getAllByRole('status')
+            .map((region) => plain(region.textContent)),
+        ).toContainEqual(
+          expect.stringMatching(
+            /11:00 AM\. No run falls between these times\. Widen the hours or pick a shorter interval\.$/,
+          ),
+        ),
+      );
       const save = within(dialog).getByRole('button', { name: 'Save' });
       expect(save).toHaveAttribute('aria-disabled', 'true');
       save.focus();
