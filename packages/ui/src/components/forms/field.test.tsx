@@ -28,6 +28,91 @@ describe('Field', () => {
     expect(getByRole('alert')).toHaveTextContent('Required');
   });
 
+  describe('issues', () => {
+    const ISSUES = [
+      {
+        id: 'unknown-node',
+        severity: 'error' as const,
+        message: 'There is no node called "nope".',
+      },
+      {
+        id: 'maybe-empty',
+        severity: 'warning' as const,
+        message: 'This can be empty when the triage is skipped.',
+      },
+    ];
+
+    it('describes the control with every line, and leaves the description in place', () => {
+      const { getByRole } = render(
+        <Field
+          label="Prompt"
+          htmlFor="prompt"
+          description="What the agent is asked."
+          issues={ISSUES}
+        >
+          <Input id="prompt" />
+        </Field>,
+      );
+      const input = getByRole('textbox');
+      expect(input).toHaveAccessibleDescription(
+        'Error: There is no node called "nope". Warning: This can be empty when the triage is skipped. What the agent is asked.',
+      );
+      expect(getByRole('list')).toHaveTextContent(
+        'There is no node called "nope".',
+      );
+    });
+
+    it('marks the control invalid only when an error is among them', () => {
+      const { getByRole, rerender } = render(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(getByRole('textbox')).toHaveAttribute('aria-invalid', 'true');
+      rerender(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES.slice(1)}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(getByRole('textbox')).not.toHaveAttribute('aria-invalid');
+    });
+
+    it('never raises an alert for them', () => {
+      const { queryByRole } = render(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(queryByRole('alert')).toBeNull();
+    });
+
+    it('keeps the error and the issues apart, the error first', () => {
+      const { getByRole } = render(
+        <Field
+          label="Prompt"
+          htmlFor="prompt"
+          error="Required"
+          issues={ISSUES.slice(1)}
+        >
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(getByRole('textbox')).toHaveAccessibleDescription(
+        'Required Warning: This can be empty when the triage is skipped.',
+      );
+      expect(getByRole('alert')).toHaveTextContent('Required');
+    });
+
+    it('passes axe audit with issues', async () => {
+      const { container } = render(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      await checkAccessibility(container);
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit with label + description', async () => {
       const { container } = render(

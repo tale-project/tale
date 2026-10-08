@@ -6,6 +6,12 @@ import {
   useId,
 } from 'react';
 
+import {
+  type FieldIssue,
+  FieldIssueMessages,
+  fieldIssueDescribedBy,
+  fieldIssuesHaveError,
+} from './field-issue-messages';
 import { FieldShell } from './field-shell';
 import { Label } from './label';
 
@@ -14,6 +20,14 @@ export interface FieldProps {
   htmlFor?: string;
   description?: ReactNode;
   error?: ReactNode;
+  /**
+   * Problems a check found with this field's value, one line each under the
+   * control. They describe the control (`aria-describedby`) and an error
+   * among them marks it invalid, but they are never an alert: the check's
+   * result is announced once elsewhere, not at every keystroke. Unlike
+   * `error`, they leave the description in place.
+   */
+  issues?: ReadonlyArray<FieldIssue>;
   required?: boolean;
   children: ReactNode;
   className?: string;
@@ -24,25 +38,31 @@ export function Field({
   htmlFor,
   description,
   error,
+  issues,
   children,
   className,
 }: FieldProps) {
   const baseId = useId();
   const descriptionId = description ? `${baseId}-description` : undefined;
   const errorId = error ? `${baseId}-error` : undefined;
+  const issuesId = fieldIssueDescribedBy(baseId, issues);
+  const invalid =
+    (error !== undefined && error !== null && error !== false) ||
+    fieldIssuesHaveError(issues);
 
   const describedBy =
-    [errorId, descriptionId].filter(Boolean).join(' ') || undefined;
+    [errorId, issuesId, descriptionId].filter(Boolean).join(' ') || undefined;
 
-  // Inject aria-describedby (and aria-invalid when error is present) into the
-  // first child element if it's a single valid element. This is best-effort:
-  // call sites where children isn't a single element (e.g. a label-wrapped
-  // checkbox) will simply not receive the props, leaving existing behavior.
+  // Inject aria-describedby (and aria-invalid when an error, or an error
+  // among the issues, is present) into the first child element if it's a
+  // single valid element. This is best-effort: call sites where children
+  // isn't a single element (e.g. a label-wrapped checkbox) will simply not
+  // receive the props, leaving existing behavior.
   let enhancedChildren: ReactNode = children;
   const onlyChild = Children.count(children) === 1 ? children : null;
   if (
     isValidElement<Record<string, unknown>>(onlyChild) &&
-    (describedBy || error)
+    (describedBy || invalid)
   ) {
     const childProps = onlyChild.props;
     const rawDescribedBy = childProps['aria-describedby'];
@@ -55,10 +75,7 @@ export function Field({
       typeof rawInvalid === 'boolean' ? rawInvalid : undefined;
     enhancedChildren = cloneElement(onlyChild, {
       'aria-describedby': merged,
-      'aria-invalid':
-        error !== undefined && error !== null && error !== false
-          ? true
-          : fallbackInvalid,
+      'aria-invalid': invalid ? true : fallbackInvalid,
     });
   }
 
@@ -87,14 +104,19 @@ export function Field({
         ) : undefined
       }
       error={
-        error ? (
-          <p
-            id={errorId}
-            className="text-xs text-[color:var(--color-danger)]"
-            role="alert"
-          >
-            {error}
-          </p>
+        error || issuesId ? (
+          <>
+            {error ? (
+              <p
+                id={errorId}
+                className="text-xs text-[color:var(--color-danger)]"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
+            <FieldIssueMessages issues={issues} idPrefix={baseId} />
+          </>
         ) : undefined
       }
     >
