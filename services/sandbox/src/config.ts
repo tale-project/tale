@@ -179,6 +179,16 @@ function numEnv(
   return n;
 }
 
+/** A Docker `--cpu-shares` weight: a whole number in the 2–262144 range the
+ * kernel accepts (0 would mean "the default 1024", which defeats the point). */
+function cpuSharesEnv(name: string, fallback: number): number {
+  const shares = numEnv(name, fallback, { min: 2, max: 262_144 });
+  if (!Number.isInteger(shares)) {
+    throw new Error(`Env var ${name} must be a whole number; got: ${shares}`);
+  }
+  return shares;
+}
+
 /**
  * Parse + validate a `uid:gid` env (SANDBOX_AGENT_USER). Both must be integers
  * >= 1 — a malformed value (`"invalid"` ⇒ NaN, `":"` ⇒ 0:0 = root) would
@@ -619,6 +629,14 @@ export function loadConfig(): SpawnerConfig {
       ),
       agentProfile: {
         cpus: numEnv('SANDBOX_AGENT_CPUS', 2, { min: 1 }),
+        // CPU weight under contention. `--cpus` alone is a quota: six busy
+        // sessions at the default weight compete with the database, backend
+        // and spawner as equals, and on a 4-vCPU host that stalled the control
+        // plane for hours (pool timeouts, 503s, `docker ps` timing out). 256
+        // against the 1024 every other container runs at (cgroup v2 weight
+        // about 10 against 100) hands the CPU to the control plane first; an
+        // idle host still grants the full quota.
+        cpuShares: cpuSharesEnv('SANDBOX_AGENT_CPU_SHARES', 256),
         // Memory is a real resource budget (the session cgroup is shared by the
         // agent and, under DinD, the inner dockerd + every nested build/run).
         // Unlike the pids/fsize *guards* (lifted unconditionally under DinD),

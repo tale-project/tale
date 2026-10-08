@@ -112,6 +112,15 @@ There is no independently configured organization runtime ceiling. With
 organization's connected devices offer; the platform's ceiling for that
 organization is `maxSessions + deviceSessions`.
 
+Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
+CPU for the `default` profile) and a CPU weight below the control plane's:
+agent sessions and their organization's build helpers run at `--cpu-shares`
+256 (`SANDBOX_AGENT_CPU_SHARES`), `default` sessions at 128, against the
+default 1024 the database, backend and spawner keep (cgroup v2 weights of
+about 10 and 5 against 100). The weight matters only while the host's CPUs are
+saturated: busy sessions then yield to the control plane instead of stalling
+it, and on a host with spare CPU a session still uses its full quota.
+
 Size the ceiling against measured task peaks and the host resources remaining
 after platform services and safety headroom. See the
 [self-hosted capacity configuration guide](../../docs/en/self-hosted/configuration/environment-reference.md#size-session-capacity)

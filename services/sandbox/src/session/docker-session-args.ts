@@ -83,6 +83,7 @@ const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 const TOKEN_RE = /^[a-f0-9]{0,128}$/;
 const USER_RE = /^[0-9]{1,10}:[0-9]{1,10}$/;
 const MEM_RE = /^[0-9]+[bkmg]?$/i;
+const SHARES_RE = /^[0-9]{1,6}$/;
 
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
@@ -103,9 +104,13 @@ function assertSafe(name: string, value: string, re: RegExp): void {
  * another renderer after two or three such pages: every later navigation of
  * the batch died `net::ERR_ABORTED` and the site's pages were recorded as
  * render failures. 512 — the agent profile's default — leaves the browser
- * room and is still a fork-bomb guard. */
+ * room and is still a fork-bomb guard.
+ *
+ * Its CPU weight is half an agent's: a page render or a run_code call is
+ * background work that yields first, to agents and to the control plane. */
 const DEFAULT_PROFILE: SessionAgentProfileConfig = {
   cpus: 1,
+  cpuShares: 128,
   memory: '1500m',
   pidsLimit: 512,
   nofileSoft: 1024,
@@ -140,6 +145,7 @@ export function buildDockerSessionRunArgs(
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
   assertSafe('profile.shmSize', profile.shmSize, MEM_RE);
+  assertSafe('profile.cpuShares', String(profile.cpuShares), SHARES_RE);
 
   // Docker-in-container mode. The inner dockerd needs a rootful init, so the
   // container starts as uid 0 (the entrypoint drops back to uid 10001 for
@@ -444,6 +450,12 @@ export function buildDockerSessionRunArgs(
     // Transparent egress signal + drop-uid for the entrypoint (empty when off).
     ...transparentEgressEnv,
     `--cpus=${profile.cpus}`,
+    // The quota caps a session on an idle host; the weight decides who runs
+    // when the host is saturated. Every control-plane container keeps the
+    // default 1024 (cgroup v2 weight 100), so sessions — 256 or 128, about 10
+    // or 5 in cgroup v2 terms — yield the CPU to the database, backend and
+    // spawner instead of stalling them.
+    `--cpu-shares=${profile.cpuShares}`,
     `--memory=${profile.memory}`,
     `--memory-swap=${profile.memory}`,
     `--pids-limit=${pidsLimitValue}`,

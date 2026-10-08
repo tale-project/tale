@@ -18,6 +18,7 @@ const KEYS = [
   'SANDBOX_RUNTIME_CLASS',
   'SANDBOX_BACKEND',
   'SANDBOX_AGENT_MEMORY',
+  'SANDBOX_AGENT_CPU_SHARES',
   'SANDBOX_HOST_SESSION_ROOT',
   'SANDBOX_DOCKER_DATA_ROOT',
   'SANDBOX_DOCKER_DATA_PATH',
@@ -271,6 +272,21 @@ describe('loadConfig — docker-in-container gating', () => {
       process.env.SANDBOX_AGENT_MEMORY = '12g';
       expect(loadConfig().session.agentProfile.memory).toBe('12g');
       expect(loadConfig().session.agentProfile.memoryWithoutDocker).toBe('12g');
+    });
+  });
+
+  describe('agent CPU weight', () => {
+    test('defaults below the control plane and takes an operator weight', () => {
+      expect(loadConfig().session.agentProfile.cpuShares).toBe(256);
+      process.env.SANDBOX_AGENT_CPU_SHARES = '512';
+      expect(loadConfig().session.agentProfile.cpuShares).toBe(512);
+    });
+
+    test('refuses a weight the kernel would not take or would read as the default', () => {
+      for (const bad of ['0', '1', '262145', '256.5', 'high']) {
+        process.env.SANDBOX_AGENT_CPU_SHARES = bad;
+        expect(() => loadConfig()).toThrow(/SANDBOX_AGENT_CPU_SHARES/);
+      }
     });
   });
 

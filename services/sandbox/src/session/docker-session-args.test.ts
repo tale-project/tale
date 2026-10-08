@@ -348,6 +348,51 @@ describe('buildDockerSessionRunArgs', () => {
   // one-shot pids cap of 128 Chromium could not start another renderer after
   // two or three content pages, and the rest of every render batch failed
   // `net::ERR_ABORTED`; it needs 160 tasks and more.
+  test('sessions keep their CPU quota but yield the CPU to the control plane under contention', () => {
+    // The control plane runs at Docker's default weight (1024, cgroup v2
+    // weight 100). A session at that weight competes with the database and
+    // backend as an equal; six busy ones on 4 vCPUs stalled them for hours.
+    const shares = (args: string[]) =>
+      args.filter((a) => a.startsWith('--cpu-shares='));
+    const agent = buildDockerSessionRunArgs(cfg, goodInput);
+    expect(agent).toContain('--cpus=2');
+    expect(shares(agent)).toEqual(['--cpu-shares=256']);
+    const render = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      profile: 'default',
+    });
+    expect(render).toContain('--cpus=1');
+    expect(shares(render)).toEqual(['--cpu-shares=128']);
+    // The operator's agent weight applies to every agent capability.
+    const tuned: SpawnerConfig = {
+      ...cfg,
+      session: {
+        ...cfg.session,
+        agentProfile: { ...cfg.session.agentProfile, cpuShares: 512 },
+      },
+    };
+    expect(shares(buildDockerSessionRunArgs(tuned, goodInput))).toEqual([
+      '--cpu-shares=512',
+    ]);
+    expect(
+      shares(
+        buildDockerSessionRunArgs(tuned, { ...goodInput, profile: 'default' }),
+      ),
+    ).toEqual(['--cpu-shares=128']);
+    expect(() =>
+      buildDockerSessionRunArgs(
+        {
+          ...tuned,
+          session: {
+            ...tuned.session,
+            agentProfile: { ...tuned.session.agentProfile, cpuShares: 1.5 },
+          },
+        },
+        goodInput,
+      ),
+    ).toThrow(/profile.cpuShares value rejected/);
+  });
+
   test('default profile: one-shot caps + uid 65534, with pids room for a headless browser', () => {
     const args = buildDockerSessionRunArgs(cfg, {
       ...goodInput,

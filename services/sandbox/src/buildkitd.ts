@@ -316,9 +316,11 @@ function builderMemory(cfg: HelperBoundsConfig): string {
  * pressure the kernel killed sessions (OOM score 500) before the builder (0).
  * The builder is shared by every agent session of its organization and gets
  * {@link builderMemory} and an agent session's CPUs unless the operator sets
- * SANDBOX_BUILDKITD_CPUS; a mirror idles at about 10 MB. Logging is set in
- * full, as for a session (docker-session-args.ts): an option left unset falls
- * through to the host daemon's defaults, which can make the run fail. */
+ * SANDBOX_BUILDKITD_CPUS; a mirror idles at about 10 MB. Both take an agent
+ * session's CPU weight: a build is session work, and under contention it
+ * yields to the control plane like the session that started it. Logging is
+ * set in full, as for a session (docker-session-args.ts): an option left unset
+ * falls through to the host daemon's defaults, which can make the run fail. */
 export function buildkitHelperLimits(
   cfg: HelperBoundsConfig,
   role: 'builder' | 'mirror',
@@ -328,6 +330,7 @@ export function buildkitHelperLimits(
   const cpus = cfg.buildkitdCpus ?? agent.cpus;
   return [
     `--cpus=${role === 'builder' ? cpus : 1}`,
+    `--cpu-shares=${agent.cpuShares}`,
     `--memory=${memory}`,
     `--memory-swap=${memory}`,
     `--pids-limit=${role === 'builder' ? Math.max(agent.pidsLimit, 16384) : 256}`,
@@ -362,7 +365,7 @@ export function helperStamp(
 /** The bounds a busy helper takes in place. Never its memory: on cgroup v2 a
  * limit below what the helper uses OOM-kills its running builds there and
  * then, so memory waits for the recreate once the helper is idle. */
-const LIVE_LIMIT_FLAGS = ['--cpus=', '--pids-limit='];
+const LIVE_LIMIT_FLAGS = ['--cpus=', '--cpu-shares=', '--pids-limit='];
 // Running helpers whose bounds were updated in place, with the stamp they were
 // updated to: done once per stamp, not on every ensure.
 const limitsUpdated = new Map<string, string>();
