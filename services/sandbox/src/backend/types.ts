@@ -159,6 +159,14 @@ export interface CreateSessionResult {
    * the half-made workspace it provisioned itself.
    */
   resumed: boolean;
+  /**
+   * The incarnation runnerd named in the readiness answer this create waited
+   * for (see RUNNERD_INCARNATION_ENV): the route layer records it like any
+   * later runnerd answer, so a fresh or resumed session's first activity call
+   * needs no backend existence check. Absent when runnerd named none (an
+   * older runtime image, or a backend that launches without the stamp).
+   */
+  incarnation?: string;
 }
 
 /**

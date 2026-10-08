@@ -2043,7 +2043,7 @@ export class SessionRoutes {
           502,
         );
       }
-      this.registry.set({
+      const entry: RegistrySession = {
         sessionId: req.sessionId,
         organizationId: req.organizationId,
         profile: req.profile,
@@ -2054,7 +2054,12 @@ export class SessionRoutes {
         idleTimeoutMs: req.idleTimeoutMs,
         endpoint,
         liveExecs: new Map(),
-      });
+      };
+      this.registry.set(entry);
+      // The readiness answer the create waited for is a runnerd answer like
+      // any other: naming this incarnation, it spares the session's first
+      // ticket or acquire the backend's existence check.
+      this.noteIncarnation(entry, created.incarnation);
       const planned = this.creatingBytes.get(req.sessionId);
       if (planned !== undefined) {
         this.youngBytes.set(req.sessionId, {

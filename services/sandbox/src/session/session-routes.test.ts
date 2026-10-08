@@ -7101,7 +7101,8 @@ describe('runnerd answers naming the session incarnation', () => {
     deriveRunnerdToken(cfg.sandboxToken, sessionId);
 
   /** A Docker backend whose containers carry their creation stamp to runnerd
-   * (docker-session-args), counting its existence checks. */
+   * (docker-session-args), counting its existence checks. Its create reports
+   * the incarnation its readiness answer named, as DockerSessionBackend does. */
   function stampedBackend(
     checks: string[],
     overrides: Partial<SessionBackend> = {},
@@ -7113,7 +7114,10 @@ describe('runnerd answers naming the session incarnation', () => {
           tokenOf(spec.sessionId),
           String(spec.createdAtMs),
         );
-        return fakeBackend.createSession(spec);
+        return {
+          ...(await fakeBackend.createSession(spec)),
+          incarnation: String(spec.createdAtMs),
+        };
       },
       async sessionExists(sessionId, expected) {
         checks.push(sessionId);
@@ -7135,13 +7139,12 @@ describe('runnerd answers naming the session incarnation', () => {
         )
       ).status,
     ).toBe(201);
-    // Unproven: the first acquire still asks the backend; its answer proves
-    // the incarnation.
+    // The create's readiness answer named the incarnation, so even the first
+    // acquire asks the backend nothing.
     expect((await routes.handleActivity(sessionId, 'acquire')).status).toBe(
       200,
     );
-    expect(checks).toEqual([sessionId]);
-    checks.length = 0;
+    expect(checks).toEqual([]);
     activityIncarnations.length = 0;
     const stamp = daemonIncarnations.get(tokenOf(sessionId));
     if (stamp === undefined) throw new Error('the create named no stamp');
@@ -7176,13 +7179,47 @@ describe('runnerd answers naming the session incarnation', () => {
     ]);
   });
 
-  test('an older runtime naming no incarnation keeps the backend check on every call', async () => {
+  test('a create proves its session: the ticket and release after it fork no backend check', async () => {
     const checks: string[] = [];
     const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    // A resume as the platform's agent flow runs it: the acquire missed, so
+    // it creates and goes straight to the release ticket.
+    expect(
+      (
+        await routes.handleCreate(
+          JSON.stringify({
+            sessionId: 'inc-created',
+            organizationId: 'org_inc',
+          }),
+        )
+      ).status,
+    ).toBe(201);
+    const ticket = await routes.handleActivity('inc-created', 'ticket');
+    expect(ticket.status).toBe(200);
+    expect(
+      await (
+        await routes.handleActivity(
+          'inc-created',
+          'release',
+          JSON.stringify(await ticket.json()),
+        )
+      ).json(),
+    ).toEqual({ released: true });
+    expect(checks).toEqual([]);
+  });
+
+  test('an older runtime naming no incarnation keeps the backend check on every call', async () => {
+    const checks: string[] = [];
+    // Its readiness answer names none either, so the create proves nothing.
+    const routes = new SessionRoutes(
+      cfg,
+      stampedBackend(checks, {
+        createSession: (spec) => fakeBackend.createSession(spec),
+      }),
+    );
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'inc-legacy', organizationId: 'org_inc' }),
     );
-    daemonIncarnations.clear();
 
     expect((await routes.handleActivity('inc-legacy', 'acquire')).status).toBe(
       200,

@@ -7,10 +7,13 @@ async function createTwo(plant: {
   dirs?: string[];
   files?: string[];
   dockerInitiallyUnavailable?: boolean;
+  /** The incarnation runnerd's readiness answers name, if any. */
+  incarnation?: string;
 }): Promise<{
   calls: string[][][];
   error: string | null;
   healthChecks: number;
+  results: Array<{ resumed: boolean; incarnation?: string }>;
 }> {
   const sourceRoot = resolve(import.meta.dir, '../..');
   const script = `
@@ -34,7 +37,7 @@ mock.module(spawnPath, () => ({...realSpawn,
   },
 }));
 mock.module(join(source,'session/runnerd-client.ts'), () => ({
-  runnerdHealth: async () => ({dockerReady: !(++healthChecks === 1 && planted.dockerInitiallyUnavailable)}),
+  runnerdHealth: async () => ({dockerReady: !(++healthChecks === 1 && planted.dockerInitiallyUnavailable), ...(planted.incarnation === undefined ? {} : {incarnation: planted.incarnation})}),
   runnerdEnvPatch: async () => [],
 }));
 const {DockerSessionBackend} = await import(join(source,'backend/docker/docker-session-backend.ts'));
@@ -50,16 +53,17 @@ const cfg = {
 };
 const backend = new DockerSessionBackend(cfg);
 const perCreate = [];
+const results = [];
 let error = null;
 try {
   for (const sessionId of ['calls-a','calls-b']) {
     calls = [];
-    await backend.createSession({sessionId,organizationId:'org-calls',profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
+    results.push(await backend.createSession({sessionId,organizationId:'org-calls',profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000}));
     perCreate.push(calls);
   }
 } catch (e) { error = e.message; }
 await rm(root,{recursive:true,force:true});
-console.log(JSON.stringify({calls:perCreate,error,healthChecks}));
+console.log(JSON.stringify({calls:perCreate,error,healthChecks,results}));
 `;
   const child = Bun.spawn([process.execPath, '-e', script], {
     stdout: 'pipe',
@@ -86,6 +90,18 @@ describe('what a session create asks the docker daemon', () => {
     });
     expect(error).toBeNull();
     expect(healthChecks).toBe(3);
+  });
+  test('the create reports the incarnation its readiness answer named', async () => {
+    const named = await createTwo({ incarnation: '0' });
+    expect(named.error).toBeNull();
+    expect(named.results).toEqual([
+      { resumed: false, incarnation: '0' },
+      { resumed: false, incarnation: '0' },
+    ]);
+    // An older runtime image names none, and the create reports none.
+    const unnamed = await createTwo({});
+    expect(unnamed.error).toBeNull();
+    expect(unnamed.results).toEqual([{ resumed: false }, { resumed: false }]);
   });
   test('the cache volumes once per organization, and no legacy mount lookup on a flat root', async () => {
     const { calls, error } = await createTwo({});
