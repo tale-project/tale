@@ -168,3 +168,5 @@ Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [repository contract](AG
 ## License
 
 Tale is available under the [MIT license](LICENSE).
+
+[TALE664 deliberate missing-link canary](https://docs.tale.dev/tale664-deliberately-missing)
