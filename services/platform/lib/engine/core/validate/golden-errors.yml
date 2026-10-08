@@ -1314,7 +1314,7 @@ org-state-agent-equipment:
       nodeId: reply
       path: secrets
       message: 'node "reply": agent secret "SUPPORT_SIGNATUR" does not exist — the step runs without it'
-      hint: list_agent_secrets shows the stored names; an owner, admin or developer stores the value in Tale; did you mean "SUPPORT_SIGNATURE"?
+      hint: list_agent_secrets shows the stored names; an owner, admin or developer stores the value under Secrets in this agent step in the editor (or in a project agent's); did you mean "SUPPORT_SIGNATURE"?
       at:
         pointer: /nodes/0/secrets/1
       params:

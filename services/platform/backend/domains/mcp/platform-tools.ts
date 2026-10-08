@@ -255,7 +255,7 @@ async function listConnectors(
  * see them, anyone else an empty list. A value never leaves its row. */
 async function listSecrets(sql: Sql, caller: McpCaller): Promise<unknown> {
   const hint =
-    'an agent step names them under secrets; the step runs with each as an environment variable. A person stores a value in Tale, never through this endpoint';
+    "an agent step names them under secrets; the step runs with each as an environment variable. A person stores a value under Secrets in the agent step in the editor (or in a project agent's), never through this endpoint";
   if (!isAdminOrDeveloperRole(caller.role)) {
     return {
       secrets: [],

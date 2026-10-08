@@ -183,7 +183,7 @@ function secretIssues(
         {
           nodeId: node.id,
           path: 'secrets',
-          hint: `list_agent_secrets shows the stored names; an owner, admin or developer stores the value in Tale${didYouMean(suggestion)}`,
+          hint: `list_agent_secrets shows the stored names; an owner, admin or developer stores the value under Secrets in this agent step in the editor (or in a project agent's)${didYouMean(suggestion)}`,
           at: { pointer: `${base}/secrets/${index}` },
           params: {
             node: node.id,
