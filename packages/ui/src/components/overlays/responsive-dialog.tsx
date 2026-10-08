@@ -18,8 +18,8 @@ import { useIsMobile } from '../../hooks/use-is-mobile';
 import { useRestoreFocus } from '../../hooks/use-restore-focus';
 import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
-import { CLOSE_BUTTON_CLASS } from './close-button-class';
 import { respectEscapeClaims } from './claims-escape';
+import { CLOSE_BUTTON_CLASS } from './close-button-class';
 import { PagePointerPin } from './page-pointer-pin';
 
 /**

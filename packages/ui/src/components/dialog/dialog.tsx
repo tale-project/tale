@@ -9,8 +9,8 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
-import { CLOSE_BUTTON_CLASS } from '../overlays/close-button-class';
 import { respectEscapeClaims } from '../overlays/claims-escape';
+import { CLOSE_BUTTON_CLASS } from '../overlays/close-button-class';
 import { PagePointerPin } from '../overlays/page-pointer-pin';
 
 // Tracks dialog nesting so a child Dialog opened from inside another
