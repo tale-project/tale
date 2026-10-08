@@ -283,10 +283,18 @@ export default {
         'scripts/check-deployment-acceptance.ts',
       ],
       project: ['**/*.ts'],
-      // The embedded native workflow validator imports Ajv from platform
-      // source. A CLI-only filtered install must provide that runtime edge,
-      // even though this workspace does not import the package directly.
-      ignoreDependencies: ['ajv'],
+      // The embedded native workflow validator imports Ajv and the
+      // expression parser (acorn, periscopic, zimmerframe, is-reference) from
+      // platform source. A CLI-only filtered install must provide those
+      // runtime edges, even though this workspace does not import them
+      // directly.
+      ignoreDependencies: [
+        'ajv',
+        'acorn',
+        'is-reference',
+        'periscopic',
+        'zimmerframe',
+      ],
     },
     'tools/plop': {
       entry: ['generators/**/*.ts', 'helpers/**/*.ts'],
