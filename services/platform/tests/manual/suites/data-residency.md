@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 26 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 27 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -187,6 +187,19 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   **Save** enables. Repeat in German and French: both states read in the
   locale, and the two rows never share a sentence. The one-click
   recommendation above the form never names Anthropic.
+- [ ] `DATA-F13` · **Embedding model: a change of vector width** — On a
+  stack whose indexing is live, with an embedding model saved and at least
+  two documents **Indexed** (`documents.rag.status.indexed`) under it, set
+  **Vector width** (`settings.dataResidency.orgEmbedding.dimensions`) to
+  another width its hint (`…orgEmbedding.dimensionsHint`) lists, with a model
+  that produces it, and **Save** → the save succeeds on the deployment's
+  shared knowledge database. On `/dashboard/{org}/documents` the indexed
+  documents turn **Queued** (`documents.rag.status.queued`) by themselves and
+  return to **Indexed**; asking the assistant for a passage of one of them
+  finds it again. A second organization on the same database, left on its
+  own width, keeps finding its documents throughout. Typing a width the hint
+  does not list (`1000`) keeps the header **Save** disabled, with
+  `…orgEmbedding.errors.dimensionsInvalid` under the field naming the list.
 
 ## Boundary / error
 

@@ -30,6 +30,14 @@
 // group known to be the exec's is signalled before the table is read, a scan
 // answers with what it read once its deadline passes, and a process whose
 // read did not come back is skipped until it is gone or the read returns.
+//
+// A process in the middle of an execve has no environment to read: from the
+// moment the new image's memory replaces the old until its arguments and
+// environment are laid out, the kernel answers an empty one. A leftover is
+// often right there when a round comes (`cmd &` and the command's exit are
+// an instant apart, and `setsid cmd` is two execs), so an empty read is read
+// again a few times before the process counts as untagged. A process whose
+// environment really is empty (`env -i`) costs a scan that long.
 
 import { readdir, readFile } from 'node:fs/promises';
 
@@ -38,6 +46,11 @@ export const EXEC_TAG_ENV = 'TALE_EXEC_ID';
 
 /** How long one scan of the process table waits for its reads. */
 const SCAN_DEADLINE_MS = 2_000;
+/** How many times an empty environment is read again before the process
+ * counts as untagged, and how long between reads: a process in the middle
+ * of an execve answers an empty one. */
+const EMPTY_ENVIRON_REREADS = 4;
+const EMPTY_ENVIRON_REREAD_MS = 10;
 
 export interface ReaperDeps {
   /** Where the process table is read (Linux `/proc`); absent elsewhere. */
@@ -136,6 +149,9 @@ const stalledByRoot = new Map<string, Map<number, StalledRead>>();
 const environReads = new Map<string, Promise<string>>();
 let readsInFlight = 0;
 
+const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms));
+
 /** How many reads of the process table have not come back. Each holds one
  * thread of libuv's pool, which `process.exit` waits for. */
 export function pendingProcReads(): number {
@@ -147,6 +163,24 @@ function tracked<T>(read: Promise<T>): Promise<T> {
   return read.finally(() => {
     readsInFlight -= 1;
   });
+}
+
+/** One process's environment — one read, shared by the scans that run at
+ * once. */
+function readEnviron(
+  root: string,
+  name: string,
+  startTime: string,
+): Promise<string> {
+  const key = `${root}/${name}@${startTime}`;
+  let read = environReads.get(key);
+  if (read === undefined) {
+    read = tracked(readFile(`${root}/${name}/environ`, 'latin1')).finally(() =>
+      environReads.delete(key),
+    );
+    environReads.set(key, read);
+  }
+  return read;
 }
 
 /** Every readable process, each with the exec it is tagged with, or null
@@ -242,17 +276,20 @@ async function scanProcessTable(
         known.delete(pid);
       }
       unsettled.set(pid, { startTime: parsed.startTime });
-      const key = `${root}/${name}@${parsed.startTime}`;
-      let read = environReads.get(key);
-      if (read === undefined) {
-        read = tracked(readFile(`${root}/${name}/environ`, 'latin1')).finally(
-          () => environReads.delete(key),
-        );
-        environReads.set(key, read);
-      }
       let environ: string;
       try {
-        environ = await read;
+        environ = await readEnviron(root, name, parsed.startTime);
+        // Empty: the process may be in the middle of an execve, its
+        // environment not laid out yet. Read again before counting it
+        // untagged.
+        for (
+          let again = 0;
+          environ.length === 0 && again < EMPTY_ENVIRON_REREADS;
+          again += 1
+        ) {
+          await pause(EMPTY_ENVIRON_REREAD_MS);
+          environ = await readEnviron(root, name, parsed.startTime);
+        }
       } catch (err) {
         const code = errorCode(err) ?? '';
         if (!VANISHED.has(code)) {

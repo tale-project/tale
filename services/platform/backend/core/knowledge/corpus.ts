@@ -42,6 +42,7 @@ import {
   type KnowledgeCorpus,
   type KnowledgeHit,
 } from '../../../lib/knowledge/types';
+import { chunkVectorsTable } from './dimensions';
 import {
   bm25Available,
   isDataCorrupted,
@@ -197,6 +198,13 @@ export class DocumentCorpusReader implements CorpusReader {
     rows: DocumentRows,
   ): Promise<readonly KnowledgeHit[] | null> {
     const scope = this.scope(query, 2, rows);
+    // The vectors of the query's own width: a chunk embedded under a model
+    // of another width has no row here, and is not a candidate.
+    const vectors = chunkVectorsTable(
+      PRIVATE_KNOWLEDGE_SCHEMA,
+      query.embedding.length,
+      `organization "${this.orgSlug}"`,
+    );
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
@@ -206,16 +214,16 @@ export class DocumentCorpusReader implements CorpusReader {
                 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
                WHERE c2.org_slug = c.org_slug AND c2.document_id = c.document_id
                  AND c2.chunk_index < c.chunk_index)::text AS hit_offset,
-             1 - (c.embedding <=> $1::vector) AS score
-      FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+             1 - (v.embedding <=> $1::vector) AS score
+      FROM ${vectors} v
+      JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c ON c.id = v.chunk_id
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         ON d.id = c.document_id AND d.org_slug = c.org_slug
-      WHERE c.embedding IS NOT NULL
-        AND c.org_slug = $2
+      WHERE c.org_slug = $2
         AND d.status = 'completed'
         AND NOT c.passage_repeat
         ${scope.clause}
-      ORDER BY c.embedding <=> $1::vector
+      ORDER BY v.embedding <=> $1::vector
       LIMIT $${3 + scope.params.length}
     `;
     // The scope's size decides the plan (see `runDenseLeg`): the same
@@ -223,11 +231,11 @@ export class DocumentCorpusReader implements CorpusReader {
     const scopeCount = this.scope(query, 1, rows);
     const countStatement = `
       SELECT count(*)::text AS n
-      FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+      FROM ${vectors} v
+      JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c ON c.id = v.chunk_id
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
         ON d.id = c.document_id AND d.org_slug = c.org_slug
-      WHERE c.embedding IS NOT NULL
-        AND c.org_slug = $1
+      WHERE c.org_slug = $1
         AND d.status = 'completed'
         AND NOT c.passage_repeat
         ${scopeCount.clause}
@@ -403,7 +411,7 @@ export class WebCorpusReader implements CorpusReader {
     return runKeywordLeg(
       this.sql,
       this.corpus,
-      webCorpusStatement(RANKING.bm25),
+      webCorpusStatement(BM25_RANKING),
       [query.query, this.orgSlug, query.limit],
     );
   }
@@ -411,19 +419,26 @@ export class WebCorpusReader implements CorpusReader {
   async dense(
     query: CorpusLegQuery & { readonly embedding: readonly number[] },
   ): Promise<readonly KnowledgeHit[] | null> {
+    // The vectors of the query's own width — this organization's, on a
+    // site it shares with organizations whose models are of other widths.
+    const vectors = chunkVectorsTable(
+      PUBLIC_WEB_SCHEMA,
+      query.embedding.length,
+      `organization "${this.orgSlug}"`,
+    );
     return runDenseLeg(
       this.sql,
       this.corpus,
-      webCorpusStatement(RANKING.vector),
+      webCorpusStatement(vectorRanking(vectors)),
       [JSON.stringify(query.embedding), this.orgSlug, query.limit],
       {
         scopeCount: {
           statement: `
             SELECT count(*)::text AS n
-            FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+            FROM ${vectors} v
+            JOIN ${PUBLIC_WEB_SCHEMA}.chunks c ON c.id = v.chunk_id
             JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
               ON m.domain = c.domain AND m.org_slug = $1
-            WHERE c.embedding IS NOT NULL
           `,
           params: [this.orgSlug],
         },
@@ -433,22 +448,35 @@ export class WebCorpusReader implements CorpusReader {
   }
 }
 
-/** The per-leg half of a web-corpus query: the score expression, the row
- * filter that selects the candidate set, and the sort. `$1` is the query
- * (a search string for bm25, a vector literal for dense), `$2` the org slug,
- * `$3` the candidate limit. */
-const RANKING = {
-  bm25: {
-    score: 'paradedb.score(c.id)',
-    where: "c.id @@@ paradedb.match('chunk_content', $1)",
-    order: 'score DESC',
-  },
-  vector: {
-    score: '1 - (c.embedding <=> $1::vector)',
-    where: 'c.embedding IS NOT NULL',
-    order: 'c.embedding <=> $1::vector',
-  },
-} as const;
+/** The per-leg half of a web-corpus query: where the candidate chunks `c`
+ * come from, the score expression, the row filter that selects the candidate
+ * set (none where the source already is the set), and the sort. `$1` is the
+ * query (a search string for bm25, a vector literal for dense), `$2` the org
+ * slug, `$3` the candidate limit. */
+interface WebRanking {
+  readonly source: string;
+  readonly score: string;
+  readonly where: string | null;
+  readonly order: string;
+}
+
+const BM25_RANKING: WebRanking = {
+  source: `${PUBLIC_WEB_SCHEMA}.chunks c`,
+  score: 'paradedb.score(c.id)',
+  where: "c.id @@@ paradedb.match('chunk_content', $1)",
+  order: 'score DESC',
+};
+
+/** The dense leg over one width's vectors: a chunk is a candidate when it
+ * has a vector in `vectors`. */
+function vectorRanking(vectors: string): WebRanking {
+  return {
+    source: `${vectors} v JOIN ${PUBLIC_WEB_SCHEMA}.chunks c ON c.id = v.chunk_id`,
+    score: '1 - (v.embedding <=> $1::vector)',
+    where: null,
+    order: 'v.embedding <=> $1::vector',
+  };
+}
 
 /**
  * A web-corpus leg, ranked THEN offset-resolved.
@@ -463,20 +491,18 @@ const RANKING = {
  * `content`), and resolve the offset only for the survivors — the same rows
  * the caller will actually see.
  */
-function webCorpusStatement(
-  rank: (typeof RANKING)[keyof typeof RANKING],
-): string {
+function webCorpusStatement(rank: WebRanking): string {
   return `
     WITH ranked AS (
       SELECT c.id, c.chunk_content, c.chunk_index, c.url, c.domain, c.title,
              c.core_content, u.last_crawled_at,
              ${rank.score} AS score
-      FROM ${PUBLIC_WEB_SCHEMA}.chunks c
+      FROM ${rank.source}
       JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
         ON m.domain = c.domain AND m.org_slug = $2
       JOIN ${PUBLIC_WEB_SCHEMA}.website_urls u
         ON u.domain = c.domain AND u.url = c.url
-      WHERE ${rank.where}
+      ${rank.where === null ? '' : `WHERE ${rank.where}`}
       ORDER BY ${rank.order}
       LIMIT $3
     )
@@ -526,6 +552,16 @@ function missingColumnRemedy(corpus: string, err: unknown): string {
   return (
     `the ${corpus} corpus is missing a column this release selects, so ` +
     'searches return nothing: ' +
+    `${describe(err)}. Apply the knowledge-db migrations — restart the ` +
+    'knowledge database container, which runs them at start.'
+  );
+}
+
+/** The same for a corpus without the tables this release keeps vectors in. */
+function missingVectorsTableRemedy(corpus: string, err: unknown): string {
+  return (
+    `the ${corpus} corpus has no table for the vectors this release ` +
+    'searches, so searches by meaning return nothing: ' +
     `${describe(err)}. Apply the knowledge-db migrations — restart the ` +
     'knowledge database container, which runs them at start.'
   );
@@ -621,7 +657,13 @@ async function runDenseLeg(
     return toHits(await sql.unsafe<CorpusRow[]>(statement, params), corpus);
   } catch (err) {
     if (isUndefinedTable(err)) {
-      logger.info(`the ${corpus} corpus is not created yet on this database`);
+      // The vectors' table missing is the corpus predating this release,
+      // like a missing column — not a corpus nothing was ever indexed into.
+      if (describe(err).includes('chunk_vectors_')) {
+        logger.warn(missingVectorsTableRemedy(corpus, err));
+      } else {
+        logger.info(`the ${corpus} corpus is not created yet on this database`);
+      }
       return null;
     }
     if (isUndefinedColumn(err)) {

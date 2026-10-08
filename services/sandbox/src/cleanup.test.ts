@@ -6,12 +6,28 @@
 // un-swept unknown dir is a small leak, so anything the sweep cannot classify
 // is left alone.
 
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from 'bun:test';
 import { mkdir, mkdtemp, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { makeSweepTick, sweepHostSessionDirs } from './cleanup.ts';
+import {
+  DIND_VOLUME_MIN_AGE_MS,
+  dockerSweepOrphans,
+  makeSweepTick,
+  sweepHostSessionDirs,
+  sweepOrphanDindVolumes,
+} from './cleanup.ts';
+import type { RunDockerResult } from './spawn-util.ts';
+import type { SpawnerConfig } from './types.ts';
 
 const OLD = new Date('2020-01-01T00:00:00Z');
 // Everything older than "now minus one hour" counts as stale.
@@ -170,5 +186,146 @@ describe('makeSweepTick', () => {
     await tick();
     await tick();
     expect(calls).toBe(2);
+  });
+});
+
+function dockerResult(stdout: string, exitCode = 0): RunDockerResult {
+  return {
+    exitCode,
+    stdout,
+    stderr: exitCode === 0 ? '' : 'refused',
+    stdoutTruncated: false,
+    stderrTruncated: false,
+  };
+}
+
+describe('sweepOrphanDindVolumes', () => {
+  const NOW = Date.parse('2026-10-08T12:00:00Z');
+  const iso = (ageMs: number) => new Date(NOW - ageMs).toISOString();
+
+  test('lists only volumes no container references, and with none forks nothing more', async () => {
+    const docker = mock(async (_args: string[]) => dockerResult(''));
+    expect(await sweepOrphanDindVolumes(docker, () => NOW)).toBe(0);
+    expect(docker.mock.calls.map(([args]) => args)).toEqual([
+      [
+        'volume',
+        'ls',
+        '-q',
+        '--filter',
+        'label=tale.sandbox-dind=1',
+        '--filter',
+        'dangling=true',
+      ],
+    ]);
+  });
+
+  test('removes orphans past the minimum age and leaves a create its fresh volume', async () => {
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    const created: Record<string, string> = {
+      'tale-dind-old': iso(DIND_VOLUME_MIN_AGE_MS + 1_000),
+      'tale-dind-fresh': iso(60_000),
+      'tale-dind-undated': '',
+    };
+    const docker = mock(async (args: string[]) => {
+      if (args[1] === 'ls') {
+        return dockerResult(`${Object.keys(created).join('\n')}\n`);
+      }
+      if (args[1] === 'inspect') {
+        // A volume removed since the listing fails the inspect, which still
+        // prints the others.
+        return dockerResult(
+          args
+            .slice(4)
+            .map(
+              (name) =>
+                `${JSON.stringify(name)}\t${JSON.stringify(created[name])}`,
+            )
+            .join('\n'),
+          1,
+        );
+      }
+      return dockerResult('');
+    });
+    try {
+      expect(await sweepOrphanDindVolumes(docker, () => NOW)).toBe(1);
+    } finally {
+      log.mockRestore();
+    }
+    const removals = docker.mock.calls
+      .map(([args]) => args)
+      .filter((args) => args[1] === 'rm');
+    expect(removals).toEqual([['volume', 'rm', 'tale-dind-old']]);
+  });
+
+  test('a removal the daemon refuses is logged and not counted', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    const docker = mock(async (args: string[]) => {
+      if (args[1] === 'ls') return dockerResult('tale-dind-old\n');
+      if (args[1] === 'inspect') {
+        return dockerResult(
+          `"tale-dind-old"\t${JSON.stringify(iso(DIND_VOLUME_MIN_AGE_MS * 2))}\n`,
+        );
+      }
+      return dockerResult('', 1);
+    });
+    try {
+      expect(await sweepOrphanDindVolumes(docker, () => NOW)).toBe(0);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+});
+
+describe('dockerSweepOrphans', () => {
+  const sweepConfig = () =>
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the sweep reads only the session root
+    ({ hostSessionRoot: root }) as SpawnerConfig;
+
+  test('without the legacy half it lists no containers and keeps one-shot dirs', async () => {
+    await dir('exec-stale');
+    await age('exec-stale');
+    const docker = mock(async (_args: string[]) => dockerResult(''));
+    expect(
+      await dockerSweepOrphans(sweepConfig(), threshold(), () => false, {
+        legacy: false,
+        docker,
+      }),
+    ).toEqual({ removed: 0, legacySwept: false });
+    expect(docker.mock.calls.map(([args]) => args[0])).toEqual(['volume']);
+    expect(await exists('exec-stale')).toBe(true);
+  });
+
+  test('the legacy half lists one-shot containers and, once Docker answered, sweeps their dirs', async () => {
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    await dir('exec-stale');
+    await age('exec-stale');
+    try {
+      const failing = mock(async (args: string[]) =>
+        dockerResult('', args[0] === 'ps' ? 1 : 0),
+      );
+      expect(
+        await dockerSweepOrphans(sweepConfig(), threshold(), () => false, {
+          legacy: true,
+          docker: failing,
+        }),
+      ).toEqual({ removed: 0, legacySwept: false });
+      expect(await exists('exec-stale')).toBe(true);
+
+      const answering = mock(async (_args: string[]) => dockerResult(''));
+      expect(
+        await dockerSweepOrphans(sweepConfig(), threshold(), () => false, {
+          legacy: true,
+          docker: answering,
+        }),
+      ).toEqual({ removed: 1, legacySwept: true });
+      expect(answering.mock.calls.map(([args]) => args[0])).toEqual([
+        'ps',
+        'volume',
+      ]);
+      expect(await exists('exec-stale')).toBe(false);
+    } finally {
+      log.mockRestore();
+    }
   });
 });
