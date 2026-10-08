@@ -456,30 +456,85 @@ export async function dockerSweepOrphans(
       staleThreshold,
       isLive,
     );
-    // Reap orphaned per-session inner-docker (DinD) storage volumes. A volume
-    // still attached to a live session container fails `volume rm` and is
-    // skipped; only volumes whose session is gone (crash, missed teardown) are
-    // removed. Cheap + opportunistic — runs even if DinD is currently disabled
-    // so a config flip-back doesn't leak the old volumes.
+    // Reap orphaned per-session inner-docker (DinD) storage volumes: only
+    // those no container references (a crash, a missed teardown). Cheap — one
+    // `docker volume ls` when there are none — and run even if DinD is
+    // currently disabled so a config flip-back doesn't leak the old volumes.
     removed += await sweepOrphanDindVolumes();
   }
   return removed;
 }
 
-/** Best-effort removal of dangling DinD storage volumes (label
- * tale.sandbox-dind=1). In-use volumes fail `volume rm` and are left alone. */
-async function sweepOrphanDindVolumes(): Promise<number> {
+/** A DinD volume is created a moment before the `docker run` that mounts it,
+ * with the build-cache provisioning in between; until then no container
+ * references it. One younger than this is left to the create that made it. */
+export const DIND_VOLUME_MIN_AGE_MS = 10 * 60_000;
+
+/** Best-effort removal of orphaned DinD storage volumes (label
+ * tale.sandbox-dind=1). Only volumes no container references are listed,
+ * so a running session's volume is never even attempted; a volume whose
+ * creation time the daemon does not report is left alone. */
+export async function sweepOrphanDindVolumes(
+  docker: typeof runDocker = runDocker,
+  now: () => number = Date.now,
+): Promise<number> {
   let removed = 0;
   try {
-    const ls = await runDocker(
-      ['volume', 'ls', '-q', '--filter', 'label=tale.sandbox-dind=1'],
+    const ls = await docker(
+      [
+        'volume',
+        'ls',
+        '-q',
+        '--filter',
+        'label=tale.sandbox-dind=1',
+        '--filter',
+        'dangling=true',
+      ],
       { timeoutMs: 15_000 },
     );
     if (ls.exitCode !== 0) return 0;
-    for (const name of ls.stdout.split('\n')) {
-      const vol = name.trim();
-      if (!vol) continue;
-      const rmRes = await runDocker(['volume', 'rm', vol], {
+    const names = ls.stdout
+      .split('\n')
+      .map((name) => name.trim())
+      .filter((name) => name.length > 0);
+    if (names.length === 0) return 0;
+    // One inspect for all of them. A volume removed since the listing makes
+    // the command fail but the others still print, so read stdout either way.
+    const inspected = await docker(
+      [
+        'volume',
+        'inspect',
+        '--format',
+        '{{json .Name}}\t{{json .CreatedAt}}',
+        ...names,
+      ],
+      { timeoutMs: 15_000 },
+    );
+    for (const line of inspected.stdout.split('\n')) {
+      const [rawName, rawCreated] = line.split('\t');
+      if (!rawName || !rawCreated) continue;
+      let vol: unknown;
+      let created: unknown;
+      try {
+        vol = JSON.parse(rawName);
+        created = JSON.parse(rawCreated);
+      } catch (err) {
+        console.warn(
+          `[sandbox.periodic] unreadable dind volume inspect line ${JSON.stringify(line)}:`,
+          err,
+        );
+        continue;
+      }
+      if (typeof vol !== 'string' || !names.includes(vol)) continue;
+      const createdAtMs =
+        typeof created === 'string' ? Date.parse(created) : Number.NaN;
+      if (
+        !Number.isFinite(createdAtMs) ||
+        now() - createdAtMs < DIND_VOLUME_MIN_AGE_MS
+      ) {
+        continue;
+      }
+      const rmRes = await docker(['volume', 'rm', vol], {
         timeoutMs: 10_000,
       });
       if (rmRes.exitCode === 0) {
@@ -487,8 +542,13 @@ async function sweepOrphanDindVolumes(): Promise<number> {
         console.log(
           `[sandbox] periodic sweep removed orphan dind volume ${vol}`,
         );
+      } else {
+        // A container started using it since the listing, or the daemon
+        // refused: left for the next sweep.
+        console.warn(
+          `[sandbox.periodic] dind volume rm ${vol} failed (exit ${rmRes.exitCode}): ${rmRes.stderr.trim()}`,
+        );
       }
-      // Non-zero = in use by a live session → expected, skip silently.
     }
   } catch (err) {
     console.warn('[sandbox.periodic] dind volume sweep error:', err);

@@ -194,6 +194,9 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the
   kernel). Stop and destroy remove the container or Pod and its inner store,
   so image cache does **not** persist across an idle stop/resume (cold rebuild).
+  A volume a crash or a missed teardown left behind is removed by the
+  five-minute host sweep once no container references it and it is at least
+  ten minutes old (younger, it may belong to a create about to mount it).
   On Kubernetes, a runner-container restart within the **same Pod** retains
   the `emptyDir`, including image and network state; it does not provide a
   clean inner store after a crash. The workspace PVC has its own lifecycle
