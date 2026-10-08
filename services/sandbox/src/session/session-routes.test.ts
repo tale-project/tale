@@ -7332,6 +7332,71 @@ describe('runnerd answers naming the session incarnation', () => {
     expect(checks).toEqual(['inc-pinned-old']);
   });
 
+  test('the sweep evicts an unpinned session a replacement answers for, stopping nothing', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'inc-sweep-replaced',
+        organizationId: 'org_inc',
+      }),
+    );
+    const token = tokenOf('inc-sweep-replaced');
+    const stamp = daemonIncarnations.get(token);
+    if (stamp === undefined) throw new Error('the create named no stamp');
+    // Recently active, so nothing but the replacement can end the entry.
+    daemonLastActivity.set(token, Date.now());
+    daemonIncarnations.set(token, String(Number(stamp) + 1));
+    checks.length = 0;
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await routes.sweepExpired()).toBe(1);
+    } finally {
+      warn.mockRestore();
+    }
+    // The stale entry goes without a backend check; the replacement holding
+    // the name is neither stopped nor destroyed.
+    expect(routes.holds('inc-sweep-replaced')).toBe(false);
+    expect(checks).toEqual([]);
+    expect(stopped.has('inc-sweep-replaced')).toBe(false);
+    expect(destroyed.has('inc-sweep-replaced')).toBe(false);
+  });
+
+  test('the sweep proves an unpinned session runnerd names, so its next ticket forks no backend check', async () => {
+    const checks: string[] = [];
+    // Re-adopted after a spawner restart: registered from the backend's
+    // listing, so no runnerd answer has named its incarnation yet.
+    const createdAtMs = Date.now();
+    const routes = new SessionRoutes(
+      cfg,
+      stampedBackend(checks, {
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            {
+              ...mkBackendSession('inc-sweep-proves', 'org_inc'),
+              createdAtMs,
+              ttlMs: 3_600_000,
+              idleTimeoutMs: 3_600_000,
+            },
+          ];
+        },
+      }),
+    );
+    const token = tokenOf('inc-sweep-proves');
+    daemonIncarnations.set(token, String(createdAtMs));
+    daemonLastActivity.set(token, Date.now());
+    await routes.adoptExisting();
+    expect(routes.holds('inc-sweep-proves')).toBe(true);
+    checks.length = 0;
+
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(
+      (await routes.handleActivity('inc-sweep-proves', 'ticket')).status,
+    ).toBe(200);
+    expect(checks).toEqual([]);
+  });
+
   test('a pin refused by a replacement drops the stale entry and leaves the durable pin alone', async () => {
     const checks: string[] = [];
     const routes = new SessionRoutes(cfg, stampedBackend(checks));
