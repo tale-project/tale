@@ -288,3 +288,29 @@ describe('MCP tool answers and client hints', () => {
     }
   });
 });
+
+/**
+ * What a client keeps of an inventory: Cursor offers a model at most 40
+ * tools across every server it connects, and Claude Code keeps the first
+ * 2,048 characters of a description. A tool past the budget is a fold (two
+ * tools into one) or a deferred switch, decided when it bites; a
+ * description naming a tool the inventory does not hold sends the agent to
+ * call it.
+ */
+describe('MCP inventory limits', () => {
+  const TOOL_NAMES = new Set(MCP_TOOLS.map((tool) => tool.name));
+
+  test('the inventory holds at most 40 tools', () => {
+    expect(MCP_TOOLS.length).toBeLessThanOrEqual(40);
+    expect(TOOL_NAMES.size).toBe(MCP_TOOLS.length);
+  });
+
+  test.each(MCP_TOOLS.map((tool) => [tool.name, tool] as const))(
+    '%s describes itself in at most 2,048 characters, naming only tools that exist',
+    (_name, tool) => {
+      expect(tool.description.length).toBeLessThanOrEqual(2048);
+      const named = tool.description.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? [];
+      expect(named.filter((word) => !TOOL_NAMES.has(word))).toEqual([]);
+    },
+  );
+});
