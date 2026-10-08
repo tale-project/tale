@@ -1068,3 +1068,4 @@ is missing). One file per suite keeps parallel changes from appending to the
 same lines at the end of one register. A box that survives its automation is
 manual effort spent twice; `bun run lint:manual` rejects a box ID there that no
 suite defines, and a file there that names no suite.
+| CI workflow operations | A same-head duplicate may release only its predecessor’s sole unallocated final-check tail after canceled actual work; complete fresh PR, run and paged job identities are required. Default reads do not mutate; explicit apply journals at most one cancellation and preserves unknown outcomes without retry. | ✅ pure policy + bounded adapter | `tools/cli/scripts/ci-retire-tail.test.ts`; native runner admission and terminal cancellation remain live observations |
