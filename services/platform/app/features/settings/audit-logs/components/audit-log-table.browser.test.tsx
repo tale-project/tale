@@ -21,8 +21,8 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({ data: undefined, isLoading: false }),
 }));
 
-// Ada saved version 7 of invoice-intake; the version's settings are long
-// enough to scroll.
+// Ada saved version 7 of invoice-intake from Claude Code; the version's
+// settings are long enough to scroll.
 const log: AuditLogDoc = {
   _id: 'log-agent',
   _creationTime: 1_700_000_000_000,
@@ -41,7 +41,13 @@ const log: AuditLogDoc = {
   newState: Object.fromEntries(
     Array.from({ length: 24 }, (_, index) => [`setting${index}`, index]),
   ),
-  metadata: { version: 7 },
+  metadata: {
+    version: 7,
+    via: 'mcp',
+    tool: 'save_automation',
+    apiKeyId: 'key-ada-laptop',
+    clientName: 'claude-code',
+  },
 };
 
 /** The value a detail row shows beside its label. */
@@ -67,7 +73,7 @@ describe.each([
   [1280, 900],
 ])('Audit detail dialog at %ix%ipx (real Chromium)', (width, height) => {
   it.each(['light', 'dark'])(
-    'shows every value as written and passes axe in %s mode',
+    'shows the coding agent rows as written and passes axe in %s mode',
     async (theme) => {
       await page.viewport(width, height);
       document.documentElement.classList.toggle('dark', theme === 'dark');
@@ -95,6 +101,8 @@ describe.each([
       for (const [label, value] of [
         ['Action', 'Automation version saved'],
         ['User', 'ada@example.com'],
+        ['Source', 'Coding agent'],
+        ['Client', 'claude-code'],
         ['Target', 'invoice-intake'],
       ] as const) {
         const cell = detailValue(dialog, label);

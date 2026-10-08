@@ -1,6 +1,6 @@
 # MCP
 
-> **Prefix** `MCP-` · **Reset** none · **Cost** 6 boxes
+> **Prefix** `MCP-` · **Reset** none · **Cost** 7 boxes
 
 Exercise Tale's MCP endpoint, `/api/v1/mcp`, from a real coding agent: connecting a client with an
 API key and working in the organization through it. A person drives the agent in a terminal beside
@@ -78,3 +78,15 @@ document has at least one transform node; `billing/dunning` stands for its name 
   description; `.claude/skills/tale/SKILL.md` names no host, organization or key; asked to add a
   field to `billing/dunning`, the agent validates and runs it on the mocks and asks before
   deploying.
+
+## What the organization sees
+
+- [ ] `MCP-F13` · **Find the agent's save in the audit log** — After `MCP-F3`, sign in as an
+  owner or admin, open **Settings > Governance > Logs**, and open the newest **Automation version
+  saved** row (`settings.logs.audit.actionLabels.automation.version.saved`) of `billing/dunning`;
+  then save a version of it in the editor and open that row too → the agent's row shows **Source**
+  (`settings.logs.audit.viaLabel`) as **Coding agent** (`settings.logs.audit.viaLabels.mcp`) and
+  **Client** (`settings.logs.audit.clientLabel`) as the name Claude Code sent, written as sent;
+  **User** is the person who holds the key; **Metadata** names the tool `save_automation` and
+  the key's id, and repeats neither the source nor the client; the editor's row has no
+  **Source** and no **Client** row.

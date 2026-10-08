@@ -1111,6 +1111,10 @@ logs:
       Audit logs will appear here as actions are performed in your
       organization.
     detailTitle: Audit log details
+    viaLabel: Source
+    viaLabels:
+      mcp: Coding agent
+    clientLabel: Client
     columns:
       timestamp: Timestamp
       action: Action

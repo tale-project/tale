@@ -27,6 +27,7 @@ The active tab and category are reflected in the URL, so you can bookmark the vi
 | Timestamp | When Tale recorded the action. |
 | Action | The operation that was attempted or completed. Some newer actions appear by their technical name. |
 | User | The person or system actor responsible for the action. |
+| Source and client | Only on an action a coding agent took through the [MCP endpoint](/develop/mcp-endpoint). **Source** shows Coding agent, and **Client** names the agent's app when the app sent its name. **User** is the person whose API key the agent used. |
 | Resource and target | The kind of item and the particular record affected. |
 | Category | The grouping used by the filter. |
 | Status | Success, failure, or denied. |

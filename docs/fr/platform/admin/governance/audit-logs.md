@@ -27,6 +27,7 @@ L’onglet actif et la catégorie figurent dans l’URL : tu peux enregistrer la
 | Horodatage | Quand Tale a enregistré l’action. |
 | Action | L’opération tentée ou terminée. Certaines actions récentes apparaissent sous leur nom technique. |
 | Utilisateur | La personne ou l’acteur système responsable. |
+| Source et client | Uniquement pour une action qu’un agent de code a effectuée par l’[endpoint MCP](/fr/develop/mcp-endpoint). **Source** affiche Agent de code, et **Client** nomme l’application de l’agent quand elle a transmis son nom. **Utilisateur** est la personne dont l’agent a utilisé la clé API. |
 | Ressource et cible | Le type d’élément et l’enregistrement concerné. |
 | Catégorie | Le groupe utilisé par le filtre. |
 | Statut | Réussite, échec ou refus. |

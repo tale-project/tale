@@ -1168,6 +1168,10 @@ logs:
       Audit-Protokolle werden hier angezeigt, sobald Aktionen in
       deiner Organisation durchgeführt werden.
     detailTitle: Audit-Protokoll-Details
+    viaLabel: Quelle
+    viaLabels:
+      mcp: Coding-Agent
+    clientLabel: Client
     columns:
       timestamp: Zeitstempel
       action: Aktion

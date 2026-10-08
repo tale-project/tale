@@ -27,6 +27,7 @@ Aktiver Tab und Kategorie stehen in der URL. Du kannst die Ansicht deshalb als L
 | Zeitstempel | Wann Tale die Aktion protokolliert hat. |
 | Aktion | Welcher Vorgang versucht oder abgeschlossen wurde. Manche neueren Aktionen erscheinen mit ihrem technischen Namen. |
 | Benutzer | Welche Person oder welcher Systemakteur verantwortlich war. |
+| Quelle und Client | Nur bei einer Aktion, die ein Coding-Agent über den [MCP-Endpoint](/de/develop/mcp-endpoint) ausgeführt hat. **Quelle** zeigt Coding-Agent, und **Client** nennt die App des Agents, wenn sie ihren Namen mitgeschickt hat. **Benutzer** ist die Person, deren API-Schlüssel der Agent verwendet hat. |
 | Ressource und Ziel | Um welche Art von Eintrag und welchen konkreten Datensatz es geht. |
 | Kategorie | Welche Gruppe der Filter verwendet. |
 | Status | Erfolg, Fehler oder abgelehnt. |

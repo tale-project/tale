@@ -1198,6 +1198,10 @@ logs:
       Les journaux d'audit apparaîtront ici à mesure que des actions
       sont effectuées dans ton organisation.
     detailTitle: Détails du journal d'audit
+    viaLabel: Source
+    viaLabels:
+      mcp: Agent de code
+    clientLabel: Client
     columns:
       timestamp: Horodatage
       action: Action

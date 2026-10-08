@@ -24,6 +24,7 @@ import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginat
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import { redactSensitiveFields } from '@/lib/shared/audit-redaction';
+import { displayClientName } from '@/lib/shared/client-name';
 
 import {
   useAuditLogTableConfig,
@@ -124,6 +125,12 @@ export function AuditLogTable({
     [userEmailMap],
   );
 
+  const selectedChannel = useMemo(
+    () =>
+      selectedLog === null ? undefined : readChannel(selectedLog.metadata),
+    [selectedLog],
+  );
+
   const { columns, stickyLayout, pageSize } = useAuditLogTableConfig({
     resolveEmail,
     variant,
@@ -221,6 +228,19 @@ export function AuditLogTable({
                 value={roleLabel(selectedLog.actorRole)}
               />
             )}
+            {selectedChannel?.viaMcp && (
+              <DetailRow
+                label={t('logs.audit.viaLabel')}
+                value={t('logs.audit.viaLabels.mcp')}
+              />
+            )}
+            {selectedChannel !== undefined &&
+              selectedChannel.clientName !== null && (
+                <DetailRow
+                  label={t('logs.audit.clientLabel')}
+                  value={selectedChannel.clientName}
+                />
+              )}
             <DetailRow
               label={t('logs.audit.columns.category')}
               value={t('logs.audit.categoryLabels.' + selectedLog.category)}
@@ -276,18 +296,18 @@ export function AuditLogTable({
                 formatDate={formatDate}
               />
             )}
-            {selectedLog.category === 'ai' && selectedLog.metadata ? (
+            {selectedLog.category === 'ai' && selectedChannel?.metadata ? (
               <AiMetadataSection
-                metadata={selectedLog.metadata}
+                metadata={selectedChannel.metadata}
                 t={t}
                 formatDate={formatDate}
               />
             ) : (
-              selectedLog.metadata &&
-              Object.keys(selectedLog.metadata).length > 0 && (
+              selectedChannel?.metadata &&
+              Object.keys(selectedChannel.metadata).length > 0 && (
                 <DetailSection
                   label={t('logs.audit.columns.metadata')}
-                  data={selectedLog.metadata}
+                  data={selectedChannel.metadata}
                   formatDate={formatDate}
                 />
               )
@@ -297,6 +317,40 @@ export function AuditLogTable({
       </Dialog>
     </>
   );
+}
+
+/**
+ * What the request channel stamped on a row written during a coding agent's
+ * MCP call (`backend/lib/request-channel.ts`): `via: 'mcp'` and, when the
+ * agent's client named itself, `clientName`. The detail view names both in
+ * words, so the Metadata block leaves out what a row already shows. The
+ * client name is the client's own choice, so it is shown through
+ * `displayClientName`, as everywhere else. A `via` the channel never writes
+ * (the skills publish door's `app` / `upload` / `api`) stays in Metadata.
+ */
+function readChannel(metadata: Record<string, unknown> | undefined): {
+  viaMcp: boolean;
+  clientName: string | null;
+  metadata: Record<string, unknown> | undefined;
+} {
+  if (metadata === undefined)
+    return { viaMcp: false, clientName: null, metadata };
+  const viaMcp = metadata.via === 'mcp';
+  const clientName = displayClientName(metadata.clientName);
+  const shown = new Set([
+    ...(viaMcp ? ['via'] : []),
+    ...(clientName === null ? [] : ['clientName']),
+  ]);
+  return {
+    viaMcp,
+    clientName,
+    metadata:
+      shown.size === 0
+        ? metadata
+        : Object.fromEntries(
+            Object.entries(metadata).filter(([key]) => !shown.has(key)),
+          ),
+  };
 }
 
 function toDisplayString(val: unknown): string {
