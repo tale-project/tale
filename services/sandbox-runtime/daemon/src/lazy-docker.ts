@@ -28,6 +28,8 @@ interface ProxyOptions {
   healthSocket?: string;
   startEngine(signal: AbortSignal): Promise<EngineHandle>;
   canStop(): Promise<boolean>;
+  /** Runs once an idle engine is confirmed and before it stops; best-effort. */
+  beforeStop?(signal: AbortSignal): Promise<void>;
   idleMs?: number;
   retryIdleMs?: number;
   maxClients?: number;
@@ -95,6 +97,22 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
     if (!idle) {
       scheduleIdle(options.retryIdleMs ?? 30_000);
       return;
+    }
+    if (options.beforeStop) {
+      // The engine still serves while this runs, so a client that arrives
+      // meanwhile keeps it running; its close schedules the next check.
+      try {
+        await options.beforeStop(abort.signal);
+      } catch (error) {
+        console.warn('[lazy-docker] pre-stop work failed:', error);
+      }
+      if (
+        closed ||
+        clients.size ||
+        epoch !== checkEpoch ||
+        engine !== candidate
+      )
+        return;
     }
     // Set the barrier synchronously before awaiting: new clients queue behind shutdown.
     engine = undefined;
@@ -291,10 +309,15 @@ function readEngineJson(
   socketPath: string,
   path: string,
   signal: AbortSignal,
+  {
+    method = 'GET',
+    timeoutMs = 2000,
+    maxBytes = 1024 * 1024,
+  }: { method?: 'GET' | 'POST'; timeoutMs?: number; maxBytes?: number } = {},
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const req = request(
-      { socketPath, path, agent: false, signal },
+      { socketPath, path, method, agent: false, signal },
       (response) => {
         if (response.statusCode !== 200) {
           response.destroy();
@@ -305,7 +328,7 @@ function readEngineJson(
         let bytes = 0;
         response.on('data', (chunk: Buffer) => {
           bytes += chunk.length;
-          if (bytes > 1024 * 1024) {
+          if (bytes > maxBytes) {
             response.destroy(new Error('Docker inventory too large'));
             return;
           }
@@ -323,7 +346,7 @@ function readEngineJson(
     );
     const deadline = setTimeout(
       () => req.destroy(new Error('Docker inventory timed out')),
-      2000,
+      timeoutMs,
     );
     req.on('close', () => clearTimeout(deadline));
     req.on('error', reject);
@@ -381,6 +404,152 @@ export async function engineIsIdle(socketPath: string): Promise<boolean> {
       return false;
   }
   return true;
+}
+
+const GIB = 1024 ** 3;
+/** An idle engine whose images and build cache use more than this is trimmed
+ * before it stops, so a session that keeps its container for long (a pinned
+ * one) does not grow its inner store without bound. */
+const IDLE_STORE_TRIM_THRESHOLD_BYTES = 10 * GIB;
+/** The build cache such a trim leaves, the most recently used kept. */
+const IDLE_BUILD_CACHE_KEEP_BYTES = 5 * GIB;
+/** Inventory and prune answers list every image and cache record. */
+const TRIM_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
+
+function bytesOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function totalSizeOf(summary: unknown): number | undefined {
+  return summary && typeof summary === 'object' && 'TotalSize' in summary
+    ? bytesOf(summary.TotalSize)
+    : undefined;
+}
+
+/** Image and build-cache bytes from `/system/df`: the summaries newer
+ * engines add, else the layer total and cache records older ones report. */
+function storeBytes(usage: unknown): number {
+  if (!usage || typeof usage !== 'object')
+    throw new Error('Docker disk usage unavailable');
+  const images =
+    ('ImageUsage' in usage ? totalSizeOf(usage.ImageUsage) : undefined) ??
+    ('LayersSize' in usage ? bytesOf(usage.LayersSize) : undefined);
+  if (images === undefined)
+    throw new Error('Docker disk usage has no image total');
+  let cache =
+    'BuildCacheUsage' in usage ? totalSizeOf(usage.BuildCacheUsage) : undefined;
+  if (cache === undefined) {
+    cache = 0;
+    const records =
+      'BuildCache' in usage && Array.isArray(usage.BuildCache)
+        ? (usage.BuildCache as unknown[])
+        : [];
+    for (const record of records) {
+      if (record && typeof record === 'object' && 'Size' in record)
+        cache += bytesOf(record.Size) ?? 0;
+    }
+  }
+  return images + cache;
+}
+
+function reclaimedBytes(answer: unknown): number {
+  return answer && typeof answer === 'object' && 'SpaceReclaimed' in answer
+    ? (bytesOf(answer.SpaceReclaimed) ?? 0)
+    : 0;
+}
+
+function apiAtLeast(version: string, major: number, minor: number): boolean {
+  const [have, haveMinor] = version.split('.').map(Number);
+  return (
+    have !== undefined &&
+    haveMinor !== undefined &&
+    (have > major || (have === major && haveMinor >= minor))
+  );
+}
+
+/**
+ * Trim an idle engine's store when its images and build cache exceed
+ * `thresholdBytes`: remove dangling images, then prune the build cache down
+ * to `keepBytes`. Tagged images, images any container uses, volumes and
+ * containers are never touched. Bounded by its own deadline and the caller's
+ * signal; a failed prune is reported and the other still runs.
+ */
+export async function trimIdleEngineStore(
+  socketPath: string,
+  {
+    thresholdBytes = IDLE_STORE_TRIM_THRESHOLD_BYTES,
+    keepBytes = IDLE_BUILD_CACHE_KEEP_BYTES,
+    signal: callerSignal,
+    log = (message: string) => console.log(message),
+    warn = (message: string, error: unknown) => console.warn(message, error),
+  }: {
+    thresholdBytes?: number;
+    keepBytes?: number;
+    signal?: AbortSignal;
+    log?: (message: string) => void;
+    warn?: (message: string, error: unknown) => void;
+  } = {},
+): Promise<{ usedBytes: number; reclaimedBytes?: number }> {
+  const deadline = AbortSignal.timeout(150_000);
+  const signal = callerSignal
+    ? AbortSignal.any([callerSignal, deadline])
+    : deadline;
+  const version = await readEngineJson(socketPath, '/version', signal);
+  if (
+    !version ||
+    typeof version !== 'object' ||
+    !('ApiVersion' in version) ||
+    typeof version.ApiVersion !== 'string' ||
+    !/^\d+\.\d+$/.test(version.ApiVersion)
+  )
+    throw new Error('Docker API version unavailable');
+  const api = `/v${version.ApiVersion}`;
+  const usedBytes = storeBytes(
+    await readEngineJson(
+      socketPath,
+      `${api}/system/df?type=image&type=build-cache`,
+      signal,
+      { timeoutMs: 30_000, maxBytes: TRIM_RESPONSE_MAX_BYTES },
+    ),
+  );
+  if (usedBytes <= thresholdBytes) return { usedBytes };
+  const prune = { method: 'POST', timeoutMs: 60_000 } as const;
+  let reclaimed = 0;
+  try {
+    const filters = encodeURIComponent(JSON.stringify({ dangling: ['true'] }));
+    reclaimed += reclaimedBytes(
+      await readEngineJson(
+        socketPath,
+        `${api}/images/prune?filters=${filters}`,
+        signal,
+        { ...prune, maxBytes: TRIM_RESPONSE_MAX_BYTES },
+      ),
+    );
+  } catch (error) {
+    warn('[lazy-docker] dangling image prune failed:', error);
+  }
+  try {
+    // API 1.48 replaced keep-storage with a reserved and a maximum size;
+    // both at the same value keep exactly that much.
+    const keep = apiAtLeast(version.ApiVersion, 1, 48)
+      ? `reserved-space=${keepBytes}&max-used-space=${keepBytes}`
+      : `keep-storage=${keepBytes}`;
+    reclaimed += reclaimedBytes(
+      await readEngineJson(socketPath, `${api}/build/prune?${keep}`, signal, {
+        ...prune,
+        maxBytes: TRIM_RESPONSE_MAX_BYTES,
+      }),
+    );
+  } catch (error) {
+    warn('[lazy-docker] build cache prune failed:', error);
+  }
+  const gib = (bytes: number) => (bytes / GIB).toFixed(1);
+  log(
+    `[lazy-docker] idle Docker store used ${gib(usedBytes)} GiB (over ${gib(thresholdBytes)}); reclaimed ${gib(reclaimed)} GiB from dangling images and build cache`,
+  );
+  return { usedBytes, reclaimedBytes: reclaimed };
 }
 
 const PUBLIC_SOCKET = '/var/run/docker.sock';
@@ -559,6 +728,9 @@ export async function runLazyDockerSupervisor() {
     startEngine: (signal) =>
       startEngineProcess(engineEnvironment(boot), signal),
     canStop: () => engineIsIdle(PRIVATE_SOCKET),
+    beforeStop: async (signal) => {
+      await trimIdleEngineStore(PRIVATE_SOCKET, { signal });
+    },
   });
   let runner: ReturnType<typeof spawn> | undefined;
   let shuttingDown = false;

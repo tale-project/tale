@@ -189,6 +189,14 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   container metadata starts the engine immediately to honor restart policies.
   Running services, enabled restart policies and connected clients prevent
   automatic engine sleep.
+- **Store trim before sleep.** When an idle engine's images and build cache
+  use more than 10 GiB, it removes its dangling (untagged, unused) images and
+  prunes its build cache to the 5 GiB used most recently before it stops, so
+  a session that keeps its container (a pinned one) does not grow its inner
+  store without bound. Tagged images, images a container uses, containers and
+  volumes stay. The trim is bounded and best-effort: a failure is logged and
+  the engine stops anyway, and a Docker command arriving during the trim
+  keeps the engine running.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the

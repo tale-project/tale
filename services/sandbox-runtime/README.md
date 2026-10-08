@@ -50,9 +50,12 @@ concurrent clients share that startup. After five minutes without clients,
 the supervisor stops the engine only if no container is running, restarting
 or paused and every container has its restart policy disabled. Unknown
 inventory keeps it running. The next Docker command starts
-it again with the same image store, volumes and workspace. Existing container
-state at session-container boot starts the engine immediately so restart
-policies still work. This needs no agent setting and does not change the
+it again with the same image store, volumes and workspace. Before that stop,
+an engine whose images and build cache exceed 10 GiB removes its dangling
+images and prunes its build cache to 5 GiB through the engine API (bounded,
+logged, never blocking the stop). Existing container state at
+session-container boot starts the engine immediately so restart policies still
+work. This needs no agent setting and does not change the
 deployment's runtime isolation or resource limits.
 
 runnerd keeps the exec protocol in checkpointed disk segments for reconnection

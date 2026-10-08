@@ -32,8 +32,8 @@ test('Docker activation lifecycle and streams under Node', async () => {
       },
     );
     expect(result.stderr).toBe('');
-    expect(result.stdout).toContain('# tests 7');
-    expect(result.stdout).toContain('# pass 7');
+    expect(result.stdout).toContain('# tests 12');
+    expect(result.stdout).toContain('# pass 12');
     expect(result.status).toBe(0);
   } finally {
     await rm(dir, { recursive: true, force: true });
