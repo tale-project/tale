@@ -6,3 +6,7 @@
 
 /** The Projects field of the General tab. */
 export const AUTOMATION_PROJECTS_FIELD_ID = 'automation-projects-field';
+
+/** The trigger section of the General tab: a deploy's notice links there
+ * when the trigger it found off needs a look before it is turned on. */
+export const AUTOMATION_TRIGGER_SECTION_ID = 'automation-trigger';

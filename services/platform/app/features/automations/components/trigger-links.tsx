@@ -1,9 +1,12 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Link } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
 
 import { automationSlugToParam } from '@/lib/automations/slug';
+
+import { AUTOMATION_TRIGGER_SECTION_ID } from '../lib/field-ids';
 
 /** The design system's inline text link. */
 const TRIGGER_LINK_CLASS =
@@ -79,5 +82,43 @@ export function TriggerEditorLink({
     >
       {children}
     </Link>
+  );
+}
+
+/** The trigger section of the automation's General tab, as an action:
+ * where a trigger is looked over before it is turned on. */
+export function TriggerSectionLink({
+  place,
+  onNavigate,
+  children,
+}: {
+  place: TriggerPlace;
+  /** Runs as the link is followed — a dialog closes itself. */
+  onNavigate?: (() => void) | undefined;
+  children: ReactNode;
+}) {
+  const automationSlug = automationSlugToParam(place.name);
+  return (
+    <Button asChild size="sm" variant="secondary">
+      <Link
+        {...(place.projectId
+          ? {
+              to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/general' as const,
+              params: {
+                id: place.organizationId,
+                projectId: place.projectId,
+                automationSlug,
+              },
+            }
+          : {
+              to: '/dashboard/$id/automations/$automationSlug/general' as const,
+              params: { id: place.organizationId, automationSlug },
+            })}
+        hash={AUTOMATION_TRIGGER_SECTION_ID}
+        onClick={onNavigate}
+      >
+        {children}
+      </Link>
+    </Button>
   );
 }

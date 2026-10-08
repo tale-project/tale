@@ -37,7 +37,10 @@ import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { TRIGGER_DIRTY_KEY } from '../lib/dirty-keys';
 import { readDocument } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
-import { AUTOMATION_PROJECTS_FIELD_ID } from '../lib/field-ids';
+import {
+  AUTOMATION_PROJECTS_FIELD_ID,
+  AUTOMATION_TRIGGER_SECTION_ID,
+} from '../lib/field-ids';
 import {
   sameAsStored,
   toTriggerBody,
@@ -306,6 +309,10 @@ export function TriggerEditor({
   return (
     <Skeletonize loading={triggersQuery.isPending} label={t('trigger.title')}>
       <SettingsSection
+        id={AUTOMATION_TRIGGER_SECTION_ID}
+        // A link to the section lands below the tab strip, which stays
+        // pinned unless the viewport is short.
+        className="short-viewport:scroll-mt-4 scroll-mt-32"
         title={t('trigger.title')}
         description={t('trigger.description')}
         {...(canEdit &&

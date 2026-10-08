@@ -26,6 +26,7 @@ const {
   saveMutation,
   startRun,
   deploy,
+  setTriggerMutation,
   toastSpy,
   refetch,
   validationMock,
@@ -72,6 +73,8 @@ const {
   saveMutation: { mutateAsync: vi.fn(), isPending: false },
   startRun: { mutate: vi.fn(), isPending: false },
   deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
+  /** Turning on the trigger a deploy found off. */
+  setTriggerMutation: { mutateAsync: vi.fn(), isPending: false },
   toastSpy: vi.fn(),
   refetch: vi.fn(),
   /** What the draft check answers. Arrays are set whole per test, so their
@@ -246,6 +249,37 @@ vi.mock('../hooks/queries', async (importOriginal) => {
     useAutomationRuns: () => ({ data: runsData }),
     useAutomationProjects: () => ({ data: projectsData.bound }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
+    // The stored trigger the deploy notice turns on: a weekday schedule.
+    useAutomationTriggers: () => ({
+      data: [
+        {
+          id: 'trigger-1',
+          name: 'billing/dunning',
+          kind: 'schedule',
+          cron: '0 9 * * 1-5',
+          repeat: null,
+          startDate: null,
+          timezone: 'Europe/Zurich',
+          catchUp: 'latest',
+          input: null,
+          event: null,
+          hasToken: false,
+          enabled: false,
+          nextRunAt: null,
+          lastFiredAt: null,
+          lastRunId: null,
+          lastSkippedAt: null,
+          lastSkipReason: null,
+          lastSkipDetail: null,
+          consecutiveFailures: 0,
+          lastFailedAt: null,
+          lastFailureCode: null,
+          lastFailedRunId: null,
+        },
+      ],
+      isPending: false,
+      isError: false,
+    }),
   };
 });
 
@@ -253,6 +287,7 @@ vi.mock('../hooks/mutations', () => ({
   useSaveAutomation: () => saveMutation,
   useStartAutomationRun: () => startRun,
   useDeployAutomation: () => deploy,
+  useSetAutomationTrigger: () => setTriggerMutation,
 }));
 
 interface MockLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
@@ -870,6 +905,87 @@ describe('AutomationEditor', () => {
       ),
     ).toBeVisible();
   });
+
+  // Leo deploys a pack whose schedule was created off: the editor says so
+  // and offers to turn it on, instead of letting him think it now runs.
+  it('offers to turn on the trigger a deploy found off, and hands it the focus', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onSuccess?: (result: unknown) => void } | undefined,
+      ) => {
+        handlers?.onSuccess?.({
+          name: 'billing/dunning',
+          version: 3,
+          trigger: {
+            kind: 'schedule',
+            enabled: false,
+            nextRunAt: null,
+            warnings: [],
+          },
+        });
+      },
+    );
+    setTriggerMutation.mutateAsync.mockResolvedValue({});
+    const { user, rerender } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    const title = screen.getByRole('heading', { name: 'Its trigger is off' });
+    expect(
+      screen.getByText('The schedule starts no runs until you turn it on.'),
+    ).toBeVisible();
+    // The version on screen is live now: Deploy leaves the page with the
+    // focus, and the notice takes it over.
+    state.deployedVersion = 3;
+    rerender(page());
+    expect(
+      screen.queryByRole('button', { name: 'Deploy v3' }),
+    ).not.toBeInTheDocument();
+    const frame = title.closest<HTMLElement>('[tabindex="-1"]');
+    await waitFor(() => expect(frame).toHaveFocus());
+    await user.click(
+      screen.getByRole('button', { name: 'Turn on the trigger' }),
+    );
+    expect(setTriggerMutation.mutateAsync).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      name: 'billing/dunning',
+      trigger: {
+        kind: 'schedule',
+        enabled: true,
+        cron: '0 9 * * 1-5',
+        timezone: 'Europe/Zurich',
+        catchUp: 'latest',
+      },
+    });
+    expect(await screen.findByText('The trigger is on.')).toBeVisible();
+    expect(toastSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['on', { kind: 'schedule', enabled: true, nextRunAt: 1, warnings: [] }],
+    ['absent', null],
+  ])(
+    'says nothing more after a deploy when the trigger is %s',
+    async (_case, trigger) => {
+      deploy.mutate.mockImplementation(
+        (
+          _args: unknown,
+          handlers: { onSuccess?: (result: unknown) => void } | undefined,
+        ) => {
+          handlers?.onSuccess?.({
+            name: 'billing/dunning',
+            version: 3,
+            trigger,
+          });
+        },
+      );
+      const { user } = renderPage();
+      await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+      expect(screen.queryByText('Its trigger is off')).toBeNull();
+      expect(
+        screen.queryByRole('button', { name: 'Turn on the trigger' }),
+      ).toBeNull();
+    },
+  );
 
   it('offers no header deploy when the canvas version is already live', () => {
     state.deployedVersion = 3;

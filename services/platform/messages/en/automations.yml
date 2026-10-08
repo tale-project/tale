@@ -323,6 +323,13 @@ trigger:
     commentMentioned:
       label: 'Mentioned in a comment'
       description: 'A task comment mentions someone with @.'
+  deployNotice:
+    title: 'Its trigger is off'
+    body: '{kind, select, schedule {The schedule starts no runs until you turn it on.} webhook {Requests to its URL start no runs until you turn it on.} other {Events start no runs until you turn it on.}}'
+    turnOn: 'Turn on the trigger'
+    review: 'Review the trigger'
+    turnedOn: 'The trigger is on.'
+    turnOnFailed: 'Couldn''t turn on the trigger: {error}'
   issues:
     keyOtherKind: 'This setting belongs to a different trigger type.'
     schedule:

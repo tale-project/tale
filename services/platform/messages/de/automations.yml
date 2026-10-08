@@ -326,6 +326,13 @@ trigger:
     commentMentioned:
       label: 'In einem Kommentar erwähnt'
       description: 'Ein Aufgabenkommentar erwähnt jemanden mit @.'
+  deployNotice:
+    title: 'Ihr Trigger ist ausgeschaltet'
+    body: '{kind, select, schedule {Der Zeitplan startet keine Läufe, bis du den Trigger einschaltest.} webhook {Anfragen an seine URL starten keine Läufe, bis du den Trigger einschaltest.} other {Ereignisse starten keine Läufe, bis du den Trigger einschaltest.}}'
+    turnOn: 'Trigger einschalten'
+    review: 'Trigger prüfen'
+    turnedOn: 'Der Trigger ist eingeschaltet.'
+    turnOnFailed: 'Der Trigger konnte nicht eingeschaltet werden: {error}'
   issues:
     keyOtherKind: 'Diese Einstellung gehört zu einem anderen Trigger-Typ.'
     schedule:

@@ -326,6 +326,13 @@ trigger:
     commentMentioned:
       label: 'Mention dans un commentaire'
       description: 'Un commentaire de tâche mentionne quelqu’un avec @.'
+  deployNotice:
+    title: 'Son déclencheur est désactivé'
+    body: '{kind, select, schedule {La planification ne lance aucune exécution tant que tu n’actives pas le déclencheur.} webhook {Les requêtes vers son URL ne lancent aucune exécution tant que tu n’actives pas le déclencheur.} other {Les événements ne lancent aucune exécution tant que tu n’actives pas le déclencheur.}}'
+    turnOn: 'Activer le déclencheur'
+    review: 'Vérifier le déclencheur'
+    turnedOn: 'Le déclencheur est activé.'
+    turnOnFailed: 'Impossible d’activer le déclencheur : {error}'
   issues:
     keyOtherKind: 'Ce réglage appartient à un autre type de déclencheur.'
     schedule:

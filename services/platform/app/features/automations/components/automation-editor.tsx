@@ -34,6 +34,7 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
+import { useFocusHandoff } from '@tale/ui/use-focus-handoff';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useToast } from '@tale/ui/use-toast';
@@ -41,6 +42,7 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Loader2,
   Play,
   Rocket,
   SearchX,
@@ -126,6 +128,11 @@ import {
 } from './automation-run-dialog';
 import { AutomationVersionPicker } from './automation-version-picker';
 import { NodeFields, NodeInspector } from './node-inspector';
+import {
+  type DeployedTrigger,
+  TriggerDeployNotice,
+  triggerOffAfterDeploy,
+} from './trigger-deploy-notice';
 
 /**
  * Every field of a node a patch may clear. Spelling them out keeps the unset
@@ -308,6 +315,13 @@ function AutomationEditorScope({
   /** A refused DEPLOY from the looking-vs-live control — the only deploy
    * control there is; the version history rows never deploy. */
   const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
+  /** The trigger a deploy left off, for the automation it was deployed
+   * for: the notice offers to turn it on. */
+  const [deployNotice, setDeployNotice] = useState<{
+    name: string;
+    trigger: DeployedTrigger;
+  } | null>(null);
+  const deployNoticeRef = useRef<HTMLDivElement>(null);
   const [showLastRun, setShowLastRun] = useState(true);
   const [runRequest, setRunRequest] = useState<AutomationRunRequest | null>(
     null,
@@ -330,6 +344,11 @@ function AutomationEditorScope({
   );
   const automationRead = readStateOf(automationQuery);
   const editorRegionRef = useRef<HTMLDivElement>(null);
+  // Deployed, the version on screen is live and Deploy leaves the page; its
+  // focus goes to what the deploy left to do, if anything.
+  const deployHandoffRef = useFocusHandoff<HTMLSpanElement>(() =>
+    (deployNoticeRef.current ?? editorRegionRef.current)?.focus(),
+  );
   const readErrorRef = useRef('');
   if (automationQuery.isError) {
     readErrorRef.current = automationErrorMessage(automationQuery.error);
@@ -973,6 +992,10 @@ function AutomationEditorScope({
     onSelectVersion(undefined);
   };
 
+  // The notice of the automation on screen; another one's is dropped.
+  const shownDeployNotice =
+    deployNotice?.name === automationSlug ? deployNotice.trigger : null;
+
   // Whether a live run is actually possible right now, not just wishful:
   // there has to be a deployed version, and it has to have loaded.
   const canRunLive =
@@ -989,47 +1012,69 @@ function AutomationEditorScope({
   const automationActions = (
     <>
       {canAuthor && lookingVersion !== undefined && !lookingIsLive && (
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={Rocket}
-          isLoading={deploy.isPending}
-          onClick={() => {
-            setDeployRefusal(null);
-            deploy.mutate(
-              {
-                organizationId,
-                name: automationSlug,
-                version: lookingVersion,
-              },
-              {
-                onError: (error) => {
-                  // The version on screen no longer passes the check: its
-                  // problems land in Problems, and the alert points there.
-                  // With a draft on screen they would describe another
-                  // document, so the alert keeps the server's sentence.
-                  const refused =
-                    draft === null ? refusalIssues(error) : undefined;
-                  const hash = validation.currentHash;
-                  if (refused !== undefined && hash !== null) {
-                    // The alert says the deploy was refused (it is read
-                    // out); the announcer adds only the counts.
-                    showRefusal(refused, hash);
-                    setDeployRefusal(t('problems.refusedDeploy'));
-                    return;
-                  }
-                  setDeployRefusal(
-                    automationErrorCode(error) === 'AUTOMATION_INVALID'
-                      ? t('problems.refusedDeployDraft')
-                      : automationErrorMessage(error),
-                  );
+        <span ref={deployHandoffRef} className="contents">
+          <Button
+            variant="secondary"
+            size="sm"
+            // Busy, not disabled: a disabled button drops its focus, and
+            // the focus is what the notice of the deploy takes over.
+            icon={deploy.isPending ? Loader2 : Rocket}
+            iconClassName={
+              deploy.isPending
+                ? 'animate-spin motion-reduce:animate-none'
+                : undefined
+            }
+            aria-busy={deploy.isPending || undefined}
+            aria-disabled={deploy.isPending || undefined}
+            onClick={() => {
+              if (deploy.isPending) return;
+              setDeployRefusal(null);
+              setDeployNotice(null);
+              deploy.mutate(
+                {
+                  organizationId,
+                  name: automationSlug,
+                  version: lookingVersion,
                 },
-              },
-            );
-          }}
-        >
-          {t('detail.deployVersion', { version: lookingVersion })}
-        </Button>
+                {
+                  onSuccess: (result) => {
+                    // A trigger that is off starts nothing this version
+                    // runs; the notice offers to turn it on.
+                    const off = triggerOffAfterDeploy(result.trigger);
+                    setDeployNotice(
+                      off === null
+                        ? null
+                        : { name: automationSlug, trigger: off },
+                    );
+                  },
+                  onError: (error) => {
+                    // The version on screen no longer passes the check: its
+                    // problems land in Problems, and the alert points there.
+                    // With a draft on screen they would describe another
+                    // document, so the alert keeps the server's sentence.
+                    const refused =
+                      draft === null ? refusalIssues(error) : undefined;
+                    const hash = validation.currentHash;
+                    if (refused !== undefined && hash !== null) {
+                      // The alert says the deploy was refused (it is read
+                      // out); the announcer adds only the counts.
+                      showRefusal(refused, hash);
+                      setDeployRefusal(t('problems.refusedDeploy'));
+                      return;
+                    }
+                    setDeployRefusal(
+                      automationErrorCode(error) === 'AUTOMATION_INVALID'
+                        ? t('problems.refusedDeployDraft')
+                        : automationErrorMessage(error),
+                    );
+                  },
+                },
+              );
+            }}
+          >
+            {t('detail.deployVersion', { version: lookingVersion })}
+          </Button>
+        </span>
       )}
       {canChooseRunProject && (
         <Select
@@ -1206,7 +1251,10 @@ function AutomationEditorScope({
             nothing started, which the author has to read next to the automation
             it concerns. Save feedback goes through the editor cluster instead.
             The alerts keep the page inset, in a band above the workbench. */}
-        {(refusal !== null || deployRefusal !== null || deployedReadError) && (
+        {(refusal !== null ||
+          deployRefusal !== null ||
+          deployedReadError ||
+          shownDeployNotice !== null) && (
           <div className="border-border flex flex-col gap-3 border-b p-4">
             {deployedReadError && (
               <CatalogLoadError
@@ -1228,6 +1276,13 @@ function AutomationEditorScope({
                 variant="destructive"
                 title={t('versions.deployRefused')}
                 description={deployRefusal}
+              />
+            )}
+            {shownDeployNotice !== null && (
+              <TriggerDeployNotice
+                ref={deployNoticeRef}
+                place={{ organizationId, projectId, name: automationSlug }}
+                trigger={shownDeployNotice}
               />
             )}
           </div>
