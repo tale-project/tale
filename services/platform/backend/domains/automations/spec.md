@@ -60,12 +60,14 @@ automation is installed in. A project of another organization is hidden the same
 An automation installed nowhere belongs to the organization and every member sees it. One
 installed in projects is seen by whoever can read one of them. For anyone else it is left out
 of the automation list and of the list over the API and MCP, and reading it, its versions or
-its trigger over the API or MCP answers "not found", as for one that does not exist. Listed with
+its trigger over the API or MCP answers "not found", as for one that does not exist. Its runs by
+name answer "not found" too, unless runs of it are in a scope the person can read. Listed with
 no installations, it would read as an organization automation, where it cannot run.
 
 - **Example**: `hr/onboarding` is installed only in a project shared with the HR team. Mia, an
   ordinary member outside that team, lists the automations with her API key → it is not there;
-  she asks for its versions → "not found". Ada, in the HR team, sees it and its versions.
+  she asks for its versions → "not found"; she asks for its runs → "not found", as for a name
+  nobody saved. Ada, in the HR team, sees it and its versions.
 
 ## Versions and deployment
 

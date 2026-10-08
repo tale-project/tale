@@ -636,10 +636,15 @@ export async function automationRunsExist(
   sql: Sql | TransactionSql,
   organizationId: string,
   name: string,
+  /** Only runs in this scope: a project's, or (null) the organization's
+   * own — absent, runs anywhere in the organization. */
+  scope?: { projectId: string | null },
 ): Promise<boolean> {
   const rows = await sql<{ present: number }[]>`
     SELECT 1 AS present FROM app.automation_runs
     WHERE org_id = ${organizationId} AND name = ${name}
+      AND (${scope === undefined}
+           OR project_id IS NOT DISTINCT FROM ${scope?.projectId ?? null}::text)
     LIMIT 1
   `;
   return rows.length > 0;

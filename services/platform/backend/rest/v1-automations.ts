@@ -705,13 +705,17 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       // A deleted automation keeps its runs: the by-name history stays
       // readable here as it does on `/runs` and by id; only a name neither
-      // an automation nor a run ever bore is the 404 (K8-5).
-      if (
-        !(await exists(c, name)) &&
-        !(await automationRunsExist(deps.sql, c.get('organizationId'), name))
-      ) {
-        return automationNotFound(c);
-      }
+      // an automation nor a run ever bore is the 404 (K8-5). An automation
+      // installed only in projects the key holder cannot read is known
+      // here only by runs in the URL's own scope, which the caller can
+      // read — otherwise an empty page would confirm a name every other
+      // read hides (`hiddenFrom`).
+      const known =
+        ((await exists(c, name)) && !(await hiddenFrom(c, name))) ||
+        (await automationRunsExist(deps.sql, c.get('organizationId'), name, {
+          projectId: projectId ?? null,
+        }));
+      if (!known) return automationNotFound(c);
       return answerRunPage(c, list, query, {
         name,
         projectId: projectId ?? null,

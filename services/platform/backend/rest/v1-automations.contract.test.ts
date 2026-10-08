@@ -1664,6 +1664,33 @@ describe('reads of an automation installed only in hidden projects [AUTO-R26]', 
       expect(res.status).toBe(200);
     },
   );
+
+  it.each([
+    [`/api/v1/automations/${SAVED}/runs`],
+    [`/api/v1/projects/p-visible/automations/${SAVED}/runs`],
+  ])(
+    "%s answers not found when no run of it is in the URL's scope — an empty page would confirm the name",
+    async (path) => {
+      // Mia is not in the HR team: hr/onboarding is installed only there.
+      vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost${path}`,
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        code: 'AUTOMATION_NOT_FOUND',
+      });
+      expect(listRunsPage).not.toHaveBeenCalled();
+    },
+  );
+
+  it('lists its runs in a scope the caller reads, where runs of it are', async () => {
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+    const res = await mount({ role: 'member' }).app.request(
+      `http://localhost/api/v1/automations/${RETIRED}/runs`,
+    );
+    expect(res.status).toBe(200);
+  });
 });
 
 /**
