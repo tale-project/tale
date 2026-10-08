@@ -194,6 +194,16 @@ budget after cancellation or failure: only acknowledged Pod and Secret UIDs
 can be removed, observed Pod deletion also fences its resource version, and
 workspace PVCs and ambiguous API outcomes remain for retry or recovery.
 
+A create that loses the session's deterministic name to a LIVE session this
+spawner's registry does not hold — a running container of this spawner's
+instance, or a Pod that is neither terminating nor ended — answers
+`409 duplicate`, as a create of a registered session does: the platform then
+adopts it through acquire, and the registry-miss resolve below registers it.
+Answered as `502 create_failed`, the platform would clean up after a failed
+create and remove that session's compute. A name held by anything else (a
+container still `created` or being removed, a terminating Pod, one that
+cannot be read) stays a `502`, and nothing under the name is touched.
+
 A session absent from this spawner's registry is resolved from the backend.
 If that inventory or endpoint lookup fails, or an existing nonterminal runtime
 is still starting, session routes return `503 session_unavailable` with

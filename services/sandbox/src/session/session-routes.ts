@@ -4,6 +4,7 @@
 // lifecycle and runnerd addressing; runnerd owns the actual exec.
 
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type CreateSessionResult,
@@ -1897,6 +1898,15 @@ export class SessionRoutes {
           signal: operationSignal(),
         });
       } catch (err) {
+        // A live session the registry does not hold already runs under the
+        // id: a duplicate, which the caller adopts through acquire. As a
+        // failed create, its cleanup would remove that session's compute.
+        if (err instanceof SessionExistsError) {
+          return jsonResponse(
+            { error: 'duplicate', message: err.message },
+            409,
+          );
+        }
         return jsonResponse(
           {
             error: 'create_failed',

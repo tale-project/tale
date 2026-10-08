@@ -25,6 +25,7 @@ import { isAgentSessionProfile } from '../../session/session-profile.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { ID_ALPHABET_RE } from '../../wire.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type BackendWorkspace,
@@ -56,9 +57,21 @@ const ORGANIZATION_ID_ANNOTATION = 'tale.dev/organization-id';
 /** Pod annotation carrying the durable "always-on" pin (see setPinned). */
 const PINNED_ANNOTATION = 'tale.dev/pinned';
 
-/** A create that lost the deterministic-name race. The route answers 502 and
- * the platform retries; by then adoption has made the live session routable. */
-function conflictError(sessionId: string, cause: unknown): Error {
+/** A create that lost the deterministic-name race. A live Pod under the name
+ * is a session the route answers as a duplicate, so the platform adopts it.
+ * Anything else (a Pod terminating or ended, a peer's Secret whose Pod is not
+ * there yet, a Pod that cannot be read) answers 502 and the platform retries;
+ * by then adoption or the orphan reaps have settled the name. */
+function conflictError(
+  sessionId: string,
+  cause: unknown,
+  livePod: boolean,
+): Error {
+  if (livePod) {
+    return new SessionExistsError(sessionId, 'a live Pod holds its name', {
+      cause,
+    });
+  }
   return new Error(
     `session ${sessionId} already exists (concurrent create or unadopted live Pod)`,
     { cause },
@@ -201,7 +214,13 @@ export class KubernetesSessionBackend implements SessionBackend {
       // may own). Surface the conflict without any cleanup — parity with the
       // Docker backend's name-conflict rule; adoptExisting / the route's
       // registry-miss re-resolve pick the live session up on a later turn.
-      if (httpStatusCode(err) === 409) throw conflictError(spec.sessionId, err);
+      if (httpStatusCode(err) === 409) {
+        throw conflictError(
+          spec.sessionId,
+          err,
+          await this.livePodHolds(spec.sessionId),
+        );
+      }
       // An ambiguous response does not establish ownership. Preserve every
       // object without an acknowledged UID, and every workspace PVC.
       throw err;
@@ -237,7 +256,11 @@ export class KubernetesSessionBackend implements SessionBackend {
           // only the Secret THIS call created is ours, and leaving it behind
           // would 409 every future create of this session forever.
           ownership.podConflict = true;
-          throw conflictError(spec.sessionId, err);
+          throw conflictError(
+            spec.sessionId,
+            err,
+            await this.livePodHolds(spec.sessionId),
+          );
         }
       } else {
         throw err;
@@ -275,6 +298,29 @@ export class KubernetesSessionBackend implements SessionBackend {
         `[sandbox.session] cannot tell whose pod holds ${sessionId}'s name:`,
         error,
       );
+      return false;
+    }
+  }
+
+  /** Does a live Pod hold the session's name — one neither being deleted nor
+   * ended (Succeeded/Failed)? A Pending Pod counts: a peer replica is still
+   * starting it. A read that fails is "no". */
+  private async livePodHolds(sessionId: string): Promise<boolean> {
+    try {
+      const pod = await this.readPod(sessionId);
+      const phase = pod.status?.phase;
+      return (
+        pod.metadata?.deletionTimestamp == null &&
+        phase !== 'Succeeded' &&
+        phase !== 'Failed'
+      );
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) {
+        console.warn(
+          `[sandbox.session] cannot tell whether a live pod holds ${sessionId}'s name:`,
+          error,
+        );
+      }
       return false;
     }
   }

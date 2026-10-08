@@ -19,6 +19,7 @@ import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type SessionBackend,
@@ -1662,6 +1663,39 @@ describe('SessionRoutes (fake runnerd)', () => {
       JSON.stringify({ sessionId: 'dup', organizationId: 'org_d' }),
     );
     expect(again.status).toBe(409);
+  });
+
+  // The platform adopts a 409 and cleans up after a 502: a live session the
+  // registry lost must read as the former, or its compute is removed.
+  test('a create that finds a live unregistered session → 409 duplicate; a failed create → 502', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        if (spec.sessionId === 'live-unregistered') {
+          throw new SessionExistsError(
+            spec.sessionId,
+            'container tale-sbx-ses-live-unregistered is running',
+          );
+        }
+        throw new Error(
+          'docker run (session) failed: Conflict. The container name is already in use',
+        );
+      },
+    });
+    const live = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'live-unregistered', organizationId: 'o' }),
+    );
+    expect(live.status).toBe(409);
+    expect(await live.json()).toMatchObject({ error: 'duplicate' });
+    const failed = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'not-live', organizationId: 'o' }),
+    );
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toMatchObject({ error: 'create_failed' });
+    for (const id of ['live-unregistered', 'not-live']) {
+      expect(destroyed.has(id)).toBe(false);
+      expect(stopped.has(id)).toBe(false);
+    }
   });
 
   test('env / files / content / attach round-trip through runnerd', async () => {

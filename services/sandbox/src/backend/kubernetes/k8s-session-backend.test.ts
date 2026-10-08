@@ -14,7 +14,11 @@ import { operationSignal } from '../../operation-budget.ts';
 import { SessionRoutes } from '../../session/session-routes.ts';
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { SessionIncarnationChangedError, type SessionSpec } from '../types.ts';
+import {
+  SessionExistsError,
+  SessionIncarnationChangedError,
+  type SessionSpec,
+} from '../types.ts';
 import type { K8sClient } from './k8s-client.ts';
 import { KubernetesSessionBackend } from './k8s-session-backend.ts';
 import {
@@ -907,6 +911,64 @@ describe('KubernetesSessionBackend.createSession — a 409 name conflict is not 
     expect(calls.podDeleted).toBe(false);
     expect(calls.pvcDeleted).toBe(false);
     expect(calls.secretDeleted).toBe(1);
+  });
+
+  // A live Pod under the name is a session the route answers as a duplicate,
+  // so the platform adopts it rather than cleaning up after a failed create.
+  test.each(['Running', 'Pending'])(
+    'Pod 409 against a live %s Pod: a live duplicate, nothing of it removed',
+    async (phase) => {
+      const { client, calls } = stub(
+        () => Promise.resolve({ metadata: { uid: 'own-secret' } }),
+        conflict,
+        {
+          pod: {
+            metadata: { annotations: { 'tale.dev/created-at': '1' } },
+            status: { phase },
+          },
+        },
+      );
+      const err = await rejection(
+        new KubernetesSessionBackend(cfg, client).createSession(spec),
+      );
+      expect(err).toBeInstanceOf(SessionExistsError);
+      expect(err?.message).toMatch(/session sess_c4 already exists/);
+      expect(calls.podDeleted).toBe(false);
+      expect(calls.pvcDeleted).toBe(false);
+      expect(calls.secretDeleted).toBe(1);
+    },
+  );
+
+  test('Secret 409 beside a live Pod: a live duplicate, nothing deleted', async () => {
+    const { client, calls } = stub(conflict, undefined, {
+      secret: { uid: 'peer-uid', createdAt: new Date(Date.now() - 600_000) },
+      pod: { metadata: {}, status: { phase: 'Running' } },
+    });
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err).toBeInstanceOf(SessionExistsError);
+    expect(calls.secretDeleted).toBe(0);
+    expect(calls.podDeleted).toBe(false);
+  });
+
+  test('Pod 409 against a terminating or ended Pod stays a failed create', async () => {
+    for (const pod of [
+      { metadata: { deletionTimestamp: new Date() }, status: {} },
+      { metadata: {}, status: { phase: 'Succeeded' } },
+      { metadata: {}, status: { phase: 'Failed' } },
+    ]) {
+      const { client } = stub(
+        () => Promise.resolve({ metadata: { uid: 'own-secret' } }),
+        conflict,
+        { pod },
+      );
+      const err = await rejection(
+        new KubernetesSessionBackend(cfg, client).createSession(spec),
+      );
+      expect(err).not.toBeInstanceOf(SessionExistsError);
+      expect(err?.message).toMatch(/session sess_c4 already exists/);
+    }
   });
 });
 

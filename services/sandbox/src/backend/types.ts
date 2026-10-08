@@ -30,6 +30,20 @@ export class SessionIncarnationChangedError extends Error {
   }
 }
 
+/** A create found a LIVE session under the id's deterministic name — a
+ * running container, or a Pod that is neither terminating nor ended — that
+ * the route's registry does not hold: a peer replica's create, or compute
+ * this spawner lost track of (a restart before adoption). Nothing was
+ * touched. The route answers it as a duplicate, so the caller adopts the
+ * session through acquire instead of treating the create as failed and
+ * tearing down what runs under the id. */
+export class SessionExistsError extends Error {
+  constructor(sessionId: string, detail: string, options?: ErrorOptions) {
+    super(`session ${sessionId} already exists (${detail})`, options);
+    this.name = 'SessionExistsError';
+  }
+}
+
 export interface SweepOptions {
   /** Reap runtimes whose start time is older than this epoch-ms threshold. */
   staleBeforeMs: number;
