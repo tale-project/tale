@@ -61,7 +61,7 @@ export interface LayoutFlowGraphOptions {
 }
 
 /** The id of a frame's header box, which edges route around. */
-export const frameHeaderId = (groupId: string) => `${groupId}:head`;
+const frameHeaderId = (groupId: string) => `${groupId}:head`;
 const headerEdgeId = (groupId: string, member: string) =>
   `${groupId}:head>${member}`;
 
@@ -306,7 +306,7 @@ const snapRect = (rect: FlowRect): FlowRect => ({
 
 /** Rows top to bottom: nodes whose centres share a line (ELK centres a
  *  row's boxes on it), each row left to right. */
-export function rowsOf(
+function rowsOf(
   nodes: Readonly<Record<string, FlowRect>>,
   order: readonly string[],
 ): string[][] {

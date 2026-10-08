@@ -20,7 +20,7 @@ import type {
 export const FLOW_NODE_WIDTH = 288;
 
 /** Pieces every box is built from. */
-export const FLOW_BOX = {
+const FLOW_BOX = {
   padding: 12,
   titleRow: 20,
   typeRow: 16,
@@ -36,7 +36,7 @@ export const FLOW_BOX = {
   notice: 28,
 } as const;
 
-export const FLOW_GATE = {
+const FLOW_GATE = {
   height: 40,
   minWidth: 160,
   maxWidth: FLOW_NODE_WIDTH,
@@ -203,7 +203,7 @@ function exitHeight(node: FlowExitNode): number {
 }
 
 /** The gate pill's width: the condition plus its chrome, 160 to 288 px. */
-export function flowGateWidth(
+function flowGateWidth(
   node: FlowGateNode,
   measure: FlowTextMeasure = estimateFlowText,
 ): number {

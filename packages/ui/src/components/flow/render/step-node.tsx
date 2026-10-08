@@ -29,7 +29,7 @@ const CHIP_TONE: Record<NonNullable<FlowChip['tone']>, string> = {
 };
 
 /** A short word on a box's face: 20 px, never wrapping. */
-export function FlowChipPill({ chip }: { chip: FlowChip }) {
+function FlowChipPill({ chip }: { chip: FlowChip }) {
   const Icon = chip.icon;
   return (
     <span

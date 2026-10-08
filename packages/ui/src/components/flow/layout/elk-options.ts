@@ -83,6 +83,3 @@ export const FLOW_ELK_LIVE: Readonly<Record<string, string>> = {
 export const FLOW_ELK_NODE: Readonly<Record<string, string>> = {
   'elk.portConstraints': 'FIXED_SIDE',
 };
-
-/** The size of the frame header node an incoming edge must route around. */
-export const FLOW_FRAME_HEADER_HEIGHT = 24;

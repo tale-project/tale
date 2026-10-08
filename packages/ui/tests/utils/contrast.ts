@@ -22,7 +22,7 @@ function pixel(): CanvasRenderingContext2D {
 }
 
 /** Paints `layers` bottom-up on white and reads the colour that results. */
-export function composite(layers: readonly string[]): Rgb {
+function composite(layers: readonly string[]): Rgb {
   const ctx = pixel();
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, 1, 1);
@@ -44,7 +44,7 @@ function luminance(rgb: Rgb): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-export function contrast(a: Rgb, b: Rgb): number {
+function contrast(a: Rgb, b: Rgb): number {
   const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x) as [
     number,
     number,
@@ -53,7 +53,7 @@ export function contrast(a: Rgb, b: Rgb): number {
 }
 
 /** Every background from the page down to `element`, outermost first. */
-export function backgroundsOf(element: Element): string[] {
+function backgroundsOf(element: Element): string[] {
   const layers: string[] = [];
   for (
     let node: Element | null = element;

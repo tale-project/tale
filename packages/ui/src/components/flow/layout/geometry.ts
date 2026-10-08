@@ -199,15 +199,6 @@ export function roundedOrthogonalPath(
   return path;
 }
 
-/** The direction of the route's last segment, as a unit vector. */
-export function endDirection(points: readonly FlowPoint[]): FlowPoint {
-  const end = points.at(-1);
-  const before = points.at(-2);
-  if (end === undefined || before === undefined) return { x: 0, y: 1 };
-  const length = distance(before, end) || 1;
-  return { x: (end.x - before.x) / length, y: (end.y - before.y) / length };
-}
-
 /**
  * Whether the segment `a`–`b` passes through `rect` shrunk by `inset` on
  * every side — touching a border (where an edge meets its own box) does

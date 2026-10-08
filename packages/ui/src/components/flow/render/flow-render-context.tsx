@@ -50,19 +50,19 @@ export function useFlowRender(): FlowRenderContextValue {
 const NO_ISSUES: IssueCounts = { errors: 0, warnings: 0 };
 
 /** The id of a node's hidden description. */
-export const flowDescriptionId = (baseId: string, nodeId: string) =>
+const flowDescriptionId = (baseId: string, nodeId: string) =>
   `${baseId}-description-${nodeId}`;
 
 /**
  * Hover lifts a box: a `shadow-md` layer fades in over its resting shadow
  * (a shadow itself never animates).
  */
-export const FLOW_NODE_LIFT =
+const FLOW_NODE_LIFT =
   'after:pointer-events-none after:absolute after:inset-[-1px] after:rounded-[inherit] after:opacity-0 after:shadow-md after:transition-opacity after:duration-[var(--duration-short)] after:ease-[var(--ease-out-quint)] hover:after:opacity-100';
 
 /** Selection and keyboard focus draw the same ring; a problem keeps its own
  *  frame colour beside it. */
-export const FLOW_NODE_RING =
+const FLOW_NODE_RING =
   'ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none';
 
 /**
