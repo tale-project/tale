@@ -434,3 +434,43 @@ issues:
   technicalDetails: Détails techniques
   learnMore: En savoir plus
   goTo: Y aller
+
+codeEditor:
+  roleDescription: éditeur de code
+  loading: Chargement de l'éditeur…
+  keyboardHint: Tab indente. Pour quitter l'éditeur, appuie sur Échap, puis sur Tab.
+  submitHint: 'Raccourci {shortcut} : {action}.'
+  legend:
+    leave: Échap, puis Tab pour quitter
+    submit: '{shortcut} : {action}'
+  leaveArmed: Appuie sur Tab pour continuer.
+  tabFocusOn: Tab déplace maintenant le focus.
+  tabFocusOff: Tab indente maintenant.
+  phrases:
+    controlCharacter: Caractère de contrôle
+    close: Fermer
+    selectionDeleted: Sélection supprimée
+    foldedCode: code replié
+    unfold: déplier
+    to: à
+    foldedLines: Lignes repliées
+    unfoldedLines: Lignes dépliées
+    foldLine: Replier la ligne
+    unfoldLine: Déplier la ligne
+    completions: Suggestions
+    find: Rechercher
+    replaceField: Remplacer
+    next: Suivant
+    previous: Précédent
+    all: Tout
+    matchCase: Respecter la casse
+    regexp: Regex
+    byWord: Mot entier
+    replace: Remplacer
+    replaceAll: Tout remplacer
+    goToLine: Aller à la ligne
+    go: Aller
+    currentMatch: correspondance actuelle
+    onLine: à la ligne
+    replacedMatches: $ correspondances remplacées
+    replacedMatchOnLine: Correspondance remplacée à la ligne $

@@ -434,3 +434,43 @@ issues:
   technicalDetails: Technical details
   learnMore: Learn more
   goTo: Go to
+
+codeEditor:
+  roleDescription: code editor
+  loading: Loading the editor…
+  keyboardHint: Tab indents. To leave the editor, press Esc, then Tab.
+  submitHint: 'Shortcut {shortcut}: {action}.'
+  legend:
+    leave: Esc, then Tab to leave
+    submit: '{shortcut}: {action}'
+  leaveArmed: Press Tab to move on.
+  tabFocusOn: Tab now moves focus.
+  tabFocusOff: Tab now indents.
+  phrases:
+    controlCharacter: Control character
+    close: Close
+    selectionDeleted: Selection deleted
+    foldedCode: folded code
+    unfold: unfold
+    to: to
+    foldedLines: Folded lines
+    unfoldedLines: Unfolded lines
+    foldLine: Fold line
+    unfoldLine: Unfold line
+    completions: Completions
+    find: Find
+    replaceField: Replace
+    next: Next
+    previous: Previous
+    all: All
+    matchCase: Match case
+    regexp: Regex
+    byWord: Whole word
+    replace: Replace
+    replaceAll: Replace all
+    goToLine: Go to line
+    go: Go
+    currentMatch: current match
+    onLine: on line
+    replacedMatches: Replaced $ matches
+    replacedMatchOnLine: Replaced a match on line $

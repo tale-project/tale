@@ -59,6 +59,11 @@
       ],
       "minimumReleaseAge": null,
       "groupName": "better-auth"
+    },
+    {
+      "description": "CodeMirror and Lezer move together: @tale/ui's code editor and Milkdown share one copy of each, and two copies of @codemirror/state or @codemirror/view break the editor (packages/ui/src/components/forms/code-editor/deps.test.ts)",
+      "matchPackageNames": ["/^@codemirror\\//", "/^@lezer\\//"],
+      "groupName": "codemirror"
     }
   ]
 }

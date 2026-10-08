@@ -1,3 +1,5 @@
+import { Tag, tags as t } from '@lezer/highlight';
+
 /**
  * The colour roles of highlighted code — the one vocabulary the read-only
  * renderer (Shiki) and the code editor (CodeMirror) share.
@@ -65,6 +67,11 @@ function codeRoleVariable(role: CodeRole): string {
   return `--code-token-${role}`;
 }
 
+/** A role's colour as a CSS value, `var(--code-…)`. */
+export function codeRoleColor(role: CodeRole): string {
+  return `var(${codeRoleVariable(role)})`;
+}
+
 const ROLE_BY_VARIABLE = new Map<string, CodeRole>(
   CODE_ROLES.map((role) => [codeRoleVariable(role), role]),
 );
@@ -80,3 +87,107 @@ export function codeRoleOfColor(color: string | undefined): CodeRole | null {
   if (match === null) return null;
   return ROLE_BY_VARIABLE.get(match[1].toLowerCase()) ?? null;
 }
+
+/* ---------------------------------------------------------- the editor */
+
+/**
+ * Tags the editor's languages attach where Lezer's standard tags do not
+ * say enough to match the read-only colours: JSON and YAML keys, YAML plain
+ * values, block scalars, and the braces of a `{{ }}` template. (The object
+ * of a dot access, TextMate's `variable.other.object`, depends on the token
+ * after it, which a tag cannot see: the editor marks it separately.)
+ */
+export const codeTags = {
+  jsonKey: Tag.define(t.propertyName),
+  yamlKey: Tag.define(t.propertyName),
+  yamlValue: Tag.define(t.string),
+  yamlBlock: Tag.define(t.string),
+  templateBrace: Tag.define(t.brace),
+  templateUnterminated: Tag.define(t.invalid),
+};
+
+/**
+ * Which syntax tags take which colour role in the editor. The roles mirror
+ * the read-only grammars' scopes (`code-roles.parity.test.ts` compares the
+ * two per character); a more specific tag listed under one role wins over
+ * its parent listed under another (`null` is a keyword in Lezer, a
+ * constant here).
+ */
+export const CODE_ROLE_TAGS: Readonly<
+  Partial<Record<CodeRole, readonly Tag[]>>
+> = {
+  keyword: [
+    t.keyword,
+    t.controlKeyword,
+    t.definitionKeyword,
+    t.moduleKeyword,
+    t.operatorKeyword,
+    t.modifier,
+    t.operator,
+    t.compareOperator,
+    t.arithmeticOperator,
+    t.logicOperator,
+    t.bitwiseOperator,
+    t.updateOperator,
+    t.definitionOperator,
+    t.typeOperator,
+    t.controlOperator,
+    t.function(t.punctuation),
+    codeTags.jsonKey,
+    codeTags.yamlKey,
+    codeTags.templateBrace,
+  ],
+  'string-expression': [
+    t.string,
+    t.special(t.string),
+    t.regexp,
+    codeTags.yamlValue,
+  ],
+  string: [t.monospace, codeTags.yamlBlock],
+  constant: [
+    t.number,
+    t.bool,
+    t.null,
+    t.atom,
+    t.self,
+    t.constant(t.variableName),
+  ],
+  function: [
+    t.function(t.variableName),
+    t.function(t.propertyName),
+    t.function(t.definition(t.variableName)),
+    t.typeName,
+    t.className,
+    t.definition(t.className),
+    t.attributeName,
+  ],
+  comment: [t.comment, t.lineComment, t.blockComment, t.docComment],
+  punctuation: [t.separator],
+  // Names stay unstyled (the editor's text colour), so the mark that
+  // colours the object of a dot access shows through them.
+  foreground: [
+    t.derefOperator,
+    t.bracket,
+    t.paren,
+    t.brace,
+    t.squareBracket,
+    t.angleBracket,
+    t.special(t.brace),
+    t.escape,
+    t.content,
+    t.heading,
+    t.processingInstruction,
+    t.labelName,
+    t.meta,
+  ],
+  link: [t.url, t.link],
+  invalid: [t.invalid, codeTags.templateUnterminated],
+};
+
+/** Type styles that ride on top of a role colour. */
+export const CODE_FONT_TAGS = {
+  bold: [t.heading, t.strong] as readonly Tag[],
+  italic: [t.emphasis] as readonly Tag[],
+  strikethrough: [t.strikethrough] as readonly Tag[],
+  underline: [t.link, t.url] as readonly Tag[],
+};
