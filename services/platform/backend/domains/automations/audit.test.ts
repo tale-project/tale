@@ -118,4 +118,29 @@ describe('listDeployments', () => {
     );
     expect(read?.text).toContain("action = 'automation.deployed'");
   });
+
+  it("leaves out the deploys of a deleted automation of the same name — a rollback must never offer the old one's versions", async () => {
+    // billing/dunning v5 was live, then deleted and saved again as v1, v2:
+    // its deployments start after the delete.
+    const statements: Array<{ text: string; values: unknown[] }> = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      statements.push({ text: strings.join('?'), values });
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    const sql = tag as unknown as Sql;
+    expect(await listDeployments(sql, 'org_1', 'billing/dunning')).toEqual([]);
+    const [read] = statements;
+    const text = (read?.text ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain(
+      "ts > coalesce(( SELECT max(ts) FROM app.audit_logs WHERE org_id = ? AND action = 'automation.deleted' AND resource_type = 'automation' AND resource_id = ? ), 0)",
+    );
+    expect(read?.values).toEqual([
+      'org_1',
+      'billing/dunning',
+      'org_1',
+      'billing/dunning',
+      expect.any(Number),
+    ]);
+  });
 });

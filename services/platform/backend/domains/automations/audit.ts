@@ -94,7 +94,10 @@ const DEPLOYMENT_HISTORY_LIMIT = 20;
  * `automation.deployed` rows this module writes: the version, what was live
  * before it, when, who, and the door when it was a coding agent's. A deploy
  * from before these rows were written, or one the audit retention removed,
- * is not in it.
+ * is not in it — and neither is one of an automation of the same name that
+ * was deleted since: only the rows after the name's last
+ * `automation.deleted` row (the chain's `ts` is strictly increasing per
+ * organization), so a rollback never offers a version of the old one.
  */
 export async function listDeployments(
   sql: Sql,
@@ -126,6 +129,12 @@ export async function listDeployments(
     WHERE org_id = ${organizationId}
       AND action = 'automation.deployed'
       AND resource_type = 'automation' AND resource_id = ${name}
+      AND ts > coalesce((
+        SELECT max(ts) FROM app.audit_logs
+        WHERE org_id = ${organizationId}
+          AND action = 'automation.deleted'
+          AND resource_type = 'automation' AND resource_id = ${name}
+      ), 0)
     ORDER BY ts DESC
     LIMIT ${DEPLOYMENT_HISTORY_LIMIT}
   `;
