@@ -21,7 +21,7 @@ Create an [API key](/platform/admin/api-keys) and keep it in your client's secre
 | Transport | HTTPS POST with JSON-RPC; plain JSON responses |
 | Authorization | `Authorization: Bearer <api-key>` |
 | Organization | `X-Organization-Slug: <slug>` |
-| Protocol revisions | `2025-06-18`, or `2025-03-26` when proposed by the client |
+| Protocol revisions | `2025-11-25`, or `2025-06-18` or `2025-03-26` when proposed by the client |
 
 Use a client that supports a remote HTTP endpoint with custom headers. There is no SSE event stream, session deletion, or OAuth authorization flow. OAuth discovery URLs return JSON `404`; a client requiring that flow needs a different authentication configuration. A client that only launches local stdio servers cannot use this URL directly. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor) has ready configurations for opencode and Claude Code.
 
@@ -36,16 +36,16 @@ curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --header "Authorization: Bearer $TALE_API_KEY" \
   --header "X-Organization-Slug: $TALE_ORG_SLUG" \
   --header 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"docs-client","version":"1.0.0"}}}'
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"docs-client","version":"1.0.0"}}}'
 ```
 
-The response identifies the server as `tale-platform`. Read `result.protocolVersion` and send that negotiated value as `MCP-Protocol-Version` on later calls. The next example uses `2025-06-18`; replace it if your initialization negotiated the older revision. An unsupported header value returns `400`.
+The response identifies the server as `tale-platform` and reports the API contract version as `serverInfo.version`. Its `instructions` are a short guide to working with Tale that your client can hand to its model. Read `result.protocolVersion` and send that negotiated value as `MCP-Protocol-Version` on later calls. The next example uses `2025-11-25`; replace it if your initialization negotiated an older revision. A revision the endpoint does not speak returns `400` with JSON-RPC `-32022`, and `data.supported` lists the ones it does.
 
 ```bash
 curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --header "Authorization: Bearer $TALE_API_KEY" \
   --header "X-Organization-Slug: $TALE_ORG_SLUG" \
-  --header 'MCP-Protocol-Version: 2025-06-18' \
+  --header 'MCP-Protocol-Version: 2025-11-25' \
   --header 'Content-Type: application/json' \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_docs","arguments":{}}}'
 ```
@@ -68,7 +68,7 @@ The endpoint supplies no CORS headers for browser key use. Keep the API key on a
 
 ## The tools
 
-`tools/list` is the source for each tool's input schema. Missing, mistyped, blank, or unexpected arguments receive JSON-RPC `-32602` before execution. The document passed to `validate_automation`, `run_automation`, `test_automation`, or `save_automation` is intentionally an open envelope: `get_docs` explains its grammar, and the engine validates its contents.
+`tools/list` is the source for each tool's input schema, and a read tool also states its answer in `outputSchema`. Arguments are checked before execution: missing, mistyped, blank, or unexpected ones are refused with one tool result marked `isError`, whose `code` is `INVALID_ARGUMENTS` and whose `data.issues` lists every problem with its `path`, `code`, and `message`. The refusal never repeats an argument's value. Every result carries its answer as compact JSON text, and a read tool's successful answer also comes as `structuredContent`, the same object. The document passed to `validate_automation`, `run_automation`, `test_automation`, or `save_automation` is intentionally an open envelope: `get_docs` explains its grammar, and the engine validates its contents.
 
 Tools also expose `readOnlyHint`, `destructiveHint`, `idempotentHint`, and `openWorldHint`. Hosts can use these annotations to explain a call, but they do not grant permission or guarantee safety. Reads are marked read-only; saving writes a version; deployment and trigger changes can replace existing state; live runs can contact real services.
 
@@ -154,13 +154,14 @@ Read `GET /api/v1/me` before configuring privileged tools: `capabilities.develop
 | Result | How to handle it |
 | --- | --- |
 | JSON-RPC `-32601` | Correct the unknown method |
-| JSON-RPC `-32602` | Correct the tool name or arguments using `tools/list`; a value outside an enumerated set is refused with the set named |
+| JSON-RPC `-32602` | Correct the tool name using `tools/list` |
+| JSON-RPC `-32022` (HTTP `400`) | Send `MCP-Protocol-Version` with one of the revisions in `data.supported` |
 | Tool result with `isError: true` | Read its text payload's stable `code`, explanatory `error`, and actionable `hint`; `data` may contain field problems |
 | `validate_automation` with `valid: false` | Normal validation result; inspect `errors` and where each one is ([Read a validation result](#validation-result)), even though `isError` remains false. Warnings never make a document invalid |
 | Capability result `pending` | Normal approval outcome; do not treat it as completion or retry it as a failure |
 | Capability result `refused` | Error result; correct the stated cause |
 
-Tool refusal codes include `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE`, and `NOT_SUPPORTED`. The latter means the host does not support that run/version/trigger operation. `start_run` refuses a reused `idempotencyKey` with different arguments as `IDEMPOTENCY_KEY_REUSED`; `invoke_capability` refuses an id the registry does not hold — a saved-only automation is not in it — as `CAPABILITY_NOT_FOUND` and input its schema rejects as `CAPABILITY_INPUT_INVALID`; `get_knowledge` lifts the knowledge endpoint's own codes through (`KNOWLEDGE_UNAVAILABLE` when the search itself failed). Platform errors retain their own code, hint, and optional data; for example, missing developer access returns `FORBIDDEN_DEVELOPER_SETTINGS`.
+Tool refusal codes include `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE`, and `NOT_SUPPORTED`. The latter means the host does not support that run/version/trigger operation. `start_run` refuses a reused `idempotencyKey` with different arguments as `IDEMPOTENCY_KEY_REUSED`; `invoke_capability` refuses an id the registry does not hold — a saved-only automation is not in it — as `CAPABILITY_NOT_FOUND` and input its schema rejects as `CAPABILITY_INPUT_INVALID`; `get_knowledge` lifts the knowledge endpoint's own codes through (`KNOWLEDGE_UNAVAILABLE` when the search itself failed). Platform errors retain their own code, hint, and optional data; for example, missing developer access returns `FORBIDDEN_DEVELOPER_SETTINGS`. `INVALID_ARGUMENTS` lists every argument problem; a value outside an enumerated set is refused with the set named. `RATE_LIMITED` means the tool needed an execution and the key holder's [execution budget](/develop/rate-limits) is spent: wait `data.retryAfterMs`. `INTERNAL_ERROR` means the call failed unexpectedly; its `data.requestId` is the id to quote to whoever runs the deployment.
 
 An unknown automation name is an error even for `list_versions`, `list_runs`, and `list_triggers`; an empty list means an existing automation has no matching items. The one exception is run history: a deleted automation keeps its runs, so `list_runs {name}` answers them for as long as they exist, and only a name that never ran is `AUTOMATION_NOT_FOUND`. `get_catalog` narrowed to a core node kind (`transform`, `llm`, `agent`, `subautomation`) answers an empty list with a `hint` pointing at `get_docs`, as `search_catalog` does. Invalid documents passed to tools that need a valid one, search failures, and missing deployments set `isError: true`. Only the validation tool reports an invalid document as its ordinary verdict.
 

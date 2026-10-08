@@ -21,7 +21,7 @@ Erstelle einen [API-Schlüssel](/de/platform/admin/api-keys) und hinterlege ihn 
 | Transport | HTTPS-POST mit JSON-RPC und normalen JSON-Antworten |
 | Authentifizierung | `Authorization: Bearer <api-key>` |
 | Organisation | `X-Organization-Slug: <slug>` |
-| Protokollrevisionen | `2025-06-18` oder `2025-03-26`, wenn der Client diese vorschlägt |
+| Protokollrevisionen | `2025-11-25`, oder `2025-06-18` bzw. `2025-03-26`, wenn der Client diese vorschlägt |
 
 Der Client muss entfernte HTTP-Endpunkte mit eigenen Headern unterstützen. Es gibt keinen SSE-Ereignisstrom, keine Sitzung zum Löschen und keinen OAuth-Anmeldeablauf. OAuth-Discovery-URLs antworten mit JSON und `404`; ein Client, der diesen Ablauf voraussetzt, braucht eine andere Authentifizierungskonfiguration. Ein reiner stdio-Client kann diese URL nicht direkt nutzen. Fertige Konfigurationen für opencode und Claude Code findest du unter [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor).
 
@@ -36,16 +36,16 @@ curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --header "Authorization: Bearer $TALE_API_KEY" \
   --header "X-Organization-Slug: $TALE_ORG_SLUG" \
   --header 'Content-Type: application/json' \
-  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"docs-client","version":"1.0.0"}}}'
+  --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"docs-client","version":"1.0.0"}}}'
 ```
 
-Der Server meldet sich als `tale-platform`. Lies `result.protocolVersion` und sende den ausgehandelten Wert bei späteren Aufrufen als `MCP-Protocol-Version`. Das nächste Beispiel verwendet `2025-06-18`; passe ihn an, falls die ältere Revision ausgehandelt wurde. Ein nicht unterstützter Headerwert führt zu `400`.
+Der Server meldet sich als `tale-platform` und nennt die Version des API-Vertrags als `serverInfo.version`. Seine `instructions` sind eine kurze Anleitung für die Arbeit mit Tale, die dein Client an sein Modell weitergeben kann. Lies `result.protocolVersion` und sende den ausgehandelten Wert bei späteren Aufrufen als `MCP-Protocol-Version`. Das nächste Beispiel verwendet `2025-11-25`; passe ihn an, falls eine ältere Revision ausgehandelt wurde. Eine Revision, die der Endpunkt nicht spricht, führt zu `400` mit JSON-RPC `-32022`, und `data.supported` nennt die Revisionen, die er spricht.
 
 ```bash
 curl --fail-with-body "$TALE_URL/api/v1/mcp" \
   --header "Authorization: Bearer $TALE_API_KEY" \
   --header "X-Organization-Slug: $TALE_ORG_SLUG" \
-  --header 'MCP-Protocol-Version: 2025-06-18' \
+  --header 'MCP-Protocol-Version: 2025-11-25' \
   --header 'Content-Type: application/json' \
   --data '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"get_docs","arguments":{}}}'
 ```
@@ -68,7 +68,7 @@ Der Endpunkt liefert keine CORS-Header für API-Schlüssel in Webseiten. Bewahre
 
 ## Die Tools
 
-`tools/list` liefert das Eingabeschema jedes Tools. Fehlende, falsch typisierte, leere oder unerwartete Argumente führen vor der Ausführung zu JSON-RPC `-32602`. Das Dokument in `validate_automation`, `run_automation`, `test_automation` oder `save_automation` hat bewusst eine offene Hülle: `get_docs` erklärt die Grammatik, die Engine validiert den Inhalt.
+`tools/list` liefert das Eingabeschema jedes Tools, und ein lesendes Tool beschreibt seine Antwort zusätzlich in `outputSchema`. Die Argumente werden vor der Ausführung geprüft: Fehlende, falsch typisierte, leere oder unerwartete Argumente lehnt der Endpunkt mit einem einzigen Tool-Ergebnis mit `isError` ab, dessen `code` `INVALID_ARGUMENTS` lautet und dessen `data.issues` jedes Problem mit `path`, `code` und `message` aufführt. Den Wert eines Arguments wiederholt die Ablehnung nie. Jedes Ergebnis trägt seine Antwort als kompakten JSON-Text, und die erfolgreiche Antwort eines lesenden Tools kommt zusätzlich als `structuredContent`, dasselbe Objekt. Das Dokument in `validate_automation`, `run_automation`, `test_automation` oder `save_automation` hat bewusst eine offene Hülle: `get_docs` erklärt die Grammatik, die Engine validiert den Inhalt.
 
 Tools liefern außerdem `readOnlyHint`, `destructiveHint`, `idempotentHint` und `openWorldHint`. Ein Host kann damit einen Aufruf erklären; die Hinweise erteilen aber weder Rechte noch Sicherheitsgarantien. Lesezugriffe sind als solche markiert, Speichern schreibt eine Version, Bereitstellung und Triggeränderungen können Bestehendes ersetzen. Live-Ausführungen können echte Dienste ansprechen.
 
@@ -154,13 +154,14 @@ Lies vor dem Einrichten privilegierter Tools `GET /api/v1/me`: `capabilities.dev
 | Ergebnis | Umgang damit |
 | --- | --- |
 | JSON-RPC `-32601` | Unbekannte Methode korrigieren |
-| JSON-RPC `-32602` | Tool-Name oder Argumente anhand von `tools/list` korrigieren; ein Wert außerhalb einer aufgezählten Menge wird abgelehnt, und die Meldung nennt die Menge |
+| JSON-RPC `-32602` | Tool-Name anhand von `tools/list` korrigieren |
+| JSON-RPC `-32022` (HTTP `400`) | `MCP-Protocol-Version` mit einer der Revisionen aus `data.supported` senden |
 | Tool-Ergebnis mit `isError: true` | Stabilen `code`, erklärenden `error` und Handlungshinweis `hint` im Textinhalt lesen; `data` kann Feldprobleme enthalten |
 | `validate_automation` mit `valid: false` | Normales Validierungsergebnis; `errors` und ihre Stellen auswerten ([Ein Validierungsergebnis lesen](#validation-result)), obwohl `isError` false bleibt. Warnungen machen ein Dokument nie ungültig |
 | Capability mit `pending` | Normales Genehmigungsergebnis; weder als fertig noch als erneut zu versuchenden Fehler behandeln |
 | Capability mit `refused` | Fehlerergebnis; die genannte Ursache beheben |
 
-Zu den Tool-Codes gehören `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE` und `NOT_SUPPORTED`. Letzterer bedeutet, dass der Host den Vorgang für Läufe, Versionen oder Trigger nicht unterstützt. `start_run` lehnt einen wiederverwendeten `idempotencyKey` mit anderen Argumenten als `IDEMPOTENCY_KEY_REUSED` ab; `invoke_capability` lehnt eine ID, die das Register nicht führt — eine nur gespeicherte Automatisierung steht nicht darin —, als `CAPABILITY_NOT_FOUND` ab und Eingaben, die ihr Schema zurückweist, als `CAPABILITY_INPUT_INVALID`; `get_knowledge` reicht die eigenen Codes der Wissens-Tür durch (`KNOWLEDGE_UNAVAILABLE`, wenn die Suche selbst fehlgeschlagen ist). Plattformfehler behalten ihren eigenen Code, Hinweis und gegebenenfalls Daten; fehlender Entwicklerzugriff liefert etwa `FORBIDDEN_DEVELOPER_SETTINGS`.
+Zu den Tool-Codes gehören `AUTOMATION_NOT_FOUND`, `AUTOMATION_VERSION_UNKNOWN`, `AUTOMATION_NOT_DEPLOYED`, `RUN_NOT_FOUND`, `AUTOMATION_INVALID`, `AUTOMATION_TESTS_FAILING`, `LIVE_MODE_UNAVAILABLE` und `NOT_SUPPORTED`. Letzterer bedeutet, dass der Host den Vorgang für Läufe, Versionen oder Trigger nicht unterstützt. `start_run` lehnt einen wiederverwendeten `idempotencyKey` mit anderen Argumenten als `IDEMPOTENCY_KEY_REUSED` ab; `invoke_capability` lehnt eine ID, die das Register nicht führt — eine nur gespeicherte Automatisierung steht nicht darin —, als `CAPABILITY_NOT_FOUND` ab und Eingaben, die ihr Schema zurückweist, als `CAPABILITY_INPUT_INVALID`; `get_knowledge` reicht die eigenen Codes der Wissens-Tür durch (`KNOWLEDGE_UNAVAILABLE`, wenn die Suche selbst fehlgeschlagen ist). Plattformfehler behalten ihren eigenen Code, Hinweis und gegebenenfalls Daten; fehlender Entwicklerzugriff liefert etwa `FORBIDDEN_DEVELOPER_SETTINGS`. `INVALID_ARGUMENTS` führt jedes Argumentproblem auf; ein Wert außerhalb einer aufgezählten Menge wird abgelehnt, und die Meldung nennt die Menge. `RATE_LIMITED` bedeutet, dass das Tool eine Ausführung gebraucht hätte und das [Ausführungsbudget](/de/develop/rate-limits) des Schlüsselinhabers aufgebraucht ist: Warte `data.retryAfterMs` ab. `INTERNAL_ERROR` bedeutet, dass der Aufruf unerwartet fehlgeschlagen ist; nenne dem Betreiber des Deployments die `data.requestId`.
 
 Ein unbekannter Automatisierungsname ist auch bei `list_versions`, `list_runs` und `list_triggers` ein Fehler. Eine leere Liste bedeutet, dass eine vorhandene Automatisierung keine passenden Einträge hat. Die eine Ausnahme ist die Laufhistorie: Eine gelöschte Automatisierung behält ihre Läufe, `list_runs {name}` antwortet sie also, solange es sie gibt, und nur ein Name, der nie gelaufen ist, ergibt `AUTOMATION_NOT_FOUND`. `get_catalog`, auf eine Kern-Knotenart eingegrenzt (`transform`, `llm`, `agent`, `subautomation`), antwortet mit einer leeren Liste und einem `hint` auf `get_docs`, wie `search_catalog` auch. Ungültige Dokumente für Tools, die ein gültiges Dokument benötigen, fehlgeschlagene Suchen und fehlende Bereitstellungen setzen `isError: true`. Nur das Validierungstool meldet ein ungültiges Dokument als normales Prüfergebnis.
 
