@@ -21,7 +21,7 @@ skills:
   description: Schreib einen Skill einmal und rüste dann Projekt-Agenten oder Agent-Knoten in Automatisierungen damit aus.
 members:
   title: Keine Mitglieder gefunden
-  description: Lade Personen ein, in diesem Workspace zusammenzuarbeiten.
+  description: Lade Personen ein, in diesem Arbeitsbereich zusammenzuarbeiten.
 teams:
   title: Noch keine Teams
   description: Fasse Mitglieder in Teams zusammen, um den Zugriff auf Agents und Skills zu steuern.

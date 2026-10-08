@@ -436,7 +436,7 @@ describe('references', () => {
     expect(codesOf(warnings)).not.toContain('ITEM_WITHOUT_FOREACH');
   });
 
-  it('warns on index without forEach', async () => {
+  it('refuses index without forEach in a template, where nothing declares it', async () => {
     const doc = automationDoc(
       [
         {
@@ -448,8 +448,8 @@ describe('references', () => {
       ],
       { output: '{{ nodes.main.output.text }}' },
     );
-    const { warnings } = await validate(doc);
-    expect(codesOf(warnings)).toContain('ITEM_WITHOUT_FOREACH');
+    const { errors } = await validate(doc);
+    expect(codesOf(errors)).toContain('ITEM_WITHOUT_FOREACH');
   });
 
   it('stays silent on input keys when the schema is open or absent', async () => {
@@ -496,6 +496,204 @@ describe('references', () => {
     );
     const { warnings } = await validate(doc);
     expect(codesOf(warnings)).not.toContain('INPUT_KEY_UNKNOWN');
+  });
+});
+
+describe('references are read from the parsed code', () => {
+  it('a comment, a local named nodes and a string reading "item" are no references', async () => {
+    const doc = automationDoc(
+      [
+        { id: 'fetch', type: 'transform', code: 'return 1;' },
+        {
+          id: 'main',
+          type: 'transform',
+          input: { kind: '{{ input.kind === "item" }}' },
+          code: [
+            '// nodes.old was the previous source',
+            'const nodes = [1, 2];',
+            'const total = nodes.length;',
+            'return { total, kind: input.kind, from: arguments.length };',
+          ].join('\n'),
+        },
+      ],
+      { output: '{{ nodes.main.output }}' },
+    );
+    const { errors, warnings } = await validate(doc);
+    expect(errors).toEqual([]);
+    expect(codesOf(warnings)).not.toContain('ITEM_WITHOUT_FOREACH');
+    expect(codesOf(warnings)).not.toContain('REF_BARE');
+    // `fetch` is unread now that the comment no longer counts.
+    expect(codesOf(warnings)).toEqual(['UNUSED_NODE']);
+  });
+
+  it('a reference in a comment is no edge, so it closes no cycle', async () => {
+    const doc = automationDoc(
+      [
+        { id: 'a', type: 'transform', code: 'return nodes.b.output;' },
+        { id: 'b', type: 'transform', code: '// was nodes.a\nreturn 1;' },
+      ],
+      { output: '{{ nodes.a.output }}' },
+    );
+    const { errors } = await validate(doc);
+    expect(codesOf(errors)).not.toContain('REF_CYCLE');
+  });
+
+  it("checks an agent's files mapping like its prompt", async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'draft',
+          type: 'agent',
+          model: 'test-model',
+          prompt: 'Draft it.',
+          files: {
+            setup: '{{ nodes.prep.output.folder }}',
+            other: '{{ nodes.nope.output }}',
+            broken: '{{ nodes.prep.output. }}',
+          },
+        },
+        {
+          id: 'prep',
+          type: 'transform',
+          code: 'return { folder: "f1" };',
+        },
+      ],
+      { output: '{{ nodes.draft.output.text }}' },
+    );
+    const { errors } = await validate(doc);
+    expect(
+      errors.map((i) => ({ code: i.code, at: i.at, params: i.params })),
+    ).toEqual([
+      {
+        code: 'REF_UNKNOWN_NODE',
+        at: { pointer: '/nodes/0/files/other', range: [3, 20] },
+        params: {
+          node: 'draft',
+          field: 'files',
+          ref: 'nope',
+          known: ['draft', 'prep'],
+        },
+      },
+      {
+        code: 'EXPR_SYNTAX',
+        // The parser ran out of input after the dangling dot.
+        at: { pointer: '/nodes/0/files/broken', range: [20, 21] },
+        params: {
+          node: 'draft',
+          field: 'files',
+          expr: 'nodes.prep.output.',
+          detail: "Unexpected token ')'",
+        },
+      },
+    ]);
+  });
+
+  it('a "}}" inside a string or object literal stays inside its template', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'main',
+          type: 'transform',
+          input: {
+            braces: "{{ '}}' + input.x }}",
+            shape: '{{ {a: input.x} }}',
+          },
+          code: 'return input;',
+        },
+      ],
+      { output: '{{ nodes.main.output }}' },
+    );
+    const { errors } = await validate(doc);
+    expect(errors).toEqual([]);
+  });
+
+  it('warns about a "{{" that is never closed, at its exact position', async () => {
+    const doc = automationDoc(
+      [
+        {
+          id: 'gen',
+          type: 'llm',
+          model: 'test-model',
+          prompt: 'Weather: {{ input.city }} and {{ input.units',
+        },
+      ],
+      { output: '{{ nodes.gen.output.text }}' },
+    );
+    const { warnings } = await validate(doc);
+    const open = warnings.filter((i) => i.code === 'TEMPLATE_UNTERMINATED');
+    expect(open).toEqual([
+      expect.objectContaining({
+        nodeId: 'gen',
+        at: { pointer: '/nodes/0/prompt', range: [30, 32] },
+        params: { node: 'gen', field: 'prompt' },
+      }),
+    ]);
+  });
+
+  it('acorn locates, the runner decides: code the runner compiles is valid', async () => {
+    const checked: string[] = [];
+    setCodeRunner({
+      ...nodeVmRunner(),
+      async checkExpr(expr) {
+        checked.push(expr);
+        return null;
+      },
+    });
+    const doc = automationDoc(
+      [
+        {
+          id: 'main',
+          type: 'transform',
+          input: { ok: '{{ input.a }}', odd: '{{ input.a input.b }}' },
+          code: 'return input;',
+        },
+      ],
+      { output: '{{ nodes.main.output }}' },
+    );
+    const { errors } = await validate(doc);
+    expect(codesOf(errors)).not.toContain('EXPR_SYNTAX');
+    // Only the expression the parser rejected was sent to the runner.
+    expect(checked).toEqual(['input.a input.b']);
+  });
+
+  it('every issue says where it is and what its sentence is built from', async () => {
+    const doc = automationDoc(
+      [
+        { id: 'fetch', type: 'transform', code: 'return 1;' },
+        {
+          id: 'main',
+          type: 'transform',
+          code: 'return nodes.fetch.result + nodes.fetc.output;',
+        },
+      ],
+      { output: '{{ nodes.main.output }}' },
+    );
+    const { errors } = await validate(doc);
+    expect(
+      errors.map((i) => ({ code: i.code, at: i.at, params: i.params })),
+    ).toEqual([
+      {
+        code: 'REF_UNKNOWN_NODE',
+        at: { pointer: '/nodes/1/code', range: [28, 45] },
+        params: {
+          node: 'main',
+          field: 'code',
+          ref: 'fetc',
+          suggestion: 'fetch',
+          known: ['fetch', 'main'],
+        },
+      },
+      {
+        code: 'REF_NOT_OUTPUT',
+        at: { pointer: '/nodes/1/code', range: [7, 25] },
+        params: {
+          node: 'main',
+          field: 'code',
+          source: 'fetch',
+          member: 'result',
+        },
+      },
+    ]);
   });
 });
 
@@ -627,24 +825,30 @@ describe('contracts', () => {
 });
 
 describe('degrading without optional backends', () => {
-  it('skips syntax checks silently when no runner is installed', async () => {
+  it("keeps the parser's verdict when no runner is installed", async () => {
     setCodeRunner(null as never);
     const doc = automationDoc(
       [
         {
           id: 'main',
           type: 'transform',
-          code: 'return nodes.ghost.output +;',
+          code: 'return nodes.main.output +;',
           when: '{{ (( }}',
         },
       ],
-      { output: '{{ nodes.main.output }}' },
+      { output: '{{ nodes.ghost.output }}' },
     );
     const { errors } = await validate(doc);
-    expect(codesOf(errors)).not.toContain('CODE_SYNTAX');
-    expect(codesOf(errors)).not.toContain('EXPR_SYNTAX');
-    // Pure reference checks still run.
+    const code = errors.find((i) => i.code === 'CODE_SYNTAX');
+    expect(code?.message).toBe(
+      'node "main": JavaScript syntax error in "code": Unexpected token',
+    );
+    expect(code?.at).toEqual({ pointer: '/nodes/0/code', range: [26, 27] });
+    expect(codesOf(errors)).toContain('EXPR_SYNTAX');
+    // Reference checks still run wherever the code parses.
     expect(codesOf(errors)).toContain('REF_UNKNOWN_NODE');
+    // Code that does not parse is never judged on its references.
+    expect(codesOf(errors)).not.toContain('REF_SELF');
   });
 
   it('skips subautomation resolution without a store, but still checks the reference syntax', async () => {

@@ -48,7 +48,7 @@ Ouvre une tâche pour lire sa description, son attribution et la discussion. Dan
 
 ## Reprendre ton travail
 
-Chaque section s’ouvre sur sa première page, quoi que tu y aies fait auparavant. Sur ordinateur, **Accueil** fait exception : il rouvre le chat que tu as lu en dernier, et le choisir à nouveau démarre un nouveau chat. Le [guide de navigation](/fr/platform#navigation) décrit les commandes sur ordinateur et téléphone.
+Chaque section s’ouvre sur sa première page, quoi que tu y aies fait auparavant. Sur ordinateur, **Accueil** ouvre un nouveau chat. Le [guide de navigation](/fr/platform#navigation) décrit les commandes sur ordinateur et téléphone.
 
 **Accueil** affiche tes chats avec les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture ; choisis **Chats** ou **Tâches** au-dessus de la liste pour n’afficher que tes chats ou que tes tâches. Si le panneau latéral est masqué, **Afficher le panneau latéral**, au début de l’en-tête, le fait revenir. Commence un nouveau chat pour un nouveau sujet et partage volontairement une conversation de projet lorsque tes collègues en ont besoin.
 

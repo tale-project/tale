@@ -20,6 +20,7 @@ import { selectDefaultServices } from '../compose/select-services';
 import {
   type RotatableService,
   type ServiceName,
+  type ServiceConfig,
   type StatefulService,
   type StopGatedService,
   STOP_GATED_SERVICES,
@@ -27,6 +28,12 @@ import {
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
+import { requireAutomationProtocol } from '../deployment/automation-protocol';
+import {
+  admitPendingAutomationColor,
+  admitTagAutomationImage,
+  tagDeploymentProtocol,
+} from '../deployment/tag-automation-protocol';
 import { dockerCompose } from '../docker/docker-compose';
 import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
@@ -35,6 +42,7 @@ import { getContainerVersion } from '../docker/get-container-version';
 import { isContainerRunning } from '../docker/is-container-running';
 import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
+import { pruneSupersededImages } from '../docker/prune-superseded-images';
 import { pullImage } from '../docker/pull-image';
 import { waitForHealthy } from '../docker/wait-for-healthy';
 import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
@@ -46,6 +54,7 @@ import {
 } from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
+import { getPreviousVersion } from '../state/get-previous-version';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
@@ -216,39 +225,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
       // Check if this is a first-time deployment
       const currentColor = await getCurrentColor(env.DEPLOY_DIR);
       const isFirstDeploy = currentColor === null;
-
-      // Pre-mutation volume snapshot — the recovery point for forward-only
-      // migrations. Taken whenever this deploy can change data: a version
-      // change (new images run implicit migrations on first boot) or a
-      // host-config push. First deploys have nothing to snapshot yet;
-      // snapshot failure aborts the deploy unless the operator opted out
-      // via --skip-backup.
-      if (!isFirstDeploy) {
-        const snapshotPrefix = `${getProjectId()}_`;
-        const runningVersion = await colorPlatformVersion(currentColor);
-        const wouldMutate =
-          runningVersion !== version ||
-          Boolean(options.override) ||
-          Boolean(options.overrideAll);
-        if (wouldMutate) {
-          if (dryRun) {
-            logger.info(
-              `${prefix}Would create pre-deploy volume snapshot in ${snapshotPrefix}backups (and rotate old ones)`,
-            );
-          } else if (options.skipBackup) {
-            logger.warn(
-              '--skip-backup: skipping the pre-deploy volume snapshot — if this deploy migrates data, recovery falls back to your own external backups.',
-            );
-          } else {
-            await createSnapshot({
-              prefix: snapshotPrefix,
-              trigger: 'deploy',
-              platformVersion: runningVersion,
-            });
-            await rotateSnapshots({ prefix: snapshotPrefix });
-          }
-        }
-      }
+      const installedProtocol = await tagDeploymentProtocol(
+        getProjectId(),
+        !isFirstDeploy,
+      );
 
       // Determine which services to deploy
       let rotatableToUpdate: RotatableService[];
@@ -313,7 +293,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         `Stateful services: ${statefulToUpdate.join(', ') || 'none'}`,
       );
 
-      const serviceConfig = {
+      const serviceConfig: ServiceConfig = {
         version,
         registry: env.GHCR_REGISTRY,
       };
@@ -369,10 +349,24 @@ export async function deploy(options: DeployOptions): Promise<void> {
         imagesToPull.push(buildkitdImageRemote);
       }
 
+      const checkInstalledWriter = async () => {
+        if (rotatableToUpdate.length === 0) return;
+        requireAutomationProtocol(
+          await tagDeploymentProtocol(getProjectId(), !isFirstDeploy),
+          serviceConfig.platformImage === undefined ? 1 : 2,
+        );
+      };
+
       if (dryRun) {
+        if (rotatableToUpdate.length > 0 && installedProtocol === 2)
+          serviceConfig.platformImage = await admitTagAutomationImage(
+            serviceConfig,
+            installedProtocol,
+          );
         for (const image of imagesToPull) {
           logger.info(`${prefix}Would pull: ${image}`);
         }
+        await checkInstalledWriter();
         if (runtimeImageRemote) {
           logger.info(
             `${prefix}Would tag: ${runtimeImageRemote} -> tale-sandbox-runtime:latest`,
@@ -410,6 +404,21 @@ export async function deploy(options: DeployOptions): Promise<void> {
               'Please wait a few minutes and try again.',
           );
         }
+        if (rotatableToUpdate.length > 0) {
+          serviceConfig.platformImage = await admitTagAutomationImage(
+            serviceConfig,
+            installedProtocol,
+          );
+          const pending = await getFlipPending(env.DEPLOY_DIR);
+          const promoting = pending?.promoting ?? getNextColor(currentColor);
+          if (await colorLooksUp(promoting, rotatableToUpdate, replicas))
+            await admitPendingAutomationColor(
+              colorProject(promoting),
+              serviceConfig.platformImage,
+              installedProtocol,
+            );
+        }
+        await checkInstalledWriter();
         if (runtimeImageRemote) {
           const tagResult = await exec('docker', [
             'tag',
@@ -436,9 +445,43 @@ export async function deploy(options: DeployOptions): Promise<void> {
         }
       }
 
+      // Pre-mutation volume snapshot — the recovery point for forward-only
+      // migrations. Taken whenever this deploy can change data: a version
+      // change (new images run implicit migrations on first boot) or a
+      // host-config push. First deploys have nothing to snapshot yet;
+      // snapshot failure aborts the deploy unless the operator opted out
+      // via --skip-backup.
+      if (!isFirstDeploy) {
+        const snapshotPrefix = `${getProjectId()}_`;
+        const runningVersion = await colorPlatformVersion(currentColor);
+        const wouldMutate =
+          runningVersion !== version ||
+          Boolean(options.override) ||
+          Boolean(options.overrideAll);
+        if (wouldMutate) {
+          if (dryRun) {
+            logger.info(
+              `${prefix}Would create pre-deploy volume snapshot in ${snapshotPrefix}backups (and rotate old ones)`,
+            );
+          } else if (options.skipBackup) {
+            logger.warn(
+              '--skip-backup: skipping the pre-deploy volume snapshot — if this deploy migrates data, recovery falls back to your own external backups.',
+            );
+          } else {
+            await createSnapshot({
+              prefix: snapshotPrefix,
+              trigger: 'deploy',
+              platformVersion: runningVersion,
+            });
+            await rotateSnapshots({ prefix: snapshotPrefix });
+          }
+        }
+      }
+
       // Must run AFTER migrations (which may `docker compose down`, removing
       // networks) and BEFORE any `docker compose up` for stateful or rotatable
       // services.
+      await checkInstalledWriter();
       await ensureInfrastructure(prefix, dryRun);
 
       // Deploy stateful services if any
@@ -797,6 +840,15 @@ export async function deploy(options: DeployOptions): Promise<void> {
           assumeYes: options.assumeYes ?? false,
         });
       }
+
+      // Each deploy pulls its images by version tag, so the versions it
+      // replaced keep their tags and stay on the host until removed here. The
+      // live version and the rollback target stay.
+      await pruneSupersededImages(
+        env.GHCR_REGISTRY,
+        [version, await getPreviousVersion(env.DEPLOY_DIR)],
+        { dryRun },
+      );
 
       if (!dryRun) {
         logger.success(`Deployment complete! Version ${version} is now live`);

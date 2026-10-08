@@ -22,7 +22,10 @@ import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming
 import type { TurnOpRef } from '../../core/sandbox/tool_names.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
-import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
+import {
+  wakeParkedAgentRuns,
+  wakeSessionParkedAgentRun,
+} from '../tasks/agent-runs.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
 import {
   sessionDestroyPending,
@@ -333,12 +336,15 @@ export async function setSessionPinned(
  * member who starts its runs — until the agent's last turn ends. A freed slot is a release edge: the org's oldest parked
  * run, and the oldest parked run of the other organizations (the sandbox
  * host is shared), are woken at once instead of idling until the 2-minute
- * watchdog tick (`wakeParkedAgentRuns`). Best-effort — a wake failure must
+ * watchdog tick (`wakeParkedAgentRuns`). A release that names the workspace
+ * of the turn that ended also wakes the oldest run parked on that workspace,
+ * stopped or not: the ended exec gave back one of its runtime's live-exec
+ * places (`wakeSessionParkedAgentRun`). Best-effort — a wake failure must
  * never fail the release.
  */
 export async function releaseProjectAgentSessionSlot(
   sql: Sql,
-  args: { organizationId: string; agentId: string },
+  args: { organizationId: string; agentId: string; sessionId?: string },
   readTicket?: IdleReleaseTicketReader,
   /** `wake: false` frees the slot without waking a parked run: the release
    * of a run that is itself parking for room, which would otherwise wake
@@ -391,6 +397,14 @@ export async function releaseProjectAgentSessionSlot(
         console.warn('[sandbox] capacity wake failed:', error);
       },
     );
+  }
+  if (args.sessionId !== undefined && opts.wake !== false) {
+    await wakeSessionParkedAgentRun(sql, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+    }).catch((error: unknown) => {
+      console.warn('[sandbox] workspace wake failed:', error);
+    });
   }
   return rows.length > 0;
 }

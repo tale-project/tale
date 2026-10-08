@@ -361,6 +361,7 @@ const turnEndSchema = z.object({
     .optional(),
   isError: z.boolean().optional(),
   apiErrorStatus: z.number().optional(),
+  providerErrorKind: z.literal('model_capacity').optional(),
 });
 const turnCheckpointSchema = z.object({
   version: z.literal(1),
@@ -434,6 +435,14 @@ export async function drainHarnessWindow(args: {
   onStarted?: () => Promise<void>;
   /** The drain window length — `DRAIN_WINDOW_MS` unless a test shortens it. */
   windowMs?: number;
+  /**
+   * Ends the window early, the way its elapsing does: the exec keeps
+   * running and the window answers `running`, so its caller hands the turn
+   * to a next window — a stopping server passes it so another process
+   * drains the turn on. Only a re-attach window takes it: aborting a start
+   * window before its exec launched would lose the start.
+   */
+  signal?: AbortSignal;
 }): Promise<HarnessWindowResult> {
   const glue = getHarnessGlue(
     isHarnessSlug(args.harness) ? args.harness : 'claude-code',
@@ -687,7 +696,11 @@ export async function drainHarnessWindow(args: {
   }
 
   const windowSignal = AbortSignal.timeout(args.windowMs ?? DRAIN_WINDOW_MS);
-  const drainSignal = AbortSignal.any([windowSignal, turnEndedCut.signal]);
+  const drainSignal = AbortSignal.any([
+    windowSignal,
+    turnEndedCut.signal,
+    ...(args.signal !== undefined ? [args.signal] : []),
+  ]);
   if (ended !== undefined && pendingTasks.size === 0) armTurnEndedCut();
   let exited = false;
   let execResult: SessionExecResult | undefined;

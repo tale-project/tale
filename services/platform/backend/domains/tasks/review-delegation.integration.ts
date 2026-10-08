@@ -30,6 +30,7 @@ interface Fixture {
   sql: Sql;
   orgId: string;
   projectId: string;
+  neighborProjectId: string;
   implementerId: string;
   reviewerId: string;
   reviewerToken: string;
@@ -366,6 +367,61 @@ export async function checkReviewDelegation(f: Fixture): Promise<void> {
   } finally {
     await sql`UPDATE app.project_agents SET tools = ${implementationTools[0]?.tools === null ? null : sql.array(implementationTools[0]?.tools ?? [])} WHERE id = ${f.implementerId}`;
   }
+  // Nor can it route its own review to a reviewer it picks, even with the
+  // delegation grant and a live project-wide run.
+  const implementerRole = await fx.insertTask({
+    projectId,
+    title: 'Implementer routing attempt',
+    status: 'in_progress',
+    agentId: f.implementerId,
+  });
+  const implementerRun = await f.addRun(
+    implementerRole,
+    f.implementerId,
+    'running',
+  );
+  await sql`INSERT INTO app.sandbox_sessions (org_id, session_id, status, owner_type, owner_id, created_by, created_at_ms, expires_at_ms)
+    VALUES (${orgId}, ${implementerRun.sessionId}, 'active', 'project_agent', ${f.implementerId}, 'itest:delegation', ${fx.now}, ${fx.now + 3_600_000})`;
+  f.sessions.add(implementerRun.sessionId);
+  await sql`UPDATE app.project_agents SET tools = ${sql.array(grants)} WHERE id = ${f.implementerId}`;
+  try {
+    await noEffect(
+      revokedInput,
+      'granted implementer cannot delegate the review of its own source',
+      'TASK_REVIEWER_NOT_INDEPENDENT',
+      await f.tokenFor(implementerRun.sessionId, implementerRun.execId, grants),
+    );
+  } finally {
+    // Later lanes start this implementer; leave it no live run or workspace.
+    await sql`UPDATE app.project_agent_runs SET status = 'cancelled', settled_at_ms = ${Date.now()} WHERE id = ${implementerRun.id}`;
+    await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${orgId} AND session_id = ${implementerRun.sessionId}`;
+    await sql`UPDATE app.project_agents SET tools = ${implementationTools[0]?.tools === null ? null : sql.array(implementationTools[0]?.tools ?? [])} WHERE id = ${f.implementerId}`;
+  }
+  const neighborTask = await fx.insertTask({
+    projectId: f.neighborProjectId,
+    title: 'Review in another project',
+    status: 'in_review',
+  });
+  const crossBefore = [
+    await snapshot(neighborTask),
+    await snapshot(revoked.taskId),
+  ];
+  const crossProject = await delegate({
+    ...revokedInput,
+    taskId: neighborTask,
+  });
+  report(
+    'a granted manager cannot delegate a task of another project',
+    refused(crossProject, 'TASK_REVIEW_FORBIDDEN') &&
+      String(crossProject.message).endsWith(
+        'The task is outside this project',
+      ) &&
+      isDeepStrictEqual(crossBefore, [
+        await snapshot(neighborTask),
+        await snapshot(revoked.taskId),
+      ]),
+    String(crossProject.message),
+  );
   const removedReviewer = randomUUID();
   await newReviewer(removedReviewer);
   const deletedInput = { ...revokedInput, reviewerAgentId: removedReviewer };

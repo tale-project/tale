@@ -80,6 +80,10 @@ const projectRun = {
   startedAt: 1_700_000_000_000,
   finishedAt: null,
   askPending: true,
+  resumeCount: 0,
+  lastResumeReason: null,
+  lastResumedAt: null,
+  stalled: false,
 };
 
 const ask = {

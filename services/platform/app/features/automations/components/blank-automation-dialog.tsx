@@ -44,6 +44,7 @@ import {
   AGENT_TOOL_CATALOG,
   PROJECT_AGENT_ONLY_TOOLS,
 } from '@/backend/core/sandbox/tool_names';
+import { blankAutomationDocument } from '@/lib/automations/blank-document';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
@@ -283,31 +284,17 @@ export function BlankAutomationDialog({
     if (creatingRef.current) return;
     creatingRef.current = true;
     setSubmitting(true);
-    // The one-agent scaffold: a valid v1 document carrying the equipment the
-    // wizard collected. The harness and anything else are refined on the
-    // canvas afterward. The model pick stores the PAIR (`model` +
-    // `modelProvider`), so the run is served — and billed — by exactly the
-    // provider on screen instead of whichever connector a walk reaches first.
-    const automation = {
-      version: 1,
-      name: slug,
-      nodes: [
-        {
-          id: 'agent',
-          type: 'agent',
-          model,
-          ...(modelProvider !== '' ? { modelProvider } : {}),
-          prompt: prompt.trim(),
-          ...(binding.skills.length > 0 ? { skills: [...binding.skills] } : {}),
-          ...(binding.connectors.length > 0
-            ? { connectors: [...binding.connectors] }
-            : {}),
-          ...(binding.tools.length > 0 ? { tools: [...binding.tools] } : {}),
-          ...(secretNames.length > 0 ? { secrets: [...secretNames] } : {}),
-        },
-      ],
-      output: '{{ nodes.agent.output.text }}',
-    };
+    // The one-agent scaffold, carrying the equipment the wizard collected.
+    const automation = blankAutomationDocument({
+      slug,
+      model,
+      modelProvider,
+      prompt,
+      skills: binding.skills,
+      connectors: binding.connectors,
+      tools: binding.tools,
+      secrets: secretNames,
+    });
     try {
       const saved = await saveAutomation({
         organizationId,

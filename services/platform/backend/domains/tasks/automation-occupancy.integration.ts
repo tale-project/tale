@@ -1,11 +1,13 @@
-/** Ordinary org/multi-bound admission and native questions, with every step
- * job deferred inside its creating transaction. No provider turn executes. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql, TransactionSql } from 'postgres';
 
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import { automationAskShimHandlers } from '../automations/ask-shim.ts';
 import { beginRunInTx } from '../automations/store.ts';
+/** Ordinary org/multi-bound admission and native questions, with every step
+ * job deferred inside its creating transaction. No provider turn executes. */
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { updateAgentTaskMetadata } from './agent-metadata.ts';
 import { kickAgentRun } from './agent-runs.ts';
 import { readTaskWorkState } from './agent-work-state.ts';
@@ -129,7 +131,7 @@ export async function checkTaskAutomationOccupancy(
         });
         if (started === null) throw new Error('itest: run was not admitted');
         await tx`UPDATE pgboss.job SET start_after = now() + interval '1 day'
-          WHERE name = 'automation.step' AND data ->> 'runId' = ${started.runId}`;
+          WHERE name = ${physicalTaskQueue('automation.step')} AND data ->> 'runId' = ${started.runId}`;
         return started.runId;
       });
       runIds.push(runId);
@@ -137,9 +139,12 @@ export async function checkTaskAutomationOccupancy(
       sessions.push(sessionId);
       // An inert native cursor/session stands in for a launched turn. The
       // real ask door resolves its run and task, and writes the question.
-      await sql`UPDATE app.automation_runs SET status = 'waiting',
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`UPDATE app.automation_runs SET status = 'waiting',
         checkpoints = ${sql.json({ nodes: {}, executions: 1, cursor: { node: 'ask', agent: { execId: randomUUID() } } })}
         WHERE id = ${runId}`;
+      });
       await sql`INSERT INTO app.sandbox_sessions (org_id, session_id, status, owner_type, owner_id, created_by, created_at_ms, expires_at_ms)
         VALUES (${orgId}, ${sessionId}, 'active', 'workflow_run', ${`${runId}:ask`}, ${userId}, ${fx.now}, ${fx.now + 600_000})`;
       const ask =
@@ -279,10 +284,13 @@ export async function checkTaskAutomationOccupancy(
       ['terminal', orgId, null, target, 'success'],
       ['malformed', orgId, null, 'not-a-task-id', 'waiting'],
     ] as const) {
-      const rows = await sql<{ id: string }[]>`INSERT INTO app.automation_runs
+      const rows = await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx<{ id: string }[]>`INSERT INTO app.automation_runs
         (org_id, name, version, project_id, status, mode, started_by, input, checkpoints, started_at_ms)
         VALUES (${runOrg}, ${`itest/occupancy-${fx.suffix}-${label}`}, 1, ${runProject}, ${status}, 'live', ${userId},
           ${sql.json({ task: { id: inputTask } })}, ${sql.json({})}, ${fx.now}) RETURNING id`;
+      });
       const runId = rows[0]?.id;
       if (runId === undefined) throw new Error('itest: scope run missing');
       runIds.push(runId);
@@ -313,10 +321,14 @@ export async function checkTaskAutomationOccupancy(
           transfer.value.changed === true,
         `live=${live !== null} latest=${latest !== null} changed=${isRecord(transfer.value) && transfer.value.changed === true}`,
       );
-      await sql`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+      });
     }
 
     const retirement = await rolledBack(sql, async (tx) => {
+      await markAutomationWriterInTx(tx);
       const rows = await tx<{ id: string }[]>`INSERT INTO app.automation_runs
         (org_id, name, version, project_id, status, mode, started_by, input, checkpoints, started_at_ms)
         VALUES (${orgId}, ${`itest/occupancy-${fx.suffix}-retire`}, 1, NULL, 'waiting', 'live', ${userId},
@@ -355,6 +367,7 @@ export async function checkTaskAutomationOccupancy(
       const copy = (await loadTaskOrThrow(tx, original, orgId))
         .repeatNextTaskId;
       if (copy === null) throw new Error('itest: repeat copy was not created');
+      await markAutomationWriterInTx(tx);
       await tx`INSERT INTO app.automation_runs
         (org_id, name, version, project_id, status, mode, started_by, input, checkpoints, started_at_ms)
         VALUES (${orgId}, ${`itest/occupancy-${fx.suffix}-repeat`}, 1, NULL, 'waiting', 'live', ${userId},
@@ -376,7 +389,10 @@ export async function checkTaskAutomationOccupancy(
   } finally {
     await sql`DELETE FROM pgboss.job WHERE data ->> 'runId' = ANY(${runIds})`;
     await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ANY(${sessions})`;
-    await sql`DELETE FROM app.automation_runs WHERE id = ANY(${runIds})`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`DELETE FROM app.automation_runs WHERE id = ANY(${runIds})`;
+    });
     await sql`DELETE FROM app.automation_project_bindings WHERE org_id = ${orgId} AND automation_name = ANY(${names})`;
     await sql`DELETE FROM app.automation_deployments WHERE org_id = ${orgId} AND name = ANY(${names})`;
     await sql`DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ANY(${names})`;

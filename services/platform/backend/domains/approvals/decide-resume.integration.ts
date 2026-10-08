@@ -1,22 +1,28 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Sql } from 'postgres';
+import { z } from 'zod';
+
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
+import { suspendRun } from '../automations/store.ts';
 /**
- * Real Postgres proof for the decision door's resume: a committed approval
- * answers as committed when waking its parked run fails afterwards, and a
+ * Real Postgres proof for the decision door's resume: a decision and the
+ * wake of its parked run commit together — a wake that cannot be queued
+ * leaves the decision unrecorded, and deciding again records it — and a
  * decision wakes its run exactly once — normal approve and reject, a
- * duplicate, two decisions racing, and a run cancelled first.
+ * duplicate, two decisions racing, and a run cancelled first. A decision
+ * that lands while the run is still walking towards its park wakes it when
+ * the park lands (`suspendRun`), instead of leaving it to the poll.
  *
- * The approvals are minted by the real gate for waiting runs of this lane,
- * and decided through the app door over HTTP. The one injected fault is the
+ * The approvals are minted by the real gate for runs of this lane, and
+ * decided through the app door over HTTP. The one injected fault is the
  * last step of the wake: a trigger on the pg-boss job table refuses the
  * `automation.step` insert for a run named in `faulted`, so pg-boss's own
  * `send` rejects inside the poke. The same trigger holds every other step
  * job of these runs a day out, so the harness worker never picks one up and
  * each job stays countable.
  */
-import { randomUUID } from 'node:crypto';
-
-import type { Sql } from 'postgres';
-import { z } from 'zod';
-
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { evaluateApprovalGate, type EvaluateApprovalGateArgs } from './gate.ts';
 
 const decideAnswer = z.looseObject({
@@ -49,20 +55,29 @@ export async function checkApprovalDecisionResume(
   };
 
   const runs: string[] = [];
-  const parked = async (): Promise<{
+  /** A run of this lane with its approval minted: parked on it, or still
+   * walking towards that park (`running`, claimed at `WALKER_EPOCH`). */
+  const WALKER_EPOCH = 3;
+  const parked = async (
+    status: 'waiting' | 'running' = 'waiting',
+  ): Promise<{
     runId: string;
     approvalId: string;
     gate: EvaluateApprovalGateArgs;
   }> => {
-    const inserted = await sql<{ id: string }[]>`
+    const inserted = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs
         (org_id, name, version, project_id, status, mode, started_by, input,
-         detail, wake_at_ms, started_at_ms)
-      VALUES (${orgId}, ${lane}, 1, NULL, 'waiting', 'live', 'user:itest',
-              ${sql.json({ lane })}, 'approval:pending',
-              ${Date.now() + 86_400_000}, ${Date.now()})
+         detail, wake_at_ms, claim_epoch, started_at_ms)
+      VALUES (${orgId}, ${lane}, 1, NULL, ${status}, 'live', 'user:itest',
+              ${sql.json({ lane })},
+              ${status === 'waiting' ? 'approval:pending' : null},
+              ${Date.now() + 86_400_000}, ${WALKER_EPOCH}, ${Date.now()})
       RETURNING id
     `;
+    });
     const runId = inserted[0]?.id ?? '';
     runs.push(runId);
     const gate: EvaluateApprovalGateArgs = {
@@ -81,16 +96,46 @@ export async function checkApprovalDecisionResume(
     const minted = await evaluateApprovalGate(sql, gate);
     const approvalId =
       minted.decision === 'needs-approval' ? (minted.approvalId ?? '') : '';
-    await sql`
-      UPDATE app.automation_runs SET detail = ${`approval:${approvalId}`}
+    if (status === 'waiting') {
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`
+        UPDATE app.automation_runs SET detail = ${`approval:${approvalId}`}
+        WHERE id = ${runId}
+      `;
+      });
+    }
+    return { runId, approvalId, gate };
+  };
+  /** The walker's park on the run's approval, as the stepper makes it. */
+  const park = (runId: string, approvalId: string) =>
+    suspendRun(sql, {
+      organizationId: orgId,
+      runId,
+      epoch: WALKER_EPOCH,
+      detail: `approval:${approvalId}`,
+      executions: 1,
+      resumeInMs: 600_000,
+    });
+  const pollJobs = async (runId: string): Promise<number> => {
+    const rows = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM pgboss.job
+      WHERE name = ${physicalTaskQueue('automation.poll')} AND data->>'runId' = ${runId}
+        AND data->>'organizationId' = ${orgId}
+    `;
+    return Number(rows[0]?.count ?? '-1');
+  };
+  const wakeIn = async (runId: string): Promise<number> => {
+    const rows = await sql<{ wakeAt: number | null }[]>`
+      SELECT wake_at_ms::float8 AS "wakeAt" FROM app.automation_runs
       WHERE id = ${runId}
     `;
-    return { runId, approvalId, gate };
+    return (rows[0]?.wakeAt ?? 0) - Date.now();
   };
   const stepJobs = async (runId: string): Promise<number> => {
     const rows = await sql<{ count: string }[]>`
       SELECT count(*)::text AS count FROM pgboss.job
-      WHERE name = 'automation.step' AND data->>'runId' = ${runId}
+      WHERE name = ${physicalTaskQueue('automation.step')} AND data->>'runId' = ${runId}
         AND data->>'organizationId' = ${orgId}
     `;
     return Number(rows[0]?.count ?? '-1');
@@ -123,7 +168,7 @@ export async function checkApprovalDecisionResume(
   // The step queue's table, as pg-boss created it for this deployment.
   const queue = await sql<{ table: string }[]>`
     SELECT table_name AS "table" FROM pgboss.queue
-    WHERE name = 'automation.step'
+    WHERE name = ${physicalTaskQueue('automation.step')}
   `;
   const jobTable = queue[0]?.table ?? 'job';
   const faultTable = `itest_decide_resume_${randomUUID().replaceAll('-', '')}`;
@@ -136,7 +181,7 @@ export async function checkApprovalDecisionResume(
     LANGUAGE plpgsql AS $fn$
     DECLARE hit public.${faultTable};
     BEGIN
-      IF NEW.name = 'automation.step' THEN
+      IF NEW.name = '${physicalTaskQueue('automation.step')}' THEN
         SELECT * INTO hit FROM public.${faultTable}
         WHERE run_id = NEW.data->>'runId';
         IF FOUND AND hit.faulted THEN
@@ -158,39 +203,88 @@ export async function checkApprovalDecisionResume(
       [runId, faulted],
     );
   };
+  const heal = async (runId: string): Promise<void> => {
+    await sql.unsafe(
+      `UPDATE public.${faultTable} SET faulted = false WHERE run_id = $1`,
+      [runId],
+    );
+  };
 
   try {
-    // --- The wake fails after the decision committed.
+    // --- The wake cannot be queued: the decision is not recorded either.
     const fault = await parked();
     await watch(fault.runId, true);
+    // The door reports the refused send as the fault it is: an error line in
+    // the log is this probe working, not failing.
     const faulted = await decide(fault.approvalId, 'executing');
     const faultRow = await approvalOf(fault.approvalId);
     const faultAudits = await audits(fault.approvalId);
     const faultJobs = await stepJobs(fault.runId);
     const faultRun = await runStatus(fault.runId);
     record(
-      'approval decision answers as committed when waking its run fails',
+      'approval decision whose wake cannot be queued records nothing',
       fault.approvalId !== '' &&
-        faulted.status === 200 &&
-        faulted.body.ok === true &&
-        faultRow?.status === 'executing' &&
-        faultAudits === 1 &&
+        faulted.status >= 500 &&
+        faultRow?.status === 'pending' &&
+        faultAudits === 0 &&
         faultJobs === 0 &&
         faultRun === 'waiting',
-      `minted=${fault.approvalId !== ''}, decide → ${faulted.status} ${JSON.stringify(faulted.body)} (want 200 {ok:true}), row=${faultRow?.status} (want executing), audits=${faultAudits} (want 1), stepJobs=${faultJobs} (want 0), run=${faultRun} (want waiting: its own poll resumes it)`,
+      `minted=${fault.approvalId !== ''}, decide → ${faulted.status} (want 5xx), row=${faultRow?.status} (want pending), audits=${faultAudits} (want 0), stepJobs=${faultJobs} (want 0), run=${faultRun} (want waiting)`,
     );
+    await heal(fault.runId);
     const retried = await decide(fault.approvalId, 'executing');
+    const retriedAudits = await audits(fault.approvalId);
     const retriedJobs = await stepJobs(fault.runId);
     const gateAfter = await evaluateApprovalGate(sql, fault.gate);
     const consumed = await approvalOf(fault.approvalId);
     record(
-      'approval decision after a failed wake: the retry and the gate agree with the 200',
-      retried.status === 409 &&
-        retried.body.error === 'ALREADY_RESOLVED' &&
-        retriedJobs === 0 &&
+      'approval decision after a failed wake: deciding again records it and wakes the run once',
+      retried.status === 200 &&
+        retried.body.ok === true &&
+        retriedAudits === 1 &&
+        retriedJobs === 1 &&
         gateAfter.decision === 'allow' &&
         consumed?.status === 'completed',
-      `retry → ${retried.status}/${retried.body.error} (want 409/ALREADY_RESOLVED), stepJobs=${retriedJobs} (want 0), gate=${gateAfter.decision} (want allow), row=${consumed?.status} (want completed)`,
+      `retry → ${retried.status} ${JSON.stringify(retried.body)} (want 200 {ok:true}), audits=${retriedAudits} jobs=${retriedJobs} (want 1/1), gate=${gateAfter.decision} (want allow), row=${consumed?.status} (want completed)`,
+    );
+
+    // --- A decision that lands before the walker's park: the park wakes.
+    const early = await parked('running');
+    await watch(early.runId);
+    const earlyDecision = await decide(early.approvalId, 'executing');
+    const earlyJobsBefore = await stepJobs(early.runId);
+    const earlyPark = await park(early.runId, early.approvalId);
+    const earlyJobs = await stepJobs(early.runId);
+    const earlyPolls = await pollJobs(early.runId);
+    const earlyWake = await wakeIn(early.runId);
+    record(
+      'approval decided before its park: the park wakes the run at once [APV-R12]',
+      earlyDecision.status === 200 &&
+        earlyJobsBefore === 0 &&
+        earlyPark.suspended &&
+        earlyJobs === 1 &&
+        earlyPolls === 0 &&
+        earlyWake > 0 &&
+        earlyWake <= 180_000,
+      `decide → ${earlyDecision.status} (want 200), jobs before the park=${earlyJobsBefore} (want 0: the run was walking), parked=${earlyPark.suspended}, jobs=${earlyJobs} polls=${earlyPolls} (want 1/0), wake in ${Math.round(earlyWake / 1000)} s (want within the 180 s claim promise)`,
+    );
+    const pending = await parked('running');
+    await watch(pending.runId);
+    const pendingPark = await park(pending.runId, pending.approvalId);
+    const pendingJobs = await stepJobs(pending.runId);
+    const pendingPolls = await pollJobs(pending.runId);
+    const pendingWake = await wakeIn(pending.runId);
+    const pendingDecision = await decide(pending.approvalId, 'rejected');
+    const pendingWoken = await stepJobs(pending.runId);
+    record(
+      'approval still pending at its park: a backstop poll, then the decision wakes it',
+      pendingPark.suspended &&
+        pendingJobs === 0 &&
+        pendingPolls === 1 &&
+        pendingWake > 540_000 &&
+        pendingDecision.status === 200 &&
+        pendingWoken === 1,
+      `parked=${pendingPark.suspended}, jobs=${pendingJobs} polls=${pendingPolls} (want 0/1), wake in ${Math.round(pendingWake / 1000)} s (want about 600 s), decide → ${pendingDecision.status} (want 200), jobs after=${pendingWoken} (want 1)`,
     );
 
     // --- Controls: each decision wakes its own run exactly once.
@@ -278,14 +372,18 @@ export async function checkApprovalDecisionResume(
     if (runs.length > 0) {
       await sql`
         DELETE FROM pgboss.job
-        WHERE name = 'automation.step' AND data->>'runId' IN ${sql(runs)}
+        WHERE name IN (${physicalTaskQueue('automation.step')}, ${physicalTaskQueue('automation.poll')})
+          AND data->>'runId' IN ${sql(runs)}
       `;
-      await sql`
+      await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx`
         UPDATE app.automation_runs
         SET status = 'cancelled', wake_at_ms = NULL,
             finished_at_ms = ${Date.now()}
         WHERE id IN ${sql(runs)} AND status IN ('queued', 'running', 'waiting')
       `;
+      });
     }
   }
 }

@@ -131,6 +131,8 @@ L’URL cible désigne l’API accessible ; l’origine est celle du navigateur
 
 Le déploiement crée les skills manquants par le téléversement natif réservé à la création et vérifie chaque octet installé. Il réutilise des octets existants identiques et refuse tout contenu différent sous le même slug de release. L’import du workflow seul ne peut écrire aucun skill. Avant d’annoncer le succès, la CLI vérifie le workflow déployé, les paramètres, la présentation, le contrat de tâche et le lien au projet.
 
+L’import répond avec les avertissements du workflow. Un avertissement sur la logique du workflow lui-même, par exemple la lecture d’un nœud qui peut être ignoré ou un nœud qui ne peut jamais s’exécuter, n’arrête pas le déploiement : le résultat le liste sous `importWarnings`. Tout autre avertissement, par exemple un skill que l’organisation n’a pas, arrête le déploiement après l’import, et la version enregistrée n’est pas déployée. [Ce que Tale vérifie avant une exécution](/fr/platform/automations/concepts#checks) explique chaque avertissement.
+
 Lance `verify-native` après le déploiement et les tests d’exploitation. Cette commande n’importe rien et ne crée ni version ni reçu. Un déploiement répété relit aussi le contenu natif avant de signaler une release inchangée. Un reçu conservé ne prouve pas, à lui seul, les octets actuels.
 
 ## Reprendre un déploiement interrompu

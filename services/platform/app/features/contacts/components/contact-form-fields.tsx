@@ -12,8 +12,12 @@ import { useT } from '@/lib/i18n/client';
 
 import type { ContactFormValues } from '../hooks/use-contact-form';
 
-/** Digits plus the punctuation people type in phone numbers. */
-const PHONE_ALLOWED = /[^\d+().\s-]/g;
+/**
+ * A character no phone number holds: anything but digits and the punctuation
+ * people type in them (`CONTACT_PHONE_PATTERN`'s alphabet). Not global, so
+ * `test` doesn't resume from the previous match.
+ */
+const PHONE_FORBIDDEN_CHARACTER = /[^\d+().\s-]/;
 
 interface ContactFormFieldsProps {
   register: UseFormRegister<ContactFormValues>;
@@ -77,13 +81,13 @@ export function ContactFormFields({
         label={tContacts('phone')}
         placeholder={tContacts('phonePlaceholder')}
         {...register('phone', {
-          // Refuse letters, but say so — silent stripping feels like a
-          // broken keyboard. Digits and phone punctuation stay.
+          // Name a letter as it is typed, but keep it in the field: stripping
+          // it changed the number behind the person's back, and Save then
+          // sent the cleaned value (`00kkkk` became `00`) once this message
+          // was gone (#3825). The schema refuses the same characters, so
+          // Save stays blocked until they are removed.
           onChange: (event) => {
-            const raw = event.target.value;
-            const cleaned = raw.replace(PHONE_ALLOWED, '');
-            if (raw !== cleaned) {
-              event.target.value = cleaned;
+            if (PHONE_FORBIDDEN_CHARACTER.test(event.target.value)) {
               setError('phone', {
                 type: 'manual',
                 message: tCommon('validation.phone'),

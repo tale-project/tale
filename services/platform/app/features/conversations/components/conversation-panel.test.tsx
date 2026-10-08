@@ -38,6 +38,7 @@ const undoSendMessage = vi.fn(
 );
 const sendMessageViaConnector = vi.fn(async () => 'm2');
 const discardSuggestedReply = vi.fn();
+const markAsRead = vi.fn();
 const generateUploadUrl = vi.fn(async () => 'https://upload.test/put');
 
 vi.mock('../hooks/queries', () => ({
@@ -59,7 +60,7 @@ vi.mock('../hooks/mutations', () => ({
     isPending: false,
   }),
   useGenerateUploadUrl: () => ({ mutateAsync: generateUploadUrl }),
-  useMarkAsRead: () => ({ mutate: vi.fn() }),
+  useMarkAsRead: () => ({ mutate: markAsRead }),
   useReopenConversation: () => ({ mutate: vi.fn(), isPending: false }),
   useRetrySendMessage: () => ({ mutate: vi.fn() }),
   useSendMessageViaConnector: () => ({ mutateAsync: sendMessageViaConnector }),
@@ -416,5 +417,97 @@ describe('ConversationPanel — undoing a reply', () => {
       status: 'rejected',
     });
     expect(editor?.pendingMessage).toBeUndefined();
+  });
+});
+
+describe('ConversationPanel — marking an opened conversation read', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    conversation = conversationFixture('c1');
+  });
+
+  it.each([
+    ['delayed', '2026-09-28T11:33:23.127Z'],
+    ['normal', '2026-09-30T11:33:23.127Z'],
+  ])(
+    'marks a %s unread message read regardless of timestamp order',
+    async (_kind, timestamp) => {
+      conversation = {
+        ...conversation,
+        unread_count: 1,
+        last_message_at: timestamp,
+        last_read_at: '2026-09-29T11:33:23.175Z',
+      };
+      render(
+        <ConversationPanel
+          selectedConversationId="c1"
+          onSelectedConversationChange={vi.fn()}
+        />,
+      );
+
+      await waitFor(() =>
+        expect(markAsRead).toHaveBeenCalledWith(
+          { conversationId: 'c1' },
+          expect.anything(),
+        ),
+      );
+      expect(markAsRead).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('does not write for an already-read conversation even with a newer timestamp or no read marker', () => {
+    conversation = {
+      ...conversation,
+      unread_count: 0,
+      last_read_at: undefined,
+    };
+    const view = render(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    expect(markAsRead).not.toHaveBeenCalled();
+    conversation = {
+      ...conversation,
+      last_read_at: '2026-09-01T00:00:00.000Z',
+    };
+    view.rerender(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    expect(markAsRead).not.toHaveBeenCalled();
+  });
+
+  it('uses refreshed unread state while the conversation remains open', async () => {
+    const view = render(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    expect(markAsRead).not.toHaveBeenCalled();
+    conversation = {
+      ...conversation,
+      unread_count: 1,
+      last_message_at: '2026-09-01T00:00:00.000Z',
+    };
+    view.rerender(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(markAsRead).toHaveBeenCalledTimes(1));
+    conversation = { ...conversation, unread_count: 0 };
+    view.rerender(
+      <ConversationPanel
+        selectedConversationId="c1"
+        onSelectedConversationChange={vi.fn()}
+      />,
+    );
+    expect(markAsRead).toHaveBeenCalledTimes(1);
   });
 });

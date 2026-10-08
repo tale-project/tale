@@ -134,6 +134,47 @@ class ContentMismatch extends ConfigError {
     this.name = 'ContentMismatch';
   }
 }
+/**
+ * Warning codes a native import may answer that do not stop a release. The
+ * platform's static analysis reports them about the workflow's own logic —
+ * a read of a node that may be skipped, a node that can never run, a value
+ * of the wrong type — which the release's tests and review judge; they are
+ * listed in the result. Every other warning (a skill the organization lacks,
+ * a model no provider serves, one without a code) is deployment drift and
+ * stops the release, as every warning did before the analysis existed.
+ */
+const ADVISORY_IMPORT_WARNINGS: ReadonlySet<string> = new Set([
+  'CONDITION_CONSTANT',
+  'EXPR_UNKNOWN_NAME',
+  'MAYBE_NULL',
+  'OUTPUT_MAYBE_EMPTY',
+  'REF_UNKNOWN_FIELD',
+  'REPEAT_NEVER_TRUE',
+  'REPEAT_UNTIL_STATIC',
+  'SUBAUTOMATION_INPUT_INVALID',
+  'TEMPLATE_NULL_INTERPOLATION',
+  'TEMPLATE_UNTERMINATED',
+  'TESTS_EFFECT_UNKNOWN',
+  'TESTS_EXPECT_TYPE',
+  'TESTS_INPUT_INVALID',
+  'TRIGGER_INPUT_MISMATCH',
+  'TYPE_MISMATCH',
+  'UNCAUGHT_FAILURE',
+  'UNREACHABLE',
+]);
+
+/** A warning's code, from the `[CODE]` the import writes into it. */
+function warningCode(warning: unknown): string | undefined {
+  return typeof warning === 'string'
+    ? /\[([A-Z][A-Z0-9_]*)\]/.exec(warning)?.[1]
+    : undefined;
+}
+
+function isAdvisory(warning: unknown): warning is string {
+  const code = warningCode(warning);
+  return code !== undefined && ADVISORY_IMPORT_WARNINGS.has(code);
+}
+
 function content(condition: unknown, message: string): asserts condition {
   if (!condition) throw new ContentMismatch(message);
 }
@@ -339,6 +380,7 @@ async function apply(
       `required external native tool skill missing: ${slug}`,
     );
   }
+  let importWarnings: string[] = [];
   const result = {
     ...(manifest.schemaVersion === 4
       ? { releaseRef: identity }
@@ -528,9 +570,11 @@ async function apply(
       'native import did not return the expected automation version',
     );
     insist(
-      uploaded.warnings?.length === 0,
+      uploaded.warnings !== undefined &&
+        uploaded.warnings.every((warning) => isAdvisory(warning)),
       'native import returned warnings; review the Tale version before deploying',
     );
+    importWarnings = uploaded.warnings.filter((warning) => isAdvisory(warning));
     insist(
       uploaded.skills?.length === 0,
       'workflow-only import must not write any skills',
@@ -552,7 +596,12 @@ async function apply(
   }
   await verifyNative(version, true);
   save(version, 'deployed');
-  return { ...result, automationVersion: version, unchanged };
+  return {
+    ...result,
+    automationVersion: version,
+    unchanged,
+    ...(importWarnings.length > 0 && { importWarnings }),
+  };
 }
 export const deployRelease = (options: DeployOptions): Promise<RecordValue> =>
   apply(options, false);

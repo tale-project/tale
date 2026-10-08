@@ -15,6 +15,10 @@ import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
 
 import type { exec } from '../docker/exec';
+import {
+  AUTOMATION_PROTOCOL_LABEL,
+  AUTOMATION_PROTOCOL_SOURCE,
+} from './automation-model';
 import { RUNTIME_SECRET_KEYS } from './runtime-env';
 import {
   hash,
@@ -24,6 +28,7 @@ import {
   type ComposeDocument,
   type RuntimeDependencies,
 } from './runtime-model';
+import { sourceAutomationProtocol } from './source-automation-protocol';
 import { SOURCE_MIGRATION_ROOTS } from './source-migrations';
 
 export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
@@ -125,6 +130,13 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
     '}\n{$DOCS_ORIGIN:https://docs.localhost} {\n respond "docs"\n}\n{$SITE_ORIGIN:https://localhost} {\n # TLS_PLACEHOLDER\n # BACKEND_PLACEHOLDER\n reverse_proxy platform:3000\n}\n';
   writeFileSync(join(repoRoot, 'compose.yml'), stringify(source));
   writeFileSync(join(repoRoot, 'services/proxy/Caddyfile'), caddy);
+  mkdirSync(join(repoRoot, 'services/platform/lib/engine/core'), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(repoRoot, 'services/platform/lib/engine/core/protocol.ts'),
+    'export const ENGINE_PROTOCOL = 1;\n',
+  );
   for (const file of [
     'services/platform/backend/db/migrations/0001_initial.sql',
     'services/platform/backend/db/migrations/0002_data.ts',
@@ -174,6 +186,7 @@ export type RuntimeFixture = ReturnType<typeof runtimeFixture>;
 export const REPOSITORY_RUNTIME_SOURCE = [
   'compose.yml',
   'services/proxy/Caddyfile',
+  AUTOMATION_PROTOCOL_SOURCE,
   ...SOURCE_MIGRATION_ROOTS.flatMap((root) =>
     readdirSync(
       fileURLToPath(new URL(`../../../../../${root}`, import.meta.url)),
@@ -235,16 +248,39 @@ export class RuntimeDockerFixture {
     { status: 'unhealthy' | 'starting'; reads: number }
   >();
   imageMetadata = new Map<string, Record<string, unknown>>();
-  constructor(readonly fixture: RuntimeFixture) {}
+  automationProtocol: string | undefined;
+  private protocolRevision: string;
+  constructor(readonly fixture: RuntimeFixture) {
+    this.protocolRevision = fixture.revision;
+    const protocol = sourceAutomationProtocol(
+      fixture.repoRoot,
+      fixture.revision,
+    );
+    this.automationProtocol = protocol === 1 ? undefined : String(protocol);
+  }
 
   installContainers(compose: ComposeDocument): void {
     this.containers = RUNTIME_SERVICES.map((service, index) => {
       const spec = compose.services[service];
+      const imageId = `sha256:${hash(String(spec.image))}`;
+      this.imageMetadata.set(imageId, {
+        Id: imageId,
+        Config: {
+          Labels:
+            ['platform', 'backend-api', 'backend-worker'].includes(service) &&
+            this.automationProtocol !== undefined
+              ? { [AUTOMATION_PROTOCOL_LABEL]: this.automationProtocol }
+              : {},
+        },
+      });
       return {
         Id: (index + 1).toString(16).padStart(64, '0'),
+        Image: `sha256:${hash(String(spec.image))}`,
+        RestartCount: 0,
         Name: `/${spec.container_name ?? `${this.fixture.options.composeProject}-${service}-1`}`,
         Config: {
           Image: spec.image,
+          Env: ['DATABASE_URL=postgresql://tale:synthetic@db:5432/tale_app'],
           Labels: {
             'com.docker.compose.project': this.fixture.options.composeProject,
             'com.docker.compose.service': service,
@@ -294,6 +330,14 @@ export class RuntimeDockerFixture {
     });
     if (args[0] === 'info') return ok('linux/x86_64');
     if (args[0] === 'pull') {
+      if (this.protocolRevision !== this.fixture.revision) {
+        this.protocolRevision = this.fixture.revision;
+        const protocol = sourceAutomationProtocol(
+          this.fixture.repoRoot,
+          this.fixture.revision,
+        );
+        this.automationProtocol = protocol === 1 ? undefined : String(protocol);
+      }
       const reference = args.at(-1);
       if (!reference) throw new Error('Fixture pull reference missing');
       if (
@@ -323,6 +367,10 @@ export class RuntimeDockerFixture {
             ? {
                 'org.opencontainers.image.revision':
                   this.imageRevision ?? this.fixture.revision,
+                ...(repository.endsWith('/tale-platform') &&
+                this.automationProtocol !== undefined
+                  ? { [AUTOMATION_PROTOCOL_LABEL]: this.automationProtocol }
+                  : {}),
               }
             : {},
         },
@@ -372,7 +420,15 @@ export class RuntimeDockerFixture {
         ].join('\n'),
       );
     if (args[0] === 'ps')
-      return ok(this.containers.map((container) => container.Id).join('\n'));
+      return ok(
+        this.containers
+          .map((container) =>
+            args.at(-1)?.includes('.Label')
+              ? `${container.Id}\t${(container.Config as { Labels: Record<string, string> }).Labels['com.docker.compose.service']}`
+              : container.Id,
+          )
+          .join('\n'),
+      );
     if (args[0] === 'container' && args[1] === 'inspect') {
       for (const container of this.containers) {
         const service = (container.Config as { Labels: Record<string, string> })
@@ -384,8 +440,27 @@ export class RuntimeDockerFixture {
         if (stale.reads > 0) stale.reads -= 1;
         else this.staleHealth.delete(service);
       }
-      return ok(this.containers);
+      return ok(
+        this.containers.filter((container) =>
+          args.slice(2).includes(String(container.Id)),
+        ),
+      );
     }
+    if (
+      args[0] === 'exec' &&
+      args[1] === '-i' &&
+      options?.stdin?.includes('public.app_migrations')
+    )
+      return ok(['0001_initial.sql', '0002_data.ts']);
+    if (
+      args[0] === 'exec' &&
+      args[1] === '-i' &&
+      options?.stdin?.includes('WITH ledgers AS')
+    )
+      return ok({
+        schema: 'public',
+        ids: ['0001_initial.sql', '0002_data.ts'],
+      });
     if (args[0] === 'volume' && args[1] === 'ls') {
       const listing = this.volumeLines(args.at(-1));
       return this.volumeListing ? this.volumeListing(listing) : ok(listing);

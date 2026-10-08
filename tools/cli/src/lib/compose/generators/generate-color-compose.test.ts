@@ -129,6 +129,45 @@ describe('generateColorCompose ↔ graceful-shutdown budget', () => {
   }
 });
 
+describe('generateColorCompose ↔ the backend stop budget', () => {
+  // A stopping backend drains for SHUTDOWN_DRAIN_MS (api 15 s, worker 90 s)
+  // and needs 15 s more to close its stores; a worker that is SIGKILLed
+  // first leaves its automation runs to lapse instead of handing them on.
+  for (const color of COLORS) {
+    test(`${color} gives each backend role room for its drain`, () => {
+      const services = servicesOf(color);
+      expect(services['backend-api']?.stop_grace_period).toBe('30s');
+      expect(services['backend-worker']?.stop_grace_period).toBe('120s');
+    });
+  }
+
+  // A deploy generates its compose file, so the drain an operator sets in
+  // the project `.env` is the only knob: the grace follows it up, never
+  // below the role's own.
+  test('keeps the grace 15 s above a longer SHUTDOWN_DRAIN_MS', () => {
+    const before = process.env.SHUTDOWN_DRAIN_MS;
+    try {
+      process.env.SHUTDOWN_DRAIN_MS = '300000';
+      const longer = servicesOf('blue');
+      expect(longer['backend-api']?.stop_grace_period).toBe('315s');
+      expect(longer['backend-worker']?.stop_grace_period).toBe('315s');
+
+      process.env.SHUTDOWN_DRAIN_MS = '5000';
+      const shorter = servicesOf('blue');
+      expect(shorter['backend-api']?.stop_grace_period).toBe('30s');
+      expect(shorter['backend-worker']?.stop_grace_period).toBe('120s');
+
+      process.env.SHUTDOWN_DRAIN_MS = 'ninety seconds';
+      expect(servicesOf('blue')['backend-worker']?.stop_grace_period).toBe(
+        '120s',
+      );
+    } finally {
+      if (before === undefined) delete process.env.SHUTDOWN_DRAIN_MS;
+      else process.env.SHUTDOWN_DRAIN_MS = before;
+    }
+  });
+});
+
 describe('generateColorCompose ↔ the shared config store', () => {
   // Durable state does NOT rotate: both colours mount the same external
   // config volume, the backend read-write and the web tier read-only.

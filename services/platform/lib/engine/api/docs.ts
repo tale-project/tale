@@ -148,10 +148,10 @@ Authoring methods:
 - get_docs             params {}                      → this reference
 - get_catalog          params {kind?, compact?}       → every node type this deployment can execute — large in full; kind narrows to one node kind, compact drops the input schemas
 - search_catalog       params {query}                 → find capabilities by keywords
-- validate_automation  params {automation}            → static analysis only
+- validate_automation  params {automation}            → static analysis only: {valid, errors, warnings, analysis, types} (see Reading validation results)
 - run_automation       params {automation, input}     → validate + execute against the deterministic mocks with a test input; returns output, per-node trace, effects
 - test_automation      params {automation}            → run the automation's own tests: block
-- save_automation      params {automation, message?}  → save as a new immutable version
+- save_automation      params {automation, message?}  → save as a new immutable version; answers {name, version, testsPassed?, warnings} — errors refuse the save, warnings never do
 - get_automation       params {name, version?}        → fetch a saved version
 - list_automations     params {}                      → saved automations with their latest and deployed versions and the projects they are installed in
 - deploy_automation    params {name, version}         → mark the version triggers run
@@ -221,6 +221,24 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
 5. capability nodes — connectors to external apps and platform tools. Set "type" to the capability's own name (never "connector"); data goes in "input" and must match its schema:
 ${connectorLines()}
    Capability nodes accept NO other fields. During testing they are deterministic mocks: same input → same output. Discover more with search_catalog.
+
+## Reading validation results
+validate_automation answers {valid, errors, warnings, analysis, types}. Errors block saving and deploying; warnings never do. Every issue is:
+- code: the stable key to branch on (REF_UNKNOWN_FIELD, MAYBE_NULL, …); message and hint are English and stable, but match on code, never on the text.
+- nodeId: the node it is about, when there is one.
+- at.pointer: an RFC 6901 JSON Pointer into the document you sent ("/nodes/2/input/to", "/output/summary", "" for the whole document).
+- at.range: [start, end) — UTF-16 offsets into the STRING at at.pointer (a template, a condition or code), when the issue is one expression inside it.
+- at.subject: "key" when the pointer names a member that should not exist, "missing" when it names one that should and does not (then only its parent exists).
+- params: the facts the sentence is built from (node, field, ref, key, suggestion, …) — read them instead of parsing message.
+- related: other places involved: the node read ("source"), the node whose condition or failure causes it ("cause"), an elseOf partner, readers, the members of a cycle.
+
+analysis describes how runs can go:
+- analysis.nodes[id]: reachable (it runs on at least one path), alwaysRuns, maySkip (each way it is skipped: reason when | else | upstream | error, via the skipped node it reads), failureHandling ("halts": a failure ends the run there; "continues": onError: continue), reads/readBy (data and control references).
+- analysis.paths: success (the possible ways a run succeeds — the conditions consulted, the nodes that ran and were skipped; at most 32 listed), count, halts (the nodes whose failure ends the run), truncated (too many conditions to list them).
+- analysis.output: which nodes the output reads, and whether it may be empty.
+types is the JSON Schema of the data: types.inputs (the run input), types.nodes[id].output (what nodes.<id>.output holds when it ran; item under forEach; ts, the same as a TypeScript type) and types.output (what a run returns). get_catalog gives each capability's outputSchema the same way.
+
+A skipped node's output is null. A node that reads a skipped node in its input, prompt, system, files, code or forEach is skipped too (upstream), so alternative branches meet in the automation "output", never in a node; a read in when or repeatUntil does not skip the node — the condition runs and reads null. Reading a field of a node that may be skipped — or that continues on error — fails where nothing guards it (MAYBE_NULL, UNCAUGHT_FAILURE), and so does placing its value inside text, even through ?. ("Summary: {{ nodes.x.output?.text }}"). Guard such a read with optional chaining and a fallback: "{{ nodes.check.output?.ok ?? false }}" in a condition, "{{ nodes.summary.output?.text ?? null }}" in the output.
 
 ## Results you get back
 run_automation returns {status, output, trace, effects}:

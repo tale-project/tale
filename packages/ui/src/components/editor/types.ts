@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 /**
  * Unified contract that both `useJsonConfigEditor` and `useFormEditor`
  * implement. `EditorActions` consumes this shape; pages own the choice of
@@ -15,6 +17,12 @@ export interface EditorController {
   isDirty: boolean;
   isSaving: boolean;
   isValid: boolean;
+  /**
+   * Why the edits cannot be saved while `isValid` is false ("Fix 2 errors
+   * to save"). `EditorActions` shows it as Save's disabled reason, so the
+   * reader learns what blocks the save instead of meeting a dead button.
+   */
+  invalidReason?: ReactNode;
   isLoading: boolean;
   /**
    * Top-level keys that diverge from the saved baseline. Nested fields

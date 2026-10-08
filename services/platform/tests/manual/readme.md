@@ -127,7 +127,7 @@ A fast "is this build even drivable" pass. Green ⇒ proceed; red ⇒ stop and f
 | `NAV-F9` | the render-only pages mount |
 | `CHAT-F1` | a chat turn reaches a terminal state |
 | `PROJ-F1` | a project opens and lists its tasks |
-| `SET-F1` | settings lands on the role default |
+| `SET-F1` | settings lands on its first row, Account |
 
 ## How a box works
 

@@ -1,13 +1,15 @@
+import { randomUUID } from 'node:crypto';
+
+import type { Sql } from 'postgres';
+import { z } from 'zod';
+
 /** Real Postgres proof over the app's own doors: moving an automation-owned
  * parent out of In progress while its run is live stops the run and lands
  * the card where it was moved, in one transaction. Only a closing move meets
  * the open-subtask guard; a refused move leaves the run, its question, its
  * approval, the task and its history exactly as they were. The engine is
  * inert: the runs are rows parked on a question, and nothing executes. */
-import { randomUUID } from 'node:crypto';
-
-import type { Sql } from 'postgres';
-import { z } from 'zod';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
 
@@ -84,7 +86,9 @@ export async function checkTaskWorkflowParentMoves(
     for (const [index, status] of children.entries()) {
       await mkTask(`${title} · subtask ${index + 1}`, status, taskId);
     }
-    const runs = await sql<{ id: string }[]>`
+    const runs = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, project_id, name, version, status, mode, started_by, input,
         detail, started_at_ms
@@ -94,6 +98,7 @@ export async function checkTaskWorkflowParentMoves(
         'ask', ${now}
       ) RETURNING id
     `;
+    });
     const runId = runs[0]?.id ?? '';
     const asks = await sql<{ id: string }[]>`
       INSERT INTO app.automation_human_asks (
@@ -340,11 +345,14 @@ export async function checkTaskWorkflowParentMoves(
 
     // ---- a run that already ended: the move alone --------------------------
     const idle = await mkParent('Run ended meanwhile', ['todo']);
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       UPDATE app.automation_runs SET status = 'success',
         finished_at_ms = ${Date.now()}
       WHERE id = ${idle.runId}
     `;
+    });
     const idleMove = await stopAndMove(idle.taskId, { status: 'todo' });
     const idleAfter = await state(idle);
     record(
@@ -391,10 +399,13 @@ export async function checkTaskWorkflowParentMoves(
                                      WHERE project_id = ${projectId})
     `;
     // Cascades to the runs' questions.
-    await sql`
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`
       DELETE FROM app.automation_runs
       WHERE org_id = ${orgId} AND project_id = ${projectId}
     `;
+    });
     // Cascades to its tasks and their history.
     await sql`DELETE FROM app.projects WHERE id = ${projectId}`;
   }

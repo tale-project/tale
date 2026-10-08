@@ -7,7 +7,7 @@ import {
   describeDatabaseError,
   isDatabaseUnavailable,
 } from '../db/unavailable.ts';
-import { TASK_QUEUE_OPTIONS } from './tasks.ts';
+import { physicalTaskQueue, TASK_QUEUE_OPTIONS } from './tasks.ts';
 
 /**
  * pg-boss lifecycle — the 0.5 job engine (one queue per task identifier).
@@ -121,11 +121,12 @@ function withoutWorkerSuffix(error: unknown): unknown {
  */
 export async function ensureQueues(boss: PgBoss): Promise<void> {
   for (const [name, queueOptions] of Object.entries(TASK_QUEUE_OPTIONS)) {
+    const queue = physicalTaskQueue(name);
     try {
-      await boss.createQueue(name, { notify: true, ...queueOptions });
+      await boss.createQueue(queue, { notify: true, ...queueOptions });
     } catch (error) {
       // A concurrent boot may have won the create; verify before surfacing.
-      const existing = await boss.getQueue(name);
+      const existing = await boss.getQueue(queue);
       if (!existing) {
         throw error;
       }

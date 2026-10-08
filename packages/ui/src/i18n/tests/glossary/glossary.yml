@@ -442,9 +442,25 @@ terms:
     en: Legal hold
     de: Aufbewahrungs-Pflicht
     fr: Conservation légale
+    _avoid:
+      fr:
+        - legal hold
+        - legal holds
+        - conservation juridique
+        - conservations juridiques
+        - gel juridique
+        - gels juridiques
+        - 'placer un [gel]'
+        - 'libérer un [gel]'
+        - 'sous [gel]'
+        - '[gel] actif'
     _note: 'Legal-technical compound. DE: both `Aufbewahrungs-Pflicht` and the
-      loanword `Legal Hold` are used; pick one per page. FR: `Legal hold`
-      acceptable as loanword in technical sections.'
+      loanword `Legal Hold` are used; pick one per page. FR: `Conservation
+      légale` in UI strings (audit-log labels and refusal messages included)
+      and guides, `conservation` alone for one hold, never `gel`; `_avoid`
+      lists the names French must not use. A bare `gel` also names unrelated
+      freezes (`gel du code`), so `_avoid` reports it only in the bracketed
+      hold contexts, listed after the full names that win a shared start.'
   - key: feature_mcpServer
     category: feature
     en: MCP server

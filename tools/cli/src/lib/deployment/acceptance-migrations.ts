@@ -31,6 +31,14 @@ ROLLBACK;`,
 export function acceptanceMigrationScript(
   service: 'db' | 'knowledge-db',
 ): string {
+  return migrationReadScript(service, ACCEPTANCE_SQL[service]);
+}
+
+/** Internal source-owned read-only SQL only; never pass deployment/user input. */
+export function migrationReadScript(
+  service: 'db' | 'knowledge-db',
+  sql: string,
+): string {
   const database = service === 'db' ? 'tale_app' : 'tale_knowledge';
   return `set -eu
 user="\${DB_USER:-\${POSTGRES_USER:-}}"
@@ -38,7 +46,7 @@ case "$user" in ''|*[!a-zA-Z0-9_]*) exit 1;; esac
 unset PGHOST PGHOSTADDR PGSERVICE PGSERVICEFILE PGDATABASE PGUSER PGOPTIONS PGPASSFILE
 export PGCONNECT_TIMEOUT=5
 exec psql -X -q -A -t -v ON_ERROR_STOP=1 -h /var/run/postgresql -U "$user" -d ${database} <<'TALE_ACCEPTANCE_SQL'
-${ACCEPTANCE_SQL[service]}
+${sql}
 TALE_ACCEPTANCE_SQL
 `;
 }
