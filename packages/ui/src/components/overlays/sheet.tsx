@@ -19,6 +19,7 @@ import {
   type RefObject,
 } from 'react';
 
+import { respectEscapeClaims } from './claims-escape';
 import { PagePointerPin } from './page-pointer-pin';
 
 // Safe-area padding is layered into the design `p-6` via per-edge calc() so
@@ -231,6 +232,7 @@ export function Sheet({
           style={widthStyle}
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={restoreFocus}
+          onEscapeKeyDown={respectEscapeClaims()}
           // Without a description, opt out of Radix's default
           // `aria-describedby` (which would otherwise point at a
           // `Description` id that is never rendered — a dangling ARIA

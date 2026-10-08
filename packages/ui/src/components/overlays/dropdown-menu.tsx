@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { cn } from '../../lib/cn';
+import { respectEscapeClaims } from './claims-escape';
 import { TooltipContent } from './tooltip';
 
 export interface DropdownMenuActionItem {
@@ -479,6 +480,7 @@ export function DropdownMenu({
           collisionPadding={collisionPadding ?? 16}
           onClick={(e) => e.stopPropagation()}
           onPointerDownOutside={keepTriggerPointerDown}
+          onEscapeKeyDown={respectEscapeClaims()}
           style={{
             maxHeight:
               'min(80vh, var(--radix-dropdown-menu-content-available-height, 80vh))',

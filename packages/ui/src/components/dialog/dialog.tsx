@@ -10,6 +10,7 @@ import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
 import { CLOSE_BUTTON_CLASS } from '../overlays/close-button-class';
+import { respectEscapeClaims } from '../overlays/claims-escape';
 import { PagePointerPin } from '../overlays/page-pointer-pin';
 
 // Tracks dialog nesting so a child Dialog opened from inside another
@@ -309,6 +310,7 @@ export function Dialog({
               else restoreFocus(event);
               onCloseAutoFocus?.(event);
             }}
+            onEscapeKeyDown={respectEscapeClaims()}
           >
             <PagePointerPin />
             {/* Close sits in the header row when headerActions exist, so it
