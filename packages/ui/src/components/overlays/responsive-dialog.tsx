@@ -142,6 +142,13 @@ interface ResponsiveDialogContentProps {
    * Passed to `useRestoreFocus`; mirrors `Dialog`'s prop of the same name.
    */
   restoreFocusRef?: RefObject<HTMLElement | null>;
+  /**
+   * Leave focus where the close puts it instead of returning it to the
+   * opener — for a close that hands the reader on to somewhere else (a
+   * "go to" that opens another panel and focuses a field there). Mirrors
+   * `Dialog`'s prop of the same name.
+   */
+  preventCloseAutoFocus?: boolean;
 }
 
 export const ResponsiveDialogContent = forwardRef<
@@ -156,6 +163,7 @@ export const ResponsiveDialogContent = forwardRef<
       hideClose,
       onOpenAutoFocus,
       restoreFocusRef,
+      preventCloseAutoFocus = false,
     },
     ref,
   ) => {
@@ -166,6 +174,10 @@ export const ResponsiveDialogContent = forwardRef<
     // and refocus it — the same contract `Dialog` carries.
     const open = useContext(ResponsiveDialogOpenContext);
     const restoreFocus = useRestoreFocus(open, restoreFocusRef);
+    const onCloseAutoFocus = (event: Event) => {
+      if (preventCloseAutoFocus) event.preventDefault();
+      else restoreFocus(event);
+    };
 
     if (isMobile) {
       return (
@@ -176,7 +188,7 @@ export const ResponsiveDialogContent = forwardRef<
             aria-modal="true"
             data-tale-modal=""
             onOpenAutoFocus={onOpenAutoFocus}
-            onCloseAutoFocus={restoreFocus}
+            onCloseAutoFocus={onCloseAutoFocus}
             onPointerDownOutside={preventDatePickerDismiss}
             onInteractOutside={preventDatePickerDismiss}
             onFocusOutside={preventDatePickerDismiss}
@@ -216,7 +228,7 @@ export const ResponsiveDialogContent = forwardRef<
           aria-modal="true"
           data-tale-modal=""
           onOpenAutoFocus={onOpenAutoFocus}
-          onCloseAutoFocus={restoreFocus}
+          onCloseAutoFocus={onCloseAutoFocus}
           onPointerDownOutside={preventDatePickerDismiss}
           onInteractOutside={preventDatePickerDismiss}
           onFocusOutside={preventDatePickerDismiss}
