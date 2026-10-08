@@ -8,6 +8,10 @@ import {
   sessionSetPinned,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
+import {
+  releaseStaleDirectCalls,
+  sweepSettledDirectCalls,
+} from '../governance/direct-calls.ts';
 import { closeStaleModelApiOps } from '../model_api/metering.ts';
 import { sweepSettledModelApiOps } from '../model_api/retention.ts';
 import { wakeParkedAgentRuns } from '../tasks/agent-runs.ts';
@@ -316,6 +320,22 @@ export async function runSandboxWatchdog(
       '[watchdog] deleting settled model-endpoint request rows failed:',
       error,
     );
+  }
+
+  // A direct provider call whose process died mid-call never settled: its
+  // hold stops counting once its deadline has passed, and a day after a
+  // call started its settled row goes — the ledger keeps the spend
+  // (domains/governance/direct-calls.ts).
+  try {
+    const lapsed = await releaseStaleDirectCalls(sql, now);
+    if (lapsed > 0) {
+      console.log(
+        `[watchdog] released the holds of ${lapsed} direct provider call(s) past their deadline`,
+      );
+    }
+    await sweepSettledDirectCalls(sql, { now });
+  } catch (error: unknown) {
+    console.error('[watchdog] releasing direct-call holds failed:', error);
   }
 
   // What waiting for sandbox room leaves behind: the op rows of refused
