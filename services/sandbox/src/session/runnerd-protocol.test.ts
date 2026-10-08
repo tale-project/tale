@@ -58,6 +58,7 @@ describe('runnerd protocol mirror', () => {
       { t: 'fail', code: 'OUTPUT_LIMIT', message: 'limit' },
       { t: 'fail', code: 'OUTPUT_GAP', message: 'gap' },
       { t: 'fail', code: 'REPLAY_UNAVAILABLE', message: 'unavailable' },
+      { t: 'fail', code: 'DISK_FULL', message: 'disk full' },
     ];
     const mirrored: MirrorEvent[] = events;
     const roundTrip: CanonicalEvent[] = mirrored;
@@ -148,6 +149,7 @@ describe('runnerd protocol mirror', () => {
       [{ t: 'replay-complete', throughSeq: 0 }, true],
       [exit, true],
       [{ t: 'fail', code: 'OUTPUT_LIMIT', message: 'storage full' }, true],
+      [{ t: 'fail', code: 'DISK_FULL', message: 'disk full' }, true],
       [null, false],
       [[], false],
       [{ t: 'stdout', b64: 'YQ' }, false],

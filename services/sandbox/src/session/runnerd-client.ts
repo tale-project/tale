@@ -332,7 +332,12 @@ async function pumpNdjson(
       throw new RunnerdProtocolError('invalid execution event');
     if (
       event.t === 'fail' &&
-      ['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'].includes(event.code)
+      [
+        'OUTPUT_GAP',
+        'OUTPUT_LIMIT',
+        'REPLAY_UNAVAILABLE',
+        'DISK_FULL',
+      ].includes(event.code)
     ) {
       throw new RunnerdOutputGapError(event.message, event.code);
     }

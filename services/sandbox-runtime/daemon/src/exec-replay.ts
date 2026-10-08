@@ -28,7 +28,7 @@ export const REPLAY_WRITE_WATERMARK = 128 * 1024;
 const WRITE_VECTORS = 64;
 const READ_CHUNK = 64 * 1024;
 
-type ReplayFailure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE';
+type ReplayFailure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE' | 'DISK_FULL';
 export class ReplayError extends Error {
   constructor(
     readonly code: ReplayFailure,
@@ -38,9 +38,23 @@ export class ReplayError extends Error {
       message ??
         (code === 'OUTPUT_LIMIT'
           ? 'Execution output exceeded its replay storage limit.'
-          : 'The complete execution transcript is unavailable.'),
+          : code === 'DISK_FULL'
+            ? 'The sandbox host ran out of disk space.'
+            : 'The complete execution transcript is unavailable.'),
     );
   }
+}
+
+/** The replay failure a failed journal write is. A full disk (or a spent
+ * quota) is the host's condition, not a lost transcript, and is named as
+ * such, so whoever reads the failure can say what to free. */
+export function journalFailure(error: unknown): ReplayError {
+  if (error instanceof ReplayError) return error;
+  const code =
+    error instanceof Error && 'code' in error ? error.code : undefined;
+  return new ReplayError(
+    code === 'ENOSPC' || code === 'EDQUOT' ? 'DISK_FULL' : 'REPLAY_UNAVAILABLE',
+  );
 }
 
 /** Queued output may already have reached a live reader; later output cannot. */
@@ -378,10 +392,7 @@ export class ExecReplay {
         start = end;
       }
     } catch (error) {
-      this.failure =
-        error instanceof ReplayError
-          ? error
-          : new ReplayError('REPLAY_UNAVAILABLE');
+      this.failure = journalFailure(error);
       throw this.failure;
     }
   }
