@@ -1133,6 +1133,7 @@ describe.each(['light', 'dark'] as const)(
         );
         if (!(highlight instanceof HTMLElement))
           throw new Error('No Home highlight');
+        const highlightElement: HTMLElement = highlight;
 
         function ageOf(row: HTMLElement) {
           const age = row.querySelector('span.tabular-nums');
@@ -1158,7 +1159,7 @@ describe.each(['light', 'dark'] as const)(
               background,
             );
             if (highlighted && node === scroller) {
-              const style = getComputedStyle(highlight);
+              const style = getComputedStyle(highlightElement);
               background = painted(
                 style.backgroundColor,
                 background,
@@ -1198,14 +1199,14 @@ describe.each(['light', 'dark'] as const)(
           // Wait for the real highlight to settle underneath the current age.
           await expect
             .poll(() => {
-              const fill = box(highlight);
+              const fill = box(highlightElement);
               const age = box(ageOf(current));
               return (
                 fill.left <= age.left &&
                 fill.right >= age.right &&
                 fill.top <= age.top &&
                 fill.bottom >= age.bottom &&
-                getComputedStyle(highlight).opacity === '1'
+                getComputedStyle(highlightElement).opacity === '1'
               );
             })
             .toBe(true);
@@ -1218,6 +1219,36 @@ describe.each(['light', 'dark'] as const)(
             runOnly: ['color-contrast'],
             elementRef: true,
           });
+          const plainCheck = (check: axe.CheckResult) => ({
+            id: check.id,
+            impact: check.impact,
+            message: check.message,
+            data: check.data,
+            relatedNodes: check.relatedNodes?.map(
+              (related: axe.RelatedNode) => ({
+                html: related.html,
+                target: related.target,
+              }),
+            ),
+          });
+          const plainNode = (node: axe.NodeResult) => ({
+            any: node.any?.map(plainCheck),
+            all: node.all?.map(plainCheck),
+            none: node.none?.map(plainCheck),
+            html: node.html,
+            impact: node.impact,
+            target: node.target,
+            failureSummary: node.failureSummary,
+          });
+          const plainRule = (rule: axe.Result) => ({
+            id: rule.id,
+            impact: rule.impact,
+            help: rule.help,
+            helpUrl: rule.helpUrl,
+            description: rule.description,
+            tags: rule.tags,
+            nodes: rule.nodes?.map(plainNode),
+          });
           console.info(
             'TALE-452 axe',
             JSON.stringify({
@@ -1226,11 +1257,11 @@ describe.each(['light', 'dark'] as const)(
               accent: accent ?? null,
               hovered: idle.matches(':hover'),
               scope: palette ? 'row ages' : 'whole Home panel',
-              violations: result.violations,
+              violations: result.violations.map(plainRule),
               agePasses: result.passes
                 .flatMap((rule) => rule.nodes)
                 .filter((node) => ageNodes.includes(node.element!))
-                .map(({ html, any, all, none }) => ({ html, any, all, none })),
+                .map(plainNode),
             }),
           );
           expect(result.violations).toEqual([]);
