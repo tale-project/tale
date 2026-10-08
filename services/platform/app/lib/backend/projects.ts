@@ -119,6 +119,9 @@ interface ProjectAgentWire {
   name: string;
   /** Absent on a row an older backend sent, which knew no handles. */
   handle?: string;
+  /** What the agent answered to before agents had handles; absent from an
+   * older backend. */
+  legacyHandles?: string[];
   harness: string;
   model: string;
   modelProvider: string | null;
@@ -142,6 +145,9 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
     projectId: row.projectId,
     name: row.name,
     ...(row.handle !== undefined ? { handle: row.handle } : {}),
+    ...(row.legacyHandles !== undefined
+      ? { legacyHandles: row.legacyHandles }
+      : {}),
     harness: row.harness,
     model: row.model,
     ...(row.modelProvider !== null ? { modelProvider: row.modelProvider } : {}),

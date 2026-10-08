@@ -53,6 +53,12 @@ export interface AssignableActor {
   /** Granted platform tools (agents only) — lets the reviewer picker grey an
    * agent the server would refuse for a missing `task_review` grant. */
   tools?: readonly string[];
+  /** What a person types after `@` to mention it (agents only; absent from
+   * an older backend). */
+  handle?: string;
+  /** What it answered to before agents had handles (agents only), so older
+   * text that named it that way still shows it. */
+  legacyHandles?: readonly string[];
 }
 
 // Shared frozen instances keep hook results referentially stable across
@@ -137,6 +143,10 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
             id: row._id,
             name: row.name,
             tools: row.tools,
+            ...(row.handle !== undefined ? { handle: row.handle } : {}),
+            ...(row.legacyHandles !== undefined
+              ? { legacyHandles: row.legacyHandles }
+              : {}),
           })),
     [projectAgents],
   );

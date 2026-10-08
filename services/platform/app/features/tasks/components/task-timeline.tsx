@@ -4,6 +4,7 @@ import {
   taskAgentReviewReceiptSchema,
   taskReviewerSchema,
 } from '@tale/shared/schemas/task-review';
+import { mentionPlainText } from '@tale/ui/mentions/scan-mentions';
 import { ThreadEvent, ThreadEventActor } from '@tale/ui/thread/thread-event';
 import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -27,11 +28,13 @@ import {
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { MENTION_KINDS } from '@/lib/shared/mention-handles';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import {
   useTaskActorDirectory,
+  useTaskMentionActors,
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
 import {
@@ -177,6 +180,7 @@ function TaskTimelineEntryContent({
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
   } = useTaskActorDirectory(organizationId, projectId);
+  const mentions = useTaskMentionActors(organizationId, projectId);
   const { formatDate } = useFormatDate();
   const repeatLabel = useTaskRepeatLabel();
   const { never: repeatNever } = useRecurrenceFormat();
@@ -344,8 +348,16 @@ function TaskTimelineEntryContent({
         return key ? t(key) : value;
       }
       default:
-        // Titles, descriptions, label and file names, task keys: as stored.
-        return quoteActivityText(value);
+        // Titles, label and file names, task keys: as stored. A description
+        // reads its mentions as `@` and today's names.
+        return quoteActivityText(
+          entry.action === 'description.changed'
+            ? mentionPlainText(value, {
+                kinds: MENTION_KINDS,
+                nameOf: (ref) => mentions.byRef(ref)?.name,
+              })
+            : value,
+        );
     }
   };
   // Empty on both sides (an assignee cleared that was already clear) names no

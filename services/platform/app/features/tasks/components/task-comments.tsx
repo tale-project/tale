@@ -205,6 +205,7 @@ function TaskCommentViewContent({
           body={displayBody}
           organizationId={organizationId}
           projectId={projectId}
+          mentions={c.mentions}
           className="wrap-break-word"
         />
       )}

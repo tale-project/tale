@@ -20,6 +20,8 @@ import {
   deleteProjectAgent,
   detachSkillFromAgents,
   insertManagedProjectAgent,
+  listProjectAgents,
+  listProjectAgentsForApp,
   listProjectsPage,
   updateProjectAgent,
 } from './service.ts';
@@ -893,6 +895,79 @@ describe('an agent answers to a handle made from its name, unique in its project
       [JSON.stringify(['research.bot', 'researchbot'])],
     ]);
     expect(insertedHandle(statements)).toEqual(['research-bot-2']);
+  });
+});
+
+describe('the app reads what an agent answered to before handles [COLLAB-R11]', () => {
+  function agentsSql(rows: object[]): Sql {
+    const run = (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FROM app.projects WHERE id = ?')) {
+        return Promise.resolve([PROJECT]);
+      }
+      return Promise.resolve(
+        text.includes('FROM app.project_agents WHERE project_id = ?')
+          ? rows.map((row) => ({ ...row }))
+          : [],
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js root instance
+    return Object.assign(run, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql;
+  }
+  const rows = [
+    {
+      ...AGENT,
+      name: 'QA Bot',
+      managed: false,
+      handle: 'qa-bot',
+      legacyHandles: ['research.bot', 'researchbot'],
+    },
+    {
+      ...AGENT,
+      id: 'agent-2',
+      name: 'Ops Helper',
+      managed: false,
+      createdAt: 11,
+      handle: null,
+      legacyHandles: null,
+    },
+  ];
+
+  it('hands the app the frozen forms, and the name forms of an agent not frozen yet', async () => {
+    const agents = await listProjectAgentsForApp(
+      agentsSql(rows),
+      auth,
+      'project-1',
+    );
+    expect(
+      agents.map(({ name, handle, legacyHandles }) => ({
+        name,
+        handle,
+        legacyHandles,
+      })),
+    ).toEqual([
+      {
+        name: 'QA Bot',
+        handle: 'qa-bot',
+        legacyHandles: ['research.bot', 'researchbot'],
+      },
+      {
+        name: 'Ops Helper',
+        handle: 'ops-helper',
+        legacyHandles: ['ops.helper', 'opshelper'],
+      },
+    ]);
+  });
+
+  it('keeps them off the API read', async () => {
+    const agents = await listProjectAgents(agentsSql(rows), auth, 'project-1');
+    expect(agents.every((agent) => !('legacyHandles' in agent))).toBe(true);
+    expect(agents.map((agent) => agent.handle)).toEqual([
+      'qa-bot',
+      'ops-helper',
+    ]);
   });
 });
 

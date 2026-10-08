@@ -10,8 +10,6 @@ import {
 } from './actor-directory-scope';
 import { useActorDirectory, useAssignableActors } from './use-actor-directory';
 
-export type { TaskMentionActor } from './actor-directory-scope';
-
 /** Task bodies and standalone consumers share the same directory as the
  * upstream ActorDirectoryProvider API, including its scope and mention index. */
 export function TaskActorDirectoryProvider({

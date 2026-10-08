@@ -1,88 +1,120 @@
 'use client';
 
 import { cn } from '@tale/ui/cn';
-/**
- * Task / description prose: GFM markdown (shared chat renderer) with
- * `@handle` mention pills overlaid on text nodes. Workflow and agent comments
- * ship real markdown; user comments stay readable and keep mention chips.
- */
-import { Children, Fragment, useMemo, type ReactNode } from 'react';
+import { TASK_REMARK_PLUGINS } from '@tale/ui/markdown/remark-plugin-lists';
+import { normalizeHtmlBlocks } from '@tale/ui/markdown/streaming/normalize-html-blocks';
+import { MentionChip } from '@tale/ui/mentions/mention-chip';
+import {
+  type MentionElementProps,
+  remarkMentions,
+} from '@tale/ui/mentions/remark-mentions';
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import type { PluggableList } from 'unified';
 
 import {
   markdownComponents,
   markdownWrapperStyles,
 } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
+import {
+  MENTION_HANDLE_TIER,
+  MENTION_KINDS,
+  type MentionHandleIndex,
+  type MentionKind,
+  mentionRefKey,
+} from '@/lib/shared/mention-handles';
 
 import {
   useTaskMentionActors,
   withTaskActorDirectory,
-  type TaskMentionActor,
 } from '../hooks/task-actor-directory-context';
 
-/** Same boundary rule as the server parser (`convex/tasks/mentions.ts`):
- *  `@` at string start or after whitespace, so emails never match. */
-const MENTION_SPLIT_RE = /(^|\s)@([a-zA-Z0-9._/-]+)/g;
+/** An agent id: what an older text typed after `@` for an agent whose name
+ * made no handle. Unresolved, it names an agent that was deleted. */
+const AGENT_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** Split a leaf against the scope's one handle index. Plain text leaves
- * create no components, hooks or directory subscriptions. */
-function mentionizedText(
-  body: string,
-  handleToActor: ReadonlyMap<string, TaskMentionActor>,
-  labels: { agents: string; automations: string },
-): ReactNode {
-  if (!body.includes('@')) return body;
-  const parts: ReactNode[] = [];
-  let cursor = 0;
-  for (const match of body.matchAll(MENTION_SPLIT_RE)) {
-    const token = match[2];
-    const actor = handleToActor.get(token.toLowerCase());
-    if (!actor) continue;
-    const mentionStart = match.index + match[1].length;
-    if (mentionStart > cursor) parts.push(body.slice(cursor, mentionStart));
-    parts.push(
-      <span
-        key={`${mentionStart}-${token}`}
-        className="bg-primary/10 text-primary rounded-md box-decoration-clone px-1 py-0.5 text-[0.9em] leading-none font-medium"
-        title={
-          actor.kind === 'agent'
-            ? `@${token} · ${labels.agents}`
-            : actor.kind === 'automation'
-              ? `@${token} · ${labels.automations}`
-              : `@${token}`
-        }
-      >
-        @{actor.name}
-      </span>,
-    );
-    cursor = mentionStart + token.length + 1;
-  }
-  if (cursor === 0) return body;
-  if (cursor < body.length) parts.push(body.slice(cursor));
-  return parts.map((node, index) =>
-    typeof node === 'string' ? <Fragment key={index}>{node}</Fragment> : node,
-  );
+function isMentionKind(kind: string | undefined): kind is MentionKind {
+  return MENTION_KINDS.some((known) => known === kind);
 }
 
-/** Mentionize string leaves under a markdown block (p / li). Nested
- *  elements (strong, em, code) keep their own children — mentions almost
- *  always sit in adjacent text nodes, not inside emphasis. */
-function mentionizeChildren(
-  children: ReactNode,
-  handles: ReadonlyMap<string, TaskMentionActor>,
-  labels: { agents: string; automations: string },
-): ReactNode {
-  return Children.map(children, (child) =>
-    typeof child === 'string' ? mentionizedText(child, handles, labels) : child,
-  );
+interface MentionLabels {
+  kind: Record<MentionKind, string>;
+  missing: Record<MentionKind, string>;
+}
+
+/** One mention: a chip with the current name of whom it names, a muted chip
+ * with the name it was saved with for someone gone, never an id. A typed
+ * `@handle` nobody answers to stays the words it was. */
+function MentionElement({
+  props,
+  mentions,
+  prefer,
+  labels,
+}: {
+  props: MentionElementProps;
+  mentions: MentionHandleIndex;
+  prefer: ReadonlySet<string> | undefined;
+  labels: MentionLabels;
+}) {
+  const kind = props['data-mention-kind'];
+  const id = props['data-mention-id'];
+  const handle = props['data-mention-handle'];
+  const entry =
+    id !== undefined && isMentionKind(kind)
+      ? mentions.byRef({ kind, id })
+      : handle !== undefined
+        ? mentions.resolve(handle, prefer)
+        : null;
+
+  if (entry !== null) {
+    const agentHandle =
+      entry.kind === 'agent'
+        ? entry.handles.find(
+            (candidate) => candidate.tier === MENTION_HANDLE_TIER.stored,
+          )?.handle
+        : undefined;
+    return (
+      <MentionChip
+        name={entry.name}
+        kindLabel={labels.kind[entry.kind]}
+        title={
+          entry.kind === 'user'
+            ? undefined
+            : `${agentHandle === undefined ? '' : `@${agentHandle} · `}${labels.kind[entry.kind]}`
+        }
+      />
+    );
+  }
+  if (id !== undefined && isMentionKind(kind)) {
+    return (
+      <MentionChip
+        name={props['data-mention-label'] || labels.missing[kind]}
+        missing
+        missingLabel={labels.missing[kind]}
+      />
+    );
+  }
+  if (handle !== undefined && AGENT_ID_RE.test(handle)) {
+    return (
+      <MentionChip
+        name={labels.missing.agent}
+        missing
+        missingLabel={labels.missing.agent}
+      />
+    );
+  }
+  return <>@{handle}</>;
 }
 
 /**
- * Task-prose wrapper: GFM markdown via the shared chat renderer, with
- * `@handle` pills on text nodes. Comment threads and the description read
- * view both go through here.
+ * Task prose — comments and descriptions: GFM markdown via the shared chat
+ * renderer, with each mention as a chip that shows whom it names today. It
+ * is parsed as the server parses a task text when it is saved
+ * (`TASK_REMARK_PLUGINS`), so a chip shows exactly where a mention can have
+ * notified someone — never in code or math. Comment threads and the
+ * description read view both go through here.
  */
 export const MentionText = withTaskActorDirectory(MentionTextContent);
 
@@ -90,44 +122,63 @@ function MentionTextContent({
   body,
   organizationId,
   projectId,
+  mentions: savedMentions,
   className,
 }: {
   body: string;
   organizationId: string;
   projectId?: string;
+  /** Whom the text named when it was saved (a comment's resolved mentions):
+   * a typed `@handle` two of them answer to shows the one it named. */
+  mentions?: ReadonlyArray<{ type: MentionKind; id: string }>;
   className?: string;
 }) {
   const { t } = useT('tasks');
-  const handles = useTaskMentionActors(organizationId, projectId);
+  const index = useTaskMentionActors(organizationId, projectId);
+  const prefer = useMemo(
+    () =>
+      savedMentions === undefined || savedMentions.length === 0
+        ? undefined
+        : new Set(
+            savedMentions.map((mention) =>
+              mentionRefKey({ kind: mention.type, id: mention.id }),
+            ),
+          ),
+    [savedMentions],
+  );
   const components = useMemo(() => {
-    const labels = {
-      agents: t('assignee.agents'),
-      automations: t('assignee.automations'),
+    const labels: MentionLabels = {
+      kind: {
+        user: t('mentionChip.kind.user'),
+        agent: t('mentionChip.kind.agent'),
+        automation: t('mentionChip.kind.automation'),
+      },
+      missing: {
+        user: t('mentionChip.missing.user'),
+        agent: t('timeline.deletedAgent'),
+        automation: t('mentionChip.missing.automation'),
+      },
     };
     return {
       ...markdownComponents,
-      p: ({
+      'tale-mention': ({
         node: _node,
-        children,
+        children: _children,
         ...props
-      }: {
-        node?: unknown;
-        children?: ReactNode;
-      } & React.HTMLAttributes<HTMLParagraphElement>) => (
-        <p {...props}>{mentionizeChildren(children, handles, labels)}</p>
-      ),
-      li: ({
-        node: _node,
-        children,
-        ...props
-      }: {
-        node?: unknown;
-        children?: ReactNode;
-      } & React.LiHTMLAttributes<HTMLLIElement>) => (
-        <li {...props}>{mentionizeChildren(children, handles, labels)}</li>
+      }: MentionElementProps & { node?: unknown; children?: unknown }) => (
+        <MentionElement
+          props={props}
+          mentions={index}
+          prefer={prefer}
+          labels={labels}
+        />
       ),
     };
-  }, [handles, t]);
+  }, [index, prefer, t]);
+
+  // The plugin list is the server's; the HTML-block pre-pass too, so the
+  // offsets the plugin reads are the text's own.
+  const text = useMemo(() => normalizeHtmlBlocks(body), [body]);
 
   return (
     <div
@@ -139,9 +190,14 @@ function MentionTextContent({
         className,
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-        {body}
+      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+        {text}
       </ReactMarkdown>
     </div>
   );
 }
+
+const REMARK_PLUGINS: PluggableList = [
+  ...TASK_REMARK_PLUGINS,
+  [remarkMentions, { kinds: MENTION_KINDS }],
+];

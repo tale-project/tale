@@ -1630,13 +1630,13 @@ function isHandleConflict(error: unknown): boolean {
 
 /** Rows read with the handle an agent without one shows until its project's
  * next save stores it. */
-function withDerivedHandles(
-  rows: StoredProjectAgentRow[],
+function withDerivedHandles<Row extends StoredProjectAgentRow>(
+  rows: Row[],
   siblings: readonly AgentHandleSibling[] = rows.map((row) => ({
     ...row,
     legacyHandles: null,
   })),
-): ProjectAgentRow[] {
+): Array<Omit<Row, 'handle'> & { handle: string }> {
   const derived = rows.some((row) => row.handle === null)
     ? deriveAgentHandles(siblings)
     : new Map<string, string>();
@@ -1904,19 +1904,57 @@ function assertAgentWritable(
   assertActiveWritable(project, auth);
 }
 
+async function selectProjectAgents(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  projectId: string,
+) {
+  const project = await loadProjectOrThrow(sql, projectId);
+  assertReadable(project, auth);
+  const rows = await sql<
+    Array<StoredProjectAgentRow & { legacyHandles: string[] | null }>
+  >`
+    SELECT ${sql.unsafe(PROJECT_AGENT_COLUMNS)},
+           legacy_handles AS "legacyHandles"
+    FROM app.project_agents
+    WHERE project_id = ${projectId}
+    ORDER BY created_at_ms ASC
+  `;
+  return withDerivedHandles(rows);
+}
+
 export async function listProjectAgents(
   sql: Sql,
   auth: ProjectAuthContext,
   projectId: string,
 ): Promise<ProjectAgentRow[]> {
-  const project = await loadProjectOrThrow(sql, projectId);
-  assertReadable(project, auth);
-  const rows = await sql<StoredProjectAgentRow[]>`
-    SELECT ${sql.unsafe(PROJECT_AGENT_COLUMNS)} FROM app.project_agents
-    WHERE project_id = ${projectId}
-    ORDER BY created_at_ms ASC
-  `;
-  return withDerivedHandles(rows);
+  const agents = await selectProjectAgents(sql, auth, projectId);
+  return agents.map(({ legacyHandles: _legacyHandles, ...agent }) => agent);
+}
+
+/** A project agent as the app reads it: also what it answered to before
+ * agents had handles, so text that named it that way still shows it. */
+export interface ProjectAgentAppRow extends ProjectAgentRow {
+  legacyHandles: string[];
+}
+
+/** The project's agents for the app, whose screens show older text: each
+ * with the handles it answered to before agents had their own (frozen at
+ * the upgrade; for an agent the previous release added and no save has
+ * frozen yet, the forms of its current name, as the server resolves them). */
+export async function listProjectAgentsForApp(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  projectId: string,
+): Promise<ProjectAgentAppRow[]> {
+  const agents = await selectProjectAgents(sql, auth, projectId);
+  // The rows are this read's own, fresh from the query: filled in place.
+  return agents.map((agent) =>
+    Object.assign(agent, {
+      legacyHandles:
+        agent.legacyHandles ?? agentLegacyHandleVariants(agent.name),
+    }),
+  );
 }
 
 /** Read one agent only within its named project and the caller's organization. */
