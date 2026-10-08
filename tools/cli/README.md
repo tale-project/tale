@@ -94,7 +94,9 @@ it with the corresponding platform version and encryption secrets.
 `tale update` changes the CLI and project files, staying in the current `x.y` line
 unless you select another version. `tale deploy` rolls application containers;
 `--stop` also permits stop-gated updates with downtime. Blue-green rollout does not
-make every operation downtime-free.
+make every operation downtime-free. After the rollout it removes Tale's
+images of versions older than the new version and the rollback target, leaving any
+image a container still uses.
 
 `tale rollback` is limited to a recorded compatible patch version. Recovery across
 minor or major migrations uses a snapshot and its matching version; see the
