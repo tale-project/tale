@@ -9,7 +9,6 @@ import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../../backend/auth/auth.ts';
-import { handleMcpRequest } from '../../backend/core/automations_builder/mcp_http.ts';
 import type {
   SkillDocumentView,
   SkillSummaryView,
@@ -17,6 +16,7 @@ import type {
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
 import { PLATFORM_CAPABILITIES } from '../../backend/domains/governance/competence.ts';
+import { handleMcpRequest } from '../../backend/domains/mcp/protocol.ts';
 import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
 import { describeByteCap } from '../../backend/lib/byte-cap.ts';
 import { REST_ERROR_CODES } from '../../backend/rest/error-codes.ts';

@@ -56,8 +56,11 @@ import {
   INEXACT_NUMBER_MESSAGE,
   parseJsonExact,
 } from '../../../lib/utils/json-exact';
-import { internal } from '../lib/handler_names';
-import { requireRestDeveloper, type RestContext } from '../lib/rest/helpers';
+import { internal } from '../../core/lib/handler_names';
+import {
+  requireRestDeveloper,
+  type RestContext,
+} from '../../core/lib/rest/helpers';
 
 type McpTool = (typeof MCP_TOOLS)[number];
 

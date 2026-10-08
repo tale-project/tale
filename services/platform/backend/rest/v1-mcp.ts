@@ -5,9 +5,9 @@ import { loadConnectorCatalog } from '../../lib/connectors/dispatcher.ts';
 import { dispatch } from '../../lib/engine/api/dispatch.ts';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
-import { handleMcpRequest } from '../core/automations_builder/mcp_http.ts';
 import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../domains/chat/capabilities.ts';
+import { handleMcpRequest } from '../domains/mcp/protocol.ts';
 import { createCtxShim, type ShimHandlers } from '../lib/ctx-shim.ts';
 import {
   RateLimitExceededError,

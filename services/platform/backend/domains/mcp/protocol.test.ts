@@ -17,9 +17,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
-import { internal } from '../lib/handler_names';
-import type { RestContext } from '../lib/rest/helpers';
-import { handleMcpRequest, MAX_BATCH_MESSAGES } from './mcp_http';
+import { internal } from '../../core/lib/handler_names';
+import type { RestContext } from '../../core/lib/rest/helpers';
+import { handleMcpRequest, MAX_BATCH_MESSAGES } from './protocol';
 
 // The REST helpers resolve identity through Better Auth; the handler under test
 // never reaches it, but importing the module must not boot the auth stack.

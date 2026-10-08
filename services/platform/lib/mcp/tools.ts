@@ -1,7 +1,7 @@
 /**
  * The platform MCP endpoint's tool inventory — one list, three readers.
  *
- * `convex/automations_builder/mcp_http.ts` answers `tools/list` from it and
+ * `backend/domains/mcp/protocol.ts` answers `tools/list` from it and
  * routes `tools/call` by it; the API → MCP settings section renders it. The
  * list lives here rather than in the endpoint because the settings page cannot
  * import a Convex HTTP module (that would pull the auth stack into the browser

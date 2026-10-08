@@ -2,7 +2,7 @@
  * Helpers of the two 0.4-era HTTP doors that still parse raw requests: the
  * SCIM door (`core/scim/http_actions.ts` — `extractPathParts`,
  * `parseIntParam`) and the MCP protocol layer
- * (`core/automations_builder/mcp_http.ts` — `requireRestDeveloper`,
+ * (`domains/mcp/protocol.ts` — `requireRestDeveloper`,
  * `RestContext`). The `/api/v1` REST families do NOT come through here:
  * `backend/rest/` authenticates, rate limits, validates and maps errors on
  * its own (`rest/shared.ts`). The 0.4 CORS-bearing `jsonError` is gone
