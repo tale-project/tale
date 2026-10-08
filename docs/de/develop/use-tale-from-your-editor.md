@@ -389,14 +389,14 @@ tale_api -X POST "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments"
 echo "TASK_ID=$TASK_ID"
 ```
 
-`externalSystem` und `externalId` machen die Aufgabe idempotent: Dasselbe Paar liefert beim nächsten Senden die bestehende Aufgabe. Eine Beschreibung fasst bis zu 20.000 Zeichen. Ein längeres Skript lädst du ins Projekt hoch, wie in [Eine Datei in zwei Schritten hochladen](/de/develop/api-reference#eine-datei-in-zwei-schritten-hochladen) beschrieben. Der Kommentar nennt den Agenten über seine ID; sein `handle` funktioniert ebenso, hier `@skript-editor`, und steht in den Angaben, die du über den Agenten liest. Tale speichert beides als Erwähnung des Agenten selbst, der Kommentar nennt ihn also auch nach einer Umbenennung.
+`externalSystem` und `externalId` machen die Aufgabe idempotent: Dasselbe Paar liefert beim nächsten Senden die bestehende Aufgabe. Eine Beschreibung fasst bis zu 20.000 Zeichen. Ein längeres Skript lädst du ins Projekt hoch, wie in [Eine Datei in zwei Schritten hochladen](/de/develop/api-reference#eine-datei-in-zwei-schritten-hochladen) beschrieben. Der Kommentar nennt den Agenten über seine ID; sein `handle` funktioniert ebenso, hier `@skript-editor`, und steht in den Angaben, die du über den Agenten liest. Tale speichert beides als Erwähnung des Agenten selbst, der Kommentar nennt ihn also auch nach einer Umbenennung. Liest du den Kommentar zurück, lautet sein `body` `[@Skript-Editor](mention:agent/<Agenten-ID>) bitte übernimm diese Aufgabe.` und sein `bodyText` `@Skript-Editor bitte übernimm diese Aufgabe.`
 
 Die Erwähnung weist dem Agenten die Aufgabe zu und startet einen Lauf; die Aufgabe wechselt auf `in_progress`. Kann eine Erwähnung keinen Lauf starten, bleibt sie ein gewöhnlicher Kommentar ohne Fehlermeldung, etwa wenn du die Aufgabe nicht ändern darfst, die Aufgaben-Automatisierung ausgeschaltet ist oder ein anderer Lauf die Aufgabe bereits belegt. Setze `TASK_ID` auf den Wert, den das Skript ausgegeben hat, prüfe die Aufgabe und lies den Bericht des Agenten, sobald sie `in_review` erreicht:
 
 ```bash
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID" | jq -r '.task.status'
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments?limit=20" \
-  | jq -r '.comments[] | select(.authorType == "agent") | .body'
+  | jq -r '.comments[] | select(.authorType == "agent") | .bodyText'
 ```
 
 Prüfe die bearbeiteten Dateien in den Ergebnissen der Aufgabe in der App, bevor du die Aufgabe freigibst. Sollen noch Änderungen folgen, schreib einen weiteren Kommentar, der den Agenten erwähnt.
