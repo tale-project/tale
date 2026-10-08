@@ -123,13 +123,13 @@ describe('grantedToolsGuidance', () => {
     expect(guidance).toContain('change real organization data');
   });
 
-  it('names knowledge entries among the data a write changes', () => {
+  it('warns that a knowledge entry write changes real organization data', () => {
     const guidance = grantedToolsGuidance([
       'knowledge_entry_find',
       'knowledge_entry_write',
     ]);
     expect(guidance).toContain('knowledge_entry_write');
-    expect(guidance).toContain('(tasks, documents, knowledge entries)');
+    expect(guidance).toContain('change real organization data');
   });
 
   it('omits the write warning for a read-only grant', () => {

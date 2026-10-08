@@ -184,10 +184,10 @@ export function grantedToolsGuidance(
     '. Call the separate workspace_status MCP tool with {} for their ' +
     'argument shapes.' +
     (hasWrite
-      ? ' The write tools change real organization data (tasks, documents, ' +
-        'knowledge entries) with no further approval — act deliberately and ' +
-        'prefer the idempotent forms (task_upsert_by_external_ref) for ' +
-        'anything that may re-run.'
+      ? ' The write tools change real organization data (tasks, documents) ' +
+        'with no further approval — act deliberately and prefer the ' +
+        'idempotent forms (task_upsert_by_external_ref) for anything that ' +
+        'may re-run.'
       : '')
   );
 }
