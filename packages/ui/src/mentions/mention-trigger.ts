@@ -21,7 +21,7 @@ export interface MentionTrigger {
 }
 
 /** How many words a query may run across. */
-export const MENTION_QUERY_MAX_WORDS = 3;
+const MENTION_QUERY_MAX_WORDS = 3;
 
 const TRIGGER_RE = new RegExp(
   String.raw`(^|\s)@((?:[^\s@]+ ){0,${MENTION_QUERY_MAX_WORDS - 1}}[^\s@]*)$`,

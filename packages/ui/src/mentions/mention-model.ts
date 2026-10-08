@@ -55,8 +55,6 @@ export interface MentionDocOptions<Kind extends string> {
   resolvePlain?: (handle: string) => MentionTarget<Kind> | null | undefined;
 }
 
-export const EMPTY_MENTION_DOC: MentionDoc<never> = { text: '', ranges: [] };
-
 /** A name as a field shows it after `@`: on one line, never empty. */
 export function mentionDisplayName(name: string, id: string): string {
   return normalizeMentionLabel(name) || id;

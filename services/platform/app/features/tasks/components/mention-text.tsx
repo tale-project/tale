@@ -9,8 +9,7 @@ import {
   remarkMentions,
 } from '@tale/ui/mentions/remark-mentions';
 import { useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import type { PluggableList } from 'unified';
+import ReactMarkdown, { type Options } from 'react-markdown';
 
 import {
   markdownComponents,
@@ -197,7 +196,7 @@ function MentionTextContent({
   );
 }
 
-const REMARK_PLUGINS: PluggableList = [
+const REMARK_PLUGINS: Options['remarkPlugins'] = [
   ...TASK_REMARK_PLUGINS,
   [remarkMentions, { kinds: MENTION_KINDS }],
 ];
