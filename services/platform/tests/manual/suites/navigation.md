@@ -23,7 +23,7 @@ live in [chat.md](chat.md), the Inbox view in
 | Home routes          | `/dashboard/{org}/{chat\|projects\|conversations}/…` and `/dashboard/{org}/tasks/{taskId}` — the Home panel stands beside every one                                               |
 | Home list (phone)    | `/dashboard/{org}/home` — a desktop visit redirects to a fresh chat, `/dashboard/{org}/chat?new=true`                                                                                                      |
 | Knowledge            | `/dashboard/{org}/documents` (the "Knowledge" rail item)                                                                                                                             |
-| Settings landing     | `/dashboard/{org}/settings` → redirects by role (`getDefaultSettingsRoute`): `…/settings/organization` (owner/admin), `…/settings/connectors` (developer), else `…/settings/account` |
+| Settings landing     | `/dashboard/{org}/settings` → on a computer redirects to the panel's first row, `…/settings/account`, for every role |
 | Governance group     | `/dashboard/{org}/settings/governance` → redirects to `…/governance/content-models`                                                                                                  |
 | Governance sub-page  | `/dashboard/{org}/settings/governance/policies-limits`                                                                                                                               |
 | Org-switch staging   | `/dashboard/switching?to={otherOrg}` → redirects to `/dashboard/{otherOrg}`                                                                                                          |
@@ -177,7 +177,7 @@ loaded, and reads **No teams** for an account in none.
   **Knowledge** and switch to **Websites**; click **Home**, then **Knowledge**
   again → You land on `/documents`, not Websites. Repeat for **Automations**
   (open one automation's **Runs** tab → `/automations`) and **Settings** (open
-  **Teams** → the role's default landing): each opens the section's own first
+  **Teams** → **Account**): each opens the section's own first
   page, never the tab or record you left. **Home** too: open a project's
   board with a task open (`?task=…`), click **Knowledge**, then **Home** → a
   fresh composer (`/chat?new=true`), neither the board nor the chat you last
@@ -189,7 +189,7 @@ loaded, and reads **No teams** for an account in none.
   A fresh composer opens (`/chat?new=true`) and the Home panel's list gains
   the draft row **New chat** (`home.newChat`) at the top, marked current. Same
   gesture in **Knowledge** (from **Websites**) lands on `/documents`; in
-  **Settings** on the role's default landing.
+  **Settings** on **Account**.
 - [ ] `NAV-F18` · **Home always starts a new chat** — From **Knowledge**,
   click **Home** → A fresh composer opens (`/chat?new=true`) with the Home
   panel beside it, not the chat you last read. Click **Home** again while

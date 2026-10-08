@@ -92,7 +92,7 @@ function navCases(organizationId: string): readonly NavCase[] {
     {
       key: 'settings',
       hrefSuffix: `/dashboard/${organizationId}/settings`,
-      // Settings index redirects to a permission-appropriate sub-page; the
+      // Settings index redirects to its first page, Account; the
       // Settings panel beside it is the settled anchor.
       urlPattern: /\/settings(?:[/?#]|$)/,
       anchor: (page) =>

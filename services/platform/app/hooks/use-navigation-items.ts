@@ -191,11 +191,9 @@ export function useNavigationItems(businessId: string): NavigationItems {
         {
           // Single Settings entry, pinned with the account tiles at the foot
           // of the rail: configuration is not a place you work in. On a
-          // computer the index route redirects to the permission-appropriate
-          // landing page via getDefaultSettingsRoute: Organization for
-          // Owners and Admins, Connectors for Developers, Account for
-          // everyone else. The default active-path matcher lights it up for
-          // every `/settings` sub-route.
+          // computer the index route opens the Settings panel's first row,
+          // Account, for every role. The default active-path matcher lights
+          // it up for every `/settings` sub-route.
           label: tNav('userSettings'),
           to: '/dashboard/$id/settings',
           params: { id: businessId },
