@@ -23,7 +23,11 @@ tasks and genuine unhandled errors are reported. A verified client abort or a
 closed SSE stream after cancellation is expected and sends no event. Request
 bodies, cookies and credential headers or URL tokens are omitted or masked using
 the same privacy filter as the platform backend. Stack frames and error messages
-are sent unchanged. Unset `SENTRY_DSN` disables reporting.
+are sent unchanged. Unset `SENTRY_DSN` disables reporting, and the spawner
+then never loads the reporting SDK; likewise only `SANDBOX_BACKEND=kubernetes`
+loads the Kubernetes API client. Each would hold 60–100 MiB of memory for
+nothing, and `src/import-footprint.test.ts` keeps both out of a Docker
+spawner's (and a connected device's) boot.
 
 Exec and attach streams bound their pending output to 8 MiB plus at most one
 event (a collected terminal result can be larger). A consumer that stays

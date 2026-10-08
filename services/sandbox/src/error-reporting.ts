@@ -1,18 +1,29 @@
-import * as Sentry from '@sentry/bun';
-
 import {
   scrubEvent,
   scrubUrl,
 } from '../../../packages/shared/src/monitoring/privacy.ts';
 import { jsonResponse } from './http-util.ts';
 
-let enabled = false;
+type SentrySdk = typeof import('@sentry/bun');
 
-/** Errors only. No request bodies, console breadcrumbs, sessions or tracing. */
-export function initSandboxErrorReporting(): boolean {
+// The SDK is loaded only when a DSN asks for it: importing it holds 60-85 MiB
+// resident, and most deployments and every connected device run without one.
+// Until it is loaded, reporting and flushing do nothing.
+let sentry: SentrySdk | null = null;
+let initializing: Promise<boolean> | null = null;
+
+/** Errors only. No request bodies, console breadcrumbs, sessions or tracing.
+ * Await it before serving, so a failure from then on is reported. */
+export function initSandboxErrorReporting(): Promise<boolean> {
   const dsn = process.env.SENTRY_DSN;
-  if (!dsn || enabled) return enabled;
+  if (!dsn) return Promise.resolve(sentry !== null);
+  initializing ??= startErrorReporting(dsn);
+  return initializing;
+}
+
+async function startErrorReporting(dsn: string): Promise<boolean> {
   try {
+    const Sentry = await import('@sentry/bun');
     Sentry.init({
       dsn,
       release: process.env.TALE_VERSION,
@@ -30,11 +41,11 @@ export function initSandboxErrorReporting(): boolean {
       beforeSend: scrubEvent,
       initialScope: { tags: { 'tale.role': 'sandbox' } },
     });
-    enabled = true;
+    sentry = Sentry;
   } catch {
     console.warn('[sandbox] error reporting could not initialize');
   }
-  return enabled;
+  return sentry !== null;
 }
 
 /** A disconnect proves only its own abort/closed-stream error is expected. */
@@ -57,21 +68,22 @@ export function reportSandboxError(
   signal?: AbortSignal,
   request?: Request,
 ): void {
-  if (!enabled || isClientDisconnect(error, signal)) return;
-  Sentry.withScope((scope) => {
+  const sdk = sentry;
+  if (sdk === null || isClientDisconnect(error, signal)) return;
+  sdk.withScope((scope) => {
     scope.setTag('sandbox.operation', operation);
     if (request) {
       scope.setExtra('path', scrubUrl(request.url));
       scope.setExtra('method', request.method);
     }
-    Sentry.captureException(error);
+    sdk.captureException(error);
   });
 }
 
 export async function flushSandboxErrorReporting(): Promise<void> {
-  if (!enabled) return;
+  if (sentry === null) return;
   try {
-    await Sentry.flush(2000);
+    await sentry.flush(2000);
   } catch {
     console.warn('[sandbox] error reporting could not flush');
   }
