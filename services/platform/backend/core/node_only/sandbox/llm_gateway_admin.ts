@@ -288,11 +288,18 @@ const MANAGEMENT_TIMEOUT_MS = 15_000;
  * times, when that is safe: always when the answer names the locked store,
  * and for the idempotent methods whatever it says. A POST answered otherwise
  * comes back at once — it may have created what it asked for. The last
- * answer is returned either way, for the caller to read as before.
+ * answer is returned either way, for the caller to read as before. A caller
+ * that must look at the gateway before a write goes out again passes
+ * `resend: false` and gets the first answer.
  */
 async function managementFetch(
   path: string,
-  init: { method?: ManagementMethod; json?: unknown; timeoutMs?: number } = {},
+  init: {
+    method?: ManagementMethod;
+    json?: unknown;
+    timeoutMs?: number;
+    resend?: boolean;
+  } = {},
 ): Promise<Response> {
   const method = init.method ?? 'GET';
   const request = (): Promise<Response> =>
@@ -302,6 +309,7 @@ async function managementFetch(
       ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
       signal: AbortSignal.timeout(init.timeoutMs ?? MANAGEMENT_TIMEOUT_MS),
     });
+  if (init.resend === false) return request();
   for (const delayMs of STORE_BUSY_RETRY_DELAYS_MS) {
     const res = await request();
     if (res.status < 500) return res;
@@ -1797,37 +1805,42 @@ async function readProviderRecord(
   return record;
 }
 
-/** Read a record back after a write the gateway failed or did not answer.
- * The gateway stores a record before it asks the upstream for its models, so
- * a write whose answer came too late has usually landed. */
-async function confirmResize(
+/** Read a record back after a write the gateway failed or did not answer:
+ * the outcome, when that settles it, else the record as it reads now, still
+ * over its pool. The gateway stores a record before it asks the upstream for
+ * its models, so a write whose answer came too late has usually landed. */
+async function readBackResize(
   name: string,
   pool: GatewayProviderPool,
-): Promise<ResizeOutcome> {
+): Promise<ResizeOutcome | Record<string, unknown>> {
   // A provision of this process is waiting to write the record, with its
-  // pool: nothing is left for the pass to confirm.
+  // pool: nothing is left for the pass to do.
   if (configuredProviderRecords.has(name)) return 'left';
+  let record: Record<string, unknown> | null;
   try {
-    const record = await readProviderRecord(name);
-    if (record === null) return 'left';
-    if (recordWorkers(record) === pool.concurrency) return 'resized';
-    if (poolToShrinkTo(name, record) === undefined) return 'left';
+    record = await readProviderRecord(name);
   } catch (error) {
     console.warn(
       `[llm-gateway] reading provider '${name}' back after its resize failed:`,
       error,
     );
+    return 'unconfirmed';
   }
-  return 'unconfirmed';
+  if (record === null) return 'left';
+  if (recordWorkers(record) === pool.concurrency) return 'resized';
+  if (poolToShrinkTo(name, record) === undefined) return 'left';
+  if (configuredProviderRecords.has(name)) return 'left';
+  return isRecord(record.network_config) ? record : 'unconfirmed';
 }
 
-/** Send one record back with `pool` and its own config (see
- * ECHOED_PROVIDER_FIELDS). Never throws. */
-async function writeResizedRecord(
+/** Send one record back once with `pool` and its own config (see
+ * ECHOED_PROVIDER_FIELDS): `failed` when the gateway answered a 5xx, `no
+ * answer` when it did not answer in time. */
+async function sendResize(
   name: string,
   record: Record<string, unknown>,
   pool: GatewayProviderPool,
-): Promise<ResizeOutcome> {
+): Promise<'resized' | 'refused' | 'failed' | 'no answer'> {
   const body: Record<string, unknown> = { concurrency_and_buffer_size: pool };
   for (const field of ECHOED_PROVIDER_FIELDS) {
     const value = record[field];
@@ -1837,7 +1850,12 @@ async function writeResizedRecord(
   try {
     const res = await managementFetch(
       `/api/providers/${encodeURIComponent(name)}`,
-      { method: 'PUT', json: body, timeoutMs: RESIZE_WRITE_TIMEOUT_MS },
+      {
+        method: 'PUT',
+        json: body,
+        timeoutMs: RESIZE_WRITE_TIMEOUT_MS,
+        resend: false,
+      },
     );
     if (res.ok) return 'resized';
     const said = sanitizeError(await res.text());
@@ -1846,10 +1864,38 @@ async function writeResizedRecord(
       return 'refused';
     }
     console.warn(`${failed} (${res.status}): ${said}; reading it back`);
+    return 'failed';
   } catch (error) {
     console.warn(`${failed}; reading it back:`, error);
+    return 'no answer';
   }
-  return confirmResize(name, pool);
+}
+
+/** Write one record back with `pool`, sending it again after a 5xx — the
+ * gateway's store turns a write away while another one holds it — up to
+ * three times, 250, 750 and 2,000 ms later. The gateway's PUT creates a
+ * record it does not hold, so a write goes out again only to a record that
+ * is still there and still over its pool when read back after the wait, and
+ * carries the config the record has then. A write the gateway did not answer
+ * may still be under way there, and is never sent again. Never throws. */
+async function writeResizedRecord(
+  name: string,
+  record: Record<string, unknown>,
+  pool: GatewayProviderPool,
+): Promise<ResizeOutcome> {
+  let current = record;
+  for (let attempt = 0; ; attempt += 1) {
+    const sent = await sendResize(name, current, pool);
+    if (sent === 'resized' || sent === 'refused') return sent;
+    const delayMs: number | undefined = STORE_BUSY_RETRY_DELAYS_MS[attempt];
+    if (sent === 'failed' && delayMs !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    const now = await readBackResize(name, pool);
+    if (typeof now === 'string') return now;
+    if (sent === 'no answer' || delayMs === undefined) return 'unconfirmed';
+    current = now;
+  }
 }
 
 /** Write one record back with its kind's pool and its own config. The record

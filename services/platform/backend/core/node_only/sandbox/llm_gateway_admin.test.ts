@@ -1309,6 +1309,69 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
     );
   });
 
+  it('never sends a resize again to a record deleted while the gateway’s store turned the write away, since a PUT would create it anew', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    let deleted = false;
+    const calls = stubPass([STALE_CUSTOM], (method) => {
+      if (method === 'GET') {
+        return deleted
+          ? new Response('Provider not found', { status: 404 })
+          : Response.json(STALE_CUSTOM);
+      }
+      deleted = true;
+      return new Response(
+        '{"error":{"message":"failed to update: database is locked"}}',
+        { status: 500 },
+      );
+    });
+    const mod = await loadModule();
+    await withRetryWaitsElapsed(() => mod.shrinkProviderPools());
+    expect(recordWrites(calls)).toHaveLength(1);
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 0 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
+  it('sends a resize the gateway’s store turned away again with the record as it reads after the wait', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const newer = {
+      ...STALE_CUSTOM,
+      network_config: {
+        ...CUSTOM_NETWORK,
+        base_url: 'https://llm-new.example.com/v1',
+      },
+    };
+    let puts = 0;
+    const calls = stubPass([STALE_CUSTOM], (method) => {
+      if (method === 'GET')
+        return Response.json(puts === 0 ? STALE_CUSTOM : newer);
+      puts += 1;
+      return puts === 1
+        ? new Response(
+            '{"error":{"message":"failed to update: database is locked"}}',
+            { status: 500 },
+          )
+        : Response.json({});
+    });
+    const mod = await loadModule();
+    await withRetryWaitsElapsed(() => mod.shrinkProviderPools());
+    expect(recordWrites(calls)).toEqual([
+      [
+        CUSTOM_NAME,
+        expect.objectContaining({ network_config: CUSTOM_NETWORK }),
+      ],
+      [
+        CUSTOM_NAME,
+        expect.objectContaining({ network_config: newer.network_config }),
+      ],
+    ]);
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 1 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
   it('leaves a record a provision of this process starts on while the pass reads it, and the provision waits for no write', async () => {
     vi.spyOn(console, 'info').mockImplementation(() => {});
     const provision = {
