@@ -53,7 +53,7 @@ export function toUtc(date: CalendarDate): number {
   return validInstant(Date.UTC(date.year, date.month - 1, date.day));
 }
 
-export function fromUtc(ms: number): CalendarDate {
+function fromUtc(ms: number): CalendarDate {
   const d = new Date(validInstant(ms));
   return {
     year: d.getUTCFullYear(),
