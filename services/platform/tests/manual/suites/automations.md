@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 80 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 81 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -530,7 +530,7 @@ output:
       `automations.detail.deleted.title` with **Open the run history**
       (`automations.detail.deleted.openRuns`). A slug nobody ever saved still
       reads `automations.notFound.title`.
-- [ ] `AUTO-F56` · **The rail forgets a deleted automation** — Open an
+- [ ] `AUTO-F56` · **A deleted automation leaves the rail on the list** — Open an
       automation's **Editor**, go back to the list and delete it from its row
       (`automations.detail.delete.title`), switch to **Knowledge**, then click
       the **Automations** rail tile → You land on `/dashboard/{org}/automations`
@@ -588,7 +588,7 @@ output:
       without **Open the full run** (`tasks.run.openFull`), and the
       automation's name in the timeline shows no **View automation**
       (`tasks.timeline.viewWorkflow`); choose **Home** in the rail after the
-      project URL → the project's own page or the chat opens, never the
+      project URL → a fresh chat opens (`/chat?new=true`), never the
       denial. An Owner, Admin or Developer gets every page, the tab and both
       links.
 - [ ] `AUTO-F54` · **An agent node creates an image into its output** — With
@@ -620,6 +620,26 @@ output:
       appears. Turn **Enabled** off and **Save** → no run starts at the next
       minute. (Without a runnable harness the agent run itself fails at its
       launch; the start and the coalesced occurrence still show.)
+- [ ] `AUTO-F57` · **An automation opened in a project shows its project** —
+      Bind an automation to exactly one project, open the project, choose its
+      **Automations** tab (`automations.title`) and open the automation, then
+      one of its runs → The URL stays under
+      `/dashboard/{org}/projects/{projectId}/automations/{slug}/…`; the trail
+      reads `<project> / Automations / <automation>` (on the run
+      `… / <automation> / Run`, `automations.runs.breadcrumb`); the project's
+      name opens the project's **Tasks** (`tasks.title`) and **Automations**
+      its **Automations** tab; only the leaf heading carries
+      `aria-current="page"` in the trail; the rail lights **Automations**
+      (`navigation.automations`) and the pill glides there, not to **Home**; a
+      long project name truncates without hiding the automation's name, and
+      hovering or tabbing to it shows the whole name in a tooltip; on a run a
+      long automation name truncates the same way and **Run** stays readable.
+      Below 768 px the back arrow (`common.aria.back`) returns to the
+      project's **Automations** tab (from a run: to the automation) and the
+      tab bar lights **Automations**. Open
+      the same automation from the organization's list (`AUTO-F4`) → The same
+      trail and rail. Choose **Automations** in the rail → The organization's
+      list. Repeat in DE and FR (**Automatisierungen** / **Automatisations**).
 
 ## Boundary & error tests
 
@@ -697,6 +717,17 @@ output:
       pending card disappears. On another live task, the Editor can cancel;
       the Member sees the terminal state after reload. Use the task panel:
       Member and Editor seats have no Automations navigation (`AUTO-F53`).
+
+- [ ] `AUTO-B12` · **A project automation whose project is gone keeps a way
+      out** — Open an automation from a project's **Automations** tab
+      (`AUTO-F57`) and copy the URL. As a Developer outside the project's
+      audience, open that URL; then, as an Owner, delete the project and open
+      it again → the automation still opens; the trail reads
+      `Automations / <automation>` with no project, and **Automations**
+      (`automations.title`) opens the organization's list, never a page
+      saying the project was not found; below 768 px the back arrow
+      (`common.aria.back`) leads there too. Open one of its runs → the
+      automation's name returns to the automation under the same URL.
 
 ## Run liveness — chaos recovery (backend, scripted)
 

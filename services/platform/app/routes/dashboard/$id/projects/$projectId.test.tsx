@@ -21,7 +21,6 @@ const { mockUseAutomations, mockUseProject, mockLocation, mockNavigate } =
     mockLocation: {
       pathname: '/dashboard/org-1/projects/proj-1',
       search: {} as Record<string, unknown>,
-      state: {} as Record<string, unknown>,
     },
     mockNavigate: vi.fn(),
   }));
@@ -164,7 +163,6 @@ afterEach(() => {
   viewer.role = 'developer';
   mockLocation.pathname = '/dashboard/org-1/projects/proj-1';
   mockLocation.search = {};
-  mockLocation.state = {};
   window.localStorage.clear();
 });
 
@@ -369,28 +367,11 @@ describe('project shell — a project that is gone', () => {
       screen.getByRole('link', { name: 'projects.title' }),
     ).toHaveAttribute('href', '/dashboard/org-1/projects');
   });
-
-  // A remembered project (the Home rail tile reopening it, see
-  // `use-navigation-items.ts`) can be gone by the time the rail click lands —
-  // deleted, or a membership change. That arrival is marked with
-  // `state.navRestore`, and only THAT arrival redirects: a shared link to the
-  // same dead project keeps explaining rather than bouncing away.
-  it('drops the stale memory and redirects to the list on a restored arrival', () => {
-    mockLocation.state = { navRestore: true };
-    setupMissing();
-
-    expect(mockNavigate).toHaveBeenCalledWith({
-      to: '/dashboard/$id/projects',
-      params: { id: 'org-1' },
-      replace: true,
-    });
-  });
 });
 
 // ---------------------------------------------------------------------------
 // #3885: a project read that FAILED is not a project that is gone. The shell
-// read both as "We couldn't find that project. It may have been deleted." —
-// and on a restored arrival dropped the memory and left for the list. It
+// read both as "We couldn't find that project. It may have been deleted." It
 // stays, says the read failed and tries it again; no tab renders without its
 // project (Files and Agents would show nothing).
 // ---------------------------------------------------------------------------
@@ -449,14 +430,6 @@ describe('project shell — a project read that failed', () => {
     expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
   });
 
-  it('keeps the memory and the place on a restored arrival', () => {
-    mockLocation.state = { navRestore: true };
-    setupFailed();
-
-    expect(mockNavigate).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toBeInTheDocument();
-  });
-
   it('opens the tab, and hands it the focus, when Try again worked', async () => {
     const { rerender } = setupFailed();
     tryAgain().focus();
@@ -472,81 +445,6 @@ describe('project shell — a project read that failed', () => {
     await waitFor(() =>
       expect(screen.getByRole('region', { name: 'Apollo' })).toHaveFocus(),
     );
-  });
-});
-
-// A navigation AWAY updates `location.pathname` (and re-runs the write
-// effect) on the render just before this component unmounts, so the pathname
-// no longer belongs to THIS project. Regression for a bug where the
-// unguarded effect persisted wherever the user navigated TO — e.g. clicking
-// Home landed on Automations or Knowledge, because that's what the shell
-// last wrote under its own key on its way out.
-describe('project shell — remembering only its own path', () => {
-  it('persists its own path while genuinely on it', async () => {
-    const { unmount } = setup([]);
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
-      ).toBe('"/dashboard/org-1/projects/proj-1"'),
-    );
-    unmount();
-  });
-
-  it('does not overwrite the memory with a pathname that no longer belongs to this project', async () => {
-    const { rerender, unmount } = setup([]);
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
-      ).toBe('"/dashboard/org-1/projects/proj-1"'),
-    );
-
-    // Simulate the render right before this shell unmounts on the way to
-    // Automations: `pathname` has already moved, this component hasn't yet.
-    mockLocation.pathname = '/dashboard/org-1/automations';
-    rerender(<ProjectDetailLayout />);
-
-    // The last GOOD path survives untouched — never Automations' path.
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
-      ).toBe('"/dashboard/org-1/projects/proj-1"'),
-    );
-    unmount();
-  });
-
-  it('remembers a project automation page for a developer', async () => {
-    mockLocation.pathname =
-      '/dashboard/org-1/projects/proj-1/automations/mail-sync';
-    const { unmount } = setup([{ name: 'mail-sync' }]);
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
-      ).toBe('"/dashboard/org-1/projects/proj-1/automations/mail-sync"'),
-    );
-    unmount();
-  });
-
-  // A Member who opens a project automation URL only sees the denial; if
-  // Home remembered that page, the tile would keep reopening it.
-  it('never remembers a project automation page for a member', async () => {
-    viewer.role = 'member';
-    const { rerender, unmount } = setup([{ name: 'mail-sync' }]);
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
-      ).toBe('"/dashboard/org-1/projects/proj-1"'),
-    );
-
-    mockLocation.pathname =
-      '/dashboard/org-1/projects/proj-1/automations/mail-sync';
-    rerender(<ProjectDetailLayout />);
-
-    await waitFor(() =>
-      expect(
-        window.localStorage.getItem('tale.platform.home.org-1.lastProjectPath'),
-      ).toBe('"/dashboard/org-1/projects/proj-1"'),
-    );
-    unmount();
   });
 });
 

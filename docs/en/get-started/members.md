@@ -48,7 +48,7 @@ Open a task to read its description, assignee, and discussion. You can create ta
 
 ## Return to your work
 
-Every section opens on its own first page, whatever you did there last. On a computer, **Home** is the exception: it reopens the chat you last read, and choosing it again starts a new chat. The [navigation guide](/platform#navigation) explains the desktop and phone controls.
+Every section opens on its own first page, whatever you did there last. On a computer, **Home** opens a new chat. The [navigation guide](/platform#navigation) explains the desktop and phone controls.
 
 Home lists your chats together with the open tasks assigned to you or waiting for your review; choose **Chats** or **Tasks** above the list to see one kind only. If the Home panel is hidden, **Show sidebar** at the start of the header brings it back. Use a new chat for a new subject and share a project conversation deliberately when teammates need it.
 
