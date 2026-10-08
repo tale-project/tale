@@ -69,7 +69,9 @@ result.
 For performance or memory work, run `bun run test:performance` and read the
 [measurement and coverage guide](../scripts/performance/README.md). It reports
 representative hot paths and explicit gaps; it does not replace integration or
-browser tests, and timing results are never cached or used as CI thresholds.
+browser tests, and timing results are never cached or used as CI thresholds. For
+how a deployment holds a crowd, run the [load harness](../tools/load/README.md)
+against a throwaway stack (locally, or with the dispatch-only **Load** workflow).
 
 Browser changes also need the relevant Playwright or manual flow. Database
 changes need the real-Postgres integration check described by the
