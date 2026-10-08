@@ -689,16 +689,16 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
 - **An in-doubt step is decided in the app only** — a run parked on `waitingFor: in_doubt` (a
   write its server was making when it stopped may already have reached the service) is read and
   decided through `GET`/`POST /api/app/automations/runs/{runId}/in-doubt[/{attemptId}]`
-  (`backend/domains/automations/routes.ts`) and the run page's card alone: `/api/v1` and MCP
-  name the wait but offer no door, the task panel's run card does not show it, and the card
-  names a write inside a subautomation by its raw path (`batch[1:0]/send`) (2026-10). Paying it
-  down means `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, actor?}`
-  in both scopes of `backend/rest/v1-automations.ts` beside the ask doors (the stop's write
-  gate, `rest:execute` charged, the store's 409s re-coded at the door), an MCP tool, a contract
-  bump, the same card in the task panel, and a readable name for a nested path.
+  (`backend/domains/automations/routes.ts`) and the card on the run page and in the task
+  panel: `/api/v1` and MCP name the wait but offer no door, and the card names a write inside a
+  subautomation by its raw path (`batch[1:0]/send`) (2026-10). Paying it down means
+  `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, actor?}` in both
+  scopes of `backend/rest/v1-automations.ts` beside the ask doors (the stop's write gate,
+  `rest:execute` charged, the store's 409s re-coded at the door), an MCP tool, a contract bump,
+  and a readable name for a nested path.
 - **An in-doubt park is silent** — nothing tells anyone that a run waits on an in-doubt step: no
-  bell, no email; the run list and the run's status say **Needs you** only to someone who opens
-  them, so an unattended scheduled run can wait until somebody does (2026-10). Paying it down
+  bell, no email; the run list and the run's status say it waits for a decision only to someone
+  who opens them, so an unattended scheduled run can wait until somebody does (2026-10). Paying it down
   means a notification kind with its preferences, emitted in the park's transaction to the
   run's starter (an organization run's owners when a trigger started it) and marked read when
   the step is decided.
@@ -719,5 +719,17 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
 - **The first roll onto run leases is protected one way** — while the image before run leases
   still serves, it claims a run without honouring a live lease and repeats a write without the
   effect ledger, keeps its containers' 10 s stop grace, and answers the deploy's `drain-status`
-  without counting automation steps (2026-10). Nothing is left to build: once every deployment
+  without counting automation steps. A run it was stepping when it stopped is taken over once
+  its own three-minute promise lapsed and a sweep found it (`sweepOverdueRuns` turns the lapsed
+  promise into a lapsed lease), so about four minutes after its last heartbeat. A write inside a
+  subautomation that it was making is sent again under a new idempotency key: it keyed a nested
+  write by the inner node's id alone (2026-10). Nothing is left to build: once every deployment
   has rolled past the release that brought leases, delete this entry.
+- **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
+  30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
+  read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by
+  more than about 30 s read each other's live leases as lapsed and take runs over (the epoch
+  fence and the ledger keep that from repeating a write, but every such takeover of a write in
+  flight parks it in doubt), so a multi-host deployment needs synchronised clocks (2026-10).
+  Paying it down means stamping and comparing leases with the database's clock
+  (`clock_timestamp()`) in the claim, heartbeat, progress, park and sweep statements.

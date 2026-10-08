@@ -116,7 +116,7 @@ Le mode **Essai** simule les opérations externes pendant la préparation. Le mo
 
 Une approbation suspend l’exécution au statut `waiting` avant une écriture protégée. Approuver autorise le moteur à tenter l’opération, sans garantir sa réussite. Rejeter empêche l’opération et fait échouer l’exécution. Une question suspend aussi le traitement, mais demande une information plutôt qu’une permission.
 
-Le statut `waiting` peut également indiquer qu’un agent travaille encore, qu’une étape d’agent attend une place de sandbox pour démarrer, ou qu’un nœud vérifie périodiquement une condition. Consulte `waitingFor` : `approval` et `ask` nécessitent une personne ; `agent`, `room` et `repeat` reprennent normalement seuls. [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique comment examiner et traiter les demandes humaines.
+Le statut `waiting` peut également indiquer qu’un agent travaille encore, qu’une étape d’agent attend une place de sandbox pour démarrer, ou qu’un nœud vérifie périodiquement une condition. Consulte `waitingFor` : `approval`, `ask` et `in_doubt` nécessitent une personne ; `agent`, `room` et `repeat` reprennent normalement seuls. `in_doubt` signifie qu’une étape envoyait quelque chose à un service externe quand l’exécution a été interrompue, et que Tale ne peut pas savoir si le service l’a reçu. Personne n’est averti : décide sur la page de l’exécution, comme l’explique [Examiner les exécutions et corriger les échecs](/fr/platform/automations/execution-logs). [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) explique comment examiner et traiter les demandes humaines.
 
 ## Choisir un chat, une tâche ou une automatisation
 
