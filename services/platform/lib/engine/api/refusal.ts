@@ -33,7 +33,7 @@ const STATUSLESS_REFUSALS: ReadonlySet<string> = new Set([
 ]);
 
 /** Whether `value` has the shape of a stable refusal code. */
-export function isRefusalCode(value: unknown): value is string {
+function isRefusalCode(value: unknown): value is string {
   return typeof value === 'string' && REFUSAL_CODE.test(value);
 }
 
