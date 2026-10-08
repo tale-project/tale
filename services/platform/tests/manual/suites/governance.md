@@ -225,12 +225,14 @@ agent.
   with **Max cost** at your monthly cost under **Settings → Usage**. Upload
   a text document → its badge reads **Waiting for a usage limit**
   (`documents.rag.status.usageLimit`), its dialog explains it in your
-  language, German and French too. Ask the chat about something only that
-  kind of document holds → the assistant says the search did not run
-  because of a usage limit, never that nothing was found. Search with your
-  API key (`POST /api/v1/knowledge/search`) → 429 `BUDGET_EXCEEDED` with
+  language, German and French too. Search with your API key
+  (`POST /api/v1/knowledge/search`) → 429 `BUDGET_EXCEEDED` with
   `Retry-After`. Add a website → its details say a usage limit stopped the
-  scan (`websites.viewDialog.embeddingLimitNotice`). Delete the rule →
+  scan (`websites.viewDialog.embeddingLimitNotice`). Raise the rule's
+  **Max cost** to a few cents above your monthly cost and, in a new chat,
+  ask about something your documents hold → the reply runs, holding what
+  is left, and the assistant says the search did not run because of a
+  usage limit, naming it, never that nothing was found. Delete the rule →
   within the hour the document reads **Indexed**, the website's notice is
   gone, and **Usage analytics** lists **Knowledge indexing and search**
   (`analytics.usage.embedding`) under you
