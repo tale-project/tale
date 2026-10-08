@@ -15,9 +15,6 @@ const mocks = vi.hoisted(() => ({
   openDirectCall: vi.fn(),
   settleDirectCall: vi.fn(async () => 'settled'),
   releaseDirectCall: vi.fn(async () => undefined),
-  readThreadProjectId: vi.fn(
-    async (): Promise<string | undefined> => undefined,
-  ),
   probeAudioDurationSec: vi.fn(async () => 12),
   requestTranscription: vi.fn(),
 }));
@@ -26,10 +23,6 @@ vi.mock('../governance/direct-calls.ts', () => ({
   openDirectCall: mocks.openDirectCall,
   settleDirectCall: mocks.settleDirectCall,
   releaseDirectCall: mocks.releaseDirectCall,
-}));
-vi.mock('../chat/threads.ts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../chat/threads.ts')>()),
-  readThreadProjectId: mocks.readThreadProjectId,
 }));
 vi.mock(
   '../../core/file_metadata/audio_preprocess.ts',
@@ -83,22 +76,65 @@ beforeEach(() => {
 });
 
 describe('an uploaded recording’s transcription', () => {
-  it('is its uploader’s spend, in the project of the chat it was added to [GOV-R14]', async () => {
-    mocks.readThreadProjectId.mockResolvedValueOnce('project-1');
+  const row = (fields: Record<string, unknown>) => ({
+    uploadedBy: 'user-1',
+    projectId: null,
+    status: 'queued',
+    threadProjectId: null,
+    threadOwner: null,
+    ...fields,
+  });
+
+  it('is its uploader’s spend, in the project its chat was started in [GOV-R14]', async () => {
+    // A project's new chat: the composer named the project at registration.
     await expect(
-      uploadTranscriptionSubject(
-        rowsSql([{ uploadedBy: 'user-1', threadId: 'thread-1' }]),
-        { organizationId: 'org-1', storageId: 's3:org/rec' },
-      ),
+      uploadTranscriptionSubject(rowsSql([row({ projectId: 'project-1' })]), {
+        organizationId: 'org-1',
+        storageId: 's3:org/rec',
+      }),
     ).resolves.toEqual({
       userId: 'user-1',
       agentSlug: '__transcription__',
       projectIds: ['project-1'],
     });
+    // Added to a chat the uploader owns: that chat's project.
+    await expect(
+      uploadTranscriptionSubject(
+        rowsSql([row({ threadProjectId: 'project-2', threadOwner: 'user-1' })]),
+        { organizationId: 'org-1', storageId: 's3:org/rec' },
+      ),
+    ).resolves.toMatchObject({ projectIds: ['project-2'] });
+  });
+
+  it('never takes the project of a chat the uploader does not own', async () => {
+    await expect(
+      uploadTranscriptionSubject(
+        rowsSql([
+          row({ threadProjectId: 'project-2', threadOwner: 'someone-else' }),
+        ]),
+        { organizationId: 'org-1', storageId: 's3:org/rec' },
+      ),
+    ).resolves.toEqual({ userId: 'user-1', agentSlug: '__transcription__' });
+  });
+
+  it('charges nobody for a recording that was removed, or is gone', async () => {
+    await expect(
+      uploadTranscriptionSubject(rowsSql([row({ status: 'skipped' })]), {
+        organizationId: 'org-1',
+        storageId: 's3:org/rec',
+      }),
+    ).resolves.toBeNull();
     await expect(
       uploadTranscriptionSubject(rowsSql([]), {
         organizationId: 'org-1',
         storageId: 's3:org/gone',
+      }),
+    ).resolves.toBeNull();
+    // A file nobody uploaded is the organization's.
+    await expect(
+      uploadTranscriptionSubject(rowsSql([row({ uploadedBy: null })]), {
+        organizationId: 'org-1',
+        storageId: 's3:org/rec',
       }),
     ).resolves.toEqual({
       userId: AUTOMATION_SUBJECT_ID,

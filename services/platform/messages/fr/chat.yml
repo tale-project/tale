@@ -285,6 +285,7 @@ videoLink:
     notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
     notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
     threadNotFound: Ce chat n'est plus disponible
+    projectUnavailable: "Ce projet ne t'est plus accessible. Colle le lien dans un autre chat."
   actions:
     removeLink: Retirer
     retry: Réessayer

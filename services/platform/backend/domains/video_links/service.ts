@@ -103,6 +103,9 @@ export interface VideoLinkJobRow {
   id: string;
   organizationId: string;
   threadId: string | null;
+  /** The project of the new chat the link was pasted into, before its
+   * thread existed (0158). */
+  projectId: string | null;
   uploadedBy: string;
   sourceUrl: string;
   sourceUrlHash: string;
@@ -131,6 +134,7 @@ export interface VideoLinkJobRow {
 
 const JOB_COLUMNS = `
   id, org_id AS "organizationId", thread_id AS "threadId",
+  project_id AS "projectId",
   uploaded_by AS "uploadedBy", source_url AS "sourceUrl",
   source_url_hash AS "sourceUrlHash", source_platform AS "sourcePlatform",
   pasted_token AS "pastedToken", video_title AS "videoTitle",
@@ -656,6 +660,7 @@ function videoShimHandlers(sql: Sql): ShimHandlers {
         _creationTime: job.createdAt,
         organizationId: job.organizationId,
         threadId: job.threadId ?? undefined,
+        projectId: job.projectId ?? undefined,
         uploadedBy: job.uploadedBy,
         sourceUrl: job.sourceUrl,
         sourceUrlHash: job.sourceUrlHash,
@@ -702,17 +707,19 @@ function videoShimHandlers(sql: Sql): ShimHandlers {
         source?: string;
         uploadedBy?: string;
         threadId?: string;
+        projectId?: string;
       };
       return sql.begin(async (tx) => {
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.file_metadata (
             org_id, storage_ref, file_name, content_type, size, source,
-            uploaded_by, thread_id, transcription_status, created_at_ms
+            uploaded_by, thread_id, project_id, transcription_status,
+            created_at_ms
           ) VALUES (
             ${args.organizationId}, ${args.storageId}, ${args.fileName},
             ${args.contentType}, ${args.size}, ${args.source ?? null},
-            ${args.uploadedBy ?? null}, ${args.threadId ?? null}, 'queued',
-            ${Date.now()}
+            ${args.uploadedBy ?? null}, ${args.threadId ?? null},
+            ${args.projectId ?? null}, 'queued', ${Date.now()}
           )
           RETURNING id
         `;
@@ -978,12 +985,20 @@ async function assertInFlightCapInTx(
  */
 async function assertVideoBudget(
   sql: Sql,
-  args: { organizationId: string; userId: string; threadId?: string | null },
+  args: {
+    organizationId: string;
+    userId: string;
+    threadId?: string | null;
+    projectId?: string | null;
+  },
 ): Promise<void> {
+  // The chat's project: the one the composer named for a new chat, else
+  // the thread's (a thread the member owns — the door checks it).
   const projectId =
-    args.threadId != null
+    args.projectId ??
+    (args.threadId != null
       ? await readThreadProjectId(sql, args.organizationId, args.threadId)
-      : undefined;
+      : undefined);
   const violation = await directCallBlocked(sql, {
     organizationId: args.organizationId,
     subject: {
@@ -1003,9 +1018,10 @@ async function assertVideoBudget(
 
 /**
  * Ingest a pasted video URL (the 0.4 `ingestVideoUrl`): playlist refusal,
- * budget gate (worst-case prospective Whisper cost), server-derived dedup
- * key + platform, in-thread dedup, org-wide donor clone (before — and
- * exempt from — the in-flight cap), cap, insert + `video.ingest` job.
+ * server-derived dedup key + platform, in-thread dedup, org-wide donor
+ * clone (before — and exempt from — the in-flight cap and the budget), the
+ * budget gate before a fresh download (`assertVideoBudget`), cap, insert +
+ * `video.ingest` job.
  * The route owns org membership + thread access + the rate limit.
  */
 export async function ingestVideoUrl(
@@ -1014,6 +1030,9 @@ export async function ingestVideoUrl(
     organizationId: string;
     userId: string;
     threadId?: string;
+    /** A project's new chat, before its thread exists — one the member may
+     * chat in (the door checks): the link's transcription counts toward it. */
+    projectId?: string;
     url: string;
     pastedToken: string;
     userLocale?: string;
@@ -1133,13 +1152,14 @@ export async function ingestVideoUrl(
     await assertInFlightCapInTx(tx, args.organizationId);
     const rows = await tx<{ id: string }[]>`
       INSERT INTO app.video_link_jobs (
-        org_id, thread_id, uploaded_by, source_url, source_url_hash,
-        source_platform, pasted_token, status, status_changed_at_ms,
-        attempts, lifecycle_status, created_at_ms
+        org_id, thread_id, project_id, uploaded_by, source_url,
+        source_url_hash, source_platform, pasted_token, status,
+        status_changed_at_ms, attempts, lifecycle_status, created_at_ms
       ) VALUES (
-        ${args.organizationId}, ${args.threadId ?? null}, ${args.userId},
-        ${args.url}, ${sourceUrlHash}, ${serverPlatform},
-        ${args.pastedToken}, 'queued', ${now}, 0, 'active', ${now}
+        ${args.organizationId}, ${args.threadId ?? null},
+        ${args.projectId ?? null}, ${args.userId}, ${args.url},
+        ${sourceUrlHash}, ${serverPlatform}, ${args.pastedToken}, 'queued',
+        ${now}, 0, 'active', ${now}
       )
       RETURNING id
     `;
@@ -1458,6 +1478,7 @@ export async function retryVideoLink(
     organizationId: args.organizationId,
     userId: args.userId,
     threadId: job.threadId,
+    projectId: job.projectId,
   });
   // Fast-fail on the pool BEFORE the cleanup below deletes the failed job's
   // blob and file row: a retry the cap refuses should leave them in place.

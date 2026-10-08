@@ -217,4 +217,22 @@ describe('transcribeAudioImpl and the uploader’s limits', () => {
       ),
     ).toBe(false);
   });
+
+  it('reports nothing for a recording removed before its hold', async () => {
+    admission = {
+      allowed: false,
+      cancelled: true,
+      reason: 'The recording was removed before its transcription could start.',
+    };
+
+    await transcribeAudioImpl(fakeCtx() as never, ARGS);
+
+    expect(mocks.requestTranscription).not.toHaveBeenCalled();
+    expect(
+      called(':updateFileTranscription').some(
+        (mutation) => mutation.args.transcriptionStatus === 'failed',
+      ),
+    ).toBe(false);
+    expect(scheduled).toEqual([]);
+  });
 });

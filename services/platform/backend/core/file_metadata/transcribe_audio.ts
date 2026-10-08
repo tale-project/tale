@@ -177,7 +177,9 @@ class TranscriptionBudgetError extends Error {
  * lease is the shim's own and goes back to it as it came. */
 function readTranscriptionAdmission(
   value: unknown,
-): { allowed: true; lease: unknown } | { allowed: false; reason: string } {
+):
+  | { allowed: true; lease: unknown }
+  | { allowed: false; reason: string; cancelled: boolean } {
   if (typeof value === 'object' && value !== null) {
     const allowed: unknown = Reflect.get(value, 'allowed');
     const lease: unknown = Reflect.get(value, 'lease');
@@ -186,7 +188,11 @@ function readTranscriptionAdmission(
       return { allowed: true, lease };
     }
     if (allowed === false && typeof reason === 'string') {
-      return { allowed: false, reason };
+      return {
+        allowed: false,
+        reason,
+        cancelled: Reflect.get(value, 'cancelled') === true,
+      };
     }
   }
   throw new Error(
@@ -429,6 +435,19 @@ export async function transcribeAudioImpl(
         ),
       );
       if (!admission.allowed) {
+        if (admission.cancelled) {
+          // Removed while it waited: nothing was held, nothing to report.
+          console.log(
+            JSON.stringify({
+              event: 'transcription.cancelled',
+              requestId,
+              storageId: args.storageId,
+              status: 'removed_before_hold',
+              attempt,
+            }),
+          );
+          return null;
+        }
         throw new TranscriptionBudgetError(admission.reason);
       }
       lease = admission.lease;

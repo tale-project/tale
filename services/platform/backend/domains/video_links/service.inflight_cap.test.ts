@@ -305,14 +305,21 @@ describe('ingestVideoUrl at a usage limit [GOV-R4]', () => {
     });
     const fake = fakeSql({ inFlight: 0 });
 
-    await expect(ingestVideoUrl(fake.sql, pasteArgs)).rejects.toMatchObject({
+    // Pasted into a project's new chat: the composer named the project.
+    await expect(
+      ingestVideoUrl(fake.sql, { ...pasteArgs, projectId: 'project-1' }),
+    ).rejects.toMatchObject({
       code: 'budgetExceeded',
       status: 429,
       message: expect.stringContaining('Your monthly cost limit is used up'),
     });
     expect(directCallBlocked).toHaveBeenCalledWith(fake.sql, {
       organizationId: 'org-1',
-      subject: { userId: 'user-1', agentSlug: '__transcription__' },
+      subject: {
+        userId: 'user-1',
+        agentSlug: '__transcription__',
+        projectIds: ['project-1'],
+      },
     });
     expect(
       fake.statements.some((s) =>

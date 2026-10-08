@@ -259,10 +259,16 @@ function transcriptionHandlers(sql: Sql): ShimHandlers {
         storageId: string;
         audioDurationSec: number;
       };
-      return openTranscriptionCall(sql, {
-        ...args,
-        subject: await uploadTranscriptionSubject(sql, args),
-      });
+      const subject = await uploadTranscriptionSubject(sql, args);
+      if (subject === null) {
+        return {
+          allowed: false,
+          cancelled: true,
+          reason:
+            'The recording was removed before its transcription could start.',
+        };
+      }
+      return openTranscriptionCall(sql, { ...args, subject });
     },
     'file_metadata/internal_mutations:settleTranscriptionCall': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the pipeline passes exactly this shape

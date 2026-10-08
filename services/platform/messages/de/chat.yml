@@ -286,6 +286,7 @@ videoLink:
     notUploader: Nur die Person, die dieses Video hinzugefügt hat, kann es ändern
     notRetryable: Erneuter Versuch gerade nicht möglich — das Video wird womöglich schon wieder verarbeitet
     threadNotFound: Dieser Chat ist nicht mehr verfügbar
+    projectUnavailable: Dieses Projekt ist für dich nicht mehr verfügbar. Füge den Link in einen anderen Chat ein.
   actions:
     removeLink: Entfernen
     retry: Erneut versuchen

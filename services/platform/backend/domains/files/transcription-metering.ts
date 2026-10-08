@@ -5,7 +5,6 @@ import {
   TRANSCRIPTION_SLUG,
 } from '../../../lib/shared/constants/usage.ts';
 import { estimateTranscriptionCostCents } from '../../core/governance/cost_estimation.ts';
-import { readThreadProjectId } from '../chat/threads.ts';
 import {
   type DirectCallLease,
   type DirectCallSubject,
@@ -43,7 +42,13 @@ export interface TranscriptionModelFacts {
 
 export type TranscriptionAdmission =
   | { allowed: true; lease: DirectCallLease }
-  | { allowed: false; reason: string };
+  | {
+      allowed: false;
+      reason: string;
+      /** The recording was removed, or its transcription cancelled,
+       * before anything was held: no failure to report. */
+      cancelled?: true;
+    };
 
 /** Hold a transcription's whole length under `subject`. */
 export async function openTranscriptionCall(
@@ -72,30 +77,49 @@ export async function openTranscriptionCall(
     : { allowed: false, reason: admission.reason };
 }
 
-/** Whose spend an uploaded recording's transcription is: its uploader's —
- * the organization's when nobody is named — and the project's of the chat
- * it was added to. */
+/**
+ * Whose spend an uploaded recording's transcription is: its uploader's —
+ * the organization's when nobody is named — and the project's it was made
+ * in: the one the composer named when it registered the file, else the
+ * project of the chat it was added to, when the uploader owns that chat (a
+ * thread id on a file is the uploader's claim, not proof of the project).
+ * Null when the recording is gone or its transcription was cancelled:
+ * nothing is to be charged then.
+ */
 export async function uploadTranscriptionSubject(
   sql: Sql,
   args: { organizationId: string; storageId: string },
-): Promise<DirectCallSubject> {
+): Promise<DirectCallSubject | null> {
   const rows = await sql<
-    { uploadedBy: string | null; threadId: string | null }[]
+    {
+      uploadedBy: string | null;
+      projectId: string | null;
+      status: string | null;
+      threadProjectId: string | null;
+      threadOwner: string | null;
+    }[]
   >`
-    SELECT uploaded_by AS "uploadedBy", thread_id AS "threadId"
-    FROM app.file_metadata
-    WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageId}
+    SELECT fm.uploaded_by AS "uploadedBy", fm.project_id AS "projectId",
+           fm.transcription_status AS status,
+           tm.project_id AS "threadProjectId", tm.user_id AS "threadOwner"
+    FROM app.file_metadata fm
+    LEFT JOIN app.thread_metadata tm
+      ON tm.thread_id = fm.thread_id AND tm.org_id = fm.org_id
+    WHERE fm.org_id = ${args.organizationId}
+      AND fm.storage_ref = ${args.storageId}
     LIMIT 1
   `;
   const row = rows[0];
+  if (row === undefined || row.status === 'skipped') return null;
   const projectId =
-    row?.threadId != null
-      ? await readThreadProjectId(sql, args.organizationId, row.threadId)
-      : undefined;
+    row.projectId ??
+    (row.threadOwner !== null && row.threadOwner === row.uploadedBy
+      ? row.threadProjectId
+      : null);
   return {
-    userId: row?.uploadedBy ?? AUTOMATION_SUBJECT_ID,
+    userId: row.uploadedBy ?? AUTOMATION_SUBJECT_ID,
     agentSlug: TRANSCRIPTION_SLUG,
-    ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+    ...(projectId !== null ? { projectIds: [projectId] } : {}),
   };
 }
 
