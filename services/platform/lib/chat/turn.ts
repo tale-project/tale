@@ -371,6 +371,10 @@ export interface UsageLedgerEntry {
   /** The prompt-cache hits among `inputTokens`, when the provider reported
    * them — priced at the catalog's cache-hit rate by the ledger. */
   readonly cachedInputTokens?: number;
+  /** The projects the spend belongs to — a chat's thread's, an automation
+   * step's run's: it is theirs too, which their `project` budget rules
+   * measure. */
+  readonly projectIds?: readonly string[];
 }
 
 export interface UsageLedger {
@@ -401,6 +405,9 @@ export interface TurnRequest {
   /** The API key that authenticated the turn (REST); absent in the app. */
   readonly apiKeyId?: string;
   readonly threadId: string;
+  /** The project the thread belongs to, when it belongs to one: the turn's
+   * spend is booked as the project's too. */
+  readonly projectId?: string;
   /** What the user just sent. */
   readonly userText: string;
   /** Files riding the user's message, oldest gesture first. The HOST owns
@@ -1195,6 +1202,9 @@ async function recordUsage(
     organizationId: request.organizationId,
     userId: request.userId,
     ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
+    ...(request.projectId !== undefined
+      ? { projectIds: [request.projectId] }
+      : {}),
     agentSlug: request.agent?.slug,
     model: request.model.id,
     provider: request.model.provider,

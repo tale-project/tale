@@ -64,6 +64,8 @@ export interface ImageSubject {
   userId: string;
   agentSlug?: string;
   apiKeyId?: string;
+  /** The projects the turn's run is in: the image is their spend too. */
+  projectIds?: readonly string[];
 }
 
 export type ImageTurnContext =
@@ -83,6 +85,9 @@ function subjectOf(attribution: SessionOpAttribution | null): ImageSubject {
       : {}),
     ...(attribution.apiKeyId !== undefined
       ? { apiKeyId: attribution.apiKeyId }
+      : {}),
+    ...(attribution.projectIds !== undefined
+      ? { projectIds: attribution.projectIds }
       : {}),
   };
 }
@@ -235,6 +240,8 @@ async function budgetSubjectOf(
 ): Promise<OrgBudgetSubject> {
   const apiKey =
     subject.apiKeyId !== undefined ? { apiKeyId: subject.apiKeyId } : {};
+  const project =
+    subject.projectIds !== undefined ? { projectIds: subject.projectIds } : {};
   return subject.userId === '' || isAutomationSubject(subject.userId)
     ? {
         organizationId,
@@ -242,11 +249,13 @@ async function budgetSubjectOf(
         userTeamIds: [],
         impersonal: true,
         ...apiKey,
+        ...project,
       }
     : loadBudgetSubject(sql, {
         organizationId,
         userId: subject.userId,
         ...apiKey,
+        ...project,
       });
 }
 
@@ -367,7 +376,13 @@ export async function admitImageGeneration(
         image_hold_cents = ${holdCents},
         image_hold_requests = ${args.images},
         images_admitted = images_admitted + ${args.images},
-        user_id = coalesce(user_id, ${args.subject.userId === '' ? null : args.subject.userId})
+        user_id = coalesce(user_id, ${args.subject.userId === '' ? null : args.subject.userId}),
+        -- A turn whose op its reservation did not stamp (a subscription
+        -- turn's) holds these images in its projects all the same.
+        project_ids = coalesce(
+          project_ids,
+          ${subject.projectIds !== undefined ? [...subject.projectIds] : null}
+        )
       WHERE id = ${op.id}
     `;
     const admission: ImageAdmission = {
@@ -468,6 +483,9 @@ export async function settleImageGeneration(
           : {}),
         ...(args.subject.apiKeyId !== undefined
           ? { apiKeyId: args.subject.apiKeyId }
+          : {}),
+        ...(args.subject.projectIds !== undefined
+          ? { projectIds: args.subject.projectIds }
           : {}),
         provider: args.provider,
         model: args.model,

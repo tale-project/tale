@@ -5596,7 +5596,7 @@ export function buildSpec(): Json {
       post: {
         tags: ['Threads'],
         summary: 'Send a message and start a turn',
-        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
+        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the conversation’s project’s, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
         operationId: scope.project ? 'postProjectThreadMessage' : 'postMessage',
         security: sec,
         parameters: [...itemParameters, sendIdempotencyKeyParam],
@@ -7742,9 +7742,9 @@ curl -H "Authorization: Bearer <api-key>" \\
                 },
                 scope: {
                   type: 'string',
-                  enum: ['user', 'team', 'org', 'apiKey'],
+                  enum: ['user', 'team', 'project', 'org', 'apiKey'],
                   description:
-                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), the organization’s (`org`) or this API key’s (`apiKey`)',
+                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), that of the project the work belongs to (`project`), the organization’s (`org`) or this API key’s (`apiKey`)',
                 },
                 period: {
                   type: 'string',

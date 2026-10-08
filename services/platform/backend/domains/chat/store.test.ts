@@ -152,6 +152,19 @@ describe('createPgUsageLedger', () => {
     }
   });
 
+  it('books a turn in a project’s thread into the project’s buckets too [GOV-R14]', async () => {
+    const { sql, calls } = capturingSql();
+    await createPgUsageLedger(sql).record({
+      ...ENTRY,
+      projectIds: ['project_1'],
+    });
+    // The three ledger buckets and the project's three.
+    expect(calls.length).toBe(6);
+    expect(calls.filter((values) => values.includes('project_1'))).toHaveLength(
+      3,
+    );
+  });
+
   it('books a REST turn against the API key that authenticated it', async () => {
     const { sql, calls } = capturingSql();
     await createPgUsageLedger(sql).record({ ...ENTRY, apiKeyId: 'key_1' });
@@ -299,7 +312,7 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1' },
+      { organizationId: 'org_1', userId: 'user_1', threadId: 'thread_1' },
       { threadId: 'thread_b' },
     );
     expect(f.transactions).toEqual(['commit']);
@@ -314,7 +327,7 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1' },
+      { organizationId: 'org_1', userId: 'user_1', threadId: 'thread_1' },
       undefined,
     );
   });
@@ -469,6 +482,7 @@ describe('createPgTurnStore.beginTurn', () => {
         organizationId: 'org_1',
         userId: 'user_1',
         apiKeyId: 'key_1',
+        threadId: 'thread_1',
       },
       // No partner column to leave out of the measure on an ordinary open.
       undefined,

@@ -400,7 +400,11 @@
  * the bound organization alone, and an empty `user.email` for a key that
  * is not a person. Additive.
  *
- * 3.22.0 — 2026-10-08: the MCP endpoint speaks protocol revision 2025-11-25
+ * 3.22.0 — 2026-10-08: budget rules can cap a project — everything spent in
+ * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
+ * names such a cap with `data.scope` `project`. Additive.
+ *
+ * 3.23.0 — 2026-10-09: the MCP endpoint speaks protocol revision 2025-11-25
  * beside 2025-06-18 and 2025-03-26, answers an `MCP-Protocol-Version` it
  * does not speak with -32022 naming the `supported` revisions, answers
  * `initialize` with `instructions`, and reports this contract version as
@@ -489,4 +493,4 @@
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */
-export const API_CONTRACT_VERSION = '3.22.0';
+export const API_CONTRACT_VERSION = '3.23.0';

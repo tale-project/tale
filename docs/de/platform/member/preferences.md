@@ -57,7 +57,7 @@ Deine Anweisungen überschreiben weder die verbindlichen Anweisungen der Organis
 
 ## Nutzungslimits prüfen {#usage-limits}
 
-Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbraucht hast, die deine Organisation für dich festlegt. Gilt kein Limit für dich, zeigt die Seite das an.
+Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbraucht hast, die deine Organisation für dich festlegt. Gilt kein Limit für dich, zeigt die Seite das an. Das Limit eines Projekts, das alles begrenzt, was in diesem Projekt ausgegeben wird, steht nicht hier; eine Anfrage, die es ablehnt, nennt es.
 
 <Frame caption="Unter Einstellungen > Nutzung steht jedes Limit, das für dich gilt, mit Verbrauch und nächstem Zurücksetzen.">
 

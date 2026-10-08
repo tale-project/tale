@@ -6,7 +6,9 @@ before adding a lane that spends on the organization's behalf or a reader that f
 The ledger is `app.usage_ledger` (`db/migrations/0020_governance_usage.sql`): period buckets —
 daily, weekly, monthly — per (organization, user, agent, model, provider, API key, connector
 operation). `incrementUsageLedger` in [`service.ts`](service.ts) is its one writer; the usage
-page, the budget gate, erasure and retention are its readers.
+page, the budget gate, erasure and retention are its readers. Beside it, `app.project_usage`
+(`0155_project_usage.sql`) sums the same bookings per project, for a `project` budget rule
+(rule 9); the same writer fills it.
 
 ## Rules
 
@@ -63,29 +65,45 @@ page, the budget gate, erasure and retention are its readers.
    (`loadBudgetSubject`), whose spend a team cap counts beside its members' (the key's binding,
    `o.team_id`, never the ledger's `team_id`). The usage page shows a key identity as its own
    labelled row and no active user.
+9. **Spend in a project is the project's too.** Work that belongs to a project — a chat turn or
+   title in one of its threads, an answer read aloud there, the chat's tool calls, a turn of one
+   of its agents or of an automation run in it (and that turn's images), a call made with the
+   project's own API key — names its projects to `incrementUsageLedger` (`projectIds`), which
+   books the same figures into each project's buckets, `app.project_usage`, beside the ledger
+   row. An automation run that names no project belongs to every project its automation is bound
+   to — the set its language context, skills and session reach already use — so it counts toward
+   each, as a member's spend counts toward each of their teams; an automation bound to none
+   spends in no project. A `project` budget rule (`projectRules` in the budgets file) is measured
+   against its project's buckets, whoever spent: a project cap binds an impersonal subject too,
+   and work in several projects must fit each one's cap. A hold in flight counts toward its
+   projects through its thread (`app.generations` → `app.thread_metadata.project_id`) or the
+   projects its reservation stamped (`sandbox_session_ops.project_ids`). A project's key spends in
+   its project whatever it calls (`loadBudgetSubject`). Transcription and video ingestion name no
+   project.
 
 ## Lanes (the write side)
 
-| Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` |
-| --- | --- | --- | --- | --- |
-| Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key |
-| Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — |
-| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — |
-| Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` |
-| Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above |
-| Voice output, transcription | `domains/tts`, `domains/files/transcription.ts` | the requester | `__tts__`, `__transcription__` | — |
-| Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key |
-| Connector call | `recordConnectorUsage` | the caller | optional | — |
+| Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` | project |
+| --- | --- | --- | --- | --- | --- |
+| Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key | the thread's |
+| Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — | the thread's (`chat.generate_title` job) |
+| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
+| Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
+| Voice output | `domains/tts` | the requester | `__tts__` | — | the thread's |
+| Transcription | `domains/files/transcription.ts` | the requester | `__transcription__` | — | — |
+| Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
+| Connector call | `recordConnectorUsage` | the caller | optional | — | the chat's, for the assistant's tools |
 
 ## Readers
 
 | Reader | What it assumes |
 | --- | --- |
 | Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel, folded through `usageLedgerSubject` so a legacy door form (`user:<id>`, `api-key:<id>`) is the person's row and `trigger:<id>` the sentinel's; the sentinel is a labelled row and no active user; project agent slugs resolve to names; a row is a transcription or speech row only when its seconds or characters are `> 0` (the upsert once stamped `0` on every second request) |
-| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids — and the identities of the team's own keys — under the same forms, key caps `api_key_id`; an impersonal subject has no personal bucket |
+| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids — and the identities of the team's own keys — under the same forms, key caps `api_key_id`, a project cap `app.project_usage`; an impersonal subject has no personal bucket |
 | Member's own view (`/my/budget-status`, Settings > Usage) | the same `usageLedgerSubjectForms(<own id>)` as the gate |
 | Erasure (`domains/erasure/service.ts`) | the subject's rows are `user_id IN (<id>, user:<id>, api-key:<id>)` — the two door forms cover rows booked before rule 2 held |
-| Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows |
+| Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows; a project's buckets age on the same clock and name no member |
 
 ## Guards
 
@@ -105,7 +123,13 @@ page, the budget gate, erasure and retention are its readers.
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an
   auto-retry keeps the failed run's starter.
 - `domains/governance/budget-gate.test.ts` — an impersonal subject binds no personal cap; a
-  team's own key is held to its team's cap and counted toward it (`APIKEY-R9`).
+  team's own key is held to its team's cap and counted toward it (`APIKEY-R9`); a project's cap
+  binds the work in it, whoever spends, and a project's key spends in its project (`GOV-R14`).
+- `domains/governance/usage-ledger.test.ts`, `budget-reservations.test.ts`,
+  `domains/sandbox/op-attribution.test.ts`, `turn-budget.test.ts`, `domains/chat/budget-admission.test.ts`,
+  `domains/tts/service.project-budget.test.ts`, `jobs/task-list.generate-title.test.ts` — each lane
+  names the project (`GOV-R14`); `domains/governance/project-budget.integration.ts` proves the
+  buckets, the holds and the refusal on the real schema.
 - `domains/governance/usage-metrics.test.ts`, `app/features/analytics/usage/usage-metrics-page.test.tsx`
   — the sentinel is labelled and excluded from active users; a project agent shows its name; a
   key identity is its own row and no active user.

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 83 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 84 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -155,6 +155,27 @@ agent.
   its own row, **API key of team Finance**
   (`analytics.usage.tables.users.teamKey`), and the active-user count does
   not count it. **Delete the rule after**
+- [ ] `GOV-F54` · **A project's budget caps the project** — GOV-F4 → **Add
+  rule**, **Scope** = **Project** (`governance.budgets.scopeLabels.project`):
+  the **Project** select appears (placeholder
+  `governance.budgets.selectProject`, aria-label
+  `governance.budgets.selectProjectAriaLabel`) and offers the active
+  projects, and **Warning threshold (%)** is gone; pick one, set **Max
+  requests** 2 → **Confirm** → reload → the row's **Scope** reads
+  **Project** and its **Target** the project's name. As a member far from
+  any personal cap, send one message in a new chat of that project (its
+  reply and the chat's title are the project's two requests) → the next send
+  is refused with **Usage limit reached** (`chat.toast.budgetExceeded`) and
+  **This project's usage limit has been reached…**
+  (`chat.errorHintProjectBudgetExceeded`), while a chat outside the project
+  still answers; with the model endpoints on (GOV-F40), the project's own key
+  (settings.md SET-F78) is refused at the same cap on
+  `POST /api/v1/openai/chat/completions` with 429 `BUDGET_EXCEEDED`. Archive
+  the project → the row still names it, marked **Archived**, and **Edit
+  rule** keeps it selected while the select offers only active projects
+  besides it; delete the project → the row reads **Deleted project**
+  (`governance.budgets.projectDeleted`). Every label reads in German and
+  French too. **Delete the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the

@@ -57,7 +57,7 @@ Tes instructions ne remplacent jamais les instructions obligatoires de l’organ
 
 ## Consulter tes limites d’utilisation {#usage-limits}
 
-Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des limites que ton organisation t’applique. Si aucune limite ne te concerne, la page l’indique.
+Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des limites que ton organisation t’applique. Si aucune limite ne te concerne, la page l’indique. La limite d’un projet, qui plafonne tout ce qui est dépensé dans ce projet, n’y figure pas ; une requête qu’elle refuse le dit.
 
 <Frame caption="Paramètres > Utilisation affiche chaque limite qui te concerne, avec son utilisation et sa prochaine réinitialisation.">
 

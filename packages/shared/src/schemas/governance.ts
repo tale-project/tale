@@ -305,6 +305,15 @@ const dataNoticeConfigSchema = z.object({
   version: z.number().int().nonnegative().default(1),
 });
 
+/** What a budget rule caps, and over which period. */
+const budgetLimitFields = {
+  period: z.enum(['daily', 'weekly', 'monthly']),
+  maxTokens: z.number().nonnegative().optional(),
+  maxCostCents: z.number().nonnegative().optional(),
+  maxRequests: z.number().nonnegative().optional(),
+  warningThresholdPercent: z.number().min(0).max(100).optional(),
+};
+
 export const budgetRuleSchema = z.object({
   scope: z.enum(['user', 'team', 'role', 'org', 'default', 'apiKey']),
   scopeId: z.string().optional(),
@@ -316,19 +325,61 @@ export const budgetRuleSchema = z.object({
    * `scopeId` so the user/team/role targeting semantics are untouched.
    */
   apiKeyId: z.string().optional(),
-  period: z.enum(['daily', 'weekly', 'monthly']),
-  maxTokens: z.number().nonnegative().optional(),
-  maxCostCents: z.number().nonnegative().optional(),
-  maxRequests: z.number().nonnegative().optional(),
-  warningThresholdPercent: z.number().min(0).max(100).optional(),
+  ...budgetLimitFields,
 });
-export type BudgetRule = z.infer<typeof budgetRuleSchema>;
+
+/**
+ * A project's cap: everything spent in one project (`scopeId` is its id) —
+ * the chats in its threads, its agents' turns and its automations' agent
+ * steps, and its own API keys — as one shared bucket, like a team's.
+ *
+ * Saved in the file's `projectRules`, never in `rules`: an image that
+ * predates project caps still parses the file — `z.object` drops the
+ * unknown key — and keeps enforcing every other cap, where a `project`
+ * scope inside `rules` would make the whole file unreadable to it, and so
+ * no cap at all.
+ */
+export const projectBudgetRuleSchema = z.object({
+  scope: z.literal('project'),
+  scopeId: z.string().min(1),
+  ...budgetLimitFields,
+});
+
+/** One rule of either kind, as the gate and the editor read them. */
+export type BudgetRule = Omit<z.infer<typeof budgetRuleSchema>, 'scope'> & {
+  scope: z.infer<typeof budgetRuleSchema>['scope'] | 'project';
+};
 
 export const budgetConfigSchema = z.object({
   rules: z.array(budgetRuleSchema),
+  projectRules: z.array(projectBudgetRuleSchema).optional(),
   enabled: z.boolean(),
 });
 export type BudgetConfig = z.infer<typeof budgetConfigSchema>;
+
+/** Every rule a budgets file holds, project caps included. */
+export function allBudgetRules(config: BudgetConfig): BudgetRule[] {
+  return [...config.rules, ...(config.projectRules ?? [])];
+}
+
+/** The budgets file holding these rules, each kind in its own array. */
+export function budgetConfigOf(
+  enabled: boolean,
+  rules: readonly BudgetRule[],
+): BudgetConfig {
+  const projectRules = rules.flatMap((rule) => {
+    if (rule.scope !== 'project') return [];
+    const { scope: _scope, apiKeyId: _apiKeyId, scopeId, ...limits } = rule;
+    return [{ scope: 'project' as const, scopeId: scopeId ?? '', ...limits }];
+  });
+  return {
+    enabled,
+    rules: rules.flatMap((rule) =>
+      rule.scope === 'project' ? [] : [{ ...rule, scope: rule.scope }],
+    ),
+    ...(projectRules.length > 0 ? { projectRules } : {}),
+  };
+}
 
 export const defaultModelRuleSchema = z.object({
   scope: z.enum(['team', 'role', 'default']),

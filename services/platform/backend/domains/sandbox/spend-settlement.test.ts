@@ -101,6 +101,42 @@ describe('settleSessionOpSpend', () => {
     });
   });
 
+  it('books an agent’s turn to the project its run is in [GOV-R14]', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'task-agent',
+            modelRef: 'openai/openai/gpt-5',
+          },
+        ],
+      },
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [
+          {
+            startedBy: 'trigger:schedule-1',
+            agentId: 'agent-alice',
+            projectId: 'project-1',
+          },
+        ],
+      },
+    ]);
+    await settleSessionOpSpend(sql, {
+      sessionId: 'pa-alice',
+      execId: 'exec-2',
+      spentCents: 25,
+      usage: { inputTokens: 1_200, outputTokens: 300 },
+    });
+    expect(ledger.incrementUsageLedger.mock.calls[0]?.[1]).toMatchObject({
+      userId: '__automation__',
+      projectIds: ['project-1'],
+      costEstimateCents: 25,
+    });
+  });
+
   it('attributes a workflow op to the automation run that owns its session [SBX-R14]', async () => {
     const { sql } = fakeSql([
       {

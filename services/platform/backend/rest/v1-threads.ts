@@ -1203,6 +1203,7 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             organizationId: c.get('organizationId'),
             userId: c.get('userId'),
             ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+            threadId: thread.id,
           });
           await addJobInTx(tx, 'chat.api_turn', {
             organizationId: c.get('organizationId'),

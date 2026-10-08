@@ -96,6 +96,7 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
 import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
@@ -64230,6 +64231,10 @@ async function main(): Promise<void> {
       [
         'checkApiKeyOwners',
         () => checkApiKeyOwners(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkProjectBudgets',
+        () => checkProjectBudgets(sql, baseUrl, authCtx, record),
       ],
       [
         'checkOrphanedOrgRowsBackfill',
