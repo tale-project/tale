@@ -1057,6 +1057,7 @@ apiKeys:
     key: Schlüssel
     created: Hinzugefügt
     lastUsed: Zuletzt verwendet
+    expires: Läuft ab
   form:
     name: Schlüsselname
     namePlaceholder: Schlüsselnamen eingeben...
@@ -1070,8 +1071,17 @@ apiKeys:
       30days: 30 Tage
       90days: 90 Tage
       1year: 1 Jahr
+      custom: Eigenes Datum
       never: Nie
+    expiresOn: Der Schlüssel läuft am {date} ab.
+    neverExpiresHint: Der Schlüssel funktioniert, bis er widerrufen wird.
+    expiryDate: Ablaufdatum
+    expiryDateHint: Wähle einen Tag, höchstens ein Jahr im Voraus.
+    expiryDateRequired: Wähle ein Ablaufdatum.
+    expiryDateRange: Wähle einen Tag zwischen morgen und einem Jahr ab heute.
   neverUsed: Nie verwendet
+  neverExpires: Nie
+  expired: Abgelaufen
   description: API-Schlüssel für externe Connectors verwalten
   title: API-Schlüssel
 apiDocs:

@@ -15,10 +15,10 @@ Create an API key when a script or service needs to call Tale's REST API. A key 
 
 1. Select **Create API key**.
 2. Enter a **Key name** that identifies the caller, such as `Billing sync` or `Document import`.
-3. Choose **Expiration**: 7, 30, or 90 days, one year, or never. The form starts at 30 days.
+3. Choose **Expiration**: 7, 30, or 90 days, one year, a **Custom date**, or never. The form starts at 30 days and names, under the field, the day the key will expire. With **Custom date**, pick that day in the **Expiration date** calendar, from tomorrow up to one year ahead.
 4. Create the key and copy its secret into the caller's approved secret store before closing the confirmation.
 
-The complete secret is shown once. The table later shows only a masked fragment, the creation date, and when the key was last used. It lists your keys, not your teammates' keys.
+The complete secret is shown once. The table later shows only a masked fragment, the day the key expires, the creation date, and when the key was last used. It lists your keys, not your teammates' keys.
 
 <Warning>
 
@@ -34,7 +34,7 @@ A successful authentication does not guarantee permission for every resource. Pr
 
 ## Rotate without an outage
 
-1. Create a replacement key before the old one expires.
+1. Create a replacement key before the old one expires; the **Expires** column shows when that is.
 2. Update the caller's secret store and restart or reload it as its configuration requires.
 3. Run an authenticated request with the replacement and check that it works.
 4. Revoke the old key only after every dependent caller has moved.
