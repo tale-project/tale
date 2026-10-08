@@ -227,16 +227,17 @@ describe('paths', () => {
     ]);
   });
 
-  it('an elseOf partner that failed or was skipped is what the branch answers to', () => {
+  it("an elseOf branch answers to its partner's when, or to what skipped the partner", () => {
     const f = facts([
       t('src', { when: '{{ input.s }}' }),
       reads('gate', 'src', { when: '{{ input.g }}', onError: 'continue' }),
       t('alt', { elseOf: 'gate' }),
     ]);
+    // The partner's when held: the branch is skipped whether the partner
+    // then failed or not, so its failure is no cause.
     const failed = f.pathsWhere((p) => p.assignment['fail:gate'])[0];
     expect(f.rootCause(failed, 'alt')).toEqual([
       { atom: 'when:gate', nodeId: 'gate' },
-      { atom: 'fail:gate', nodeId: 'gate' },
     ]);
     const srcOff = f.pathsWhere((p) => p.ran.length === 0)[0];
     expect(srcOff.assignment).toEqual({ 'when:src': false });

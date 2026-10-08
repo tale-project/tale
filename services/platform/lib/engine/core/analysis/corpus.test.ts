@@ -35,6 +35,7 @@ import { parse, parseDocument, stringify } from 'yaml';
 
 import { loadConnectors } from '../../../connectors/registry';
 import { isRecord } from '../../../utils/type-utils';
+import type { TriggerSpec } from '../../api/dispatch';
 import { DOC_EXAMPLE } from '../../api/docs';
 import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../selftest/memory-store';
@@ -87,6 +88,20 @@ function asAutomation(v: unknown): Automation | null {
   return v as unknown as Automation;
 }
 
+/** The triggers each pack's automation.yml installs, by document name: a
+ * trigger's input is part of what the analysis checks. */
+const packTriggers = new Map<string, TriggerSpec[]>();
+
+function triggersOf(file: string): TriggerSpec[] {
+  const manifest: unknown = parse(readFileSync(file, 'utf8'));
+  if (!isRecord(manifest) || !Array.isArray(manifest.triggers)) return [];
+  return manifest.triggers.filter(
+    (t): t is TriggerSpec =>
+      isRecord(t) &&
+      (t.kind === 'schedule' || t.kind === 'webhook' || t.kind === 'event'),
+  );
+}
+
 function corpus(): Array<[string, Automation]> {
   const out: Array<[string, Automation]> = [];
   const packs = path.join(REPO, 'configs/platform/custom/automations');
@@ -96,6 +111,10 @@ function corpus(): Array<[string, Automation]> {
       const doc = asAutomation(parse(readFileSync(file, 'utf8')));
       if (doc === null) throw new Error(`${file} is not a document`);
       out.push([`pack ${provider}/${pack}`, doc]);
+      packTriggers.set(
+        doc.name,
+        triggersOf(path.join(packs, provider, pack, 'automation.yml')),
+      );
     }
   }
   out.push(['get_docs example', DOC_EXAMPLE.automation]);
@@ -136,10 +155,13 @@ function corpus(): Array<[string, Automation]> {
 const store = memoryStore();
 const documents = corpus();
 
-beforeAll(() => {
+beforeAll(async () => {
   setCodeRunner(nodeVmRunner());
   loadConnectors(path.join(REPO, 'configs/platform/system'));
   for (const [, doc] of documents) store.save(doc.name, doc);
+  for (const [name, triggers] of packTriggers) {
+    for (const trigger of triggers) await store.setTrigger(name, trigger);
+  }
 });
 
 interface Rendered {
@@ -163,9 +185,18 @@ async function renderWarnings(): Promise<Record<string, Rendered[]>> {
 }
 
 describe('the shipped automation corpus', () => {
-  it('holds every kind of shipped document', () => {
+  it('holds every kind of shipped document', async () => {
     const labels = documents.map(([label]) => label);
     expect(labels.filter((l) => l.startsWith('pack ')).length).toBe(10);
+    // Every pack's triggers are installed, so their input is checked.
+    const installed = (await store.listTriggers()).map((t) => t.name);
+    expect(installed.length).toBeGreaterThan(0);
+    expect(installed.sort()).toEqual(
+      [...packTriggers]
+        .filter(([, triggers]) => triggers.length > 0)
+        .map(([name]) => name)
+        .sort(),
+    );
     expect(labels).toContain('get_docs example');
     expect(labels).toContain('e2e probe pack');
     expect(labels.some((l) => l.startsWith('docs '))).toBe(true);

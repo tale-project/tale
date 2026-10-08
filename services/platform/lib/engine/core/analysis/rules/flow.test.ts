@@ -1,9 +1,16 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
+import { nodeVmRunner } from '../../../runners/node-vm';
+import { execute } from '../../execute';
+import { setCodeRunner } from '../../runner';
 import type { Automation, Issue, NodeDef } from '../../types';
 import { validate } from '../../validate';
+
+beforeAll(() => {
+  setCodeRunner(nodeVmRunner());
+});
 
 function t(id: string, extra: Partial<NodeDef> = {}): NodeDef {
   return {
@@ -147,6 +154,85 @@ describe('MAYBE_NULL', () => {
     expect(found).toEqual([]);
   });
 
+  describe('reads the run fails on, as the executor runs them', () => {
+    // Each read sits where a skipped `check` (input.go false) breaks it; the
+    // run proves the analysis right.
+    it.each<[string, Automation, string]>([
+      [
+        'an optional read placed whole inside text',
+        doc([gated], 'Summary: {{ nodes.check.output?.text }}'),
+        "nodes.check.output?.text ?? ''",
+      ],
+      [
+        'an optional call placed whole inside text',
+        doc([gated], { line: 'Items: {{ nodes.check.output?.text.trim() }}' }),
+        "nodes.check.output?.text.trim(…) ?? ''",
+      ],
+      [
+        'an optional read inside a text condition',
+        doc(
+          [gated, t('next', { when: 'ok {{ nodes.check.output?.text }}' })],
+          "{{ nodes.next.output?.text ?? 'none' }}",
+        ),
+        "nodes.check.output?.text ?? ''",
+      ],
+      [
+        'a computed member the analysis cannot name',
+        doc([gated], { v: '{{ nodes.check.output[input.key] }}' }),
+        'nodes.check.output?.[input.key] ?? null',
+      ],
+      [
+        'a computed member in a condition',
+        doc(
+          [gated, t('next', { when: '{{ nodes.check.output[input.key] }}' })],
+          "{{ nodes.next.output?.text ?? 'none' }}",
+        ),
+        'nodes.check.output?.[input.key] ?? false',
+      ],
+      [
+        'a member after parentheses that end the optional chain',
+        doc([gated], { v: '{{ (nodes.check.output?.text).length }}' }),
+        'nodes.check.output?.text.length ?? null',
+      ],
+    ])('%s', async (_, d, suggestion) => {
+      const found = await issues(d, ...NULL_CODES, 'OUTPUT_MAYBE_EMPTY');
+      expect(found.map((i) => [i.code, i.params?.suggestion])).toEqual([
+        ['MAYBE_NULL', suggestion],
+      ]);
+      const run = await execute(d, {
+        input: { go: false, key: 'text' },
+        mode: 'mock',
+      });
+      expect(run.status).toBe('error');
+    });
+
+    it.each<[string, Automation]>([
+      [
+        'an optional read that is the whole value',
+        doc([gated], { v: '{{ nodes.check.output?.text }}' }),
+      ],
+      [
+        'an optional read with a fallback inside text',
+        doc([gated], "Summary: {{ nodes.check.output?.text ?? 'none' }}"),
+      ],
+      [
+        'an optional computed member',
+        doc([gated], { v: '{{ nodes.check.output?.[input.key] }}' }),
+      ],
+      [
+        'optional again after the parentheses',
+        doc([gated], { v: '{{ (nodes.check.output?.text)?.length }}' }),
+      ],
+    ])('no failure: %s', async (_, d) => {
+      expect(await issues(d, ...NULL_CODES)).toEqual([]);
+      const run = await execute(d, {
+        input: { go: false, key: 'text' },
+        mode: 'mock',
+      });
+      expect(run.status).toBe('success');
+    });
+  });
+
   it('beyond the enumerated paths the structure still finds it', async () => {
     const gates = Array.from({ length: 13 }, (_, i) =>
       t(`g${i}`, { when: `{{ input.g${i} }}` }),
@@ -176,6 +262,32 @@ describe('UNCAUGHT_FAILURE', () => {
         { role: 'cause', nodeId: 'fetch' },
       ],
     });
+  });
+
+  it("an elseOf branch is not skipped by its partner's failure", async () => {
+    // `alt` is skipped whenever the `when` of `primary` holds, whether
+    // `primary` then fails or not: dropping onError would change nothing.
+    const found = await issues(
+      doc(
+        [
+          t('base'),
+          t('primary', { when: '{{ input.go }}', onError: 'continue' }),
+          t('alt', { elseOf: 'primary' }),
+        ],
+        { base: '{{ nodes.base.output }}', v: '{{ nodes.alt.output.ok }}' },
+      ),
+      ...NULL_CODES,
+    );
+    expect(found.map((i) => [i.code, i.params])).toEqual([
+      [
+        'MAYBE_NULL',
+        expect.objectContaining({
+          source: 'alt',
+          reasons: ['else'],
+          partner: 'primary',
+        }),
+      ],
+    ]);
   });
 
   it('a node skipped because an upstream node failed', async () => {
@@ -285,6 +397,47 @@ describe('OUTPUT_MAYBE_EMPTY', () => {
         '{{ nodes.a.output ?? nodes.b.output }}',
       ),
     ).toEqual([]);
+  });
+});
+
+describe('OUTPUT_MAYBE_EMPTY does not contradict the failure findings', () => {
+  it('a read that fails the run when its node is skipped empties nothing', async () => {
+    const found = await issues(
+      doc([t('a', { when: '{{ input.go }}' })], {
+        v: '{{ nodes.a.output.text }}',
+      }),
+      'MAYBE_NULL',
+      'OUTPUT_MAYBE_EMPTY',
+    );
+    expect(found.map((i) => i.code)).toEqual(['MAYBE_NULL']);
+  });
+
+  it('a read that only fails on another branch still leaves the output empty', async () => {
+    const found = await issues(
+      doc([t('a', { when: '{{ input.go }}' })], {
+        v: '{{ nodes.a.output ? nodes.a.output.text : null }}',
+      }),
+      'MAYBE_NULL',
+      'OUTPUT_MAYBE_EMPTY',
+    );
+    expect(found.map((i) => i.code)).toEqual(['OUTPUT_MAYBE_EMPTY']);
+  });
+
+  it('a when that does not parse is never what skips its node', async () => {
+    const { errors, warnings } = await validate(
+      doc([t('main', { when: '{{ (( }}' })], '{{ nodes.main.output }}'),
+    );
+    expect(errors.map((e) => e.code)).toEqual(['EXPR_SYNTAX']);
+    expect(warnings.map((w) => w.code)).toEqual([]);
+    const reader = await validate(
+      doc(
+        [t('main', { when: '{{ (( }}' }), t('next', { when: '{{ true }}' })],
+        { a: '{{ nodes.main.output.ok }}', b: '{{ nodes.next.output }}' },
+      ),
+    );
+    expect(reader.warnings.filter((w) => NULL_CODES.includes(w.code))).toEqual(
+      [],
+    );
   });
 });
 

@@ -27,6 +27,7 @@ import { analyze, type Scope } from 'periscopic';
 import { walk } from 'zimmerframe';
 
 import { ES_GLOBALS } from './globals';
+import { RUNTIME_ECMA_VERSION } from './parse';
 
 export type RefRoot = 'nodes' | 'input' | 'item' | 'index' | 'output' | 'free';
 
@@ -47,6 +48,9 @@ export interface PathStep {
   /** Where the chain through this step ends in the field string — the
    * chain's own start to here is the read up to and including the step. */
   end?: number;
+  /** The step follows a parenthesized optional chain (`(a?.b).c`): a `?.`
+   * before the parentheses no longer short-circuits it. */
+  afterChain?: true;
 }
 
 export interface RefSite {
@@ -66,6 +70,10 @@ export interface RefSite {
   /** The chain continues with a computed member the walk cannot name
    * (`x[k]`), so `path` stops before it. */
   dynamicTail?: true;
+  /** That member is read with `?.` (`x?.[k]`). */
+  dynamicTailOptional?: true;
+  /** That member follows a parenthesized optional chain (`(x?.a)[k]`). */
+  dynamicTailAfterChain?: true;
   /** The chain is the callee of a call (`x.y.map(...)`). */
   called?: true;
   guards: GuardKind[];
@@ -152,21 +160,30 @@ function chainFrom(id: Identifier, root: RefRoot, path: Node[]): Found {
   let rangeNode: Node = id;
   let i = path.length - 1;
   const steps: PathStep[] = [];
-  let dynamicTail = false;
+  let dynamicTail: { optional: boolean; afterChain: boolean } | null = null;
+  // A member whose object is a whole optional chain sits after parentheses
+  // that closed it: `(a?.b).c`.
+  let afterChain = false;
   while (i >= 0) {
     const parent = path[i];
     if (parent.type === 'ChainExpression') {
       chain = parent;
+      afterChain = true;
       i--;
       continue;
     }
     if (parent.type === 'MemberExpression' && parent.object === chain) {
       const step = stepOf(parent);
       if (step === null) {
-        dynamicTail = true;
+        dynamicTail = { optional: parent.optional, afterChain };
         break;
       }
-      steps.push({ ...step, end: rangeOf(parent)[1] });
+      steps.push({
+        ...step,
+        end: rangeOf(parent)[1],
+        ...(afterChain && { afterChain: true as const }),
+      });
+      afterChain = false;
       chain = parent;
       rangeNode = parent;
       i--;
@@ -178,7 +195,7 @@ function chainFrom(id: Identifier, root: RefRoot, path: Node[]): Found {
   const called =
     parent?.type === 'CallExpression' &&
     parent.callee === chain &&
-    !dynamicTail;
+    dynamicTail === null;
 
   const site: RefSite = {
     root,
@@ -187,7 +204,11 @@ function chainFrom(id: Identifier, root: RefRoot, path: Node[]): Found {
     guards: [],
     range: rangeOf(rangeNode),
   };
-  if (dynamicTail) site.dynamicTail = true;
+  if (dynamicTail !== null) {
+    site.dynamicTail = true;
+    if (dynamicTail.optional) site.dynamicTailOptional = true;
+    if (dynamicTail.afterChain) site.dynamicTailAfterChain = true;
+  }
   if (called) site.called = true;
   if (root === 'nodes') {
     if (steps.length === 0) {
@@ -345,7 +366,7 @@ export function looseNodeRefs(
   const tokens: Token[] = [];
   try {
     for (const token of tokenizer(text.slice(start, end), {
-      ecmaVersion: 'latest',
+      ecmaVersion: RUNTIME_ECMA_VERSION,
     })) {
       tokens.push(token);
     }

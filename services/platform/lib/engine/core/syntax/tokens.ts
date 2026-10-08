@@ -19,7 +19,7 @@
 
 import { parseExpressionAt } from 'acorn';
 
-import { parseExpressionIn } from './parse';
+import { parseExpressionIn, RUNTIME_ECMA_VERSION } from './parse';
 
 export interface TemplateSegment {
   kind: 'text' | 'expr';
@@ -88,7 +88,9 @@ function matchTemplate(
   }
   let end: number | undefined;
   try {
-    end = parseExpressionAt(value, open + 2, { ecmaVersion: 'latest' }).end;
+    end = parseExpressionAt(value, open + 2, {
+      ecmaVersion: RUNTIME_ECMA_VERSION,
+    }).end;
   } catch (e) {
     if (!(e instanceof SyntaxError)) throw e;
     // No expression starts here at all — the legacy span reports the error.

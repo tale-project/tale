@@ -499,6 +499,22 @@ expr-syntax-prompt:
         expr: input.
         detail: Unexpected token ')'
   warnings: []
+expr-syntax-regex-modifier:
+  errors:
+    - code: EXPR_SYNTAX
+      nodeId: main
+      message: 'node "main" when: bad expression {{ /(?i:yes)/.test(input.answer) }}: Invalid regular expression: /(?i:yes)/: Invalid group'
+      at:
+        pointer: /nodes/0/when
+        range:
+          - 4
+          - 13
+      params:
+        node: main
+        field: when
+        expr: /(?i:yes)/.test(input.answer)
+        detail: 'Invalid regular expression: /(?i:yes)/: Invalid group'
+  warnings: []
 expr-syntax-when:
   errors:
     - code: EXPR_SYNTAX
@@ -514,22 +530,7 @@ expr-syntax-when:
         field: when
         expr: ((
         detail: Unexpected token ')'
-  warnings:
-    - code: OUTPUT_MAYBE_EMPTY
-      message: output reads only "main", which does not run when "main" is skipped by its "when" — the automation then returns empty values
-      hint: read a node that always runs as well, or give "main" an elseOf partner that produces a fallback
-      at:
-        pointer: /output
-      params:
-        nodes:
-          - main
-        root: main
-        rootReason: when
-      related:
-        - role: cause
-          nodeId: main
-          at:
-            pointer: /nodes/0
+  warnings: []
 ref-unknown-node:
   errors:
     - code: REF_UNKNOWN_NODE
@@ -1003,6 +1004,82 @@ maybe-null:
         reasons:
           - when
         suggestion: nodes.check.output?.ok ?? null
+      related:
+        - role: source
+          nodeId: check
+          at:
+            pointer: /nodes/1
+maybe-null-optional-in-text:
+  errors: []
+  warnings:
+    - code: CONDITION_CONSTANT
+      nodeId: notify
+      message: 'node "notify" when is always true: text around the template makes it a non-empty string'
+      hint: 'write the condition as one template: "{{ nodes.check.output?.summary }}"'
+      at:
+        pointer: /nodes/2/when
+      params:
+        node: notify
+        field: when
+        value: true
+        cause: mixed-text
+    - code: MAYBE_NULL
+      nodeId: notify
+      message: 'node "notify" when: nodes.check.output?.summary reads "check", which is skipped when its own "when" is false — the condition then fails and the node fails'
+      hint: 'guard the read: nodes.check.output?.summary ?? '''' — or give "check" an elseOf partner that produces a fallback'
+      at:
+        pointer: /nodes/2/when
+        range:
+          - 9
+          - 36
+      params:
+        node: notify
+        field: when
+        ref: nodes.check.output?.summary
+        source: check
+        reasons:
+          - when
+        suggestion: nodes.check.output?.summary ?? ''
+      related:
+        - role: source
+          nodeId: check
+          at:
+            pointer: /nodes/1
+    - code: MAYBE_NULL
+      message: 'output: nodes.check.output?.summary reads "check", which is skipped when its own "when" is false — building the output then fails, so the run fails'
+      hint: 'guard the read: nodes.check.output?.summary ?? '''' — or give "check" an elseOf partner that produces a fallback'
+      at:
+        pointer: /output/line
+        range:
+          - 12
+          - 39
+      params:
+        field: output
+        ref: nodes.check.output?.summary
+        source: check
+        reasons:
+          - when
+        suggestion: nodes.check.output?.summary ?? ''
+      related:
+        - role: source
+          nodeId: check
+          at:
+            pointer: /nodes/1
+    - code: MAYBE_NULL
+      message: 'output: nodes.check.output[input.key] reads "check", which is skipped when its own "when" is false — building the output then fails, so the run fails'
+      hint: 'guard the read: nodes.check.output?.[input.key] ?? null — or give "check" an elseOf partner that produces a fallback'
+      at:
+        pointer: /output/pick
+        range:
+          - 3
+          - 32
+      params:
+        field: output
+        ref: nodes.check.output[input.key]
+        source: check
+        reasons:
+          - when
+        suggestion: nodes.check.output?.[input.key] ?? null
       related:
         - role: source
           nodeId: check

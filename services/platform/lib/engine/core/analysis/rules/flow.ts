@@ -5,11 +5,13 @@
  * A node that reads a skipped node's DATA is skipped too, so a skip only
  * hurts where a read is not data: a `when`, a `repeatUntil` and the
  * automation `output`. There a skipped node's output is null, and reading a
- * field of it (`nodes.x.output.items` — anything past `.output` without a
- * `?.` on its first step or an `&&`/`?:` test of the same output) throws;
- * so does a skipped output placed whole inside text. `??`, `||` and
- * `typeof` around such a read do not help: the member read throws before
- * they see a value.
+ * field of it (`nodes.x.output.items`, `nodes.x.output[key]` — any member
+ * past `.output` that no earlier `?.` of the same chain short-circuits, and
+ * no `&&`/`?:` test of the same output guards) throws. So does a read whose
+ * missing value lands whole inside text: `{{ nodes.x.output }}` and
+ * `{{ nodes.x.output?.summary }}` alike, since text refuses null and
+ * undefined. `??`, `||` and `typeof` around a member read do not help: the
+ * member read throws before they see a value.
  *
  *  - MAYBE_NULL — on some way the run can go, the read is evaluated while
  *    its node did not run, and no such way traces back to a failure.
@@ -31,17 +33,11 @@ import { warn } from '../../errors';
 import { nodeTypes } from '../../slots';
 import { ptr } from '../../syntax/pointer';
 import type { ExprSource, ExprUnit } from '../../syntax/sources';
-import { renderPath, type RefSite } from '../../syntax/walk';
+import { renderPath, type PathStep, type RefSite } from '../../syntax/walk';
 import type { Issue, NodeDef, RelatedLocation } from '../../types';
 import { kindsOf, nullability } from '../../typing/shape';
-import {
-  isMixedText,
-  nodeParam,
-  place,
-  siteText,
-  type RuleContext,
-} from '../context';
-import type { FlowFacts, SkipReason } from '../flow';
+import { isMixedText, nodeParam, place, type RuleContext } from '../context';
+import type { FlowFacts, PathOutcome, SkipReason } from '../flow';
 
 /** Fields where a skipped node's output is read as it is (null). */
 const NULL_READ_FIELDS: ReadonlySet<string> = new Set([
@@ -52,6 +48,54 @@ const NULL_READ_FIELDS: ReadonlySet<string> = new Set([
 
 type ReadKind = 'deref' | 'interpolated';
 
+/**
+ * Whether reading the members after `.output` throws when the output is
+ * null: some member is read with `.` while no `?.` before it, in the same
+ * chain, has short-circuited. A `?.` inside parentheses ends with them, so
+ * `(nodes.x.output?.a).b` reads `.b` of undefined.
+ */
+function derefsNull(site: RefSite): boolean {
+  const steps: Array<Pick<PathStep, 'optional' | 'afterChain'>> = [
+    ...site.path,
+  ];
+  if (site.dynamicTail === true) {
+    steps.push({
+      optional: site.dynamicTailOptional === true,
+      ...(site.dynamicTailAfterChain === true && { afterChain: true }),
+    });
+  }
+  let shortCircuits = false;
+  for (const step of steps) {
+    if (step.afterChain === true) shortCircuits = false;
+    if (step.optional) shortCircuits = true;
+    else if (!shortCircuits) return true;
+  }
+  return false;
+}
+
+/** The outermost node that hands the read's value on as it is: the chain,
+ * a call of it, and members of either. */
+function handedOn(
+  unit: ExprUnit,
+  site: RefSite,
+): { node: Node; ancestors: Node[] } | null {
+  if (!unit.parse.ok) return null;
+  const at = ancestorsOf(unit.parse.ast, site.range);
+  if (at === null) return null;
+  let child = at.chain;
+  let k = at.ancestors.length - 1;
+  for (; k >= 0; k--) {
+    const a = at.ancestors[k];
+    const passes =
+      a.type === 'ChainExpression' ||
+      (a.type === 'MemberExpression' && a.object === child) ||
+      (a.type === 'CallExpression' && a.callee === child);
+    if (!passes) break;
+    child = a;
+  }
+  return { node: child, ancestors: at.ancestors.slice(0, k + 1) };
+}
+
 /** How a site reads a node's output where a null breaks the read; null
  * when it does not. */
 function nullRead(
@@ -60,9 +104,7 @@ function nullRead(
   mixed: boolean,
 ): ReadKind | null {
   if (site.root !== 'nodes' || site.member !== 'output') return null;
-  const first = site.path.at(0);
-  if (first !== undefined) {
-    if (first.optional) return null;
+  if (derefsNull(site)) {
     if (
       site.guards.includes('and-guarded') ||
       site.guards.includes('ternary-guarded')
@@ -71,22 +113,63 @@ function nullRead(
     }
     return 'deref';
   }
-  const whole =
-    site.range[0] === unit.range[0] && site.range[1] === unit.range[1];
-  return mixed && whole && site.guards.length === 0 && !site.dynamicTail
-    ? 'interpolated'
-    : null;
+  // The read gives null (or, through `?.`, undefined) for a skipped node.
+  // Only text refuses that, and only when the value is the whole
+  // expression: `{{ nodes.x.output?.summary }}`, not `{{ … ?? '' }}`.
+  if (!mixed || site.guards.some((g) => g !== 'optional-chain')) return null;
+  const value = handedOn(unit, site);
+  return value !== null && value.ancestors.length === 0 ? 'interpolated' : null;
 }
 
-/** The guarded spelling of a read, for the hint. */
+/** The computed member the walk could not name (`[input.k]` in
+ * `nodes.x.output[input.k]`): its key as the author wrote it, and the range
+ * of the read through it. */
+interface DynamicMember {
+  key: string;
+  range: [number, number];
+}
+
+function dynamicMember(
+  unit: ExprUnit,
+  site: RefSite,
+): DynamicMember | undefined {
+  if (site.dynamicTail !== true || !unit.parse.ok) return undefined;
+  const at = ancestorsOf(unit.parse.ast, site.range);
+  if (at === null) return undefined;
+  let child = at.chain;
+  for (let k = at.ancestors.length - 1; k >= 0; k--) {
+    const a = at.ancestors[k];
+    if (a.type === 'MemberExpression' && a.object === child && a.computed) {
+      const key = a.property.range;
+      const read = a.range;
+      if (key === undefined || read === undefined) return undefined;
+      return {
+        key: unit.source.slice(key[0] - unit.range[0], key[1] - unit.range[0]),
+        range: [read[0], read[1]],
+      };
+    }
+    if (a.type !== 'ChainExpression') return undefined;
+    child = a;
+  }
+  return undefined;
+}
+
+/** The guarded spelling of a read, for the hint: every member after
+ * `.output` behind one `?.`, then the fallback. */
 function guarded(
   site: RefSite,
   kind: ReadKind,
   fallback: 'false' | 'null',
+  dynamic: DynamicMember | undefined,
 ): string {
-  const base = `nodes.${site.nodeId}.output`;
-  if (kind === 'interpolated') return `${base} ?? ''`;
-  return `${base}?${renderPath(site.path)}${site.called === true ? '(…)' : ''} ?? ${fallback}`;
+  const tail = `${renderPath(site.path)}${
+    site.dynamicTail === true ? `[${dynamic?.key ?? '…'}]` : ''
+  }`;
+  const read =
+    tail === ''
+      ? `nodes.${site.nodeId}.output`
+      : `nodes.${site.nodeId}.output?${tail.startsWith('[') ? '.' : ''}${tail}${site.called === true ? '(…)' : ''}`;
+  return `${read} ?? ${kind === 'interpolated' ? "''" : fallback}`;
 }
 
 /** What the branch an expression sits in says about a node: it ran, or it
@@ -230,6 +313,36 @@ function branchFacts(
 
 type Outcome = 'ran' | SkipReason | undefined;
 
+/**
+ * The nodes whose `when` does not parse (EXPR_SYNTAX is reported there).
+ * Such a node fails at its condition every time; it is never skipped by it,
+ * so no way the run can go has it skipped by its `when`.
+ */
+function brokenWhens(cx: RuleContext): Set<string> {
+  return new Set(
+    cx.nodes
+      .filter(
+        (n) =>
+          typeof n.when === 'string' &&
+          cx.reported(['EXPR_SYNTAX'], ptr('nodes', cx.indexOf(n), 'when')),
+      )
+      .map((n) => n.id),
+  );
+}
+
+/** The paths that can happen: none has a node with a broken `when`
+ * skipped by it. */
+function possiblePaths(
+  flow: FlowFacts,
+  broken: ReadonlySet<string>,
+): (k: number) => boolean {
+  if (broken.size === 0) return () => true;
+  const ok = flow.paths.map((p) =>
+    [...broken].every((id) => flow.outcomeOf(p, id) !== 'when'),
+  );
+  return (k) => ok.at(k) ?? false;
+}
+
 /** Every node's outcome on every path, by path position — what the path
  * queries below read thousands of times. Built once per analysis call. */
 function outcomeTable(flow: FlowFacts): (id: string) => Outcome[] {
@@ -313,6 +426,8 @@ function skipsAt(
   cx: RuleContext,
   flow: FlowFacts,
   outcomesOf: (id: string) => Outcome[],
+  possible: (k: number) => boolean,
+  broken: ReadonlySet<string>,
   x: string,
   reader: string | undefined,
   field: string,
@@ -325,7 +440,9 @@ function skipsAt(
     // No paths: a reader that depends on x for data only runs when x ran;
     // otherwise any way x can be skipped counts.
     if (reader !== undefined && dataAncestors(cx, reader).has(x)) return null;
-    const skips = flow.maySkip(x);
+    const skips = flow
+      .maySkip(x)
+      .filter((s) => !(s.reason === 'when' && broken.has(x)));
     if (skips.length === 0) return null;
     const via = skips.find((s) => s.via !== undefined)?.via;
     const failing = [x, ...dataAncestors(cx, x)].find(
@@ -346,6 +463,7 @@ function skipsAt(
   }));
   const bad = flow.paths.filter(
     (_, k) =>
+      possible(k) &&
       xOutcomes[k] !== 'ran' &&
       (readerOutcomes === null || evaluates(readerOutcomes[k], field)) &&
       factOutcomes.every((f) => (f.outcomes[k] === 'ran') === f.ran),
@@ -391,7 +509,13 @@ function reasonText(s: Skips): string {
     .join(' or ');
 }
 
-function nullReads(cx: RuleContext, flow: FlowFacts, out: Issue[]): void {
+function nullReads(
+  cx: RuleContext,
+  flow: FlowFacts,
+  broken: ReadonlySet<string>,
+  possible: (k: number) => boolean,
+  out: Issue[],
+): void {
   // One answer per source node, reader, field and branch: a document reads
   // the same node in many places.
   const memo = new Map<string, Skips | null>();
@@ -416,6 +540,8 @@ function nullReads(cx: RuleContext, flow: FlowFacts, out: Issue[]): void {
             cx,
             flow,
             outcomesOf,
+            possible,
+            broken,
             x,
             node?.id,
             source.field,
@@ -425,7 +551,17 @@ function nullReads(cx: RuleContext, flow: FlowFacts, out: Issue[]): void {
         }
         if (skips === null) continue;
         seen.add(x);
-        out.push(nullReadIssue(cx, source, site, kind, x, skips));
+        out.push(
+          nullReadIssue(
+            cx,
+            source,
+            site,
+            kind,
+            x,
+            skips,
+            dynamicMember(unit, site),
+          ),
+        );
       }
     }
   }
@@ -438,14 +574,17 @@ function nullReadIssue(
   kind: ReadKind,
   x: string,
   skips: Skips,
+  dynamic: DynamicMember | undefined,
 ): Issue {
   const control = source.field !== 'output';
-  const ref = siteText(source, site);
-  const suggestion = guarded(site, kind, control ? 'false' : 'null');
+  // A read through a computed member is named and located through it.
+  const range = dynamic?.range ?? site.range;
+  const ref = source.text.slice(range[0], range[1]);
+  const suggestion = guarded(site, kind, control ? 'false' : 'null', dynamic);
   const related: RelatedLocation[] = [
     { role: 'source', nodeId: x, at: { pointer: cx.nodePointer(x) } },
   ];
-  const at = { pointer: source.pointer, range: site.range };
+  const at = { pointer: source.pointer, range };
   if (skips.failing !== undefined) {
     const failing = skips.failing;
     related.push({
@@ -468,7 +607,7 @@ function nullReadIssue(
           ref,
           source: x,
           failing,
-          reasons: skips.reasons,
+          reasons: [...skips.reasons],
           suggestion,
         },
         related,
@@ -490,7 +629,7 @@ function nullReadIssue(
         field: source.field,
         ref,
         source: x,
-        reasons: skips.reasons,
+        reasons: [...skips.reasons],
         ...(skips.via !== undefined && { via: skips.via }),
         ...(skips.partner !== undefined && { partner: skips.partner }),
         suggestion,
@@ -670,6 +809,7 @@ function hasRealFallback(unit: ExprUnit, site: RefSite): boolean {
 function outputMaybeEmpty(
   cx: RuleContext,
   flow: FlowFacts,
+  possible: (k: number) => boolean,
   out: Issue[],
 ): void {
   if (flow.truncated || cx.doc.output === undefined) return;
@@ -677,20 +817,42 @@ function outputMaybeEmpty(
   // Whether some read hands its node's output on as it is (or with an
   // empty fallback such as `?? null`): only then can the output be empty.
   let plain = false;
+  // Reads that throw when their node did not run (MAYBE_NULL's): where one
+  // is evaluated without its node, the run fails rather than returning
+  // empty values.
+  const failing: Array<{ nodeId: string; facts: RanFact[] }> = [];
   for (const source of cx.outputSources()) {
+    const mixed = isMixedText(source);
     for (const unit of source.units) {
       for (const site of unit.refs) {
         const id = site.nodeId;
         if (id === undefined || !cx.byId.has(id)) continue;
         if (!read.includes(id)) read.push(id);
+        if (unit.parse.ok && unit.opaque !== true) {
+          if (nullRead(site, unit, mixed) !== null) {
+            failing.push({ nodeId: id, facts: branchFacts(cx, unit, site) });
+            continue;
+          }
+        }
         plain ||= !hasRealFallback(unit, site);
       }
     }
   }
   if (read.length === 0 || !plain) return;
-  const empty = flow
-    .pathsWhere((p) => read.every((id) => flow.outcomeOf(p, id) !== 'ran'))
-    .at(0);
+  const fails = (p: PathOutcome): boolean =>
+    failing.some(
+      (f) =>
+        flow.outcomeOf(p, f.nodeId) !== 'ran' &&
+        f.facts.every(
+          (fact) => (flow.outcomeOf(p, fact.nodeId) === 'ran') === fact.ran,
+        ),
+    );
+  const empty = flow.paths.find(
+    (p, k) =>
+      possible(k) &&
+      read.every((id) => flow.outcomeOf(p, id) !== 'ran') &&
+      !fails(p),
+  );
   if (empty === undefined) return;
   const cause = flow.rootCause(empty, read[0]).at(0);
   if (cause === undefined) return;
@@ -789,9 +951,11 @@ export function flowRules(
   flow: FlowFacts,
   out: Issue[],
 ): Set<string> {
-  nullReads(cx, flow, out);
+  const broken = brokenWhens(cx);
+  const possible = possiblePaths(flow, broken);
+  nullReads(cx, flow, broken, possible, out);
   const dead = unreachable(cx, flow, out);
-  outputMaybeEmpty(cx, flow, out);
+  outputMaybeEmpty(cx, flow, possible, out);
   readOnlyByUnreachable(cx, dead, out);
   return dead;
 }

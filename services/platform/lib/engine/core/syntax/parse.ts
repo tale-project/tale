@@ -35,8 +35,17 @@ export type ParseResult =
       range: [number, number];
     };
 
+/**
+ * The language the parser accepts: the one the CodeRunner's Node runs
+ * (Node 22, services/platform/Dockerfile), never acorn's newest. A newer
+ * syntax acorn knows — regular-expression modifiers `(?i:…)`, duplicate
+ * named groups, `using` — would otherwise pass validation and fail the run
+ * at that node. Raise it with the runtime.
+ */
+export const RUNTIME_ECMA_VERSION = 2024;
+
 const OPTIONS: Options = {
-  ecmaVersion: 'latest',
+  ecmaVersion: RUNTIME_ECMA_VERSION,
   sourceType: 'script',
   // `range` is the ESTree spelling of acorn's own start/end offsets — it
   // lets the rest of the analysis stay on the standard node types.

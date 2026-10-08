@@ -367,6 +367,16 @@ const fixtures: Record<string, unknown> = {
     ],
     output: '{{ nodes.gen.output.text }}',
   }),
+  'expr-syntax-regex-modifier': flow({
+    nodes: [
+      {
+        id: 'main',
+        type: 'transform',
+        code: 'return 1;',
+        when: '{{ /(?i:yes)/.test(input.answer) }}',
+      },
+    ],
+  }),
   'expr-syntax-when': flow({
     nodes: [
       { id: 'main', type: 'transform', code: 'return 1;', when: '{{ (( }}' },
@@ -645,6 +655,28 @@ const fixtures: Record<string, unknown> = {
     output: {
       base: '{{ nodes.base.output }}',
       ok: '{{ nodes.check.output.ok }}',
+    },
+  }),
+  'maybe-null-optional-in-text': flow({
+    nodes: [
+      { id: 'base', type: 'transform', code: 'return 1;' },
+      {
+        id: 'check',
+        type: 'transform',
+        when: '{{ input.go }}',
+        code: 'return { summary: "s" };',
+      },
+      {
+        id: 'notify',
+        type: 'transform',
+        when: 'ready {{ nodes.check.output?.summary }}',
+        code: 'return 1;',
+      },
+    ],
+    output: {
+      base: '{{ nodes.base.output }}',
+      line: 'Summary: {{ nodes.check.output?.summary }}',
+      pick: '{{ nodes.check.output[input.key] }}',
     },
   }),
   'uncaught-failure': flow({

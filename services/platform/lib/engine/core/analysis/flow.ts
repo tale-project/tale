@@ -598,13 +598,14 @@ function flowFacts(model: FlowModel): FlowFacts {
           const o = outcomeOf(p, partner.id);
           if (o === 'ran' || o === 'error') {
             // The partner's `when` held (or it has none, and always runs).
+            // Whether it then failed changes nothing here: the alternative
+            // is skipped either way, so its failure is no cause.
             if (partner.when.kind !== 'none') {
               found.set(`when:${partner.id}`, {
                 atom: `when:${partner.id}`,
                 nodeId: partner.id,
               });
             }
-            if (o === 'error') visit(partner.id, seen);
             return;
           }
           visit(partner.id, seen);
