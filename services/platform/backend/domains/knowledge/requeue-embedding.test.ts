@@ -21,9 +21,26 @@ import {
  * PII block gets silently retried on every config save.
  */
 
-const { addJobInTx, emitHintInTx } = vi.hoisted(() => ({
-  addJobInTx: vi.fn(),
-  emitHintInTx: vi.fn(),
+const { addJobInTx, emitHintInTx, readOrgEmbeddingConfig, corpus } = vi.hoisted(
+  () => ({
+    addJobInTx: vi.fn(),
+    emitHintInTx: vi.fn(),
+    readOrgEmbeddingConfig: vi.fn(),
+    /** The organization's knowledge pool: `unsafe` answers the corpus read. */
+    corpus: { unsafe: vi.fn() },
+  }),
+);
+
+vi.mock('../../core/knowledge/connection.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../../core/knowledge/connection.ts')
+  >()),
+  readOrgEmbeddingConfig,
+}));
+
+vi.mock('../../core/knowledge/pool.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../core/knowledge/pool.ts')>()),
+  getKnowledgePoolForOrg: vi.fn(async () => corpus),
 }));
 
 vi.mock('../../jobs/enqueue.ts', async (importOriginal) => ({
@@ -36,7 +53,8 @@ vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
   emitHintInTx,
 }));
 
-const { requeueEmbeddingBlockedDocuments } = await import('./service.ts');
+const { requeueDocumentsWithoutVectors, requeueEmbeddingBlockedDocuments } =
+  await import('./service.ts');
 const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
 
 interface ReturnedRow {
@@ -206,5 +224,130 @@ describe('requeueEmbeddingBlockedDocuments', () => {
     // Fourth argument is the enqueue options; a priority here would put a
     // whole backlog level with the file somebody is watching.
     expect(addJobInTx.mock.calls[0]?.[3]).toBeUndefined();
+  });
+});
+
+/**
+ * Vectors are kept per width. An organization that moves to a model of
+ * another width has none of the new width on what it already indexed: every
+ * document would stay findable by its words and be missing from search by
+ * meaning until someone indexed it again, one at a time. The save does it.
+ */
+describe('requeueDocumentsWithoutVectors', () => {
+  const ORG = { organizationId: 'org-1', orgSlug: 'acme' };
+  const lacking = (...refs: string[]) =>
+    corpus.unsafe.mockResolvedValue(refs.map((ref) => ({ ref })));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    addJobInTx.mockResolvedValue(undefined);
+    emitHintInTx.mockResolvedValue(undefined);
+    readOrgEmbeddingConfig.mockResolvedValue({
+      providerSlug: 'local',
+      model: 'embed',
+      dimensions: 1024,
+    });
+    corpus.unsafe.mockResolvedValue([]);
+  });
+
+  it('asks the corpus for the indexed documents that have no vector of the stated width [KNOW-R17]', async () => {
+    const { sql } = fakeSql([]);
+
+    await requeueDocumentsWithoutVectors(sql, ORG);
+
+    const [text, params] = corpus.unsafe.mock.calls[0] ?? [];
+    expect(text).toContain("d.status = 'completed'");
+    expect(text).toContain('FROM private_knowledge.chunk_vectors_1024 v');
+    // A repeated passage has no vector at any width and is not a gap.
+    expect(text).toContain('NOT c.passage_repeat');
+    expect(params).toEqual(['acme']);
+  });
+
+  it('re-queues each such file and reports the count [KNOW-R17]', async () => {
+    lacking('s3:a', 's3:b');
+    const { sql, statements, values } = fakeSql([doc('f1'), doc('f2')]);
+
+    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+
+    expect(out).toEqual({ requeued: 2 });
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
+    ).toEqual([
+      ['rag.index_file', { fileId: 'f1' }],
+      ['rag.index_file', { fileId: 'f2' }],
+    ]);
+    // Only what reads as indexed, in this organization, by its ref: a file
+    // in flight, one that failed and one opted out are left as they are.
+    expect(statements[0]).toContain("fm.rag_status = 'completed'");
+    expect(statements[0]).toContain('fm.storage_ref = ANY(');
+    expect(statements[0]).toContain('skip_rag_indexing IS DISTINCT FROM true');
+    expect(values[0]).toContain('org-1');
+    expect(values[0]).toContainEqual(['s3:a', 's3:b']);
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  // An email body is a message, not a file row: it has its own job.
+  it('re-queues an email body through the message job [KNOW-R17]', async () => {
+    lacking('msg:9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a', 's3:a');
+    const { sql, values } = fakeSql([attachment('f1')]);
+
+    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+
+    expect(out).toEqual({ requeued: 2 });
+    expect(values[0]).toContainEqual(['s3:a']);
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
+    ).toEqual([
+      ['rag.index_file', { fileId: 'f1' }],
+      [
+        'rag.index_message',
+        { messageId: '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a' },
+      ],
+    ]);
+  });
+
+  it('writes no file row for a batch of email bodies alone', async () => {
+    lacking('msg:9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a');
+    const { sql, statements } = fakeSql([]);
+
+    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+
+    expect(out).toEqual({ requeued: 1 });
+    expect(statements).toEqual([]);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+  });
+
+  // The usual save: the width is the one the documents were indexed under.
+  it('moves nothing when every indexed document has its vectors', async () => {
+    const { sql, statements } = fakeSql([]);
+
+    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+
+    expect(out).toEqual({ requeued: 0 });
+    expect(statements).toEqual([]);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('reads no corpus while the organization has no embedding model', async () => {
+    readOrgEmbeddingConfig.mockResolvedValue(null);
+    const { sql } = fakeSql([]);
+
+    const out = await requeueDocumentsWithoutVectors(sql, ORG);
+
+    expect(out).toEqual({ requeued: 0 });
+    expect(corpus.unsafe).not.toHaveBeenCalled();
+  });
+
+  it('works through a large corpus in bounded transactions', async () => {
+    lacking(...Array.from({ length: 450 }, (_value, index) => `s3:${index}`));
+    const { sql, statements, values } = fakeSql([]);
+
+    await requeueDocumentsWithoutVectors(sql, ORG);
+
+    expect(statements.length).toBe(3);
+    const batches = values.map((args) =>
+      args.find((arg): arg is string[] => Array.isArray(arg)),
+    );
+    expect(batches.map((batch) => batch?.length)).toEqual([200, 200, 50]);
   });
 });

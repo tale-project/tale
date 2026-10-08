@@ -10,13 +10,12 @@ import {
   isMessageId,
   messageRef,
 } from '../../../lib/knowledge/message-ref.ts';
-import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../../lib/knowledge/types.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { NO_SUBJECT } from '../../core/conversations/ingest/constants.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import {
   EmbeddingDimensionMismatch,
-  pinDimensions,
+  UnsupportedVectorWidth,
 } from '../../core/knowledge/dimensions.ts';
 import {
   classifyEmbeddingFailure,
@@ -145,13 +144,6 @@ export async function indexConversationMessage(
     );
     const pool = await getKnowledgePoolForOrg(orgSlug);
     const dbUrl = await resolveOrgUrl(orgSlug);
-    await pinDimensions({
-      sql: pool,
-      dbUrl,
-      schema: PRIVATE_KNOWLEDGE_SCHEMA,
-      dimensions: embedder.dimensions,
-      context: `organization "${orgSlug}"`,
-    });
     const piiPolicy = await readGovernancePolicy(orgSlug, 'pii_config').catch(
       () => null,
     );
@@ -205,6 +197,7 @@ export async function indexConversationMessage(
     const refusal = classifyEmbeddingFailure(error);
     if (
       error instanceof EmbeddingDimensionMismatch ||
+      error instanceof UnsupportedVectorWidth ||
       refusal === 'unresolved' ||
       refusal === 'credit' ||
       refusal === 'credential'

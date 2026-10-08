@@ -647,10 +647,25 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   means a migration that drops both once a release has run without them, with the erasure pass
   and its breakdown category going in the same change.
 - **`private_knowledge.semantic_cache` is an empty table** — the knowledge baseline creates it, and
-  `backend/core/knowledge/dimensions.ts` and `teardown.ts` still keep it in step, but the cache
-  seam that could have filled it was removed without ever shipping an implementation
-  (2026-09-27). Paying it down means a knowledge-db migration that drops it, with that upkeep
-  removed in the same change.
+  `backend/core/knowledge/teardown.ts` still keeps it in step, but the cache seam that could have
+  filled it was removed without ever shipping an implementation (2026-09-27). Paying it down means
+  a knowledge-db migration that drops it, with that upkeep removed in the same change.
+- **`chunks.embedding` is retired, not dropped** — vectors live in a table per width beside the
+  chunks (`chunk_vectors_<width>`, knowledge-db migrations `15` and `16`, 2026-10-06), and nothing
+  reads the old column in either corpus schema. It stays for one release, with its HNSW index and
+  `create_chunks_hnsw_index()`, because the previous image still uses it while a deployment
+  rolls: the `chunks_mirror_legacy_embedding` trigger copies what that image writes into the
+  table of its width, and this image writes the column too whenever it is declared at the width
+  being written (`legacyColumnWidth` in `backend/core/knowledge/dimensions.ts`, asked of the
+  catalog per document slice and per crawl link), so the previous image finds what this one
+  indexes, during the roll and after a rollback. The mirror trigger names no column, because
+  the previous image pins an undeclared column with `ALTER COLUMN ... TYPE vector(<width>)`,
+  which Postgres refuses for a column a trigger definition uses. Until the column goes, a migrated corpus stores the vectors of that one width twice,
+  and maintains the old HNSW index for them. Paying it down means one knowledge-db migration per
+  schema, a release after every image has stopped writing the column, that copies any row the
+  trigger missed, then drops the trigger and its function, the index,
+  `create_chunks_hnsw_index()` and the column — and, in the same change, `legacyColumnWidth`
+  with its writers in `indexing.ts` and `crawl_action.ts`.
 - **Nine `app.projects` settings columns are retired, not dropped** — `knowledge_mode`,
   `agent_mode`, `recommended_agent_slugs`, `allowed_agent_slugs`, `model_mode`,
   `recommended_models`, `allowed_models`, `connectors_mode` and `allowed_connector_slugs` lost
