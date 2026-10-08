@@ -431,7 +431,7 @@ Si tu utilises ton propre proxy au lieu du proxy fourni, transmets `/sandbox/tun
 
 Cherche pourquoi la sortie n’est plus lue avant d’augmenter ce délai. Il limite les flux de sortie abandonnés, pas la durée totale d’une tâche. Recrée les rôles backend concernés après avoir changé l’environnement.
 
-Un nombre de workers modifié atteint chaque fournisseur la prochaine fois qu’une organisation qui l’utilise démarre une session sandbox ou appelle les endpoints de modèles.
+Un nombre de workers modifié atteint chaque fournisseur la prochaine fois qu’une organisation qui l’utilise démarre une session sandbox ou appelle les endpoints de modèles. Un nombre plus bas atteint aussi tous les autres fournisseurs que la passerelle garde : après un redémarrage, le backend les redimensionne à sa première session sandbox ou à sa première requête aux endpoints de modèles.
 
 ## Ingestion de liens vidéo (yt-dlp)
 

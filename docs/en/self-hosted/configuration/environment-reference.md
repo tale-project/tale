@@ -431,7 +431,7 @@ With a proxy of your own instead of the bundled one, forward `/sandbox/tunnel` t
 
 Investigate why output consumption stopped before increasing this deadline. It limits orphaned output streams, not total task duration. Recreate the consuming backend roles after changing the environment.
 
-A changed gateway worker count reaches each provider the next time an organization that uses it starts a sandbox session or calls the model endpoints.
+A changed gateway worker count reaches each provider the next time an organization that uses it starts a sandbox session or calls the model endpoints. A lower count also reaches every other provider the gateway holds: after a restart, the backend resizes them at its first sandbox session or model-endpoint request.
 
 ## Video-link ingestion (yt-dlp)
 

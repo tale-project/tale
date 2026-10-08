@@ -431,7 +431,7 @@ Setzt du statt des mitgelieferten Proxys einen eigenen ein, leite `/sandbox/tunn
 
 Untersuche zuerst, warum die Ausgabe nicht mehr gelesen wird. Die Frist begrenzt verwaiste Ausgabeströme, nicht die gesamte Aufgabendauer. Erstelle die betroffenen Backend-Rollen nach einer Umgebungsänderung neu.
 
-Eine geänderte Worker-Zahl des Gateways erreicht einen Anbieter, sobald eine Organisation, die ihn nutzt, die nächste Sandbox-Sitzung startet oder die Modell-Endpunkte aufruft.
+Eine geänderte Worker-Zahl des Gateways erreicht einen Anbieter, sobald eine Organisation, die ihn nutzt, die nächste Sandbox-Sitzung startet oder die Modell-Endpunkte aufruft. Eine niedrigere Zahl erreicht auch alle anderen Anbieter, die das Gateway hält: Nach einem Neustart passt das Backend sie bei seiner ersten Sandbox-Sitzung oder Anfrage an die Modell-Endpunkte an.
 
 ## Video-Link-Ingestion (yt-dlp)
 
