@@ -37,7 +37,7 @@ vi.mock('../automations_builder/model_call', () => ({
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
-import { generateThreadTitleImpl } from './generate_title';
+import { generateThreadTitleImpl, resolveDirectModel } from './generate_title';
 
 const ORG = 'org_a';
 const THREAD = 'thread_1';
@@ -487,6 +487,31 @@ describe('generateThreadTitleImpl — a message a guardrail refused', () => {
       expect.anything(),
       expect.objectContaining({ title: deriveFallbackTitle(FIRST_MESSAGE) }),
     );
+  });
+});
+
+describe('resolveDirectModel — why there is no model', () => {
+  it('says model access when the served models are all closed to the member, and provider when nothing serves [GOV-R8]', async () => {
+    const blocked = fakeCtx({
+      preferredModelId: null,
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+      blocked: ['gpt-5', 'gpt-4o-mini'],
+    });
+    await expect(
+      resolveDirectModel(blocked.ctx, ORG, null, USER),
+    ).resolves.toEqual({ missing: 'model-access' });
+
+    const unconnected = fakeCtx({ preferredModelId: null, rows: {} });
+    await expect(
+      resolveDirectModel(unconnected.ctx, ORG, null, USER),
+    ).resolves.toEqual({ missing: 'provider' });
+
+    const serving = servingCtx();
+    await expect(
+      resolveDirectModel(serving.ctx, ORG, null, USER),
+    ).resolves.toEqual({
+      target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
+    });
   });
 });
 

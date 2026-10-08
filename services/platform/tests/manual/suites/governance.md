@@ -201,7 +201,9 @@ agent.
   analytics** books no `thread-title` request for it. In the Inbox, choose
   **Improve with AI** on a draft → it is refused with **Usage limit
   reached** (`conversations.editor.improveLimitReached`), its description
-  naming your monthly request limit, in German and French too. **Delete
+  sending you to **Settings → Usage**
+  (`conversations.editor.improveLimitReachedDescription`) — in your
+  language, German and French too, never the server's English. **Delete
   the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes

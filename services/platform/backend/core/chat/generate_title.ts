@@ -71,8 +71,9 @@ function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
 
 /**
  * The model a small direct call runs on — the title lane's pick, shared with
- * the Inbox rewrite (`domains/conversations/improve.ts`), which needs the
- * same "whatever a direct credential can serve" answer.
+ * the Inbox rewrite (`domains/conversations/improve.ts`, through
+ * {@link resolveDirectModel}), which needs the same "whatever a direct
+ * credential can serve" answer.
  *
  * A model the wire can run without
  * thinking is preferred throughout (see {@link runsWithoutThinking}): the
@@ -89,7 +90,7 @@ function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
  * Null when the org has nothing a direct call could use; the caller falls
  * back to the derived title.
  */
-export async function pickDirectModel(
+async function pickDirectModel(
   ctx: ActionCtx,
   organizationId: string,
   preferred: PreferredChatModel | null,
@@ -97,6 +98,30 @@ export async function pickDirectModel(
    * let them use is picked, as for their chat turns. */
   userId: string,
 ): Promise<DirectModelTarget | null> {
+  const picked = await resolveDirectModel(
+    ctx,
+    organizationId,
+    preferred,
+    userId,
+  );
+  return 'target' in picked ? picked.target : null;
+}
+
+/** {@link pickDirectModel}'s answer, with why there is none: no connector
+ * a direct call could use serves a model (`provider`), or the ones it
+ * serves are all closed to this person by the organization's model access
+ * rules (`model-access`) — two different fixes for whoever reads the
+ * refusal. */
+export type DirectModelPick =
+  | { target: DirectModelTarget }
+  | { missing: 'provider' | 'model-access' };
+
+export async function resolveDirectModel(
+  ctx: ActionCtx,
+  organizationId: string,
+  preferred: PreferredChatModel | null,
+  userId: string,
+): Promise<DirectModelPick> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
 
   /** The connectors a direct call could use, catalogs resolved. */
@@ -202,7 +227,17 @@ export async function pickDirectModel(
     return null;
   };
 
-  return walk(runsWithoutThinking) ?? walk(() => true);
+  const target = walk(runsWithoutThinking) ?? walk(() => true);
+  if (target !== null) return { target };
+  return {
+    missing: candidates.some((candidate) =>
+      candidate.catalog.some((entry) =>
+        modelAllowlistPermits(candidate.allowlist, entry.id),
+      ),
+    )
+      ? 'model-access'
+      : 'provider',
+  };
 }
 
 /** The agent slug the title call books its tokens under. Distinct from the

@@ -155,6 +155,8 @@ editor:
   improveFailed: Impossible d'améliorer le contenu. Réessaie.
   improveUnavailable: Aucun fournisseur d'IA ne peut encore réécrire les messages — connecte-en un dans Paramètres › Fournisseurs d'IA.
   improveLimitReached: Limite d'utilisation atteinte
+  improveLimitReachedDescription: Une limite d'utilisation qui s'applique à toi a été atteinte. Tu peux voir dans Paramètres > Utilisation quand elle sera réinitialisée, et ton administrateur peut l'augmenter.
+  improveNoModelAccess: Aucun des modèles qui pourraient réécrire ce message ne t'est ouvert. Un admin peut en autoriser un sous Paramètres → Gouvernance → Modèles → Accès aux modèles.
   sendFailed: Impossible d'envoyer le message. Réessaie.
   backToEditor: Retour à l'éditeur
   improving: Amélioration...

@@ -4,7 +4,7 @@ import { estimateTokens } from '../../../lib/chat/types.ts';
 import { EmptyReplyError } from '../../core/automations_builder/chat_wire';
 import { createBuilderModel } from '../../core/automations_builder/model_call';
 import {
-  pickDirectModel,
+  resolveDirectModel,
   type PreferredChatModel,
 } from '../../core/chat/generate_title';
 import type { ActionCtx } from '../../core/lib/ctx';
@@ -78,8 +78,9 @@ const IMPROVE_CALL_MAX_MS = IMPROVE_TIMEOUT_MS + 60_000;
 
 /**
  * Rewrites the draft. Refuses with `IMPROVE_UNAVAILABLE` (409) when no
- * direct-credentialed provider can serve a model the writer may use in this
- * organization, with `BUDGET_EXCEEDED` (429) when a limit that binds the
+ * direct-credentialed provider serves a model in this organization, with
+ * `IMPROVE_NO_MODEL_ACCESS` (403) when the models served are all closed to
+ * the writer by its model access rules, with `BUDGET_EXCEEDED` (429) when a limit that binds the
  * writer has too little room for the rewrite's worst case — the call is a
  * direct call (`governance/direct-calls.ts`), held against their limits
  * while it runs and booked in its hold's place — and with `IMPROVE_FAILED`
@@ -102,19 +103,26 @@ export async function improveConversationMessage(
     internal.user_preferences.queries.getChatModelInternal,
     { userId: args.userId, organizationId: args.organizationId },
   );
-  const target = await pickDirectModel(
+  const picked = await resolveDirectModel(
     ctx,
     args.organizationId,
     preferred,
     args.userId,
   );
-  if (target === null) {
-    throw new ConversationError(
-      'IMPROVE_UNAVAILABLE',
-      'No AI provider can rewrite messages in this organization yet — connect one under Settings › AI providers',
-      409,
-    );
+  if ('missing' in picked) {
+    throw picked.missing === 'model-access'
+      ? new ConversationError(
+          'IMPROVE_NO_MODEL_ACCESS',
+          'None of the models that could rewrite this message is open to you under the organization’s model access rules',
+          403,
+        )
+      : new ConversationError(
+          'IMPROVE_UNAVAILABLE',
+          'No AI provider can rewrite messages in this organization yet — connect one under Settings › AI providers',
+          409,
+        );
   }
+  const { target } = picked;
   const messages = buildImprovePrompt(args);
   const call = {
     organizationId: args.organizationId,

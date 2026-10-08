@@ -228,14 +228,18 @@ function MilkdownEditorInner({
         setIsImproveMode(false);
       } catch (error) {
         console.error('Failed to improve content:', error);
-        // No provider is a configuration fact the person can act on; every
-        // other refusal carries the door's own sentence — a reached usage
-        // limit's names the limit and when it resets, under its own title.
+        // No provider, a model access rule and a reached usage limit are
+        // facts the person can act on, said in their language; every other
+        // refusal carries the door's own sentence.
         const code = backendErrorCode(error);
         const description =
           code === 'IMPROVE_UNAVAILABLE'
             ? tConversations('editor.improveUnavailable')
-            : backendErrorMessage(error, '');
+            : code === 'IMPROVE_NO_MODEL_ACCESS'
+              ? tConversations('editor.improveNoModelAccess')
+              : code === 'BUDGET_EXCEEDED'
+                ? tConversations('editor.improveLimitReachedDescription')
+                : backendErrorMessage(error, '');
         toast({
           title:
             code === 'BUDGET_EXCEEDED'

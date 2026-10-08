@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EmptyReplyError } from '../../core/automations_builder/chat_wire';
 
 const mocks = vi.hoisted(() => ({
-  pickDirectModel: vi.fn(),
+  resolveDirectModel: vi.fn(),
   modelCall: vi.fn(),
   openTokenCall: vi.fn(),
   settleTokenCall: vi.fn(async () => 'settled'),
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../../core/chat/generate_title', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../core/chat/generate_title')>()),
-  pickDirectModel: mocks.pickDirectModel,
+  resolveDirectModel: mocks.resolveDirectModel,
 }));
 vi.mock('../../core/automations_builder/model_call', () => ({
   createBuilderModel: () => mocks.modelCall,
@@ -80,9 +80,8 @@ describe('improveConversationMessage and the writer’s limits', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.pickDirectModel.mockResolvedValue({
-      providerSlug: 'openai',
-      modelId: 'gpt-5-mini',
+    mocks.resolveDirectModel.mockResolvedValue({
+      target: { providerSlug: 'openai', modelId: 'gpt-5-mini' },
     });
     mocks.openTokenCall.mockResolvedValue({ allowed: true, lease: LEASE });
     mocks.modelCall.mockResolvedValue({
@@ -95,7 +94,7 @@ describe('improveConversationMessage and the writer’s limits', () => {
     await expect(improveConversationMessage(SQL, ARGS)).resolves.toEqual({
       improvedMessage: 'Hello, and thank you for writing.',
     });
-    expect(mocks.pickDirectModel).toHaveBeenCalledWith(
+    expect(mocks.resolveDirectModel).toHaveBeenCalledWith(
       expect.anything(),
       'org-1',
       null,
@@ -118,6 +117,20 @@ describe('improveConversationMessage and the writer’s limits', () => {
       inputTokens: 300,
       outputTokens: 12,
     });
+  });
+
+  it('tells a writer the model access rules close every model apart from an organization with no provider [GOV-R8]', async () => {
+    mocks.resolveDirectModel.mockResolvedValueOnce({ missing: 'model-access' });
+    await expect(improveConversationMessage(SQL, ARGS)).rejects.toMatchObject({
+      code: 'IMPROVE_NO_MODEL_ACCESS',
+      status: 403,
+    });
+    mocks.resolveDirectModel.mockResolvedValueOnce({ missing: 'provider' });
+    await expect(improveConversationMessage(SQL, ARGS)).rejects.toMatchObject({
+      code: 'IMPROVE_UNAVAILABLE',
+      status: 409,
+    });
+    expect(mocks.openTokenCall).not.toHaveBeenCalled();
   });
 
   it('refuses with 429 BUDGET_EXCEEDED before the provider once a limit has no room [GOV-R4]', async () => {

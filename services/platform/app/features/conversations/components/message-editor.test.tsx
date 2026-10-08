@@ -9,6 +9,9 @@ import { render, screen } from '@/tests/utils/render';
 
 let renderCount = 0;
 let capturedOnSend: (() => void) | null = null;
+let capturedOnImproveSubmit: (() => void) | null = null;
+// What the Improve with AI call answers; a test that reaches it sets it.
+const improveCall = vi.fn();
 let capturedOnFileAttach: ((file: AttachedFile) => void) | null = null;
 // The files the composer currently holds, as it hands them to the list.
 let listedFiles: AttachedFile[] = [];
@@ -93,7 +96,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
 
 vi.mock('../hooks/actions', () => ({
   useImproveMessage: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: improveCall,
     isPending: false,
   }),
 }));
@@ -102,13 +105,16 @@ vi.mock('./message-editor/editor-action-bar', () => ({
   EditorActionBar: ({
     onSend,
     onFileAttach,
+    onImproveSubmit,
     isSending,
   }: {
     onSend: () => void;
     onFileAttach: (file: AttachedFile) => void;
+    onImproveSubmit: () => void;
     isSending: boolean;
   }) => {
     capturedOnSend = onSend;
+    capturedOnImproveSubmit = onImproveSubmit;
     capturedOnFileAttach = onFileAttach;
     barSending = isSending;
     return (
@@ -161,6 +167,48 @@ describe('MessageEditor', () => {
   afterEach(() => {
     cleanup();
   });
+
+  // A refusal the person can act on reads in their language — a reached
+  // limit, a model access rule, no provider — never the server's English.
+  it.each([
+    [
+      'BUDGET_EXCEEDED',
+      'editor.improveLimitReached',
+      'editor.improveLimitReachedDescription',
+    ],
+    [
+      'IMPROVE_NO_MODEL_ACCESS',
+      'editor.improveFailed',
+      'editor.improveNoModelAccess',
+    ],
+    [
+      'IMPROVE_UNAVAILABLE',
+      'editor.improveFailed',
+      'editor.improveUnavailable',
+    ],
+  ])(
+    'says a %s refusal of Improve with AI in the reader’s language',
+    async (code, title, description) => {
+      vi.mocked(toast).mockClear();
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      improveCall.mockRejectedValueOnce(
+        Object.assign(new Error('Usage limit reached. Your monthly …'), {
+          data: { code, message: 'Usage limit reached. Your monthly …' },
+        }),
+      );
+
+      render(<MessageEditor organizationId="org_test" />);
+      await act(async () => {
+        capturedOnImproveSubmit?.();
+      });
+
+      expect(toast).toHaveBeenCalledWith({
+        title,
+        description,
+        variant: 'destructive',
+      });
+    },
+  );
 
   it('renders the editor', () => {
     render(<MessageEditor organizationId="org_test" />);
