@@ -19,12 +19,13 @@ Der Tab **Läufe** zeigt die letzten 50 Läufe, die du sehen kannst, neueste zue
 | --- | --- | --- |
 | **In der Warteschlange** | Angenommen, wartet auf die Ausführung. | Warte und prüfe bei ausbleibendem Fortschritt die Kapazität. |
 | **Läuft** | Der Ablauf wird verarbeitet. | Beobachte den Fortschritt der Nodes. |
+| **Unterbrochen — wird fortgesetzt** | Der Server, auf dem der Lauf lief, ist ausgefallen; ein anderer übernimmt ihn innerhalb von etwa anderthalb Minuten. | Warte; du musst nichts tun. |
 | **Wartet** | Entscheidung, Antwort, Agentenarbeit oder Abfragebedingung steht aus. | Lies, worauf der Lauf wartet. |
 | **Erfolgreich** | Erreichte Nodes sind abgeschlossen und die Ausgabe liegt vor. | Prüfe Ausgabe und Auswirkungen. |
 | **Fehlgeschlagen** | Der Lauf endete mit einem unbehandelten Fehler. | Öffne die betroffene Node und lies ihren Fehler. |
 | **Gestoppt** | Der Lauf wurde abgebrochen. | Prüfe bereits ausgeführte Arbeit vor einem Neustart. |
 
-Eine ausstehende Freigabe oder Frage braucht eine Person. Ein arbeitender Agent oder eine wiederholte Abfrage kann ohne Eingriff fortfahren. Eine Entscheidung oder Antwort kann auch abgelehnt werden oder ablaufen. Entscheide anhand der Begründung, nicht allein nach **Wartet**. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt die Entscheidungsfelder.
+Eine ausstehende Freigabe, eine Frage oder ein Schritt, der vielleicht schon gelaufen ist, braucht eine Person. Ein arbeitender Agent oder eine wiederholte Abfrage kann ohne Eingriff fortfahren. Eine Entscheidung oder Antwort kann auch abgelehnt werden oder ablaufen. Entscheide anhand der Begründung, nicht allein nach **Wartet**. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt die Entscheidungsfelder.
 
 ## Die betroffene Node untersuchen
 
@@ -44,7 +45,17 @@ Lies diese Liste vor einer Wiederholung. Ein späterer Fehler macht eine früher
 
 ## Fortsetzung und automatische Wiederholungen verstehen
 
-Der Ablauf speichert abgeschlossene Nodes als Checkpoints und setzt danach fort. Geht eine Fortsetzung verloren, kann der nicht abgeschlossene Lauf nach einer Wartefrist wieder aufgenommen werden. Ein separater neuer Lauf besitzt eigene Checkpoints und kann Schreibvorgänge wiederholen. Neu starten ist deshalb etwas anderes als den bestehenden Lauf fortzusetzen.
+Der Ablauf speichert abgeschlossene Nodes als Checkpoints und setzt danach fort. Ein separater neuer Lauf besitzt eigene Checkpoints und kann Schreibvorgänge wiederholen. Neu starten ist deshalb etwas anderes als den bestehenden Lauf fortzusetzen.
+
+Ein Lauf kann während der Ausführung auf einen anderen Server wechseln. Ein Server, der aktualisiert oder neu gestartet wird, gibt seine Läufe beim nächsten Schritt weiter: Der laufende Schritt wird noch fertig, und der nächste Server macht mit dem folgenden Schritt weiter oder, wenn der Schritt einmal pro Element läuft, mit dem nächsten Element. Arbeitet ein Schritt 20 Sekunden nach Beginn des Neustarts noch, wird er unterbrochen und läuft auf dem nächsten Server noch einmal. Hält ein Server ohne Vorwarnung an, übernimmt ein anderer seine Läufe innerhalb von etwa anderthalb Minuten. Abgeschlossene Schritte laufen nicht noch einmal. Im Kopfbereich des Laufs steht dann **Nach einem Neustart fortgesetzt** oder die Zahl der Neustarts, mit dem Zeitpunkt des letzten Wechsels und seinem Grund: Der Server wurde aktualisiert oder neu gestartet, oder er hat nicht mehr geantwortet. Bis ein anderer Server den Lauf übernommen hat, zeigt sein Status **Unterbrochen — wird fortgesetzt**.
+
+Eine Ausnahme ist ein Schritt, der gerade etwas an einen externen Dienst sendete, als sein Server stoppte: Tale kann nicht erkennen, ob der Dienst es erhalten hat, und sendet es deshalb nicht von selbst noch einmal. Stattdessen wartet der Lauf, und seine Seite nennt den Schritt, den Connector, was der Schritt gesendet hat und, wenn der Schritt je Element läuft, das Element. Prüfe den Dienst und wähle dann, wie es weitergeht:
+
+- **Erneut ausführen** sendet es noch einmal. Hatte der Dienst es schon erhalten, passiert es zweimal; Tale fragt deshalb vorher nach.
+- **Überspringen** setzt den Lauf fort, als hätte der Schritt nichts zurückgegeben. Wähle das, wenn der Dienst das Gesendete schon erhalten hat.
+- **Lauf fehlschlagen lassen** stoppt den Lauf an dieser Stelle und erfasst ihn als fehlgeschlagen mit dem Code `effect_in_doubt`. Was der Lauf schon getan hat, wird nicht rückgängig gemacht; Tale fragt deshalb vorher nach.
+
+Diese Wahl trifft jede Person, die den Lauf stoppen darf. Der Lauf wartet, bis jemand entscheidet; eine Benachrichtigung gibt es nicht, und die Liste der Läufe zeigt den Schritt, auf den er wartet.
 
 Ein geeigneter Agentenfehler erlaubt nach dem ersten Versuch bis zu drei automatische Wiederholungen. Frühere Checkpoints bleiben erhalten; der Kopfbereich zeigt den Wiederholungszähler. Arbeitet ein Versuch mindestens fünfzehn Minuten, wird dieses Wiederholungsbudget erneuert. Abonnement-Pools können für einen neuen Versuch ein anderes Konto wählen. Hat ein Abo-Broker das Konto erneuert, während der Schritt arbeitete, und lehnt der Anbieter deshalb das alte Token ab, läuft die Wiederholung mit einem neuen Token weiter, ohne eine der drei Wiederholungen zu verbrauchen; eine dritte solche Unterbrechung in Folge zählt wie jeder andere Fehler. Konnte der Schritt nicht starten, weil alle Konten des Pools nach Erreichen eines Rate-Limits pausierten, beginnt die Wiederholung, sobald das erste Konto wieder verfügbar ist, spätestens eine Minute später, und setzt die Konversation fort, die der abgelehnte Versuch fortsetzen sollte. Diese Wartezeit verbraucht eine der drei Wiederholungen, außer der abgelehnte Versuch wiederholte selbst einen Fehler durch ein Rate-Limit. Hatte der fehlgeschlagene Versuch seine Konversation bereits angekündigt, setzt die Wiederholung genau diese Konversation über dem erhaltenen Arbeitsbereich fort – der Agent macht dort weiter, wo der Abbruch ihn traf, statt von vorn zu überlegen; ein Versuch, der vorher starb oder dessen Sandbox-Sitzung verschwunden ist, beginnt neu. Ein Schritt mit Gemini CLI beginnt immer neu, weil diese Laufzeit eine Konversation mit einem Werkzeugaufruf nicht wiederaufnehmen kann; [Eine Agent-Laufzeit wählen](/de/platform/agents/harnesses) erklärt die Ausnahme.
 

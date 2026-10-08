@@ -26,6 +26,11 @@ const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
     runFetching: false,
     runFailureCount: 0,
     realRunRead: false,
+    resumeCount: undefined as number | undefined,
+    lastResume: undefined as
+      | { reason: 'shutdown' | 'lease_expired'; at: number }
+      | undefined,
+    stalled: undefined as boolean | undefined,
   },
   resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
@@ -70,6 +75,23 @@ vi.mock('../hooks/queries', async (importOriginal) => {
           : { data: undefined, isError: true, error: state.versionError },
     useNodeTypeCatalog: () => ({ data: [], isError: false }),
     useRunPendingAsk: () => ({ data: null }),
+    useRunInDoubt: () => ({
+      data: {
+        attemptId: 'attempt-1',
+        nodeId: 'send',
+        itemIndex: 0,
+        pass: 0,
+        attempt: 1,
+        nodeType: 'imap-smtp.send',
+        connector: 'Email (IMAP/SMTP)',
+        action: 'send',
+        input: { subject: 'Invoice 42' },
+        startedAt: 1789363169000,
+      },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    }),
     useRunApproval: (organizationId: string, approvalId: string) => {
       readApproval(organizationId, approvalId);
       return {
@@ -91,6 +113,10 @@ vi.mock('../hooks/mutations', () => ({
   useCancelAutomationRun: () => ({ mutate: cancelRun, isPending: false }),
   useResolveRunApproval: () => ({
     mutateAsync: resolveApproval,
+    isPending: false,
+  }),
+  useResolveRunInDoubt: () => ({
+    mutateAsync: vi.fn(() => Promise.resolve(null)),
     isPending: false,
   }),
 }));
@@ -153,6 +179,9 @@ beforeEach(() => {
   state.runFetching = false;
   state.runFailureCount = 0;
   state.realRunRead = false;
+  state.resumeCount = undefined;
+  state.lastResume = undefined;
+  state.stalled = undefined;
   vi.clearAllMocks();
 });
 
@@ -698,6 +727,105 @@ describe('RunDetail starter and reason', () => {
     renderRun();
     expect(screen.queryByRole('alert')).toBeNull();
     expect(screen.queryByText(/repeat/)).toBeNull();
+  });
+});
+
+/**
+ * A run its server could not finish moves to another one. The header says
+ * so — how often, and the last time when and why — and while nobody has
+ * taken it over yet the badge reads Interrupted, not Running.
+ */
+describe('RunDetail a run handed to another server [AUTO-R18]', () => {
+  const at = 1789363180000;
+
+  it('says when and why a restart handed the run on', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.resumeCount = 1;
+    state.lastResume = { reason: 'shutdown', at };
+    renderRun();
+    expect(
+      screen.getByText(
+        /^Resumed after a restart · Last on .+: the server running it was being updated or restarted and handed it on\.$/,
+      ),
+    ).toBeVisible();
+  });
+
+  it('counts every move and names a takeover after a server stopped responding', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.resumeCount = 3;
+    state.lastResume = { reason: 'lease_expired', at };
+    renderRun();
+    expect(
+      screen.getByText(
+        /^Resumed after 3 restarts · Last on .+: the server running it stopped responding, and another one took over\.$/,
+      ),
+    ).toBeVisible();
+  });
+
+  it('says nothing of restarts on a run that never moved', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    renderRun();
+    expect(screen.queryByText(/Resumed after/)).toBeNull();
+    expect(screen.getByText('Running')).toBeVisible();
+  });
+
+  it('reads Interrupted while no server has taken the run over yet', () => {
+    state.status = 'running';
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.resumeCount = 1;
+    state.lastResume = { reason: 'lease_expired', at };
+    state.stalled = true;
+    renderRun();
+    expect(screen.getByText('Interrupted — resuming')).toBeVisible();
+    expect(screen.queryByText('Running')).toBeNull();
+    // Not "Resumed" yet: the badge says where the run stands until a server
+    // has it again.
+    expect(screen.queryByText(/Resumed after/)).toBeNull();
+  });
+});
+
+/**
+ * A write that may already have happened when the run was interrupted waits
+ * for a person: the card takes the waiting line's place while the run is
+ * parked on it, and goes once the run is not.
+ */
+describe('RunDetail a write that may already have happened', () => {
+  it('shows the decision card, not the waiting line, while the run waits on it', () => {
+    state.detail = 'in_doubt:send';
+    state.waitingFor = 'in_doubt';
+    renderRun();
+    expect(
+      screen.getByText('This step may already have run: send'),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Run it again' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Skip it' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Fail the run' })).toBeVisible();
+    // The card replaces the waiting line; only its polite announcement
+    // says it, once.
+    expect(
+      screen
+        .getAllByText(/^Waiting for a decision/)
+        .map((node) => node.getAttribute('role')),
+    ).toEqual(['status']);
+    expect(screen.queryByText('in_doubt:send')).toBeNull();
+  });
+
+  it('shows no card once the run is no longer parked on it', () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail =
+      'send: a person chose to fail the run here, since the step may already have run';
+    state.waitingFor = undefined;
+    renderRun();
+    expect(screen.queryByRole('button', { name: 'Run it again' })).toBeNull();
+    expect(screen.queryByText(/may already have run: send/)).toBeNull();
   });
 });
 

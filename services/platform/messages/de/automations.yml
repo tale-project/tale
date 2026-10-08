@@ -340,9 +340,9 @@ runs:
     visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
   approval:
     title: 'Wartet auf deine Freigabe: {operation}'
-    node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
-    pending: Mit der Freigabe führt der wartende Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.
-    approved: '{operation} freigegeben — der Lauf setzt beim nächsten Poll fort.'
+    node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt sofort aus; eine Ablehnung lässt ihn fehlschlagen.'
+    pending: Mit der Freigabe wird der wartende Schritt sofort ausgeführt; eine Ablehnung lässt ihn fehlschlagen.
+    approved: '{operation} freigegeben — der Lauf geht sofort weiter.'
     rejected: '{operation} abgelehnt — der Schritt schlägt fehl und der Lauf stoppt.'
     input: Der Schritt würde aufrufen mit
     approve: Freigeben
@@ -356,6 +356,38 @@ runs:
     answerLabel: Deine Antwort
     placeholder: Schreib deine Antwort — Freitext genügt.
     submit: Antwort senden & fortsetzen
+  # Ein Lauf, den ein anderer Server übernommen hat — nachdem seiner
+  # aktualisiert oder neu gestartet wurde oder nicht mehr geantwortet hat.
+  resumed:
+    label: '{count, plural, one {Nach einem Neustart fortgesetzt} other {Nach # Neustarts fortgesetzt}}'
+    shutdown: 'Zuletzt am {date}: Der Server, auf dem er lief, wurde aktualisiert oder neu gestartet und hat ihn weitergegeben.'
+    lease_expired: 'Zuletzt am {date}: Der Server, auf dem er lief, hat nicht mehr geantwortet, und ein anderer hat übernommen.'
+  # Ein Schreibvorgang, der seinen Dienst vielleicht schon erreicht hat, als
+  # der Lauf unterbrochen wurde: Tale kann es nicht wissen, also entscheidet
+  # eine Person, wie es weitergeht.
+  inDoubt:
+    title: 'Dieser Schritt ist vielleicht schon gelaufen: {node}'
+    body: '{item, select, none {Der Lauf wurde unterbrochen, während dieser Schritt an {connector} gesendet hat.} other {Der Lauf wurde unterbrochen, während dieser Schritt Element {item} an {connector} gesendet hat.}} Tale kann nicht erkennen, ob {connector} es erhalten hat. Prüfe in {connector}, ob es angekommen ist: Wenn ja, überspring den Schritt, sonst führ ihn erneut aus.'
+    input: Der Schritt hat gesendet
+    retry: Erneut ausführen
+    retryConfirm:
+      title: Diesen Schritt erneut ausführen?
+      body: 'Falls {connector} es schon erhalten hat, passiert es zweimal.'
+    skip: Überspringen
+    skipHint: 'Überspringen: Der Lauf macht weiter, als hätte der Schritt nichts zurückgegeben.'
+    fail: Lauf fehlschlagen lassen
+    failConfirm:
+      title: Diesen Lauf fehlschlagen lassen?
+      body: Der Lauf stoppt hier. Nichts, was er schon getan hat, wird rückgängig gemacht.
+    resolved:
+      retry: Der Schritt wird erneut ausgeführt.
+      skip: Übersprungen — der Lauf macht weiter.
+      fail: Der Lauf ist fehlgeschlagen.
+    settled: Dieser Schritt wartet nicht mehr auf eine Entscheidung.
+    loading: Schritt wird geladen…
+    loadFailed: Dieser Schritt konnte nicht geladen werden.
+    reload: Erneut versuchen
+    decideFailed: Deine Wahl konnte nicht gespeichert werden.
   title: Läufe
   description: Jeder Lauf dieser Automatisierung, neueste zuerst — Testläufe wie Live-Läufe. Öffne einen für seine Schritte, Auswirkungen und Ausgabe.
   breadcrumb: Lauf
@@ -396,6 +428,7 @@ runs:
     agent: Agent arbeitet
     room: Wartet auf einen Sandbox-Platz
     repeat: 'Pollt — Schritt {node}'
+    in_doubt: 'Wartet auf eine Entscheidung — Schritt {node} ist vielleicht schon gelaufen'
   startedAt: 'Gestartet {date}'
   finishedAt: 'Beendet {date}'
   inputTitle: Eingabe des Laufs
@@ -414,6 +447,9 @@ runs:
     success: Erfolgreich
     failed: Fehlgeschlagen
     cancelled: Gestoppt
+    # Ein laufender Lauf, dessen Server ausgefallen ist, bevor ein anderer
+    # ihn übernimmt.
+    stalled: Unterbrochen — wird fortgesetzt
   nodeStatus:
     ok: Gelaufen
     skipped: Übersprungen
@@ -422,6 +458,8 @@ runs:
     pending: Noch nicht erreicht
     running: Läuft gerade
     stopped: Hier gestoppt
+    waiting: Wartet hier
+    interrupted: Hier unterbrochen
   effects:
     title: '{count, plural, one {# Auswirkung} other {# Auswirkungen}}'
     description:

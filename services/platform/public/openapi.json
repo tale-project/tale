@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.17.0",
+    "version": "3.18.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -38825,7 +38825,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.17.0"
+          "example": "3.18.0"
         }
       },
       "Location": {
@@ -42820,7 +42820,7 @@
           },
           "detail": {
             "type": "string",
-            "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
+            "description": "The failure or wait reason, when the run has one. While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or `in_doubt:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -42831,6 +42831,8 @@
               "approval_rejected",
               "execution_limit",
               "automation_deleted",
+              "engine_incompatible",
+              "effect_in_doubt",
               "missing_api_key",
               "credit_exhausted",
               "model_not_entitled",
@@ -42858,8 +42860,34 @@
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "room", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`), never `status=waiting` alone."
+            "enum": ["approval", "ask", "in_doubt", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `in_doubt` — a write the run was making when its server stopped may or may not have reached its service, and a person must decide how to continue (in the app: run it again, skip it, or fail the run); `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page. \"Runs that need a human\" is `waitingFor` in (`approval`, `ask`, `in_doubt`), never `status=waiting` alone."
+          },
+          "resumeCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How often the run moved to another server: a server that was being updated or restarted handed it on, or another one took it over after its own stopped responding. Steps it had finished never run again. `Run` always carries it; `RunSummary` omits it while it is 0."
+          },
+          "lastResume": {
+            "type": "object",
+            "required": ["reason", "at"],
+            "additionalProperties": false,
+            "description": "Why and when the run last moved to another server; absent while it never did. `shutdown` — its server was being updated or restarted and handed it on; `lease_expired` — its server stopped responding and another one took it over.",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["shutdown", "lease_expired"]
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              }
+            }
+          },
+          "stalled": {
+            "type": "boolean",
+            "description": "True while a `running` run waits for a server to take it over after its own stopped (the app reads it as “Interrupted — resuming”): nothing is working on it right now, and another server picks it up within about a minute and a half. `Run` always carries it; `RunSummary` carries it only while true."
           },
           "startedAt": {
             "type": "integer",
@@ -42952,7 +42980,7 @@
           "detail": {
             "type": "string",
             "nullable": true,
-            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
+            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or `in_doubt:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -42963,6 +42991,8 @@
               "approval_rejected",
               "execution_limit",
               "automation_deleted",
+              "engine_incompatible",
+              "effect_in_doubt",
               "missing_api_key",
               "credit_exhausted",
               "model_not_entitled",
@@ -42988,16 +43018,42 @@
               null
             ],
             "nullable": true,
-            "description": "Why a `failed` run failed — present only with `status: \"failed\"`, null otherwise (and null on a failure recorded before this field existed). `node_error` — the node’s own code, template, `forEach` or `output` expression failed, an authoring refusal: the author’s problem; `connector_error` — a connector action refused or failed; `llm_output_invalid` — the model’s reply did not satisfy the node’s `outputSchema`; `approval_rejected`; `execution_limit` — the 100-execution guard; `automation_deleted` — the automation vanished mid-flight. The provider codes the chat surface documents (`credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`, `provider_error`, `model_not_found`, …) — an `llm` node’s provider: the account or the provider, not the request. The agent codes (`harness_error`, `turn_crashed`, `session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — an `agent` node’s turn, after its in-node retries. Retry on `provider_error`, `provider_unreachable`, `rate_limited`, `turn_crashed`, `session_gone`, `harvest_failed`; alert a person on the rest."
+            "description": "Why a `failed` run failed — present only with `status: \"failed\"`, null otherwise (and null on a failure recorded before this field existed). `node_error` — the node’s own code, template, `forEach` or `output` expression failed, an authoring refusal: the author’s problem; `connector_error` — a connector action refused or failed; `llm_output_invalid` — the model’s reply did not satisfy the node’s `outputSchema`; `approval_rejected`; `execution_limit` — the 100-execution guard; `automation_deleted` — the automation vanished mid-flight; `engine_incompatible` — the run’s saved progress could not be read by this version of Tale, so it was stopped instead of starting over (no step ran twice); `effect_in_doubt` — a person failed the run at a write that may already have reached its service when the run was interrupted. The provider codes the chat surface documents (`credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`, `provider_error`, `model_not_found`, …) — an `llm` node’s provider: the account or the provider, not the request. The agent codes (`harness_error`, `turn_crashed`, `session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — an `agent` node’s turn, after its in-node retries. Retry on `provider_error`, `provider_unreachable`, `rate_limited`, `turn_crashed`, `session_gone`, `harvest_failed`; alert a person on the rest."
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "room", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+            "enum": ["approval", "ask", "in_doubt", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `in_doubt` — a write the run was making when its server stopped may or may not have reached its service, and a person must decide how to continue (in the app: run it again, skip it, or fail the run); `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+          },
+          "resumeCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How often the run moved to another server: a server that was being updated or restarted handed it on, or another one took it over after its own stopped responding. Steps it had finished never run again. `Run` always carries it; `RunSummary` omits it while it is 0."
+          },
+          "lastResume": {
+            "type": "object",
+            "required": ["reason", "at"],
+            "additionalProperties": false,
+            "description": "Why and when the run last moved to another server; absent while it never did. `shutdown` — its server was being updated or restarted and handed it on; `lease_expired` — its server stopped responding and another one took it over.",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["shutdown", "lease_expired"]
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              }
+            }
+          },
+          "stalled": {
+            "type": "boolean",
+            "description": "True while a `running` run waits for a server to take it over after its own stopped (the app reads it as “Interrupted — resuming”): nothing is working on it right now, and another server picks it up within about a minute and a half. `Run` always carries it; `RunSummary` carries it only while true."
           },
           "claimEpoch": {
             "type": "integer",
-            "description": "The stepper’s claim fence: incremented each time a worker claims the run (the first claim, a liveness re-poke, a queue retry); a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was re-claimed at least once."
+            "description": "The stepper’s claim fence: incremented on every claim — each turn, a takeover after a server stopped, or a queue retry; a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was claimed more than once."
           },
           "chainSeq": {
             "type": "integer",
@@ -43070,7 +43126,7 @@
           "detail": {
             "type": "string",
             "nullable": true,
-            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` or `repeat:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
+            "description": "The failure or wait reason; null while the run has none — and null again once a cancel lands (the park it named is over). While `waiting` it names the park: `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` or `in_doubt:<nodeId>` — `waitingFor` is the field to branch on; when `failed`, the failure sentence, and `failureCode` the stable cause to branch on — the sentence is not contractual."
           },
           "failureCode": {
             "type": "string",
@@ -43081,6 +43137,8 @@
               "approval_rejected",
               "execution_limit",
               "automation_deleted",
+              "engine_incompatible",
+              "effect_in_doubt",
               "missing_api_key",
               "credit_exhausted",
               "model_not_entitled",
@@ -43106,16 +43164,42 @@
               null
             ],
             "nullable": true,
-            "description": "Why a `failed` run failed — present only with `status: \"failed\"`, null otherwise (and null on a failure recorded before this field existed). `node_error` — the node’s own code, template, `forEach` or `output` expression failed, an authoring refusal: the author’s problem; `connector_error` — a connector action refused or failed; `llm_output_invalid` — the model’s reply did not satisfy the node’s `outputSchema`; `approval_rejected`; `execution_limit` — the 100-execution guard; `automation_deleted` — the automation vanished mid-flight. The provider codes the chat surface documents (`credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`, `provider_error`, `model_not_found`, …) — an `llm` node’s provider: the account or the provider, not the request. The agent codes (`harness_error`, `turn_crashed`, `session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — an `agent` node’s turn, after its in-node retries. Retry on `provider_error`, `provider_unreachable`, `rate_limited`, `turn_crashed`, `session_gone`, `harvest_failed`; alert a person on the rest."
+            "description": "Why a `failed` run failed — present only with `status: \"failed\"`, null otherwise (and null on a failure recorded before this field existed). `node_error` — the node’s own code, template, `forEach` or `output` expression failed, an authoring refusal: the author’s problem; `connector_error` — a connector action refused or failed; `llm_output_invalid` — the model’s reply did not satisfy the node’s `outputSchema`; `approval_rejected`; `execution_limit` — the 100-execution guard; `automation_deleted` — the automation vanished mid-flight; `engine_incompatible` — the run’s saved progress could not be read by this version of Tale, so it was stopped instead of starting over (no step ran twice); `effect_in_doubt` — a person failed the run at a write that may already have reached its service when the run was interrupted. The provider codes the chat surface documents (`credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`, `provider_error`, `model_not_found`, …) — an `llm` node’s provider: the account or the provider, not the request. The agent codes (`harness_error`, `turn_crashed`, `session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — an `agent` node’s turn, after its in-node retries. Retry on `provider_error`, `provider_unreachable`, `rate_limited`, `turn_crashed`, `session_gone`, `harvest_failed`; alert a person on the rest."
           },
           "waitingFor": {
             "type": "string",
-            "enum": ["approval", "ask", "agent", "room", "repeat"],
-            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+            "enum": ["approval", "ask", "in_doubt", "agent", "room", "repeat"],
+            "description": "Present only while `status` is `waiting`: what the run is parked on. `approval` — a person’s decision on a gate; `ask` — a question a person has to answer; `in_doubt` — a write the run was making when its server stopped may or may not have reached its service, and a person must decide how to continue (in the app: run it again, skip it, or fail the run); `agent` — an agent turn still running, no one to page; `room` — an agent turn whose start waits for sandbox room, no one to page; `repeat` — a node polling until its `repeatUntil` condition holds, no one to page."
+          },
+          "resumeCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "How often the run moved to another server: a server that was being updated or restarted handed it on, or another one took it over after its own stopped responding. Steps it had finished never run again. `Run` always carries it; `RunSummary` omits it while it is 0."
+          },
+          "lastResume": {
+            "type": "object",
+            "required": ["reason", "at"],
+            "additionalProperties": false,
+            "description": "Why and when the run last moved to another server; absent while it never did. `shutdown` — its server was being updated or restarted and handed it on; `lease_expired` — its server stopped responding and another one took it over.",
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["shutdown", "lease_expired"]
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              }
+            }
+          },
+          "stalled": {
+            "type": "boolean",
+            "description": "True while a `running` run waits for a server to take it over after its own stopped (the app reads it as “Interrupted — resuming”): nothing is working on it right now, and another server picks it up within about a minute and a half. `Run` always carries it; `RunSummary` carries it only while true."
           },
           "claimEpoch": {
             "type": "integer",
-            "description": "The stepper’s claim fence: incremented each time a worker claims the run (the first claim, a liveness re-poke, a queue retry); a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was re-claimed at least once."
+            "description": "The stepper’s claim fence: incremented on every claim — each turn, a takeover after a server stopped, or a queue retry; a worker holding an older epoch has its writes refused as stale. Diagnostic — above 1 means the run was claimed more than once."
           },
           "chainSeq": {
             "type": "integer",

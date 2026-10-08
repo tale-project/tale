@@ -132,16 +132,25 @@ function scaleArgs(
  * the old colour down after a flip. Never throws: at teardown time the
  * traffic has already moved, and failing here would leave the deploy looking
  * broken when it is not.
+ *
+ * The containers are stopped together, then removed: each one is given its
+ * own stop grace (a backend worker's 120 s, while it hands its automation
+ * runs on), so the teardown takes as long as the slowest of them rather than
+ * the sum of every replica's.
  */
 export async function removeColorContainers(
   projectName: string,
 ): Promise<number> {
+  const containers = await listComposeContainers(projectName);
+  await Promise.all(
+    containers.map(async (container) => {
+      if (!(await stopContainer(container.name))) {
+        logger.warn(`Failed to stop ${container.name}, continuing...`);
+      }
+    }),
+  );
   let removed = 0;
-  for (const container of await listComposeContainers(projectName)) {
-    const stopped = await stopContainer(container.name);
-    if (!stopped) {
-      logger.warn(`Failed to stop ${container.name}, continuing...`);
-    }
+  for (const container of containers) {
     if (await removeContainer(container.name)) {
       removed += 1;
     } else {

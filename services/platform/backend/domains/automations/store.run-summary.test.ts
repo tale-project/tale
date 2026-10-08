@@ -15,6 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type RunRow,
+  runLastResume,
   runStartedVia,
   runWaitingFor,
   toRunDetail,
@@ -43,6 +44,10 @@ function row(overrides: Partial<RunRow> = {}): RunRow {
     startedAt: 1_789_190_000_000,
     finishedAt: null,
     askPending: false,
+    resumeCount: 0,
+    lastResumeReason: null,
+    lastResumedAt: null,
+    stalled: false,
     ...overrides,
   };
 }
@@ -56,6 +61,8 @@ describe('runWaitingFor', () => {
     ['agent:review', false, 'agent'],
     ['agent:review', true, 'ask'],
     ['room:review', false, 'room'],
+    ['in_doubt:send_invoice', false, 'in_doubt'],
+    ['in_doubt:send_invoice', true, 'in_doubt'],
   ] as const)(
     'reads %s (ask pending: %s) as %s',
     (detail, askPending, expected) => {
@@ -244,5 +251,96 @@ describe('toRunDetail', () => {
     );
     expect(detail.startedVia).toBe('schedule');
     expect(detail.input).toBe('{"trigger":"schedule","firedAt":1}');
+  });
+});
+
+/**
+ * Whether and why a run moved between servers: a run that never did reads
+ * exactly as before (no key at all on a summary), the two raw stamps travel
+ * as one `lastResume` or not at all, and nothing about the server that held
+ * it — its owner, host or process — is ever a field.
+ */
+describe('a run handed to another server on the wire [AUTO-R18]', () => {
+  const handedOn = {
+    status: 'running',
+    detail: null,
+    resumeCount: 2,
+    lastResumeReason: 'lease_expired' as const,
+    lastResumedAt: 1_789_190_030_000,
+  };
+
+  it('leaves the summary of a run that never moved unchanged', () => {
+    const summary = toRunSummary(row({ status: 'running', detail: null }));
+    expect(summary).not.toHaveProperty('resumeCount');
+    expect(summary).not.toHaveProperty('lastResume');
+    expect(summary).not.toHaveProperty('stalled');
+  });
+
+  it('carries the count and the last move on a summary once it moved', () => {
+    const summary = toRunSummary(row(handedOn));
+    expect(summary.resumeCount).toBe(2);
+    expect(summary.lastResume).toEqual({
+      reason: 'lease_expired',
+      at: 1_789_190_030_000,
+    });
+    expect(summary).not.toHaveProperty('stalled');
+    expect(summary).not.toHaveProperty('lastResumeReason');
+    expect(summary).not.toHaveProperty('lastResumedAt');
+  });
+
+  it('marks a summary stalled only while it is', () => {
+    expect(toRunSummary(row({ ...handedOn, stalled: true })).stalled).toBe(
+      true,
+    );
+    expect(
+      toRunSummary(row({ ...handedOn, stalled: false })),
+    ).not.toHaveProperty('stalled');
+  });
+
+  it('answers the full row with the count, the stall and one lastResume', () => {
+    const detail = toRunDetail(row({ ...handedOn, stalled: true }));
+    expect(detail).toMatchObject({
+      resumeCount: 2,
+      stalled: true,
+      lastResume: { reason: 'lease_expired', at: 1_789_190_030_000 },
+    });
+    expect(detail).not.toHaveProperty('lastResumeReason');
+    expect(detail).not.toHaveProperty('lastResumedAt');
+    const never = toRunDetail(row({ status: 'running', detail: null }));
+    expect(never).toMatchObject({ resumeCount: 0, stalled: false });
+    expect(never).not.toHaveProperty('lastResume');
+  });
+
+  it('names no server, host or process anywhere', () => {
+    for (const answer of [
+      toRunSummary(row({ ...handedOn, stalled: true })),
+      toRunDetail(row({ ...handedOn, stalled: true })),
+    ]) {
+      expect(
+        Object.keys(answer).filter((key) =>
+          /owner|instance|engine|host|pid|lease/i.test(key),
+        ),
+      ).toEqual([]);
+    }
+  });
+});
+
+describe('runLastResume', () => {
+  it.each(['shutdown', 'lease_expired'] as const)(
+    'reads a %s move with its time',
+    (reason) => {
+      expect(
+        runLastResume({ lastResumeReason: reason, lastResumedAt: 5 }),
+      ).toEqual({ reason, at: 5 });
+    },
+  );
+
+  it('answers nothing without both stamps', () => {
+    expect(
+      runLastResume({ lastResumeReason: null, lastResumedAt: 5 }),
+    ).toBeUndefined();
+    expect(
+      runLastResume({ lastResumeReason: 'shutdown', lastResumedAt: null }),
+    ).toBeUndefined();
   });
 });

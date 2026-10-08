@@ -57,6 +57,16 @@ describe('loadEnv', () => {
     ).toThrow();
   });
 
+  it('bounds the shutdown drain, and leaves it to the role when unset', () => {
+    expect(loadEnv(BASE).SHUTDOWN_DRAIN_MS).toBeUndefined();
+    expect(
+      loadEnv({ ...BASE, SHUTDOWN_DRAIN_MS: '45000' }).SHUTDOWN_DRAIN_MS,
+    ).toBe(45_000);
+    for (const value of ['999', '600001', '1.5', 'soon']) {
+      expect(() => loadEnv({ ...BASE, SHUTDOWN_DRAIN_MS: value })).toThrow();
+    }
+  });
+
   it('applies defaults for port, role, and concurrency', () => {
     const env = loadEnv({ ...BASE });
     expect(env.PORT).toBe(3005);
@@ -88,6 +98,23 @@ describe('loadEnv', () => {
     expect(env.AGENT_DRIVE_SLOTS).toBe(64);
     expect(() => loadEnv({ ...BASE, AGENT_DRIVE_SLOTS: '0' })).toThrow();
     expect(() => loadEnv({ ...BASE, AGENT_START_SLOTS: 'lots' })).toThrow();
+  });
+
+  it('limits an organization to eight automation steps at once by default, and 0 lifts it', () => {
+    expect(loadEnv({ ...BASE }).AUTOMATION_ORG_CONCURRENCY).toBe(8);
+    expect(
+      loadEnv({ ...BASE, AUTOMATION_ORG_CONCURRENCY: '0' })
+        .AUTOMATION_ORG_CONCURRENCY,
+    ).toBe(0);
+    expect(
+      loadEnv({ ...BASE, AUTOMATION_ORG_CONCURRENCY: '24' })
+        .AUTOMATION_ORG_CONCURRENCY,
+    ).toBe(24);
+    for (const value of ['-1', '257', '2.5', 'many']) {
+      expect(() =>
+        loadEnv({ ...BASE, AUTOMATION_ORG_CONCURRENCY: value }),
+      ).toThrow();
+    }
   });
 
   it('passes SENTRY_DSN through and leaves it optional', () => {

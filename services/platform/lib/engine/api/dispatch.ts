@@ -103,11 +103,23 @@ export interface RunSummary {
    * `status` is `failed` and the run failed on a build that records it. */
   failureCode?: string;
   /** What a `waiting` run is parked on — `approval` (a person's decision),
-   * `ask` (a question a person has to answer), `agent` (an agent turn
-   * still running), `room` (an agent turn waiting for sandbox room to
-   * start), `repeat` (a node polling until its condition holds). Only the
-   * first two need a human; present only while waiting. */
-  waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
+   * `ask` (a question a person has to answer), `in_doubt` (a write the run
+   * was making when its server stopped may already have happened; a person
+   * decides how to continue), `agent` (an agent turn still running), `room`
+   * (an agent turn waiting for sandbox room to start), `repeat` (a node
+   * polling until its condition holds). The first three need a human;
+   * present only while waiting. */
+  waitingFor?: 'approval' | 'ask' | 'in_doubt' | 'agent' | 'room' | 'repeat';
+  /** How often another server took the run over or a stopping one handed
+   * it on; absent while it never was. */
+  resumeCount?: number;
+  /** Why and when the run was last handed on: `shutdown` (its server was
+   * updated or restarted and handed it on) or `lease_expired` (its server
+   * stopped responding and another took over). Absent while it never was. */
+  lastResume?: { reason: 'shutdown' | 'lease_expired'; at: number };
+  /** True while a running run waits for a server to take it over after its
+   * own stopped; absent otherwise. */
+  stalled?: boolean;
   startedAt: number;
   finishedAt?: number;
 }

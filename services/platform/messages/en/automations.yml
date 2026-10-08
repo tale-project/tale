@@ -330,9 +330,9 @@ runs:
     visionModel: 'Images in this run were read by {model}.'
   approval:
     title: 'Waiting for your approval: {operation}'
-    node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'
-    pending: Approving lets the parked step act on the next poll; rejecting fails it.
-    approved: '{operation} approved — the run resumes on its next poll.'
+    node: 'Requested by node "{node}" — approving lets it act right away; rejecting fails it.'
+    pending: Approving lets the parked step act right away; rejecting fails it.
+    approved: '{operation} approved — the run resumes right away.'
     rejected: '{operation} rejected — the step fails and the run stops.'
     input: The step would call with
     approve: Approve
@@ -346,6 +346,37 @@ runs:
     answerLabel: Your answer
     placeholder: Type your answer — plain text is fine.
     submit: Send answer & resume
+  # A run handed to another server — after its own was updated or restarted,
+  # or stopped responding.
+  resumed:
+    label: '{count, plural, one {Resumed after a restart} other {Resumed after # restarts}}'
+    shutdown: 'Last on {date}: the server running it was being updated or restarted and handed it on.'
+    lease_expired: 'Last on {date}: the server running it stopped responding, and another one took over.'
+  # A write that may already have reached its service when the run was
+  # interrupted: Tale cannot tell, so a person decides how to continue.
+  inDoubt:
+    title: 'This step may already have run: {node}'
+    body: "{item, select, none {The run was interrupted while this step was sending to {connector}.} other {The run was interrupted while this step was sending item {item} to {connector}.}} Tale can't tell whether {connector} received it. Check {connector}: if it received it, skip the step; if not, run it again."
+    input: The step was sending
+    retry: Run it again
+    retryConfirm:
+      title: Run this step again?
+      body: 'If {connector} already received it, it happens twice.'
+    skip: Skip it
+    skipHint: 'Skip it: the run continues as if the step returned nothing.'
+    fail: Fail the run
+    failConfirm:
+      title: Fail this run?
+      body: The run stops here. Nothing it already did is undone.
+    resolved:
+      retry: Running the step again.
+      skip: Skipped — the run continues.
+      fail: The run was failed.
+    settled: This step no longer waits for a decision.
+    loading: Loading the step…
+    loadFailed: "Couldn't load this step."
+    reload: Try again
+    decideFailed: "Couldn't record your choice."
   title: Runs
   description: Every run of this automation, newest first — test runs and live runs alike. Open one for its steps, effects and output.
   breadcrumb: Run
@@ -385,6 +416,7 @@ runs:
     agent: Agent working
     room: Waiting for a sandbox slot
     repeat: 'Polling — step {node}'
+    in_doubt: 'Waiting for a decision — step {node} may already have run'
   startedAt: 'Started {date}'
   finishedAt: 'Finished {date}'
   inputTitle: Run input
@@ -403,6 +435,8 @@ runs:
     success: Succeeded
     failed: Failed
     cancelled: Stopped
+    # A running run whose server stopped, before another one takes it over.
+    stalled: Interrupted — resuming
   nodeStatus:
     ok: Ran
     skipped: Skipped
@@ -411,6 +445,11 @@ runs:
     pending: Not reached yet
     running: Running now
     stopped: Stopped here
+    # The node a parked run waits on a person at.
+    waiting: Waiting here
+    # The node a run was on when its server stopped, before another one
+    # takes it over.
+    interrupted: Interrupted here
   effects:
     title: '{count, plural, one {# effect} other {# effects}}'
     description:

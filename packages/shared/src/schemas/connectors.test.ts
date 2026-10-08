@@ -189,6 +189,24 @@ describe('connectorSchema', () => {
     expect(connectorSchema.safeParse(bad).success).toBe(false);
   });
 
+  it('accepts an action declared safe to repeat, and only as a boolean', () => {
+    const github = connectorSchema.parse(GITHUB);
+    const [create] = github.actions;
+    const declared = connectorSchema.parse({
+      ...github,
+      actions: [{ ...create, idempotent: true }],
+    });
+    expect(declared.actions[0]?.idempotent).toBe(true);
+    // Undeclared is not safe to repeat.
+    expect(github.actions[0]?.idempotent).toBeUndefined();
+    expect(
+      connectorSchema.safeParse({
+        ...github,
+        actions: [{ ...create, idempotent: 'yes' }],
+      }).success,
+    ).toBe(false);
+  });
+
   it('requires a mock on every action', () => {
     const github = connectorSchema.parse(GITHUB);
     const noMock = {

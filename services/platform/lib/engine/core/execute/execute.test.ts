@@ -679,6 +679,58 @@ describe('live connectors', () => {
     expect(outs[0]?.key).not.toBe(outs[1]?.key);
     expect(outs[0]?.key).toMatch(/:fan:0$/);
   });
+
+  // The durable stepper presents the same keys (`connectorIdempotencyKey`):
+  // a repeat pass after the first adds the pass, and a call inside a
+  // subautomation carries the calling run and its nested path.
+  it('keys a later repeat pass and a nested call the way the stepper does', async () => {
+    const repeated = await execute(
+      automationDoc([
+        {
+          id: 'poll',
+          type: 'notes.append',
+          input: { text: 'again' },
+          repeatUntil: '{{ false }}',
+          maxRepeats: 2,
+        },
+      ]),
+      { input: {}, mode: 'live', connectorHost: () => testHost() },
+    );
+    const poll = repeated.trace.find((t) => t.node === 'poll');
+    expect((poll?.output as { key?: string } | undefined)?.key).toMatch(
+      /:poll:0:1$/,
+    );
+
+    const store = memoryStore();
+    store.save(
+      'child',
+      automationDoc(
+        [{ id: 'log', type: 'notes.append', input: { text: 'nested' } }],
+        { name: 'child', output: '{{ nodes.log.output }}' },
+      ),
+    );
+    const nested = await execute(
+      automationDoc([
+        {
+          id: 'call',
+          type: 'subautomation',
+          automation: 'child',
+          forEach: '{{ input.items }}',
+        },
+      ]),
+      {
+        input: { items: ['a', 'b'] },
+        mode: 'live',
+        store,
+        connectorHost: () => testHost(),
+      },
+    );
+    expect(nested.status).toBe('success');
+    const outs = nested.trace.find((t) => t.node === 'call')?.output as Array<{
+      key: string;
+    }>;
+    expect(outs[1]?.key).toMatch(/^[^:]+:call\[1:0\]\/log:0$/);
+  });
 });
 
 describe('guards and contracts', () => {

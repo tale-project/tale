@@ -12,7 +12,10 @@ import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { assembleAutomationAuthoringHost } from '../../core/automations/authoring_host.ts';
-import { loadConnectorDefinitions } from '../../core/connector_credentials/connector_catalog.ts';
+import {
+  findConnector,
+  loadConnectorDefinitions,
+} from '../../core/connector_credentials/connector_catalog.ts';
 import { resolveWorkflowAgentServing } from '../../core/lib/providers/agent_serving.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import {
@@ -36,6 +39,11 @@ import {
   writeManagedAutomation,
 } from './managed-configuration';
 import { getOrgAutomationMetrics } from './metrics.ts';
+import {
+  readOpenInDoubt,
+  resolveInDoubtInTx,
+  type InDoubtAttempt,
+} from './node-attempts.ts';
 import {
   canReadRun,
   readableProject,
@@ -66,6 +74,23 @@ import {
   bindingProjectIds,
 } from './store.ts';
 import { uploadAutomationPg } from './upload.ts';
+
+/**
+ * The open in-doubt write as the app reads it: the ledger's attempt, plus
+ * the connector it was sending to in words — its display name from the
+ * shipped catalog, or its slug once nothing ships it — and the action.
+ */
+function describeInDoubt(attempt: InDoubtAttempt) {
+  const separator = attempt.nodeType.indexOf('.');
+  const slug =
+    separator > 0 ? attempt.nodeType.slice(0, separator) : attempt.nodeType;
+  const action = separator > 0 ? attempt.nodeType.slice(separator + 1) : '';
+  return {
+    ...attempt,
+    connector: findConnector(slug)?.displayName ?? slug,
+    action,
+  };
+}
 
 /**
  * /api/app/automations — the automation store surface: immutable versions,
@@ -128,6 +153,11 @@ const projectsSchema = z.object({
 });
 
 const answerSchema = z.object({ answer: z.string().min(1).max(20_000) });
+
+/** A person's choice about a write that may already have happened. */
+const inDoubtResolutionSchema = z
+  .object({ resolution: z.enum(['retry', 'skip', 'fail']) })
+  .strict();
 
 const uploadSchema = z.object({
   projectId: z.string().min(1).max(128).optional(),
@@ -500,6 +530,52 @@ export function createAutomationRoutes(deps: {
         // Pin the answer to the run whose visibility was just checked.
         runId,
       });
+    } catch (error) {
+      return handleError(c, error);
+    }
+    return c.json({ ok: true });
+  });
+
+  // The write a run waits on a person about — a call that may already have
+  // reached its service when the run was interrupted. Membership-gated like
+  // every run read; null when nothing of the kind waits.
+  app.get('/runs/:runId/in-doubt', async (c) => {
+    const runId = c.req.param('runId');
+    if ((await visibleRun(c, runId)) === null) return c.json({ inDoubt: null });
+    const attempt = await readOpenInDoubt(deps.sql, c.get('orgId'), runId);
+    return c.json({
+      inDoubt: attempt === null ? null : describeInDoubt(attempt),
+    });
+  });
+
+  // Deciding resumes (or fails) the run, so it is a WRITE with the stop's
+  // gate: a project run needs the project's write access, an organization
+  // run member-level control. A hidden or missing run is "not found". The
+  // decision, its audit row and the run's wake commit together.
+  app.post('/runs/:runId/in-doubt/:attemptId', async (c) => {
+    const body = inDoubtResolutionSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const control = await controllableRun(c, runId);
+      if (control === 'absent') {
+        throw new AutomationError(
+          'RUN_NOT_FOUND',
+          'this run does not exist',
+          404,
+        );
+      }
+      if (control === 'forbidden') return forbiddenControl(c);
+      const actor = c.get('sessionBundle').user.id;
+      await deps.sql.begin((tx) =>
+        resolveInDoubtInTx(tx, {
+          organizationId: c.get('orgId'),
+          runId,
+          attemptId: c.req.param('attemptId'),
+          resolution: body.data.resolution,
+          actor,
+        }),
+      );
     } catch (error) {
       return handleError(c, error);
     }
