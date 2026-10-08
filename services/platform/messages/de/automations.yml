@@ -241,13 +241,13 @@ canvas:
       withModel: '{type} · {model}'
       unknown: 'Unbekannter Typ {type}'
     source:
-      input: 'Laufeingabe ({keys})'
-      inputAll: Laufeingabe
+      input: 'die Laufeingabe ({keys})'
+      inputAll: die Laufeingabe
       item: jedes Element
   gate:
     asCode: Als Code geschrieben
   edge:
-    carries: 'Trägt {fields}'
+    carries: 'Überträgt {fields}'
   controlFlow:
     forEach: 'Für jedes Element von {list}'
     forEachRaw: Für jedes Element ihrer Liste
@@ -321,7 +321,7 @@ editor:
     skipUpstream: 'Übersprungen, wenn {node} übersprungen wird'
     skipError: Übersprungen, wenn sie fehlschlägt
     failHalts: Schlägt sie fehl, stoppt der Lauf mit ihrem Fehler.
-    failContinues: '{count, plural, =0 {Schlägt sie fehl, läuft der Lauf ohne sie weiter.} one {Schlägt sie fehl, läuft der Lauf ohne sie weiter und überspringt # Node, die sie liest.} other {Schlägt sie fehl, läuft der Lauf ohne sie weiter und überspringt # Nodes, die sie lesen.}}'
+    failContinues: '{count, plural, =0 {Schlägt sie fehl, geht der Lauf ohne sie weiter.} one {Schlägt sie fehl, geht der Lauf ohne sie weiter und überspringt # Node, die sie liest.} other {Schlägt sie fehl, geht der Lauf ohne sie weiter und überspringt # Nodes, die sie lesen.}}'
     failsWhen: 'Schlägt fehl, wenn {reasons}.'
   explain:
     when: 'Läuft nur, wenn {condition}. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
@@ -402,7 +402,7 @@ editor:
     onError: Bei Fehler
     onErrorStop: Lauf stoppen
     onErrorContinue: Ohne sie weiterlaufen
-    onErrorDescription: Was passiert, wenn diese Node fehlschlägt. Läuft der Lauf weiter, wird jede Node übersprungen, die ihre Ausgabe liest.
+    onErrorDescription: Was passiert, wenn diese Node fehlschlägt. Geht der Lauf weiter, wird jede Node übersprungen, die ihre Ausgabe liest.
     maxRepeatsDescription: Höchstens so viele Durchläufe, von 1 bis 20. Leer bedeutet 5.
     maxRepeatsRange: Gib eine ganze Zahl von 1 bis 20 ein.
     elseOfNone: Keine
@@ -719,7 +719,7 @@ paths:
     runs: '{node} läuft'
     skipped: '{node} wird übersprungen'
     fails: '{node} schlägt fehl, der Lauf geht weiter'
-    succeeds: '{node} gelingt'
+    succeeds: '{node} läuft erfolgreich'
   more: '{count, plural, one {# weiterer Pfad ist nicht aufgeführt} other {# weitere Pfade sind nicht aufgeführt}}'
   truncated: Diese Automatisierung hat {count} Bedingungen – zu viele, um jeden Pfad aufzuführen. Jede Node zeigt trotzdem, wann sie läuft.
   halts:

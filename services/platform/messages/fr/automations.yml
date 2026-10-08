@@ -229,7 +229,7 @@ canvas:
   node:
     returnsUnknown: Structure connue après une exécution
     returns: 'Renvoie {shape}'
-    writes: Modifie des données dans {connector}. Une exécution en service peut attendre une approbation.
+    writes: Modifie des données dans {connector}. Une exécution réelle peut attendre une approbation.
     asks: Peut poser une question et attendre la réponse.
     catalog:
       transform: Transformation
@@ -241,8 +241,8 @@ canvas:
       withModel: '{type} · {model}'
       unknown: 'Type inconnu {type}'
     source:
-      input: 'entrée ({keys})'
-      inputAll: entrée
+      input: 'l’entrée ({keys})'
+      inputAll: l’entrée
       item: chaque élément
   gate:
     asCode: Écrite en code
@@ -344,7 +344,7 @@ editor:
       inferred: Déduit de son code
       fixed: 'Chaque nœud de ce type ({type}) renvoie ceci'
       child: 'Ce que renvoie {automation}'
-      unknown: Tale ne peut pas déterminer ce qu’il renvoie. Une exécution de test montre les vraies données.
+      unknown: Tale ne peut pas déterminer ce qu’il renvoie. Un essai montre les vraies données.
   versionNotFound:
     title: 'La version {version} n’existe pas'
     description: Cette automatisation n’a aucune version portant ce numéro — le lien est peut-être périmé, ou le numéro mal saisi.
@@ -713,7 +713,7 @@ condition:
 paths:
   button: '{count, plural, one {# chemin} other {# chemins}}'
   title: Chemins possibles
-  description: Chaque chemin qu’une exécution réussie peut prendre. Survole-en un ou sélectionne-le pour le voir sur le canevas.
+  description: Chaque chemin qu’une exécution réussie peut prendre. Pointe sur l’un d’eux ou sélectionne-le pour le voir sur le canevas.
   single: 'Chaque exécution suit le même chemin : {count, plural, one {son # nœud s’exécute} other {les # nœuds s’exécutent}}.'
   row: 'Chemin {index}'
   rowRuns: '{ran, plural, one {# nœud sur {total} s’exécute} other {# nœuds sur {total} s’exécutent}}'
