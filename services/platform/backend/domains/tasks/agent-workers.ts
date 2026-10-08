@@ -16,6 +16,7 @@ import {
 } from '../../core/sandbox/session_naming.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { lockOrgAdmission } from '../sandbox/admission-lock.ts';
 import { sessionDestroyStates } from '../sandbox/destroy-schedule.ts';
 import { projectSessionRoom } from '../sandbox/sessions.ts';
 import { emitTaskRunHint, TASK_AGENT_RUN_DEADLINE_MS } from './agent-runs.ts';
@@ -220,9 +221,7 @@ async function claimInTx(
   `;
   // The same lock as every reserve, resume and release of the organization:
   // the slots counted below cannot change until this claim commits.
-  await tx`
-    SELECT pg_advisory_xact_lock(hashtextextended('sandbox:' || ${args.organizationId}, 0))
-  `;
+  await lockOrgAdmission(tx, args.organizationId);
   const runs = await tx<ClaimedRun[]>`
     SELECT agent_id AS "agentId", task_id AS "taskId",
            project_id AS "projectId", started_by AS "startedBy",
