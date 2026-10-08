@@ -8,13 +8,30 @@ import {
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { useState } from 'react';
 
-const ISSUE: IssueItem = {
-  id: 'unknown-node',
-  severity: 'error',
-  title: 'Reads a node that does not exist',
-  location: 'Draft reply › Prompt',
-  fix: 'Read one of the nodes this automation has.',
-};
+// One error and two warnings, as the count button says.
+const ISSUES: IssueItem[] = [
+  {
+    id: 'unknown-node',
+    severity: 'error',
+    title: 'Reads a node that does not exist',
+    location: 'Draft reply › Prompt',
+    fix: 'Read one of the nodes this automation has.',
+  },
+  {
+    id: 'output-maybe-empty',
+    severity: 'warning',
+    title: 'Output may be empty',
+    location: 'Automation output',
+    fix: 'Also read a node that always runs.',
+  },
+  {
+    id: 'condition-constant',
+    severity: 'warning',
+    title: 'Condition never changes',
+    location: 'Triage › When',
+    fix: 'Make the condition depend on data.',
+  },
+];
 
 const COUNTS: Record<string, IssueCounts> = {
   problems: { errors: 1, warnings: 2 },
@@ -27,7 +44,7 @@ export default function IssueListStates() {
   const status: IssueCheckStatus =
     state === 'checking' ? 'checking' : state === 'failed' ? 'failed' : 'ready';
   const counts = COUNTS[state === 'none' ? 'none' : 'problems'];
-  const issues = state === 'none' ? [] : [ISSUE];
+  const issues = state === 'none' ? [] : ISSUES;
   return (
     <div className="flex w-full max-w-xl flex-col gap-3">
       <SegmentedControl

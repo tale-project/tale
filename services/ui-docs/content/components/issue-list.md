@@ -17,7 +17,7 @@ import { IssueSeverityIcon } from '@tale/ui/issue-severity';
 
 Pass `onActivate` and every row becomes a button. Choose a row and the example records where it went; in an application, `onActivate` selects the part that holds the problem and moves focus to the field to fix, usually through [`useRequestIssueFocus`](/docs/components/field-issues). Pass the id of the row you went to as `activeId`, so the list marks it with `aria-current` and keyboard focus starts there next time.
 
-The list is a single tab stop. Up and Down move between rows, Home and End jump to the first and last, and Enter or Space activates the row. A row's **Technical details** and **Learn more** join the tab order only while that row is the current one, so Tab moves from the row through its own details and then out of the list. **Go to** appears beside the code on hover and keyboard focus.
+The list is a single tab stop. Up and Down move between rows, Home and End jump to the first and last, and Enter or Space activates the row. A row's **Technical details** and **Learn more** join the tab order only while that row is the current one, so Tab moves from the row through its own details and then out of the list. **Go to** appears under the code on hover and keyboard focus.
 
 The list lays out its rows by its own width, so give it the full width of its column. When the list is narrower than 32rem, for example in a phone sheet or a side panel, the code moves under the location so a long title keeps the width to wrap in. **Go to** is left out there, because the whole row is the button and nothing hovers a phone. Every row is at least 36px tall.
 
@@ -52,7 +52,7 @@ Choose a state to see the count button and the list together. `status` tells the
 | `status` | The list |
 | --- | --- |
 | `ready` | Shows the result. |
-| `checking` | Dims the rows and marks the list busy while a newer result is on its way. |
+| `checking` | Dims the rows and marks the list busy while a newer result is on its way. With no rows, it says "Checking…" instead of "No problems". |
 | `stale` | Dims the rows: they belong to an older draft and a newer check is about to start. |
 | `failed` | Says the check did not finish, above whatever it still lists, at full contrast. Replace the sentence with `failedMessage`. |
 
@@ -60,9 +60,9 @@ The dimmed states are meant to last a moment. If a result can stay out of date f
 
 ## Count and announce the result
 
-`IssueCountButton` is the toggle of a problems panel. It shows a red count and an amber count, "No problems" when both are zero, and "Couldn't check" when `status` is `failed`. While `status` is `checking` it keeps the last counts and shows a spinner in place of the first count's icon. With no counts to keep, it shows "Checking…" where "No problems" stood. A check runs at every pause in typing, so the button keeps its width and the toolbar around it does not shift. Its accessible name says the counts in words, such as "Problems: 2 errors and 1 warning". Pass `expanded` and `controls` for the panel it opens. A changed count pops once, the same way `CountBadge` does; reduced motion keeps it still.
+`IssueCountButton` is the toggle of a problems panel. It shows a red error icon and an amber warning icon, each with its count, "No problems" when both are zero, and "Couldn't check" when `status` is `failed`. While `status` is `checking` it keeps the last counts and shows a spinner in place of the first count's icon. With no counts to keep, it shows "Checking…" where "No problems" stood, and the button stays as wide as the wider of the two. A check runs at every pause in typing, so the button keeps its width and the toolbar around it does not shift. Its accessible name says the counts in words, such as "Problems: 2 errors and 1 warning". Pass `expanded` and `controls` for the panel it opens. A changed count pops once, the same way `CountBadge` does; reduced motion keeps it still.
 
-`IssueAnnouncer` speaks a settled result to screen readers through a visually hidden polite status region. It speaks once for each new `announceKey` while `status` is `ready`, and never for the key it mounts with. Key it by finished check rather than by keystroke. Add `context` when the result answers something, such as "Saving was refused". Mount one announcer per surface and let it be the only thing that announces the result; the field messages and the list do not announce themselves.
+`IssueAnnouncer` speaks a settled result to screen readers through a visually hidden polite status region. It speaks once for each new `announceKey` while `status` is `ready`, and never for the key it mounts with. Change the key when the result changes, not for every finished check: a check runs at every pause in typing, and the same counts again are no news. A result that answers something, such as a refused save, gets a new key even when the counts are the same. Add `context` when the result answers something, such as "Saving was refused". Mount one announcer per surface and let it be the only thing that announces the result; the field messages and the list do not announce themselves.
 
 `formatIssueCounts(t, counts)` returns the same phrase as text. It takes any translate function and reads its own keys from the `issues` namespace. Each language has one message for the whole phrase, so word order and plurals stay the translator's.
 

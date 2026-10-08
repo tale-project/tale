@@ -36,7 +36,7 @@ For an element target, the registry opens any closed `<details>` around it, focu
 
 If no target has registered yet, for example because selecting a part opens the panel that holds the field, the request waits up to two seconds for one to mount. A newer request replaces it. When the target is behind a tab or a collapsed section that is not a `<details>`, pass `{ reveal }`: it runs first, and focus follows once the revealed content has rendered. A custom target can be any object with `focus(range?)`.
 
-A dialog that closes after the request returns focus to the control that opened it. Prevent that in the dialog's `onCloseAutoFocus` when choosing a problem closes the dialog.
+A dialog that closes after the request returns focus to the control that opened it. When choosing a problem closes the dialog, pass `preventCloseAutoFocus` to the `Dialog` or `ResponsiveDialogContent`, so focus stays on the field the request moved it to.
 
 ## Say why Save is off
 
