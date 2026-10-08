@@ -18,6 +18,7 @@
 
 import {
   formatMentionToken,
+  formatMentionUrl,
   escapeMentionLabel,
   normalizeMentionLabel,
 } from '@tale/ui/mentions/mention-token';
@@ -313,6 +314,32 @@ export function relabelTaskMentions(
  * or an id.
  */
 export const MENTION_URL_SQL_PATTERN = String.raw`\]\(mention:[a-z]+/[^)[:space:]]*\)`;
+
+/**
+ * A Postgres regular expression matching every stored mention of one person,
+ * agent or automation, whatever name it was saved with: what an erasure
+ * rewrites. A label holds no unescaped bracket, so the match never starts at
+ * an earlier `[` of the text.
+ */
+export function mentionTokenSqlPattern(ref: {
+  kind: MentionKind;
+  id: string;
+}): string {
+  const address = formatMentionUrl(ref).replaceAll(
+    /[\\^$.*+?()[\]{}|]/g,
+    String.raw`\$&`,
+  );
+  return `${String.raw`\[@([^][\\]|\\.)*\]\(`}${address}\\)`;
+}
+
+/** The stored mention of `ref` under `label`. */
+export function formatTaskMention(ref: {
+  kind: MentionKind;
+  id: string;
+  label: string;
+}): string {
+  return formatMentionToken(ref);
+}
 
 /** Cut a task text without leaving half a mention token at its end. */
 export function cutTaskText(text: string, max: number): string {

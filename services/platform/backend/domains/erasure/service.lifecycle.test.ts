@@ -741,6 +741,73 @@ describe('processErasure', () => {
  * subject excluded, and only what still names the subject afterwards is
  * pseudonymized.
  */
+describe('processErasure — mentions of the subject in other people’s text', () => {
+  it('rewrites each stored mention of the subject to the pseudonym, wherever the text is kept', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'u.subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('UPDATE app.messages m'))
+        return [{ id: 'm-1' }, { id: 'm-2' }];
+      if (text.startsWith('UPDATE app.tasks SET description'))
+        return [{ id: 't-1' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const pattern = String.raw`\[@([^][\\]|\\.)*\]\(mention:user/u\.subject\)`;
+    const pseudonym = '[@erased-user](mention:user/erased-user)';
+    const rewrites = fake.statements.filter((statement) =>
+      statement.values.includes(pattern),
+    );
+    expect(
+      rewrites.map((statement) => statement.text.split(' SET ')[0]),
+    ).toEqual([
+      'UPDATE app.messages m',
+      'UPDATE app.task_discussion_message_meta meta',
+      'UPDATE app.tasks',
+      'UPDATE app.task_activity',
+      'UPDATE app.project_agent_runs',
+    ]);
+    for (const statement of rewrites) {
+      expect(statement.values).toContain(pseudonym);
+      expect(statement.values).toContain('org_1');
+    }
+    const notified = fake.statements.find((statement) =>
+      statement.text.startsWith(
+        'UPDATE app.task_discussion_message_meta meta SET mentions',
+      ),
+    );
+    expect(notified?.values).toEqual(
+      expect.arrayContaining([
+        'u.subject',
+        'erased-user',
+        'org_1',
+        [{ type: 'user', id: 'u.subject' }],
+      ]),
+    );
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[0]).toBe('done');
+    expect(settle?.values[2]).toMatchObject({ mentions: 3 });
+  });
+});
+
 describe('processErasure — the review pass [ERASE-R6]', () => {
   it('hands a waiting review on through the cleared chain, then pseudonymizes what still names the subject', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
