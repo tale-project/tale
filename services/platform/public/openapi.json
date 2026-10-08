@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.20.0",
+    "version": "3.21.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -38825,7 +38825,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.20.0"
+          "example": "3.21.0"
         }
       },
       "Location": {

@@ -14403,7 +14403,7 @@ async function checkMcp(
     params: {},
   });
   // The newest revision, the server instructions within what clients keep,
-  // and the contract version as the server's (3.20.0).
+  // and the contract version as the server's.
   const { API_CONTRACT_VERSION } =
     await import('../lib/shared/constants/api-contract.ts');
   const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');

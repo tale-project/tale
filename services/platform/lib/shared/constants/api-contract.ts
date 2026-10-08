@@ -381,7 +381,7 @@
  * rest of the analysis) and one more error (ITEM_WITHOUT_FOREACH, a
  * warning before). No REST operation changes. Additive.
  *
- * 3.20.0 — 2026-10-08: the MCP endpoint speaks protocol revision 2025-11-25
+ * 3.21.0 — 2026-10-08: the MCP endpoint speaks protocol revision 2025-11-25
  * beside 2025-06-18 and 2025-03-26, answers an `MCP-Protocol-Version` it
  * does not speak with -32022 naming the `supported` revisions, answers
  * `initialize` with `instructions`, and reports this contract version as
@@ -421,7 +421,16 @@
  * projects the key holder cannot read is left out of `list_automations` and
  * `GET /api/v1/automations`, and its reads answer `AUTOMATION_NOT_FOUND`
  * (REST 404). Every change to an automation's definition is audited.
+ * `validate_automation` takes `detail` (`[]` answers the issues alone), and
+ * validation warns when a document names what the organization lacks:
+ * SKILL_UNKNOWN, CONNECTOR_NOT_CONNECTED, SECRET_UNKNOWN (told only to
+ * owners, admins and developers), HARNESS_UNKNOWN and EVENT_UNKNOWN, with
+ * `params` and a closest name; a save's warnings carry them too. New
+ * discovery tools list what a document may name: `list_models`,
+ * `list_harnesses`, `list_skills`, `list_connectors`, `list_agent_secrets`
+ * (names and masked previews for owners, admins and developers, an empty
+ * list for anyone else), `list_projects` and `list_events`.
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */
-export const API_CONTRACT_VERSION = '3.20.0';
+export const API_CONTRACT_VERSION = '3.21.0';
