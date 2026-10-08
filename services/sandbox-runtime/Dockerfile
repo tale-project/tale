@@ -48,7 +48,7 @@ RUN bun services/sandbox-runtime/build-gemini-settings.ts /gemini-settings
 # the exec left even after it moved to a session of its own and dropped the
 # exec's tag (daemon/exec-shim/tale-exec-shim.c). Built on the runtime's own
 # Debian release, so it links against the same glibc.
-FROM debian:bookworm-slim AS exec-shim-build
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS exec-shim-build
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -60,7 +60,7 @@ RUN gcc -O2 -Wall -Wextra -Werror -o /tale-exec-shim /build/tale-exec-shim.c
 # libraries build on this, never on tooling-base: Node plus the download
 # tools, on the same Debian and Python as the runtime. A change to the OS
 # chain below then neither reinstalls a harness nor changes its layer.
-FROM python:3.12-slim-bookworm AS harness-base
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS harness-base
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
@@ -68,7 +68,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       git \
       unzip \
     && rm -rf /var/lib/apt/lists/*
-COPY --from=node:24.21.0-bookworm-slim /usr/local /opt/node
+COPY --from=node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 /usr/local /opt/node
 ENV PATH=/opt/agents/bin:/opt/node/bin:/usr/local/bin:/usr/bin:/bin
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
@@ -84,7 +84,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # install and Hermes adds only its own. The vision tool keeps its isolated
 # venv. A private prefix holds just the additions; the runtime stage lays
 # them over /usr/local as one layer of their own.
-FROM python:3.12-slim-bookworm AS document-python-build
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS document-python-build
 ENV PYTHONDONTWRITEBYTECODE=1
 COPY services/sandbox-runtime/document-python-requirements.txt /opt/tale/document-python-requirements.txt
 RUN python3 -m pip install --no-cache-dir --require-hashes --only-binary=:all: \
@@ -109,8 +109,17 @@ RUN npm ci --prefix /opt/tale/document-node --ignore-scripts --omit=dev --no-aud
 # Harness pins are declared only in their independent install stages below.
 # The apt sets run from the largest and stablest to the smallest and most
 # often extended: a change to one rebuilds it and the sets after it.
-FROM python:3.12-slim-bookworm AS tooling-base
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS tooling-base
 ARG TARGETARCH
+
+# The python image deletes every stdlib .pyc, and sessions run with a
+# read-only root and PYTHONDONTWRITEBYTECODE, so each Python process — the
+# harness wrappers, the Playwright MCP launcher, Hermes, every run_code script
+# and document skill — would compile the stdlib modules it imports again
+# (about 0.1 s for a wrapper, up to a second for a broad import set). Compile
+# them once here; hash-based pycs stay valid whatever the file timestamps.
+RUN python3 -m compileall -q -j0 --invalidation-mode unchecked-hash \
+      -x '/(test|tests|idlelib|turtledemo)/' /usr/local/lib/python3.12
 
 # Fonts and the Playwright system libraries — fontconfig + DejaVu so
 # Pillow/matplotlib render text, the libraries Chromium needs to launch
@@ -396,6 +405,10 @@ RUN set -eux; \
     mkdir -p /opt/agents/bin /opt/agents/cursor; \
     tar -xzf /tmp/cursor-agent.tar.gz -C /opt/agents/cursor --strip-components=1; \
     ln -sf ../cursor/cursor-agent /opt/agents/bin/agent; \
+    # The package's two Node single-executable builds (about 265 MB) serve
+    # only the macOS computer-use re-exec, which downloads and codesign-checks
+    # its own copy under ~/.cursor; `cursor-agent` runs the bundled node.
+    rm -f /opt/agents/cursor/cursor-agent-sea /opt/agents/cursor/cursor-agent-worker-sea; \
     rm /tmp/cursor-agent.tar.gz; \
     /opt/agents/bin/agent --version
 
@@ -420,7 +433,7 @@ RUN set -eux; \
 # finds only through PYTHONPATH). A private install prefix contains only
 # Hermes's additions; the final COPY restores their ordinary /usr/local
 # locations without copying the document bytes again.
-FROM python:3.12-slim-bookworm AS hermes-build
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS hermes-build
 COPY --from=document-python-build /opt/tale-document-python/ /usr/local/
 ARG HERMES_AGENT_VERSION=0.19.0
 RUN pip install --no-cache-dir --prefix /opt/tale-hermes "hermes-agent==${HERMES_AGENT_VERSION}" \
@@ -463,6 +476,9 @@ RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cach
          catch { vendor = path.join(root, "vendor"); } \
          console.log(path.join(vendor, triple, "bin", "codex"));' "$codex_root")" \
     && test -x "$codex_bin" \
+    # The voice host (about 75 MB with its media libraries) serves only the
+    # interactive TUI's realtime voice; the sandbox drives `codex exec`.
+    && rm -rf "$(dirname "$codex_bin")/../codex-resources/voice" \
     && sed -e "s|@CODEX_ROOT@|$codex_root|" -e "s|@CODEX_BIN@|$codex_bin|" \
          /tmp/codex-launcher.in > /opt/agents/bin/codex.direct \
     && chmod 755 /opt/agents/bin/codex.direct \
@@ -489,10 +505,15 @@ ARG QWEN_CODE_VERSION=0.24.7
 RUN --mount=type=cache,id=tale-sandbox-node-gyp-${TARGETARCH},target=/root/.cache/node-gyp,sharing=locked \
     npm install -g --prefix /opt/agents "@qwen-code/qwen-code@${QWEN_CODE_VERSION}" \
     && npm cache clean --force \
+    # Qwen vendors ripgrep for every platform; keep this architecture's Linux build.
+    && rg_arch="$(case "${TARGETARCH:-amd64}" in arm64) echo arm64 ;; *) echo x64 ;; esac)" \
+    && test -d "/opt/agents/lib/node_modules/@qwen-code/qwen-code/vendor/ripgrep/${rg_arch}-linux" \
+    && find /opt/agents/lib/node_modules/@qwen-code/qwen-code/vendor/ripgrep -mindepth 1 -maxdepth 1 \
+         -type d ! -name "${rg_arch}-linux" -exec rm -rf {} + \
     && qwen --version
 
 # Isolate the vision dependency pin from document tools and every harness.
-FROM python:3.12-slim-bookworm AS vision-build
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258 AS vision-build
 ARG PILLOW_VERSION=12.3.0
 RUN python3 -m venv /opt/tale-vision \
     && /opt/tale-vision/bin/pip install --no-cache-dir "Pillow==${PILLOW_VERSION}" \
@@ -507,18 +528,22 @@ RUN python3 -m venv /opt/tale-vision \
 FROM tooling-base AS runtime
 
 # uv — fast Python package installer/resolver. See https://github.com/astral-sh/uv
-COPY --link --from=ghcr.io/astral-sh/uv:0.5 /uv /usr/local/bin/uv
+COPY --link --from=ghcr.io/astral-sh/uv:0.5@sha256:7bff3c3776ec467fc1437960f2c469d8beb30f536a6465a3350c647ccd260ec2 /uv /usr/local/bin/uv
 
 # Node 24 LTS. OpenClaw requires at least 24.16.0; pin the verified LTS patch
 # so a cached floating image cannot silently leave the upgraded CLI unusable.
-COPY --link --from=node:24.21.0-bookworm-slim /usr/local /opt/node
+COPY --link --from=node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 /usr/local /opt/node
+# Its bin links yarn/yarnpkg into /opt/yarn-v1.22.22, which comes along, and
+# links nodejs to /usr/local/bin/node, which the RUN below repoints.
+COPY --link --from=node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 /opt/yarn-v1.22.22 /opt/yarn-v1.22.22
 
 # bun — many JS/TS projects (Tale included) use it for install/test/scripts, so
 # an in-sandbox coding agent needs it on PATH. Reuse the daemon-build stage's
 # already-pulled oven/bun image (Debian/glibc, matches this base); bun is a
 # single self-contained binary. `bunx` is just bun with a subcommand.
 COPY --link --from=daemon-build /usr/local/bin/bun /usr/local/bin/bun
-RUN ln -sf /usr/local/bin/bun /usr/local/bin/bunx
+RUN ln -sf /usr/local/bin/bun /usr/local/bin/bunx \
+    && ln -sf node /opt/node/bin/nodejs
 
 ENV PATH=/opt/agents/bin:/opt/node/bin:/usr/local/bin:/usr/bin:/bin
 ENV PYTHONDONTWRITEBYTECODE=1

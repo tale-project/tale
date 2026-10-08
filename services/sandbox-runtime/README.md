@@ -309,6 +309,15 @@ change, so the layout keeps a release's change to the layers it touched:
 - A release build reads only its own registry cache, so an unchanged layer
   keeps the previous release's bytes. Pull request and `main` builds read that
   cache too, after their own.
+- Every base image and `COPY --from` image is pinned by digest; Renovate bumps
+  them, so a base refresh is a reviewed change rather than whatever a tag
+  pointed at when a cache missed.
+
+Payloads a headless Linux session never runs are removed in their stages:
+Cursor's two macOS-only single-executable builds, Codex's realtime voice host
+and Qwen's ripgrep builds for other platforms. The Python stdlib is compiled to
+hash-based bytecode at build time, because the read-only root cannot cache it
+at run time.
 
 The image remains shared by concurrent sessions.
 

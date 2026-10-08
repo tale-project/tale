@@ -118,6 +118,24 @@ await assertContains('node present', 65534, 'v', 'node --version');
 await assertOk('uv present', 65534, 'command -v uv');
 // bun + bunx — many JS/TS projects (Tale included) use them.
 await assertOk('bun present', 65534, 'command -v bun && command -v bunx');
+// The node image's yarn/yarnpkg/nodejs links point outside /usr/local; the
+// image carries their targets, so no tool on PATH is a dangling link.
+await assertOk(
+  'no dangling links on PATH',
+  65534,
+  'test -z "$(find /opt/node/bin /usr/local/bin /opt/agents/bin -xtype l)"',
+);
+await assertOk(
+  'yarn and nodejs run',
+  65534,
+  'yarn --version && nodejs --version',
+);
+// The read-only root cannot cache bytecode, so the stdlib's is baked.
+await assertOk(
+  'stdlib bytecode is baked',
+  65534,
+  `python3 -c 'import importlib.util, json, os; assert os.path.exists(importlib.util.cache_from_source(json.__file__))'`,
+);
 // Batch vision CLI — chat run_code execs run at this uid.
 await assertOk(
   'tale-vision present',
