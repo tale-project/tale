@@ -127,7 +127,7 @@ const EPHEMERAL_STORAGE = { request: '256Mi', headroom: '2Gi' } as const;
  * single pull of a large build image unpacks to several GiB, and an emptyDir
  * past its sizeLimit gets the whole session evicted, so the store is sized on
  * its own rather than like the workspace. */
-const DOCKER_STORAGE_SIZE_LIMIT = '20Gi';
+export const DOCKER_STORAGE_SIZE_LIMIT = '20Gi';
 
 const BINARY_UNITS = [
   ['Ti', 2 ** 40],

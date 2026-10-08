@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { DOCKER_STORAGE_SIZE_LIMIT } from './backend/kubernetes/k8s-session-pod-spec.ts';
 import { parseDindInnerPool } from './network-address.ts';
 import {
   dindDefaultEnabled,
@@ -649,6 +650,25 @@ export function loadConfig(): SpawnerConfig {
         `[sandbox.config] ${name} is set but has no effect with SANDBOX_BACKEND=${backend}`,
       );
     }
+  }
+  // SANDBOX_K8S_WORKSPACE_SIZE_LIMIT does not size the inner Docker store of
+  // a session with Docker inside. An operator who set it to keep that store
+  // small on small node disks, without the store's own setting, gets the
+  // store's larger default and a Pod limit that grows with it, so the boot
+  // log names the variable that sizes the store.
+  if (
+    backend === 'kubernetes' &&
+    dockerInContainer &&
+    dockerWorkloads?.length !== 0 &&
+    (process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT?.trim() ?? '') !== '' &&
+    k8sDockerStorageSizeLimit === undefined
+  ) {
+    console.warn(
+      `[sandbox.config] SANDBOX_K8S_WORKSPACE_SIZE_LIMIT no longer sizes the inner Docker store of a ` +
+        `session with Docker inside: SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT does (default ` +
+        `${DOCKER_STORAGE_SIZE_LIMIT}), and the session Pod's ephemeral-storage limit grows with it. ` +
+        `Set SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT to bound the store on small node disks.`,
+    );
   }
   // Body cap on every spawner route. /v1/sessions/:id/files/stage takes
   // INLINE base64 content (bound org skills, useSkills subtrees, steer control

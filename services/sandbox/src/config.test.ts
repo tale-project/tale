@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -140,6 +140,48 @@ test('session Pod disk bounds: pod-spec defaults unless set, refused when malfor
     process.env[name] = '0Gi';
     expect(() => loadConfig()).toThrow(`${name} must be above zero`);
     process.env[name] = kept;
+  }
+});
+
+test('a workspace size set alone warns that it does not size the inner Docker store', () => {
+  const warn = spyOn(console, 'warn').mockImplementation(() => {});
+  const storeWarnings = () =>
+    warn.mock.calls.filter((call) =>
+      String(call[0]).includes(
+        'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT no longer sizes the inner Docker store',
+      ),
+    );
+  try {
+    process.env.SANDBOX_BACKEND = 'kubernetes';
+    process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT = '2Gi';
+    // Docker inside on by default (sysbox) or by choice (runc).
+    process.env.SANDBOX_RUNTIME = 'sysbox';
+    loadConfig();
+    process.env.SANDBOX_RUNTIME = 'runc';
+    process.env.SANDBOX_DOCKER_IN_CONTAINER = 'true';
+    loadConfig();
+    expect(storeWarnings()).toHaveLength(2);
+    expect(String(storeWarnings()[0]?.[0])).toContain(
+      'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT does (default 20Gi)',
+    );
+    // Quiet when the store is sized, no session can run Docker inside, the
+    // backend is Docker, or the workspace size is left alone.
+    for (const [name, value] of [
+      ['SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT', '8Gi'],
+      ['SANDBOX_DOCKER_IN_CONTAINER', 'false'],
+      ['SANDBOX_DOCKER_WORKLOADS', 'none'],
+      ['SANDBOX_BACKEND', 'docker'],
+      ['SANDBOX_K8S_WORKSPACE_SIZE_LIMIT', ' '],
+    ] as const) {
+      const kept = process.env[name];
+      process.env[name] = value;
+      loadConfig();
+      expect(storeWarnings(), `${name}=${value}`).toHaveLength(2);
+      if (kept === undefined) delete process.env[name];
+      else process.env[name] = kept;
+    }
+  } finally {
+    warn.mockRestore();
   }
 });
 
