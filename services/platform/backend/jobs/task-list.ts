@@ -33,6 +33,7 @@ import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
 import { createPgUsageLedger } from '../domains/chat/store.ts';
+import { readThreadProjectId } from '../domains/chat/threads.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { isBackendDraining } from '../domains/control/service.ts';
 import { runTranscribeJob } from '../domains/files/transcription.ts';
@@ -1065,7 +1066,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         // ledger of its own, so the door hands it the same one the turn
         // writes through — booked under its own agent slug so analytics can
         // separate "what the conversation cost" from "what naming it cost".
-        (entry) => createPgUsageLedger(deps.sql).record(entry),
+        // A project's thread is named on the project's budget too.
+        async (entry) => {
+          const projectId = await readThreadProjectId(
+            deps.sql,
+            input.organizationId,
+            input.threadId,
+          );
+          await createPgUsageLedger(deps.sql).record({
+            ...entry,
+            ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+          });
+        },
       );
     },
     'chat.api_turn': async (payload) => {

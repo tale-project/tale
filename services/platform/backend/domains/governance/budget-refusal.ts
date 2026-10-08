@@ -5,6 +5,7 @@ const BUCKET_OWNER: Record<BudgetScope, string> = {
   team: "Your team's",
   org: "The organization's",
   apiKey: "This API key's",
+  project: "This project's",
 };
 
 const CAP_NAME: Record<BudgetViolation['code'], string> = {

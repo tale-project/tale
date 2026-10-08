@@ -1265,10 +1265,13 @@ describe('POST …/messages — the 202 names the reply and bounds the turn', ()
       },
     );
     expect(res.status).toBe(202);
+    // The thread is named: a project's thread is measured against the
+    // project's caps too.
     expect(assertChatTurnBudget).toHaveBeenCalledWith(sql, {
       organizationId: 'org-1',
       userId: 'user-1',
       apiKeyId: 'key-1',
+      threadId: 't-1',
     });
     expect(addJobInTx).toHaveBeenCalledWith(
       sql,

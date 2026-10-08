@@ -12,6 +12,7 @@ import {
   backendFetch,
   backendUrl,
 } from './api-client';
+import { budgetScopeOf } from './budget-refusal';
 import { backendEntityPrefix, backendKey } from './query-keys';
 
 /**
@@ -485,6 +486,9 @@ export interface ChatTurnOutcome {
    * cap answers `BUDGET_EXCEEDED` — so the toast is chosen by code rather
    * than by matching the English reason. */
   code?: string;
+  /** Whose cap a `BUDGET_EXCEEDED` refusal names (`data.scope`): the
+   * sender's own, a team's, a project's, the organization's. */
+  budgetScope?: string;
 }
 
 /**
@@ -532,13 +536,16 @@ export async function sendChatTurn(
       reason?: unknown;
       persisted?: unknown;
       code?: unknown;
+      data?: unknown;
     };
     if (record.status === 'completed') return { status: 'completed' };
     if (record.status === 'refused') {
+      const budgetScope = budgetScopeOf(record.data);
       return {
         status: 'refused',
         ...(typeof record.reason === 'string' ? { reason: record.reason } : {}),
         ...(typeof record.code === 'string' ? { code: record.code } : {}),
+        ...(budgetScope !== undefined ? { budgetScope } : {}),
         persisted: record.persisted === true,
       };
     }
@@ -1132,6 +1139,19 @@ export interface ArenaSideOutcome {
   persisted?: boolean;
   /** See `ChatTurnOutcome.code`. */
   code?: string;
+  /** See `ChatTurnOutcome.budgetScope`. */
+  budgetScope?: string;
+}
+
+/** A side as the arena door answers it, its cap's scope in `data`. */
+type ArenaSideAnswer = Omit<ArenaSideOutcome, 'budgetScope'> & {
+  data?: unknown;
+};
+
+function arenaSideOf(side: ArenaSideAnswer): ArenaSideOutcome {
+  const { data, ...outcome } = side;
+  const budgetScope = budgetScopeOf(data);
+  return budgetScope !== undefined ? { ...outcome, budgetScope } : outcome;
 }
 
 export async function startArenaTurnRequest(
@@ -1150,10 +1170,11 @@ export async function startArenaTurnRequest(
   a: ArenaSideOutcome;
   b: ArenaSideOutcome;
 }> {
-  return backendFetch(
+  const sides = await backendFetch<{ a: ArenaSideAnswer; b: ArenaSideAnswer }>(
     `/chat/threads/${encodeURIComponent(threadId)}/arena/turn`,
     { method: 'POST', body, orgId: organizationId },
   );
+  return { a: arenaSideOf(sides.a), b: arenaSideOf(sides.b) };
 }
 
 /** A thread's share-link status (owner-only; null when unreadable). */

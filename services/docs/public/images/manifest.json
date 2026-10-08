@@ -501,6 +501,18 @@
       "locale": "en"
     },
     {
+      "file": "images/platform/governance-budget-project-rule.webp",
+      "shot": "governance-budget-project-rule",
+      "route": "/dashboard/:orgId/settings/governance/policies-limits",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 1192
+    },
+    {
       "file": "images/platform/governance-confidentiality-notice.webp",
       "shot": "governance-confidentiality-notice",
       "route": "/dashboard/:orgId/settings/governance/policies-limits",

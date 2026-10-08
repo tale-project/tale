@@ -399,5 +399,9 @@
  * `GET /api/v1/me` answers `key.owner` (`kind`, `team`, `project`), lists
  * the bound organization alone, and an empty `user.email` for a key that
  * is not a person. Additive.
+ *
+ * 3.22.0 — 2026-10-08: budget rules can cap a project — everything spent in
+ * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
+ * names such a cap with `data.scope` `project`. Additive.
  */
-export const API_CONTRACT_VERSION = '3.21.0';
+export const API_CONTRACT_VERSION = '3.22.0';
