@@ -47,41 +47,40 @@ import {
 } from './llm_call';
 
 const ORG = 'org_llm';
-const RUN = 'run_llm';
+const RUN = { runId: 'run_llm', automation: 'ops/summarize' };
+const LEASE = { sessionId: 'direct-call:llm-step', execId: 'exec-1' };
 
 /** Credential rows by provider slug; the fake ctx serves them. */
 let credentials: Record<string, unknown>;
-/** What the run's budget check answers. */
+/** What the run's admission of a call answers. */
 let admission: unknown;
 
-const runQuery = vi.fn((ref: unknown, args: { providerSlug: string }) =>
-  Promise.resolve(
-    functionRefName(ref) === 'automations/queries:checkLlmStepBudget'
-      ? admission
-      : (credentials[args.providerSlug] ?? null),
-  ),
+const runQuery = vi.fn((_ref: unknown, args: { providerSlug: string }) =>
+  Promise.resolve(credentials[args.providerSlug] ?? null),
 );
-const runMutation = vi.fn((_ref: unknown, _args: unknown) =>
-  Promise.resolve(null),
+const runMutation = vi.fn((ref: unknown, _args: unknown) =>
+  Promise.resolve(
+    functionRefName(ref) === 'automations/mutations:openLlmStepCall'
+      ? admission
+      : null,
+  ),
 );
 const ctx = { runQuery, runMutation } as unknown as ActionCtx;
 
-/** The bookings the door asked for, by their arguments. */
-function bookings(): unknown[] {
+/** The arguments the door sent the named llm-step mutation, in order. */
+function calls(name: string): unknown[] {
   return runMutation.mock.calls
-    .filter(
-      ([ref]) =>
-        functionRefName(ref) === 'automations/mutations:recordLlmStepUsage',
-    )
+    .filter(([ref]) => functionRefName(ref) === `automations/mutations:${name}`)
     .map(([, args]) => args);
 }
+const bookings = (): unknown[] => calls('settleLlmStepCall');
 
 const DIRECT = { status: 'active', authMethod: 'api-key' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   credentials = {};
-  admission = { allowed: true };
+  admission = { allowed: true, lease: LEASE };
   resolveConnectors.mockResolvedValue([
     { name: 'first', catalog: { source: 'static' } },
     { name: 'second', catalog: { source: 'static' } },
@@ -392,7 +391,7 @@ describe('automationLlmCall and the run’s budgets', () => {
     ]);
   });
 
-  it('books each call’s tokens to its run, priced under the serving connector [GOV-R14]', async () => {
+  it('holds each call against its run, then books its tokens in the hold’s place [GOV-R14]', async () => {
     builderModel.mockResolvedValue({
       content: 'a fine sentence',
       usage: { prompt: 120, completion: 30 },
@@ -404,20 +403,28 @@ describe('automationLlmCall and the run’s budgets', () => {
       RUN,
     )({ model: 'vendor/small-1', prompt: 'Summarize.' });
 
-    expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: ORG,
-      runId: RUN,
-    });
+    expect(calls('openLlmStepCall')).toEqual([
+      {
+        organizationId: ORG,
+        runId: 'run_llm',
+        automation: 'ops/summarize',
+        provider: 'first',
+        model: 'vendor/small-1',
+        promptTokens: expect.any(Number),
+        maxOutputTokens: 8000,
+      },
+    ]);
     expect(bookings()).toEqual([
       {
         organizationId: ORG,
-        runId: RUN,
+        lease: LEASE,
         provider: 'first',
         model: 'vendor/small-1',
         inputTokens: 120,
         outputTokens: 30,
       },
     ]);
+    expect(calls('releaseLlmStepCall')).toEqual([]);
   });
 
   it('refuses the call before the provider once a cap binding the run is reached [GOV-R4]', async () => {
@@ -442,6 +449,20 @@ describe('automationLlmCall and the run’s budgets', () => {
     });
     expect(builderModel).not.toHaveBeenCalled();
     expect(bookings()).toEqual([]);
+  });
+
+  it('releases the hold of a call that failed without reporting usage', async () => {
+    builderModel.mockRejectedValue(new Error('provider 500'));
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow(/provider 500/);
+    expect(bookings()).toEqual([]);
+    expect(calls('releaseLlmStepCall')).toEqual([{ lease: LEASE }]);
   });
 
   it('measures every call of a door, not the first alone', async () => {
@@ -500,7 +521,12 @@ describe('automationLlmCall and the run’s budgets', () => {
       content: 'a fine sentence',
       usage: { prompt: 1, completion: 1 },
     });
-    runMutation.mockRejectedValueOnce(new Error('connection reset'));
+    // The open answers as usual; the settle after the reply fails.
+    runMutation
+      .mockImplementationOnce(() => Promise.resolve(admission))
+      .mockImplementationOnce(() =>
+        Promise.reject(new Error('connection reset')),
+      );
 
     await expect(
       automationLlmCall(
@@ -510,7 +536,7 @@ describe('automationLlmCall and the run’s budgets', () => {
       )({ model: 'vendor/small-1', prompt: 'x' }),
     ).resolves.toEqual({ text: 'a fine sentence' });
     expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining(`run ${RUN}: booking an llm call`),
+      expect.stringContaining('run run_llm: booking an llm call'),
       expect.any(Error),
     );
     warn.mockRestore();

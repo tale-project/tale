@@ -1,9 +1,10 @@
 /**
- * An automation's `llm` step is measured and booked as its run's spend: the
- * run's own subject (`resolveAutomationRunAttribution`, proven in its suite)
- * is measured against every cap that binds it, counting the work in flight,
- * and each call's tokens are booked under it. The gate, the holds and the
- * ledger writer are stand-ins; the refusal's wording is the real one.
+ * An automation's `llm` step is its run's spend: each call is opened as a
+ * token-priced direct call under the run's own subject
+ * (`resolveAutomationRunAttribution`, proven in its suite), holding the
+ * prompt and the node's whole output cap, and settled at what the provider
+ * reported. The direct-call lease and the attribution are stand-ins; the
+ * pricing is `direct-calls.ts`'s and proven there.
  */
 
 import type { Sql } from 'postgres';
@@ -13,56 +14,48 @@ import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 
 const mocks = vi.hoisted(() => ({
   resolveAutomationRunAttribution: vi.fn(),
-  budgetPolicyActive: vi.fn(),
-  findBudgetViolation: vi.fn(),
-  loadBudgetSubject: vi.fn(),
-  readInFlightReservations: vi.fn(),
-  record: vi.fn(async () => undefined),
+  openTokenCall: vi.fn(),
+  settleTokenCall: vi.fn(async () => 'settled'),
+  releaseDirectCall: vi.fn(async () => undefined),
 }));
 
 vi.mock('../sandbox/op-attribution.ts', () => ({
   resolveAutomationRunAttribution: mocks.resolveAutomationRunAttribution,
 }));
-vi.mock('../governance/budget-gate.ts', () => ({
-  budgetPolicyActive: mocks.budgetPolicyActive,
-  findBudgetViolation: mocks.findBudgetViolation,
-  loadBudgetSubject: mocks.loadBudgetSubject,
-}));
-vi.mock('../governance/budget-reservations.ts', () => ({
-  readInFlightReservations: mocks.readInFlightReservations,
-}));
-vi.mock('../chat/store.ts', () => ({
-  createPgUsageLedger: () => ({ record: mocks.record }),
+vi.mock('../governance/direct-calls.ts', () => ({
+  openTokenCall: mocks.openTokenCall,
+  settleTokenCall: mocks.settleTokenCall,
+  releaseDirectCall: mocks.releaseDirectCall,
 }));
 
-const { checkLlmStepBudget, recordLlmStepUsage } =
+const { openLlmStepCall, releaseLlmStepCall, settleLlmStepCall } =
   await import('./llm-metering.ts');
 
 const SQL = {} as Sql;
-const RUN = { organizationId: 'org-1', runId: 'run-1' };
-const HOLDS = { org: { costCents: 40, tokens: 0, requests: 1 } };
+const LEASE = {
+  organizationId: 'org-1',
+  sessionId: 'direct-call:llm-step',
+  execId: 'exec-1',
+  held: true,
+  subject: { userId: 'user-2', agentSlug: 'invoices/monthly' },
+};
+const CALL = {
+  organizationId: 'org-1',
+  runId: 'run-1',
+  automation: 'invoices/monthly',
+  provider: 'openrouter',
+  model: 'anthropic/claude-haiku-4.5',
+  promptTokens: 1_000,
+  maxOutputTokens: 8_000,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.budgetPolicyActive.mockResolvedValue(true);
-  mocks.findBudgetViolation.mockResolvedValue(null);
-  mocks.readInFlightReservations.mockResolvedValue(HOLDS);
-  mocks.loadBudgetSubject.mockImplementation(
-    async (_sql: unknown, args: object) => ({ ...args, userTeamIds: [] }),
-  );
+  mocks.openTokenCall.mockResolvedValue({ allowed: true, lease: LEASE });
 });
 
-describe('checkLlmStepBudget', () => {
-  it('admits every call while no budget policy binds, reading nothing else', async () => {
-    mocks.budgetPolicyActive.mockResolvedValue(false);
-    await expect(checkLlmStepBudget(SQL, RUN)).resolves.toEqual({
-      allowed: true,
-    });
-    expect(mocks.resolveAutomationRunAttribution).not.toHaveBeenCalled();
-    expect(mocks.findBudgetViolation).not.toHaveBeenCalled();
-  });
-
-  it('measures the run’s person, key and projects, counting the work in flight [GOV-R14]', async () => {
+describe('openLlmStepCall', () => {
+  it('holds the prompt and the whole output cap under the run’s person, key and projects [GOV-R14]', async () => {
     mocks.resolveAutomationRunAttribution.mockResolvedValue({
       userId: 'user-2',
       agentSlug: 'invoices/monthly',
@@ -70,68 +63,72 @@ describe('checkLlmStepBudget', () => {
       projectIds: ['project-1', 'project-2'],
     });
 
-    await expect(checkLlmStepBudget(SQL, RUN)).resolves.toEqual({
+    await expect(openLlmStepCall(SQL, CALL)).resolves.toEqual({
       allowed: true,
+      lease: LEASE,
     });
 
-    expect(mocks.resolveAutomationRunAttribution).toHaveBeenCalledWith(
-      SQL,
-      RUN,
-    );
-    const subject = {
+    expect(mocks.openTokenCall).toHaveBeenCalledWith(SQL, {
       organizationId: 'org-1',
-      userId: 'user-2',
-      apiKeyId: 'key-1',
-      projectIds: ['project-1', 'project-2'],
-    };
-    expect(mocks.loadBudgetSubject).toHaveBeenCalledWith(SQL, subject);
-    expect(mocks.findBudgetViolation).toHaveBeenCalledWith(
-      SQL,
-      expect.objectContaining(subject),
-      { reservations: HOLDS },
-    );
+      provider: 'openrouter',
+      model: 'anthropic/claude-haiku-4.5',
+      lane: 'llm-step',
+      subject: {
+        userId: 'user-2',
+        agentSlug: 'invoices/monthly',
+        apiKeyId: 'key-1',
+        projectIds: ['project-1', 'project-2'],
+      },
+      promptTokens: 1_000,
+      maxOutputTokens: 8_000,
+      maxDurationMs: expect.any(Number),
+    });
   });
 
-  it('measures a run a trigger started as nobody: the organization’s caps, and its projects’', async () => {
-    mocks.resolveAutomationRunAttribution.mockResolvedValue({
+  it('holds a run a trigger started as nobody’s, and a run it cannot read as the organization’s', async () => {
+    mocks.resolveAutomationRunAttribution.mockResolvedValueOnce({
       userId: AUTOMATION_SUBJECT_ID,
       agentSlug: 'invoices/monthly',
       projectIds: ['project-1'],
     });
-
-    await checkLlmStepBudget(SQL, RUN);
-
-    expect(mocks.loadBudgetSubject).not.toHaveBeenCalled();
-    expect(mocks.findBudgetViolation).toHaveBeenCalledWith(
+    await openLlmStepCall(SQL, CALL);
+    expect(mocks.openTokenCall).toHaveBeenLastCalledWith(
       SQL,
-      {
-        organizationId: 'org-1',
-        userId: AUTOMATION_SUBJECT_ID,
-        userTeamIds: [],
-        impersonal: true,
-        projectIds: ['project-1'],
-      },
-      { reservations: HOLDS },
+      expect.objectContaining({
+        subject: {
+          userId: AUTOMATION_SUBJECT_ID,
+          agentSlug: 'invoices/monthly',
+          projectIds: ['project-1'],
+        },
+      }),
+    );
+
+    mocks.resolveAutomationRunAttribution.mockResolvedValueOnce(null);
+    await openLlmStepCall(SQL, CALL);
+    expect(mocks.openTokenCall).toHaveBeenLastCalledWith(
+      SQL,
+      expect.objectContaining({
+        subject: {
+          userId: AUTOMATION_SUBJECT_ID,
+          agentSlug: 'invoices/monthly',
+        },
+      }),
     );
   });
 
-  it('refuses once a cap is reached, naming it in the gate’s own sentence [GOV-R4]', async () => {
+  it('answers a refusal with the cap’s own sentence and no lease [GOV-R4]', async () => {
     mocks.resolveAutomationRunAttribution.mockResolvedValue({
-      userId: AUTOMATION_SUBJECT_ID,
-      projectIds: ['project-1'],
+      userId: 'user-2',
+      agentSlug: 'invoices/monthly',
     });
-    mocks.findBudgetViolation.mockResolvedValue({
-      scope: 'project',
-      projectId: 'project-1',
-      code: 'COST_LIMIT',
-      period: 'monthly',
-      used: 100,
-      limit: 100,
-      reason: 'Cost limit reached',
-      resetsAt: Date.UTC(2026, 10, 1),
+    mocks.openTokenCall.mockResolvedValue({
+      allowed: false,
+      reason:
+        "Usage limit reached. This project's monthly cost limit is used up until 2026-11-01T00:00:00.000Z.",
+      violation: { scope: 'project' },
     });
 
-    await expect(checkLlmStepBudget(SQL, RUN)).resolves.toEqual({
+    await expect(openLlmStepCall(SQL, CALL)).resolves.toEqual({
       allowed: false,
       reason:
         "Usage limit reached. This project's monthly cost limit is used up until 2026-11-01T00:00:00.000Z.",
@@ -139,62 +136,29 @@ describe('checkLlmStepBudget', () => {
   });
 });
 
-describe('recordLlmStepUsage', () => {
-  const USAGE = {
-    ...RUN,
-    provider: 'openrouter',
-    model: 'anthropic/claude-haiku-4.5',
-    inputTokens: 120,
-    outputTokens: 30,
-  };
-
-  it('books the call under the run’s subject, in each of its projects [GOV-R14]', async () => {
-    mocks.resolveAutomationRunAttribution.mockResolvedValue({
-      userId: 'user-3',
-      agentSlug: 'invoices/monthly',
-      apiKeyId: 'key-1',
-      projectIds: ['project-1', 'project-2'],
-    });
-
-    await recordLlmStepUsage(SQL, USAGE);
-
-    expect(mocks.record).toHaveBeenCalledWith({
+describe('settleLlmStepCall and releaseLlmStepCall', () => {
+  it('books the reported tokens at the catalog price in the hold’s place', async () => {
+    await settleLlmStepCall(SQL, {
       organizationId: 'org-1',
-      userId: 'user-3',
-      apiKeyId: 'key-1',
-      agentSlug: 'invoices/monthly',
-      model: 'anthropic/claude-haiku-4.5',
+      lease: LEASE,
       provider: 'openrouter',
+      model: 'anthropic/claude-haiku-4.5',
       inputTokens: 120,
       outputTokens: 30,
-      totalTokens: 150,
-      projectIds: ['project-1', 'project-2'],
+    });
+
+    expect(mocks.settleTokenCall).toHaveBeenCalledWith(SQL, LEASE, {
+      organizationId: 'org-1',
+      provider: 'openrouter',
+      model: 'anthropic/claude-haiku-4.5',
+      inputTokens: 120,
+      outputTokens: 30,
     });
   });
 
-  it('books a run outside every project to the ledger alone', async () => {
-    mocks.resolveAutomationRunAttribution.mockResolvedValue({
-      userId: AUTOMATION_SUBJECT_ID,
-      agentSlug: 'invoices/monthly',
-    });
-
-    await recordLlmStepUsage(SQL, USAGE);
-
-    expect(mocks.record).toHaveBeenCalledWith(
-      expect.not.objectContaining({ projectIds: expect.anything() }),
-    );
-  });
-
-  it('books nothing, and says so, for a run that names no one', async () => {
-    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.resolveAutomationRunAttribution.mockResolvedValue(null);
-
-    await recordLlmStepUsage(SQL, USAGE);
-
-    expect(mocks.record).not.toHaveBeenCalled();
-    expect(error).toHaveBeenCalledWith(
-      expect.stringContaining('run run-1 names no one to book its llm step to'),
-    );
-    error.mockRestore();
+  it('releases a hold without booking anything', async () => {
+    await releaseLlmStepCall(SQL, { lease: LEASE });
+    expect(mocks.releaseDirectCall).toHaveBeenCalledWith(SQL, LEASE);
+    expect(mocks.settleTokenCall).not.toHaveBeenCalled();
   });
 });

@@ -24,9 +24,10 @@ import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
-  checkLlmStepBudget,
   type LlmStepUsage,
-  recordLlmStepUsage,
+  openLlmStepCall,
+  releaseLlmStepCall,
+  settleLlmStepCall,
 } from './llm-metering.ts';
 import {
   claimRun,
@@ -215,17 +216,24 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       return finishRun(sql, args);
     },
 
-    // An `llm` step's model call is its run's spend: measured against the
-    // caps that bind the run before the call, booked after it.
-    'automations/queries:checkLlmStepBudget': async (raw) => {
+    // An `llm` step's model call is its run's spend: its worst case held
+    // against the caps that bind the run while it runs, its cost booked in
+    // the hold's place after it.
+    'automations/mutations:openLlmStepCall': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
-      const args = raw as { organizationId: string; runId: string };
-      return checkLlmStepBudget(sql, args);
+      const args = raw as Parameters<typeof openLlmStepCall>[1];
+      return openLlmStepCall(sql, args);
     },
-    'automations/mutations:recordLlmStepUsage': async (raw) => {
+    'automations/mutations:settleLlmStepCall': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
       const args = raw as LlmStepUsage;
-      await recordLlmStepUsage(sql, args);
+      await settleLlmStepCall(sql, args);
+      return null;
+    },
+    'automations/mutations:releaseLlmStepCall': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
+      const args = raw as Parameters<typeof releaseLlmStepCall>[1];
+      await releaseLlmStepCall(sql, args);
       return null;
     },
 

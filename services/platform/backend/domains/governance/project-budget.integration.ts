@@ -10,8 +10,8 @@ import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
 import type { RecordCheck } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
-  checkLlmStepBudget,
-  recordLlmStepUsage,
+  openLlmStepCall,
+  settleLlmStepCall,
 } from '../automations/llm-metering.ts';
 import {
   assertChatTurnBudget,
@@ -364,22 +364,39 @@ export async function checkProjectBudgets(
       `admitted=${turn.allowed}, stamp=${JSON.stringify(runStamp[0]?.projectIds)} (want both projects), second project's hold=${JSON.stringify(secondHolds.projects?.[secondProjectId])} (want 10 cents), booked=${JSON.stringify(booked)} (want 60+7 and 7)`,
     );
 
-    // The run's llm steps are its spend too: each call is measured against
-    // both projects' caps, and booked to both beside the ledger, under the
-    // automation subject and the automation's name.
+    // The run's llm steps are its spend too: each call holds its worst case
+    // in both projects while it runs, then is booked to both beside the
+    // ledger in the hold's place, under the automation subject and the
+    // automation's name.
     const stepModel = `itest-model-${suffix}`;
-    const beforeCap = await checkLlmStepBudget(sql, {
+    const stepCall = {
       organizationId: orgId,
       runId,
-    });
-    await recordLlmStepUsage(sql, {
-      organizationId: orgId,
-      runId,
+      automation: automationName,
       provider: 'itest',
       model: stepModel,
-      inputTokens: 40,
-      outputTokens: 10,
+    };
+    const bothProjects = {
+      organizationId: orgId,
+      userId: '__automation__',
+      userTeamIds: [],
+      projectIds: [projectId, secondProjectId],
+    };
+    const beforeCap = await openLlmStepCall(sql, {
+      ...stepCall,
+      promptTokens: 40,
+      maxOutputTokens: 100,
     });
+    const stepHolds = await readInFlightReservations(sql, bothProjects);
+    if (beforeCap.allowed) {
+      await settleLlmStepCall(sql, {
+        ...stepCall,
+        lease: beforeCap.lease,
+        inputTokens: 40,
+        outputTokens: 10,
+      });
+    }
+    const settledHolds = await readInFlightReservations(sql, bothProjects);
     const stepBuckets = await sql<
       { projectId: string; tokens: number; requests: number }[]
     >`
@@ -413,13 +430,17 @@ export async function checkProjectBudgets(
       ].join('\n'),
     );
     clearOrgConfigCaches();
-    const atCap = await checkLlmStepBudget(sql, {
-      organizationId: orgId,
-      runId,
+    const atCap = await openLlmStepCall(sql, {
+      ...stepCall,
+      promptTokens: 40,
+      maxOutputTokens: 100,
     });
     record(
-      'project budgets: an automation’s llm step is measured against, and booked to, every project its run is in',
+      'project budgets: an automation’s llm step is held in, and booked to, every project its run is in',
       beforeCap.allowed &&
+        JSON.stringify(stepHolds.projects?.[secondProjectId]) ===
+          JSON.stringify({ costCents: 1, tokens: 140, requests: 1 }) &&
+        settledHolds.projects?.[secondProjectId] === undefined &&
         stepBuckets.length === 2 &&
         stepBuckets.find((row) => row.projectId === projectId)?.tokens === 72 &&
         secondBucket?.tokens === 57 &&
@@ -429,7 +450,7 @@ export async function checkProjectBudgets(
         stepLedger[0].tokens === 50 &&
         !atCap.allowed &&
         atCap.reason.includes("This project's monthly request limit"),
-      `before the cap=${JSON.stringify(beforeCap)} (want allowed), buckets=${JSON.stringify(stepBuckets)} (want 15+7+50 and 7+50 tokens, the second at 2 requests), ledger=${JSON.stringify(stepLedger)} (want 50 tokens under __automation__), at the cap=${JSON.stringify(atCap)} (want refused for the project's request limit)`,
+      `before the cap=${JSON.stringify(beforeCap.allowed)} (want allowed), second project's hold while the call ran=${JSON.stringify(stepHolds.projects?.[secondProjectId])} (want 1 cent, 140 tokens, 1 request), after it=${JSON.stringify(settledHolds.projects?.[secondProjectId])} (want none), buckets=${JSON.stringify(stepBuckets)} (want 15+7+50 and 7+50 tokens, the second at 2 requests), ledger=${JSON.stringify(stepLedger)} (want 50 tokens under __automation__), at the cap=${JSON.stringify(atCap)} (want refused for the project's request limit)`,
     );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {
@@ -439,6 +460,11 @@ export async function checkProjectBudgets(
     await sql`
       DELETE FROM app.sandbox_session_ops
       WHERE org_id = ${orgId} AND session_id = ANY(${[opSession, runSession]})
+    `;
+    await sql`
+      DELETE FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId} AND session_id = 'direct-call:llm-step'
+        AND agent_slug = ${automationName}
     `;
     await sql`
       DELETE FROM app.sandbox_sessions

@@ -1,13 +1,14 @@
 import type { Sql } from 'postgres';
 
-import { createPgUsageLedger } from '../chat/store.ts';
-import { loadAttributedBudgetSubject } from '../governance/attributed-subject.ts';
+import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
-  budgetPolicyActive,
-  findBudgetViolation,
-} from '../governance/budget-gate.ts';
-import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
-import { readInFlightReservations } from '../governance/budget-reservations.ts';
+  type DirectCallLease,
+  type DirectCallSubject,
+  openTokenCall,
+  releaseDirectCall,
+  settleTokenCall,
+  type TokenCallModel,
+} from '../governance/direct-calls.ts';
 import { resolveAutomationRunAttribution } from '../sandbox/op-attribution.ts';
 
 /**
@@ -18,77 +19,89 @@ import { resolveAutomationRunAttribution } from '../sandbox/op-attribution.ts';
  * name, with the key a keyed door used and the projects the run is in —
  * what the run's agent steps book under too.
  *
- * Before each call the step is measured against every cap that binds that
- * subject, counting what the work in flight holds, and refused once one is
- * reached; after it, the tokens the provider reported are priced from the
- * catalog and booked. The call holds nothing while it runs — one short
- * request, like a chat title — so steps of runs at the same moment can
- * pass a nearly reached cap together; their spend counts once booked.
+ * Each call is a direct call (`governance/direct-calls.ts`): before it, its
+ * worst case — the prompt and the node's whole output cap at the catalog
+ * price — is measured against every cap that binds that subject, counting
+ * what all work in flight holds, and held while the call runs; once a cap
+ * has too little room the step is refused. After it, the tokens the
+ * provider reported are priced from the catalog and booked in the hold's
+ * place.
  */
 
+/** The longest one call may hold its worst case: the model call's own
+ * timeout (180 s) with room to spare. */
+const LLM_STEP_CALL_MAX_MS = 10 * 60 * 1000;
+
 export type LlmStepAdmission =
-  | { allowed: true }
+  | { allowed: true; lease: DirectCallLease }
   | { allowed: false; reason: string };
 
-export async function checkLlmStepBudget(
+export async function openLlmStepCall(
   sql: Sql,
-  args: { organizationId: string; runId: string },
+  args: TokenCallModel & {
+    runId: string;
+    /** The run's automation — the ledger's label when the run itself can
+     * no longer be read. */
+    automation: string;
+    promptTokens: number;
+    maxOutputTokens: number;
+  },
 ): Promise<LlmStepAdmission> {
-  if (!(await budgetPolicyActive(sql, args.organizationId))) {
-    return { allowed: true };
-  }
-  const subject = await loadAttributedBudgetSubject(
-    sql,
-    args.organizationId,
-    await resolveAutomationRunAttribution(sql, args),
-  );
-  const violation = await findBudgetViolation(sql, subject, {
-    reservations: await readInFlightReservations(sql, subject),
+  const attribution = await resolveAutomationRunAttribution(sql, args);
+  const subject: DirectCallSubject =
+    attribution !== null
+      ? {
+          userId: attribution.userId,
+          agentSlug: attribution.agentSlug ?? args.automation,
+          ...(attribution.apiKeyId !== undefined
+            ? { apiKeyId: attribution.apiKeyId }
+            : {}),
+          ...(attribution.projectIds !== undefined
+            ? { projectIds: attribution.projectIds }
+            : {}),
+        }
+      : // A run with no starter to read is still the organization's spend.
+        { userId: AUTOMATION_SUBJECT_ID, agentSlug: args.automation };
+  const admission = await openTokenCall(sql, {
+    organizationId: args.organizationId,
+    provider: args.provider,
+    model: args.model,
+    lane: 'llm-step',
+    subject,
+    promptTokens: args.promptTokens,
+    maxOutputTokens: args.maxOutputTokens,
+    maxDurationMs: LLM_STEP_CALL_MAX_MS,
   });
-  return violation === null
-    ? { allowed: true }
-    : { allowed: false, reason: budgetRefusalMessage(violation) };
+  return admission.allowed
+    ? { allowed: true, lease: admission.lease }
+    : { allowed: false, reason: admission.reason };
 }
 
 /** One call's spend, as the provider reported it. */
-export interface LlmStepUsage {
-  organizationId: string;
-  runId: string;
-  /** The serving connector's slug and the catalog id it was called with —
-   * the pair the catalog prices. */
-  provider: string;
-  model: string;
+export interface LlmStepUsage extends TokenCallModel {
+  lease: DirectCallLease;
   inputTokens: number;
   outputTokens: number;
 }
 
-export async function recordLlmStepUsage(
+/** Book the call at the catalog price in its hold's place. */
+export async function settleLlmStepCall(
   sql: Sql,
   usage: LlmStepUsage,
 ): Promise<void> {
-  const attribution = await resolveAutomationRunAttribution(sql, usage);
-  if (attribution === null) {
-    console.error(
-      `[automations] run ${usage.runId} names no one to book its llm step to — ${usage.inputTokens} input and ${usage.outputTokens} output tokens of ${usage.provider}/${usage.model} are not booked`,
-    );
-    return;
-  }
-  await createPgUsageLedger(sql).record({
+  await settleTokenCall(sql, usage.lease, {
     organizationId: usage.organizationId,
-    userId: attribution.userId,
-    ...(attribution.apiKeyId !== undefined
-      ? { apiKeyId: attribution.apiKeyId }
-      : {}),
-    ...(attribution.agentSlug !== undefined
-      ? { agentSlug: attribution.agentSlug }
-      : {}),
-    model: usage.model,
     provider: usage.provider,
+    model: usage.model,
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
-    totalTokens: usage.inputTokens + usage.outputTokens,
-    ...(attribution.projectIds !== undefined
-      ? { projectIds: attribution.projectIds }
-      : {}),
   });
+}
+
+/** Release the hold of a call that reported no usage. */
+export async function releaseLlmStepCall(
+  sql: Sql,
+  args: { lease: DirectCallLease },
+): Promise<void> {
+  await releaseDirectCall(sql, args.lease);
 }

@@ -1531,7 +1531,10 @@ async function stepClaimedRun(
       // Built fresh every turn, like the approval gate below: the door closes
       // over this invocation's ctx, the run's own organization, and the run
       // whose spend each call is.
-      llm: automationLlmCall(ctx, args.organizationId, args.runId),
+      llm: automationLlmCall(ctx, args.organizationId, {
+        runId: args.runId,
+        automation: loaded.run.name,
+      }),
       agent: (agentHostFactory ?? automationAgentHost)(
         ctx,
         args.organizationId,
