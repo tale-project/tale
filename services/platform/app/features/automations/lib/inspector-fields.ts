@@ -16,7 +16,7 @@ export const CONTROL_FLOW_FIELDS = [
 
 /** The agent node's own pickers (`AgentNodeFields`); the inspector's generic
  * field loop must not render them a second time. */
-const AGENT_EQUIPMENT_FIELDS: readonly string[] = [
+const AGENT_EQUIPMENT_FIELDS: ReadonlySet<string> = new Set([
   'model',
   'modelProvider',
   'harness',
@@ -24,7 +24,7 @@ const AGENT_EQUIPMENT_FIELDS: readonly string[] = [
   'connectors',
   'tools',
   'secrets',
-];
+]);
 
 /**
  * The declared fields the inspector's generic loop renders, in the node
@@ -38,7 +38,7 @@ export function declaredInspectorFields(
   const isAgent = node.type === 'agent';
   return allowedFields.filter(
     (field) =>
-      field !== 'input' && !(isAgent && AGENT_EQUIPMENT_FIELDS.includes(field)),
+      field !== 'input' && !(isAgent && AGENT_EQUIPMENT_FIELDS.has(field)),
   );
 }
 
