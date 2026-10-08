@@ -96,6 +96,15 @@ export interface CronSchedule {
   dayOfWeek: CronField;
 }
 
+/** A cron expression whose fields are each in range but whose days never
+ * meet (`0 0 30 2 *`): readable, and still never due. */
+export class CronImpossibleDateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CronImpossibleDateError';
+  }
+}
+
 /** Parse a five-field expression. Throws with the offending text — the caller
  * turns that into a refusal the author can act on. */
 export function parseCron(expression: string): CronSchedule {
@@ -124,7 +133,7 @@ export function parseCron(expression: string): CronSchedule {
     dayOfWeekWildcard: schedule.dayOfWeek.wildcard,
   });
   if (impossible !== null) {
-    throw new Error(describeImpossibleCronDate(impossible));
+    throw new CronImpossibleDateError(describeImpossibleCronDate(impossible));
   }
   return schedule;
 }

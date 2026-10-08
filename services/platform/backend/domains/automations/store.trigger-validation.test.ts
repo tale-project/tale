@@ -14,7 +14,7 @@ import {
   EMITTED_EVENT_TYPES,
   RESERVED_EVENT_TYPES,
 } from '../../../lib/shared/event-types.ts';
-import { assertTriggerValid, AutomationError } from './store.ts';
+import { assertTriggerValid, AutomationError, checkTrigger } from './store.ts';
 
 describe('assertTriggerValid [AUTO-R10]', () => {
   it('accepts a valid five-field cron', () => {
@@ -231,5 +231,258 @@ describe('assertTriggerValid [AUTO-R10]', () => {
         expect(refusal.message).toContain(emitted);
       }
     }
+  });
+});
+
+/** The code and path of the one problem a refusal names. */
+function refusalOf(trigger: unknown): { code: string; path: string }[] {
+  try {
+    assertTriggerValid(trigger);
+  } catch (error) {
+    expect(error).toBeInstanceOf(AutomationError);
+    const refusal = error as AutomationError;
+    expect(refusal.code).toBe('AUTOMATION_TRIGGER_INVALID');
+    expect(refusal.status).toBe(400);
+    const issues = (refusal.data?.issues ?? []) as {
+      code: string;
+      path: string;
+      message: string;
+    }[];
+    // The sentence is the first problem's.
+    expect(refusal.message).toBe(issues[0]?.message);
+    return issues.map(({ code, path }) => ({ code, path }));
+  }
+  return expect.unreachable('the trigger must be refused');
+}
+
+const daily = { frequency: 'daily', interval: 1, times: ['09:00'] };
+
+/**
+ * A repeat rule is checked as hard as a cron expression, and each refusal
+ * carries a stable code the editor words as one sentence per field.
+ */
+describe('assertTriggerValid — repeat rules and zones [AUTO-R10]', () => {
+  it.each([
+    [
+      'a schedule with neither a rule nor a cron',
+      { kind: 'schedule', timezone: 'UTC' },
+      'schedule.cron_or_repeat',
+      'repeat',
+    ],
+    [
+      'a schedule with both',
+      { kind: 'schedule', cron: '0 9 * * *', repeat: daily, timezone: 'UTC' },
+      'schedule.cron_or_repeat',
+      'repeat',
+    ],
+    [
+      'a rule with no time of day',
+      { kind: 'schedule', repeat: { ...daily, times: [] }, timezone: 'UTC' },
+      'schedule.times_required',
+      'repeat.times',
+    ],
+    [
+      'a time that is not HH:MM',
+      {
+        kind: 'schedule',
+        repeat: { ...daily, times: ['9:00'] },
+        timezone: 'UTC',
+      },
+      'schedule.time_format',
+      'repeat.times.0',
+    ],
+    [
+      'more than twelve times',
+      {
+        kind: 'schedule',
+        repeat: {
+          ...daily,
+          times: Array.from(
+            { length: 13 },
+            (_, i) => `${String(i + 8).padStart(2, '0')}:00`,
+          ),
+        },
+        timezone: 'UTC',
+      },
+      'schedule.times_too_many',
+      'repeat.times',
+    ],
+    [
+      'an interval the rule does not offer',
+      {
+        kind: 'schedule',
+        repeat: { frequency: 'minutely', interval: 7 },
+        timezone: 'UTC',
+      },
+      'schedule.interval_unsupported',
+      'repeat.interval',
+    ],
+    [
+      'a day the named month never has',
+      {
+        kind: 'schedule',
+        repeat: {
+          frequency: 'yearly',
+          interval: 1,
+          month: 2,
+          monthDay: 30,
+          times: ['09:00'],
+        },
+        timezone: 'UTC',
+      },
+      'schedule.month_day_impossible',
+      'repeat.monthDay',
+    ],
+    [
+      'a window whose start is its end',
+      {
+        kind: 'schedule',
+        repeat: {
+          frequency: 'minutely',
+          interval: 15,
+          window: { weekdays: [1], hours: { from: '08:00', to: '08:00' } },
+        },
+        timezone: 'UTC',
+      },
+      'schedule.window_hours_equal',
+      'repeat.window.hours',
+    ],
+    [
+      'a window no start falls in',
+      {
+        kind: 'schedule',
+        repeat: {
+          frequency: 'hourly',
+          interval: 1,
+          minute: 30,
+          window: { weekdays: [1], hours: { from: '08:00', to: '08:15' } },
+        },
+        timezone: 'UTC',
+      },
+      'schedule.window_never_fires',
+      'repeat.window.hours',
+    ],
+    [
+      'a start date that is not a calendar day',
+      {
+        kind: 'schedule',
+        repeat: daily,
+        timezone: 'UTC',
+        startDate: '2026-02-30',
+      },
+      'schedule.start_date',
+      'startDate',
+    ],
+    [
+      'a rule without a time zone',
+      { kind: 'schedule', repeat: daily },
+      'timezone.required',
+      'timezone',
+    ],
+    [
+      'a blank time zone, which used to save and never fire',
+      { kind: 'schedule', cron: '0 9 * * *', timezone: '  ' },
+      'timezone.blank',
+      'timezone',
+    ],
+    [
+      'a zone that does not exist',
+      { kind: 'schedule', repeat: daily, timezone: 'Mars/Olympus_Mons' },
+      'timezone.unknown',
+      'timezone',
+    ],
+    [
+      'a cron that cannot be read',
+      { kind: 'schedule', cron: '61 * * * *' },
+      'schedule.cron_unreadable',
+      'cron',
+    ],
+    [
+      'a cron that names a date no calendar has',
+      { kind: 'schedule', cron: '0 0 30 2 *' },
+      'schedule.cron_impossible_date',
+      'cron',
+    ],
+    [
+      'a repeat rule on a webhook',
+      { kind: 'webhook', repeat: daily },
+      'trigger.key_other_kind',
+      'repeat',
+    ],
+    [
+      'an event trigger without an event',
+      { kind: 'event' },
+      'event.required',
+      'event',
+    ],
+    [
+      'an event the platform never raises',
+      { kind: 'event', event: 'no.such.event' },
+      'event.unknown',
+      'event',
+    ],
+  ])('refuses %s', (_case, trigger, code, path) => {
+    expect(refusalOf(trigger)).toEqual([{ code, path }]);
+  });
+
+  it.each([
+    ['a daily rule', { kind: 'schedule', repeat: daily, timezone: 'UTC' }],
+    [
+      'an overnight window',
+      {
+        kind: 'schedule',
+        repeat: {
+          frequency: 'minutely',
+          interval: 30,
+          window: { weekdays: [5], hours: { from: '22:00', to: '06:00' } },
+        },
+        timezone: 'Europe/Zurich',
+        catchUp: 'skip',
+      },
+    ],
+    [
+      'a start date and a fixed offset zone',
+      {
+        kind: 'schedule',
+        repeat: { ...daily, interval: 2 },
+        timezone: '+05:30',
+        startDate: '2026-10-08',
+      },
+    ],
+  ])('accepts %s', (_case, trigger) => {
+    expect(() => assertTriggerValid(trigger)).not.toThrow();
+  });
+
+  it('stores the zone in one spelling and anchors a rule on the day of the save in it', () => {
+    // 23:30 UTC on 8 October is already the 9th in Zurich.
+    const checked = checkTrigger(
+      {
+        kind: 'schedule',
+        repeat: {
+          frequency: 'weekly',
+          interval: 1,
+          weekdays: [3, 1],
+          times: ['17:00', '08:00', '08:00'],
+        },
+        timezone: 'europe/zurich',
+      },
+      Date.UTC(2026, 9, 8, 23, 30),
+    );
+    expect(checked).toMatchObject({
+      kind: 'schedule',
+      enabled: true,
+      cron: null,
+      timezone: 'Europe/Zurich',
+      catchUp: null,
+      scheduleRule: {
+        repeat: {
+          frequency: 'weekly',
+          interval: 1,
+          weekdays: [1, 3],
+          times: ['08:00', '17:00'],
+        },
+        startDate: '2026-10-09',
+      },
+    });
   });
 });

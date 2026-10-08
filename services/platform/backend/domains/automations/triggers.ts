@@ -1,9 +1,21 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import {
+  type MissedSummary,
+  SKIP_DETAIL_MAX_ISSUES,
+  SKIP_DETAIL_MAX_MESSAGE,
+  type TriggerSkipDetail,
+} from '@tale/shared/schemas/automation-trigger';
 import { Hono, type Context } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  decideDue,
+  nextOccurrence,
+  SCHEDULE_ON_TIME_GRACE_MS,
+  scheduleOfTrigger,
+} from '../../../lib/automations/schedule/occurrences.ts';
 import { scheduleTriggerInput } from '../../../lib/engine/core/slots.ts';
-import { dueOccurrence } from '../../core/automations/cron.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   deliveryIdentity,
   type DeliveryIdentity,
@@ -19,6 +31,7 @@ import {
   getClientIp,
   nodePeerAddress,
 } from '../../core/lib/utils/client_ip.ts';
+import { jsonParam } from '../../db/sql.ts';
 import { noStoreByDefault } from '../../lib/http-hygiene.ts';
 import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
 import {
@@ -32,18 +45,22 @@ import {
   beginRunInTx,
   getRun,
   resolveRunProject,
-  type TriggerSkipReason,
 } from './store.ts';
 
 /**
  * Trigger DELIVERY — the 0.5 twins of `convex/automations/triggers.ts`:
  *
- *  - `scanScheduledTriggers` (a per-minute pg-boss schedule): minute-cron
- *    matching through the REUSED matcher (`cron.ts` — IANA-zone wall clock,
- *    bounded catch-up). The scan WALKS every enabled schedule (keyset pages,
- *    never a cap an arbitrary subset could hide behind) and CLAIMS each due
- *    occurrence with a conditional stamp, so a throwing run never re-fires
- *    the same minute and two overlapping scans fire it once;
+ *  - `scanScheduledTriggers` (a per-minute pg-boss schedule): each schedule
+ *    keeps the instant it is next due (`next_due_at_ms`, 0170), and the scan
+ *    claims only the schedules whose instant has come, by a partial index —
+ *    plus the ones whose instant is not computed yet. Each is decided in its
+ *    own short transaction on its freshly locked row (`FOR UPDATE SKIP
+ *    LOCKED`): at most one occurrence starts (the latest; `catchUp` says how
+ *    late it may be), the rest are counted as missed, and the run, the stamps
+ *    and the next instant commit together, so two overlapping scans fire an
+ *    occurrence once. When it happens is the shared evaluator's
+ *    (`lib/automations/schedule/occurrences.ts`), daylight-saving changes
+ *    included;
  *  - the webhook doors for organization and explicitly named projects — the token in
  *    the path IS the credential (sha256 verifier + constant-time compare;
  *    unknown/disabled reads as a plain 404). Deliveries are IDEMPOTENT: a
@@ -65,11 +82,9 @@ import {
  * in the producer's transaction.
  */
 
-/** Rows per page of the scan walk — a page size, not a cap: the walk goes on
- * until every enabled schedule has been examined. */
+/** Rows per page of a scan walk — a page size, not a cap: each walk goes on
+ * until every schedule it is for has been examined. */
 const SCAN_PAGE_SIZE = 200;
-const DEFAULT_TIMEZONE = 'UTC';
-const MINUTE_MS = 60_000;
 /** How many bindings one log line names; the rest are counted. */
 const NAMES_IN_LOG = 5;
 
@@ -80,6 +95,12 @@ interface TriggerRow {
   kind: string;
   cron: string | null;
   timezone: string | null;
+  /** `{repeat, startDate}` as stored, unread (0170). */
+  scheduleRule: unknown;
+  /** NULL reads as `latest` (0170). */
+  catchUp: 'latest' | 'skip' | null;
+  /** The earliest occurrence not handled yet; null when not computed. */
+  nextDueAt: number | null;
   tokenHash: string | null;
   event: string | null;
   enabled: boolean;
@@ -93,14 +114,16 @@ interface TriggerRow {
   lastSkippedAt: number | null;
   lastSkipReason: string | null;
   createdAt: number;
-  /** The last (re)bind — where a schedule's "since" starts when the bind
-   * cleared its stamps (a kind change), so a trigger re-bound as a
-   * schedule never fires an occurrence from before it was one. */
+  /** The last (re)bind — where a schedule's pending occurrences start when
+   * nothing was claimed since, so a trigger saved, switched on or re-bound
+   * as a schedule never fires an occurrence from before it. */
   updatedAt: number;
 }
 
 const TRIGGER_COLUMNS = `
   id, org_id AS "organizationId", name, kind, cron, timezone,
+  schedule_rule AS "scheduleRule", catch_up AS "catchUp",
+  next_due_at_ms::float8 AS "nextDueAt",
   token_hash AS "tokenHash", event, enabled,
   last_fired_at_ms::float8 AS "lastFiredAt",
   last_due_at_ms::float8 AS "lastDueAt",
@@ -110,14 +133,8 @@ const TRIGGER_COLUMNS = `
   updated_at_ms::float8 AS "updatedAt"
 `;
 
-/** Why a binding came due and started nothing — the delivery paths' part of
- * the ledger's closed set (`TriggerSkipReason`; the column's CHECK). The
- * rest, a schedule that paused itself, is stamped by `trigger-failures.ts`
- * when a run lands. */
-type SkipReason = Exclude<TriggerSkipReason, 'paused_after_failures'>;
-
 /** A schedule whose expression cannot be read is left alone until its next
- * edit; should the stamp that keeps it out of the page ever fail to hold,
+ * edit; should the stamp that keeps it out of the walk ever fail to hold,
  * the line is written again at most this often. */
 const UNUSABLE_WARN_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -136,18 +153,62 @@ async function stampFired(
   `;
 }
 
-/** The binding came due and started nothing. */
+/** The binding came due and started nothing: when, and why — the reason
+ * and its detail move together. */
 async function stampSkipped(
   sql: Sql | TransactionSql,
   triggerId: string,
   at: number,
-  reason: SkipReason,
+  detail: TriggerSkipDetail,
 ): Promise<void> {
   await sql`
     UPDATE app.automation_triggers
-    SET last_skipped_at_ms = ${at}, last_skip_reason = ${reason}
+    SET last_skipped_at_ms = ${at}, last_skip_reason = ${detail.reason},
+        last_skip_detail = ${jsonParam(sql, detail)}
     WHERE id = ${triggerId}
   `;
+}
+
+/** A sentence, cut to what a skip detail keeps. */
+function bounded(message: string): string {
+  return message.length <= SKIP_DETAIL_MAX_MESSAGE
+    ? message
+    : `${message.slice(0, SKIP_DETAIL_MAX_MESSAGE - 1)}…`;
+}
+
+/** What a refused start leaves in the skip detail: its code, the version
+ * that refused it, its sentence and its first problems. */
+function refusalDetail(
+  error: AutomationError,
+  occurrence: number,
+): Extract<TriggerSkipDetail, { reason: 'start_refused' }> {
+  const data = error.data ?? {};
+  const version =
+    typeof data.version === 'number' && Number.isInteger(data.version)
+      ? data.version
+      : null;
+  const issues = Array.isArray(data.issues)
+    ? data.issues
+        .filter(
+          (issue): issue is { path: string; message: string } =>
+            isRecord(issue) &&
+            typeof issue.path === 'string' &&
+            typeof issue.message === 'string',
+        )
+        .slice(0, SKIP_DETAIL_MAX_ISSUES)
+        .map((issue) => ({
+          path: bounded(issue.path),
+          message: bounded(issue.message),
+        }))
+    : [];
+  return {
+    reason: 'start_refused',
+    occurrence,
+    code: error.code.slice(0, 100),
+    version,
+    message: bounded(error.message),
+    ...(issues.length > 0 ? { issues } : {}),
+  };
 }
 
 /** A binding as a door that could start its run reads it: the row, and
@@ -196,32 +257,239 @@ export async function organizationTableExists(sql: Sql): Promise<boolean> {
 }
 
 export interface ScheduleScanResult {
-  /** Enabled schedules examined — every one of them, across all pages. */
+  /** Schedules this scan locked and looked at, across both walks. */
   examined: number;
-  /** Occurrences this scan claimed AND started a run for. */
+  /** Occurrences this scan started a run for. */
   fired: number;
-  /** Keyset pages the walk took (1 for fleets under the page size). */
+  /** Keyset pages the walks took (at least 1 whenever they ran). */
   pages: number;
-  /** Occurrences claimed whose automation has no deployed version to run. */
+  /** Occurrences whose automation has no deployed version to run. */
   undeployed: number;
-  /** Occurrences claimed whose deployed version refused the run's input. */
+  /** Occurrences whose deployed version refused the run. */
   refused: number;
-  /** Schedules whose expression or zone could not be read this scan. */
+  /** Schedules whose rule, expression or zone could not be read, or that
+   * never come due. */
   unusable: number;
   /** Schedules of an organization that no longer exists, disabled by this
    * scan — never claimed, never run. */
   orphaned: number;
+  /** Schedules whose next instant this scan computed (new, edited, or
+   * switched on) and found still to come. */
+  initialized: number;
+  /** Occurrences counted as missed, not run. */
+  missed: number;
+  /** Occurrences started later than the on-time grace. */
+  late: number;
+  /** Schedules another scan or a save held while this one came by; the
+   * next scan takes them. */
+  busy: number;
 }
 
+/** What one schedule's transaction did. */
+type RowOutcome =
+  | { kind: 'busy' | 'idle' | 'initialized' }
+  | { kind: 'orphaned'; label: string }
+  | { kind: 'unusable' }
+  | {
+      kind: 'decided';
+      label: string;
+      fired: boolean;
+      late: boolean;
+      missed: number;
+      skip: 'not_deployed' | 'start_refused' | null;
+      refusal?: string;
+    };
+
+/**
+ * Decide one schedule, in its own transaction, from its row as locked now
+ * — never from a page read earlier, so two scans can never act on one stale
+ * read. Locked elsewhere (another scan, a save) it is left for the next
+ * scan. The occurrence's run, the fire or skip stamp, the claim cursor and
+ * the next instant commit together, or none of them do: an interrupted
+ * scan leaves the schedule exactly as due as it was.
+ */
+async function processScheduleRow(
+  sql: Sql,
+  triggerId: string,
+  now: number,
+): Promise<RowOutcome> {
+  return sql.begin(async (tx): Promise<RowOutcome> => {
+    const rows = await tx<OrgCheckedTriggerRow[]>`
+      SELECT ${tx.unsafe(TRIGGER_COLUMNS)},
+        NOT EXISTS (
+          SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
+        ) AS "orgMissing"
+      FROM app.automation_triggers t
+      WHERE id = ${triggerId}
+      FOR UPDATE OF t SKIP LOCKED
+    `;
+    const row = rows[0];
+    if (row === undefined) return { kind: 'busy' };
+    if (row.kind !== 'schedule' || !row.enabled) return { kind: 'idle' };
+    const label = `${row.organizationId}/${row.name}`;
+    // Whatever its schedule says, nothing may start in the name of an
+    // organization that is gone.
+    if (row.orgMissing) {
+      const retired = await retireOrphanedTriggers(tx, [row.id]);
+      return retired.length > 0
+        ? { kind: 'orphaned', label }
+        : { kind: 'idle' };
+    }
+    const unusable = async (message: string): Promise<RowOutcome> => {
+      // A schedule the author wrote wrong must not stop the scan. The skip
+      // stamp is what the trigger read shows for it and what keeps it out
+      // of the next walk; the line is written when the reason is news (or
+      // once an hour, should the stamp not hold).
+      if (
+        row.lastSkipReason !== 'unusable_cron' ||
+        row.lastSkippedAt === null ||
+        now - row.lastSkippedAt > UNUSABLE_WARN_INTERVAL_MS
+      ) {
+        console.warn(
+          `[automations] trigger ${label}: unusable schedule`,
+          message,
+        );
+      }
+      await tx`
+        UPDATE app.automation_triggers
+        SET next_due_at_ms = NULL, last_skipped_at_ms = ${now},
+            last_skip_reason = 'unusable_cron',
+            last_skip_detail = ${jsonParam(tx, {
+              reason: 'unusable_cron',
+              message: bounded(message),
+            } satisfies TriggerSkipDetail)}
+        WHERE id = ${row.id}
+      `;
+      return { kind: 'unusable' };
+    };
+    const read = scheduleOfTrigger(row);
+    if ('issue' in read) return unusable(read.issue);
+    const schedule = read.schedule;
+    // What an earlier scan of either image already claimed or fired: the
+    // previous image claims on `last_due_at_ms` and fires on
+    // `last_fired_at_ms` (0096), so the later of the two is handled.
+    const stamps = [row.lastDueAt, row.lastFiredAt].filter(
+      (stamp): stamp is number => stamp !== null,
+    );
+    const handled = stamps.length > 0 ? Math.max(...stamps) : null;
+    const pendingFrom =
+      row.nextDueAt ??
+      nextOccurrence(schedule, Math.max(handled ?? 0, row.updatedAt));
+    if (pendingFrom === null) {
+      return unusable('the schedule never comes due');
+    }
+    if (pendingFrom > now) {
+      if (row.nextDueAt === pendingFrom) return { kind: 'idle' };
+      await tx`
+        UPDATE app.automation_triggers SET next_due_at_ms = ${pendingFrom}
+        WHERE id = ${row.id}
+      `;
+      return { kind: 'initialized' };
+    }
+    const decision = decideDue(
+      schedule,
+      pendingFrom,
+      handled ?? pendingFrom - 1,
+      now,
+      row.catchUp ?? 'latest',
+    );
+    const policy = row.catchUp ?? 'latest';
+    const missed: MissedSummary | undefined =
+      decision.missed === null ? undefined : { ...decision.missed, policy };
+    let runId: string | null = null;
+    let skip: TriggerSkipDetail | null = null;
+    let refusal: string | undefined;
+    if (decision.fire !== null) {
+      const fire = decision.fire;
+      // The run joins this transaction: it commits with the claim, or not
+      // at all. `beginRunInTx` refuses before it writes anything, so the
+      // transaction stays usable for the skip stamp. A refused start keeps
+      // its claim — retrying the same refusal every minute helps nobody.
+      try {
+        const started = await beginRunInTx(tx, {
+          organizationId: row.organizationId,
+          name: row.name,
+          input: scheduleTriggerInput(fire),
+          mode: 'live',
+          startedBy: `trigger:${row.id}`,
+        });
+        if (started === null) {
+          skip = {
+            reason: 'not_deployed',
+            occurrence: fire,
+            ...(missed !== undefined ? { missed } : {}),
+          };
+        } else {
+          runId = started.runId;
+        }
+      } catch (error) {
+        if (!(error instanceof AutomationError)) throw error;
+        refusal = error.message;
+        skip = {
+          ...refusalDetail(error, fire),
+          ...(missed !== undefined ? { missed } : {}),
+        };
+      }
+    }
+    // A fire outcome (refused, not deployed) wins over the missed count,
+    // which rides in its detail. A run with others missed stamps both.
+    if (skip === null && missed !== undefined) {
+      skip = {
+        reason: 'missed_occurrences',
+        missed,
+        firedLatest: runId !== null,
+      };
+    }
+    // One write: the next instant, the claim cursor, and whichever stamps
+    // apply. It names none of the columns the 0170 trigger watches.
+    const fired = runId !== null;
+    await tx`
+      UPDATE app.automation_triggers SET
+        next_due_at_ms = ${decision.next},
+        last_due_at_ms = GREATEST(COALESCE(last_due_at_ms, 0), ${decision.handledThrough}::bigint),
+        last_fired_at_ms = CASE WHEN ${fired}::boolean THEN ${decision.fire}::bigint ELSE last_fired_at_ms END,
+        last_run_id = CASE WHEN ${fired}::boolean THEN ${runId}::text ELSE last_run_id END,
+        last_skipped_at_ms = CASE WHEN ${skip !== null}::boolean THEN ${now}::bigint ELSE last_skipped_at_ms END,
+        last_skip_reason = CASE WHEN ${skip !== null}::boolean THEN ${skip?.reason ?? null}::text ELSE last_skip_reason END,
+        last_skip_detail = CASE WHEN ${skip !== null}::boolean THEN ${jsonParam(tx, skip)}::jsonb ELSE last_skip_detail END
+      WHERE id = ${row.id}
+    `;
+    return {
+      kind: 'decided',
+      label,
+      fired,
+      late:
+        fired &&
+        decision.fire !== null &&
+        now - decision.fire > SCHEDULE_ON_TIME_GRACE_MS,
+      missed: decision.missed?.count ?? 0,
+      skip:
+        skip?.reason === 'not_deployed' || skip?.reason === 'start_refused'
+          ? skip.reason
+          : null,
+      ...(refusal !== undefined ? { refusal } : {}),
+    };
+  });
+}
+
+/**
+ * Fire the schedules that came due. Two keyset walks, each on its own
+ * partial index (0170): the schedules whose next instant is not computed
+ * yet (new or edited by any writer, switched back on, the first scan after
+ * the migration), and the ones whose instant has come, most overdue first.
+ * The cost is the due and the uncomputed rows, not every enabled schedule.
+ *
+ * `now` is the clock the decisions read (a test pins it). `signal` is the
+ * process's shutdown: the scan stops between schedules, and what it did not
+ * reach stays due for the next scan.
+ */
 export async function scanScheduledTriggers(
   sql: Sql,
-  options: { pageSize?: number } = {},
+  options: { pageSize?: number; now?: number; signal?: AbortSignal } = {},
 ): Promise<ScheduleScanResult> {
   const pageSize = options.pageSize ?? SCAN_PAGE_SIZE;
-  const now = Date.now();
-  // Nothing newer than the current minute can be due, so a trigger already
-  // stamped at or past it is left out in SQL rather than fetched to be skipped.
-  const floor = Math.floor(now / MINUTE_MS) * MINUTE_MS;
+  const now = options.now ?? Date.now();
+  const signal = options.signal;
   const result: ScheduleScanResult = {
     examined: 0,
     fired: 0,
@@ -230,10 +498,14 @@ export async function scanScheduledTriggers(
     refused: 0,
     unusable: 0,
     orphaned: 0,
+    initialized: 0,
+    missed: 0,
+    late: 0,
+    busy: 0,
   };
   // No table means no organization yet, so no schedule can belong to one:
-  // there is nothing to fire or retire, and every page query would die on
-  // the missing relation — once a minute until an api role boots. Enabled
+  // there is nothing to fire or retire, and every walk would die on the
+  // missing relation — once a minute until an api role boots. Enabled
   // schedules without it are not a fresh install: this connection cannot
   // see Better Auth's tables, and none of them fires until it can.
   if (!(await organizationTableExists(sql))) {
@@ -252,28 +524,62 @@ export async function scanScheduledTriggers(
   const undeployedNames: string[] = [];
   const refusedNames: string[] = [];
   const orphanedNames: string[] = [];
-  let cursor: string | null = null;
+  const take = async (id: string): Promise<void> => {
+    const outcome = await processScheduleRow(sql, id, now);
+    if (outcome.kind !== 'busy') result.examined++;
+    switch (outcome.kind) {
+      case 'busy':
+        result.busy++;
+        return;
+      case 'idle':
+        return;
+      case 'initialized':
+        result.initialized++;
+        return;
+      case 'unusable':
+        result.unusable++;
+        return;
+      case 'orphaned':
+        result.orphaned++;
+        if (orphanedNames.length < NAMES_IN_LOG) {
+          orphanedNames.push(outcome.label);
+        }
+        return;
+      case 'decided':
+        if (outcome.fired) result.fired++;
+        if (outcome.late) result.late++;
+        result.missed += outcome.missed;
+        if (outcome.skip === 'not_deployed') {
+          result.undeployed++;
+          if (undeployedNames.length < NAMES_IN_LOG) {
+            undeployedNames.push(outcome.label);
+          }
+        }
+        if (outcome.skip === 'start_refused') {
+          result.refused++;
+          if (refusedNames.length < NAMES_IN_LOG) {
+            refusedNames.push(
+              `${outcome.label} (${outcome.refusal ?? 'refused'})`,
+            );
+          }
+        }
+        return;
+      default: {
+        const exhaustive: never = outcome;
+        return exhaustive;
+      }
+    }
+  };
   try {
+    // (a) Not computed yet. A schedule stamped unusable stays out until it
+    // is edited — re-reading a broken expression every minute told nobody
+    // anything.
+    let cursor: string | null = null;
     for (;;) {
-      // A keyset walk in id order: deterministic, complete, and bounded per
-      // page — the LIMIT is how much sits in memory at once, not how many
-      // triggers the platform serves. The 0.4-era `LIMIT 200` with no ORDER BY
-      // handed the 201st enabled schedule to heap order, i.e. to never.
-      // The cursor is the LATER of the claim and the fire stamp: a previous
-      // image still claims on `last_fired_at_ms` alone during a roll (0096).
-      // A schedule stamped unusable stays out of the page until it is edited
-      // — re-parsing a broken expression every minute told nobody anything.
-      // Each row says whether its organization still exists: a binding the
-      // organization's deletion left behind must not start a run in its name.
-      const page: OrgCheckedTriggerRow[] = await sql<OrgCheckedTriggerRow[]>`
-        SELECT ${sql.unsafe(TRIGGER_COLUMNS)},
-          NOT EXISTS (
-            SELECT 1 FROM "organization" o WHERE o."id" = t.org_id
-          ) AS "orgMissing"
-        FROM app.automation_triggers t
-        WHERE kind = 'schedule' AND enabled = true
-          AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
-               OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${floor})
+      if (signal?.aborted) break;
+      const page: { id: string }[] = await sql<{ id: string }[]>`
+        SELECT id FROM app.automation_triggers
+        WHERE kind = 'schedule' AND enabled AND next_due_at_ms IS NULL
           AND (last_skip_reason IS DISTINCT FROM 'unusable_cron'
                OR last_skipped_at_ms IS NULL
                OR updated_at_ms > last_skipped_at_ms)
@@ -282,133 +588,47 @@ export async function scanScheduledTriggers(
         LIMIT ${pageSize}
       `;
       result.pages++;
-      result.examined += page.length;
-      // Whatever its expression says, nothing may start in the name of an
-      // organization that is gone. The page's orphans are disabled first,
-      // in one write before any claim, so a claim that throws further down
-      // cannot keep them enabled for the next scan.
-      const orphans = page
-        .filter((trigger) => trigger.orgMissing)
-        .map((trigger) => trigger.id);
-      if (orphans.length > 0) {
-        for (const retired of await retireOrphanedTriggers(sql, orphans)) {
-          result.orphaned++;
-          if (orphanedNames.length < NAMES_IN_LOG) {
-            orphanedNames.push(`${retired.organizationId}/${retired.name}`);
-          }
-        }
+      for (const { id } of page) {
+        if (signal?.aborted) break;
+        await take(id);
       }
-      for (const trigger of page) {
-        if (trigger.orgMissing) continue;
-        if (trigger.cron === null || trigger.cron === '') continue;
-        const stamps = [trigger.lastDueAt, trigger.lastFiredAt].filter(
-          (stamp): stamp is number => stamp !== null,
-        );
-        const since =
-          stamps.length > 0 ? Math.max(...stamps) : trigger.updatedAt;
-        let due: number | null;
-        try {
-          due = dueOccurrence(
-            trigger.cron,
-            trigger.timezone ?? DEFAULT_TIMEZONE,
-            since,
-            now,
-          );
-        } catch (error) {
-          // A schedule the author wrote wrong must not stop the whole scan.
-          // The skip stamp is what the trigger read shows for it and what
-          // keeps it out of the next page; the line is written when the
-          // reason is news (or once an hour, should the stamp not hold).
-          result.unusable++;
-          if (
-            trigger.lastSkipReason !== 'unusable_cron' ||
-            trigger.lastSkippedAt === null ||
-            now - trigger.lastSkippedAt > UNUSABLE_WARN_INTERVAL_MS
-          ) {
-            console.warn(
-              `[automations] trigger ${trigger.organizationId}/${trigger.name}: unusable schedule`,
-              error instanceof Error ? error.message : error,
-            );
-          }
-          await stampSkipped(sql, trigger.id, now, 'unusable_cron');
-          continue;
-        }
-        if (due === null) continue;
-        // CLAIM the occurrence first, conditionally: two overlapping scans (an
-        // expired job's retry, two workers) must fire it once — the loser's
-        // UPDATE waits on the row and then matches nothing. The claim, the
-        // run and the fire stamp commit TOGETHER, so the stamp can never
-        // precede the run it names and a start that fails to commit takes
-        // its claim with it. What the deployed version refuses keeps its
-        // claim — rolling it back would retry the same refusal every minute.
-        // Re-check the binding as well as the cursor: a run may have paused
-        // it, or a person may have saved it, since this page was read. That
-        // stale occurrence has no authority to start another run.
-        const outcome = await sql.begin(async (tx) => {
-          const claimed = await tx<{ id: string }[]>`
-            UPDATE app.automation_triggers SET last_due_at_ms = ${due}
-            WHERE id = ${trigger.id}
-              AND kind = 'schedule' AND enabled = true
-              AND updated_at_ms = ${trigger.updatedAt}
-              AND (GREATEST(last_due_at_ms, last_fired_at_ms) IS NULL
-                   OR GREATEST(last_due_at_ms, last_fired_at_ms) < ${due})
-            RETURNING id
-          `;
-          if (claimed.length === 0) return { kind: 'lost' as const };
-          let started: { runId: string; version: number } | null;
-          try {
-            started = await beginRunInTx(tx, {
-              organizationId: trigger.organizationId,
-              name: trigger.name,
-              input: scheduleTriggerInput(due),
-              mode: 'live',
-              startedBy: `trigger:${trigger.id}`,
-            });
-          } catch (error) {
-            if (!(error instanceof AutomationError)) throw error;
-            await stampSkipped(tx, trigger.id, now, 'start_refused');
-            return { kind: 'refused' as const, reason: error.message };
-          }
-          if (started === null) {
-            await stampSkipped(tx, trigger.id, now, 'not_deployed');
-            return { kind: 'not_deployed' as const };
-          }
-          await stampFired(tx, trigger.id, due, started.runId);
-          return { kind: 'fired' as const };
-        });
-        const label = `${trigger.organizationId}/${trigger.name}`;
-        switch (outcome.kind) {
-          case 'fired':
-            result.fired++;
-            break;
-          case 'not_deployed':
-            result.undeployed++;
-            if (undeployedNames.length < NAMES_IN_LOG) {
-              undeployedNames.push(label);
-            }
-            break;
-          case 'refused':
-            result.refused++;
-            if (refusedNames.length < NAMES_IN_LOG) {
-              refusedNames.push(`${label} (${outcome.reason})`);
-            }
-            break;
-          case 'lost':
-            break;
-        }
-      }
-      if (page.length < pageSize) break;
       const last = page.at(-1);
-      if (last === undefined) break;
+      if (page.length < pageSize || last === undefined) break;
       cursor = last.id;
     }
+    // (b) Due, most overdue first. A row decided above moved its instant
+    // past `now` and is not met again.
+    let due: { at: number; id: string } | null = null;
+    for (;;) {
+      if (signal?.aborted) break;
+      const page: { id: string; nextDueAt: number }[] = await sql<
+        { id: string; nextDueAt: number }[]
+      >`
+        SELECT id, next_due_at_ms::float8 AS "nextDueAt"
+        FROM app.automation_triggers
+        WHERE kind = 'schedule' AND enabled AND next_due_at_ms IS NOT NULL
+          AND next_due_at_ms <= ${now}
+          AND (${due === null}::boolean
+               OR (next_due_at_ms, id) > (${due?.at ?? 0}::bigint, ${due?.id ?? ''}::text))
+        ORDER BY next_due_at_ms, id
+        LIMIT ${pageSize}
+      `;
+      result.pages++;
+      for (const { id } of page) {
+        if (signal?.aborted) break;
+        await take(id);
+      }
+      const last = page.at(-1);
+      if (page.length < pageSize || last === undefined) break;
+      due = { at: last.nextDueAt, id: last.id };
+    }
   } finally {
-    // Written whether the walk finished or a page threw: the schedules the
-    // pages before it disabled never enter a page again, so this is the
-    // only line that ever names them. One line per outcome and scan, not
-    // one per trigger: a fleet's worth of undeployed schedules must not
-    // turn the scan log into a flood. Each disabled binding is named once —
-    // only the scan whose write disabled it has it back.
+    // Written whether the walks finished or one threw: the schedules the
+    // walks disabled never enter a walk again, so this is the only line
+    // that ever names them. One line per outcome and scan, not one per
+    // trigger: a fleet's worth of undeployed schedules must not turn the
+    // scan log into a flood. Each disabled binding is named once — only
+    // the scan whose write disabled it has it back.
     if (result.undeployed > 0) {
       console.warn(
         `[automations] trigger scan: ${result.undeployed} due schedule(s) have no deployed version to run: ${namedList(result.undeployed, undeployedNames)}`,
@@ -422,6 +642,11 @@ export async function scanScheduledTriggers(
     if (result.orphaned > 0) {
       console.warn(
         `[automations] trigger scan: disabled ${result.orphaned} schedule(s) whose organization no longer exists: ${namedList(result.orphaned, orphanedNames)}`,
+      );
+    }
+    if (result.missed > 0) {
+      console.warn(
+        `[automations] trigger scan: ${result.missed} occurrence(s) were missed and counted, not run`,
       );
     }
   }
@@ -506,7 +731,10 @@ export async function dispatchAutomationEvent(
       await stampFired(tx, trigger.id, now, run.runId);
       started.push(run.runId);
     } else {
-      await stampSkipped(tx, trigger.id, now, 'not_deployed');
+      await stampSkipped(tx, trigger.id, now, {
+        reason: 'not_deployed',
+        occurrence: now,
+      });
     }
   }
   return { started, refused: false };
@@ -854,7 +1082,11 @@ export function createWebhookRoutes(deps: {
         // The delivery's transaction rolled back with its claim; the skip
         // is recorded on its own, so the trigger read shows that the URL
         // was hit and why nothing started.
-        await stampSkipped(deps.sql, trigger.id, Date.now(), 'not_deployed');
+        const at = Date.now();
+        await stampSkipped(deps.sql, trigger.id, at, {
+          reason: 'not_deployed',
+          occurrence: at,
+        });
         return c.json(
           { error: error.message, code: 'AUTOMATION_NOT_DEPLOYED' },
           409,

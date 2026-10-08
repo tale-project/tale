@@ -12833,7 +12833,8 @@ async function checkAutomations(
     );
 
     // Schedule DELIVERY: retarget the trigger to a minute cron, backdate its
-    // fire stamp, and let the scan (the per-minute job's body) fire it.
+    // fire stamp and its next instant (a save counts from the save, 0170),
+    // and let the scan (the per-minute job's body) fire it.
     await post(`/api/app/automations/ops/greet/trigger?orgId=${orgId}`, {
       kind: 'schedule',
       cron: '* * * * *',
@@ -12841,7 +12842,8 @@ async function checkAutomations(
     });
     await sql`
       UPDATE app.automation_triggers
-      SET last_fired_at_ms = ${Date.now() - 120_000}
+      SET last_fired_at_ms = ${Date.now() - 120_000},
+          next_due_at_ms = ${Date.now() - 60_000}
       WHERE org_id = ${orgId} AND name = 'ops/greet'
     `;
     const triggersModule = await import('./domains/automations/triggers.ts');
@@ -14244,10 +14246,13 @@ async function checkAutomationTriggerDelivery(
   // Both stamps: the scan's cursor is the later of the claim and the fire
   // (0096), so backdating one alone would leave a claimed occurrence in
   // the way.
+  // So does the instant the schedule is next due (0170): a save sets it
+  // ahead of the save, so the scan would otherwise wait for the next minute.
   const backdateStamp = (): Promise<unknown> => sql`
     UPDATE app.automation_triggers
     SET last_fired_at_ms = ${Date.now() - 120_000},
-        last_due_at_ms = ${Date.now() - 120_000}
+        last_due_at_ms = ${Date.now() - 120_000},
+        next_due_at_ms = ${Date.now() - 60_000}
     WHERE org_id = ${orgId} AND name = ${name}
   `;
 
@@ -14325,10 +14330,21 @@ async function checkAutomationTriggerDelivery(
     triggersModule.scanScheduledTriggers(sql),
   ]);
   const firedByOverlap = (await triggerRuns()) - runsBeforeOverlap;
+  const afterOverlap = await sql<
+    { lastFiredAt: number | null; nextDueAt: number | null }[]
+  >`
+    SELECT last_fired_at_ms::float8 AS "lastFiredAt",
+           next_due_at_ms::float8 AS "nextDueAt"
+    FROM app.automation_triggers
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const overlapRow = afterOverlap[0];
   record(
     'overlapping schedule scans fire one occurrence exactly once',
-    firedByOverlap === 1,
-    `three concurrent scans over one due trigger fired ${firedByOverlap} runs (want 1)`,
+    firedByOverlap === 1 &&
+      overlapRow?.lastFiredAt !== null &&
+      overlapRow?.nextDueAt === (overlapRow?.lastFiredAt ?? 0) + 60_000,
+    `three concurrent scans over one due trigger fired ${firedByOverlap} runs (want 1); next instant ${overlapRow?.nextDueAt} (want the fired minute ${overlapRow?.lastFiredAt} + 60 s)`,
   );
 
   // ---- #3a: fairness — 205 enabled schedules platform-wide; ONE scan must
@@ -14379,6 +14395,272 @@ async function checkAutomationTriggerDelivery(
       fairScan.undeployed === 205,
     `fire stamps=${stamped[0]?.fired} (want 0), not_deployed skips=${skipStamps[0]?.count}/205, scan.undeployed=${fairScan.undeployed}`,
   );
+
+  // ---- 0170: the next-due instant, the compat trigger and the catch-up.
+  // Each probe arranges the fence's own row; the scan reads every row, and
+  // its decisions about the fence's are what is checked.
+  interface FenceRow {
+    id: string;
+    cron: string | null;
+    timezone: string | null;
+    nextDueAt: number | null;
+    lastDueAt: number | null;
+    lastFiredAt: number | null;
+    lastSkipReason: string | null;
+    lastSkipDetail: unknown;
+    updatedAt: number;
+  }
+  const fenceRow = async (): Promise<FenceRow | undefined> =>
+    (
+      await sql<FenceRow[]>`
+        SELECT id, cron, timezone,
+               next_due_at_ms::float8 AS "nextDueAt",
+               last_due_at_ms::float8 AS "lastDueAt",
+               last_fired_at_ms::float8 AS "lastFiredAt",
+               last_skip_reason AS "lastSkipReason",
+               last_skip_detail AS "lastSkipDetail",
+               updated_at_ms::float8 AS "updatedAt"
+        FROM app.automation_triggers
+        WHERE org_id = ${orgId} AND name = ${name}
+      `
+    )[0];
+
+  // Probe 1 — a row the previous image inserted (no instant) is picked up
+  // by the uncomputed walk, fires its due occurrence once, and gets its
+  // next instant; a second scan at the same moment starts nothing more.
+  await sql`DELETE FROM app.automation_triggers WHERE org_id = ${orgId} AND name = ${name}`;
+  const oldWay = Date.now() - 120_000;
+  await sql`
+    INSERT INTO app.automation_triggers (
+      org_id, name, kind, cron, timezone, enabled,
+      created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, ${name}, 'schedule', '* * * * *', 'UTC', true,
+      'itest', ${oldWay}, ${oldWay}
+    )
+  `;
+  const oldWayAt = Date.now();
+  const runsBeforeOldWay = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql, { now: oldWayAt });
+  await triggersModule.scanScheduledTriggers(sql, { now: oldWayAt });
+  const firedOldWay = (await triggerRuns()) - runsBeforeOldWay;
+  const afterOldWay = await fenceRow();
+  record(
+    'a schedule the previous image inserted gets its instant, fires once, and moves on',
+    firedOldWay === 1 &&
+      afterOldWay?.lastFiredAt === Math.floor(oldWayAt / 60_000) * 60_000 &&
+      afterOldWay.nextDueAt === afterOldWay.lastFiredAt + 60_000,
+    `runs=${firedOldWay} (want 1), fired=${afterOldWay?.lastFiredAt} next=${afterOldWay?.nextDueAt} (want fired + 60 s)`,
+  );
+
+  // Probe 2 — the previous image saves a new cron the old way: the 0170
+  // trigger drops the instant, and the next scan computes it from the save.
+  await sql`
+    UPDATE app.automation_triggers SET cron = '*/5 * * * *'
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const afterOldSave = await fenceRow();
+  await triggersModule.scanScheduledTriggers(sql);
+  const recomputed = await fenceRow();
+  record(
+    'an old-image cron edit drops the next instant, and the scan recomputes it for the new cron',
+    afterOldSave?.nextDueAt === null &&
+      (recomputed?.nextDueAt ?? 0) > Date.now() - 60_000 &&
+      (recomputed?.nextDueAt ?? 1) % (5 * 60_000) === 0,
+    `after the old save next=${afterOldSave?.nextDueAt} (want null), after the scan next=${recomputed?.nextDueAt} (want a coming five-minute mark)`,
+  );
+
+  // Probe 4 — catch-up, through the real store and run insert. An hourly
+  // schedule whose latest occurrence is half an hour old (so it is late
+  // under either policy) and whose instant is backdated two hours further:
+  // `latest` starts that occurrence once and counts the two before it;
+  // `skip` starts nothing and counts all three.
+  const minute = (new Date().getUTCMinutes() + 30) % 60;
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: { kind: 'schedule', cron: `${minute} * * * *`, timezone: 'UTC' },
+    actor: 'itest',
+  });
+  const hour = 60 * 60_000;
+  const latestAt = (() => {
+    const now = Date.now();
+    const top = Math.floor(now / hour) * hour + minute * 60_000;
+    return top <= now ? top : top - hour;
+  })();
+  const backdateCatchUp = (): Promise<unknown> => sql`
+    UPDATE app.automation_triggers
+    SET next_due_at_ms = ${latestAt - 2 * hour},
+        last_due_at_ms = ${latestAt - 3 * hour},
+        last_fired_at_ms = ${latestAt - 3 * hour}
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  await backdateCatchUp();
+  const runsBeforeLatest = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql);
+  const firedLatest = (await triggerRuns()) - runsBeforeLatest;
+  const afterLatest = await fenceRow();
+  await sql`
+    UPDATE app.automation_triggers SET catch_up = 'skip'
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  await backdateCatchUp();
+  const runsBeforeSkip = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql);
+  const firedSkip = (await triggerRuns()) - runsBeforeSkip;
+  const afterSkip = await fenceRow();
+  const missedOf = (row: FenceRow | undefined) =>
+    z
+      .object({
+        reason: z.literal('missed_occurrences'),
+        missed: z.object({ count: z.number(), policy: z.string() }),
+        firedLatest: z.boolean(),
+      })
+      .safeParse(row?.lastSkipDetail);
+  const latestDetail = missedOf(afterLatest);
+  const skipDetail = missedOf(afterSkip);
+  record(
+    'a schedule back from an outage starts its latest occurrence once and counts the rest; skip starts none',
+    firedLatest === 1 &&
+      afterLatest?.lastFiredAt === latestAt &&
+      afterLatest.nextDueAt === latestAt + hour &&
+      latestDetail.success &&
+      latestDetail.data.missed.count === 2 &&
+      latestDetail.data.firedLatest &&
+      firedSkip === 0 &&
+      afterSkip?.lastSkipReason === 'missed_occurrences' &&
+      skipDetail.success &&
+      skipDetail.data.missed.count === 3 &&
+      skipDetail.data.missed.policy === 'skip' &&
+      !skipDetail.data.firedLatest,
+    `latest: runs=${firedLatest} (want 1) fired=${afterLatest?.lastFiredAt === latestAt} next=${afterLatest?.nextDueAt === latestAt + hour} detail=${JSON.stringify(afterLatest?.lastSkipDetail)}; skip: runs=${firedSkip} (want 0) detail=${JSON.stringify(afterSkip?.lastSkipDetail)}`,
+  );
+
+  // Probe 5 — daylight saving: "every day at 02:30" in Zurich, saved the
+  // day before the spring-forward, starts at 03:30 local (01:30Z), the
+  // time 02:30 moves to when the clock skips it. The scan's clock is the
+  // test seam; nothing else is due that early.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: {
+      kind: 'schedule',
+      repeat: { frequency: 'daily', interval: 1, times: ['02:30'] },
+      timezone: 'Europe/Zurich',
+      startDate: '2026-01-01',
+    },
+    actor: 'itest',
+  });
+  await sql`
+    UPDATE app.automation_triggers
+    SET next_due_at_ms = NULL, last_due_at_ms = NULL, last_fired_at_ms = NULL,
+        updated_at_ms = ${Date.parse('2026-03-28T12:00:00Z')}
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const runsBeforeDst = await triggerRuns();
+  await triggersModule.scanScheduledTriggers(sql, {
+    now: Date.parse('2026-03-29T01:30:30Z'),
+  });
+  const firedDst = (await triggerRuns()) - runsBeforeDst;
+  const afterDst = await fenceRow();
+  record(
+    'a Zurich 02:30 rule starts at 03:30 on the spring-forward day, once',
+    firedDst === 1 &&
+      afterDst?.lastFiredAt === Date.parse('2026-03-29T01:30:00Z') &&
+      afterDst.nextDueAt === Date.parse('2026-03-30T00:30:00Z'),
+    `runs=${firedDst} (want 1), fired=${afterDst?.lastFiredAt === null ? 'none' : new Date(afterDst?.lastFiredAt ?? 0).toISOString()} (want 2026-03-29T01:30Z), next=${afterDst?.nextDueAt === null ? 'none' : new Date(afterDst?.nextDueAt ?? 0).toISOString()} (want 2026-03-30T00:30Z)`,
+  );
+
+  // Probe 6 — 0170's zone trim on rows planted before it: a blank zone and
+  // a padded one, both parked as unusable. Re-applying the file (it is
+  // idempotent) trims them, lifts the parking, and the scan claims them —
+  // in UTC — instead of stamping them unusable again.
+  const migrationsDir0170 = new URL('./db/migrations/', import.meta.url);
+  const { readdir: readMigrations } = await import('node:fs/promises');
+  const scheduleFile = (await readMigrations(migrationsDir0170)).find((file) =>
+    file.startsWith('0170_'),
+  );
+  const parked = Date.now() - 600_000;
+  const blankZones = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_triggers (
+      org_id, name, kind, cron, timezone, enabled, last_skip_reason,
+      last_skipped_at_ms, created_by, created_at_ms, updated_at_ms
+    ) VALUES
+      (${orgId}, 'zone/blank', 'schedule', '* * * * *', '', true,
+       'unusable_cron', ${parked}, 'itest', ${parked - 1000}, ${parked - 1000}),
+      (${orgId}, 'zone/padded', 'schedule', '* * * * *', ' UTC ', true,
+       'unusable_cron', ${parked}, 'itest', ${parked - 1000}, ${parked - 1000})
+    RETURNING id
+  `;
+  if (scheduleFile !== undefined) {
+    const ddl = await readFile(
+      new URL(scheduleFile, migrationsDir0170),
+      'utf8',
+    );
+    await sql.begin(async (tx) => {
+      await tx.unsafe(ddl);
+    });
+  }
+  await triggersModule.scanScheduledTriggers(sql);
+  const zones = await sql<
+    {
+      name: string;
+      timezone: string | null;
+      lastSkipReason: string | null;
+      lastDueAt: number | null;
+    }[]
+  >`
+    SELECT name, timezone, last_skip_reason AS "lastSkipReason",
+           last_due_at_ms::float8 AS "lastDueAt"
+    FROM app.automation_triggers
+    WHERE id = ANY(${blankZones.map((row) => row.id)}::text[])
+    ORDER BY name
+  `;
+  await sql`
+    DELETE FROM app.automation_triggers
+    WHERE id = ANY(${blankZones.map((row) => row.id)}::text[])
+  `;
+  record(
+    'migration 0170 trims a blank or padded zone, and the scan claims the schedule in UTC',
+    scheduleFile !== undefined &&
+      zones.length === 2 &&
+      zones[0]?.timezone === null &&
+      zones[1]?.timezone === 'UTC' &&
+      zones.every(
+        (zone) =>
+          zone.lastSkipReason === 'not_deployed' && (zone.lastDueAt ?? 0) > 0,
+      ),
+    `file=${scheduleFile ?? 'missing'}, rows=${JSON.stringify(zones)} (want zones null and "UTC", each claimed as not_deployed)`,
+  );
+
+  // Probe 7 — the due walk reads the partial index, not the table.
+  const plan = await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    return tx<{ 'QUERY PLAN': string }[]>`
+      EXPLAIN SELECT id, next_due_at_ms::float8 AS "nextDueAt"
+      FROM app.automation_triggers
+      WHERE kind = 'schedule' AND enabled AND next_due_at_ms IS NOT NULL
+        AND next_due_at_ms <= ${Date.now()}
+        AND (${true}::boolean
+             OR (next_due_at_ms, id) > (${0}::bigint, ${''}::text))
+      ORDER BY next_due_at_ms, id
+      LIMIT 200
+    `;
+  });
+  const planText = plan.map((row) => row['QUERY PLAN']).join('\n');
+  record(
+    'the due walk of the schedule scan uses the automation_triggers_next_due index',
+    planText.includes('automation_triggers_next_due'),
+    planText,
+  );
+
+  // Back to the fence's minute schedule for the webhook probes below.
+  await store.setTrigger(sql, {
+    organizationId: orgId,
+    name,
+    trigger: { kind: 'schedule', cron: '* * * * *', timezone: 'UTC' },
+    actor: 'itest',
+  });
 
   // ---- #2: webhook redelivery is idempotent — a vendor's delivery id, or a
   // byte-identical body inside the window, answers with the run it already

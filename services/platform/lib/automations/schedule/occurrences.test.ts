@@ -1083,6 +1083,123 @@ describe('decideDue', () => {
   });
 });
 
+/**
+ * The five Europe/Zurich cadences a team of project agents runs on
+ * (`task.start_agent` schedules), driven through the scan's own decision
+ * once a minute: each slot fires once per local day — across the October
+ * fall-back, when 02:00–02:59 happens twice, and the March spring-forward,
+ * when it never happens — because none of them names the 02:00 hour. A scan
+ * back from an outage fires the latest missed slot once, however late, and
+ * counts the others; it never replays the backlog.
+ */
+describe('Zurich agent cadences through the scan decision', () => {
+  const ZONE = 'Europe/Zurich';
+  const cadences: Array<[string, string, string[]]> = [
+    [
+      'fleet manager',
+      '0 0,3,6,9,12,15,18,21 * * *',
+      ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+    ],
+    [
+      'local QA',
+      '15 0,4,8,12,16,20 * * *',
+      ['00:15', '04:15', '08:15', '12:15', '16:15', '20:15'],
+    ],
+    [
+      'review and merge',
+      '45 0,3,6,9,12,15,18,21 * * *',
+      ['00:45', '03:45', '06:45', '09:45', '12:45', '15:45', '18:45', '21:45'],
+    ],
+    [
+      'release and verification',
+      '30 1,5,9,13,17,21 * * *',
+      ['01:30', '05:30', '09:30', '13:30', '17:30', '21:30'],
+    ],
+    ['performance', '15 3,11,19 * * *', ['03:15', '11:15', '19:15']],
+  ];
+  /** A scan every minute from `from` to `to`, carrying its cursor and next
+   * instant as the row does; the occurrences it fires. */
+  const scan = (schedule: Schedule, from: number, to: number): number[] => {
+    const fired: number[] = [];
+    let handled = from - MINUTE;
+    let nextDue = nextOccurrence(schedule, handled);
+    for (let now = from; now < to; now += MINUTE) {
+      if (nextDue === null || nextDue > now + 30_000) continue;
+      const decision = decideDue(
+        schedule,
+        nextDue,
+        handled,
+        now + 30_000,
+        'latest',
+      );
+      if (decision.fire !== null) fired.push(decision.fire);
+      handled = decision.handledThrough;
+      nextDue = decision.next;
+    }
+    return fired;
+  };
+  const days: Array<[string, number, number]> = [
+    ['an ordinary day', at('2026-10-19T22:00Z'), at('2026-10-20T22:00Z')],
+    ['the fall-back day', at('2026-10-24T22:00Z'), at('2026-10-25T23:00Z')],
+    [
+      'the spring-forward day',
+      at('2027-03-27T23:00Z'),
+      at('2027-03-28T22:00Z'),
+    ],
+  ];
+
+  it.each(
+    cadences.flatMap(([role, expression, slots]) =>
+      days.map(
+        ([label, from, to]) =>
+          [role, label, expression, slots, from, to] as const,
+      ),
+    ),
+  )(
+    'the %s cadence fires each slot once on %s',
+    (_role, _label, expression, slots, from, to) => {
+      const fired = scan(cron(expression, ZONE), from, to);
+      const times = fired.map((ms) => local(ms, ZONE));
+      expect(times).toEqual(slots);
+      expect(new Set(fired.map((ms) => localDateIn(ms, ZONE).day)).size).toBe(
+        1,
+      );
+      expect(times.some((time) => time.startsWith('02:'))).toBe(false);
+    },
+  );
+
+  it('fires the latest missed slot once after an outage, and counts the rest', () => {
+    // The scan is away from 20:50 to 22:20 local (CEST): the fleet
+    // manager's 21:00 slot starts at 22:20, once — it used to be dropped
+    // once the scan came back more than an hour late.
+    const fleet = cron('0 0,3,6,9,12,15,18,21 * * *', ZONE);
+    const handled = at('2026-10-20T16:00Z'); // the 18:00 slot, claimed
+    const back = at('2026-10-20T20:20Z');
+    const pending = nextOccurrence(fleet, handled) ?? 0;
+    const decision = decideDue(fleet, pending, handled, back, 'latest');
+    expect(iso(decision.fire ?? 0)).toBe('2026-10-20T19:00Z');
+    expect(decision.missed).toBeNull();
+    // Five hours away: the QA cadence starts its 20:15 slot and counts the
+    // 16:15 one it also missed.
+    const qa = cron('15 0,4,8,12,16,20 * * *', ZONE);
+    const qaHandled = at('2026-10-20T10:15Z'); // 12:15, claimed
+    const qaDecision = decideDue(
+      qa,
+      nextOccurrence(qa, qaHandled) ?? 0,
+      qaHandled,
+      at('2026-10-20T18:30Z'),
+      'latest',
+    );
+    expect(iso(qaDecision.fire ?? 0)).toBe('2026-10-20T18:15Z');
+    expect(qaDecision.missed).toEqual({
+      count: 1,
+      capped: false,
+      firstAt: at('2026-10-20T14:15Z'),
+      lastAt: at('2026-10-20T14:15Z'),
+    });
+  });
+});
+
 describe('scheduleOfTrigger', () => {
   it('reads a cron, in UTC when it names no zone', () => {
     for (const timezone of [null, '', '  ']) {

@@ -826,7 +826,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       );
     },
     'automation.trigger_scan': async () => {
-      const result = await scanScheduledTriggers(deps.sql);
+      // A stopping process ends the scan between schedules; what it did
+      // not reach stays due for the next minute's scan, on any worker.
+      const result = await scanScheduledTriggers(deps.sql, {
+        signal: processShutdown.signal,
+      });
       if (result.fired > 0) {
         console.log(
           `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
@@ -836,7 +840,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // That bootstrap/connection state is not proof the scanner is working.
       // pg-boss persists this only when the actual handler's claim completes;
       // a draining worker's handover must never produce this marker.
-      return result.pages > 0
+      // A scan the shutdown stopped part-way did not finish either.
+      return result.pages > 0 && !processShutdown.signal.aborted
         ? { output: { triggerScanCompleted: true } }
         : undefined;
     },

@@ -197,20 +197,27 @@ hands it a fixed input:
 
 | Trigger | Starts a run when | The run's input |
 | --- | --- | --- |
-| Schedule | its cron expression comes due in its time zone | `{ trigger: "schedule", firedAt }` |
+| Schedule | its repeat rule or cron expression comes due in its time zone | `{ trigger: "schedule", firedAt }` |
 | Webhook | a request reaches its address | `{ trigger: "webhook", payload }` |
 | Platform event | the named event happens in the organization | `{ trigger: "event", event, payload }` |
 
 ### AUTO-R10 · A trigger that could never start a run is refused when it is saved
 
-Refused (`AUTOMATION_TRIGGER_INVALID`), with nothing saved, are: a schedule without a cron
-expression, with one that cannot be read, or with one that names a date no calendar has, such
-as 30 February; a schedule in a time zone that does not exist; an event trigger without an
+Refused (`AUTOMATION_TRIGGER_INVALID`), with nothing saved and each problem named by a code,
+are: a schedule with neither a repeat rule nor a cron expression, or with both; a cron
+expression that cannot be read, or one that names a date no calendar has, such as 30 February;
+a repeat rule with no time of day, a time not written HH:MM, more than twelve times a day, an
+interval the rule does not offer, a day the named month never has, a window whose start is its
+end or in which no start ever falls, or a start date that is not a calendar day; a repeat rule
+without a time zone; a time zone that is blank or does not exist; an event trigger without an
 event name, or with a name the platform never raises; and a field that belongs to another kind
-of trigger, such as a cron expression on a webhook.
+of trigger, such as a cron expression on a webhook. A window may run overnight, from 22:00 to
+06:00.
 
 - **Example**: Noah saves a schedule with the cron expression `0 0 30 2 *` → refused, with the
   message "day-of-month 30 never occurs in month 2", and the trigger he had stays.
+- **Example**: Noah saves a repeat rule "every day" with no time of day → refused with the code
+  `schedule.times_required`, and the trigger he had stays.
 
 ### AUTO-R11 · A webhook address is handed out once, when it is created or rotated
 
@@ -249,12 +256,39 @@ would repeat:
 A success sets the count back to zero. At the fifth failure in a row the schedule is switched
 off and marked `paused_after_failures`, the pause is written to the audit log, and a notice of
 it is sent. A paused schedule keeps its count, whatever a run still in progress does, until
-the trigger is saved; saving it starts a new count and clears the pause. Webhook and event
-triggers count the same way and are never switched off.
+the trigger is saved; saving it starts a new count and clears the pause, and its next run is
+the first occurrence after the save: the occurrences it was off for are not made up. Webhook
+and event triggers count the same way and are never switched off.
 
 - **Example**: A schedule's runs have failed four times in a row on a connector error. The
   fifth run fails the same way → the schedule is switched off and marked
   `paused_after_failures`.
+
+### AUTO-R27 · A schedule starts each occurrence once, at the local time it names
+
+A schedule keeps the time of day it names in its time zone through daylight-saving changes. A
+time the clock skips that day starts once, moved forward by the gap; a time the clock repeats
+starts once, at its first instant. "Every N minutes" and "every N hours" keep their pace in
+real time instead, so an hour the clock repeats runs twice and one it skips not at all. A cron
+expression follows the same rule: one whose minute and hour are spelled out names times of
+day, one whose minute or hour starts with `*` keeps its pace.
+
+- **Example**: Ada's schedule runs "every day at 02:30" in Europe/Zurich → it starts at 03:30
+  on 29 March 2026, when the clock skips 02:30, and once, at the first 02:30, on 25 October
+  2026, when the clock shows 02:30 twice.
+
+### AUTO-R28 · A schedule that missed occurrences starts one at most, and counts the rest
+
+When the platform was not running at an occurrence, the schedule decides what to start when it
+is back. "Latest", the default, starts the most recent missed occurrence once, however late.
+"Skip" starts it only when it is at most ten minutes late. The other missed occurrences are
+counted, up to 1,000, and none of them runs; the trigger shows how many and when
+(`missed_occurrences`). The time a schedule was switched off or paused, and the time before it
+was saved, are not missed.
+
+- **Example**: Ada's schedule runs every day at 09:00, and the platform is down from 08:30 to
+  10:15 → with Latest, a run starts at 10:15 for the 09:00 occurrence; with Skip, no run
+  starts, and the trigger shows one missed occurrence.
 
 ## When a run ends
 
@@ -415,8 +449,9 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
 - **Webhook limits**: the 256 KiB body limit, the two rate limits, and a delivery repeated
   across the organization's address and a project's (`triggers.ts`,
   `backend/core/automations/webhook_delivery.ts`).
-- **Schedules in detail**: daylight-saving changes, two scans meeting the same occurrence, a
-  cron expression that became unreadable (`triggers.ts`, `backend/core/automations/cron.ts`).
+- **Schedules in detail**: two scans meeting the same occurrence, and a schedule that became
+  unreadable (`triggers.ts`, `lib/automations/schedule/occurrences.ts`); `AUTO-R27` covers
+  daylight-saving changes and `AUTO-R28` missed occurrences.
 - **Triggers of an organization that no longer exists** (`triggers.ts`).
 - **Switching a trigger off**: what it stops beyond the next start, such as a project agent a
   schedule had started (`triggers.ts`, `backend/core/automations/agent_host.ts`).
@@ -468,10 +503,6 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   projects?** `AUTO-R7` refuses that start over the API and by webhook. A schedule or an event
   starts it as a run of the organization, in no project (`resolveRunProject` in `store.ts`). No
   test and no page of the docs says which is meant.
-- **Undecided: does a schedule make up for an occurrence it missed?** The user docs say a
-  missed occurrence is not replayed (`docs/en/platform/automations/triggers.md`). The code
-  starts the latest occurrence missed within the last hour, once, and nothing older
-  (`dueOccurrence` in `backend/core/automations/cron.ts`), and a test holds that.
 - **Undecided: can a new automation be created inside an archived project, or one its author
   cannot read?** Creating an automation with a project, and uploading a package into one,
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in

@@ -150,6 +150,7 @@ async function webhook(
   };
   const sql = Object.assign(tag, {
     unsafe: (text: string) => text,
+    json: (value: unknown) => value,
     begin: async (
       transactionOptions: string | ((tx: unknown) => Promise<unknown>),
       callback?: (tx: unknown) => Promise<unknown>,
@@ -647,7 +648,10 @@ describe('dispatchAutomationEvent stamps', () => {
       return [];
     };
     return {
-      tx: Object.assign(tag, { unsafe: (text: string) => text }),
+      tx: Object.assign(tag, {
+        unsafe: (text: string) => text,
+        json: (value: unknown) => value,
+      }),
       queries,
     };
   };
@@ -708,11 +712,14 @@ describe('dispatchAutomationEvent stamps', () => {
     );
     expect(stamps).toHaveLength(1);
     expect(stamps[0]?.text).toContain(
-      'SET last_skipped_at_ms = ?, last_skip_reason = ?',
+      'SET last_skipped_at_ms = ?, last_skip_reason = ?, last_skip_detail = ?',
     );
+    // The detail names the event's moment, the instant it skipped.
+    const at = stamps[0]?.values[0];
     expect(stamps[0]?.values).toEqual([
       expect.any(Number),
       'not_deployed',
+      JSON.stringify({ reason: 'not_deployed', occurrence: at }),
       'trigger-e',
     ]);
   });

@@ -1,6 +1,29 @@
+import {
+  type ParsedTriggerWrite,
+  type TriggerIssue,
+  triggerIssues,
+  type TriggerKind,
+  type TriggerSkipDetail,
+  triggerSkipDetailSchema,
+  type TriggerWrite,
+  triggerWriteSchema,
+} from '@tale/shared/schemas/automation-trigger';
+import {
+  normalizeScheduleRule,
+  type ScheduleRule,
+} from '@tale/shared/schemas/schedule-rule';
 import type { Sql, TransactionSql } from 'postgres';
 
-import { parseCron } from '../../../lib/automations/cron.ts';
+import {
+  CronImpossibleDateError,
+  parseCron,
+} from '../../../lib/automations/cron.ts';
+import {
+  nextOccurrence,
+  type Schedule,
+  scheduleOfTrigger,
+  storedScheduleRuleSchema,
+} from '../../../lib/automations/schedule/occurrences.ts';
 import type {
   LegacyRunQuarantine,
   RunSummary,
@@ -14,11 +37,13 @@ import {
   compileSchemaCached,
   describeSchemaErrors,
 } from '../../../lib/engine/core/validate/schema.ts';
+import { formatIsoDate } from '../../../lib/shared/calendar.ts';
 import {
   EMITTED_EVENT_TYPES,
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import { localDateIn } from '../../../lib/shared/zoned-time.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   boundCheckpointTrace,
@@ -30,7 +55,6 @@ import {
   parkedAgentSettled,
   parksAgentTurn,
 } from '../../core/automations/checkpoints.ts';
-import { wallClockIn } from '../../core/automations/cron.ts';
 import {
   ENGINE_DEFER_MS,
   ENGINE_DEFER_WINDOW_MS,
@@ -1127,111 +1151,202 @@ export async function bindingProjectIds(
 
 // ---------------------------------------------------------------- triggers
 
-export interface TriggerInput {
-  kind: 'schedule' | 'webhook' | 'event';
-  cron?: string;
-  timezone?: string;
-  event?: string;
-  enabled?: boolean;
-  rotateToken?: boolean;
+/** A trigger as a caller writes it — the shared write schema's input. The
+ * store parses it again, so a caller without a schema (MCP, managed
+ * configuration, a pack) meets the same rules as the doors. */
+export type TriggerInput = TriggerWrite;
+
+/** A schedule's stored rule: the repeat rule and the day it starts on. */
+export interface StoredScheduleRule {
+  repeat: ScheduleRule;
+  startDate: string;
 }
 
-/** Which kind each optional key belongs to. A key of another kind used to be
- * stored as sent, so a webhook trigger could read back as one that also ran
- * on a schedule and on an event (`{kind: "webhook", cron, event}` answered
- * 200). The REST and app doors refuse such a body as an unknown key; this is
- * the guard the MCP twin and every other caller converge on. */
-const TRIGGER_KEY_KINDS: ReadonlyArray<
-  [
-    key: 'cron' | 'timezone' | 'event' | 'rotateToken',
-    kind: TriggerInput['kind'],
-  ]
-> = [
-  ['cron', 'schedule'],
-  ['timezone', 'schedule'],
-  ['event', 'event'],
-  ['rotateToken', 'webhook'],
-];
-
-function assertTriggerKeysMatchKind(trigger: TriggerInput): void {
-  for (const [key, kind] of TRIGGER_KEY_KINDS) {
-    if (trigger.kind !== kind && trigger[key] !== undefined) {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `"${key}" belongs to ${kind} triggers — a ${trigger.kind} trigger does not take it.`,
-        400,
-        {
-          issues: [
-            {
-              path: key,
-              message: `is not a field a ${trigger.kind} trigger takes`,
-            },
-          ],
-        },
-      );
-    }
-  }
+/** A trigger after its checks — what `setTrigger` stores. */
+export interface CheckedTrigger {
+  kind: TriggerKind;
+  enabled: boolean;
+  /** Trimmed; null unless a schedule was given one. */
+  cron: string | null;
+  /** In `Intl`'s spelling; null for a cron read in UTC and for other kinds. */
+  timezone: string | null;
+  scheduleRule: StoredScheduleRule | null;
+  /** Stored only when it is `skip`: NULL reads as `latest`, which keeps the
+   * managed configuration hash of a schedule that never chose one. */
+  catchUp: 'skip' | null;
+  event: string | null;
+  rotateToken: boolean;
+  /** When a schedule starts; null for webhook and event triggers. */
+  schedule: Schedule | null;
 }
 
-/**
- * The single validation door for a trigger's shape. Both entry points — the
- * HTTP door (`routes.ts`) and the engine door (`dispatch-store.ts`) — reach
- * `setTrigger`, so validating here is what makes them CONVERGE: a schedule
- * whose cron cannot parse (or whose timezone is not a real IANA zone) is
- * refused at SAVE with an actionable error, instead of saving green and
- * silently never firing (the scanner only `console.warn`s a bad cron). Throws
- * an {@link AutomationError} the surfaces map to a 400 the author sees.
- */
-export function assertTriggerValid(trigger: TriggerInput): void {
-  assertTriggerKeysMatchKind(trigger);
-  if (trigger.kind === 'schedule') {
-    const cron = trigger.cron?.trim() ?? '';
-    if (cron === '') {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        'A schedule trigger needs a cron expression (e.g. "0 9 * * 1" for 09:00 every Monday).',
-      );
-    }
+/** The most problems one refusal lists. */
+const MAX_TRIGGER_ISSUES = 20;
+
+function triggerRefusal(issues: readonly TriggerIssue[]): AutomationError {
+  return new AutomationError(
+    'AUTOMATION_TRIGGER_INVALID',
+    issues[0]?.message ?? 'The trigger cannot be saved.',
+    400,
+    { issues: issues.slice(0, MAX_TRIGGER_ISSUES) },
+  );
+}
+
+function checkSchedule(
+  trigger: Extract<ParsedTriggerWrite, { kind: 'schedule' }>,
+  now: number,
+): Pick<
+  CheckedTrigger,
+  'cron' | 'timezone' | 'scheduleRule' | 'catchUp' | 'schedule'
+> {
+  const cron = trigger.cron?.trim() ?? '';
+  if (cron !== '') {
     try {
       parseCron(cron);
     } catch (error) {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `That cron expression will never fire: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      throw triggerRefusal([
+        {
+          path: 'cron',
+          code:
+            error instanceof CronImpossibleDateError
+              ? 'schedule.cron_impossible_date'
+              : 'schedule.cron_unreadable',
+          message: `That cron expression will never fire: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      ]);
     }
-    const timezone = trigger.timezone?.trim();
-    if (timezone !== undefined && timezone !== '') {
-      try {
-        // The same resolver the scanner uses — an unknown zone throws here
-        // rather than silently firing at the wrong hour later.
-        wallClockIn(Date.now(), timezone);
-      } catch {
-        throw new AutomationError(
-          'AUTOMATION_TRIGGER_INVALID',
-          `"${timezone}" is not a valid IANA time zone (e.g. "Europe/Zurich" or "UTC").`,
-        );
+  }
+  const timezone = trigger.timezone ?? null;
+  // The schema refuses a rule without a zone; the start date defaults to
+  // the day of the save in that zone.
+  const scheduleRule: StoredScheduleRule | null =
+    trigger.repeat === undefined || timezone === null
+      ? null
+      : {
+          repeat: normalizeScheduleRule(trigger.repeat),
+          startDate:
+            trigger.startDate ?? formatIsoDate(localDateIn(now, timezone)),
+        };
+  const read = scheduleOfTrigger({
+    cron: cron === '' ? null : cron,
+    timezone,
+    scheduleRule,
+  });
+  if ('issue' in read) {
+    throw triggerRefusal([
+      { path: 'repeat', code: 'schedule.cron_or_repeat', message: read.issue },
+    ]);
+  }
+  // Nothing the schema admits is this, but a rule or an expression that
+  // never comes due must not save green and wait forever.
+  if (nextOccurrence(read.schedule, now) === null) {
+    throw triggerRefusal([
+      cron === ''
+        ? {
+            path: 'repeat',
+            code: 'schedule.window_never_fires',
+            message: 'This schedule never comes due.',
+          }
+        : {
+            path: 'cron',
+            code: 'schedule.cron_impossible_date',
+            message: 'That cron expression will never fire.',
+          },
+    ]);
+  }
+  return {
+    cron: cron === '' ? null : cron,
+    timezone,
+    scheduleRule,
+    catchUp: trigger.catchUp === 'skip' ? 'skip' : null,
+    schedule: read.schedule,
+  };
+}
+
+/**
+ * The single validation door for a trigger. Every entry point — the app
+ * route, the REST door, MCP's `set_trigger`, managed configuration and the
+ * pack seed — reaches `setTrigger`, so checking here is what makes them
+ * converge: a schedule whose expression cannot be read, whose zone does not
+ * exist or is blank, or which names neither a rule nor a cron is refused at
+ * SAVE with an actionable error, instead of saving green and never firing.
+ * Throws an {@link AutomationError} (`AUTOMATION_TRIGGER_INVALID`, its
+ * problems coded under `data.issues`) the surfaces map to a 400.
+ */
+export function checkTrigger(trigger: unknown, now: number): CheckedTrigger {
+  const parsed = triggerWriteSchema.safeParse(trigger);
+  if (!parsed.success) {
+    throw triggerRefusal(triggerIssues(parsed.error, trigger));
+  }
+  const value = parsed.data;
+  const common = {
+    kind: value.kind,
+    enabled: value.enabled ?? true,
+    cron: null,
+    timezone: null,
+    scheduleRule: null,
+    catchUp: null,
+    event: null,
+    rotateToken: false,
+    schedule: null,
+  } satisfies CheckedTrigger;
+  switch (value.kind) {
+    case 'schedule':
+      return { ...common, ...checkSchedule(value, now) };
+    case 'webhook':
+      return { ...common, rotateToken: value.rotateToken === true };
+    case 'event': {
+      const event = value.event?.trim() ?? '';
+      if (event === '') {
+        throw triggerRefusal([
+          {
+            path: 'event',
+            code: 'event.required',
+            message: `An event trigger needs an event name — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
+          },
+        ]);
       }
+      // Only an event the platform RAISES may be bound: a name it does not
+      // (a typo, or one of the reserved names no producer fires yet) used
+      // to save green, read as enabled and never fire.
+      if (!isEmittedEventType(event)) {
+        throw triggerRefusal([
+          {
+            path: 'event',
+            code: 'event.unknown',
+            message: `"${event}" is not an event the platform raises — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
+          },
+        ]);
+      }
+      return { ...common, event };
+    }
+    default: {
+      const exhaustive: never = value;
+      return exhaustive;
     }
   }
-  if (trigger.kind === 'event') {
-    const event = trigger.event?.trim() ?? '';
-    if (event === '') {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `An event trigger needs an event name — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
-      );
-    }
-    // Only an event the platform RAISES may be bound: a name it does not
-    // (a typo, or one of the reserved names no producer fires yet) used to
-    // save green, read as enabled and never fire.
-    if (!isEmittedEventType(event)) {
-      throw new AutomationError(
-        'AUTOMATION_TRIGGER_INVALID',
-        `"${event}" is not an event the platform raises — one of ${EMITTED_EVENT_TYPES.join(', ')}.`,
-      );
-    }
-  }
+}
+
+/** {@link checkTrigger}, for a caller that only needs the refusal. */
+export function assertTriggerValid(trigger: unknown): void {
+  checkTrigger(trigger, Date.now());
+}
+
+/** Whether two stored rules say the same, however each was spelled; a
+ * stored value that no longer reads as a rule says nothing the same. */
+function sameStoredRule(
+  stored: unknown,
+  next: StoredScheduleRule | null,
+): boolean {
+  if (stored === null || stored === undefined) return next === null;
+  if (next === null) return false;
+  const parsed = storedScheduleRuleSchema.safeParse(stored);
+  return (
+    parsed.success &&
+    parsed.data.startDate === next.startDate &&
+    JSON.stringify(normalizeScheduleRule(parsed.data.repeat)) ===
+      JSON.stringify(next.repeat)
+  );
 }
 
 /**
@@ -1273,16 +1388,13 @@ export async function setTrigger(
       definitionSha256: string;
     };
   },
-): Promise<{ token?: string; revoked?: 'webhook' }> {
-  assertTriggerValid(args.trigger);
+): Promise<SetTriggerResult> {
   const now = Date.now();
-  const minted =
-    args.trigger.kind === 'webhook' ? mintWebhookToken() : undefined;
+  const trigger = checkTrigger(args.trigger, now);
+  const minted = trigger.kind === 'webhook' ? mintWebhookToken() : undefined;
   const mintedHash =
     minted !== undefined ? await hashWebhookToken(minted) : null;
-  const rotate = args.trigger.rotateToken === true;
-  const enabled = args.trigger.enabled ?? true;
-  const { rows, revoked } = await sql.begin(async (tx) => {
+  const { rows, revoked, nextRunAt } = await sql.begin(async (tx) => {
     if (args.managed) {
       await lockAutomationName(tx, args.organizationId, args.name);
       await assertManagedProject(
@@ -1313,10 +1425,11 @@ export async function setTrigger(
         );
     }
     // The row this bind replaces, locked for the rest of the transaction:
-    // what it held decides whether a webhook URL dies here, and two binds
-    // racing on one name settle their order on this lock before the
-    // upsert (a first bind finds nothing, and the upsert's ON CONFLICT
-    // settles that race by itself).
+    // what it held decides whether a webhook URL dies here and whether the
+    // schedule's next-due instant survives the save, and two binds racing on
+    // one name settle their order on this lock before the upsert (a first
+    // bind finds nothing, and the upsert's ON CONFLICT settles that race by
+    // itself).
     const existing = await tx<
       {
         id: string;
@@ -1325,17 +1438,39 @@ export async function setTrigger(
         lastSkipReason: string | null;
         cron: string | null;
         timezone: string | null;
+        scheduleRule: unknown;
         enabled: boolean;
+        nextDueAt: number | null;
       }[]
     >`
       SELECT id, kind, token_hash AS "tokenHash", cron, timezone, enabled,
+             schedule_rule AS "scheduleRule",
+             next_due_at_ms::float8 AS "nextDueAt",
              last_skip_reason AS "lastSkipReason"
       FROM app.automation_triggers
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
       FOR UPDATE
     `;
+    const before = existing[0];
+    // When the schedule is next due. A save that leaves what the schedule
+    // IS unchanged, on a schedule that was and stays on, keeps the instant
+    // the scan has not reached yet: an input-only or no-op save must not
+    // drop an occurrence. Anything else starts after the save — a save never
+    // fires a past occurrence, and switching a schedule back on never makes
+    // up the time it was off.
+    const unchanged =
+      before !== undefined &&
+      before.kind === trigger.kind &&
+      (before.cron?.trim() || null) === trigger.cron &&
+      before.timezone === trigger.timezone &&
+      sameStoredRule(before.scheduleRule, trigger.scheduleRule);
+    const nextDue =
+      trigger.schedule === null || !trigger.enabled
+        ? null
+        : unchanged && before.enabled && before.nextDueAt !== null
+          ? before.nextDueAt
+          : nextOccurrence(trigger.schedule, now);
     if (args.managed) {
-      const before = existing[0] ?? null;
       if (before && before.kind !== 'schedule')
         throw new AutomationError(
           'AUTOMATION_TRIGGER_INVALID',
@@ -1345,13 +1480,13 @@ export async function setTrigger(
       const current = managedScheduleValue(
         args.managed.projectId,
         args.name,
-        before,
+        before ?? null,
       );
       const desired = managedScheduleValue(args.managed.projectId, args.name, {
-        kind: args.trigger.kind,
-        cron: args.trigger.cron ?? null,
-        timezone: args.trigger.timezone ?? null,
-        enabled,
+        kind: trigger.kind,
+        cron: trigger.cron,
+        timezone: trigger.timezone,
+        enabled: trigger.enabled,
       });
       assertManagedHash(
         managedConfigurationHash(current),
@@ -1360,9 +1495,13 @@ export async function setTrigger(
       if (
         managedConfigurationHash(current) === managedConfigurationHash(desired)
       )
-        return { rows: [], revoked: false };
+        return {
+          rows: [],
+          revoked: false,
+          nextRunAt: before?.enabled ? (before.nextDueAt ?? null) : null,
+        };
       if (
-        (before !== null && !before.enabled && enabled) ||
+        (before !== undefined && !before.enabled && trigger.enabled) ||
         before?.lastSkipReason === 'paused_after_failures'
       )
         throw new AutomationError(
@@ -1374,21 +1513,26 @@ export async function setTrigger(
     const upserted = await tx<{ tokenHash: string | null }[]>`
       INSERT INTO app.automation_triggers AS t (
         org_id, name, kind, cron, timezone, event, token_hash, enabled,
-        created_by, created_at_ms, updated_at_ms
+        created_by, created_at_ms, updated_at_ms,
+        schedule_rule, catch_up, next_due_at_ms
       ) VALUES (
-        ${args.organizationId}, ${args.name}, ${args.trigger.kind},
-        ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
-        ${args.trigger.event?.trim() ?? null}, ${mintedHash}, ${enabled},
-        ${args.actor}, ${now}, ${now}
+        ${args.organizationId}, ${args.name}, ${trigger.kind},
+        ${trigger.cron}, ${trigger.timezone},
+        ${trigger.event}, ${mintedHash}, ${trigger.enabled},
+        ${args.actor}, ${now}, ${now},
+        ${jsonParam(tx, trigger.scheduleRule)}, ${trigger.catchUp}, ${nextDue}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
         kind = EXCLUDED.kind,
         cron = EXCLUDED.cron,
         timezone = EXCLUDED.timezone,
+        schedule_rule = EXCLUDED.schedule_rule,
+        catch_up = EXCLUDED.catch_up,
+        next_due_at_ms = EXCLUDED.next_due_at_ms,
         event = EXCLUDED.event,
         token_hash = CASE
           WHEN EXCLUDED.kind <> 'webhook' THEN NULL
-          WHEN ${rotate}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
+          WHEN ${trigger.rotateToken}::boolean OR t.token_hash IS NULL THEN EXCLUDED.token_hash
           ELSE t.token_hash
         END,
         last_fired_at_ms = CASE
@@ -1411,6 +1555,11 @@ export async function setTrigger(
         last_skip_reason = CASE
           WHEN t.last_skip_reason = 'paused_after_failures' THEN NULL
           WHEN t.kind = EXCLUDED.kind THEN t.last_skip_reason
+          ELSE NULL
+        END,
+        last_skip_detail = CASE
+          WHEN t.last_skip_reason = 'paused_after_failures' THEN NULL
+          WHEN t.kind = EXCLUDED.kind THEN t.last_skip_detail
           ELSE NULL
         END,
         consecutive_failures = CASE WHEN ${args.managed !== undefined} THEN t.consecutive_failures ELSE 0 END,
@@ -1437,7 +1586,6 @@ export async function setTrigger(
         'The managed trigger changed during creation.',
         409,
       );
-    const before = existing[0];
     if (before?.lastSkipReason === 'paused_after_failures') {
       await dismissTriggerPausedNotifications(tx, {
         organizationId: args.organizationId,
@@ -1451,7 +1599,8 @@ export async function setTrigger(
         before !== undefined &&
         before.kind === 'webhook' &&
         before.tokenHash !== null &&
-        args.trigger.kind !== 'webhook',
+        trigger.kind !== 'webhook',
+      nextRunAt: nextDue,
     };
   });
   const landed = rows[0]?.tokenHash ?? null;
@@ -1460,7 +1609,18 @@ export async function setTrigger(
       ? { token: minted }
       : {}),
     ...(revoked ? { revoked: 'webhook' as const } : {}),
+    ...(trigger.kind === 'schedule' ? { nextRunAt } : {}),
   };
+}
+
+/** What a bind answers besides the stored trigger. */
+export interface SetTriggerResult {
+  /** A webhook's plaintext token, minted by this bind and shown once. */
+  token?: string;
+  /** The live webhook address this bind replaced with another kind. */
+  revoked?: 'webhook';
+  /** A schedule's next start; null while it is switched off. */
+  nextRunAt?: number | null;
 }
 
 export async function deleteTrigger(
@@ -1489,39 +1649,100 @@ export async function deleteTrigger(
 }
 
 /** Why a binding started nothing — the skip ledger's closed set (the
- * column's CHECK, migrations 0096 and 0124). `paused_after_failures` is the
- * one that is a state, not an occurrence: the schedule turned itself off. */
+ * column's CHECK, migrations 0096, 0124 and 0171). `paused_after_failures`
+ * is the one that is a state, not an occurrence: the schedule turned itself
+ * off. `missed_occurrences` counts the occurrences a schedule did not start
+ * while the platform was not running. */
 export type TriggerSkipReason =
   | 'not_deployed'
   | 'unusable_cron'
   | 'start_refused'
-  | 'paused_after_failures';
+  | 'paused_after_failures'
+  | 'missed_occurrences';
 
 /** A trigger binding as a reader sees it — never the secret that verifies
  * it. The fire ledger (0096) is the binding's health: `lastFiredAt` and
- * `lastRunId` name the last run it started, `lastSkippedAt` and
- * `lastSkipReason` the last time it came due and started nothing (or when a
- * schedule paused itself). The failure streak (0124) counts the permanent
- * failures in a row among the runs it started since its last save;
- * `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the last of
- * them. */
+ * `lastRunId` name the last run it started (a schedule's `lastFiredAt` is
+ * the occurrence it started for), `lastSkippedAt`, `lastSkipReason` and
+ * `lastSkipDetail` the last time it came due and started nothing (or when
+ * a schedule paused itself). The failure streak (0124) counts the
+ * permanent failures in a row among the runs it started since its last
+ * save; `lastFailedAt`, `lastFailureCode` and `lastFailedRunId` name the
+ * last of them. */
 export interface TriggerListing {
   id: string;
   name: string;
   kind: string;
+  /** A schedule's cron expression; null when it runs on a repeat rule. */
   cron: string | null;
+  /** A schedule's repeat rule; null when it runs on a cron expression. */
+  repeat: ScheduleRule | null;
+  /** The day the repeat rule starts on, in its zone. */
+  startDate: string | null;
   timezone: string | null;
+  /** What a schedule does with missed occurrences; null for other kinds. */
+  catchUp: 'latest' | 'skip' | null;
   event: string | null;
   hasToken: boolean;
   enabled: boolean;
+  /** A schedule's next start (the earliest one it has not handled yet);
+   * null when it is switched off, is not a schedule, or never comes due. */
+  nextRunAt: number | null;
   lastFiredAt: number | null;
   lastRunId: string | null;
   lastSkippedAt: number | null;
   lastSkipReason: TriggerSkipReason | null;
+  lastSkipDetail: TriggerSkipDetail | null;
   consecutiveFailures: number;
   lastFailedAt: number | null;
   lastFailureCode: string | null;
   lastFailedRunId: string | null;
+}
+
+interface TriggerListingRow extends Omit<
+  TriggerListing,
+  'repeat' | 'startDate' | 'nextRunAt' | 'lastSkipDetail'
+> {
+  scheduleRule: unknown;
+  nextDueAt: number | null;
+  lastSkipDetail: unknown;
+}
+
+/** What a stored row reads as: its rule only when the rule is what runs (a
+ * non-empty cron wins), its next start computed when the scan has not yet,
+ * and a skip detail only when it explains the reason the row carries — a
+ * previous image stamps a reason without one. */
+function toTriggerListing(row: TriggerListingRow, now: number): TriggerListing {
+  const { scheduleRule, nextDueAt, lastSkipDetail, ...rest } = row;
+  const isSchedule = row.kind === 'schedule';
+  const hasCron = (row.cron ?? '').trim() !== '';
+  const stored = storedScheduleRuleSchema.safeParse(scheduleRule);
+  const rule = isSchedule && !hasCron && stored.success ? stored.data : null;
+  let nextRunAt: number | null = null;
+  if (isSchedule && row.enabled) {
+    if (nextDueAt !== null) {
+      nextRunAt = nextDueAt;
+    } else {
+      const read = scheduleOfTrigger({
+        cron: row.cron,
+        timezone: row.timezone,
+        scheduleRule,
+      });
+      nextRunAt = 'issue' in read ? null : nextOccurrence(read.schedule, now);
+    }
+  }
+  const detail = triggerSkipDetailSchema.safeParse(lastSkipDetail);
+  return {
+    ...rest,
+    repeat: rule === null ? null : normalizeScheduleRule(rule.repeat),
+    startDate: rule?.startDate ?? null,
+    catchUp: isSchedule ? (row.catchUp ?? 'latest') : null,
+    nextRunAt,
+    lastSkipDetail:
+      detail.success && detail.data.reason === row.lastSkipReason
+        ? detail.data
+        : null,
+  };
 }
 
 export async function listTriggers(
@@ -1529,14 +1750,18 @@ export async function listTriggers(
   organizationId: string,
   name?: string,
 ): Promise<TriggerListing[]> {
-  return sql<TriggerListing[]>`
+  const rows = await sql<TriggerListingRow[]>`
     SELECT id, name, kind, cron, timezone, event,
+           schedule_rule AS "scheduleRule",
+           catch_up AS "catchUp",
+           next_due_at_ms::float8 AS "nextDueAt",
            (token_hash IS NOT NULL AND token_hash <> '') AS "hasToken",
            enabled,
            last_fired_at_ms::float8 AS "lastFiredAt",
            last_run_id AS "lastRunId",
            last_skipped_at_ms::float8 AS "lastSkippedAt",
            last_skip_reason AS "lastSkipReason",
+           last_skip_detail AS "lastSkipDetail",
            consecutive_failures AS "consecutiveFailures",
            last_failed_at_ms::float8 AS "lastFailedAt",
            last_failure_code AS "lastFailureCode",
@@ -1546,6 +1771,8 @@ export async function listTriggers(
       AND (${name ?? null}::text IS NULL OR name = ${name ?? null})
     ORDER BY name
   `;
+  const now = Date.now();
+  return rows.map((row) => toTriggerListing(row, now));
 }
 
 // ------------------------------------------------------------------- runs

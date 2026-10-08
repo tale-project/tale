@@ -890,7 +890,9 @@ export interface ScheduleSource {
   scheduleRule: unknown;
 }
 
-const storedRuleSchema = z.object({
+/** A schedule rule as a trigger row stores it: the rule and the day it
+ * starts on. */
+export const storedScheduleRuleSchema = z.object({
   repeat: scheduleRuleSchema,
   startDate: z.string(),
 });
@@ -929,7 +931,7 @@ export function scheduleOfTrigger(
   if (source.scheduleRule === null || source.scheduleRule === undefined) {
     return { issue: 'the schedule has neither a cron expression nor a rule' };
   }
-  const stored = storedRuleSchema.safeParse(source.scheduleRule);
+  const stored = storedScheduleRuleSchema.safeParse(source.scheduleRule);
   if (!stored.success) {
     return {
       issue: `the stored repeat rule is unreadable: ${stored.error.issues[0]?.message ?? 'invalid'}`,

@@ -1,5 +1,9 @@
 /**
- * Minute-resolution cron matching for `schedule` triggers.
+ * Minute-resolution cron matching — the editor's legacy cron preview
+ * (`app/features/automations/lib/cron-preview.ts`) and the oracle the
+ * schedule evaluator's tests hold it to. The scan no longer reads it: when a
+ * schedule starts is `lib/automations/schedule/occurrences.ts`'s, for cron
+ * expressions and repeat rules alike.
  *
  * Five fields — minute, hour, day-of-month, month, day-of-week — each a `*`, a
  * number, a `a-b` range, a step (`a-b/n`, or a wildcard with a step), or a
@@ -30,11 +34,6 @@ import {
 // `lib/automations/cron.ts`, shared with the editor's preview so both refuse
 // the same expressions; this module keeps the wall-clock half.
 export { parseCron, type CronField, type CronSchedule };
-
-/** How far back a scan will look for a missed minute. A schedule is a
- * heartbeat, not a queue: after an outage the automation resumes on its next
- * occurrence rather than replaying an hour of them. */
-const MAX_CATCHUP_MS = 60 * 60 * 1000;
 
 const MINUTE_MS = 60 * 1000;
 
@@ -155,27 +154,6 @@ export function firstOccurrenceBetween(
     }
     if (matchesField(schedule.minute, clock.minute)) return at;
     at += MINUTE_MS;
-  }
-  return null;
-}
-
-/**
- * The most recent occurrence at or before `now` that is strictly newer than
- * `since`, or null when the schedule is not due. Minutes are scanned backwards
- * from `now`, bounded by {@link MAX_CATCHUP_MS}, so one scan fires an
- * automation at most once however long the scanner was away.
- */
-export function dueOccurrence(
-  expression: string,
-  timezone: string,
-  since: number,
-  now: number,
-): number | null {
-  const schedule = parseCron(expression);
-  const floor = Math.floor(now / MINUTE_MS) * MINUTE_MS;
-  const earliest = Math.max(since, now - MAX_CATCHUP_MS);
-  for (let at = floor; at > earliest; at -= MINUTE_MS) {
-    if (cronMatches(schedule, at, timezone)) return at;
   }
   return null;
 }

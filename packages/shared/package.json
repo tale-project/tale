@@ -7,6 +7,7 @@
     "./agent-tool-grants": "./src/agent-tool-grants.ts",
     "./automation-name": "./src/automation-name.ts",
     "./task-limits": "./src/task-limits.ts",
+    "./time-zone": "./src/time-zone.ts",
     "./db/retry": "./src/db/retry.ts",
     "./db/migration-files": "./src/db/migration-files.ts",
     "./db/serializable": "./src/db/serializable.ts",
@@ -43,6 +44,7 @@
     "./schemas/task-external-status": "./src/schemas/task-external-status.ts",
     "./schemas/task-review": "./src/schemas/task-review.ts",
     "./schemas/schedule-rule": "./src/schemas/schedule-rule.ts",
+    "./schemas/automation-trigger": "./src/schemas/automation-trigger.ts",
     "./monitoring/privacy": "./src/monitoring/privacy.ts"
   },
   "scripts": {
