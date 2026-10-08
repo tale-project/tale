@@ -484,6 +484,30 @@ describe('readBudgetStanding', () => {
     );
   });
 
+  it('counts model requests alone toward a request cap, never connector calls [GOV-R15]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', period: 'monthly', maxRequests: 20 },
+        { scope: 'org', period: 'monthly', maxRequests: 500 },
+      ],
+    };
+    const recorded = recordingLedger({});
+
+    await readBudgetStanding(recorded.sql, SUBJECT, NOW);
+
+    const ledgerReads = recorded.queries.filter((text) =>
+      text.includes('FROM app.usage_ledger'),
+    );
+    expect(ledgerReads.length).toBeGreaterThan(0);
+    for (const text of ledgerReads) {
+      // A row a connector names is a connector call, old rows included.
+      expect(text).toContain(
+        'sum(request_count) FILTER (WHERE connector_name IS NULL)',
+      );
+    }
+  });
+
   it('reads the personal and organization buckets the gate checks', async () => {
     policy.config = {
       enabled: true,

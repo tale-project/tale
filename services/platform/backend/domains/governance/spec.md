@@ -80,6 +80,17 @@ allowance.
 - **Example**: Two agents are working for Mia and hold most of what is left under her limit.
   She starts a third → it gets only what remains, or is refused.
 
+### GOV-R15 · A connector call is counted on its own, never as a model request
+
+Every call Tale makes through a connector is counted as a connector call, at no cost, under whoever
+made it and with the API key it came with: the assistant's search and web tools, an agent's or an
+automation's connector step, an email sent from the Inbox. A request limit counts model requests
+alone, so connector calls never use it up.
+
+- **Example**: Mia's rule allows 20 requests a day and she has used 19. Her next chat reply
+  searches the documents five times → the reply runs, and its searches add nothing to her
+  requests.
+
 ### GOV-R6 · A warning comes before a limit is reached, for each limit on its own
 
 The organization's limit, an API key's limit and a person's limit each have their own warning
