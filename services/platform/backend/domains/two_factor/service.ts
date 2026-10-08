@@ -188,8 +188,13 @@ export interface TwoFactorEnforcement {
 export async function evaluateTwoFactorEnforcement(
   db: Db,
   userId: string,
+  known?: {
+    /** Every organization the user belongs to, when the caller already
+     * read them (the org gate does, with the membership itself). */
+    organizationIds: readonly string[];
+  },
 ): Promise<TwoFactorEnforcement> {
-  const orgIds = await userOrgIds(db, userId);
+  const orgIds = known?.organizationIds ?? (await userOrgIds(db, userId));
   const policies = await Promise.all(
     orgIds.map(async (organizationId) => {
       const policy = await readGovernancePolicyForOrg(

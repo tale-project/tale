@@ -96,25 +96,15 @@ async function organizationExists(
 }
 
 /**
- * Resolve the caller's ACTIVE membership of `organizationId` or throw.
- * Mirrors the 0.4 `getOrganizationMember` error contract: distinguishes a
- * missing org from a non-membership, and treats the `disabled` role as
- * forbidden. (The 0.4 email-fallback branch is NOT ported — it patched SSO
- * account-linking splits across the component boundary; the SSO port decides
- * whether 0.5 still needs an equivalent.)
+ * The refusal for a caller with no ACTIVE row in `organizationId`, or the
+ * row itself: a missing org is told apart from a non-membership, and the
+ * `disabled` role is forbidden.
  */
-export async function requireOrganizationMember(
+async function activeMemberOrThrow(
   sql: Sql | TransactionSql,
   organizationId: string,
-  userId: string,
+  member: OrganizationMember | null,
 ): Promise<OrganizationMember> {
-  if (!organizationId) {
-    throw new MembershipError(
-      'Organization id is required.',
-      'ORG_ID_REQUIRED',
-    );
-  }
-  const member = await findOrganizationMember(sql, organizationId, userId);
   if (!member) {
     if (!(await organizationExists(sql, organizationId))) {
       throw new MembershipError(
@@ -134,6 +124,68 @@ export async function requireOrganizationMember(
     );
   }
   return member;
+}
+
+/**
+ * Resolve the caller's ACTIVE membership of `organizationId` or throw.
+ * Mirrors the 0.4 `getOrganizationMember` error contract: distinguishes a
+ * missing org from a non-membership, and treats the `disabled` role as
+ * forbidden. (The 0.4 email-fallback branch is NOT ported — it patched SSO
+ * account-linking splits across the component boundary; the SSO port decides
+ * whether 0.5 still needs an equivalent.)
+ */
+export async function requireOrganizationMember(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<OrganizationMember> {
+  if (!organizationId) {
+    throw new MembershipError(
+      'Organization id is required.',
+      'ORG_ID_REQUIRED',
+    );
+  }
+  return activeMemberOrThrow(
+    sql,
+    organizationId,
+    await findOrganizationMember(sql, organizationId, userId),
+  );
+}
+
+/**
+ * The caller's ACTIVE membership of `organizationId` together with every
+ * organization the caller belongs to, from ONE indexed read of their member
+ * rows. The org gate needs both on every request — the membership to admit
+ * the call, and the full list to merge the strictest two-factor policy — and
+ * used to read them separately. Same error contract as
+ * {@link requireOrganizationMember}.
+ */
+export async function requireOrganizationMembership(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<{ member: OrganizationMember; organizationIds: string[] }> {
+  if (!organizationId) {
+    throw new MembershipError(
+      'Organization id is required.',
+      'ORG_ID_REQUIRED',
+    );
+  }
+  const rows = await sql<
+    { id: string; organizationId: string; userId: string; role: string }[]
+  >`
+    SELECT "id", "organizationId", "userId", "role" FROM "member"
+    WHERE "userId" = ${userId}
+  `;
+  const row = rows.find(
+    (candidate) => candidate.organizationId === organizationId,
+  );
+  const member = await activeMemberOrThrow(
+    sql,
+    organizationId,
+    row ? { ...row, role: row.role.toLowerCase() } : null,
+  );
+  return { member, organizationIds: rows.map((r) => r.organizationId) };
 }
 
 /** The roles that carry an org's elevated seat — Better Auth creates orgs
