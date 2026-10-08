@@ -575,18 +575,21 @@ const KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL =
  * The same, when a usage limit refused the search: the query's embedding
  * is a model call this conversation pays for, and a limit that binds it
  * has too little room. Nothing is broken, and nothing was found missing.
+ * The refusal's own sentence names the limit and when it resets.
  */
-const KNOWLEDGE_USAGE_LIMIT_FOR_MODEL =
-  'not searched: a usage limit that applies to this conversation has been ' +
-  'reached, so documents and web pages could not be searched. Tell the ' +
-  'user plainly that the search did not run because of the usage limit — ' +
-  'Settings → Usage shows when it resets — and do not treat it as nothing ' +
-  'found.';
+function knowledgeUsageLimitForModel(error: EmbeddingBudgetExceeded): string {
+  return (
+    `not searched: ${error.message} Documents, emailed files and web pages ` +
+    'could not be searched. Tell the user plainly that the search did not ' +
+    'run because of this usage limit — Settings → Usage shows when it ' +
+    'resets — and do not treat it as nothing found.'
+  );
+}
 
 /** The sentence for the model, by cause — never the raw error. */
 function knowledgeUnavailableForModel(error: unknown): string {
   if (error instanceof EmbeddingBudgetExceeded) {
-    return KNOWLEDGE_USAGE_LIMIT_FOR_MODEL;
+    return knowledgeUsageLimitForModel(error);
   }
   return isTerminalCredentialRefusal(error)
     ? KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL
@@ -1060,6 +1063,10 @@ export function createChatToolExecutor(
     /** Email-body hits leg 1 returned — conversation rows, which leg 8's
      * source label has to count as matches. */
     let emailBodyHits = 0;
+    /** Why leg 1 did not run, for the model — a usage limit, a broken
+     * embedding setup — when it did not: nothing it would have searched
+     * may then read as searched and empty. */
+    let corpusUnavailable: string | null = null;
     // Mail — the bodies of inbound email and their attachments — is
     // conversation content: the role that gates the inbox gates it. A mail
     // narrow (`conversation`, `mail-attachment`) for a role that cannot read
@@ -1227,6 +1234,7 @@ export function createChatToolExecutor(
           // prose ended up quoted to an end user, who read it as a product
           // fault.
           const unavailable = knowledgeUnavailableForModel(error);
+          corpusUnavailable = unavailable;
           if (runLeg('document')) {
             sources.documents = unavailable;
           }
@@ -1466,7 +1474,7 @@ export function createChatToolExecutor(
         // reads as "the inbox holds nothing", which is a different claim. An
         // email body leg 1 matched is a conversation match too.
         const matched = found.conversations.length + emailBodyHits;
-        sources.conversations =
+        const label =
           matched > 0
             ? found.truncated
               ? 'searched (recent conversations only)'
@@ -1474,6 +1482,12 @@ export function createChatToolExecutor(
             : found.truncated
               ? 'searched (no matches among recent conversations)'
               : 'searched (no matches)';
+        // The bodies of the emails are leg 1's to search: when it did not
+        // run, an empty answer here is about subjects and senders alone.
+        sources.conversations =
+          wantMail && corpusUnavailable !== null
+            ? `${label} — email bodies ${corpusUnavailable}`
+            : label;
       } else {
         sources.conversations = 'access denied for your role';
       }
@@ -1481,7 +1495,8 @@ export function createChatToolExecutor(
 
     // Every leg is already capped; no global slice. An empty answer says
     // what to do INSTEAD of searching again — the result payload is the
-    // steer, not a system rule.
+    // steer, not a system rule. When the corpus leg did not run, the empty
+    // answer is not "no matches": its cause is the steer.
     return {
       status: 'ok',
       query,
@@ -1489,11 +1504,12 @@ export function createChatToolExecutor(
       ...(results.length === 0
         ? {
             message:
+              corpusUnavailable ??
               'No matches in the organization’s knowledge. Do not re-run ' +
-              'reworded variants of this query. Browse a catalog with ' +
-              'action "list" when you meant one, answer from what you ' +
-              'already have — or, when a public page’s URL is known, read ' +
-              'it with web_fetch.',
+                'reworded variants of this query. Browse a catalog with ' +
+                'action "list" when you meant one, answer from what you ' +
+                'already have — or, when a public page’s URL is known, read ' +
+                'it with web_fetch.',
           }
         : {}),
       sources,

@@ -538,7 +538,9 @@ describe('rag_search', () => {
   it('meters the query as the turn’s spend, and says a usage limit stopped it — never as nothing found [GOV-R4] [KNOW-R17]', async () => {
     const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
     searchKnowledgeMock.mockRejectedValueOnce(
-      new EmbeddingBudgetExceeded('Usage limit reached.'),
+      new EmbeddingBudgetExceeded(
+        'Usage limit reached. Your monthly cost limit is used up until 2026-11-01T00:00:00.000Z.',
+      ),
     );
     const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
     const executor = await makeExecutor(createCtx().ctx, {
@@ -556,9 +558,36 @@ describe('rag_search', () => {
       expect.anything(),
       expect.objectContaining({ meter }),
     );
-    expect(result.sources?.documents).toMatch(/^not searched: a usage limit/);
+    // The refusal's own sentence: which limit, and when it resets.
+    expect(result.sources?.documents).toMatch(
+      /^not searched: Usage limit reached\. Your monthly cost limit is used up until 2026-11-01/,
+    );
     expect(result.sources?.documents).toContain('do not treat it as nothing');
     expect(result.sources?.webPages).toBe(result.sources?.documents);
+    // Nothing else matched either: the steer is why the search did not
+    // run, never "no matches".
+    expect(result.results).toEqual([]);
+    expect(result.message).toBe(result.sources?.documents);
+    expect(result.message).not.toContain('No matches');
+  });
+
+  it('says the email bodies went unsearched when a usage limit stopped a conversation search [KNOW-R17]', async () => {
+    const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.'),
+    );
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'invoice dispute', kind: 'conversation' },
+    });
+
+    expect(result.sources?.conversations).toMatch(
+      /^searched \(no matches\) — email bodies not searched: Usage limit reached\./,
+    );
+    expect(result.message).toMatch(/^not searched: Usage limit reached\./);
   });
 
   it('reads a denied subject as denied, without running its query', async () => {
@@ -1835,6 +1864,8 @@ describe('rag_search conversations leg', () => {
   // "No matches" and "no matches among what I could reach" are different
   // claims, and the bounded recency scan can only honestly make the second.
   it('says so when the bounded scan filled up', async () => {
+    // The email bodies were searched too, and matched nothing.
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
     const { ctx } = createCtx({
       reads: {
         [CONVERSATIONS_SEARCH_FN]: () => ({

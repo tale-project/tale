@@ -305,7 +305,9 @@ describe('dispatchWorkspaceToolImpl', () => {
     const { EmbeddingBudgetExceeded } =
       await import('../../knowledge/embedding');
     searchKnowledgeMock.mockRejectedValueOnce(
-      new EmbeddingBudgetExceeded('Usage limit reached.'),
+      new EmbeddingBudgetExceeded(
+        'Usage limit reached. The organization’s monthly cost limit is used up until 2026-11-01T00:00:00.000Z.',
+      ),
     );
     vi.spyOn(console, 'info').mockImplementation(() => {});
     const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
@@ -321,9 +323,13 @@ describe('dispatchWorkspaceToolImpl', () => {
       expect.objectContaining({ meter }),
     );
     expect(result.status).toBe('unavailable');
-    expect((result.blockers as { code: string }[])[0]?.code).toBe(
-      'usage_limit',
+    const [blocker] = result.blockers as { code: string; guidance: string }[];
+    expect(blocker?.code).toBe('usage_limit');
+    // The refusal's own sentence: whose limit, and when it resets.
+    expect(blocker?.guidance).toContain(
+      'The organization’s monthly cost limit is used up until 2026-11-01',
     );
+    expect(blocker?.guidance).toContain('Do not treat it as nothing found.');
   });
 
   it('rag_search carries the SESSION-derived access scope, never a body one', async () => {

@@ -872,7 +872,8 @@ const KNOWLEDGE_ACCESS_BLOCKERS: Record<
  * transport error, so the agent tells the user instead of retrying. */
 function knowledgeUnavailable(error: unknown): ToolResult {
   // A usage limit refused the query's embedding: nothing is broken, the
-  // search simply did not run — said as such, never as "nothing found".
+  // search simply did not run — said as such, never as "nothing found",
+  // in the refusal's own sentence, which names the limit and its reset.
   if (error instanceof EmbeddingBudgetExceeded) {
     console.info(`[sandbox] knowledge search refused: ${error.message}`);
     return {
@@ -881,10 +882,9 @@ function knowledgeUnavailable(error: unknown): ToolResult {
         {
           code: 'usage_limit',
           guidance:
-            'Knowledge search did not run: a usage limit that applies to ' +
-            'this run has been reached. Say so to the person you work ' +
-            'for; it works again once the limit resets or is raised. Do ' +
-            'not treat it as nothing found.',
+            `Knowledge search did not run. ${error.message} Say so to the ` +
+            'person you work for; it works again once the limit resets or ' +
+            'is raised. Do not treat it as nothing found.',
         },
       ],
     };
