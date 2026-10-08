@@ -8,6 +8,7 @@ import { EnvStore } from './env-store.ts';
 import { ExecManager } from './exec-manager.ts';
 import { ExecReplay } from './exec-replay.ts';
 import { isRunnerdExecEvent, type RunnerdExecEvent } from './protocol.ts';
+import { taggedPids } from './process-reaper.ts';
 
 const root = realpathSync(mkdtempSync(`${tmpdir()}/exec-completion-`));
 const request = {
@@ -188,6 +189,40 @@ test.skipIf(process.platform !== 'linux')(
       expect(alive(survivor)).toBe(true);
       expect(manager.cancel('completion-peer')).toBe(true);
       await peer;
+      // DIAGNOSTIC (throwaway branch): how fast and by which signal is the
+      // survivor ended? A miss of the SIGTERM round fails the test with a
+      // report instead of being covered by the SIGKILL round.
+      {
+        const t1 = performance.now();
+        const sentBefore = sent.length;
+        const statusOf = (): string => {
+          try {
+            return readFileSync(`/proc/${survivor}/status`, 'utf8')
+              .split('\n')
+              .filter((l) => /^(State|PPid|SigBlk|SigIgn|SigCgt):/.test(l))
+              .join(' ');
+          } catch (e) {
+            return `status unreadable: ${String(e)}`;
+          }
+        };
+        const environOf = (): string => {
+          try {
+            const env = readFileSync(`/proc/${survivor}/environ`, 'latin1');
+            return `len=${env.length} tag=${env.split('\0').find((e) => e.startsWith('TALE_EXEC_ID=')) ?? 'none'}`;
+          } catch (e) {
+            return `environ unreadable: ${String(e)}`;
+          }
+        };
+        const atReap = { status: statusOf(), environ: environOf(), leftovers: manager.leftoverCount() };
+        const scanAtReap = (await taggedPids('completion-finished')).includes(survivor);
+        const until = t1 + 9_000;
+        while (running(survivor) && performance.now() < until) await Bun.sleep(5);
+        const endedAfterMs = Math.round(performance.now() - t1);
+        const toSurvivor = sent.slice(sentBefore).filter(([pid]) => pid === survivor);
+        if (endedAfterMs > 1_000 || !toSurvivor.some(([, sig]) => sig === 'SIGTERM')) {
+          throw new Error(`DIAG-MISS endedAfterMs=${endedAfterMs} running=${running(survivor)} toSurvivor=${JSON.stringify(toSurvivor)} allSentSinceCancel=${JSON.stringify(sent.slice(sentBefore))} atReap=${JSON.stringify(atReap)} scanAtReap=${scanAtReap} now=${JSON.stringify({ status: statusOf(), environ: environOf(), scan: (await taggedPids('completion-finished')).includes(survivor) })}`);
+        }
+      }
       // The session's last exec ended: what the finished one left is reaped.
       // The SIGTERM round can miss a leftover in the middle of an execve (its
       // environment reads empty then, so it carries no tag); the SIGKILL

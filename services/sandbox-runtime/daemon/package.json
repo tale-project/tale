@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "bun build --target=node src/main.ts --outfile dist/runnerd.mjs && bun build --target=node src/lazy-docker-entry.ts --outfile dist/lazy-docker.mjs",
-    "test": "bun test",
+    "test": "bun test --rerun-each=4",
     "typecheck": "tsc --noEmit",
     "lint": "bunx oxlint --type-aware",
     "lint:fix": "bunx oxlint --type-aware --fix"
