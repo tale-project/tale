@@ -78,9 +78,11 @@ Attach replay waits for socket drain and disconnects a reader stalled for two
 seconds. The command continues under its existing deadline. Reconnect using
 the last sequence number. `replay-start` precedes history; `replay-complete`
 names the attachment's initial sequence watermark. Checkpoints are atomically
-committed and synced before acknowledged segments are removed. Normal disposal
-removes runtime-owned spool files; the entrypoint cleans their temporary directory
-at restart. Replay does not survive runtime restart, while the workspace does.
+committed (a temporary file renamed into place) before acknowledged segments are
+removed; they are not synced to disk, since nothing reads one after a restart.
+Normal disposal removes runtime-owned spool files; the entrypoint cleans their
+temporary directory at restart. Replay does not survive runtime restart, while
+the workspace does.
 
 Session idle and TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).

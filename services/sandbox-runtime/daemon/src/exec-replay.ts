@@ -428,6 +428,16 @@ export class ExecReplay {
     });
   }
 
+  /**
+   * Replace the checkpoint: write a temporary file, then rename it over the
+   * last one, so a reader in this process sees the old checkpoint or the new
+   * one, never a torn write. Nothing is synced to disk: the only reader is
+   * this process, and the spool sits in a directory of its own that no later
+   * process reads (the runtime also wipes it at every container start), so a
+   * checkpoint never has to outlive a crash. A sync per checkpoint would
+   * flush the filesystem's journal for every streaming turn, and a slow one
+   * past the I/O deadline would end a healthy exec.
+   */
   saveCheckpoint(checkpoint: RunnerdExecCheckpoint): Promise<boolean> {
     return this.serial(async () => {
       this.assertAvailable();
@@ -443,7 +453,6 @@ export class ExecReplay {
         const file = await open(temporary, 'w', 0o600);
         try {
           await file.writeFile(encoded);
-          await file.sync();
         } finally {
           await file.close();
         }
@@ -451,19 +460,14 @@ export class ExecReplay {
         this.budget.release(this.checkpointBytes);
         this.checkpointBytes = bytes;
         committed = true;
-        const directory = await open(root, 'r');
-        try {
-          await directory.sync();
-        } finally {
-          await directory.close();
-        }
         this.checkpoint = checkpoint;
         await this.prune();
         return true;
       } catch {
-        // Rename may already have exposed a newer checkpoint before a failed
-        // directory sync. Never let the old in-memory cursor authorize a
-        // stale overwrite, or prune output against an uncertain commit.
+        // A failure after the rename has exposed the newer checkpoint (while
+        // pruning the output it covers) leaves the commit uncertain. Never
+        // let an older in-memory cursor authorize a stale overwrite, or prune
+        // output against it.
         this.failure = new ReplayError('REPLAY_UNAVAILABLE');
         throw this.failure;
       } finally {
