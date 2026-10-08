@@ -24,6 +24,9 @@
       "pages": [
         "components/button",
         "components/input",
+        "components/issue-list",
+        "components/flow-node-issues",
+        "components/field-issues",
         "components/recurrence-picker",
         "components/data-table",
         "components/dialog",
