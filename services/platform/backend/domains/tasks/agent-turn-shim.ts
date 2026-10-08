@@ -26,6 +26,7 @@ import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import {
   markSessionOpKeyRevoked,
   scheduleGatewayKeyReconcile,
+  settleCostFreeTurn,
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
@@ -591,6 +592,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // its spend fact closes at the terminal stamp, which also releases the
       // budget reservation it may hold.
       const keyless = args.mintedKeyId === undefined;
+      // Except a subscription turn's: it is the request it was, booked
+      // before that stamp closes it — whatever ended it, its host's release
+      // or a watchdog's failure.
+      if (terminal && keyless) {
+        await settleCostFreeTurn(sql, {
+          sessionId: args.sessionId,
+          execId: args.execId,
+        });
+      }
       const upsert = async (
         db: Sql | TransactionSql,
         liveTimeline: TimelinePart[] | undefined,
@@ -889,6 +899,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           resumedBy: string | null;
           spendSettledAt: number | null;
           keyRevokedAt: number | null;
+          budgetCents: number | null;
         }[]
       >`
         SELECT minted_key_id AS "mintedKeyId",
@@ -896,7 +907,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                started_at_ms::float8 AS "startedAt",
                resumed_by AS "resumedBy",
                spend_settled_at_ms::float8 AS "spendSettledAt",
-               key_revoked_at_ms::float8 AS "keyRevokedAt"
+               key_revoked_at_ms::float8 AS "keyRevokedAt",
+               budget_cents::float8 AS "budgetCents"
         FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         LIMIT 1
@@ -911,6 +923,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         // The settlement facts a replayed settle resumes from.
         spendSettled: row.spendSettledAt !== null,
         keyRevoked: row.keyRevokedAt !== null,
+        // The hold the turn took: 0 for a subscription turn's request.
+        ...(row.budgetCents !== null ? { budgetCents: row.budgetCents } : {}),
       };
     },
 

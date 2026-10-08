@@ -761,6 +761,12 @@ function violationOf(
   };
 }
 
+/** A rule as a turn that costs nothing reads it: its cost cap set aside. */
+function withoutCostCap(rule: BudgetRule): BudgetRule {
+  const { maxCostCents: _cost, ...uncapped } = rule;
+  return uncapped;
+}
+
 /**
  * The gateway allowance a managed turn may be minted with: the deployment's
  * per-turn default, capped by what remains under every cost rule that binds
@@ -785,6 +791,11 @@ export async function resolveTurnAllowance(
      * managed turns alike (`readInFlightReservations`). */
     reservations: BudgetReservations;
     whole?: { prospectiveTokens: number };
+    /** A flat-rate turn — a subscription the organization pays its vendor
+     * for apart from Tale — adds requests and tokens but no cost: it is
+     * admitted while every request and token cap has room, whatever the
+     * cost caps read, and holds no cents. */
+    costFree?: boolean;
   },
 ): Promise<TurnAllowance> {
   const { reservations } = args;
@@ -810,9 +821,11 @@ export async function resolveTurnAllowance(
       // cost and tokens are measured whole below, and its request is the
       // one a request cap still has room for.
       const violation =
-        args.whole !== undefined
-          ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
-          : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
+        args.costFree === true
+          ? checkRuleAgainstUsage(withoutCostCap(bucket.rule), bucket.usage)
+          : args.whole !== undefined
+            ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
+            : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
       if (violation?.code !== undefined) {
         // The rule's own wording, and whose cap it is: a key's cap and the
         // organization's read alike otherwise.
@@ -853,6 +866,8 @@ export async function resolveTurnAllowance(
       }
     }
   }
+  // Every request and token cap has room, and cost caps cannot bind it.
+  if (args.costFree === true) return { allowed: true, budgetCents: 0 };
   const room = {
     ...(tightestCost !== undefined
       ? { cents: Math.max(0, tightestCost.room) }

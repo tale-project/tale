@@ -311,7 +311,14 @@ export async function admitImageGeneration(
           : `This turn may create ${left} more ${left === 1 ? 'image' : 'images'} (${SANDBOX_TURN_MAX_GENERATED_IMAGES} per turn), not ${args.images}.`,
       );
     }
-    const allowance = op.budgetCents ?? workflowAgentBudgetCents();
+    // A subscription turn holds no cents — its model costs nothing per
+    // call — so its images draw on the deployment's default allowance, as
+    // a turn that reserved nothing does.
+    const allowance =
+      op.budgetCents === null ||
+      (op.budgetCents === 0 && op.mintedKeyId === null)
+        ? workflowAgentBudgetCents()
+        : op.budgetCents;
     const room = allowance - modelSpentCents - op.imageSpentCents;
     if (holdCents > room) {
       return refused(

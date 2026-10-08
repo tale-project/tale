@@ -25,6 +25,7 @@ const {
   adjustSpendReading,
   reconcilePendingSessionOpKeys,
   reconcileSessionOpKey,
+  settleCostFreeTurn,
   settleSessionOpSpend,
   ZERO_READING_GRACE_MS,
 } = await import('./spend-settlement.ts');
@@ -353,6 +354,7 @@ describe('reconcileSessionOpKey', () => {
             organizationId: 'org-1',
             kind: 'task-agent',
             mintedKeyId: null,
+            budgetCents: 500,
             finalizedAt: 1,
             spendSettledAt: null,
             keyRevokedAt: null,
@@ -376,6 +378,66 @@ describe('reconcileSessionOpKey', () => {
         ),
       ),
     ).toBe(true);
+    // A gateway start that died before its mint spent nothing.
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+
+  it('books a subscription turn that ended without its release as one request at no cost [GOV-R16]', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'SELECT org_id AS "organizationId", kind, minted_key_id',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'task-agent',
+            mintedKeyId: null,
+            budgetCents: 0,
+            finalizedAt: 1,
+            spendSettledAt: null,
+            keyRevokedAt: null,
+          },
+        ],
+      },
+      {
+        match: 'SELECT budget_cents::float8 AS "budgetCents"',
+        rows: [{ budgetCents: 0, mintedKeyId: null, spendSettledAt: null }],
+      },
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'task-agent',
+            modelRef: 'anthropic/claude-sonnet-4-5',
+            inputTokens: null,
+            outputTokens: null,
+          },
+        ],
+      },
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [{ startedBy: 'user-1', agentId: 'agent-alice' }],
+      },
+    ]);
+
+    await expect(
+      reconcileSessionOpKey(sql, {
+        organizationId: 'org-1',
+        sessionId: 'pa-alice',
+        execId: 'exec-1',
+      }),
+    ).resolves.toEqual({ spendSettled: true, keyRevoked: true });
+
+    expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        userId: 'user-1',
+        agentSlug: 'agent-alice',
+        costEstimateCents: 0,
+        model: 'claude-sonnet-4-5',
+        provider: 'anthropic',
+      }),
+    );
   });
 
   it('refuses an op that belongs to another organization', async () => {
@@ -599,5 +661,31 @@ describe('reconcilePendingSessionOpKeys — deferred settlements', () => {
       'AND (settle_after_ms IS NULL OR settle_after_ms <= ?)',
     );
     expect(statements[0]?.values).toContain(5_000_000);
+  });
+});
+
+describe('settleCostFreeTurn', () => {
+  it.each([
+    [
+      'a gateway turn, which books what its key spent',
+      { budgetCents: 500, mintedKeyId: 'vk-1', spendSettledAt: null },
+    ],
+    [
+      'a turn already booked',
+      { budgetCents: 0, mintedKeyId: null, spendSettledAt: 1 },
+    ],
+    [
+      'an op that reserved nothing',
+      { budgetCents: null, mintedKeyId: null, spendSettledAt: null },
+    ],
+  ])('books nothing for %s', async (_label, op) => {
+    const { sql, statements } = fakeSql([
+      { match: 'SELECT budget_cents::float8 AS "budgetCents"', rows: [op] },
+    ]);
+
+    await settleCostFreeTurn(sql, { sessionId: 'pa-alice', execId: 'exec-1' });
+
+    expect(statements).toHaveLength(1);
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
   });
 });

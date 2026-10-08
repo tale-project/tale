@@ -71,9 +71,16 @@ export async function reserveTurnBudget(
     /** When the hold lapses if nothing settles it — a direct call's process
      * may die mid-call, and the watchdog releases its hold past this. */
     deadlineAtMs?: number;
+    /** A turn on a flat-rate subscription: it costs nothing per call, so it
+     * holds no cents — one request, while it runs — and is admitted while
+     * every request and token cap has room (`resolveTurnAllowance`). */
+    costFree?: boolean;
   },
 ): Promise<TurnAllowance> {
-  const defaultCents = Math.max(1, Math.floor(args.defaultBudgetCents));
+  const defaultCents =
+    args.costFree === true
+      ? 0
+      : Math.max(1, Math.floor(args.defaultBudgetCents));
   return sql.begin(async (tx) => {
     // Only a managed turn admits a sandbox; a request with no run behind
     // it takes the budget-admission lock alone.
@@ -129,6 +136,7 @@ export async function reserveTurnBudget(
         op: { sessionId: args.sessionId, execId: args.execId },
       }),
       ...(args.whole !== undefined ? { whole: args.whole } : {}),
+      ...(args.costFree === true ? { costFree: true } : {}),
     });
     if (!allowance.allowed) return allowance;
     const now = Date.now();
