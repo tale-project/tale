@@ -101,15 +101,15 @@ nodes:
       feedback: 'Scheduled occurrence {{ input.firedAt }}.'
 ```
 
-L’étape renvoie l’exécution qu’elle a démarrée, et la chronologie de la tâche affiche cette exécution comme **automatisation**, avec un lien vers l’exécution de l’automatisation. Quand elle ne démarre rien, l’étape réussit tout de même et en donne la raison, si bien que l’occurrence est consignée au lieu d’être mise en file d’attente :
+L’étape renvoie l’exécution qu’elle a démarrée, et la chronologie de la tâche affiche cette exécution comme **automatisation**, avec un lien vers l’exécution de l’automatisation. Un agent qui travaille sur d’autres tâches est tout de même lancé : son exécution travaille dans un [worker](/fr/platform/projects/project-agents#run-one-agent-on-several-tasks) distinct, et quand tous les workers d’agent de ton organisation sont occupés, elle en attend un et démarre d’elle-même. Quand elle ne démarre rien, l’étape réussit tout de même et en donne la raison, si bien que l’occurrence est consignée au lieu d’être mise en file d’attente :
 
 | Réponse | Signification |
 | --- | --- |
-| `started: true` | L’exécution de l’agent a démarré ; `runId` l’identifie. |
+| `started: true` | L’exécution de l’agent a démarré ; `runId` l’identifie. Avec `waitingReason`, l’exécution attend de la place avant de travailler : `org_limit` quand tous les workers d’agent de ton organisation sont occupés, `destroy_pending` quand l’espace de travail qu’elle utiliserait est en cours de suppression. Elle démarre d’elle-même dès que la place se libère. |
 | `already_running` | L’exécution précédente de la tâche travaille encore et prend le travail en charge. Rien de nouveau ne démarre, et l’occurrence n’attend pas derrière elle. |
 | `in_review` | Avec `moveToInProgress: false`, la carte attend son relecteur enregistré, une personne ou un agent. Rien n’est assigné ni démarré, et la revue conserve ce destinataire. |
 | `closed` | Avec `moveToInProgress: false`, la carte est **Terminé** ou **Annulé** (`taskStatus`). Rien n’est assigné ni démarré. |
-| `agent_busy` | L’agent travaille sur une autre tâche (`busyTaskId`). Un agent ne traite qu’une tâche à la fois dans son espace de travail. |
+| `agent_busy` | N’est plus renvoyé : un agent qui travaille sur une autre tâche est lancé dans un worker distinct, ou en attend un. D’anciennes exécutions d’une automatisation peuvent encore l’afficher. |
 | `blocked` | Une tâche dont celle-ci dépend est encore ouverte (`blockedBy`). |
 | `paused` | La tâche a déjà reçu trois démarrages par des automatisations et des agents au cours de la dernière heure, les relances automatiques ordinaires comprises. Une attente du courtier immédiatement après un échec HTTP 429 du même agent n’ajoute aucun démarrage ; les attentes consécutives restent comptées. `retryAfter` indique quand le compteur horaire autorise un autre démarrage ; les autres vérifications restent applicables. |
 

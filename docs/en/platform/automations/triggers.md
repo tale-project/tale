@@ -101,15 +101,15 @@ nodes:
       feedback: 'Scheduled occurrence {{ input.firedAt }}.'
 ```
 
-The step answers the run it started, and the task's timeline lists that run as **automation** with a link to the automation run. When it starts nothing, the step still succeeds and says why, so the occurrence is recorded rather than queued:
+The step answers the run it started, and the task's timeline lists that run as **automation** with a link to the automation run. An agent that is working other tasks is started all the same: its run works in a [worker](/platform/projects/project-agents#run-one-agent-on-several-tasks) of its own, and when every agent worker of your organization is busy it waits for one and starts on its own. When the step starts nothing, it still succeeds and says why, so the occurrence is recorded rather than queued:
 
 | Answer | Meaning |
 | --- | --- |
-| `started: true` | The agent's run started; `runId` names it. |
+| `started: true` | The agent's run started; `runId` names it. With `waitingReason`, the run waits for room before it works: `org_limit` when every agent worker of your organization is busy, `destroy_pending` when the workspace it would use is being deleted. It starts on its own once room frees. |
 | `already_running` | The task's previous run is still working and carries the work. Nothing new starts, and the occurrence does not wait behind it. |
 | `in_review` | With `moveToInProgress: false`, the card waits for its captured reviewer, a person or an agent. Nothing is assigned or started, and the review keeps that recipient. |
 | `closed` | With `moveToInProgress: false`, the card is **Done** or **Cancelled** (`taskStatus`). Nothing is assigned or started. |
-| `agent_busy` | The agent is working another task (`busyTaskId`). An agent works one task at a time in its workspace. |
+| `agent_busy` | No longer answered: an agent working another task is started in a worker of its own, or waits for one. Older runs of an automation may still show it. |
 | `blocked` | A task this one depends on is still open (`blockedBy`). |
 | `paused` | The task took three starts by automations and agents within the last hour, ordinary automatic retries included. One broker cooldown immediately after the same agent’s HTTP 429 adds no start; consecutive cooldowns still count. `retryAfter` says when the hourly count permits another start; other admission checks still apply. |
 

@@ -80,7 +80,7 @@ La boîte de dialogue de la tâche s’ouvre avec ta dernière demande comme des
 
 </Frame>
 
-La tâche apparaît ensuite au-dessus du champ de message du chat, avec ce qu’elle fait en ce moment : **L’agent travaille**, **En attente d’une place de sandbox**, **Nouvelle tentative…**, **Prête pour la revue** avec le nombre de fichiers livrés, ou **L’agent n’a pas pu la terminer**. **Ouvrir** te mène à la tâche. Tu reçois aussi une notification quand elle est prête pour la revue et quand l’agent ne peut pas terminer ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) explique la suite.
+La tâche apparaît ensuite au-dessus du champ de message du chat, avec ce qu’elle fait en ce moment : **L’agent travaille**, **En attente d’un worker** (ou un autre état qui dit ce que l’exécution attend), **Nouvelle tentative…**, **Prête pour la revue** avec le nombre de fichiers livrés, ou **L’agent n’a pas pu la terminer**. **Ouvrir** te mène à la tâche. Tu reçois aussi une notification quand elle est prête pour la revue et quand l’agent ne peut pas terminer ; [Quand l’agent ne peut pas terminer](/fr/platform/projects/task-automation#quand-lagent-ne-peut-pas-terminer) explique la suite.
 
 <Frame caption="La tâche qu’un chat a confiée affiche sa progression au-dessus du champ de message.">
 
