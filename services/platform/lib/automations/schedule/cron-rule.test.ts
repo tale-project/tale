@@ -207,6 +207,42 @@ describe('cronToScheduleRule', () => {
       JANUARY,
     );
   });
+
+  it('keeps a converted monthly step on the cron months only from January', () => {
+    // An editor that saves a converted cron anchored on today, not on
+    // cronRuleStartDate, moves its months.
+    const expression = '0 9 5 */3 *';
+    const converted = cronToScheduleRule(expression);
+    if (converted === null) throw new Error(`${expression} did not convert`);
+    const today: CalendarDate = { year: 2026, month: 10, day: 8 };
+    const after = Date.parse('2026-10-08T12:00Z');
+    const months = (schedule: Schedule) =>
+      occurrencesAfter(schedule, after, 4).map((ms) =>
+        new Date(ms).toISOString().slice(0, 10),
+      );
+    const cron = parseCron(expression);
+    const asCron = months({
+      type: 'cron',
+      cron,
+      timezone: 'Europe/Zurich',
+      dstClass: cronDstClass(cron),
+    });
+    expect(asCron).toEqual([
+      '2027-01-05',
+      '2027-04-05',
+      '2027-07-05',
+      '2027-10-05',
+    ]);
+    const asRule = (startDate: CalendarDate) =>
+      months({
+        type: 'rule',
+        rule: converted,
+        timezone: 'Europe/Zurich',
+        startDate,
+      });
+    expect(asRule(cronRuleStartDate(today))).toEqual(asCron);
+    expect(asRule(today)).not.toEqual(asCron);
+  });
 });
 
 describe('scheduleRuleToCron', () => {
