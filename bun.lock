@@ -546,6 +546,27 @@
       "name": "@tale/lint-manual",
       "version": "0.1.0",
     },
+    "tools/load": {
+      "name": "@tale/load",
+      "version": "0.1.0",
+      "bin": {
+        "tale-load": "./src/cli.ts",
+      },
+      "devDependencies": {
+        "@faker-js/faker": "10.5.0",
+        "@tale/shared": "workspace:*",
+        "@types/bun": "1.3.11",
+        "better-auth": "1.7.5",
+        "commander": "14.0.3",
+        "eventsource-parser": "4.1.1",
+        "hdr-histogram-js": "3.0.1",
+        "postgres": "3.4.7",
+        "typescript": "6.0.2",
+        "undici": "7.29.1",
+        "yaml": "2.8.3",
+        "zod": "4.3.6",
+      },
+    },
     "tools/opengrep": {
       "name": "@tale/opengrep",
       "version": "0.1.0",
@@ -631,6 +652,8 @@
     "@asamuzakjp/generational-cache": ["@asamuzakjp/generational-cache@1.0.1", "", {}, "sha512-wajfB8KqzMCN2KGNFdLkReeHncd0AslUSrvHVvvYWuU8ghncRJoA50kT3zP9MVL0+9g4/67H+cdvBskj9THPzg=="],
 
     "@asamuzakjp/nwsapi": ["@asamuzakjp/nwsapi@2.3.9", "", {}, "sha512-n8GuYSrI9bF7FFZ/SjhwevlHc8xaVlb/7HmHelnc/PZXBD2ZR49NnN9sMMuDdEGPeeRQ5d0hqlSlEpgCX3Wl0Q=="],
+
+    "@assemblyscript/loader": ["@assemblyscript/loader@0.19.23", "", {}, "sha512-ulkCYfFbYj01ie1MDOyxv2F6SpRN1TOj7fQxbP07D6HmeR+gr2JLSmINKjga2emB+b1L2KGrFKBTc+e00p54nw=="],
 
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 
@@ -1988,6 +2011,8 @@
 
     "@tale/lint-manual": ["@tale/lint-manual@workspace:tools/lint-manual"],
 
+    "@tale/load": ["@tale/load@workspace:tools/load"],
+
     "@tale/marketing-ui": ["@tale/marketing-ui@workspace:packages/marketing-ui"],
 
     "@tale/opengrep": ["@tale/opengrep@workspace:tools/opengrep"],
@@ -3017,6 +3042,8 @@
     "hast-util-whitespace": ["hast-util-whitespace@3.0.0", "", { "dependencies": { "@types/hast": "^3.0.0" } }, "sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw=="],
 
     "hastscript": ["hastscript@9.0.1", "", { "dependencies": { "@types/hast": "^3.0.0", "comma-separated-tokens": "^2.0.0", "hast-util-parse-selector": "^4.0.0", "property-information": "^7.0.0", "space-separated-tokens": "^2.0.0" } }, "sha512-g7df9rMFX/SPi34tyGCyUBREQoKkapwdY/T04Qn9TDWfHhAYt4/I0gMVirzK5wEzeUqIjEB+LXC/ypb7Aqno5w=="],
+
+    "hdr-histogram-js": ["hdr-histogram-js@3.0.1", "", { "dependencies": { "@assemblyscript/loader": "^0.19.21", "base64-js": "^1.2.0", "pako": "^1.0.3" } }, "sha512-l3GSdZL1Jr1C0kyb461tUjEdrRPZr8Qry7jByltf5JGrA0xvqOSrxRBfcrJqqV/AMEtqqhHhC6w8HW0gn76tRQ=="],
 
     "he": ["he@1.2.0", "", { "bin": { "he": "bin/he" } }, "sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw=="],
 
