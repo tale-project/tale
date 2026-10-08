@@ -410,6 +410,26 @@ describe('runSandboxWatchdog — the workspace inventory in the reconcile', () =
     expect(inventory).toHaveBeenCalledOnce();
   });
 
+  it("bounds the shared read by the pass's signal", async () => {
+    const { sql } = fakeSql({ reconcile: [[candidate('gone-a')]] });
+    const inventory = vi.fn((_options?: { signal?: AbortSignal }) =>
+      Promise.resolve(null),
+    );
+    const passSignal = new AbortController().signal;
+    vi.mocked(reconcileSession).mockImplementation(
+      async (_sql, _args, spawner) => {
+        await spawner?.inventory?.({ signal: passSignal });
+        return 'healed';
+      },
+    );
+
+    await runSandboxWatchdog(sql, {
+      spawner: scriptedSpawner({ inventory }),
+    });
+
+    expect(inventory).toHaveBeenCalledExactlyOnceWith({ signal: passSignal });
+  });
+
   it('reads it again on the next pass', async () => {
     const inventory = vi.fn(() => Promise.resolve(null));
     vi.mocked(reconcileSession).mockImplementation(

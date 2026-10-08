@@ -1113,6 +1113,46 @@ describe('reconcileSession keeps an agent workspace whose sandbox disappeared [S
     expect(inventory).not.toHaveBeenCalled();
   });
 
+  // The inventory is read under the session's lifecycle lock: the read is
+  // bounded on its own, and stops with the pass that asked for it.
+  it('bounds the inventory read, which a pass out of time ends without settling the row', async () => {
+    const pass = new AbortController();
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const inventory = vi.fn(async (options?: { signal?: AbortSignal }) => {
+      expect(options?.signal?.aborted).toBe(false);
+      pass.abort();
+      options?.signal?.throwIfAborted();
+      return held('session-a');
+    });
+    const { spawner } = fakeSpawner(false, { inventory });
+
+    await expect(
+      reconcileSession(sql, ARGS, spawner, { signal: pass.signal }),
+    ).rejects.toThrow();
+
+    expect(inventory).toHaveBeenCalledOnce();
+    expect(stored?.status).toBe('active');
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+  });
+
+  it('reads an inventory that times out on its own as unknown, keeping the workspace', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const pass = new AbortController();
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const inventory = vi.fn(async (options?: { signal?: AbortSignal }) => {
+      expect(options?.signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException('The operation timed out.', 'TimeoutError');
+    });
+    const { spawner } = fakeSpawner(false, { inventory });
+
+    await expect(
+      reconcileSession(sql, ARGS, spawner, { signal: pass.signal }),
+    ).resolves.toBe('healed');
+
+    expect(stored?.status).toBe('stopped');
+  });
+
   it('leaves a row pinned meanwhile to its next visit, settling and revoking nothing', async () => {
     const { sql, stored } = fakeSql(OWNED_SESSION);
     const { spawner } = fakeSpawner(false, {

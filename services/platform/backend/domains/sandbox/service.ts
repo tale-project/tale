@@ -315,7 +315,9 @@ export interface ReconcileSpawner {
    * sessions' preserved data included; `null` from a spawner without the
    * route. Where absent, an agent session whose compute is gone heals as
    * destroyed, as a render's always does. */
-  inventory?: () => Promise<SandboxWorkspaceInventory | null>;
+  inventory?: (options?: {
+    signal?: AbortSignal;
+  }) => Promise<SandboxWorkspaceInventory | null>;
 }
 
 const DEFAULT_RECONCILE_SPAWNER: ReconcileSpawner = {
@@ -568,7 +570,7 @@ async function reconcileLocked(
   if (alive) return 'live';
   const body = row.pinned ? recreateBody(row) : null;
   if (body === null) {
-    if (!row.pinned && (await keepsWorkspace(spawner, row))) {
+    if (!row.pinned && (await keepsWorkspace(spawner, row, mode.signal))) {
       return (await markSessionStopped(sessionSql, {
         ...args,
         rowId: row.id,
@@ -608,22 +610,37 @@ async function reconcileLocked(
   return created ? 'recreated' : 'repinned';
 }
 
+/** How long the reconcile waits for the spawner's workspace inventory. It
+ * is read under the session's lifecycle lock, so it gets the bound of the
+ * reconcile's other spawner reads rather than the cleanup's minute; an
+ * inventory slower than that is one that cannot be read. */
+const RECONCILE_INVENTORY_TIMEOUT_MS = 15_000;
+
 /** Does the spawner still hold the workspace of an agent session whose
  * compute is gone? A render session's workspace is disposable, so never. An
  * inventory that cannot be read answers yes: settling the row as stopped
  * frees its slot all the same, and a resume that finds no conversation
  * falls back to a fresh one, while settling it as destroyed would leave the
- * files to a fresh incarnation. */
+ * files to a fresh incarnation. The read stops with the caller's `signal`,
+ * and then THROWS: a pass that ran out of time settles nothing on a guess,
+ * and leaves the row to its next visit. */
 async function keepsWorkspace(
   spawner: ReconcileSpawner,
   row: SessionRow,
+  signal: AbortSignal | undefined,
 ): Promise<boolean> {
   if (row.profile !== 'agent' && row.profile !== 'agent-light') return false;
   if (spawner.inventory === undefined) return false;
   let inventory: SandboxWorkspaceInventory | null;
   try {
-    inventory = await spawner.inventory();
+    inventory = await spawner.inventory({
+      signal: AbortSignal.any([
+        AbortSignal.timeout(RECONCILE_INVENTORY_TIMEOUT_MS),
+        ...(signal ? [signal] : []),
+      ]),
+    });
   } catch (error) {
+    signal?.throwIfAborted();
     console.warn(
       `[sandbox] workspace inventory unavailable while healing ${row.sessionId}; its workspace is kept:`,
       error,

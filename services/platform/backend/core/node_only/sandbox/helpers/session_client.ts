@@ -855,10 +855,16 @@ export type SandboxWorkspaceInventory = z.infer<
 /** GET /v1/workspaces — every workspace the spawner holds (stopped sessions'
  * preserved data included) and the organizations holding resources beyond
  * them. `null` from a spawner that predates the route; THROWS when the
- * spawner could not read its inventory. */
-export async function sandboxWorkspaceInventory(): Promise<SandboxWorkspaceInventory | null> {
+ * spawner could not read its inventory, or once `signal` aborts (the read
+ * gives up after 60 s on its own). */
+export async function sandboxWorkspaceInventory(
+  options: { signal?: AbortSignal } = {},
+): Promise<SandboxWorkspaceInventory | null> {
   const res = await spawnerFetch('GET', '/v1/workspaces', {
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(60_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return null;
   if (!res.ok) {

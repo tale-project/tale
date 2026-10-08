@@ -13,6 +13,7 @@ import {
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
   sandboxDevices,
+  sandboxWorkspaceInventory,
   STAGE_BODY_BUDGET_BYTES,
   SpawnerUnreachableError,
   sessionAcquire,
@@ -1388,6 +1389,40 @@ describe('sessionStopIfIdle', () => {
     await expect(sessionStopIfIdle('pa-1')).rejects.toThrow(
       'sandbox session stop failed (502)',
     );
+  });
+});
+
+describe('sandboxWorkspaceInventory', () => {
+  // The reconcile reads the inventory under a session's lifecycle lock, so
+  // the caller's signal must end the read, not only the client's own bound.
+  test("gives up once the caller's signal aborts", async () => {
+    const signals: Array<AbortSignal | null | undefined> = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      signals.push(init?.signal);
+      return new Response(
+        JSON.stringify({
+          backend: 'docker',
+          workspaces: [],
+          organizations: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    const caller = new AbortController();
+
+    await expect(
+      sandboxWorkspaceInventory({ signal: caller.signal }),
+    ).resolves.toEqual({
+      backend: 'docker',
+      workspaces: [],
+      organizations: [],
+    });
+
+    expect(signals[0]?.aborted).toBe(false);
+    caller.abort();
+    expect(signals[0]?.aborted).toBe(true);
   });
 });
 

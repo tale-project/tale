@@ -498,12 +498,14 @@ async function reconcilePass(
 /** The spawner, reading its workspace inventory at most once for the pass
  * (when the first heal asks): a host reboot leaves every session's compute
  * gone at once, and each agent session's heal asks whether its workspace is
- * still held. A failed read is shared too; each heal reads it as unknown. */
+ * still held. A failed read is shared too; each heal reads it as unknown.
+ * The first heal's options bound the read: every heal of the pass passes
+ * the same pass signal. */
 function sharingInventory(spawner: WatchdogSpawner): WatchdogSpawner {
   const read = spawner.inventory;
   if (read === undefined) return spawner;
   let shared: Promise<SandboxWorkspaceInventory | null> | undefined;
-  return { ...spawner, inventory: () => (shared ??= read()) };
+  return { ...spawner, inventory: (options) => (shared ??= read(options)) };
 }
 
 /**
