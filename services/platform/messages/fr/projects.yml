@@ -237,6 +237,7 @@ agents:
   dialogEditTitle: Modifier l'agent
   nameLabel: Nom
   namePlaceholder: p. ex. Relecteur de PR
+  handleHint: Mentionne-le avec @{handle}. Renommer l’agent modifie cette mention.
   harnessLabel: Environnement d'agent
   harnessPlaceholder: Choisis l'environnement d'agent sur lequel il tourne
   modelLabel: Modèle
