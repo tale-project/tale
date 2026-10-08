@@ -168,3 +168,5 @@ Read [CONTRIBUTING.md](.github/CONTRIBUTING.md) and the [repository contract](AG
 ## License
 
 Tale is available under the [MIT license](LICENSE).
+
+<!-- TALE664 disposable missing-check and foreign-publisher probe. -->
