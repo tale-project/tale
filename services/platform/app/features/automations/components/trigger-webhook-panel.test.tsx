@@ -1,4 +1,4 @@
-import { within } from '@testing-library/dom';
+import { waitFor, within } from '@testing-library/dom';
 import type { AnchorHTMLAttributes } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -254,6 +254,34 @@ describe('TriggerWebhookPanel', () => {
       expect(screen.getByText("Couldn't load the deliveries.")).toBeVisible();
       await user.click(screen.getByRole('button', { name: 'Try again' }));
       expect(refetch).toHaveBeenCalledTimes(1);
+    });
+
+    // The answer replaces Try again while it holds the focus: the focus
+    // goes to the list's heading, not to the page body.
+    it('hands the focus to its heading when the retry is answered', async () => {
+      runsRead = { isPending: false, isError: true };
+      const { user, rerender } = renderPanel();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(screen.getByRole('button', { name: 'Try again' })).toHaveFocus();
+      runsRead = { isPending: false, isError: false, data: [] };
+      rerender(
+        <TriggerWebhookPanel
+          place={PLACE}
+          origin={ORIGIN}
+          projects={[]}
+          mintedToken={null}
+          hasToken
+          storedWebhook
+          canEdit
+          rotating={false}
+          onRotate={vi.fn()}
+        />,
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole('heading', { name: 'Recent deliveries' }),
+        ).toHaveFocus(),
+      );
     });
   });
 
