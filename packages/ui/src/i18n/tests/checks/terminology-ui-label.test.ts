@@ -319,6 +319,34 @@ describe('terminology UI labels', () => {
     ).toEqual([]);
   });
 
+  // #4506: a bare "gel" also names ordinary freezes, so it is avoided only
+  // inside a bracketed context.
+  it('reports a bracketed name only inside its context', () => {
+    const nonShipped = (name: string) =>
+      `"${name}" is not the shipped name of UI-label term "Legal hold"`;
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'legalHold',
+            category: 'feature',
+            en: 'Legal hold',
+            fr: 'Conservation légale',
+            _avoid: { fr: ['gel juridique', 'sous [gel]', '[gel] actif'] },
+          },
+        ],
+        {
+          fr: 'Sous gel, gel actif, sous gel juridique, dessous gel, gel actifs, gel.',
+        },
+      ),
+    );
+    expect(findings.map(({ column, detail }) => ({ column, detail }))).toEqual([
+      { column: 27, detail: nonShipped('gel juridique') },
+      { column: 6, detail: nonShipped('gel') },
+      { column: 11, detail: nonShipped('gel') },
+    ]);
+  });
+
   const shippedLegalHold = (texts: Record<string, string>) =>
     terminologyUiLabel
       .run(context(null, texts))
@@ -360,6 +388,40 @@ describe('terminology UI labels', () => {
           'Une conservation légale préserve les données ; lève la conservation dans Gouvernance > Conservation légale.',
         ].join('\n'),
         de: 'Ein Legal Hold schützt die Daten.\nDie Aufbewahrungs-Pflicht bleibt.',
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects a bare French "gel" where it names a legal hold', () => {
+    const gel = '"gel" is not the shipped name of UI-label term "Legal hold"';
+    expect(
+      shippedLegalHold({
+        fr: [
+          '## Placer un gel',
+          'Un admin peut placer un gel.',
+          'Libérer un gel exige deux personnes.',
+          'Les données sous gel restent protégées.',
+          'Sur le gel actif, choisis Demander la libération.',
+        ].join('\n'),
+      }),
+    ).toEqual([
+      { locale: 'fr', line: 1, detail: gel },
+      { locale: 'fr', line: 2, detail: gel },
+      { locale: 'fr', line: 3, detail: gel },
+      { locale: 'fr', line: 4, detail: gel },
+      { locale: 'fr', line: 5, detail: gel },
+    ]);
+  });
+
+  it('keeps ordinary French freezes', () => {
+    expect(
+      shippedLegalHold({
+        fr: [
+          'Le gel du code commence demain.',
+          'Les gels de version sont annoncés deux semaines avant.',
+          'Le dépôt reste gelé pendant la migration.',
+          'Le gel du code reste actif ; les branches gelées attendent sa fin.',
+        ].join('\n'),
       }),
     ).toEqual([]);
   });
