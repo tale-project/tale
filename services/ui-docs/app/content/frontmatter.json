@@ -118,6 +118,20 @@
       "description": "Draw a workflow from its data with an automatic layout, lines that route round every box, a keyboard path through it and a List view that says the same in text."
     }
   },
+  "components/workflow-paths": {
+    "slug": "components/workflow-paths",
+    "frontmatter": {
+      "title": "Workflow paths",
+      "description": "Show every way a run can go through a workflow, preview and pin one path at a time, and point out the nodes that end a run when they fail."
+    }
+  },
+  "components/workflow-playback": {
+    "slug": "components/workflow-playback",
+    "frontmatter": {
+      "title": "Workflow playback",
+      "description": "Show how a run went on a workflow chart, and replay it with values travelling the lines, a scrubber and the failure in focus."
+    }
+  },
   "foundations/accessibility": {
     "slug": "foundations/accessibility",
     "frontmatter": {

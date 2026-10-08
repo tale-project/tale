@@ -32,6 +32,27 @@ Every node is drawn from its data. A step shows its `icon`, `label` and `typeLab
 
 `layoutKey` names what the picture shows, such as a document and the version on screen. When the same key gets a changed graph, the canvas lays it out again and keeps each row in its order, so no box swaps sides with its neighbour. A new key is another picture: it is laid out afresh and fades in.
 
+## Watch it change
+
+<Demo name="flow/live-relayout" />
+
+Save the next version to see the chart glide to its new layout. A graph that changes under the same `layoutKey`, such as a version a coding agent saved or a field edit that adds a reference, moves in three beats:
+
+| What | Moves | Timing |
+| --- | --- | --- |
+| A node, condition or frame that leaves | Shrinks out at its old place | 150 ms |
+| A line that leaves or takes another route | Fades out along its old route | 150 ms |
+| A node, condition or frame that stays | Glides to its new place | 300 ms, from the start |
+| A node or condition that joins | Grows in | 200 ms, after 150 ms |
+| A frame that changed size | Fades out, then in at its new size | 150 ms, then 200 ms after 250 ms |
+| A line that joins or takes another route | Fades in | 200 ms, after 250 ms |
+
+The chart has settled 450 ms after the new layout lands, and no line is drawn against a box that is still moving. The motion uses the duration tokens and the out-quint ease, and only transform and opacity. If the view was still where the fit left it, it eases to the new fit; otherwise the open node is brought back into view if it moved out. A change that arrives while a glide is under way starts from where everything is.
+
+Pass `changed` with the ids of the nodes that changed outside this tab, such as a version saved in another window, and a new `key`. Those nodes show a ring that fades out once the glide is done. Leave out your reader's own edits: a field they just changed never rings. The key the canvas opens with is never rung.
+
+Under reduced motion none of this plays: the new layout is simply there, and nothing rings.
+
 ## Follow the lines
 
 <Demo name="flow/routed-edges" />
@@ -80,6 +101,12 @@ The List view says the same as the chart in text. `FlowStepList` renders an orde
 
 Inside `WorkflowCanvas`, **Show as list** in the corner switches to this view and **Show as chart** switches back. The choice is stored in the browser under `tale:flow-view`. On a screen narrower than 24rem the list is the default. Pass `view` and `onViewChange` to control it yourself; the built-in button then goes away.
 
+## Show a run or a path
+
+Pass a run as `overlay` (where each node ended) or `playback` (a moment of a replay) to frame each node by its state and draw the lines the run took. A failed run brings the way to its first failure forward. See [Workflow playback](/docs/components/workflow-playback).
+
+Pass `paths` and `highlight` to bring one path, one branch or a set of nodes forward and step back from the rest. See [Workflow paths](/docs/components/workflow-paths).
+
 ## Use the keyboard
 
 The chart is one Tab stop: the selected node, else the node focused last, else Start. From there:
@@ -120,6 +147,12 @@ Viewport moves ease out over the duration tokens: zoom 150 ms, reveal 200 ms, re
 | `revealId` | `string \| null` | — | Brings this node into view. |
 | `issues` | `ReadonlyMap<string, IssueCounts>` | — | Problem counts by node id. |
 | `controlsId` | `string` | — | The panel a node opens. |
+| `overlay` | `FlowRunOverlay` | — | A run without time: where each node ended. |
+| `playback` | `{ timeline, t }` | — | A run at moment `t`; wins over `overlay`. |
+| `focusFailure` | `boolean` | `true` | Brings a failed run's way to its failure forward. |
+| `paths` | `FlowPath[]` | — | Lets a pointer on a condition or a Yes/No label highlight its paths. |
+| `highlight` / `onHighlightChange` | `FlowHighlight \| null` | — | Your highlight wins over the canvas's own; the callback reports the canvas's own. |
+| `changed` | `{ ids, key }` | — | Nodes changed outside this tab, ringed once when `key` changes. |
 | `view` / `onViewChange` | `'chart' \| 'list'` | stored choice | Controls the view. |
 | `framed` | `boolean` | `false` | A bordered frame for a page. |
 | `touchPolicy` | `'pan' \| 'page-scroll'` | `framed ? 'page-scroll' : 'pan'` | What one finger does on a touch screen. |

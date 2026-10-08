@@ -18,6 +18,8 @@
     "components/time-field",
     "components/toast",
     "components/workflow-canvas",
+    "components/workflow-paths",
+    "components/workflow-playback",
     "foundations/accessibility",
     "foundations/colors",
     "foundations/icons",

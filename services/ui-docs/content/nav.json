@@ -30,6 +30,8 @@
         "components/issue-list",
         "components/flow-node-issues",
         "components/workflow-canvas",
+        "components/workflow-paths",
+        "components/workflow-playback",
         "components/field-issues",
         "components/recurrence-picker",
         "components/schedule-occurrence-list",
