@@ -526,7 +526,7 @@ schemaTree:
 flow:
   canvas:
     roleDescription: diagramme de flux
-    keyboardHelp: Utilise les flèches pour suivre les liens entre les nœuds, Début et Fin pour aller au début et à la fin, et Entrée pour ouvrir un nœud.
+    keyboardHelp: Utilise les flèches pour suivre les liens entre les nœuds, Origine et Fin pour aller au début et à la fin, et Entrée pour ouvrir un nœud.
     arranging: Disposition des nœuds…
     arrangeFailed: Impossible de disposer les nœuds, ils sont donc affichés en une colonne.
     touchHint: Utilise deux doigts pour déplacer le diagramme
