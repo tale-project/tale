@@ -24,21 +24,31 @@ afterEach(() => {
 });
 
 describe('instanceId', () => {
-  it('names host, pid, version and colour, colour last', () => {
+  it('names host, pid, a nonce, version and colour, colour last', () => {
     vi.stubEnv('TALE_VERSION', '0.5.80');
     vi.stubEnv('TALE_COLOR', 'green');
     const id = instanceId();
-    expect(id).toBe(
-      `${hostname().replaceAll(':', '-')}:${process.pid}:0.5.80:green`,
-    );
+    const [host, pid, nonce, ...rest] = id.split(':');
+    expect(host).toBe(hostname().replaceAll(':', '-'));
+    expect(pid).toBe(String(process.pid));
+    expect(nonce).toMatch(/^[0-9a-f]{8}$/);
+    expect(rest).toEqual(['0.5.80', 'green']);
     expect(/[^:]*$/.exec(id)?.[0]).toBe('green');
+  });
+
+  it('tells apart two processes that share a host name and a pid', () => {
+    // Two worker containers on the host's network: the same name, and each
+    // numbers its own processes from 1.
+    const first = instanceId();
+    resetInstanceIdForTests();
+    expect(instanceId()).not.toBe(first);
   });
 
   it('scrubs a colon inside a segment, so the colour stays last', () => {
     vi.stubEnv('TALE_VERSION', 'sha:abc');
     vi.stubEnv('TALE_COLOR', 'blue');
     const id = instanceId();
-    expect(id.split(':')).toHaveLength(4);
+    expect(id.split(':')).toHaveLength(5);
     expect(id).toContain(':sha-abc:');
     expect(id.endsWith(':blue')).toBe(true);
   });

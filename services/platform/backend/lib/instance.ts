@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 
 /**
@@ -36,15 +37,20 @@ function segment(value: string): string {
 let memoizedInstanceId: string | null = null;
 
 /**
- * `host:pid:version:colour` of this process, computed once. The host is the
- * container id under Docker, the pid tells two processes of one container
- * apart, and the colour comes last so SQL reads it with
+ * `host:pid:nonce:version:colour` of this process, computed once. The host is
+ * the container id under Docker and the pid tells two processes of one
+ * container apart. Neither is unique on its own: containers on the host's
+ * network, or given one fixed `hostname:`, all report the host's name, and
+ * each container numbers its own processes from 1. The random nonce keeps
+ * two such processes apart, so one that stops never releases the leases of
+ * another. The colour comes last so SQL reads it with
  * `substring(lease_owner from '[^:]*$')`.
  */
 export function instanceId(): string {
   memoizedInstanceId ??= [
     segment(hostname()),
     segment(String(process.pid)),
+    randomUUID().slice(0, 8),
     segment(engineVersion()),
     segment(replicaColour() ?? 'none'),
   ].join(':');
