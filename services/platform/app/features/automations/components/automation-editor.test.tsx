@@ -1393,6 +1393,46 @@ describe('AutomationEditor', () => {
     expect(toastSpy).not.toHaveBeenCalled();
   });
 
+  it('saves and checks the document as stored, with only the edit changed', async () => {
+    // What this build has no control for — a connector's credential, a key
+    // a newer engine knows, a node without a type, the tests, the canvas
+    // metadata, an unknown top-level key — travels with the edit unchanged.
+    const stored = {
+      version: 1,
+      name: 'billing/dunning',
+      nodes: [
+        { id: 'summary', type: 'llm', prompt: 'One sentence, please.' },
+        {
+          id: 'post',
+          type: 'slack.post_message',
+          credential: 'slack-ops',
+          input: { channel: '#billing' },
+          reviewNote: 'kept',
+        },
+        { id: 'draft_only', prompt: 'no type yet' },
+      ],
+      tests: [{ name: 'smoke', expect: { output: null } }],
+      ui: { positions: { summary: { x: 0, y: 0 } } },
+      owner: 'billing team',
+    };
+    state.document = stored;
+    const { user } = renderPage();
+    await editTheNode(user);
+    const checked = validationMock.calls.at(-1)?.document;
+    expect(checked).toEqual({
+      ...stored,
+      nodes: [{ ...stored.nodes[0], when: 'x' }, ...stored.nodes.slice(1)],
+    });
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+    await waitFor(() => {
+      expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
+    });
+    expect(saveMutation.mutateAsync.mock.calls[0]?.[0].automation).toEqual(
+      checked,
+    );
+  });
+
   it('keeps the edited version’s package metadata when saving a node change', async () => {
     state.presentation = { name: 'Pack title' };
     state.settings = { folder: 'Setup', forms: [] };

@@ -15,13 +15,13 @@ import {
   type ValidationDetail,
 } from '@/app/lib/backend/automation-validation';
 import { backendKey } from '@/app/lib/backend/query-keys';
-import type { Automation } from '@/lib/engine/core/types';
 import type {
   AnalysisView,
   TypesView,
 } from '@/lib/shared/schemas/automation-issues';
 import { stableStringify } from '@/lib/shared/utils/stable-stringify';
 
+import type { RawDocument } from '../lib/draft-document';
 import { withIssueIds, type AutomationIssue } from '../lib/issues';
 
 /** How long the editor waits after the last edit before it checks a draft. */
@@ -116,7 +116,7 @@ function cyrb53(text: string): string {
 }
 
 /** The same document hashes the same, whatever order its keys were written in. */
-export function documentHash(document: Automation): string {
+export function documentHash(document: RawDocument): string {
   return cyrb53(stableStringify(document));
 }
 
@@ -184,8 +184,9 @@ export function useAutomationValidation({
 }: {
   organizationId: string;
   automationSlug: string;
-  /** The draft, or the stored version on screen. */
-  document: Automation | null;
+  /** The draft, or the stored version on screen — raw, every key kept, as
+   * a save would send it. */
+  document: RawDocument | null;
   /** A draft waits for a pause in the edits; a stored version does not. */
   isDraft: boolean;
   /** Only authors may have a document checked (the route is author-gated). */

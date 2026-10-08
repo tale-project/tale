@@ -92,6 +92,11 @@ import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { automationDetailPathname } from '../lib/detail-paths';
 import { DOCUMENT_DIRTY_KEY } from '../lib/dirty-keys';
 import { readDocument } from '../lib/document';
+import {
+  applyNodePatch,
+  rawDocumentOf,
+  type RawDocument,
+} from '../lib/draft-document';
 import type { AutomationEditorView } from '../lib/editor-search';
 import {
   automationErrorCode,
@@ -140,62 +145,10 @@ import { AutomationVersionPicker } from './automation-version-picker';
 import { CodingAgentButton } from './coding-agent-entry';
 import { NodeFields, NodeInspector } from './node-inspector';
 
-/**
- * Every field of a node a patch may clear. Spelling them out keeps the unset
- * path typed — `delete` needs a key the compiler knows is optional — and the
- * list is checked against `NodeDef` itself, so a field added to the document
- * grammar cannot silently become unclearable.
- */
-const CLEARABLE_NODE_FIELDS = [
-  'when',
-  'elseOf',
-  'forEach',
-  'repeatUntil',
-  'maxRepeats',
-  'onError',
-  'input',
-  'code',
-  'prompt',
-  'system',
-  'model',
-  'modelProvider',
-  'outputSchema',
-  'automation',
-  // Agent equipment — clearing a picker to empty must delete the field, not
-  // leave the previous grant behind (and `readNode` now round-trips these).
-  'harness',
-  'skills',
-  'connectors',
-  'tools',
-  'secrets',
-  'files',
-] as const satisfies readonly Exclude<keyof NodeDef, 'id' | 'type'>[];
-
 /** The run-scope Select's "organization-wide" choice. A Radix Select item
  * cannot carry an empty value, so the org-wide option needs a real sentinel
  * that maps back to an omitted `projectId`. */
 const RUN_SCOPE_ORG_WIDE = '__org_wide__';
-
-/** Apply one node patch to a document, dropping the fields the patch clears. */
-function patchNode(
-  automation: Automation,
-  nodeId: string,
-  patch: Partial<NodeDef>,
-): Automation {
-  return {
-    ...automation,
-    nodes: automation.nodes.map((node) => {
-      if (node.id !== nodeId) return node;
-      const next: NodeDef = { ...node, ...patch };
-      for (const field of CLEARABLE_NODE_FIELDS) {
-        // `undefined` in a patch means "unset": a cleared `when` must leave the
-        // document, not sit in it as an empty condition the engine would read.
-        if (field in patch && patch[field] === undefined) delete next[field];
-      }
-      return next;
-    }),
-  };
-}
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
 /** A draft diverges from the stored version as one thing — its document. */
@@ -347,7 +300,10 @@ function AutomationEditorScope({
       });
     }
   }, [selectedNodeId]);
-  const [draft, setDraft] = useState<Automation | null>(null);
+  /** The draft: the raw document with the author's edits (see
+   * `../lib/draft-document`) — what the check, a save and the Source view
+   * read. The canvas and the inspector read its narrowed view. */
+  const [draft, setDraft] = useState<RawDocument | null>(null);
   /** The version the draft was built on — pinned on its first edit, sent
    * with the save so the store can refuse a draft another tab overtook. */
   const draftBaseRef = useRef<number | undefined>(undefined);
@@ -458,23 +414,30 @@ function AutomationEditorScope({
         ? t('detail.runScope.confirmProject', { project: runProjectName })
         : t('detail.runScope.confirmOrgWide');
 
-  const stored = useMemo(
-    () => readDocument(automationQuery.data?.document),
+  const storedRaw = useMemo(
+    () => rawDocumentOf(automationQuery.data?.document),
     [automationQuery.data?.document],
   );
+  const stored = useMemo(() => readDocument(storedRaw), [storedRaw]);
   const deployed = useMemo(
     () => readDocument(deployedQuery.data?.document),
     [deployedQuery.data?.document],
   );
-  const automation = draft ?? stored;
+  const draftView = useMemo(
+    () => (draft === null ? null : readDocument(draft)),
+    [draft],
+  );
+  const automation = draftView ?? stored;
+  /** The document on screen as stored or edited, every key kept. */
+  const rawDocument = draft ?? storedRaw;
   // The canvas redraws a draft at a pause in the edits — the pause the
   // check waits for too — so typing a reference never relays it out per
   // keystroke; until the first pause it keeps the document the draft started
   // from, whatever version lands meanwhile. A stored version (opened, saved,
   // switched to) shows at once.
-  const pausedDraft = usePausedDraft(draft);
+  const pausedDraft = usePausedDraft(draftView);
   const canvasDocument =
-    draft === null ? stored : (pausedDraft ?? draftOrigin ?? stored);
+    draftView === null ? stored : (pausedDraft ?? draftOrigin ?? stored);
 
   const runs = runsQuery.data ?? [];
   const lastRun = runs[0];
@@ -512,7 +475,7 @@ function AutomationEditorScope({
   const validation = useAutomationValidation({
     organizationId,
     automationSlug,
-    document: automation,
+    document: rawDocument,
     isDraft: draft !== null,
     enabled: canAuthor,
   });
@@ -892,7 +855,9 @@ function AutomationEditorScope({
 
   const onChangeNode = useCallback(
     (patch: Partial<NodeDef>) => {
-      if (!automation || selectedNodeId === null) return;
+      if (!automation || rawDocument === null || selectedNodeId === null) {
+        return;
+      }
       // The base is pinned on the draft's FIRST edit: the detail query
       // follows every version another tab saves (its hint invalidates the
       // read), so reading the version at save time would name the one that
@@ -903,9 +868,15 @@ function AutomationEditorScope({
         setDraftOrigin(automation);
         draftEpochRef.current += 1;
       }
-      setDraft(patchNode(automation, selectedNodeId, patch));
+      setDraft(applyNodePatch(rawDocument, selectedNodeId, patch));
     },
-    [automation, selectedNodeId, draft, automationQuery.data?.version],
+    [
+      automation,
+      rawDocument,
+      selectedNodeId,
+      draft,
+      automationQuery.data?.version,
+    ],
   );
 
   const isDirty = draft !== null;
@@ -1110,11 +1081,12 @@ function AutomationEditorScope({
   const submitSave = async (baseVersion: number | undefined): Promise<void> => {
     const submittedEpoch = draftEpochRef.current;
     const submittedHash = validation.currentHash;
+    const submitted = rawDocument;
     const saved = await save.mutateAsync({
       organizationId,
-      automation,
+      automation: submitted,
       // Package metadata belongs to the version being edited, even when
-      // the author only changes a node or its canvas position.
+      // the author only changes a node.
       ...(automationQuery.data?.presentation !== undefined && {
         presentation: automationQuery.data.presentation,
       }),
@@ -1153,7 +1125,7 @@ function AutomationEditorScope({
     draftBaseRef.current = saved.version;
     setDraftBase(saved.version);
     savedHereRef.current = saved.version;
-    setDraft((current) => (current === automation ? null : current));
+    setDraft((current) => (current === submitted ? null : current));
     setSaveMessage('');
     // The save appended a version; show it, whichever one was on screen.
     onSelectVersion(undefined);
