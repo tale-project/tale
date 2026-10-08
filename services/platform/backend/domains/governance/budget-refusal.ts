@@ -1,3 +1,4 @@
+import { USAGE_LIMIT_REFUSAL_PREFIX } from '../../../lib/shared/usage-limit.ts';
 import type { BudgetScope, BudgetViolation } from './budget-gate.ts';
 
 const BUCKET_OWNER: Record<BudgetScope, string> = {
@@ -29,6 +30,6 @@ export function budgetCapPhrase(violation: BudgetViolation): string {
 export function budgetRefusalMessage(violation: BudgetViolation): string {
   const until = new Date(violation.resetsAt).toISOString();
   return violation.used < violation.limit
-    ? `Usage limit reached. ${budgetCapPhrase(violation)} leaves too little for this request until ${until}.`
-    : `Usage limit reached. ${budgetCapPhrase(violation)} is used up until ${until}.`;
+    ? `${USAGE_LIMIT_REFUSAL_PREFIX} ${budgetCapPhrase(violation)} leaves too little for this request until ${until}.`
+    : `${USAGE_LIMIT_REFUSAL_PREFIX} ${budgetCapPhrase(violation)} is used up until ${until}.`;
 }

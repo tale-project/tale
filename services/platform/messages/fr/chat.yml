@@ -216,6 +216,8 @@ transcription:
   transcribing: Transcription en cours…
   transcribed: Transcrit
   couldNotTranscribe: Transcription impossible
+  limitReached: "Limite d'utilisation atteinte"
+  limitReachedHint: "Une limite d'utilisation qui s'applique à toi a été atteinte. Paramètres > Utilisation indique quand elle sera réinitialisée ; choisis Réessayer une fois la limite réinitialisée ou relevée."
   viewTranscript: Voir la transcription
   previewSubtitle: '{seconds}s transcrites'
   retry: Réessayer
