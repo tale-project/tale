@@ -63,4 +63,4 @@ Teste aussi le cas où une entrée manque. Un agent qui demande le brief absent 
 
 Corrige l’instruction à l’origine d’un mauvais résultat, puis teste une tâche comparable. Ajoute des outils seulement lorsque le travail le nécessite. Avant d’autoriser des écritures externes, examine [les approbations](/fr/platform/approvals/concepts). Pour un exemple plus complet, suis [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end).
 
-Lorsque tu sais évaluer le résultat d’une tâche de façon fiable, utilise le même agent pour des travaux similaires. Si le processus nécessite des exécutions planifiées, des étapes définies ou des approbations pour les actions des connecteurs, crée une [automatisation](/fr/platform/automations/concepts) qui répond à ces besoins.
+Lorsque tu sais évaluer le résultat d’une tâche de façon fiable, utilise le même agent pour des travaux similaires. Si le processus nécessite des exécutions planifiées, des étapes définies ou des approbations pour les actions des connectors, crée une [automatisation](/fr/platform/automations/concepts) qui répond à ces besoins.

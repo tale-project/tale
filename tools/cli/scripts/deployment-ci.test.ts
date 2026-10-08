@@ -860,6 +860,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         '${{ needs.changes.outputs.source_sha }}',
       );
       const checkout = await tempDirectory('tale-candidate-checkout-');
+      const protocolPath = 'services/platform/lib/engine/core/protocol.ts';
+      await mkdir(join(checkout, 'services/platform/lib/engine/core'), {
+        recursive: true,
+      });
+      await writeFile(
+        join(checkout, protocolPath),
+        await readFile(join(repository, protocolPath), 'utf8'),
+      );
       const git = (...args: string[]) =>
         Bun.spawnSync(['git', ...args], {
           cwd: checkout,
@@ -872,7 +880,8 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           },
         });
       git('init', '-q');
-      git('commit', '-q', '--allow-empty', '-m', 'candidate');
+      git('add', protocolPath);
+      git('commit', '-q', '-m', 'candidate');
       const head = git('rev-parse', 'HEAD').stdout.toString().trim();
       expect(head).toMatch(/^[a-f0-9]{40}$/);
       const run = async (source: string) => {
@@ -890,21 +899,29 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
           stdout: 'pipe',
           stderr: 'pipe',
         });
-        const [code, stdout] = await Promise.all([
+        const [code, stdout, stderr] = await Promise.all([
           child.exited,
           new Response(child.stdout).text(),
+          new Response(child.stderr).text(),
         ]);
-        return { code, stdout, output: await readFile(output, 'utf8') };
+        return { code, stdout, stderr, output: await readFile(output, 'utf8') };
       };
       const labelled = await run(head);
-      expect(labelled.code).toBe(0);
+      expect(labelled.code, labelled.stdout + labelled.stderr).toBe(0);
       expect(outputs(labelled.output).revision).toBe(head);
+      expect(outputs(labelled.output)['automation-protocol']).toBe('2');
       const elsewhere = await run(HEAD);
       expect(elsewhere.code).not.toBe(0);
       expect(elsewhere.stdout).toContain(
         `::error::Checked out ${head}, expected ${HEAD}`,
       );
       expect(elsewhere.output).toBe('');
+      await rm(join(checkout, protocolPath));
+      const missingProtocol = await run(head);
+      expect(missingProtocol.code).not.toBe(0);
+      expect(
+        outputs(missingProtocol.output)['automation-protocol'],
+      ).toBeUndefined();
     },
   );
 

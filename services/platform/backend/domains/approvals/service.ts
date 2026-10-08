@@ -4,7 +4,7 @@ import { isAdminRole } from '../../auth/membership.ts';
 import { toJson } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { pokeParkedRun } from '../automations/store.ts';
+import { lockRunInTx, pokeParkedRunInTx } from '../automations/store.ts';
 import {
   confirmAndScheduleErasure,
   rejectErasure,
@@ -128,20 +128,38 @@ const DEDICATED_RESPOND_DOORS: Readonly<Record<string, string>> = {
  * toward their dedicated respond doors, whose permission checks and state
  * transitions a generic settle would bypass.
  *
- * The decision is what the transaction commits, and once committed it
- * stands. A decided connector operation then pokes the automation run
- * parked behind it, but the poke only saves time: the run's own approval
- * poll and the liveness sweep resume it anyway (0.4 had no poke at all).
- * A poke that fails after the commit is therefore logged, never thrown —
- * answering a recorded approval with a failure told the reviewer it was not
- * accepted, a retry then met ALREADY_RESOLVED, and the gate went on to
- * admit the operation all the same.
+ * A decided connector operation wakes the automation run parked behind it
+ * in the same transaction, approved or rejected — the decision is the event,
+ * and the run's own poll is only a backstop, minutes out. Both commit
+ * together or neither does: a wake that cannot be queued fails the decision
+ * unrecorded, so the reviewer's retry decides it again. (A wake sent after
+ * the commit could fail with the decision already recorded: the reviewer
+ * was told it failed, a retry met ALREADY_RESOLVED, and the run waited for
+ * its poll.)
+ *
+ * The run's row is locked before the approval's: the run's terminal doors
+ * lock the run first and its approvals after (`lockRunInTx`), so the
+ * decision takes them in the same order — run, approval, audit chain.
  */
 export async function decideApproval(
   sql: Sql,
   args: DecideApprovalArgs,
 ): Promise<void> {
-  const decided = await sql.begin(async (tx) => {
+  await sql.begin(async (tx) => {
+    // Which run the decision wakes, read before any lock: an approval's
+    // kind and run never change once it is minted.
+    const facts = await tx<{ resourceType: string; runId: string | null }[]>`
+      SELECT resource_type AS "resourceType", metadata->>'runId' AS "runId"
+      FROM app.approvals
+      WHERE id = ${args.approvalId} AND org_id = ${args.organizationId}
+    `;
+    const wakes =
+      facts[0]?.resourceType === 'connector_operation' &&
+      typeof facts[0].runId === 'string'
+        ? { organizationId: args.organizationId, runId: facts[0].runId }
+        : null;
+    if (wakes !== null) await lockRunInTx(tx, wakes);
+
     const rows = await tx<
       {
         resourceType: string;
@@ -247,43 +265,8 @@ export async function decideApproval(
       entity: 'approval',
       entityId: args.approvalId,
     });
-    return approval;
+    // A run still walking is not parked yet: it reads the decision when it
+    // parks (`suspendRun`). A finished or deleted one is a silent no-op.
+    if (wakes !== null) await pokeParkedRunInTx(tx, wakes);
   });
-
-  // A workflow node parked behind this approval resumes NOW, approved or
-  // rejected — the decision is the event; the run's own poll is only its
-  // backstop. Anything stale is a silent no-op inside the poke.
-  if (decided.resourceType === 'connector_operation') {
-    const runId = decided.metadata?.runId;
-    if (typeof runId === 'string') {
-      await wakeParkedRun(sql, {
-        organizationId: args.organizationId,
-        approvalId: args.approvalId,
-        runId,
-      });
-    }
-  }
-}
-
-/**
- * The post-commit poke of {@link decideApproval}. It runs after the decision
- * committed, so a failure here (the resume job's send, the run row's update)
- * must not reach the caller as the decision's failure; the run's own poll
- * resumes it within `APPROVAL_POLL_MS`.
- */
-async function wakeParkedRun(
-  sql: Sql,
-  args: { organizationId: string; approvalId: string; runId: string },
-): Promise<void> {
-  try {
-    await pokeParkedRun(sql, {
-      organizationId: args.organizationId,
-      runId: args.runId,
-    });
-  } catch (error) {
-    console.error(
-      `[approvals] approval ${args.approvalId} is decided, but waking run ${args.runId} failed; its own poll resumes it:`,
-      error,
-    );
-  }
 }

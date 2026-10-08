@@ -2,23 +2,33 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { Card } from '@tale/ui/card';
 import { cn } from '@tale/ui/cn';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { Field } from '@tale/ui/field';
+import type { FieldIssue } from '@tale/ui/field-issue-messages';
 import { IconButton } from '@tale/ui/icon-button';
 import { Input } from '@tale/ui/input';
+import { useIssueFocusTarget } from '@tale/ui/issue-focus';
+import { IssueList } from '@tale/ui/issue-list';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Textarea } from '@tale/ui/textarea';
 import { AlertTriangle, X } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodeTypeSummary } from '../hooks/backend';
 import { useDeselectOnEscape } from '../hooks/use-deselect-on-escape';
+import {
+  CONTROL_FLOW_FIELDS,
+  declaredInspectorFields,
+} from '../lib/inspector-fields';
+import { fieldIssueMessage, type AutomationIssueView } from '../lib/issues';
 import type { NodeRunView } from '../lib/run-view';
-import { AGENT_EQUIPMENT_FIELDS, AgentNodeFields } from './agent-node-fields';
+import { AgentNodeFields } from './agent-node-fields';
 import { LlmModelField } from './llm-model-field';
 import { RunStepDetail } from './run-step-detail';
 
@@ -46,14 +56,6 @@ const FIELD_CONTROL: Record<string, 'text' | 'multiline' | 'json'> = {
   credential: 'text',
 };
 
-/** The control-flow fields every node type accepts, in reading order. */
-const CONTROL_FLOW_FIELDS = [
-  'when',
-  'elseOf',
-  'forEach',
-  'repeatUntil',
-] as const;
-
 /**
  * Read one declared field off a node by name. `NodeDef` carries no index
  * signature — the engine REGISTRY, not the type, decides which fields a given
@@ -75,6 +77,14 @@ function stringify(value: unknown): string {
   }
 }
 
+/** Where a field's problems are, and what they say under its control. */
+interface FieldIssueProps {
+  /** The field's pointer in the document (`/nodes/2/prompt`): "go to" a
+   * problem there, or inside it, lands on this control. */
+  anchor?: string | null;
+  issues?: readonly FieldIssue[];
+}
+
 /** A text field, with its label really tied to its control. */
 function TextField({
   label,
@@ -86,6 +96,8 @@ function TextField({
   value,
   readOnly,
   onChange,
+  anchor = null,
+  issues,
 }: {
   label: string;
   description?: string;
@@ -96,17 +108,23 @@ function TextField({
   value: string;
   readOnly: boolean;
   onChange: (next: string) => void;
-}) {
+} & FieldIssueProps) {
   const id = useId();
+  const controlRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  // The box shows the field's string as it is stored, so a problem's range
+  // inside it selects exactly the offending text.
+  useIssueFocusTarget(anchor, controlRef);
   return (
     <Field
       label={label}
       htmlFor={id}
       {...(description !== undefined && { description })}
       {...(required !== undefined && { required })}
+      {...(issues !== undefined && issues.length > 0 && { issues })}
     >
       {multiline === true ? (
         <Textarea
+          ref={controlRef}
           id={id}
           rows={rows ?? 3}
           readOnly={readOnly}
@@ -118,6 +136,7 @@ function TextField({
         />
       ) : (
         <Input
+          ref={controlRef}
           id={id}
           readOnly={readOnly}
           value={value}
@@ -140,6 +159,8 @@ function JsonField({
   value,
   readOnly,
   onCommit,
+  anchor = null,
+  issues,
 }: {
   label: string;
   description?: string;
@@ -149,9 +170,25 @@ function JsonField({
   value: unknown;
   readOnly: boolean;
   onCommit: (parsed: unknown) => void;
-}) {
+} & FieldIssueProps) {
   const { t } = useT('automations');
   const id = useId();
+  const controlRef = useRef<HTMLTextAreaElement>(null);
+  // The box shows the value re-serialised as JSON, so offsets into a string
+  // inside it do not apply: a problem there focuses the box as a whole.
+  const focusTarget = useMemo(
+    () => ({
+      focus: () => {
+        const box = controlRef.current;
+        if (box === null) return;
+        box.closest('details')?.setAttribute('open', '');
+        box.focus({ preventScroll: true });
+        box.scrollIntoView({ block: 'nearest' });
+      },
+    }),
+    [],
+  );
+  useIssueFocusTarget(anchor, focusTarget);
   const [text, setText] = useState(() => stringify(value));
   const [error, setError] = useState<string | null>(null);
 
@@ -168,8 +205,10 @@ function JsonField({
       htmlFor={id}
       {...(description !== undefined && { description })}
       {...(error !== null && { error })}
+      {...(issues !== undefined && issues.length > 0 && { issues })}
     >
       <Textarea
+        ref={controlRef}
         id={id}
         rows={rows}
         readOnly={readOnly}
@@ -223,6 +262,10 @@ export interface NodeInspectorProps {
    * edge-to-edge workbench, bordered only on the side that meets it.
    */
   variant?: 'card' | 'panel';
+  /** The problems the editor's check found on this node. */
+  issues?: readonly AutomationIssueView[];
+  /** The node's position in the document — its problems' pointers name it. */
+  nodeIndex?: number;
 }
 
 /**
@@ -251,6 +294,8 @@ export function NodeInspector({
   projectId,
   onDeselect,
   variant = 'card',
+  issues,
+  nodeIndex,
 }: NodeInspectorProps) {
   const headingId = useId();
   const sectionRef = useRef<HTMLElement>(null);
@@ -294,6 +339,8 @@ export function NodeInspector({
         organizationId={organizationId}
         {...(projectId !== undefined && { projectId })}
         {...(onDeselect !== undefined && { onDeselect })}
+        {...(issues !== undefined && { issues })}
+        {...(nodeIndex !== undefined && { nodeIndex })}
       />
     </section>
   );
@@ -310,13 +357,24 @@ export interface NodeFieldsProps {
   organizationId: string;
   projectId?: string;
   onDeselect?: () => void;
+  /** The problems the editor's check found on this node. */
+  issues?: readonly AutomationIssueView[];
+  /** The node's position in the document — its problems' pointers name it. */
+  nodeIndex?: number;
 }
+
+const NO_ISSUE_VIEWS: readonly AutomationIssueView[] = [];
 
 /**
  * The node's own fields, with no outer chrome — `NodeInspector`'s `card` and
  * `panel` variants wrap this in a bordered section; the Editor tab's mobile
  * sheet (`AutomationEditor`) renders it directly inside a `ResponsiveDialog`
  * instead, since a sheet's chrome is the dialog's, not this component's.
+ *
+ * Problems the editor's check found show where they are fixed: under the
+ * field's control, or — for a part of the node without a box of its own (a
+ * model picker, an unknown field, the node as a whole) — in a list at the
+ * top. Each control registers where "go to" a problem lands.
  */
 export function NodeFields({
   headingId,
@@ -329,19 +387,54 @@ export function NodeFields({
   organizationId,
   projectId,
   onDeselect,
+  issues = NO_ISSUE_VIEWS,
+  nodeIndex,
 }: NodeFieldsProps) {
   const { t } = useT('automations');
   const { t: tCommon } = useT('common');
   const isAgent = node.type === 'agent';
   const isLlm = node.type === 'llm';
-  const declaredFields = (nodeType?.allowedFields ?? []).filter(
-    (field) =>
-      field !== 'input' && !(isAgent && AGENT_EQUIPMENT_FIELDS.includes(field)),
+  const declaredFields = declaredInspectorFields(
+    node,
+    nodeType?.allowedFields ?? [],
   );
   const required = new Set(nodeType?.requiredFields ?? []);
-  const hasControlFlow = CONTROL_FLOW_FIELDS.some(
-    (field) => (node[field] ?? '') !== '',
+  const issuesByField = useMemo(() => {
+    const byField = new Map<string, FieldIssue[]>();
+    for (const view of issues) {
+      if (view.navigation.kind !== 'field') continue;
+      const list = byField.get(view.navigation.field) ?? [];
+      list.push({
+        id: view.issue.id,
+        severity: view.issue.level,
+        message: fieldIssueMessage(view, t),
+      });
+      byField.set(view.navigation.field, list);
+    }
+    return byField;
+  }, [issues, t]);
+  const nodeIssues = useMemo(
+    () =>
+      issues.flatMap((view) =>
+        view.navigation.kind === 'node' ? [view.item] : [],
+      ),
+    [issues],
   );
+  const hasControlFlow = CONTROL_FLOW_FIELDS.some(
+    (field) =>
+      (node[field] ?? '') !== '' || (issuesByField.get(field)?.length ?? 0) > 0,
+  );
+  /** Where "go to" lands for a problem in `field` (or inside it). */
+  const anchorOf = (field: string): string | null =>
+    nodeIndex === undefined ? null : ptr('nodes', nodeIndex, field);
+  // A problem with the node as a whole lands on its name, right above the
+  // list that names it.
+  const headingRef = useRef<HTMLSpanElement>(null);
+  useIssueFocusTarget(
+    nodeIndex === undefined ? null : ptr('nodes', nodeIndex),
+    headingRef,
+  );
+  const nodeIssuesTitleId = useId();
 
   return (
     <div className="flex flex-col gap-3">
@@ -349,7 +442,12 @@ export function NodeFields({
         as="h3"
         size="sm"
         title={
-          <span id={headingId} className="block truncate">
+          <span
+            ref={headingRef}
+            id={headingId}
+            tabIndex={-1}
+            className="focus-visible:ring-ring block truncate rounded-sm outline-none focus-visible:ring-2"
+          >
             {node.id}
           </span>
         }
@@ -386,6 +484,23 @@ export function NodeFields({
         />
       )}
 
+      {nodeIssues.length > 0 && (
+        <Card padding="none">
+          {/* Under the inspector's own h3, at the size of the rows it heads. */}
+          <h4
+            id={nodeIssuesTitleId}
+            className="text-foreground px-3 pt-3 text-sm font-medium"
+          >
+            {t('problems.nodeTitle')}
+          </h4>
+          <IssueList
+            issues={nodeIssues}
+            density="compact"
+            aria-labelledby={nodeIssuesTitleId}
+          />
+        </Card>
+      )}
+
       {declaredFields.map((fieldName) => {
         const control = FIELD_CONTROL[fieldName] ?? 'text';
         const label = t(`editor.fields.${fieldName}`, {
@@ -398,6 +513,8 @@ export function NodeFields({
               key={fieldName}
               label={label}
               value={value}
+              anchor={anchorOf(fieldName)}
+              issues={issuesByField.get(fieldName)}
               readOnly={readOnly}
               onCommit={(parsed) => {
                 onChange({
@@ -453,6 +570,8 @@ export function NodeFields({
             monospace={fieldName === 'code'}
             rows={fieldName === 'code' ? 6 : 3}
             value={typeof raw === 'string' ? raw : ''}
+            anchor={anchorOf(fieldName)}
+            issues={issuesByField.get(fieldName)}
             readOnly={readOnly}
             onChange={(next) => {
               onChange({ [fieldName]: next });
@@ -475,6 +594,8 @@ export function NodeFields({
         label={t('editor.fields.input')}
         title={t('editor.fields.inputDescription')}
         value={node.input}
+        anchor={anchorOf('input')}
+        issues={issuesByField.get('input')}
         readOnly={readOnly}
         onCommit={(parsed) => {
           onChange({
@@ -489,8 +610,9 @@ export function NodeFields({
 
       <CollapsibleDetails
         summary={t('editor.controlFlowTitle')}
-        // Set control flow is part of what the node does, so it opens on it;
-        // unused, it stays folded under the fields that matter.
+        // Set control flow is part of what the node does, so it opens on it
+        // — as it does on a problem in it; unused, it stays folded under the
+        // fields that matter.
         defaultOpen={hasControlFlow}
       >
         <div className="mt-3 flex flex-col gap-3">
@@ -499,6 +621,8 @@ export function NodeFields({
               key={fieldName}
               label={t(`editor.fields.${fieldName}`)}
               value={node[fieldName] ?? ''}
+              anchor={anchorOf(fieldName)}
+              issues={issuesByField.get(fieldName)}
               readOnly={readOnly}
               onChange={(next) => {
                 onChange({ [fieldName]: next === '' ? undefined : next });

@@ -17,16 +17,13 @@ type KnowledgeLabelKey =
   | 'products'
   | 'contacts';
 
-export interface KnowledgePage {
+interface KnowledgePage {
   readonly labelKey: KnowledgeLabelKey;
   readonly path: string;
 }
 
-/** Knowledge's pages, in reading order. Exported so the rail's remembered-tab
- *  resolution (`use-navigation-items.ts`) and its persistence
- *  (`lib/knowledge-tab-memory.ts`) share this one list instead of each
- *  duplicating the 5-tab enum. */
-export const KNOWLEDGE_PAGES: readonly KnowledgePage[] = [
+/** Knowledge's pages, in reading order. */
+const KNOWLEDGE_PAGES: readonly KnowledgePage[] = [
   { labelKey: 'documents', path: 'documents' },
   { labelKey: 'knowledgeEntries', path: 'knowledge-entries' },
   { labelKey: 'websites', path: 'websites' },

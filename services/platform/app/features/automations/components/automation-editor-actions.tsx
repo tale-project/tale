@@ -11,8 +11,20 @@ import { EditorActions, useActiveEditor } from '@tale/ui/editor';
  * around every tab and renders no cluster of its own, so exactly one — this
  * one, portaled into the tab strip by the open tab — is ever on screen.
  */
-export function AutomationEditorActions() {
+export function AutomationEditorActions({
+  inlineReason = false,
+}: {
+  /** Say why Save is disabled in a visible line rather than a tooltip — for
+   * the phone sheet, where nothing hovers. */
+  inlineReason?: boolean;
+}) {
   const controller = useActiveEditor();
   if (!controller) return null;
-  return <EditorActions controller={controller} entityKind="automation" />;
+  return (
+    <EditorActions
+      controller={controller}
+      entityKind="automation"
+      inlineReason={inlineReason}
+    />
+  );
 }

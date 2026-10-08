@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -390,18 +392,35 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The sandbox host refused it and said when its place in line comes
          * up: the run is woken then rather than at the watchdog's next tick. */
         wakeAfterMs?: number;
+        /** The run had launched, and its workspace's runtime refused the exec
+         * because every live-exec place was taken (`EXEC_LIMIT`). Nothing
+         * ran: the run goes back to `queued` without its launch stamp — the
+         * wait is no executed time, so it can neither count as an attempt nor
+         * pass for a quarter hour of progress — and onto a fresh exec, since
+         * the refused one's key and op row are closed as cancelled. */
+        execRefused?: boolean;
       };
       const parked = await sql.begin(async (tx) => {
+        const now = Date.now();
         const rows = await tx<
-          { organizationId: string; taskId: string; agentId: string }[]
+          {
+            organizationId: string;
+            taskId: string;
+            agentId: string;
+            execId: string;
+          }[]
         >`
           UPDATE app.project_agent_runs SET
-            waiting_for_capacity_at_ms = ${Date.now()},
-            updated_at_ms = ${Date.now()}
+            status = 'queued',
+            exec_id = ${args.execRefused === true ? randomUUID() : args.execId},
+            launched_at_ms = CASE WHEN ${args.execRefused === true}
+              THEN NULL ELSE launched_at_ms END,
+            waiting_for_capacity_at_ms = ${now},
+            updated_at_ms = ${now}
           WHERE id = ${args.runId} AND exec_id = ${args.execId}
-            AND status = 'queued'
+            AND status = ${args.execRefused === true ? 'running' : 'queued'}
           RETURNING org_id AS "organizationId", task_id AS "taskId",
-            agent_id AS "agentId"
+            agent_id AS "agentId", exec_id AS "execId"
         `;
         // The card now reads "Waiting for a sandbox slot", not "Queued".
         const row = rows[0];
@@ -417,7 +436,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               {
                 organizationId: row.organizationId,
                 runId: args.runId,
-                execId: args.execId,
+                execId: row.execId,
               },
               { startAfter: new Date(Date.now() + args.wakeAfterMs) },
             );
@@ -850,9 +869,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'sandbox/session_mutations:releaseProjectAgentSessionSlot': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { organizationId: string; agentId: string };
+      const args = raw as {
+        organizationId: string;
+        agentId: string;
+        /** The workspace of the turn that ended. */
+        sessionId?: string;
+      };
       // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the oldest parked runs on the freed slot.
+      // and wake the oldest parked runs on the freed slot, and the oldest
+      // run parked on the ended turn's workspace.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 

@@ -361,7 +361,36 @@
  * facet; saved models, instructions and secret grants remain independent.
  * No public REST delegation or agent-verdict endpoint is added. Additive.
  *
- * 3.18.0 — 2026-10-07: API keys can belong to a member an Owner or Admin
+ * 3.18.0 — 2026-10-08: a run's `waitingFor` gains `in_doubt` — a write its
+ * server was making when it stopped may already have happened, and a person
+ * decides in the app how to continue (its `detail` reads
+ * `in_doubt:<nodeId>`); `failureCode` gains `engine_incompatible` and
+ * `effect_in_doubt`; runs carry `resumeCount`, `lastResume {reason:
+ * shutdown | lease_expired, at}` and `stalled`. Additive.
+ *
+ * 3.19.0 — 2026-10-08: automation documents are analysed before they run,
+ * and the MCP authoring tools say what the analysis found.
+ * `validate_automation` answers `analysis` (the per-node summary and the
+ * possible paths) and `types` (every value's inferred shape) beside its
+ * issues; every issue carries `at` (a JSON pointer and a range in the
+ * field), `params` (the facts its sentence names) and `related`
+ * (the nodes it involves); `save_automation` answers the saved version's
+ * `warnings`, and a refused save its `warnings` beside its `errors`;
+ * `get_catalog` gives each capability its `outputSchema`. New warning
+ * codes (MAYBE_NULL, UNCAUGHT_FAILURE, UNREACHABLE, TYPE_MISMATCH and the
+ * rest of the analysis) and one more error (ITEM_WITHOUT_FOREACH, a
+ * warning before). No REST operation changes. Additive.
+ *
+ * 3.20.0 — 2026-10-08: runs may be `quarantined` and carry
+ * `legacyQuarantine`, a bounded description of legacy execution whose
+ * external effects remain uncertain. Both run scopes expose
+ * `POST …/runs/{runId}/legacy-quarantine`: an exact-observation stop
+ * request with explicit acknowledgement, behind the existing developer
+ * and project-write gates. The request does not clear the hold or prove
+ * termination. Ordinary cancel refuses held runs (`RUN_QUARANTINED`);
+ * stale stop requests answer `RUN_QUARANTINE_CHANGED`. Additive.
+ *
+ * 3.21.0 — 2026-10-08: API keys can belong to a member an Owner or Admin
  * made them for, or to a team, a project or the organization itself. Such a
  * key works in its one organization: it needs no `X-Organization-Slug`, and
  * one naming another organization answers 403 `ORG_FORBIDDEN`. A project's
@@ -371,15 +400,15 @@
  * the bound organization alone, and an empty `user.email` for a key that
  * is not a person. Additive.
  *
- * 3.19.0 — 2026-10-07: budget rules can cap a project — everything spent in
+ * 3.22.0 — 2026-10-08: budget rules can cap a project — everything spent in
  * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
  * names such a cap with `data.scope` `project`. Additive.
  *
- * 3.20.0 — 2026-10-08: embeddings are counted and held to the budget caps.
+ * 3.23.0 — 2026-10-08: embeddings are counted and held to the budget caps.
  * A knowledge search answers 429 `BUDGET_EXCEEDED` (with `data` and
  * `Retry-After`) when a cap that binds the key holder, the key or the
  * searched project is reached; a document's indexing `errorCode` gains
  * `usage_limit` — a `failed` file whose indexing waits for such a cap and
  * resumes by itself. Additive.
  */
-export const API_CONTRACT_VERSION = '3.20.0';
+export const API_CONTRACT_VERSION = '3.23.0';

@@ -24,6 +24,8 @@
  * only failure classes and actionable hints.
  */
 
+import { isDeepStrictEqual } from 'node:util';
+
 import { isPrivateIp } from '@tale/shared/net/private-ip';
 import {
   BROKER_SECRET_ENV_REGEX,
@@ -54,6 +56,12 @@ import {
   diagnoseTokenMapping,
   type BrokerSelectionResult,
 } from './broker_pool';
+import {
+  brokerTransportDeadline,
+  withBrokerTransport,
+  type BrokerTransport,
+  type BrokerTransportScope,
+} from './broker_transport';
 import { hashBrokerAccount, hashBrokerToken } from './token_hash';
 
 /** The full row shape the internal queries return (`returns: v.any()`
@@ -364,21 +372,30 @@ function policeBrokerEndpoint(
 async function fetchBrokerJson(
   row: CredentialRow,
   broker: BrokerCredentialData,
+  transport?: BrokerTransport,
 ): Promise<unknown> {
-  const allowedHosts = policeBrokerEndpoint(row, broker.endpoint);
   let response;
   try {
-    response = await safeFetch(broker.endpoint, {
-      allowPrivateAddresses: privateProviderHostsAllowed(),
-      method: broker.httpMethod,
-      headers: buildBrokerAuthHeaders(broker.auth, brokerAuthSecret(broker)),
-      timeoutMs: broker.timeoutMs,
-      maxResponseBytes: broker.maxResponseBytes,
-      ...(allowedHosts !== undefined
-        ? { allowedHosts: [...allowedHosts] }
-        : {}),
-    });
+    const fetch = (remainingMs: number, signal?: AbortSignal) => {
+      const allowedHosts = policeBrokerEndpoint(row, broker.endpoint);
+      return safeFetch(broker.endpoint, {
+        allowPrivateAddresses: privateProviderHostsAllowed(),
+        method: broker.httpMethod,
+        headers: buildBrokerAuthHeaders(broker.auth, brokerAuthSecret(broker)),
+        timeoutMs: Math.min(broker.timeoutMs, remainingMs),
+        ...(signal !== undefined ? { signal } : {}),
+        maxResponseBytes: broker.maxResponseBytes,
+        ...(allowedHosts !== undefined
+          ? { allowedHosts: [...allowedHosts] }
+          : {}),
+      });
+    };
+    response =
+      transport === undefined
+        ? await fetch(broker.timeoutMs)
+        : await transport.request(fetch);
   } catch (err) {
+    if (err instanceof AppError) throw err;
     const kind = err instanceof SafeFetchError ? err.kind : 'network_error';
     throw credentialError(
       'CREDENTIAL_BROKER_FETCH_FAILED',
@@ -405,6 +422,8 @@ async function resolveBroker(
   ctx: ActionCtx,
   row: CredentialRow,
   args: ResolveCredentialArgs,
+  scope?: BrokerTransportScope,
+  transportDeadline?: number,
 ): Promise<ResolvedProviderCredential> {
   if (!row.encryptedData) throw shapeError(row);
   let broker: BrokerCredentialData;
@@ -420,7 +439,49 @@ async function resolveBroker(
     throw err;
   }
 
-  const json = await fetchBrokerJson(row, broker);
+  if (scope === undefined || broker.httpMethod !== 'GET') {
+    return resolveBrokerPool(ctx, row, args, broker);
+  }
+  const authSecret = brokerAuthSecret(broker);
+  return withBrokerTransport(
+    scope,
+    async () => {
+      const current = await loadRow(ctx, args);
+      if (current.status === 'disabled') {
+        throw credentialError(
+          'CREDENTIAL_DISABLED',
+          `Credential "${row.name}" is disabled — enable it in Settings → AI providers, or pick another credential.`,
+        );
+      }
+      if (
+        current._id !== row._id ||
+        current.organizationId !== row.organizationId ||
+        current.providerSlug !== row.providerSlug ||
+        current.authMethod !== row.authMethod ||
+        current.endpointUrl !== row.endpointUrl ||
+        !isDeepStrictEqual(current.encryptedData, row.encryptedData) ||
+        brokerAuthSecret(broker) !== authSecret
+      ) {
+        throw credentialError(
+          'CREDENTIAL_BROKER_FETCH_FAILED',
+          'The broker credential changed while the task was starting.',
+        );
+      }
+      policeBrokerEndpoint(current, broker.endpoint);
+    },
+    (transport) => resolveBrokerPool(ctx, row, args, broker, transport),
+    transportDeadline,
+  );
+}
+
+async function resolveBrokerPool(
+  ctx: ActionCtx,
+  row: CredentialRow,
+  args: ResolveCredentialArgs,
+  broker: BrokerCredentialData,
+  transport?: BrokerTransport,
+): Promise<ResolvedProviderCredential> {
+  const json = await fetchBrokerJson(row, broker, transport);
   const diagnostics = diagnoseTokenMapping(
     json,
     broker.responseMapping,
@@ -528,7 +589,12 @@ async function subscriptionKeyTargetEnvVar(
 export async function resolveProviderCredential(
   ctx: ActionCtx,
   args: ResolveCredentialArgs,
+  brokerTransport?: BrokerTransportScope,
 ): Promise<ResolvedProviderCredential> {
+  const transportDeadline =
+    brokerTransport === undefined
+      ? undefined
+      : brokerTransportDeadline(brokerTransport);
   const row = await loadRow(ctx, args);
   if (row.status === 'disabled') {
     throw credentialError(
@@ -597,7 +663,13 @@ export async function resolveProviderCredential(
       };
     }
     case 'subscription-broker':
-      return await resolveBroker(ctx, row, args);
+      return await resolveBroker(
+        ctx,
+        row,
+        args,
+        brokerTransport,
+        transportDeadline,
+      );
     default: {
       const _exhaustive: never = row.authMethod;
       return _exhaustive;

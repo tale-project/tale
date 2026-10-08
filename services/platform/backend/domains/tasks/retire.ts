@@ -4,6 +4,7 @@ import { cancelRunInTx } from '../automations/store.ts';
 import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { cancelAgentRunInTx } from './agent-runs.ts';
 import { taskHoldsBlobRef } from './blob-holders.ts';
+import { TaskError } from './errors.ts';
 
 /**
  * The ONE retirement walk for a set of tasks that are about to be hard
@@ -62,6 +63,20 @@ export async function retireTasksInTx(
     FROM app.tasks
     WHERE org_id = ${args.organizationId} AND id = ANY(${ids})
   `;
+
+  const held = await tx<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${args.organizationId}
+      AND (project_id = ${args.projectId} OR project_id IS NULL)
+      AND status = 'quarantined' AND input -> 'task' ->> 'id' = ANY(${ids})
+    LIMIT 1
+  `;
+  if (held.length > 0)
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'An automation is on hold with unknown effects; its task cannot be deleted.',
+      409,
+    );
 
   // Live runs die WITH their tasks, not after them. The agent run's row
   // would FK-cascade away mid-turn, leaving the sandbox turn executing with

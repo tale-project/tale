@@ -119,6 +119,40 @@ export class SpawnerBusyError extends Error {
   }
 }
 
+/** The `errorCode` of an exec result whose exec the session's runtime refused
+ * before it spawned, because the session already runs its maximum of live
+ * execs (runnerd's `EXEC_LIMIT`, forwarded as is by the spawner:
+ * `services/sandbox/src/wire.ts`). */
+const SESSION_EXEC_LIMIT_CODE = 'EXEC_LIMIT';
+
+/** Whether an exec's result is the session runtime's refusal for want of a
+ * live-exec place ({@link SESSION_EXEC_LIMIT_CODE}): the process never ran. */
+export function isSessionExecLimitResult(
+  result: SessionExecResult | undefined,
+): boolean {
+  return (
+    result?.status === 'failed' &&
+    result.exitCode === null &&
+    result.errorCode === SESSION_EXEC_LIMIT_CODE
+  );
+}
+
+/** A start whose exec the session's runtime refused because every one of its
+ * live-exec places is taken by the session's other execs. Distinct from
+ * {@link SpawnerBusyError}: the room that ran out is this one workspace's,
+ * not the shared host's, and it frees when another exec of the session
+ * ends. Nothing ran, so the start waits instead of failing. */
+export class SessionExecLimitError extends Error {
+  readonly sessionId: string;
+  constructor(sessionId: string, execId: string) {
+    super(
+      `sandbox session ${sessionId} refused exec ${execId}: every live-exec place is taken`,
+    );
+    this.name = 'SessionExecLimitError';
+    this.sessionId = sessionId;
+  }
+}
+
 /** The `queue` field of a 429 body, as a boundary: a body that is not JSON,
  * names no line or names one out of shape is an older spawner's answer, and
  * the create waits as it always did. */
