@@ -311,9 +311,12 @@ server.
 When a run is interrupted while a step is writing to another service, Tale cannot tell whether
 the write reached that service. The resumed run never sends it again on its own: it waits
 (`waitingFor: in_doubt`) until a person chooses to run the step again, to skip it (the step then
-returns nothing), or to fail the run (`effect_in_doubt`). A write that finished before the
-interruption is not sent again, and neither is an item of a list that was already sent. A model
-call is made again instead, and so is an action its connector declares safe to repeat.
+returns nothing), or to fail the run (`effect_in_doubt`). A choice is about one attempt of the
+write: once the step was run again and interrupted again, a choice made about the earlier attempt
+is refused and decides nothing, so the person decides about the new interruption. A write that
+finished before the interruption is not sent again, and neither is an item of a list that was
+already sent. A model call is made again instead, and so is an action its connector declares safe
+to repeat.
 
 - **Example**: Mia's run is sending an invoice to the accounting system when its server stops →
   the run waits with "This step may already have run", and nothing is sent again until Mia

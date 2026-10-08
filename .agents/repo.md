@@ -692,7 +692,7 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   (`backend/domains/automations/routes.ts`) and the card on the run page and in the task
   panel: `/api/v1` and MCP name the wait but offer no door, and the card names a write inside a
   subautomation by its raw path (`batch[1:0]/send`) (2026-10). Paying it down means
-  `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, actor?}` in both
+  `GET {run}/in-doubt` and `POST {run}/in-doubt/{attemptId}` `{resolution, attempt, actor?}` in both
   scopes of `backend/rest/v1-automations.ts` beside the ask doors (the stop's write gate,
   `rest:execute` charged, the store's 409s re-coded at the door), an MCP tool, a contract bump,
   and a readable name for a nested path.

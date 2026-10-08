@@ -57,6 +57,12 @@ function sameAttempt(a: AttemptRef, b: AttemptRef): boolean {
 /** The decisions that ask before they go. */
 type Confirmable = Exclude<InDoubtResolution, 'skip'>;
 
+/** A question the dialog asks, about the attempt it was opened for. */
+interface Confirming {
+  decision: Confirmable;
+  about: RunInDoubt;
+}
+
 /**
  * A run parked on a write that may already have happened: its server stopped
  * while the step was sending to its service, and Tale cannot tell whether the
@@ -65,16 +71,18 @@ type Confirmable = Exclude<InDoubtResolution, 'skip'>;
  * twice, so it asks first), **Skip it** (the run continues as if the step
  * returned nothing) and **Fail the run** (asks first).
  *
- * Everything the card shows belongs to ONE attempt: a refusal or a recorded
- * decision is kept with the attempt it was about, so a later write the run
- * parks on — or the same write interrupted again after **Run it again** —
- * never shows the previous one's outcome. Loading, failed and pending share
- * one mounted frame, so the card holds its place as the read resolves. It is
- * a labelled section with its own heading, carries the accent of a move that
- * is the reader's, and says once, politely, that the run waits for a
- * decision. Once a decision is recorded the actions go and focus moves to
- * the sentence saying what happens next; when the run moves on and the card
- * leaves the page with focus inside it, `onFocusLost` takes the focus.
+ * Everything the card shows belongs to ONE attempt: a refusal, a recorded
+ * decision or an open question is kept with the attempt it was about, so a
+ * later write the run parks on — or the same write interrupted again after
+ * **Run it again** — never shows the previous one's outcome, and a choice
+ * is only ever sent about the attempt it was made for. Loading, failed and
+ * pending share one mounted frame, so the card holds its place as the read
+ * resolves. It is a labelled section with its own heading, carries the
+ * accent of a move that is the reader's, and says once, politely, that the
+ * run waits for a decision. Once a decision is recorded the actions go and
+ * focus moves to the sentence saying what happens next; when the run moves
+ * on and the card leaves the page with focus inside it, `onFocusLost` takes
+ * the focus.
  */
 export function RunInDoubtCard({
   organizationId,
@@ -97,7 +105,7 @@ export function RunInDoubtCard({
   const resolve = useResolveRunInDoubt();
   const [recorded, setRecorded] = useState<Recorded | null>(null);
   const [refusal, setRefusal] = useState<Refusal | null>(null);
-  const [confirming, setConfirming] = useState<Confirmable | null>(null);
+  const [confirming, setConfirming] = useState<Confirming | null>(null);
   const skipHintId = useId();
   const titleId = useId();
   const handoffRef = useFocusHandoff<HTMLElement>(onFocusLost);
@@ -126,6 +134,17 @@ export function RunInDoubtCard({
     recorded !== null && (attempt === null || sameAttempt(attempt, recorded))
       ? recorded
       : null;
+  // An open question belongs to the attempt it was opened for. Once the read
+  // answers another one (the write was run again and interrupted again) or
+  // nothing, the question is withdrawn: the dialog closes instead of
+  // confirming a choice nobody made about what waits now, and it does not
+  // come back unasked if the same attempt waits again.
+  if (
+    confirming !== null &&
+    (attempt === null || !sameAttempt(attempt, confirming.about))
+  ) {
+    setConfirming(null);
+  }
 
   // The pressed action left the page with the decision; the focus it held
   // would fall to the page. It goes to the sentence that replaced it,
@@ -157,6 +176,9 @@ export function RunInDoubtCard({
         organizationId,
         runId,
         attemptId: about.attemptId,
+        // The door refuses a choice about an earlier attempt of the write,
+        // so a late press never decides the attempt that waits now.
+        attempt: about.attempt,
         resolution: decision,
       })
       .then(
@@ -270,7 +292,11 @@ export function RunInDoubtCard({
                       variant="secondary"
                       size="sm"
                       disabled={busy}
-                      onClick={() => setConfirming('retry')}
+                      onClick={() => {
+                        if (attempt !== null) {
+                          setConfirming({ decision: 'retry', about: attempt });
+                        }
+                      }}
                     >
                       {t('runs.inDoubt.retry')}
                     </Button>
@@ -290,7 +316,11 @@ export function RunInDoubtCard({
                       variant="destructive"
                       size="sm"
                       disabled={busy}
-                      onClick={() => setConfirming('fail')}
+                      onClick={() => {
+                        if (attempt !== null) {
+                          setConfirming({ decision: 'fail', about: attempt });
+                        }
+                      }}
                     >
                       {t('runs.inDoubt.fail')}
                     </Button>
@@ -329,31 +359,34 @@ export function RunInDoubtCard({
           final: both ask first. The dialog stays open while the choice is
           sent, and gives focus to the sentence that replaces the actions. */}
       <ConfirmDialog
-        open={confirming !== null && attempt !== null}
+        open={confirming !== null}
         onOpenChange={(open) => {
           if (!open) setConfirming(null);
         }}
         title={
-          confirming === 'fail'
+          confirming?.decision === 'fail'
             ? t('runs.inDoubt.failConfirm.title')
             : t('runs.inDoubt.retryConfirm.title')
         }
         description={
-          confirming === 'fail'
+          confirming?.decision === 'fail'
             ? t('runs.inDoubt.failConfirm.body')
-            : t('runs.inDoubt.retryConfirm.body', { connector })
+            : t('runs.inDoubt.retryConfirm.body', {
+                connector: confirming?.about.connector ?? connector,
+              })
         }
         confirmText={
-          confirming === 'fail'
+          confirming?.decision === 'fail'
             ? t('runs.inDoubt.fail')
             : t('runs.inDoubt.retry')
         }
-        variant={confirming === 'fail' ? 'destructive' : 'warning'}
+        variant={confirming?.decision === 'fail' ? 'destructive' : 'warning'}
         isLoading={resolve.isPending}
         restoreFocusRef={resolvedRef}
         onConfirm={() => {
-          if (confirming !== null && attempt !== null) {
-            decide(confirming, attempt);
+          // The attempt the question was asked about, never a newer read.
+          if (confirming !== null) {
+            decide(confirming.decision, confirming.about);
           }
         }}
       />
