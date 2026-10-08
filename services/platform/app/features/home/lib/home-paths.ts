@@ -2,7 +2,8 @@
  * Which dashboard routes belong to Home — the one section that holds chats,
  * projects with their tasks, and the inbox. The shell mounts the Home panel
  * beside every one of them, so moving between a chat, a task, a project and
- * a customer conversation never swaps the navigation out from under you.
+ * a customer conversation never swaps the navigation out from under you, and
+ * the rail lights Home on every one of them.
  */
 
 const HOME_SEGMENTS = [
@@ -20,31 +21,34 @@ function orgRelative(pathname: string, organizationId: string): string | null {
   return pathname.slice(prefix.length);
 }
 
+/**
+ * Whether the page is one automation's own page inside a project — its tabs
+ * and runs (`/projects/<id>/automations/<slug>/…`). It wears the Automations
+ * chrome, so it belongs to the Automations section: the rail lights
+ * Automations, and no Home panel stands beside its canvas, exactly like an
+ * automation outside a project. The project's Automations tab
+ * (`/projects/<id>/automations`, the bound list) stays Home's.
+ */
+export function isProjectAutomationPage(
+  pathname: string,
+  organizationId: string,
+): boolean {
+  const rest = orgRelative(pathname, organizationId);
+  return (
+    rest !== null && /^\/projects\/[^/]+\/automations\/[^/]+(?:\/|$)/.test(rest)
+  );
+}
+
 export function isHomePath(pathname: string, organizationId: string): boolean {
   const rest = orgRelative(pathname, organizationId);
   if (rest === null) return false;
   // A shared-chat snapshot is a standalone reading page with its own close
   // button; it keeps the full width.
   if (rest.startsWith('/chat/shared/')) return false;
+  if (isProjectAutomationPage(pathname, organizationId)) return false;
   return HOME_SEGMENTS.some(
     (segment) => rest === `/${segment}` || rest.startsWith(`/${segment}/`),
   );
-}
-
-/**
- * Whether the Home panel sits beside the page: on every Home route but a
- * project's automation workbench (`/projects/<id>/automations/<slug>/…`),
- * which wears the Automations chrome and keeps the full width for its
- * canvas — exactly like an automation outside a project. The rail still
- * marks Home there; the workbench simply has the room.
- */
-export function showsHomePanel(
-  pathname: string,
-  organizationId: string,
-): boolean {
-  if (!isHomePath(pathname, organizationId)) return false;
-  const rest = orgRelative(pathname, organizationId) ?? '';
-  return !/^\/projects\/[^/]+\/automations\/[^/]+(?:\/|$)/.test(rest);
 }
 
 /** What the open page is, as far as the Home panel's highlight cares. */

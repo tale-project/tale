@@ -14,14 +14,16 @@ On a phone, navigation sits in a rounded capsule floating above the page. Conten
 
 As you scroll down, the navigation becomes smaller and moves slightly lower, showing just the icons. Scroll up to bring back the full bar and labels. Every destination stays available in both sizes.
 
-A section always opens on its own first page, whatever you did there last, so the same choice leads to the same place every time. For example, open an automation's **Runs** tab, switch to **Home**, then choose **Automations**: the automation list opens, not the tab you left. On a computer, Home is the one section that picks up where you were: it reopens the chat you last read, or a new chat if you have none, and choosing **Home** again while you are there starts a new chat. The shortcut **⌥⌘N** on a Mac, or **Alt+Ctrl+N** on Windows or Linux, also starts a new chat.
+A section always opens on its own first page, whatever you did there last, so the same choice leads to the same place every time: **Home** opens a new chat, **Knowledge** opens **Documents**, and **Automations** opens the automation list. Choosing the section you are already in does the same. For example, open an automation's **Runs** tab, switch to **Knowledge**, then choose **Automations**: the automation list opens, not the tab you left. On a phone, **Home** opens the Home list instead of a new chat. The shortcut **⌥⌘N** on a Mac, or **Alt+Ctrl+N** on Windows or Linux, also starts a new chat.
+
+An automation you open from a project's **Automations** tab belongs to **Automations**: the rail marks **Automations**, and the breadcrumb trail above the automation starts with the project. Choose the project's name to return to the project, or **Automations** to return to its automations.
 
 **Settings** lists its pages in a panel beside the page, and the page header names the page you opened; on a phone, Settings starts from a list of its pages. **Knowledge** shows its pages as tabs under its header.
 
 | You want to… | Do this |
 | --- | --- |
 | Open another section | Choose that section in the rail or, on a phone, in the tab bar. |
-| Start a new chat | On a computer, choose **New chat** in Home, or choose **Home** while you are already there. On a phone, open **Home**, choose **Chats**, then **New chat**. |
+| Start a new chat | On a computer, choose **Home**, or **New chat** in Home. On a phone, open **Home**, choose **Chats**, then **New chat**. |
 | Open a project | On a computer, choose the project under **Projects** in Home. On a phone, choose the project, or choose **Open project** from its menu. |
 | Return to the project list | Choose **All projects** in Home, or use the **Projects** breadcrumb above the project. |
 | Return to the Documents list | Choose **Knowledge**. |
