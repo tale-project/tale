@@ -38,6 +38,7 @@ import {
 } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
 import { listDeployments } from './audit.ts';
+import { readOrgFacts } from './org-facts.ts';
 import {
   automationVisible,
   readableProject,
@@ -177,17 +178,24 @@ const TRIGGER_KINDS = new Set(['schedule', 'webhook', 'event']);
  * stalled one is worse than a warning not given. */
 export const MODEL_AVAILABILITY_BUDGET_MS = 5_000;
 
+/** How long the validator waits for what the organization has (its
+ * skills, connectors, secrets, runtimes, the trigger's event) before it
+ * stops asking: the same idiom as the model check — a slow read is a
+ * warning not given, never a save held. */
+export const ORG_FACTS_BUDGET_MS = 5_000;
+
 /** `work()`'s answer, or `undefined` ("cannot tell") once the budget is
  * spent — the work itself is not cancelled, only no longer waited for. */
 function withinBudget<T>(
   budgetMs: number,
   work: () => Promise<T>,
+  what = 'model availability',
 ): Promise<T | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expiry = new Promise<undefined>((resolve) => {
     timer = setTimeout(() => {
       console.warn(
-        `[automations] model availability not answered within ${budgetMs} ms; cannot tell`,
+        `[automations] ${what} not answered within ${budgetMs} ms; cannot tell`,
       );
       resolve(undefined);
     }, budgetMs);
@@ -370,6 +378,22 @@ export function pgAutomationStore(
         ? null
         : ((await deployedVersion(sql, organizationId, name)) ?? null),
     modelAvailable: (modelId, nodeType) => modelAvailability(modelId, nodeType),
+    // What the organization has of what the document names — read once per
+    // validation, as the actor: secret names only for a role that may list
+    // them, and the skills of the installations the actor may read.
+    orgFacts: async (query) =>
+      (await withinBudget(
+        ORG_FACTS_BUDGET_MS,
+        () =>
+          readOrgFacts(sql, organizationId, query, async () => {
+            const { auth, readable } = await viewerOf();
+            return {
+              role: auth.role,
+              readable: scope.visibleOnly === true ? readable : null,
+            };
+          }),
+        'organization facts',
+      )) ?? {},
     // The enabled triggers of the automation — what the validator checks the
     // inputs schema against (a schedule's input is known ahead).
     triggerKinds: async (name) => {

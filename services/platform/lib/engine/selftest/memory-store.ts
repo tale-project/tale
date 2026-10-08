@@ -23,7 +23,7 @@ import type {
 } from '../api/dispatch';
 import { execute } from '../core/execute';
 import { cloneData } from '../core/execute/scope';
-import type { StoreAdapter } from '../core/slots';
+import type { OrgFacts, OrgFactsQuery, StoreAdapter } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
 
 /** The trigger kinds a host accepts. `api-key` is deliberately absent: a
@@ -78,6 +78,13 @@ export function memoryStore(
      * other id is available. Without it the store carries no model seam,
      * so validation never warns about a model. */
     unavailableModels?: readonly string[];
+    /** What the organization has, for the validator's org-state warnings:
+     * the store answers these facts (the bound event from its own event
+     * trigger, checked against `raisedEvents`). Without it the store carries
+     * no org-state seam, so validation never warns about the organization. */
+    orgFacts?: Omit<OrgFacts, 'boundEvent'> & {
+      raisedEvents?: readonly string[];
+    };
   } = {},
 ): MemoryStore {
   const versions = new Map<string, StoredVersion[]>();
@@ -193,6 +200,31 @@ export function memoryStore(
     async deleteTrigger(name) {
       return { deleted: triggers.delete(name) };
     },
+    ...(storeOptions.orgFacts === undefined
+      ? {}
+      : {
+          orgFacts: async (query: OrgFactsQuery): Promise<OrgFacts> => {
+            const { raisedEvents, ...facts } = storeOptions.orgFacts ?? {};
+            const trigger =
+              query.automation === undefined
+                ? undefined
+                : triggers.get(query.automation);
+            const event =
+              trigger?.enabled === true && trigger.kind === 'event'
+                ? trigger.event
+                : undefined;
+            return {
+              ...facts,
+              ...(query.event &&
+                raisedEvents !== undefined && {
+                  boundEvent:
+                    event === undefined
+                      ? null
+                      : { event, raised: raisedEvents },
+                }),
+            };
+          },
+        }),
     async triggerKinds(name) {
       const one = triggers.get(name);
       const kind = TRIGGER_KINDS.find((k) => k === one?.kind);

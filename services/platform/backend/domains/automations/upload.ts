@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { StoreAdapter } from '../../../lib/engine/core/slots.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import {
   uploadAutomationImpl,
@@ -34,6 +35,29 @@ import { bindProject, saveVersion } from './store.ts';
  * effects hit the pg store, and the viewer context reads team memberships
  * straight from the tables.
  */
+/**
+ * The store an upload validates against: every validating door's, without
+ * the organization checks (`orgFacts`). An upload checks the skills it
+ * names itself — against the bundles it carries as well as the
+ * organization's (`SKILL_NOT_FOUND`) — and validates before it installs
+ * them, so the engine's check would warn about every carried skill. And a
+ * configuration release stops on any warning it does not know as advisory,
+ * so a new warning here would stop releases that deploy today.
+ */
+function uploadValidationStore(
+  sql: Sql,
+  auth: { organizationId: string; userId: string },
+): StoreAdapter {
+  const store: StoreAdapter = {
+    ...pgAutomationStore(sql, {
+      organizationId: auth.organizationId,
+      actor: auth.userId,
+    }),
+  };
+  delete store.orgFacts;
+  return store;
+}
+
 export async function uploadAutomationPg(
   sql: Sql,
   auth: {
@@ -80,10 +104,7 @@ export async function uploadAutomationPg(
       // The same org-scoped store every other validating door hands the
       // engine, so an upload learns about an unserved model (and an
       // unknown subautomation) the way a save does.
-      validationStore: pgAutomationStore(sql, {
-        organizationId: auth.organizationId,
-        actor: auth.userId,
-      }),
+      validationStore: uploadValidationStore(sql, auth),
       storeSave: async (saveArgs) =>
         await saveVersion(sql, {
           organizationId: auth.organizationId,

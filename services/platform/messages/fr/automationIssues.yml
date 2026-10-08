@@ -333,6 +333,31 @@ codes:
     explanation: Le modèle d’un nœud llm ou agent doit être servi par l’un des fournisseurs connectés de l’organisation. Sinon, une exécution en direct échoue à ce nœud.
     cause: '{nodeLabel} utilise « {model} », qu’aucun fournisseur connecté ne sert.'
     fix: Choisis un modèle qu’un fournisseur connecté sert, ou connecte le fournisseur de celui-ci.
+  SKILL_UNKNOWN:
+    title: Skill introuvable
+    explanation: Un nœud agent demande un skill que cette organisation n’a pas, ou qui n’est pas partagé là où l’automatisation s’exécute. Le nœud échoue donc à l’exécution.
+    cause: '{nodeLabel} demande le skill « {skill} ».'
+    fix: '{suggestion, select, none {Ajoute le skill dans Paramètres › Skills, ou retire-le du nœud.} other {Voulais-tu dire « {suggestion} » ?}}'
+  CONNECTOR_NOT_CONNECTED:
+    title: Connector non connecté
+    explanation: Un nœud utilise un connector qui n’est pas connecté dans cette organisation. Une exécution en direct ne peut donc pas atteindre cette application.
+    cause: '{catalogued, select, true {{nodeLabel} utilise « {connector} », que personne n’a encore connecté.} other {{nodeLabel} utilise « {connector} », que ce déploiement ne propose pas.}}'
+    fix: '{catalogued, select, true {Connecte-le dans Paramètres › Connectors.} other {{suggestion, select, none {Choisis un connector dans le catalogue.} other {Voulais-tu dire « {suggestion} » ?}}}}'
+  SECRET_UNKNOWN:
+    title: Secret introuvable
+    explanation: Un nœud agent demande un secret que cette organisation n’a pas enregistré. L’agent s’exécute alors sans ce secret.
+    cause: '{nodeLabel} demande le secret « {secret} ».'
+    fix: '{suggestion, select, none {Ajoute le secret sous Secrets dans ce nœud, ou retire-le du nœud.} other {Voulais-tu dire « {suggestion} » ?}}'
+  HARNESS_UNKNOWN:
+    title: Environnement d’agent indisponible
+    explanation: Un nœud agent indique un environnement d’agent que ce déploiement ne peut pas exécuter. Le nœud échoue donc à l’exécution.
+    cause: '{nodeLabel} utilise « {harness} ». Disponibles : {availableList}.'
+    fix: Choisis l’un des environnements d’agent disponibles, ou laisse le champ vide pour utiliser celui par défaut.
+  EVENT_UNKNOWN:
+    title: L’événement ne se produit jamais
+    explanation: Le déclencheur attend un événement que Tale n’émet pas. Il ne lance donc jamais d’exécution.
+    cause: 'Le déclencheur attend « {event} ».'
+    fix: '{suggestion, select, none {Choisis un événement dans la liste.} other {Voulais-tu dire « {suggestion} » ?}}'
   OUTPUT_MISSING:
     title: Aucune sortie
     explanation: La sortie est ce que renvoie l’automatisation. Sans sortie, chaque exécution ne renvoie rien.

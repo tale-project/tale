@@ -104,6 +104,26 @@ history as a mock run like one started in the app. Both draw from the run-start 
   `mode: "mock"` → the run starts and appears in the run history as a mock run; the same start with
   `mode: "live"` → refused, and no run starts.
 
+## Checking a document
+
+### MCP-R15 · Validation warns about what a document names that the organization lacks
+
+When an agent step names a skill no run of the automation can reach, a connector the organization
+has not connected or the deployment does not have, a secret nobody stored, or an agent runtime the
+deployment cannot run — or a capability step acts through a connector nobody connected, or the
+automation's event trigger waits for an event Tale does not raise — validation answers a warning
+(`SKILL_UNKNOWN`, `CONNECTOR_NOT_CONNECTED`, `SECRET_UNKNOWN`, `HARNESS_UNKNOWN`,
+`EVENT_UNKNOWN`) with where it is and the closest name the organization has. A save and a deploy
+still go through: the organization can change before the run. What the server cannot tell in time
+warns about nothing, and the names of secrets are told only to an owner, admin or developer, so a
+member's agent cannot find out which secrets exist. The editor's Problems panel shows the same
+warnings.
+
+- **Example**: Ada's agent saves `support/reply`, whose agent step asks for the skill `tone-guide`,
+  which nobody added, and for Gmail, which nobody connected → the version is saved, and the
+  answer warns about both; Mia, an ordinary member, validates a step that names the secret
+  `CRM_TOKEN` → she is told nothing about it.
+
 ## Answers and refusals
 
 ### MCP-R18 · A refusal comes back as an answer the agent can read, not a protocol error

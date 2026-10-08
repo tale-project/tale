@@ -119,6 +119,12 @@ Eine Bedingung, die immer dieselbe Antwort liefert, entscheidet nichts. Text um 
 
 Eine `subautomation`-Node wird gegen die Version geprüft, die ein Lauf aufrufen würde: die genannte Version, sonst die bereitgestellte, sonst die neueste. Diese Version muss existieren und darf keine `agent`-Node enthalten. Tale warnt, wenn die Eingabe nicht zu ihren `inputs` passt und wenn sie einen Schreibzugriff ausführt, den eine Freigabe aufhalten könnte, denn eine aufgerufene Automatisierung kann nicht warten. Auch ein Zeitplan-Trigger, dessen Starteingabe die `inputs` der Automatisierung ablehnen, wird gemeldet.
 
+### Was die Organisation hat {#checks-organization}
+
+Tale vergleicht eine `agent`-Node außerdem mit deiner Organisation. Es warnt, wenn die Node einen Skill verlangt, den kein Lauf der Automatisierung verwenden kann, einen Connector, den niemand verbunden hat, ein Secret, das niemand gespeichert hat, oder eine Agent-Laufzeit, die dieses Deployment nicht ausführen kann. Dieselbe Warnung bekommt eine Node, die eine Connector-Aktion ausführt, deren Connector niemand verbunden hat, und ein Ereignis-Trigger, der auf ein Ereignis wartet, das Tale nicht auslöst. Im Lauf schlägt die Node fehl, wenn ihr Skill oder ihre Agent-Laufzeit fehlt; ohne ihren Connector erreicht sie die App nicht, und ein fehlendes Secret ist einfach nicht vorhanden.
+
+Es bleiben Warnungen, weil sich deine Organisation bis zum Lauf ändern kann: Verbinde den Connector oder füge den Skill hinzu, dann meldet die nächste Prüfung nichts mehr. Über Secrets erfahren nur Inhaber, Admins und Entwickler etwas, denn nur sie sehen, welche Secrets es gibt.
+
 ### Tests {#checks-tests}
 
 Die Eingabe eines Tests muss zu `inputs` passen, jeder erwartete Effekt muss von einer Node stammen, die ihn ausführt, und ein erwarteter Ausgabewert muss einen Typ haben, den die Automatisierung zurückgeben kann. Ein Test, der gegen eine dieser Regeln verstößt, kann nie bestehen, deshalb warnt Tale, bevor du ihn ausführst.

@@ -119,6 +119,12 @@ Une condition qui donne toujours la même réponse ne décide rien. Du texte aut
 
 Un nœud `subautomation` est vérifié par rapport à la version qu’une exécution appellerait : la version qu’il indique, sinon celle qui est déployée, sinon la plus récente. Cette version doit exister et ne contenir aucun nœud `agent`. Tale avertit quand l’entrée ne correspond pas à ses `inputs`, et quand elle effectue une écriture qu’une approbation pourrait retenir, car une automatisation appelée ne peut pas attendre. Un déclencheur planifié dont l’entrée de départ est refusée par les `inputs` de l’automatisation est signalé aussi.
 
+### Ce que l’organisation possède {#checks-organization}
+
+Tale compare aussi un nœud `agent` avec ton organisation. Il avertit quand le nœud demande un skill qu’aucune exécution de l’automatisation ne peut utiliser, un connector que personne n’a connecté, un secret que personne n’a enregistré, ou un environnement d’agent que ce déploiement ne peut pas exécuter. Un nœud qui exécute une action d’un connector que personne n’a connecté reçoit le même avertissement, tout comme un déclencheur d’événement qui attend un événement que Tale n’émet pas. À l’exécution, un skill ou un environnement d’agent manquant fait échouer le nœud, un nœud privé de son connector ne peut pas atteindre l’application, et un secret manquant est simplement absent.
+
+Ces vérifications restent des avertissements, car ton organisation peut changer d’ici l’exécution : connecte le connector ou ajoute le skill, et la vérification suivante ne le signale plus. Seuls les rôles Propriétaire, Admin et Développeur sont informés des secrets, car eux seuls voient quels secrets existent.
+
 ### Tests {#checks-tests}
 
 L’entrée d’un test doit correspondre à `inputs`, chaque effet attendu doit venir d’un nœud qui l’effectue, et une valeur de sortie attendue doit avoir un type que l’automatisation peut renvoyer. Un test qui enfreint l’une de ces règles ne peut jamais réussir : Tale avertit donc avant que tu ne le lances.

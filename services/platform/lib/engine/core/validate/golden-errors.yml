@@ -1260,3 +1260,75 @@ tests-expect-type:
         property: count
         expected: string
         actual: number
+org-state-agent-equipment:
+  errors: []
+  warnings:
+    - code: HARNESS_UNKNOWN
+      nodeId: reply
+      path: harness
+      message: 'node "reply": agent runtime "cursor" cannot run on this deployment — the step fails when it runs'
+      hint: list_harnesses shows the ones that can (claude-code, codex); leave harness out for the default
+      at:
+        pointer: /nodes/0/harness
+      params:
+        node: reply
+        harness: cursor
+        available:
+          - claude-code
+          - codex
+    - code: SKILL_UNKNOWN
+      nodeId: reply
+      path: skills
+      message: 'node "reply": skill "reply-stlye" is not in this organization — the step fails when it runs'
+      hint: list_skills shows the skills an agent step can use; did you mean "reply-style"?
+      at:
+        pointer: /nodes/0/skills/1
+      params:
+        node: reply
+        skill: reply-stlye
+        suggestion: reply-style
+    - code: CONNECTOR_NOT_CONNECTED
+      nodeId: reply
+      path: connectors
+      message: 'node "reply": connector "gmial" is not a connector this deployment has'
+      hint: list_connectors shows the connectors this deployment has; did you mean "gmail"?
+      at:
+        pointer: /nodes/0/connectors/1
+      params:
+        node: reply
+        connector: gmial
+        catalogued: false
+        suggestion: gmail
+    - code: CONNECTOR_NOT_CONNECTED
+      nodeId: reply
+      path: connectors
+      message: 'node "reply": connector "gmail" is not connected in this organization — a live run cannot reach it'
+      hint: list_connectors shows what is connected; a person connects it in Settings › Connectors
+      at:
+        pointer: /nodes/0/connectors/2
+      params:
+        node: reply
+        connector: gmail
+        catalogued: true
+    - code: SECRET_UNKNOWN
+      nodeId: reply
+      path: secrets
+      message: 'node "reply": agent secret "SUPPORT_SIGNATUR" does not exist — the step runs without it'
+      hint: list_agent_secrets shows the stored names; an owner, admin or developer stores the value in Tale; did you mean "SUPPORT_SIGNATURE"?
+      at:
+        pointer: /nodes/0/secrets/1
+      params:
+        node: reply
+        secret: SUPPORT_SIGNATUR
+        suggestion: SUPPORT_SIGNATURE
+org-state-event-unknown:
+  errors: []
+  warnings:
+    - code: EVENT_UNKNOWN
+      message: the event trigger waits for "task.create", which Tale does not raise — it never starts a run
+      hint: list_events shows the events Tale raises; bind the trigger to one of them; did you mean "task.created"?
+      at:
+        pointer: ''
+      params:
+        event: task.create
+        suggestion: task.created
