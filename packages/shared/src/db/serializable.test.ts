@@ -524,26 +524,19 @@ describe('transactSerializable — nested retry queues, failure paths', () => {
 });
 
 describe('transactSerializable — the process-local queue', () => {
-  it('starts queued on the given keys, without a first optimistic attempt', async () => {
-    const { runner, beginAttempts, reservations } = createQueueRunner([]);
-    const result = await transactSerializable(
-      runner,
-      async (tx) => {
-        await tx`SELECT 1`;
-        return 'ok';
-      },
-      { sleep: noSleep, queueKeys: [queueKey] },
-    );
-    expect(result).toBe('ok');
-    expect(beginAttempts()).toBe(0);
-    expect(texts(reservations[0]?.statements ?? [])).toEqual([
-      'SELECT pg_advisory_lock(?, hashtext(?))',
-      'BEGIN ISOLATION LEVEL SERIALIZABLE',
-      'SELECT 1',
-      'COMMIT',
-      'SELECT pg_advisory_unlock(?, hashtext(?))',
-    ]);
-  });
+  /** A body whose first, unqueued attempt loses at `queueKey`, so its retry
+   * runs queued — the way a write reaches the queue. */
+  function queuedAfterLoss<T>(
+    body: (tx: TransactionSql) => Promise<T>,
+  ): (tx: TransactionSql) => Promise<T> {
+    let calls = 0;
+    return (tx) => {
+      calls += 1;
+      return calls === 1
+        ? Promise.reject(markRetryQueueKey(sqlstateError('40001'), queueKey))
+        : body(tx);
+    };
+  }
 
   it('holds one connection per hot key: the next queued attempt reserves only once the first is done', async () => {
     const { runner, reservations } = createQueueRunner([]);
@@ -553,19 +546,16 @@ describe('transactSerializable — the process-local queue', () => {
     });
     const first = transactSerializable(
       runner,
-      async () => {
+      queuedAfterLoss(async () => {
         await firstHeld;
         return 'first';
-      },
-      { sleep: noSleep, queueKeys: [queueKey] },
+      }),
+      { sleep: noSleep },
     );
     const second = transactSerializable(
       runner,
-      () => Promise.resolve('second'),
-      {
-        sleep: noSleep,
-        queueKeys: [queueKey],
-      },
+      queuedAfterLoss(() => Promise.resolve('second')),
+      { sleep: noSleep },
     );
     await new Promise((resolve) => setTimeout(resolve, 10));
     // The second waits in memory: no connection reserved, none parked on
@@ -588,19 +578,20 @@ describe('transactSerializable — the process-local queue', () => {
     await expect(
       transactSerializable(
         runner,
-        async (tx) => {
+        queuedAfterLoss(async (tx) => {
           await tx`SELECT boom`;
           return 'never';
-        },
-        { sleep: noSleep, queueKeys: [queueKey] },
+        }),
+        { sleep: noSleep },
       ),
     ).rejects.toMatchObject({ code: '23505' });
     expect(localQueueDepth(queueKey)).toBe(0);
     await expect(
-      transactSerializable(runner, () => Promise.resolve('next'), {
-        sleep: noSleep,
-        queueKeys: [queueKey],
-      }),
+      transactSerializable(
+        runner,
+        queuedAfterLoss(() => Promise.resolve('next')),
+        { sleep: noSleep },
+      ),
     ).resolves.toBe('next');
   });
 });

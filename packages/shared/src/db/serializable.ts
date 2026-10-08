@@ -315,27 +315,12 @@ function isSubsetOf(
  * connection faults. Each retry runs in a fresh transaction; a retry after a
  * failure marked with queue keys runs queued on those keys (see above).
  */
-export interface SerializableOptions extends RetryOptions {
-  /**
-   * Start queued on these keys instead of waiting to lose on them first:
-   * for a write that is known to append to a contended resource (an
-   * organization's audit chain under a burst of task writes), the first
-   * attempt then takes its place in the queue before its snapshot — no
-   * attempt is wasted and no deadlock can form against a queued retry.
-   * Ignored by a runner that cannot reserve a connection.
-   */
-  queueKeys?: readonly string[];
-}
-
 export function transactSerializable<T>(
   sql: SerializableTransactionRunner,
   callback: (tx: TransactionSql) => Promise<T>,
-  options: SerializableOptions = {},
+  options: RetryOptions = {},
 ): Promise<T> {
-  let queueKeys: readonly string[] | undefined =
-    options.queueKeys !== undefined && options.queueKeys.length > 0
-      ? options.queueKeys
-      : undefined;
+  let queueKeys: readonly string[] | undefined;
   const reserve = sql.reserve?.bind(sql);
   const attempt = (): Promise<T> =>
     queueKeys !== undefined && reserve !== undefined
@@ -345,13 +330,12 @@ export function transactSerializable<T>(
     options.isTransient ??
     ((error: unknown) =>
       isSerializationFailure(error) || isTransientDbError(error));
-  const { queueKeys: _initialKeys, ...retryOptions } = options;
   return withRetry(attempt, {
     attempts: 5,
     baseDelayMs: 20,
     timeoutMs: 30_000,
     sleep: jitteredSleep,
-    ...retryOptions,
+    ...options,
     isTransient: (error) => {
       // A queued attempt that loses to a writer outside its inner queues is
       // re-marked with fewer keys than it held; the held list is a superset
