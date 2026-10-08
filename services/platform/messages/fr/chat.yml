@@ -586,7 +586,9 @@ budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette pér
 budgetRemaining: "Encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
 budgetRemainingOrg: "Organisation : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
 budgetRemainingTeam: "Équipe {team} : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+budgetRemainingProject: "Projet {project} : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
 budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period, select, daily {chaque jour} weekly {chaque semaine} other {chaque mois}}"
+budgetLimitReachedProject: "Projet {project} : limite d'utilisation atteinte · se réinitialise {period, select, daily {chaque jour} weekly {chaque semaine} other {chaque mois}}"
 budgetRequestCredits: Demander plus de crédits
 budgetRequestCreditsSent: Demande envoyée à tes admins
 budgetWarningDismiss: Fermer

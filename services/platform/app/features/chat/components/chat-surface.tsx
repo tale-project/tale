@@ -384,13 +384,34 @@ function ChatSurfaceInner({
   const { data: currentUser } = useCurrentUser();
   const draftKey = chatDraftKey(currentUser?.userId, organizationId, threadId);
 
+  // The thread being viewed, once the list has answered.
+  const activeThread =
+    threadId !== undefined && threads.status === 'ready'
+      ? threads.data.find((thread) => thread.id === threadId)
+      : undefined;
+  // What the header names: the list's row, or — for a chat the list does not
+  // hold (an archived one, or a teammate's shared into a project) — the
+  // thread's own read. The owner's row actions still key off `activeThread`.
+  const headerThread =
+    activeThread ??
+    (openThread.status === 'ready' && openThread.data !== null
+      ? openThread.data
+      : undefined);
+  // The project this chat spends in: the open thread's, or the one a new
+  // chat is being started in. Its cap binds the send too.
+  const spendProjectId =
+    threadId === undefined ? projectId : headerThread?.projectId;
+
   // Client-side budget gate. The server enforces the budget authoritatively
   // (a refused turn), but without this the composer leaves Send enabled and
   // the user only learns they are over budget after the message lands as a
   // failed turn (#2345). `exceeded` is what the gate would refuse right now
-  // over every cap that binds the member; loading returns undefined → the
-  // gate stays open, never a false block.
-  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
+  // over every cap that binds the member, the chat's project's included;
+  // loading returns undefined → the gate stays open, never a false block.
+  const { data: budgetStatus } = useMyBudgetStatus(
+    organizationId,
+    spendProjectId,
+  );
   const budgetExceeded = budgetStatus?.exceeded === true;
 
   // The open thread answered null: deleted, foreign, or a revoked share.
@@ -533,20 +554,6 @@ function ChatSurfaceInner({
       ),
     ];
   }, [composerOptions, models]);
-
-  // The thread being viewed, once the list has answered.
-  const activeThread =
-    threadId !== undefined && threads.status === 'ready'
-      ? threads.data.find((thread) => thread.id === threadId)
-      : undefined;
-  // What the header names: the list's row, or — for a chat the list does not
-  // hold (an archived one, or a teammate's shared into a project) — the
-  // thread's own read. The owner's row actions still key off `activeThread`.
-  const headerThread =
-    activeThread ??
-    (openThread.status === 'ready' && openThread.data !== null
-      ? openThread.data
-      : undefined);
 
   // The header menu carries the SAME thread actions as the sidebar row (the
   // 0.3 doctrine: header and sidebar never drift) — shared handlers, plus
@@ -2154,7 +2161,12 @@ function ChatSurfaceInner({
               />
             ) : (
               <div className="shrink-0 px-4 pb-4">
-                <BudgetBanner organizationId={organizationId} />
+                <BudgetBanner
+                  organizationId={organizationId}
+                  {...(spendProjectId !== undefined
+                    ? { projectId: spendProjectId }
+                    : {})}
+                />
                 {/* The tasks this conversation handed over, live. */}
                 {threadId !== undefined && pair === null && (
                   <ChatTaskTray

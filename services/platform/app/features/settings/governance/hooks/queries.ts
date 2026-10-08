@@ -61,10 +61,11 @@ export function useDsarPolicyForUi(organizationId: string) {
 
 /** The reader's budget standing as the admission gate measures it — every
  * cap that binds them, not one team's slice (the team switcher that used to
- * narrow this read is gone). */
-export function useMyBudgetStatus(organizationId: string) {
+ * narrow this read is gone); in a project's chat, the project's cap too. */
+export function useMyBudgetStatus(organizationId: string, projectId?: string) {
   return useBackendQuery('governance/queries:getMyBudgetStatus', {
     organizationId,
+    ...(projectId !== undefined ? { projectId } : {}),
   });
 }
 

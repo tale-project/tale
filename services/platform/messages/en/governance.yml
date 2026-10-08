@@ -31,6 +31,7 @@ budgets:
   maxRequestsHelp: Total AI requests per period. Leave empty for no limit.
   warningThreshold: Warning threshold (%)
   warningThresholdHelp: Alert when usage exceeds this percentage of the limit.
+  warningThresholdProjectHelp: Everyone chatting in this project sees a warning once the project's usage exceeds this percentage of the limit.
   orgScopeTarget: Entire organization
   allUsers: All users
   overrideHint:

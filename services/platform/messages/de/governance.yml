@@ -32,6 +32,7 @@ budgets:
   maxRequestsHelp: KI-Anfragen pro Zeitraum. Leer lassen für kein Limit.
   warningThreshold: Warnschwelle (%)
   warningThresholdHelp: Warnung, wenn die Nutzung diesen Prozentsatz des Limits überschreitet.
+  warningThresholdProjectHelp: Alle, die in diesem Projekt chatten, sehen eine Warnung, sobald die Nutzung des Projekts diesen Prozentsatz des Limits überschreitet.
   orgScopeTarget: Gesamte Organisation
   allUsers: Alle Benutzer
   overrideHint: 'Spezifischere Bereiche überschreiben allgemeinere: Benutzer >

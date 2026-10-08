@@ -588,7 +588,9 @@ budgetExceededDefault: Nutzungslimit für diesen Zeitraum erreicht. Wende dich a
 budgetRemaining: 'Noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
 budgetRemainingOrg: 'Organisation: noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
 budgetRemainingTeam: 'Team {team}: noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
+budgetRemainingProject: 'Projekt {project}: noch {remaining} von {limit} {type} {period, select, daily {heute} weekly {in dieser Woche} other {in diesem Monat}}'
 budgetLimitReached: 'Nutzungslimit erreicht · wird {period, select, daily {täglich} weekly {wöchentlich} other {monatlich}} zurückgesetzt'
+budgetLimitReachedProject: 'Projekt {project}: Nutzungslimit erreicht · wird {period, select, daily {täglich} weekly {wöchentlich} other {monatlich}} zurückgesetzt'
 budgetRequestCredits: Mehr Kontingent anfragen
 budgetRequestCreditsSent: Anfrage an deine Admins gesendet
 budgetWarningDismiss: Schließen

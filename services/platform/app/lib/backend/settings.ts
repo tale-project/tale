@@ -334,11 +334,23 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
   'governance/queries:getMyBudgetStatus': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
+    // A project chat's standing is its own read: the project's cap joins it.
+    const projectId =
+      typeof args.projectId === 'string' && args.projectId !== ''
+        ? args.projectId
+        : undefined;
     return {
-      queryKey: backendKey(orgId, 'usage', 'my-budget-status'),
+      queryKey: backendKey(
+        orgId,
+        'usage',
+        'my-budget-status',
+        ...(projectId !== undefined ? [projectId] : []),
+      ),
       queryFn: () =>
         backendFetch<{ status: MyBudgetStatusResult }>(
-          '/governance/my/budget-status',
+          projectId === undefined
+            ? '/governance/my/budget-status'
+            : `/governance/my/budget-status?projectId=${encodeURIComponent(projectId)}`,
           { orgId },
         ).then((body) => body.status),
     };

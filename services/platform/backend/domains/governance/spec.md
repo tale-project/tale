@@ -103,11 +103,15 @@ adds no cost.
 
 ### GOV-R6 · A warning comes before a limit is reached, for each limit on its own
 
-The organization's limit, an API key's limit and a person's limit each have their own warning
-threshold, and each is measured against its own usage.
+The organization's limit, an API key's limit, a project's limit and a person's limit each have
+their own warning threshold, and each is measured against its own usage. A project's warning is
+shown to everyone chatting in the project, and names the project.
 
 - **Example**: The organization has used 85% of its monthly limit, and the warning threshold
   is 80% → a warning is shown, although Mia's own limit is far from reached.
+- **Example**: The Website relaunch project has used 85% of its monthly limit, with a threshold
+  of 80% → Mia, writing in one of its chats, sees that much is left of the project's limit; in
+  a chat outside the project she sees no such warning.
 
 ### GOV-R7 · A member can see the limits that apply to them, with what they have used
 
@@ -185,7 +189,6 @@ It counts only in the organization it was granted in.
   (`moderation.ts`).
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
-- **A project's limit warns no one** before it is reached.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.
