@@ -120,6 +120,17 @@ function k8sQuantityEnv(name: string, re: RegExp): string | undefined {
   return value;
 }
 
+/** A storage size from the environment that must hold something: a zero
+ * sizeLimit or ephemeral-storage limit gets a Pod evicted on its first
+ * write. */
+function k8sSizeEnv(name: string): string | undefined {
+  const value = k8sQuantityEnv(name, MEMORY_QUANTITY_RE);
+  if (value !== undefined && Number.parseFloat(value) <= 0) {
+    throw new Error(`Env var ${name} must be above zero; got: ${value}`);
+  }
+  return value;
+}
+
 /** A Docker-style size of memory or disk from the environment ('2g',
  * '1536m', bytes), undefined when unset, refused at boot when unreadable. */
 function sizeEnv(name: string): number | undefined {
@@ -297,6 +308,20 @@ export function loadConfig(): SpawnerConfig {
     'SANDBOX_K8S_MEMORY_REQUEST',
     MEMORY_QUANTITY_RE,
   );
+  // A render's workspace emptyDir counts toward its Pod's ephemeral-storage
+  // limit, so the size must be one the pod spec can add up.
+  const k8sWorkspaceSizeLimit =
+    k8sSizeEnv('SANDBOX_K8S_WORKSPACE_SIZE_LIMIT') ?? '4Gi';
+  const k8sEphemeralStorageRequest = k8sQuantityEnv(
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+    MEMORY_QUANTITY_RE,
+  );
+  const k8sEphemeralStorageLimit = k8sSizeEnv(
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+  );
+  const k8sDockerStorageSizeLimit = k8sSizeEnv(
+    'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
+  );
   const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
   const minFreeDiskBytes = sizeEnv('SANDBOX_MIN_FREE_DISK');
   const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');
@@ -404,6 +429,9 @@ export function loadConfig(): SpawnerConfig {
   const K8S_ONLY_ENVS = [
     'SANDBOX_K8S_NAMESPACE',
     'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+    'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
     'SANDBOX_K8S_CACHE_STORAGECLASS',
     'SANDBOX_K8S_SERVER',
     'SANDBOX_K8S_TOKEN',
@@ -513,10 +541,19 @@ export function loadConfig(): SpawnerConfig {
           ? null
           : (process.env.SANDBOX_RUNTIME_CLASS ??
             k8sRuntimeClassFor(runtimeTier)),
-      workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
+      workspaceSizeLimit: k8sWorkspaceSizeLimit,
       ...(k8sCpuRequest !== undefined ? { cpuRequest: k8sCpuRequest } : {}),
       ...(k8sMemoryRequest !== undefined
         ? { memoryRequest: k8sMemoryRequest }
+        : {}),
+      ...(k8sEphemeralStorageRequest !== undefined
+        ? { ephemeralStorageRequest: k8sEphemeralStorageRequest }
+        : {}),
+      ...(k8sEphemeralStorageLimit !== undefined
+        ? { ephemeralStorageLimit: k8sEphemeralStorageLimit }
+        : {}),
+      ...(k8sDockerStorageSizeLimit !== undefined
+        ? { dockerStorageSizeLimit: k8sDockerStorageSizeLimit }
         : {}),
     },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),

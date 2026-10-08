@@ -28,6 +28,10 @@ const KEYS = [
   'SANDBOX_MAX_SESSIONS_PER_ORG',
   'SANDBOX_K8S_CPU_REQUEST',
   'SANDBOX_K8S_MEMORY_REQUEST',
+  'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
+  'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+  'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+  'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
   'SANDBOX_BUILDKITD_CPUS',
   'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
   'SANDBOX_BUILDKITD_MEMORY',
@@ -92,6 +96,48 @@ test('session Pod requests: absent by default, read as Kubernetes quantities, re
   process.env.SANDBOX_K8S_MEMORY_REQUEST = '768Mi';
   process.env.SANDBOX_K8S_CPU_REQUEST = 'half';
   expect(() => loadConfig()).toThrow(/SANDBOX_K8S_CPU_REQUEST/);
+});
+
+test('session Pod disk bounds: pod-spec defaults unless set, refused when malformed or zero', () => {
+  const k8s = loadConfig().k8s;
+  expect(k8s.workspaceSizeLimit).toBe('4Gi');
+  expect(k8s).not.toHaveProperty('ephemeralStorageRequest');
+  expect(k8s).not.toHaveProperty('ephemeralStorageLimit');
+  expect(k8s).not.toHaveProperty('dockerStorageSizeLimit');
+  process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT = ' ';
+  expect(loadConfig().k8s.workspaceSizeLimit).toBe('4Gi');
+  process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT = '8Gi';
+  process.env.SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST = '0';
+  process.env.SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT = ' 3Gi ';
+  process.env.SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT = '40Gi';
+  expect(loadConfig().k8s).toMatchObject({
+    workspaceSizeLimit: '8Gi',
+    ephemeralStorageRequest: '0',
+    ephemeralStorageLimit: '3Gi',
+    dockerStorageSizeLimit: '40Gi',
+  });
+  for (const name of [
+    'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+    'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
+  ]) {
+    const kept = process.env[name];
+    process.env[name] = '20 GB';
+    expect(() => loadConfig()).toThrow(name);
+    process.env[name] = kept;
+  }
+  // A zero limit or store size would evict the Pod on its first write.
+  for (const name of [
+    'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+    'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
+  ]) {
+    const kept = process.env[name];
+    process.env[name] = '0Gi';
+    expect(() => loadConfig()).toThrow(`${name} must be above zero`);
+    process.env[name] = kept;
+  }
 });
 
 test('the builder bounds are optional and validated', () => {
