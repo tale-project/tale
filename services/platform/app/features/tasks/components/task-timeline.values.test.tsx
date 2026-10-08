@@ -107,20 +107,20 @@ async function readNativeActivity(rows: Wire[]): Promise<TaskActivityRow[]> {
 /** What each locale calls the fields and their empty values. */
 const WORDS = {
   en: {
-    dueDate: 'due date changed',
-    startDate: 'start date changed',
-    assignee: 'assignee changed',
-    reviewer: 'reviewer changed',
-    description: 'description changed',
-    labels: 'labels changed',
-    attachments: 'attachments changed',
-    priority: 'priority changed',
-    title: 'title changed',
-    status: 'status changed',
-    created: 'created',
-    updated: 'updated',
-    claimed: 'claimed',
-    dependencyRemoved: 'dependency removed',
+    dueDate: 'Due date changed',
+    startDate: 'Start date changed',
+    assignee: 'Assignee changed',
+    reviewer: 'Reviewer changed',
+    description: 'Description changed',
+    labels: 'Labels changed',
+    attachments: 'Attachments changed',
+    priority: 'Priority changed',
+    title: 'Title changed',
+    status: 'Status changed',
+    created: 'Created',
+    updated: 'Updated',
+    claimed: 'Claimed',
+    dependencyRemoved: 'Dependency removed',
     noDueDate: 'No due date',
     noStartDate: 'No start date',
     unassigned: 'Unassigned',
@@ -137,20 +137,20 @@ const WORDS = {
     oct2: '10/02/2026',
   },
   de: {
-    dueDate: 'fälligkeitsdatum geändert',
-    startDate: 'startdatum geändert',
-    assignee: 'zuständigkeit geändert',
-    reviewer: 'reviewer geändert',
-    description: 'beschreibung geändert',
-    labels: 'labels geändert',
-    attachments: 'anhänge geändert',
-    priority: 'priorität geändert',
-    title: 'titel geändert',
-    status: 'status geändert',
-    created: 'erstellt',
-    updated: 'aktualisiert',
-    claimed: 'übernommen',
-    dependencyRemoved: 'abhängigkeit entfernt',
+    dueDate: 'Fälligkeitsdatum geändert',
+    startDate: 'Startdatum geändert',
+    assignee: 'Zuständigkeit geändert',
+    reviewer: 'Reviewer geändert',
+    description: 'Beschreibung geändert',
+    labels: 'Labels geändert',
+    attachments: 'Anhänge geändert',
+    priority: 'Priorität geändert',
+    title: 'Titel geändert',
+    status: 'Status geändert',
+    created: 'Erstellt',
+    updated: 'Aktualisiert',
+    claimed: 'Übernommen',
+    dependencyRemoved: 'Abhängigkeit entfernt',
     noDueDate: 'Kein Fälligkeitsdatum',
     noStartDate: 'Kein Startdatum',
     unassigned: 'Nicht zugewiesen',
@@ -167,20 +167,20 @@ const WORDS = {
     oct2: '02.10.2026',
   },
   fr: {
-    dueDate: 'échéance modifiée',
-    startDate: 'date de début modifiée',
-    assignee: 'responsable modifié',
-    reviewer: 'relecteur modifié',
-    description: 'description modifiée',
-    labels: 'étiquettes modifiées',
-    attachments: 'pièces jointes modifiées',
-    priority: 'priorité modifiée',
-    title: 'titre modifié',
-    status: 'statut modifié',
-    created: 'créé',
-    updated: 'mis à jour',
-    claimed: 'pris en charge',
-    dependencyRemoved: 'dépendance supprimée',
+    dueDate: 'Échéance modifiée',
+    startDate: 'Date de début modifiée',
+    assignee: 'Responsable modifié',
+    reviewer: 'Relecteur modifié',
+    description: 'Description modifiée',
+    labels: 'Étiquettes modifiées',
+    attachments: 'Pièces jointes modifiées',
+    priority: 'Priorité modifiée',
+    title: 'Titre modifié',
+    status: 'Statut modifié',
+    created: 'Créé',
+    updated: 'Mis à jour',
+    claimed: 'Pris en charge',
+    dependencyRemoved: 'Dépendance supprimée',
     noDueDate: 'Aucune échéance',
     noStartDate: 'Aucune date de début',
     unassigned: 'Non assigné',
@@ -229,10 +229,10 @@ afterEach(async () => {
 
 describe('typed reviewer history', () => {
   it.each([
-    ['en', 'review delegated'],
-    ['de', 'review weitergegeben'],
-    ['fr', 'relecture réattribuée'],
-    ['de-CH', 'review weitergegeben'],
+    ['en', 'Review delegated'],
+    ['de', 'Review weitergegeben'],
+    ['fr', 'Relecture réattribuée'],
+    ['de-CH', 'Review weitergegeben'],
   ] as const)(
     'names a captured handoff in %s without showing its receipt payload',
     async (locale, label) => {
@@ -342,15 +342,9 @@ describe.each([
           '{"unexpected":"payload must not render"}',
         ),
       ]);
-      expect(
-        screen.getByText(line(label.toLowerCase(), approved)),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(line(label.toLowerCase(), changes)),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(line(label.toLowerCase(), unavailable)),
-      ).toBeInTheDocument();
+      expect(screen.getByText(line(label, approved))).toBeInTheDocument();
+      expect(screen.getByText(line(label, changes))).toBeInTheDocument();
+      expect(screen.getByText(line(label, unavailable))).toBeInTheDocument();
       expect(
         screen.queryByText(
           /payload must not render|Review evidence stays|approval-1/,

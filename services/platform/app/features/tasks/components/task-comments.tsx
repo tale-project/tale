@@ -1,17 +1,21 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { SendButton } from '@tale/ui/send-button';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { THREAD_COMPOSER_FRAME_CLASS } from '@tale/ui/thread/layout';
-import { useFormatDate } from '@tale/ui/use-format-date';
+import { ThreadMessage } from '@tale/ui/thread/thread-message';
+import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useIsMac } from '@tale/ui/use-is-mac';
 import { toast } from '@tale/ui/use-toast';
+import { Pencil, Trash2 } from 'lucide-react';
 import {
   Fragment,
   useCallback,
@@ -104,6 +108,8 @@ function TaskCommentViewContent({
   canWork = false,
   currentUserId,
   isAdmin,
+  continuation = false,
+  timeFormat = 'relative',
   onRequestDelete,
 }: {
   comment: TaskCommentData;
@@ -116,6 +122,11 @@ function TaskCommentViewContent({
   canWork?: boolean;
   currentUserId?: string;
   isAdmin?: boolean;
+  /** The same author again, minutes after their previous comment with
+   * nothing between: no identity row, a tighter gap. */
+  continuation?: boolean;
+  /** `time` under a day divider; `relative` where nothing names the day. */
+  timeFormat?: 'time' | 'relative';
   onRequestDelete: (messageId: string) => void;
 }) {
   const { t } = useT('tasks');
@@ -125,7 +136,6 @@ function TaskCommentViewContent({
     organizationId,
     projectId,
   );
-  const { formatRelative, formatDate } = useFormatDate();
   const [editing, setEditing] = useState(false);
   useTaskLogRowActivity(editing);
 
@@ -134,16 +144,43 @@ function TaskCommentViewContent({
     ? resolveActorPreview(c.authorType, c.authorId)
     : null;
   const displayBody = pickCommentBody(c.body, c.bodyByLocale, locale);
-  const canManage =
-    canComment &&
+  const own =
     c.authorType === 'user' &&
-    !!currentUserId &&
+    currentUserId !== undefined &&
     c.authorId === currentUserId;
+  const canManage = canComment && own;
+  const canDelete = canManage || (canComment && canWork && isAdmin === true);
+
+  const actions =
+    !editing && (canManage || canDelete) ? (
+      <>
+        {canManage && (
+          <IconButton
+            icon={Pencil}
+            size="sm"
+            variant="ghost"
+            aria-label={tCommon('actions.edit')}
+            onClick={() => setEditing(true)}
+            className="text-muted-foreground hover:text-foreground size-7"
+          />
+        )}
+        {canDelete && (
+          <IconButton
+            icon={Trash2}
+            size="sm"
+            variant="ghost"
+            aria-label={tCommon('actions.delete')}
+            onClick={() => onRequestDelete(c.messageId)}
+            className="text-muted-foreground hover:text-destructive size-7"
+          />
+        )}
+      </>
+    ) : undefined;
 
   return (
-    <Row
-      gap={2}
-      align="start"
+    <ThreadMessage
+      variant={own && !editing ? 'own' : 'other'}
+      continuation={continuation}
       // Keep offscreen history in the DOM for browser find, keyboard access
       // and draft state, while letting the browser skip its layout/paint.
       // Editing needs normal layout so its mention menu may overflow the row.
@@ -152,70 +189,49 @@ function TaskCommentViewContent({
         !editing &&
           '[contain-intrinsic-block-size:auto_8rem] [content-visibility:auto]',
       )}
+      avatar={
+        <AssigneeAvatar
+          assigneeType={c.authorType}
+          assigneeId={c.authorId}
+          name={author.name}
+        />
+      }
+      author={<TaskActorName preview={preview} name={author.name} />}
+      badge={
+        c.authorType === 'agent' ? (
+          <Badge variant="outline" className="px-1.5 py-0 text-[11px]">
+            {t('comment.agentBadge')}
+          </Badge>
+        ) : undefined
+      }
+      time={<ThreadTime value={c.createdAt} format={timeFormat} />}
+      meta={
+        c.editedAt != null ? (
+          <span className="italic">({t('comment.edited')})</span>
+        ) : undefined
+      }
+      actions={actions}
+      // A long body — an agent's report, a pasted log — reads at a glance and
+      // opens in place.
+      {...(editing ? {} : { clampHeight: own ? 384 : 320 })}
     >
-      <AssigneeAvatar
-        assigneeType={c.authorType}
-        assigneeId={c.authorId}
-        name={author.name}
-      />
-      <div className="min-w-0 flex-1">
-        <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
-          <TaskActorName preview={preview} name={author.name} />
-          <span aria-hidden="true">·</span>
-          <time
-            dateTime={new Date(c.createdAt).toISOString()}
-            title={formatDate(new Date(c.createdAt), 'long')}
-          >
-            {formatRelative(new Date(c.createdAt))}
-          </time>
-          {c.editedAt != null && (
-            <span className="italic">({t('comment.edited')})</span>
-          )}
-        </div>
-
-        {editing ? (
-          <TaskCommentEditor
-            comment={c}
-            organizationId={organizationId}
-            projectId={projectId}
-            initialBody={displayBody}
-            onClose={() => setEditing(false)}
-          />
-        ) : (
-          <MentionText
-            body={displayBody}
-            organizationId={organizationId}
-            projectId={projectId}
-            className="mt-0.5 wrap-break-word"
-          />
-        )}
-
-        {!editing && canComment && (
-          <Row
-            gap={3}
-            className="mt-1 text-xs opacity-0 transition-opacity group-focus-within/comment:opacity-100 group-hover/comment:opacity-100"
-          >
-            {canManage && (
-              <CommentAction
-                onClick={() => {
-                  setEditing(true);
-                }}
-              >
-                {tCommon('actions.edit')}
-              </CommentAction>
-            )}
-            {(canManage || (canWork && isAdmin === true)) && (
-              <CommentAction
-                destructive
-                onClick={() => onRequestDelete(c.messageId)}
-              >
-                {tCommon('actions.delete')}
-              </CommentAction>
-            )}
-          </Row>
-        )}
-      </div>
-    </Row>
+      {editing ? (
+        <TaskCommentEditor
+          comment={c}
+          organizationId={organizationId}
+          projectId={projectId}
+          initialBody={displayBody}
+          onClose={() => setEditing(false)}
+        />
+      ) : (
+        <MentionText
+          body={displayBody}
+          organizationId={organizationId}
+          projectId={projectId}
+          className="wrap-break-word"
+        />
+      )}
+    </ThreadMessage>
   );
 }
 
@@ -768,28 +784,5 @@ function TaskCommentsContent({
 
       {deleteDialog}
     </section>
-  );
-}
-
-function CommentAction({
-  children,
-  onClick,
-  destructive,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  destructive?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'text-muted-foreground hover:text-foreground font-medium transition-colors',
-        destructive && 'hover:text-destructive',
-      )}
-    >
-      {children}
-    </button>
   );
 }

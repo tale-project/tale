@@ -1,9 +1,10 @@
 import '@testing-library/jest-dom/vitest';
+import { TooltipProvider } from '@tale/ui/tooltip';
 import {
   act,
   cleanup,
   fireEvent,
-  render,
+  render as renderWithoutShell,
   screen,
   waitFor,
   within,
@@ -21,6 +22,10 @@ import { TaskConversation } from './task-conversation';
 import { TaskTimeline } from './task-timeline';
 
 import '@/app/globals.css';
+
+/** The app shell provides tooltips; a comment's icon actions carry one. */
+const render: typeof renderWithoutShell = (ui, options) =>
+  renderWithoutShell(ui, { wrapper: TooltipProvider, ...options });
 
 const state = vi.hoisted(() => ({
   comments: [] as TaskCommentData[],

@@ -1,9 +1,18 @@
-import { act, render, screen } from '@testing-library/react';
+import { TooltipProvider } from '@tale/ui/tooltip';
+import {
+  act,
+  render as renderWithoutShell,
+  screen,
+} from '@testing-library/react';
 import { useSyncExternalStore } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow } from '../utils/task-timeline';
 import { TaskConversation } from './task-conversation';
+
+/** The app shell provides tooltips; a comment's icon actions carry one. */
+const render: typeof renderWithoutShell = (ui, options) =>
+  renderWithoutShell(ui, { wrapper: TooltipProvider, ...options });
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOON = new Date(2026, 8, 23, 12, 0, 0).getTime();
