@@ -446,6 +446,29 @@ codeEditor:
   leaveArmed: Drücke Tab, um weiterzugehen.
   tabFocusOn: Tab wechselt jetzt den Fokus.
   tabFocusOff: Tab rückt jetzt ein.
+  expand: Editor vergrößern
+  collapse: Zurück zum Feld
+  diagnostics:
+    atCursor: '{severity} in Zeile {line}: {message}'
+    severity:
+      error: Fehler
+      warning: Warnung
+      info: Hinweis
+    fixAvailable: 'Korrektur verfügbar: Drücke {shortcut}.'
+    fixApplied: 'Angewendet: {label}'
+    fixMenu: Korrekturen
+    lineItem: 'Zeile {line}: {message}'
+    more: '{count, plural, one {und # weiteres Problem} other {und # weitere Probleme}}'
+  syntax:
+    json: Hier ist das kein gültiges JSON.
+    yaml: Hier ist das kein gültiges YAML.
+    javascript: Das lässt sich hier nicht als JavaScript lesen. Prüfe, ob eine Klammer, ein Anführungszeichen oder ein Komma fehlt.
+    unterminatedTemplate: "Zu diesem '{{' fehlt das schließende '}}'."
+  typeInfo:
+    label: Typ
+    announce: '{title}: {type}'
+    optional: optional
+    sample: 'Letzter Lauf: {value}'
   phrases:
     controlCharacter: Steuerzeichen
     close: Schließen

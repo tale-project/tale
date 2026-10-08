@@ -446,6 +446,29 @@ codeEditor:
   leaveArmed: Appuie sur Tab pour continuer.
   tabFocusOn: Tab déplace maintenant le focus.
   tabFocusOff: Tab indente maintenant.
+  expand: Agrandir l'éditeur
+  collapse: Revenir au champ
+  diagnostics:
+    atCursor: '{severity} à la ligne {line} : {message}'
+    severity:
+      error: Erreur
+      warning: Avertissement
+      info: Remarque
+    fixAvailable: 'Correction disponible : appuie sur {shortcut}.'
+    fixApplied: 'Appliqué : {label}'
+    fixMenu: Corrections
+    lineItem: 'Ligne {line} : {message}'
+    more: '{count, plural, one {et # autre problème} many {et # autres problèmes} other {et # autres problèmes}}'
+  syntax:
+    json: Ce n'est pas du JSON valide ici.
+    yaml: Ce n'est pas du YAML valide ici.
+    javascript: Impossible de lire ceci comme du JavaScript. Vérifie s'il manque une parenthèse, un guillemet ou une virgule.
+    unterminatedTemplate: "Ce '{{' n'a pas de '}}' fermant."
+  typeInfo:
+    label: Type
+    announce: '{title} : {type}'
+    optional: facultatif
+    sample: 'Dernière exécution : {value}'
   phrases:
     controlCharacter: Caractère de contrôle
     close: Fermer

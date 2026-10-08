@@ -446,6 +446,29 @@ codeEditor:
   leaveArmed: Press Tab to move on.
   tabFocusOn: Tab now moves focus.
   tabFocusOff: Tab now indents.
+  expand: Expand editor
+  collapse: Back to the field
+  diagnostics:
+    atCursor: '{severity} on line {line}: {message}'
+    severity:
+      error: Error
+      warning: Warning
+      info: Note
+    fixAvailable: 'Fix available: press {shortcut}.'
+    fixApplied: 'Applied: {label}'
+    fixMenu: Fixes
+    lineItem: 'Line {line}: {message}'
+    more: '{count, plural, one {and # more problem} other {and # more problems}}'
+  syntax:
+    json: This isn't valid JSON here.
+    yaml: This isn't valid YAML here.
+    javascript: This can't be read as JavaScript here. Look for a missing bracket, quote or comma.
+    unterminatedTemplate: "This '{{' has no closing '}}'."
+  typeInfo:
+    label: Type
+    announce: '{title}: {type}'
+    optional: optional
+    sample: 'Last run: {value}'
   phrases:
     controlCharacter: Control character
     close: Close

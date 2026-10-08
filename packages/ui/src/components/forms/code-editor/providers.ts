@@ -43,7 +43,10 @@ export interface CodeCompletionContext {
   prefix: string;
   from: number;
   to: number;
-  /** JSON/YAML: pointer of the object whose key or value holds the cursor. */
+  /**
+   * JSON/YAML: in a key, the pointer of the object the key belongs to; in a
+   * value, the pointer of that value.
+   */
   pointer?: string;
   /** Asked for (Ctrl+Space) rather than opened by typing. */
   explicit: boolean;

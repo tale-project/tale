@@ -38,7 +38,14 @@ function canOpenAt(
     node !== null;
     node = node.parent
   ) {
-    if (node.name === 'TemplateBody') return false;
+    // Inside a template's JavaScript (whose tree hangs below `Template`).
+    if (
+      node.name === 'TemplateBody' ||
+      node.name === 'SingleExpression' ||
+      node.name === 'Script'
+    ) {
+      return false;
+    }
     if (node.name === 'Key' || node.name === 'PropertyName') return false;
     if (TEMPLATE_NODES.has(node.name)) inString = true;
     if (strings?.has(node.name)) inString = true;

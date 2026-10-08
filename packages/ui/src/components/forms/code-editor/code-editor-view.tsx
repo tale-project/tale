@@ -45,11 +45,28 @@ import {
   lineNumbers,
   placeholder as placeholderExtension,
 } from '@codemirror/view';
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { createPortal } from 'react-dom';
 
 import { useT } from '../../../i18n/client';
 import type { IssueFocusPart, IssueFocusRange } from '../issue-focus';
+import { completionExtension } from './extensions/completion';
+import {
+  applyFix,
+  diagnosticsExtension,
+  goToDiagnostic,
+  placeDiagnostics,
+  setDiagnostics,
+  type DiagnosticWords,
+} from './extensions/diagnostics';
 import { codeHighlighting } from './extensions/highlight';
+import { hoverExtension } from './extensions/hover';
 import { keyboard, type KeyboardWords } from './extensions/keyboard';
 import { languageExtension, templatesOn } from './extensions/languages';
 import { memberObjects } from './extensions/member-objects';
@@ -57,8 +74,15 @@ import { editorPhrases } from './extensions/phrases';
 import { templateChips } from './extensions/template/chips';
 import { templateInput } from './extensions/template/input';
 import { codeEditorTheme } from './extensions/theme';
+import {
+  createTooltipPortals,
+  tooltipPlacement,
+  tooltipPortals,
+  type TooltipPortals,
+} from './extensions/tooltips';
 import { editorIcon, EditorIconSprite } from './icon-sprite';
 import { locateJsonPointer, locateYamlPointer } from './locate';
+import { DiagnosticTooltipBody, TypeTooltipBody } from './tooltip-bodies';
 import type { CodeEditorProps } from './types';
 
 /** What the light wrapper drives once the view exists. */
@@ -143,7 +167,10 @@ type SlotName =
   | 'search'
   | 'templates'
   | 'phrases'
-  | 'selection';
+  | 'selection'
+  | 'diagnostics'
+  | 'completion'
+  | 'hover';
 
 const SLOT_NAMES: readonly SlotName[] = [
   'language',
@@ -157,6 +184,9 @@ const SLOT_NAMES: readonly SlotName[] = [
   'templates',
   'phrases',
   'selection',
+  'diagnostics',
+  'completion',
+  'hover',
 ];
 
 /** One reconfigurable part: rebuilt only when its signature changes. */
@@ -184,6 +214,9 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
     templates: new Compartment(),
     phrases: new Compartment(),
     selection: new Compartment(),
+    diagnostics: new Compartment(),
+    completion: new Compartment(),
+    hover: new Compartment(),
   };
   const applied = useRef<Partial<Record<SlotName, string>>>({});
 
@@ -200,6 +233,35 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
   useLayoutEffect(() => {
     wordsRef.current = words;
   });
+
+  const diagnosticWords: DiagnosticWords = {
+    severity: {
+      error: t('diagnostics.severity.error'),
+      warning: t('diagnostics.severity.warning'),
+      info: t('diagnostics.severity.info'),
+    },
+    atCursor: (values) => t('diagnostics.atCursor', values),
+    fixAvailable: (shortcut) => t('diagnostics.fixAvailable', { shortcut }),
+    fixApplied: (label) => t('diagnostics.fixApplied', { label }),
+    syntax: {
+      json: t('syntax.json'),
+      yaml: t('syntax.yaml'),
+      javascript: t('syntax.javascript'),
+      unterminatedTemplate: t('syntax.unterminatedTemplate'),
+    },
+  };
+  const completionWords = {
+    type: t('typeInfo.label'),
+    optional: t('typeInfo.optional'),
+    sample: (value: string) => t('typeInfo.sample', { value }),
+  };
+  const textWords = useRef({ diagnosticWords, completionWords, t });
+  useLayoutEffect(() => {
+    textWords.current = { diagnosticWords, completionWords, t };
+  });
+
+  // Tooltip bodies are React, portalled into the DOM CodeMirror positions.
+  const [portals] = useState<TooltipPortals>(createTooltipPortals);
 
   const {
     language,
@@ -220,7 +282,16 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
     required,
     describedBy,
     reducedMotion,
+    diagnosticsStatus,
+    syntaxDiagnostics = true,
+    providers,
   } = props;
+  const pending =
+    diagnosticsStatus === 'checking' || diagnosticsStatus === 'stale';
+  const showGutter =
+    showLineNumbers ||
+    props.diagnostics !== undefined ||
+    providers?.lint !== undefined;
   const softDisabled = disabled && hasReason(disabledReason);
   const editable = !disabled && !readOnly;
   const live = templatesOn(language, templates);
@@ -247,11 +318,13 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
     autocorrect: font === 'prose' ? 'on' : 'off',
     autocapitalize: 'off',
     ...(isCode ? { translate: 'no', dir: 'ltr' } : {}),
+    ...(pending ? { 'aria-busy': 'true' } : {}),
   };
   const rootClass = [
     font === 'prose' ? 'cm-prose' : '',
     fillHeight ? 'cm-fill' : '',
     readOnly || disabled ? 'cm-readonly' : '',
+    pending ? 'cm-diagnostics-pending' : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -342,6 +415,49 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       signature: String(reducedMotion),
       build: () => drawSelection({ cursorBlinkRate: reducedMotion ? 0 : 1200 }),
     },
+    diagnostics: {
+      signature: `${language}|${syntaxDiagnostics}|${showGutter}`,
+      build: () =>
+        diagnosticsExtension({
+          language,
+          syntax: syntaxDiagnostics,
+          gutter: showGutter,
+          words: () => textWords.current.diagnosticWords,
+          providers: () => latest.current.providers,
+          render: (view, items, focusFix) => (
+            <DiagnosticTooltipBody
+              items={items}
+              focusFix={focusFix}
+              onFix={(fix) => applyFix(view, fix)}
+            />
+          ),
+        }),
+    },
+    completion: {
+      signature: `${language}|${editable}|${providers?.completion !== undefined}`,
+      build: () =>
+        editable && providers?.completion !== undefined
+          ? completionExtension({
+              language,
+              providers: () => latest.current.providers,
+              words: () => textWords.current.completionWords,
+            })
+          : [],
+    },
+    hover: {
+      signature: language,
+      build: () =>
+        hoverExtension({
+          language,
+          providers: () => latest.current.providers,
+          render: (info) => <TypeTooltipBody info={info} />,
+          announce: (info) =>
+            textWords.current.t('typeInfo.announce', {
+              title: info.title ?? '',
+              type: info.type,
+            }),
+        }),
+    },
   };
   const slotsRef = useRef(slots);
   useLayoutEffect(() => {
@@ -387,6 +503,8 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
           memberObjects,
           codeHighlighting,
           codeEditorTheme,
+          tooltipPortals.of(portals),
+          tooltipPlacement,
           keymap.of([
             ...closeBracketsKeymap,
             ...defaultKeymap,
@@ -407,17 +525,17 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
               // CodeMirror finishes the composition after this event; apply
               // a value the host sent meanwhile once it has.
               setTimeout(() => {
-                const pending = pendingValue.current;
+                const waiting = pendingValue.current;
                 const current = viewRef.current;
                 if (
-                  pending === null ||
+                  waiting === null ||
                   current === null ||
                   current.compositionStarted
                 ) {
                   return;
                 }
                 pendingValue.current = null;
-                applyValue(current, pending);
+                applyValue(current, waiting);
               }, 0);
             },
           }),
@@ -446,8 +564,9 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
         view.focus();
         startCompletion(view);
       },
-      nextDiagnostic() {
+      nextDiagnostic(direction) {
         view.focus();
+        goToDiagnostic(view, direction);
       },
     });
     return () => {
@@ -455,7 +574,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       view.destroy();
       viewRef.current = null;
     };
-  }, []);
+  }, [portals]);
 
   // Reconfigure the parts whose props changed.
   useEffect(() => {
@@ -470,6 +589,23 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
     });
     if (effects.length > 0) view.dispatch({ effects });
   });
+
+  // The host's problems, placed on the text they were found in.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view === null) return;
+    view.dispatch({
+      effects: setDiagnostics.of({
+        source: 'host',
+        items: placeDiagnostics(
+          'host',
+          props.diagnostics ?? [],
+          view.state.doc,
+          props.diagnosticsFor,
+        ),
+      }),
+    });
+  }, [props.diagnostics, props.diagnosticsFor]);
 
   // The value prop: applied as the smallest change, never echoed.
   useEffect(() => {
@@ -486,6 +622,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
   return (
     <>
       <EditorIconSprite />
+      <TooltipPortalsHost portals={portals} viewRef={viewRef} />
       <div
         ref={host}
         className={fillHeight ? 'h-full min-h-0' : undefined}
@@ -511,6 +648,30 @@ function locatePart(
         ? locateYamlPointer(text, part.rest, options)
         : null;
   return found === null ? undefined : [found.from, found.to];
+}
+
+/**
+ * Renders each open tooltip's React body into its CodeMirror element, then
+ * asks CodeMirror to measure again: the body arrives after the element.
+ */
+function TooltipPortalsHost({
+  portals,
+  viewRef,
+}: {
+  portals: TooltipPortals;
+  viewRef: { current: EditorView | null };
+}) {
+  const open = useSyncExternalStore(
+    portals.subscribe,
+    portals.snapshot,
+    portals.snapshot,
+  );
+  useLayoutEffect(() => {
+    viewRef.current?.requestMeasure();
+  }, [open, viewRef]);
+  return [...open].map(([dom, node], index) =>
+    createPortal(node, dom, `tooltip-${index}`),
+  );
 }
 
 function hasReason(reason: unknown): boolean {

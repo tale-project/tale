@@ -14,6 +14,9 @@ common:
 envEditor:
   projectSecretBadKey: «{key}» muss mit einem Grossbuchstaben beginnen und darf nur Grossbuchstaben, Ziffern oder Unterstriche enthalten (maximal 64 Zeichen).
 codeEditor:
+  expand: Editor vergrössern
+  syntax:
+    unterminatedTemplate: "Zu diesem '{{' fehlt das schliessende '}}'."
   phrases:
     close: Schliessen
     matchCase: Gross-/Kleinschreibung

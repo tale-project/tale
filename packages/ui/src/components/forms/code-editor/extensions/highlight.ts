@@ -1,6 +1,12 @@
+import { typescriptLanguage } from '@codemirror/lang-javascript';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import type { Extension } from '@codemirror/state';
-import { tagHighlighter, type Highlighter, type Tag } from '@lezer/highlight';
+import {
+  highlightCode,
+  tagHighlighter,
+  type Highlighter,
+  type Tag,
+} from '@lezer/highlight';
 
 import {
   CODE_FONT_TAGS,
@@ -67,3 +73,32 @@ export const codeRoleHighlighter: Highlighter = tagHighlighter(
       : [{ tag: [...tags], class: `role-${role}` }];
   }),
 );
+
+/** A run of text and the classes that colour it. */
+export interface HighlightedRun {
+  text: string;
+  className: string;
+}
+
+const TYPE_PREFIX = 'type _ = ';
+
+/**
+ * A TypeScript type (`{ count: number }`) as coloured runs, in the editor's
+ * palette: the type info of a completion or a hover. Parsed as the right
+ * side of a type alias, so any type reads as TypeScript does.
+ */
+export function highlightType(type: string): HighlightedRun[] {
+  const source = `${TYPE_PREFIX}${type}`;
+  const tree = typescriptLanguage.parser.parse(source);
+  const runs: HighlightedRun[] = [];
+  highlightCode(
+    source,
+    tree,
+    codeHighlightStyle,
+    (text, className) => runs.push({ text, className }),
+    () => runs.push({ text: '\n', className: '' }),
+    TYPE_PREFIX.length,
+    source.length,
+  );
+  return runs;
+}

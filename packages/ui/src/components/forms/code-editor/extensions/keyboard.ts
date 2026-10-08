@@ -55,7 +55,7 @@ export interface EscapeClosable {
  * Popups the editor's other extensions open (the problem tooltip, the type
  * tooltip) register here so Escape closes them and the claim covers them.
  */
-const escapeClosables = Facet.define<EscapeClosable>();
+export const escapeClosables = Facet.define<EscapeClosable>();
 
 const NO_WORDS: KeyboardWords = {
   leaveArmed: '',
@@ -72,7 +72,8 @@ const LEAVE_MS = 2000;
 
 const builtInClosables: EscapeClosable[] = [
   {
-    isOpen: (view) => completionStatus(view.state) !== null,
+    // A list on screen; a request still pending is dropped quietly below.
+    isOpen: (view) => completionStatus(view.state) === 'active',
     close: (view) => closeCompletion(view),
   },
   {
@@ -109,6 +110,7 @@ class EscapeClaim implements PluginValue {
         return;
       }
     }
+    if (completionStatus(view.state) === 'pending') closeCompletion(view);
     view.setTabFocusMode(LEAVE_MS);
     this.arm();
     view.dispatch({

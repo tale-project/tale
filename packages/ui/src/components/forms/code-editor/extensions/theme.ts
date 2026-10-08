@@ -106,6 +106,97 @@ export const codeEditorTheme = EditorView.theme({
     fontSize: '0.92em',
   },
   '.cm-tale-object': { color: 'var(--code-token-constant)' },
+  // Problems: the underline's style says the severity (wavy for an error or
+  // a warning, dotted for a note), so it never reads by colour alone.
+  '.cm-diagnostic': {
+    textUnderlineOffset: '3px',
+    textDecorationSkipInk: 'none',
+  },
+  '.cm-diagnostic-error': {
+    textDecoration: 'underline wavy var(--code-squiggle-error) 1.5px',
+  },
+  '.cm-diagnostic-warning': {
+    textDecoration: 'underline wavy var(--code-squiggle-warning) 1px',
+  },
+  '.cm-diagnostic-info': {
+    textDecoration: 'underline dotted var(--code-squiggle-info) 1px',
+  },
+  // While a check runs, the last answer's underlines fade to 60 %.
+  '&.cm-diagnostics-pending .cm-diagnostic-error': {
+    textDecorationColor:
+      'color-mix(in srgb, var(--code-squiggle-error) 60%, transparent)',
+  },
+  '&.cm-diagnostics-pending .cm-diagnostic-warning': {
+    textDecorationColor:
+      'color-mix(in srgb, var(--code-squiggle-warning) 60%, transparent)',
+  },
+  '&.cm-diagnostics-pending .cm-diagnostic-info': {
+    textDecorationColor:
+      'color-mix(in srgb, var(--code-squiggle-info) 60%, transparent)',
+  },
+  '.cm-diagnostic-gutter .cm-gutterElement': {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '1.25rem',
+    paddingLeft: '0.25rem',
+  },
+  // Tooltips and the completion list look like the app's popovers.
+  '.cm-tooltip': {
+    backgroundColor: 'hsl(var(--popover))',
+    color: 'hsl(var(--popover-foreground))',
+    border: '1px solid hsl(var(--border))',
+    borderRadius: '0.5rem',
+    boxShadow: 'var(--shadow-overlay)',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '0.75rem',
+    lineHeight: '1.4',
+  },
+  '.dark & .cm-tooltip': { backgroundColor: 'hsl(var(--muted))' },
+  '.cm-tooltip.cm-tooltip-autocomplete': {
+    padding: '0.25rem 0',
+    minWidth: '14rem',
+    maxWidth: '24rem',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul': {
+    fontFamily: 'var(--font-mono)',
+    maxHeight: 'calc(8 * 1.75rem + 2rem)',
+    maxWidth: '24rem',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li': {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+    minHeight: '1.75rem',
+    padding: '0 0.5rem',
+    lineHeight: '1.75rem',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+    backgroundColor: 'hsl(var(--accent))',
+    color: 'hsl(var(--accent-foreground))',
+  },
+  '.cm-tooltip.cm-tooltip-autocomplete > ul > completion-section': {
+    display: 'block',
+    padding: '0.5rem 0.5rem 0.25rem',
+    fontFamily: 'var(--font-sans)',
+    fontSize: '0.75rem',
+    fontWeight: '500',
+    color: 'hsl(var(--muted-foreground))',
+    borderBottom: 'none',
+    opacity: '1',
+  },
+  '.cm-completionLabel': { color: 'hsl(var(--foreground))' },
+  '.cm-completionMatchedText': { textDecoration: 'none', fontWeight: '600' },
+  '.cm-completionDetail': {
+    marginLeft: 'auto',
+    paddingLeft: '0.75rem',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    fontStyle: 'normal',
+    color: 'hsl(var(--muted-foreground))',
+  },
+  '.cm-tooltip.cm-completionInfo': { padding: '0', maxWidth: '20rem' },
   // Search and go-to-line panels, in the app's control styles.
   '.cm-panels': {
     backgroundColor: 'hsl(var(--card))',

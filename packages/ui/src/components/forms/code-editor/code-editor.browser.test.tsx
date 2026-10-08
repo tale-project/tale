@@ -2,11 +2,13 @@ import '@testing-library/jest-dom/vitest';
 import { EditorView } from '@codemirror/view';
 import { cleanup } from '@testing-library/react';
 import axe from 'axe-core';
-import { useRef, useState } from 'react';
+import type { i18n as I18n } from 'i18next';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { page, userEvent } from 'vitest/browser';
+import { cdp, page, userEvent } from 'vitest/browser';
 
-import { act, render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import {
   ResponsiveDialog,
@@ -22,9 +24,11 @@ import {
 import {
   CodeEditor,
   preloadCodeEditor,
+  type CodeEditorDiagnostic,
   type CodeEditorHandle,
   type CodeEditorProps,
 } from './code-editor';
+import type { CodeEditorProviders } from './providers';
 
 import '../../../globals.css';
 
@@ -697,4 +701,686 @@ it('exposes a handle that focuses, selects and reports the selection', async () 
 
 it('preloads without rendering', async () => {
   expect(() => preloadCodeEditor()).not.toThrow();
+});
+
+/** A host that knows two nodes and their outputs, for completion and hover. */
+const SHAPES: CodeEditorProviders = {
+  completion: ({ path }) => {
+    if (path === null) return null;
+    if (path.length === 0) {
+      return {
+        items: [
+          { label: 'nodes', kind: 'variable', valueType: 'object' },
+          { label: 'input', kind: 'input', valueType: 'object' },
+        ],
+      };
+    }
+    if (path.length === 1 && path[0] === 'nodes') {
+      return {
+        items: [
+          {
+            label: 'score',
+            kind: 'node',
+            detail: 'Language model',
+            section: 'Earlier nodes',
+          },
+          {
+            label: 'open issues',
+            kind: 'node',
+            detail: 'Transform',
+            section: 'Earlier nodes',
+          },
+        ],
+      };
+    }
+    if (path.length === 2 && path[0] === 'nodes') {
+      return {
+        items: [
+          {
+            label: 'output',
+            kind: 'property',
+            valueType: 'object',
+            info: {
+              type: '{ total: number }',
+              description: 'What the node returns.',
+            },
+          },
+        ],
+      };
+    }
+    return { items: [] };
+  },
+  hover: ({ path }) =>
+    path !== null && path.join('.') === 'nodes.score'
+      ? { title: 'nodes.score', type: '{ output: { total: number } }' }
+      : null,
+};
+
+/**
+ * The open completion list, once it takes keys: CodeMirror ignores keys for
+ * its first 75 ms, so a list that opens under fast typing is not chosen from
+ * by accident.
+ */
+async function listbox(): Promise<HTMLElement> {
+  const list = await screen.findByRole('listbox', {}, { timeout: 5000 });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  return list;
+}
+
+describe('CodeEditor completion', () => {
+  it('lists what can come after a dot, by keyboard', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        providers={SHAPES}
+        initial=""
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('nodes.');
+    const list = await listbox();
+    expect(box).toHaveAttribute('aria-autocomplete', 'list');
+    const options = [...list.querySelectorAll('[role="option"]')];
+    expect(
+      options.map(
+        (option) => option.querySelector('.cm-completionLabel')?.textContent,
+      ),
+    ).toEqual(['score', 'open issues']);
+    expect(box.getAttribute('aria-activedescendant')).toBe(options[0].id);
+    await userEvent.keyboard('{ArrowDown}');
+    expect(box.getAttribute('aria-activedescendant')).toBe(options[1].id);
+    await userEvent.keyboard('{ArrowUp}{Enter}');
+    expect(screen.getByTestId('value').textContent).toBe('nodes.score');
+  });
+
+  it('accepts with Tab, and quotes a name that is not an identifier', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        providers={SHAPES}
+        initial=""
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('nodes.');
+    await listbox();
+    await userEvent.keyboard('{ArrowDown}{Tab}');
+    expect(screen.getByTestId('value').textContent).toBe(
+      'nodes["open issues"]',
+    );
+  });
+
+  it('shows the type of an option in its info panel', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        providers={SHAPES}
+        initial="nodes.score"
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{End}.');
+    await listbox();
+    const info = await screen.findByText('What the node returns.');
+    expect(info.closest('.cm-completionInfo')?.textContent).toContain('total');
+  });
+
+  it('opens on Ctrl-Space where it would not open by itself', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        providers={SHAPES}
+        initial=""
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{Control>} {/Control}');
+    const list = await listbox();
+    expect(list.textContent).toContain('nodes');
+  });
+
+  it('opens with the template roots after {{ in a prompt', async () => {
+    render(
+      <Controlled
+        language="markdown"
+        templates
+        providers={SHAPES}
+        initial="Hi "
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{End}{{{{');
+    const list = await listbox();
+    expect(list.textContent).toContain('input');
+  });
+
+  // Escape closes the list first; the sheet stays open.
+  it('closes the list before the sheet, at phone width', async () => {
+    await page.viewport(375, 800);
+    try {
+      function Host() {
+        const [open, setOpen] = useState(true);
+        const [value, setValue] = useState('');
+        return (
+          <>
+            <p>{open ? 'sheet open' : 'sheet closed'}</p>
+            <ResponsiveDialog open={open} onOpenChange={setOpen}>
+              <ResponsiveDialogContent>
+                <ResponsiveDialogTitle>Edit node</ResponsiveDialogTitle>
+                <div style={{ height: 120 }} />
+                <CodeEditor
+                  aria-label="Code"
+                  language="expression"
+                  singleLine
+                  value={value}
+                  onChange={setValue}
+                  providers={SHAPES}
+                />
+                <div style={{ height: 320 }} />
+              </ResponsiveDialogContent>
+            </ResponsiveDialog>
+          </>
+        );
+      }
+      render(<Host />);
+      const box = await content('Code');
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await userEvent.click(box);
+      await userEvent.keyboard('nodes.');
+      const list = await listbox();
+      // The list sits inside the sheet.
+      const sheet = box.closest('[role="dialog"]') as HTMLElement;
+      const listBox = list.getBoundingClientRect();
+      const sheetBox = sheet.getBoundingClientRect();
+      expect(listBox.top).toBeGreaterThanOrEqual(sheetBox.top);
+      expect(listBox.bottom).toBeLessThanOrEqual(sheetBox.bottom + 1);
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull());
+      expect(screen.getByText('sheet open')).toBeInTheDocument();
+      await userEvent.keyboard('{Escape}');
+      expect(screen.getByText('sheet open')).toBeInTheDocument();
+      expect(announced(box)).toBe('Press Tab to move on.');
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.getByText('sheet closed')).toBeInTheDocument(),
+      );
+    } finally {
+      await page.viewport(1280, 800);
+    }
+  });
+});
+
+describe('CodeEditor completion in German', () => {
+  const shared: { i18n?: I18n } = {};
+  function CaptureI18n() {
+    const { i18n } = useTranslation();
+    useEffect(() => {
+      shared.i18n = i18n;
+    }, [i18n]);
+    return null;
+  }
+  afterEach(async () => {
+    cleanup();
+    localStorage.removeItem('user-locale');
+    await shared.i18n?.changeLanguage('en-US');
+  });
+
+  it("names the list in the reader's language", async () => {
+    localStorage.setItem('user-locale', 'de');
+    render(
+      <>
+        <CaptureI18n />
+        <Controlled
+          language="expression"
+          singleLine
+          providers={SHAPES}
+          initial=""
+        />
+      </>,
+    );
+    const box = await content();
+    await userEvent.click(box);
+    await userEvent.keyboard('nodes.');
+    const list = await listbox();
+    expect(list).toHaveAttribute('aria-label', 'Vorschläge');
+  });
+});
+
+describe('CodeEditor problems', () => {
+  const unknown: CodeEditorDiagnostic = {
+    id: 'ref',
+    severity: 'error',
+    message: 'Reads "nope", and there is no node with that id.',
+    code: 'REF_UNKNOWN_NODE',
+    range: [6, 10],
+    fixes: [
+      { label: 'Read "score"', changes: [{ range: [6, 10], insert: 'score' }] },
+    ],
+  };
+  const note: CodeEditorDiagnostic = {
+    id: 'note',
+    severity: 'warning',
+    message: 'May be empty.',
+    range: [11, 17],
+  };
+
+  it('underlines each problem by severity and marks its line', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope.output"
+        diagnostics={[unknown, note]}
+      />,
+    );
+    const box = await content('Code');
+    const error = box.querySelector('.cm-diagnostic-error');
+    const warning = box.querySelector('.cm-diagnostic-warning');
+    expect(error?.textContent).toBe('nope');
+    expect(warning?.textContent).toBe('output');
+    expect(getComputedStyle(error as HTMLElement).textDecorationStyle).toBe(
+      'wavy',
+    );
+    const gutter = box
+      .closest('.cm-editor')
+      ?.querySelector('.cm-diagnostic-gutter .cm-gutterElement svg');
+    expect(gutter).not.toBeNull();
+  });
+
+  it('shows the problem, its code and its fix on hover', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope.output"
+        diagnostics={[unknown]}
+      />,
+    );
+    const box = await content('Code');
+    const error = box.querySelector('.cm-diagnostic-error') as HTMLElement;
+    await userEvent.hover(error);
+    expect(
+      await screen.findByText(unknown.message, {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('REF_UNKNOWN_NODE')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Read "score"' }),
+    ).toBeInTheDocument();
+  });
+
+  it('walks the problems with F8 and reads each aloud', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope.output"
+        diagnostics={[unknown, note]}
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{Home}{F8}');
+    expect(selection(box)).toEqual([6, 10]);
+    expect(announced(box)).toBe(
+      'Error on line 1: Reads "nope", and there is no node with that id. Fix available: press ' +
+        (MOD === 'Meta' ? '⌘.' : 'Ctrl+.') +
+        '.',
+    );
+    await userEvent.keyboard('{F8}');
+    expect(selection(box)).toEqual([11, 17]);
+    expect(announced(box)).toBe('Warning on line 1: May be empty.');
+    await userEvent.keyboard('{Shift>}{F8}{/Shift}');
+    expect(selection(box)).toEqual([6, 10]);
+  });
+
+  it('applies the one fix with Mod-. and says so', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope.output"
+        diagnostics={[unknown]}
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{Home}{F8}');
+    await userEvent.keyboard(`{${MOD}>}.{/${MOD}}`);
+    expect(screen.getByTestId('value').textContent).toBe('nodes.score.output');
+    expect(announced(box)).toBe('Applied: Read "score"');
+  });
+
+  it('describes its problems, and only when asked to', async () => {
+    const { rerender } = render(
+      <CodeEditor
+        aria-label="Code"
+        language="expression"
+        value="nodes.nope.output"
+        diagnostics={[unknown]}
+      />,
+    );
+    const box = await content('Code');
+    const described = () =>
+      (box.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => document.getElementById(id)?.textContent ?? '')
+        .join(' ');
+    expect(described()).toContain('1 error.');
+    expect(described()).toContain('Line 1: Reads "nope"');
+    rerender(
+      <CodeEditor
+        aria-label="Code"
+        language="expression"
+        value="nodes.nope.output"
+        diagnostics={[unknown]}
+        describeDiagnostics={false}
+      />,
+    );
+    await waitFor(() => expect(described()).not.toContain('1 error.'));
+  });
+
+  // The host's own announcer says a check's result once; new problems
+  // arriving as a prop must not make the editor speak.
+  it('announces nothing when new problems arrive', async () => {
+    const { rerender } = render(
+      <CodeEditor aria-label="Code" language="expression" value="nodes.nope" />,
+    );
+    const box = await content('Code');
+    rerender(
+      <CodeEditor
+        aria-label="Code"
+        language="expression"
+        value="nodes.nope"
+        diagnostics={[unknown]}
+      />,
+    );
+    await waitFor(() =>
+      expect(box.querySelector('.cm-diagnostic-error')).not.toBeNull(),
+    );
+    expect(announced(box)).toBe('');
+  });
+
+  it('keeps a problem in place while the reader types before it', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope"
+        diagnostics={[{ ...unknown, fixes: [] }]}
+        diagnosticsFor="nodes.nope"
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{Home}x');
+    expect(box.querySelector('.cm-diagnostic-error')?.textContent).toBe('nope');
+  });
+
+  it('marks text that does not parse, after a pause and away from the cursor', async () => {
+    render(<Controlled language="json" initial={'{"a": 1,, "b": 2}'} />);
+    const box = await content('Code');
+    await waitFor(
+      () => expect(box.querySelector('.cm-diagnostic-error')).not.toBeNull(),
+      { timeout: 3000 },
+    );
+    const mark = box.querySelector('.cm-diagnostic-error') as HTMLElement;
+    await userEvent.hover(mark);
+    expect(
+      await screen.findByText(
+        "This isn't valid JSON here.",
+        {},
+        { timeout: 3000 },
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('marks a {{ that never closes', async () => {
+    render(<Controlled language="template" initial="Hi {{ name" />);
+    const box = await content('Code');
+    await waitFor(
+      () =>
+        expect(box.querySelector('.cm-diagnostic-error')?.textContent).toBe(
+          '{{',
+        ),
+      { timeout: 3000 },
+    );
+  });
+
+  it('fades its underlines while a check runs', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope"
+        diagnostics={[unknown]}
+        diagnosticsStatus="checking"
+      />,
+    );
+    const box = await content('Code');
+    expect(box.closest('.cm-editor')).toHaveClass('cm-diagnostics-pending');
+    expect(box).toHaveAttribute('aria-busy', 'true');
+  });
+});
+
+describe('CodeEditor types', () => {
+  it('shows the type under the pointer', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        providers={SHAPES}
+        initial="nodes.score.output"
+      />,
+    );
+    const box = await content('Code');
+    const word = [...box.querySelectorAll('span')].find(
+      (span) => span.textContent === 'score',
+    );
+    await userEvent.hover(word as HTMLElement);
+    const title = await screen.findByText('nodes.score', {}, { timeout: 3000 });
+    expect(title.closest('.cm-tooltip')?.textContent).toContain('total');
+  });
+
+  it('reads the type at the cursor aloud on Mod-K Mod-I', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        providers={SHAPES}
+        initial="nodes.score.output"
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    act(() => {
+      viewOf(box).dispatch({ selection: { anchor: 8 } });
+    });
+    await userEvent.keyboard(`{${MOD}>}k{/${MOD}}{${MOD}>}i{/${MOD}}`);
+    await waitFor(() =>
+      expect(announced(box)).toBe('nodes.score: { output: { total: number } }'),
+    );
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(document.querySelector('.cm-tooltip')).toBeNull(),
+    );
+  });
+});
+
+describe('CodeEditor expand', () => {
+  it('edits in a large dialog and brings the caret back', async () => {
+    render(
+      <Controlled
+        language="javascript"
+        expandable
+        initial={'const a = 1;\nreturn a;'}
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Expand editor' }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    const big = await within(dialog).findByRole(
+      'textbox',
+      {},
+      { timeout: 5000 },
+    );
+    await waitFor(() => expect(big).toHaveFocus());
+    await userEvent.keyboard('{End} // more');
+    expect(screen.getByTestId('value').textContent).toBe(
+      'const a = 1;\nreturn a; // more',
+    );
+    const caret = selection(big);
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Back to the field' }),
+    );
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await waitFor(() => expect(box).toHaveFocus());
+    expect(box.textContent).toContain('return a; // more');
+    expect(selection(box)).toEqual(caret);
+  });
+});
+
+describe('CodeEditor problem tooltips by keyboard', () => {
+  const two: CodeEditorDiagnostic = {
+    id: 'two',
+    severity: 'error',
+    message: 'Reads a node that does not exist.',
+    range: [6, 10],
+    fixes: [
+      { label: 'Read "score"', changes: [{ range: [6, 10], insert: 'score' }] },
+      {
+        label: 'Read "report"',
+        changes: [{ range: [6, 10], insert: 'report' }],
+      },
+    ],
+  };
+
+  it('offers several fixes as buttons, chosen with the arrows', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope"
+        diagnostics={[two]}
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{Home}{F8}');
+    await userEvent.keyboard(`{${MOD}>}.{/${MOD}}`);
+    const first = await screen.findByRole('button', { name: 'Read "score"' });
+    await waitFor(() => expect(first).toHaveFocus());
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('button', { name: 'Read "report"' })).toHaveFocus();
+    await userEvent.keyboard('{Enter}');
+    expect(screen.getByTestId('value').textContent).toBe('nodes.report');
+    expect(box).toHaveFocus();
+  });
+
+  it('closes the tooltip with Escape before arming leave', async () => {
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        initial="nodes.nope"
+        diagnostics={[two]}
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('{Home}{F8}');
+    expect(await screen.findByText(two.message)).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByText(two.message)).toBeNull());
+    expect(announced(box)).not.toBe('Press Tab to move on.');
+    await userEvent.keyboard('{Escape}');
+    expect(announced(box)).toBe('Press Tab to move on.');
+  });
+});
+
+describe.each(['light', 'dark'])('CodeEditor popups (%s)', (theme) => {
+  it('keeps the open list and a problem tooltip accessible', async () => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    const problem: CodeEditorDiagnostic = {
+      id: 'p',
+      severity: 'warning',
+      message: 'May be empty.',
+      code: 'MAYBE_NULL',
+      range: [0, 5],
+    };
+    render(
+      <div className="bg-background p-4">
+        <Controlled
+          language="expression"
+          singleLine
+          providers={SHAPES}
+          initial="nodes"
+          diagnostics={[problem]}
+        />
+      </div>,
+    );
+    const box = await content('Code');
+    await userEvent.hover(
+      box.querySelector('.cm-diagnostic-warning') as HTMLElement,
+    );
+    await screen.findByText('MAYBE_NULL', {}, { timeout: 3000 });
+    await userEvent.click(box);
+    await userEvent.keyboard('{End}.');
+    await listbox();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    const result = await axe.run(document.body, {
+      runOnly: [
+        'color-contrast',
+        'aria-allowed-attr',
+        'aria-valid-attr-value',
+        'aria-required-children',
+        'aria-required-parent',
+        'button-name',
+      ],
+    });
+    expect(result.violations).toEqual([]);
+  });
+});
+
+describe('CodeEditor under reduced motion', () => {
+  afterEach(async () => {
+    await cdp().send('Emulation.setEmulatedMedia', { features: [] });
+  });
+
+  it('opens the list without animation and keeps the caret steady', async () => {
+    await cdp().send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: 'reduce' }],
+    });
+    render(
+      <Controlled
+        language="expression"
+        singleLine
+        providers={SHAPES}
+        initial=""
+      />,
+    );
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard('nodes.');
+    await listbox();
+    const tooltip = document.querySelector(
+      '.cm-tooltip-autocomplete',
+    ) as HTMLElement;
+    expect(getComputedStyle(tooltip).animationName).toBe('none');
+    const layer = box
+      .closest('.cm-editor')
+      ?.querySelector<HTMLElement>('.cm-cursorLayer');
+    expect(layer?.style.animationDuration).toBe('0ms');
+  });
 });

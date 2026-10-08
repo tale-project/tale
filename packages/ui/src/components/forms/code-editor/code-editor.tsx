@@ -12,6 +12,7 @@
  * renders no code field never downloads it.
  */
 
+import { Maximize2 } from 'lucide-react';
 import {
   forwardRef,
   lazy,
@@ -20,6 +21,7 @@ import {
   useEffect,
   useId,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -35,6 +37,13 @@ import {
   DisabledReasonTooltip,
   hasDisabledReason,
 } from '../../overlays/disabled-reason';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogTitle,
+} from '../../overlays/responsive-dialog';
+import { Button } from '../../primitives/button';
+import { IconButton } from '../../primitives/icon-button';
 import { FIELD_FOCUS_WITHIN, FIELD_INVALID_WITHIN } from '../field-focus';
 import {
   useIssueFocusTarget,
@@ -42,7 +51,11 @@ import {
   type IssueFocusRange,
 } from '../issue-focus';
 import type { CodeEditorViewHandle } from './code-editor-view';
-import type { CodeEditorHandle, CodeEditorProps } from './types';
+import type {
+  CodeEditorDiagnostic,
+  CodeEditorHandle,
+  CodeEditorProps,
+} from './types';
 
 export type {
   CodeEditorDiagnostic,
@@ -96,6 +109,53 @@ const SIZE_CLASS = {
 
 const CODE_LANGUAGES = new Set(['javascript', 'expression', 'json', 'yaml']);
 
+/** The line `offset` is on, 1-based. */
+function lineOf(text: string, offset: number): number {
+  let line = 1;
+  for (let i = 0; i < Math.min(offset, text.length); i++) {
+    if (text.charCodeAt(i) === 10) line++;
+  }
+  return line;
+}
+
+/**
+ * The words a screen reader hears for a field's problems: the count, then
+ * the first three with their lines.
+ */
+function useProblemSummary(
+  diagnostics: readonly CodeEditorDiagnostic[] | undefined,
+  text: string,
+  ready: boolean,
+): string {
+  const { t } = useT('codeEditor');
+  const { t: tIssues } = useT('issues');
+  const settled = useRef('');
+  return useMemo(() => {
+    if (!ready) return settled.current;
+    const list = diagnostics ?? [];
+    if (list.length === 0) {
+      settled.current = '';
+      return '';
+    }
+    const errors = list.filter((d) => d.severity === 'error').length;
+    const warnings = list.filter((d) => d.severity === 'warning').length;
+    const parts = [
+      `${tIssues('summary', { errors, warnings })}.`,
+      ...list.slice(0, 3).map((d) =>
+        t('diagnostics.lineItem', {
+          line: lineOf(text, d.range?.[0] ?? 0),
+          message: d.message,
+        }),
+      ),
+    ];
+    if (list.length > 3) {
+      parts.push(`${t('diagnostics.more', { count: list.length - 3 })}.`);
+    }
+    settled.current = parts.join(' ');
+    return settled.current;
+  }, [diagnostics, text, ready, t, tIssues]);
+}
+
 interface PendingFocus {
   range: IssueFocusRange | undefined;
   part: IssueFocusPart | undefined;
@@ -122,6 +182,8 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
       submitLabel,
       issueAnchor = null,
       issueReveal,
+      expandable = false,
+      describeDiagnostics = true,
       className,
     } = props;
     const { t } = useT('codeEditor');
@@ -130,16 +192,24 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
     const baseId = useId();
     const keyboardHintId = `${baseId}-keyboard`;
     const submitHintId = `${baseId}-submit`;
+    const summaryId = `${baseId}-summary`;
     const softDisabled = disabled && hasDisabledReason(disabledReason);
     const editable = !readOnly && !disabled;
     const capturesTab = editable && !singleLine;
     const shortcut = isMac ? '⌘↵' : 'Ctrl+Enter';
     const canSubmit = onSubmit !== undefined && submitLabel !== undefined;
     const invalid = props['aria-invalid'] === true;
+    const summary = useProblemSummary(
+      props.diagnostics,
+      props.diagnosticsFor ?? value,
+      (props.diagnosticsStatus ?? 'ready') === 'ready',
+    );
+    const summarize = describeDiagnostics && summary !== '';
 
     const describedBy =
       [
         props['aria-describedby'],
+        summarize ? summaryId : undefined,
         capturesTab ? keyboardHintId : undefined,
         canSubmit ? submitHintId : undefined,
       ]
@@ -190,6 +260,35 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
       { focus },
       issueReveal === undefined ? undefined : { reveal: issueReveal },
     );
+
+    // Expand: the same field in a large dialog, the caret carried both ways.
+    const [expanded, setExpanded] = useState(false);
+    const [expandSelection, setExpandSelection] = useState<
+      readonly [number, number] | undefined
+    >(undefined);
+    const expandedEditor = useRef<CodeEditorHandle>(null);
+    const expandTitle =
+      typeof expandable === 'object'
+        ? expandable.title
+        : (props['aria-label'] ?? t('expand'));
+    const openExpanded = () => {
+      setExpandSelection(viewHandle.current?.getSelection() ?? undefined);
+      setExpanded(true);
+    };
+    useEffect(() => {
+      if (!expanded) return undefined;
+      // Into the large editor, at the caret the field had.
+      const frame = requestAnimationFrame(() =>
+        expandedEditor.current?.focus(expandSelection),
+      );
+      return () => cancelAnimationFrame(frame);
+    }, [expanded, expandSelection]);
+    const closeExpanded = () => {
+      const selection = expandedEditor.current?.getSelection() ?? undefined;
+      setExpanded(false);
+      // Back in the field, with the caret where the dialog left it.
+      requestAnimationFrame(() => focus(selection));
+    };
 
     // The shortcut legend follows keyboard use inside the frame.
     const frameRef = useRef<HTMLDivElement>(null);
@@ -243,6 +342,7 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
             'cursor-not-allowed bg-[color:var(--color-bg-elevated)] text-[color:var(--color-fg-subtle)] [&_.cm-content]:opacity-70',
           invalid && FIELD_INVALID_WITHIN,
           fillHeight && 'flex h-full min-h-0 flex-1 flex-col',
+          expandable !== false && '[&_.cm-content]:pr-7',
           className,
         )}
       >
@@ -268,6 +368,21 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
             onView={onView}
           />
         </Suspense>
+        {expandable !== false ? (
+          <IconButton
+            icon={Maximize2}
+            iconSize={3}
+            size="sm"
+            aria-label={t('expand')}
+            onClick={openExpanded}
+            className="absolute top-1 right-1 z-10 size-6 opacity-0 transition-opacity duration-[var(--duration-short)] group-focus-within/code-editor:opacity-100 group-hover/code-editor:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
+          />
+        ) : null}
+        {summarize ? (
+          <span id={summaryId} hidden>
+            {summary}
+          </span>
+        ) : null}
         {capturesTab ? (
           <span id={keyboardHintId} hidden>
             {t('keyboardHint')}
@@ -296,9 +411,56 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
     );
 
     return (
-      <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
-        {frame}
-      </DisabledReasonTooltip>
+      <>
+        <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+          {frame}
+        </DisabledReasonTooltip>
+        {expandable !== false ? (
+          <ResponsiveDialog
+            open={expanded}
+            onOpenChange={(open) => {
+              if (open) setExpanded(true);
+              else closeExpanded();
+            }}
+          >
+            <ResponsiveDialogContent
+              preventCloseAutoFocus
+              onOpenAutoFocus={(event) => event.preventDefault()}
+              className="flex h-[85dvh] flex-col gap-3 md:h-[80dvh] md:max-w-4xl"
+            >
+              <ResponsiveDialogTitle>{expandTitle}</ResponsiveDialogTitle>
+              {expanded ? (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <CodeEditorBase
+                    {...props}
+                    ref={expandedEditor}
+                    id={undefined}
+                    issueAnchor={null}
+                    expandable={false}
+                    className={undefined}
+                    aria-label={expandTitle}
+                    aria-labelledby={undefined}
+                    size="md"
+                    lineNumbers
+                    fold
+                    fillHeight
+                    initialSelection={expandSelection}
+                  />
+                </div>
+              ) : null}
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={closeExpanded}
+                >
+                  {t('collapse')}
+                </Button>
+              </div>
+            </ResponsiveDialogContent>
+          </ResponsiveDialog>
+        ) : null}
+      </>
     );
   },
 );
