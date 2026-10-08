@@ -179,7 +179,7 @@ describe('app automation acceptance gate', () => {
       message: 'Project not found',
     });
   });
-  it('refuses an invalid save with every problem and where it is, and saves nothing [AUTO-R16]', async () => {
+  it('refuses an invalid save with every problem and where it is, and saves nothing [AUTO-R23]', async () => {
     const invalid = {
       ...document(2),
       nodes: [
@@ -213,7 +213,7 @@ describe('app automation acceptance gate', () => {
     expect(typeof body.data?.hint).toBe('string');
     expect(io.save).not.toHaveBeenCalled();
   });
-  it('refuses to deploy a stored version that no longer validates, naming its problems [AUTO-R16]', async () => {
+  it('refuses to deploy a stored version that no longer validates, naming its problems [AUTO-R23]', async () => {
     io.document = { ...document(2), output: '{{ nodes.nope.output }}' };
     const result = await post('/double/deploy', { version: 2 });
     expect(result.status).toBe(400);
@@ -229,7 +229,7 @@ describe('app automation acceptance gate', () => {
     );
     expect(io.deploy).not.toHaveBeenCalled();
   });
-  it('saves and deploys a version whose only problems are warnings [AUTO-R17]', async () => {
+  it('saves and deploys a version whose only problems are warnings [AUTO-R24]', async () => {
     const warned = {
       ...document(2),
       nodes: [

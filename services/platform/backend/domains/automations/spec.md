@@ -96,7 +96,7 @@ Tale checks a document before it saves or deploys it, and an author can have a d
 without saving it. A check finds errors, which a run would fail on, and warnings, which it
 might. Each problem names its code and where in the document it is.
 
-### AUTO-R16 · A refused save names every problem and where it is, and changes nothing
+### AUTO-R23 · A refused save names every problem and where it is, and changes nothing
 
 A save whose document has an error is refused (`AUTOMATION_INVALID`). The refusal lists every
 error and every warning with where it is, and no version is added. Deploying a saved version
@@ -105,7 +105,7 @@ that no longer passes the check is refused the same way, and the deployed versio
 - **Example**: Noah's draft reads the output of a node that does not exist. He saves → refused,
   with the problem pointing at the field that reads it, and the latest version is still 5.
 
-### AUTO-R17 · Warnings never block a save or a deploy
+### AUTO-R24 · Warnings never block a save or a deploy
 
 A document whose only problems are warnings is saved, and the warnings come back with the new
 version. Such a version can be deployed.
@@ -113,7 +113,7 @@ version. Such a version can be deployed.
 - **Example**: Ada's draft keeps a node nothing reads. She saves → version 6 is added and the
   answer warns about the unread node. She deploys version 6 → it becomes the deployed one.
 
-### AUTO-R18 · Only owners, admins and developers can have a draft checked
+### AUTO-R25 · Only owners, admins and developers can have a draft checked
 
 Checking reads the organization's other automations and triggers, so it takes the same roles as
 changing an automation. Anyone else is refused before anything is read, and a check never

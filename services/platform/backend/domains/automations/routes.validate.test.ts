@@ -91,7 +91,7 @@ beforeEach(() => {
 });
 
 describe('POST /:name/validate', () => {
-  it('refuses a member before the engine reads anything [AUTO-R18]', async () => {
+  it('refuses a member before the engine reads anything [AUTO-R25]', async () => {
     io.role = 'member';
     const result = await post('/billing/dunning/validate', {
       document: DRAFT,
@@ -100,7 +100,7 @@ describe('POST /:name/validate', () => {
     expect(io.dispatched).not.toHaveBeenCalled();
   });
 
-  it("answers a developer's draft with every issue, where it is, and the analysis [AUTO-R18]", async () => {
+  it("answers a developer's draft with every issue, where it is, and the analysis [AUTO-R25]", async () => {
     const result = await post('/billing/dunning/validate', {
       document: DRAFT,
     });

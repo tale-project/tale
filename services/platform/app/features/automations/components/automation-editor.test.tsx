@@ -1815,7 +1815,7 @@ describe('AutomationEditor problems', () => {
     expect(problemsButton()).toHaveFocus();
   });
 
-  it('lands a refused save in Problems on its first error, with no toast [AUTO-R16]', async () => {
+  it('lands a refused save in Problems on its first error, with no toast [AUTO-R23]', async () => {
     saveMutation.mutateAsync = vi.fn().mockRejectedValue(refusal());
     const { user } = renderPage();
     await editTheNode(user);
