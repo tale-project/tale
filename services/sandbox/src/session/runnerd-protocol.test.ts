@@ -12,11 +12,17 @@
 import { describe, expect, test } from 'bun:test';
 
 import * as mirror from '../../../sandbox-runtime/daemon/src/protocol.ts';
-import type { RunnerdExecEvent as MirrorEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
+import type {
+  RunnerdExecEvent as MirrorEvent,
+  RunnerdHealth as MirrorHealth,
+} from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import { isRunnerdExecEvent as isMirroredExecEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import { ID_ALPHABET_RE } from '../wire.ts';
 import * as canonical from './runnerd-protocol.ts';
-import type { RunnerdExecEvent as CanonicalEvent } from './runnerd-protocol.ts';
+import type {
+  RunnerdExecEvent as CanonicalEvent,
+  RunnerdHealth as CanonicalHealth,
+} from './runnerd-protocol.ts';
 import { isRunnerdExecEvent } from './runnerd-protocol.ts';
 
 /** Daemon-local values the mirror carries whose canonical home is elsewhere
@@ -50,6 +56,22 @@ describe('runnerd protocol mirror', () => {
     const mirrored: MirrorEvent[] = events;
     const roundTrip: CanonicalEvent[] = mirrored;
     expect(roundTrip).toEqual(events);
+  });
+
+  test('both declarations describe the same Docker engine health', () => {
+    const readings: CanonicalHealth[] = (
+      ['cold', 'running', 'stopped'] as const
+    ).map((engine) => ({
+      ok: true,
+      bootedAtMs: 1,
+      lastActivityAtMs: 2,
+      liveExecs: 0,
+      dockerReady: true,
+      docker: { engine, used: engine !== 'cold' },
+    }));
+    const mirrored: MirrorHealth[] = readings;
+    const roundTrip: CanonicalHealth[] = mirrored;
+    expect(roundTrip).toEqual(readings);
   });
 
   test.each([

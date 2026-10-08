@@ -213,7 +213,11 @@ results for one second. The supervisor probes an active engine within 500 ms;
 it leaves an intentionally sleeping engine asleep. A failed probe makes
 `/readyz` and new acquire/exec requests return 503;
 authenticated `/healthz` keeps reporting process activity with
-`dockerReady: false`.
+`dockerReady: false`. `/healthz` also carries the supervisor's engine state as
+`docker: { engine, used }`: `cold` until the first Docker command starts the
+engine, `running` while it starts or runs, `stopped` after it slept or failed;
+`used` is whether an engine has run in this container. The spawner keeps a
+released session's full idle window only when `used` is true.
 
 One slow probe does not authorize session recycling. At least three completed
 failed probes spanning five seconds are needed for `dockerRecoveryRequired`;

@@ -13,7 +13,9 @@ import { createServer as createHttpServer, request } from 'node:http';
 import { createConnection, createServer, type Socket } from 'node:net';
 
 import {
+  DOCKER_ENGINE_HEADER,
   DOCKER_RECOVERY_HEADER,
+  type DockerEngineState,
   InnerDockerHealth,
   LAZY_DOCKER_HEALTH_SOCKET,
 } from './inner-docker-health.ts';
@@ -50,8 +52,22 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
   const abort = new AbortController();
   let closePromise: Promise<void> | undefined;
   let engineHealth: InnerDockerHealth | undefined;
+  /** Set by the first activation: the inner store has had an engine since. */
+  let activated = false;
 
   async function health(): Promise<{
+    dockerReady: boolean;
+    dockerRecoveryRequired: boolean;
+    engine: DockerEngineState;
+  }> {
+    const reading = await readiness();
+    return {
+      ...reading,
+      engine: engine || starting ? 'running' : activated ? 'stopped' : 'cold',
+    };
+  }
+
+  async function readiness(): Promise<{
     dockerReady: boolean;
     dockerRecoveryRequired: boolean;
   }> {
@@ -128,6 +144,7 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
     if (closed) throw new Error('Docker proxy closed');
     if (engine) return engine;
     if (!starting) {
+      activated = true;
       starting = options
         .startEngine(abort.signal)
         .then(async (started) => {
@@ -247,6 +264,7 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
               DOCKER_RECOVERY_HEADER,
               String(reading.dockerRecoveryRequired),
             );
+            res.setHeader(DOCKER_ENGINE_HEADER, reading.engine);
             res
               .writeHead(reading.dockerReady ? 200 : 503)
               .end(reading.dockerReady ? 'OK' : 'unavailable');

@@ -34,7 +34,12 @@ This reduces idle processes; the session retains its configured runtime
 boundary, privileges and resource limits throughout.
 
 Health checks do not start the engine or reset its idle timer. An intentionally
-sleeping engine remains ready for new work. A failed probe refuses new work
+sleeping engine remains ready for new work. runnerd's `/healthz` reports the
+engine as `docker: { engine, used }`: `cold` until the first Docker command,
+`running` while it starts or runs, `stopped` after it slept or failed, with
+`used` true once it has run in this container. A released session whose engine
+never ran gets the normal released idle window, since it has no image store a
+resume would lose. A failed probe refuses new work
 while runnerd stays live, but one slow probe does not cause session cleanup.
 Probe-based recovery requires at least three completed failures spanning five
 seconds; cached reads do not count again, and a healthy result or a new engine

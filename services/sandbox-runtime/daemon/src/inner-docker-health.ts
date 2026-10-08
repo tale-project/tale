@@ -3,16 +3,30 @@ import { request } from 'node:http';
 /** Root-owned control socket; probing it never activates the Docker engine. */
 export const LAZY_DOCKER_HEALTH_SOCKET = '/var/run/tale-docker-health.sock';
 export const DOCKER_RECOVERY_HEADER = 'x-tale-docker-recovery-required';
+/** The supervisor's engine lifecycle: `cold` until the first activation,
+ * `running` while an engine is starting or up, `stopped` after it slept or
+ * failed. */
+export const DOCKER_ENGINE_HEADER = 'x-tale-docker-engine';
+export type DockerEngineState = 'cold' | 'running' | 'stopped';
+
+function engineState(value: unknown): DockerEngineState | undefined {
+  return value === 'cold' || value === 'running' || value === 'stopped'
+    ? value
+    : undefined;
+}
 
 interface DockerObservation {
   ready: boolean;
   /** Present only on a validated supervisor response. */
   recoveryRequired?: boolean;
+  /** Present only on a validated supervisor response that names it. */
+  engine?: DockerEngineState;
 }
 
 interface DockerReading {
   ready: boolean;
   recoveryRequired: boolean;
+  engine?: DockerEngineState;
   at: number;
 }
 
@@ -43,12 +57,23 @@ export class InnerDockerHealth {
   async snapshot(): Promise<{
     dockerReady?: boolean;
     dockerRecoveryRequired?: boolean;
+    /** Whether the lazy engine ever ran in this container: the spawner keeps
+     * an inner image store worth its full idle window only when it did. */
+    docker?: { engine: DockerEngineState; used: boolean };
   }> {
     if (!this.enabled) return {};
     const reading = await this.observe();
     return {
       dockerReady: reading.ready,
       dockerRecoveryRequired: reading.recoveryRequired,
+      ...(reading.engine
+        ? {
+            docker: {
+              engine: reading.engine,
+              used: reading.engine !== 'cold',
+            },
+          }
+        : {}),
     };
   }
 
@@ -86,7 +111,12 @@ export class InnerDockerHealth {
             this.failure.count >= RECOVERY_FAILURES &&
             at - this.failure.since >= RECOVERY_SPAN_MS;
         }
-        this.reading = { ready: observation.ready, recoveryRequired, at };
+        this.reading = {
+          ready: observation.ready,
+          recoveryRequired,
+          ...(observation.engine ? { engine: observation.engine } : {}),
+          at,
+        };
         return this.reading;
       })
       .finally(() => {
@@ -98,11 +128,15 @@ export class InnerDockerHealth {
   private probe(): Promise<DockerObservation> {
     return new Promise((resolve) => {
       let finished = false;
-      const done = (ready: boolean, recoveryRequired?: boolean) => {
+      const done = (
+        ready: boolean,
+        recoveryRequired?: boolean,
+        engine?: DockerEngineState,
+      ) => {
         if (finished) return;
         finished = true;
         clearTimeout(deadline);
-        resolve({ ready, recoveryRequired });
+        resolve({ ready, recoveryRequired, ...(engine ? { engine } : {}) });
       };
       const req = request(
         {
@@ -135,7 +169,11 @@ export class InnerDockerHealth {
               (ready && recovery === 'false') ||
               (unavailable && (recovery === 'false' || recovery === 'true'))
             ) {
-              done(ready, recovery === 'true');
+              done(
+                ready,
+                recovery === 'true',
+                engineState(res.headers[DOCKER_ENGINE_HEADER]),
+              );
             } else {
               // Missing, malformed or contradictory metadata is not proof of
               // an engine failure. Bound it as a control-transport failure.

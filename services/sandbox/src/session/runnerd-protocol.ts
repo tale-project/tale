@@ -63,6 +63,9 @@ export interface RunnerdHealth {
   dockerReady?: boolean;
   /** Sustained probe failure or observed terminal Docker state; permits fenced idle recovery. */
   dockerRecoveryRequired?: boolean;
+  /** The lazy inner engine: `used` once it has started in this container.
+   * Absent without Docker and on older runtime images. */
+  docker?: { engine: 'cold' | 'running' | 'stopped'; used: boolean };
   bootedAtMs: number;
   /** The creation stamp the container was launched with (see
    * RUNNERD_INCARNATION_ENV); absent when it was launched without one. */
