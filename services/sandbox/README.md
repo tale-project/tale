@@ -311,3 +311,46 @@ verification closes admission. `/health.disks` reports each monitor as ready or
 unavailable. Separately mounted volumes or containerd stores need their own
 monitoring. These checks do not
 enforce per-session disk quotas; those require a quota-capable storage backend.
+
+## Native admission foundation tests
+
+The host admission modules are an inactive foundation. They do not expose a
+phase execution tool or change ordinary session admission. Unit tests cover
+conservative resource accounting, durable unknown outcomes, exact owner
+identity and response deadlines. The strict probe tests require fresh owner,
+daemon, kernel and filesystem provenance and refuse unavailable readings.
+The probe currently supports one verified filesystem shared by the workspace
+and Docker metadata; separate filesystems remain unsupported. These fixtures
+do not establish native host telemetry or enable ordinary admission.
+
+To exercise the owner with real independent processes, select an already-present
+immutable Docker image that contains the workspace's pinned Bun and Docker CLI.
+Set `SANDBOX_ADMISSION_TEST_IMAGE` to its full `sha256:` image ID, then run from
+the repository root:
+
+```bash
+bun run --filter @tale/sandbox test:admission
+```
+
+If that image lacks Docker CLI, set `SANDBOX_ADMISSION_TEST_DOCKER_CLI` to an
+existing canonical absolute path to a compatible Linux Docker executable. The
+fixture mounts that file read-only and compares its SHA-256 inside the runner.
+It does not install or download the binary.
+
+This test uses the local `/var/run/docker.sock` and needs Docker administration
+access. It starts one 256 MiB, half-CPU runner and one stopped metadata object,
+with unique fixture names. It mounts only its captured source closure read-only
+in the runner, compares the in-container source hashes, races two independent Bun
+processes for ownership, and refuses takeover by a new process while the owner
+remains live. This proves the checked-out owner primitive using that image's
+binaries; it does not certify the image's baked source. It never pulls or builds
+an image and does not use the production authority name.
+
+Docker work has a 75-second operation budget and a separate 15-second cleanup
+budget. Filesystem operations are not forcibly interrupted. Cleanup checks
+fixture labels and immutable IDs before removal; missing or changed identity
+fails the test instead of deleting an unknown object. A passing JSON receipt
+records source/image identities and confirms owned objects were removed.
+Run it separately from cached unit tests. Exclusive boot topology, fresh host
+telemetry, all-writer accounting, restart reconciliation and actual phase
+execution require their own native proof before this foundation can be enabled.
