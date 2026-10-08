@@ -38,6 +38,24 @@ function mentionsIn(markdown: string, plain = true): Found[] {
   return found;
 }
 
+/** The text a reader sees, each mention element in «». */
+function readAs(markdown: string): string {
+  const text = normalizeHtmlBlocks(markdown);
+  const tree: Root = unified()
+    .use(remarkParse)
+    .use(TASK_REMARK_PLUGINS)
+    .parse(text);
+  remarkMentions({ kinds: KINDS })(tree, { value: text });
+  const read = (node: Nodes): string => {
+    if (node.data?.hName === MENTION_ELEMENT && 'children' in node) {
+      return `«${node.children.map(read).join('')}»`;
+    }
+    if ('value' in node && typeof node.value === 'string') return node.value;
+    return 'children' in node ? node.children.map(read).join('') : '';
+  };
+  return read(tree);
+}
+
 describe('remarkMentions', () => {
   it('turns a token into an element with its kind, id and label', () => {
     expect(mentionsIn('Hi [@Ada Lovelace](mention:user/u-1)!')).toEqual([
@@ -95,6 +113,16 @@ describe('remarkMentions', () => {
     expect(mentionsIn('a\\_b @ada').map((mention) => mention.text)).toEqual([
       '@ada',
     ]);
+  });
+
+  it('puts the chip on the mention, not on an escaped one spelled alike', () => {
+    expect(readAs('\\@ada then @ada')).toBe('@ada then «@ada»');
+    expect(readAs('&amp; \\@ada, &#64;ada and @ada')).toBe(
+      '& @ada, @ada and «@ada»',
+    );
+    expect(readAs('first \\@ada\n   then @ada')).toBe(
+      'first @ada\nthen «@ada»',
+    );
   });
 
   // The renderer and the server read a text through one scan: every chip

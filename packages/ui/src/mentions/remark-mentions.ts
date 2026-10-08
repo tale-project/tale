@@ -17,6 +17,7 @@
  */
 
 import type { Emphasis, Nodes, Parents, PhrasingContent, Root } from 'mdast';
+import { decodeString } from 'micromark-util-decode-string';
 
 import { collectMentions, type MentionOccurrence } from './scan-mentions';
 
@@ -54,6 +55,66 @@ function mentionNode(
 
 type Plain = Extract<MentionOccurrence, { type: 'plain' }>;
 
+const ASCII_PUNCTUATION_RE = /^[!-/:-@[-`{-~]$/u;
+const CHARACTER_REFERENCE_RE =
+  /&(?:#\d{1,7}|#[xX][\da-fA-F]{1,6}|[A-Za-z][A-Za-z\d]{0,31});/uy;
+
+/**
+ * Where each offset of a text node's source stands in the node's value,
+ * which has its escapes and character references read and the whitespace
+ * around a line break dropped. Null when the two cannot be walked in step.
+ */
+function valueOffsets(source: string, value: string): number[] | null {
+  const offsets: number[] = [];
+  let at = 0;
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index];
+    const escaped = source[index + 1] ?? '';
+    if (
+      character === '\\' &&
+      ASCII_PUNCTUATION_RE.test(escaped) &&
+      value[at] === escaped
+    ) {
+      offsets.push(at, at);
+      index += 2;
+      at += 1;
+      continue;
+    }
+    if (character === '&') {
+      CHARACTER_REFERENCE_RE.lastIndex = index;
+      const reference = CHARACTER_REFERENCE_RE.exec(source)?.[0];
+      const decoded = reference === undefined ? '' : decodeString(reference);
+      if (
+        reference !== undefined &&
+        decoded !== reference &&
+        value.startsWith(decoded, at)
+      ) {
+        for (let step = 0; step < reference.length; step += 1) {
+          offsets.push(at);
+        }
+        index += reference.length;
+        at += decoded.length;
+        continue;
+      }
+    }
+    if (character === value[at]) {
+      offsets.push(at);
+      index += 1;
+      at += 1;
+      continue;
+    }
+    if (character === ' ' || character === '\t') {
+      offsets.push(at);
+      index += 1;
+      continue;
+    }
+    return null;
+  }
+  offsets.push(at);
+  return at === value.length ? offsets : null;
+}
+
 /** The pieces a text node splits into around the typed mentions in it. */
 function splitText(
   value: string,
@@ -61,24 +122,25 @@ function splitText(
   sourceStart: number,
   mentions: readonly Plain[],
 ): PhrasingContent[] | null {
+  // The node's value is the source unless an escape, an entity or a line
+  // break in it was read: then each mention is placed by where it stands in
+  // the source, never by a search for its words, which an escaped `\@ada`
+  // before it would answer too.
+  const offsets = value === source ? null : valueOffsets(source, value);
+  if (value !== source && offsets === null) return null;
   const pieces: PhrasingContent[] = [];
   let cursor = 0;
   for (const mention of mentions) {
-    const written = source.slice(
-      mention.start - sourceStart,
-      mention.end - sourceStart,
-    );
-    // The node's value is the source unless an escape or an entity in it
-    // was read: then find the mention by what it says.
-    const at =
-      value === source
-        ? mention.start - sourceStart
-        : value.indexOf(written, cursor);
-    if (at < cursor) continue;
+    const from = mention.start - sourceStart;
+    const to = mention.end - sourceStart;
+    const written = source.slice(from, to);
+    const at = offsets === null ? from : (offsets[from] ?? -1);
+    const end = offsets === null ? to : (offsets[to] ?? -1);
+    if (at < cursor || value.slice(at, end) !== written) continue;
     if (at > cursor)
       pieces.push({ type: 'text', value: value.slice(cursor, at) });
     pieces.push(mentionNode(written, { dataMentionHandle: mention.handle }));
-    cursor = at + written.length;
+    cursor = end;
   }
   if (pieces.length === 0) return null;
   if (cursor < value.length) {
