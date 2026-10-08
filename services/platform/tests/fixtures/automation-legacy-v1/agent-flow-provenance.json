@@ -441,7 +441,12 @@
       "sourcePath": "services/platform/backend/core/node_only/sandbox/llm_gateway_admin.ts",
       "names": ["hashVirtualKey"],
       "blob": "9417452265bd2af66c65948839a96b52aad80d03",
-      "sha256": "1c0b33f4ddc0498a2b91337eb28be2125f22f1206a1a82ff305523b4cbfbf6cc"
+      "sections": [
+        {
+          "name": "hashVirtualKey",
+          "sha256": "c7a4526599f59ab0cdd4c578cbaa7d5b207d4f33ea6c3269f573e7a70e8701db"
+        }
+      ]
     },
     {
       "sourcePath": "services/platform/backend/core/node_only/sandbox/managed_stage.ts",
