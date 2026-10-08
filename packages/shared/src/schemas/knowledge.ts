@@ -77,6 +77,28 @@ export const KNOWLEDGE_DEFAULT_MIN_SIMILARITY = 0.45;
 export const KNOWLEDGE_DEFAULT_MAX_CONCURRENT_REQUESTS = 3;
 
 /**
+ * The vector widths a knowledge database stores. Each has a table of its
+ * own beside the chunks (`chunk_vectors_<width>`, created by the knowledge
+ * migrations), and an organization's vectors go to the table of the width
+ * its embedding model states — so organizations with models of different
+ * widths share one database, and a change of width needs no change to the
+ * database. A width outside this list has no table: saving it is refused.
+ * Adding one means a migration that creates its table in both corpus
+ * schemas; `chunk-vector-tables.guard.test.ts` holds the two lists equal.
+ */
+export const KNOWLEDGE_VECTOR_WIDTHS = [
+  256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096,
+] as const;
+export type KnowledgeVectorWidth = (typeof KNOWLEDGE_VECTOR_WIDTHS)[number];
+
+/** Whether a knowledge database has a table for vectors of this width. */
+export function isKnowledgeVectorWidth(
+  width: number,
+): width is KnowledgeVectorWidth {
+  return (KNOWLEDGE_VECTOR_WIDTHS as readonly number[]).includes(width);
+}
+
+/**
  * `connection.json` — the organization's own knowledge Postgres.
  *
  * The corpus owns whole schemas on the target database (`private_knowledge` and
@@ -105,12 +127,17 @@ export type KnowledgeConnectionSecrets = z.infer<
  * `embedding.json` — the embedding model, stated explicitly.
  *
  * `dimensions` is REQUIRED, has no default, and is never derived from the model
- * name. A corpus stores one vector column of one fixed width and refuses
- * vectors that disagree with it, so a wrong width is caught immediately; a
- * GUESSED width, by contrast, is right for the models we happen to know and
- * silently wrong for a new tag, a self-hosted model, or a provider that
- * truncates. The failure is invisible — writes succeed, and retrieval quality
- * quietly collapses — so the number is the operator's to state.
+ * name. Vectors are stored in the table of their width and a vector that
+ * disagrees with the stated width is refused, so a wrong width is caught
+ * immediately; a GUESSED width, by contrast, is right for the models we
+ * happen to know and silently wrong for a new tag, a self-hosted model, or a
+ * provider that truncates. The failure is invisible — writes succeed, and
+ * retrieval quality quietly collapses — so the number is the operator's to
+ * state.
+ *
+ * Reading accepts any width, so a file stored before the widths were a list
+ * (or edited by hand) still opens in Settings; only a WRITE is held to
+ * {@link KNOWLEDGE_VECTOR_WIDTHS} ({@link knowledgeEmbeddingWriteSchema}).
  *
  * `credentialId` is optional: absent means the organization's default
  * credential for `providerSlug`. The credential itself is never stored here;
@@ -210,10 +237,20 @@ const embeddingFields = knowledgeEmbeddingSchema.shape;
 
 /**
  * What a write to `embedding.json` accepts: the file's own shape, where each
- * of {@link KNOWLEDGE_EMBEDDING_KEPT_KEYS} may also be `null` (clear it).
- * The bounds are the file's; only the `null` is added.
+ * of {@link KNOWLEDGE_EMBEDDING_KEPT_KEYS} may also be `null` (clear it),
+ * and where `dimensions` is one of {@link KNOWLEDGE_VECTOR_WIDTHS} — a width
+ * the knowledge database has no table for would save and then fail every
+ * document at index time. The other bounds are the file's.
  */
 export const knowledgeEmbeddingWriteSchema = knowledgeEmbeddingSchema.extend({
+  // `: boolean` keeps the written type `number`: a predicate here would
+  // narrow every caller's `dimensions` to the list's literal union.
+  dimensions: embeddingFields.dimensions.refine(
+    (width): boolean => isKnowledgeVectorWidth(width),
+    {
+      message: `Vector width must be one of ${KNOWLEDGE_VECTOR_WIDTHS.join(', ')}.`,
+    },
+  ),
   minSimilarity: embeddingFields.minSimilarity.unwrap().nullable().optional(),
   maxConcurrentRequests: embeddingFields.maxConcurrentRequests
     .unwrap()

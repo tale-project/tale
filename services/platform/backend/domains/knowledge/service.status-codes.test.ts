@@ -57,12 +57,6 @@ vi.mock('../../core/knowledge/pool.ts', async (importOriginal) => ({
   getKnowledgePoolForOrg: vi.fn(async () => ({})),
   resolveOrgUrl: vi.fn(async () => 'postgres://knowledge.example/acme'),
 }));
-vi.mock('../../core/knowledge/dimensions.ts', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('../../core/knowledge/dimensions.ts')
-  >()),
-  pinDimensions: vi.fn(async () => undefined),
-}));
 vi.mock('../../core/lib/storage/object_store.ts', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('../../core/lib/storage/object_store.ts')
