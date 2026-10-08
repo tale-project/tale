@@ -727,12 +727,31 @@ test('terminal canceled or skipped jobs may have no assigned GitHub runner', () 
   expect(h.posts()).toHaveLength(0);
 });
 
-test('a null runner does not establish an unallocated queued final check', () => {
+test('a queued final check with the REST null runner representation is eligible', () => {
+  const h = harness();
+  h.state.olderJobs[1]!.runner_id = null;
+  expect(reconcileTail(options, h.deps)).toMatchObject({
+    outcome: 'read_only',
+    decision: { action: 'retire' },
+  });
+  expect(h.posts()).toHaveLength(0);
+});
+
+test('an unassigned null-runner tail permits only the guarded single cancellation', () => {
   const h = harness();
   h.state.olderJobs[1]!.runner_id = null;
   expect(reconcileTail({ ...options, apply: true }, h.deps)).toMatchObject({
-    outcome: 'read_only',
-    decision: { action: 'preserve', reason: 'tail_not_unallocated_queued' },
+    outcome: 'cancelled',
+    decision: { action: 'retire' },
+  });
+  expect(h.posts()).toHaveLength(1);
+});
+
+test('missing runner metadata is not treated as an unassigned null runner', () => {
+  const h = harness();
+  Reflect.deleteProperty(h.state.olderJobs[1]!, 'runner_id');
+  expect(reconcileTail({ ...options, apply: true }, h.deps)).toMatchObject({
+    outcome: 'preserved',
   });
   expect(h.posts()).toHaveLength(0);
 });

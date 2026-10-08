@@ -141,7 +141,7 @@ export function decideTail(snapshot: TailSnapshot, now: number): TailDecision {
     !tail ||
     tail.status !== 'queued' ||
     tail.conclusion !== null ||
-    tail.runner_id !== 0
+    (tail.runner_id !== 0 && tail.runner_id !== null)
   )
     return preserve('tail_not_unallocated_queued');
   if (

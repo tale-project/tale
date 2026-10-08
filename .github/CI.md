@@ -27,7 +27,9 @@ Its default is a read-only manifest. Both runs must belong to the same open, non
 Tale PR, current head and base, branch, event and native workflow. The replacement
 must be newer and pending with no jobs. The predecessor must have exactly one
 unallocated, queued final check; every other job must be terminal with at least one
-cancellation and no failure. Complete, attempt-bound job inventories are paged with
+cancellation and no failure. GitHub reports an unassigned runner as either `0` or
+`null`; a missing runner field or a positive runner ID is refused. Complete,
+attempt-bound job inventories are paged with
 fixed limits. A changed, stale, incomplete, foreign or unreadable observation preserves
 both runs. Actual work that is still queued or running is never eligible.
 
@@ -51,6 +53,11 @@ that they are disposable. It changes no required check or merge rule and is not 
 org-wide cancellation scheduler. Applying requires a POSIX filesystem that supports
 file and directory synchronization; Windows retains read-only operation. Any receipt
 or directory-flush failure preserves the runs before dispatch.
+
+The caller owns credential selection. A managed worker supplies its existing,
+authorized credential as `GH_TOKEN` for this command's process, following its
+provisioned instructions; an operator may use their existing `gh` authentication.
+The shared command does not look up agent secrets or change global authentication.
 
 ## Current execution graph
 
