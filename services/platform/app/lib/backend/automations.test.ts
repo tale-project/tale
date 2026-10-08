@@ -166,3 +166,61 @@ describe('approval decision adapter', () => {
     client.clear();
   });
 });
+
+/**
+ * A write that may already have happened is read and decided through the
+ * run's own doors, and both live under the run's cache key: the run hint a
+ * decision emits refreshes the card wherever the run is open.
+ */
+describe('in-doubt adapters', () => {
+  it('reads the open in-doubt write under the run', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(
+        jsonResponse(200, { inDoubt: { attemptId: 'a1', nodeId: 'send' } }),
+      );
+    const query = automationReadAdapters['automations/queries:getRunInDoubt']?.(
+      { organizationId: 'org1', runId: 'run/1' },
+      {},
+    );
+    expect(query?.queryKey).toEqual(
+      backendKey('org1', 'automation_run', 'in-doubt', 'run/1'),
+    );
+    expect(await query?.queryFn()).toEqual({ attemptId: 'a1', nodeId: 'send' });
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/runs/run%2F1/in-doubt?orgId=org1',
+    );
+  });
+
+  it('posts the decision to the attempt and refreshes the runs', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(jsonResponse(200, { ok: true }));
+    const adapter =
+      automationWriteAdapters['automations/mutations:resolveRunInDoubt'];
+    await expect(
+      adapter?.run(
+        {
+          organizationId: 'org1',
+          runId: 'r1',
+          attemptId: 'a/1',
+          resolution: 'skip',
+        },
+        {},
+      ),
+    ).resolves.toBeNull();
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/automations/runs/r1/in-doubt/a%2F1?orgId=org1',
+    );
+    expect(jsonBody(fetchSpy.mock.calls[0]?.[1])).toEqual({
+      resolution: 'skip',
+    });
+
+    const client = new QueryClient();
+    const card = backendKey('org1', 'automation_run', 'in-doubt', 'r1');
+    client.setQueryData(card, { attemptId: 'a/1' });
+    adapter?.invalidate?.(client, { organizationId: 'org1' }, {});
+    expect(client.getQueryState(card)?.isInvalidated).toBe(true);
+    client.clear();
+  });
+});

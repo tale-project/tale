@@ -357,6 +357,38 @@ runs:
     answerLabel: Ta réponse
     placeholder: Écris ta réponse — du texte simple suffit.
     submit: Envoyer la réponse & reprendre
+  # Une exécution transmise à un autre serveur — après la mise à jour ou le
+  # redémarrage du sien, ou parce qu’il ne répondait plus.
+  resumed:
+    label: '{count, plural, one {Reprise après un redémarrage} other {Reprise après # redémarrages}}'
+    shutdown: 'Dernière fois le {date} : le serveur qui l’exécutait était mis à jour ou redémarré et l’a transmise.'
+    lease_expired: 'Dernière fois le {date} : le serveur qui l’exécutait ne répondait plus, et un autre a pris le relais.'
+  # Une écriture qui a peut-être déjà atteint son service quand l’exécution a
+  # été interrompue : Tale ne peut pas le savoir, alors une personne décide
+  # de la suite.
+  inDoubt:
+    title: 'Cette étape a peut-être déjà été exécutée : {node}'
+    body: '{item, select, none {L’exécution a été interrompue pendant que cette étape envoyait des données à {connector}.} other {L’exécution a été interrompue pendant que cette étape envoyait l’élément {item} à {connector}.}} Tale ne peut pas savoir si {connector} a reçu cet envoi. Vérifie dans {connector}, puis choisis comment continuer.'
+    input: Ce que l’étape envoyait
+    retry: Relancer l’étape
+    retryConfirm:
+      title: Relancer cette étape ?
+      body: 'Si {connector} l’a déjà reçu, l’action aura lieu deux fois.'
+    skip: Ignorer l’étape
+    skipHint: L’exécution continue comme si l’étape n’avait rien renvoyé.
+    fail: Faire échouer l’exécution
+    failConfirm:
+      title: Faire échouer cette exécution ?
+      body: L’exécution s’arrête ici. Rien de ce qu’elle a déjà fait n’est annulé.
+    resolved:
+      retry: L’étape va être relancée.
+      skip: Étape ignorée — l’exécution continue.
+      fail: L’exécution a échoué.
+    settled: Cette étape n’attend plus de décision — l’exécution reprend dans un instant.
+    loading: Chargement de l’étape…
+    loadFailed: Impossible de charger cette étape.
+    reload: Réessayer
+    decideFailed: Impossible d’enregistrer ton choix.
   title: Exécutions
   description: Chaque exécution de cette automatisation, la plus récente en premier — essais et exécutions réelles. Ouvre-en une pour ses étapes, ses effets et sa sortie.
   breadcrumb: Exécution
@@ -397,6 +429,7 @@ runs:
     agent: Agent au travail
     room: En attente d’une place de sandbox
     repeat: 'Interrogation — étape {node}'
+    in_doubt: 'À toi de décider — l’étape {node} a peut-être déjà été exécutée'
   startedAt: 'Lancée {date}'
   finishedAt: 'Terminée {date}'
   inputTitle: Entrée de l’exécution
@@ -416,6 +449,9 @@ runs:
     success: Réussie
     failed: En échec
     cancelled: Arrêtée
+    # Une exécution en cours dont le serveur s’est arrêté, avant qu’un autre
+    # la reprenne.
+    stalled: Interrompue — reprise en cours
   nodeStatus:
     ok: Exécuté
     skipped: Ignoré

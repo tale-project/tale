@@ -13,6 +13,7 @@
  * every one, in the order it happened.
  */
 
+import type { RunWaitingFor } from '@/app/lib/backend/contract/automations';
 import type { Effect, NodeStatus, NodeTrace } from '@/lib/engine/core/types';
 
 /** How a run ended, or where it is. Mirrors the store's `status` union. */
@@ -45,28 +46,34 @@ export function isRunFinished(status: RunStatus): boolean {
   return status === 'success' || status === 'failed' || status === 'cancelled';
 }
 
-const WAITING_KINDS = new Set(['approval', 'ask', 'agent', 'room', 'repeat']);
+const WAITING_KINDS: ReadonlySet<string> = new Set<RunWaitingFor>([
+  'approval',
+  'ask',
+  'in_doubt',
+  'agent',
+  'room',
+  'repeat',
+]);
 
 /** The `waitingFor` the read model answers on a parked run, or nothing. */
-function readRunWaitingFor(
-  value: unknown,
-): 'approval' | 'ask' | 'agent' | 'room' | 'repeat' | undefined {
+function readRunWaitingFor(value: unknown): RunWaitingFor | undefined {
   return typeof value === 'string' && WAITING_KINDS.has(value)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- membership checked against the union's own set
-      (value as 'approval' | 'ask' | 'agent' | 'room' | 'repeat')
+      (value as RunWaitingFor)
     : undefined;
 }
 
 /**
- * The node a `repeat:<nodeId>` / `agent:<nodeId>` / `room:<nodeId>` park
- * names — the one place the park's detail prefix is read, so the page can
- * say "polling — step {node}" instead of printing the raw `repeat:tick`.
+ * The node a `repeat:<nodeId>` / `agent:<nodeId>` / `room:<nodeId>` /
+ * `in_doubt:<nodeId>` park names — the one place the park's detail prefix is
+ * read, so the page can say "polling — step {node}" instead of printing the
+ * raw `repeat:tick`.
  */
-function readRunParkNode(
+export function readRunParkNode(
   detail: string | null | undefined,
 ): string | undefined {
   if (typeof detail !== 'string') return undefined;
-  const match = /^(?:repeat|agent|room):(.+)$/.exec(detail);
+  const match = /^(?:repeat|agent|room|in_doubt):(.+)$/.exec(detail);
   return match?.[1];
 }
 

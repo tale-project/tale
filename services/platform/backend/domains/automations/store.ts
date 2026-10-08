@@ -1563,7 +1563,46 @@ export interface RunRow {
    * `agent:<node>` park that is an ask apart from one that is an agent turn
    * still running (`waitingFor`). Read with the row, never answered raw. */
   askPending: boolean;
+  /** How often another server took the run over after its own stopped
+   * responding, or a stopping server handed it on. */
+  resumeCount: number;
+  /** Why the run was last handed on; null while it never was. Answered as
+   * `lastResume`, never raw. */
+  lastResumeReason: 'shutdown' | 'lease_expired' | null;
+  /** When the run was last handed on; null while it never was. */
+  lastResumedAt: number | null;
+  /** A running run nobody is stepping right now: its server stopped
+   * responding, or a stopping server handed it on and no other has taken
+   * it yet. */
+  stalled: boolean;
 }
+
+/** Why and when a run was last handed to another server. */
+export interface RunLastResume {
+  reason: 'shutdown' | 'lease_expired';
+  at: number;
+}
+
+/**
+ * A running run nobody is stepping right now, read off its lease: the lease
+ * lapsed (its server stopped responding), or a stopping server released it
+ * and stamped the hand-off after the claim it held, and no server has
+ * claimed it since. Two things are NOT stalled: a budget hand-off, which
+ * releases the lease without a stamp, so a busy queue never reads
+ * "Interrupted"; and a row an image without leases claimed last
+ * (`lease_epoch` <> `claim_epoch`). The hand-off stamp must be strictly
+ * after the claim: a takeover stamps both with the same instant, and a later
+ * budget hand-off of that claim is not an interruption.
+ */
+const RUN_STALLED_SQL = `coalesce(
+    status = 'running' AND lease_epoch = claim_epoch AND (
+      (lease_expires_at_ms IS NOT NULL
+       AND lease_expires_at_ms < (extract(epoch FROM now()) * 1000)::bigint)
+      OR (lease_expires_at_ms IS NULL AND last_resumed_at_ms IS NOT NULL
+          AND last_resumed_at_ms > coalesce(claimed_at_ms, 0))
+    ),
+    false
+  )`;
 
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", name, version, project_id AS "projectId",
@@ -1575,7 +1614,11 @@ const RUN_COLUMNS = `
     SELECT 1 FROM app.automation_human_asks a
     WHERE a.run_id = app.automation_runs.id AND a.status = 'pending'
       AND a.expires_at_ms > (extract(epoch FROM now()) * 1000)::bigint
-  ) AS "askPending"
+  ) AS "askPending",
+  resume_count AS "resumeCount",
+  last_resume_reason AS "lastResumeReason",
+  last_resumed_at_ms::float8 AS "lastResumedAt",
+  ${RUN_STALLED_SQL} AS "stalled"
 `;
 
 async function runRow(
@@ -1736,10 +1779,15 @@ export function toRunSummary(
     | 'startedAt'
     | 'finishedAt'
     | 'askPending'
+    | 'resumeCount'
+    | 'lastResumeReason'
+    | 'lastResumedAt'
+    | 'stalled'
   >,
 ): RunSummary {
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
+  const lastResume = runLastResume(row);
   return {
     // One value under both names: the listing rows said `runId` and the
     // single read `id`, so a client mapping rows by `id` read undefined.
@@ -1758,9 +1806,25 @@ export function toRunSummary(
     ...(row.detail !== null ? { detail: row.detail } : {}),
     ...(row.failureCode !== null ? { failureCode: row.failureCode } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
+    // Present only once something happened: a run that was never handed on
+    // reads exactly as it did before these fields existed.
+    ...(row.resumeCount > 0 ? { resumeCount: row.resumeCount } : {}),
+    ...(lastResume !== undefined ? { lastResume } : {}),
+    ...(row.stalled ? { stalled: true } : {}),
     startedAt: row.startedAt,
     ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
   };
+}
+
+/** Why and when the run was last handed to another server — both stamps
+ * or nothing. */
+export function runLastResume(
+  row: Pick<RunRow, 'lastResumeReason' | 'lastResumedAt'>,
+): RunLastResume | undefined {
+  const { lastResumeReason: reason, lastResumedAt: at } = row;
+  if (reason !== 'shutdown' && reason !== 'lease_expired') return undefined;
+  if (typeof at !== 'number') return undefined;
+  return { reason, at };
 }
 
 /** The run row stores `input` as a JSON-encoded string (the stepper's
@@ -1800,12 +1864,14 @@ export function runStartedVia(
 /**
  * What a `waiting` run is parked on, read off the park's `detail` — the
  * stepper writes `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`
- * (an agent turn whose start waits for sandbox room) and
- * `repeat:<nodeId>` — with the one distinction the detail cannot carry: an
- * agent park whose question is pending is an `ask`, waiting on a person,
- * where the same park without one is an agent turn still running. A client
- * used to have to filter on the undocumented prefix to tell "needs a human"
- * from "polling"; `status=waiting` alone filled an alert with healthy runs.
+ * (an agent turn whose start waits for sandbox room), `repeat:<nodeId>` and
+ * `in_doubt:<nodeId>` (a write that may already have happened when the run
+ * was interrupted, waiting for a person) — with the one distinction the
+ * detail cannot carry: an agent park whose question is pending is an `ask`,
+ * waiting on a person, where the same park without one is an agent turn
+ * still running. A client used to have to filter on the undocumented prefix
+ * to tell "needs a human" from "polling"; `status=waiting` alone filled an
+ * alert with healthy runs.
  */
 export function runWaitingFor(
   row: Pick<RunRow, 'status' | 'detail' | 'askPending'>,
@@ -1815,23 +1881,36 @@ export function runWaitingFor(
   if (row.detail.startsWith('repeat:')) return 'repeat';
   if (row.detail.startsWith('agent:')) return row.askPending ? 'ask' : 'agent';
   if (row.detail.startsWith('room:')) return 'room';
+  if (row.detail.startsWith('in_doubt:')) return 'in_doubt';
   return undefined;
 }
 
 /** The full row as the single read answers it: every column, `waitingFor`
  * beside `detail` while the run is parked, `startedVia` on a trigger's run,
- * and never the raw ask fact. */
-export function toRunDetail(row: RunRow): Omit<RunRow, 'askPending'> & {
+ * `lastResume` once it was handed on, and never the raw ask fact or the raw
+ * resume stamps. */
+export function toRunDetail(row: RunRow): Omit<
+  RunRow,
+  'askPending' | 'lastResumeReason' | 'lastResumedAt'
+> & {
   waitingFor?: RunSummary['waitingFor'];
   startedVia?: RunSummary['startedVia'];
+  lastResume?: RunLastResume;
 } {
-  const { askPending: _askPending, ...rest } = row;
+  const {
+    askPending: _askPending,
+    lastResumeReason: _lastResumeReason,
+    lastResumedAt: _lastResumedAt,
+    ...rest
+  } = row;
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
+  const lastResume = runLastResume(row);
   return {
     ...rest,
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
+    ...(lastResume !== undefined ? { lastResume } : {}),
   };
 }
 

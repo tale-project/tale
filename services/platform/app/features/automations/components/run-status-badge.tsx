@@ -9,6 +9,7 @@ import {
   Clock,
   Loader2,
   MinusCircle,
+  RefreshCw,
   XCircle,
 } from 'lucide-react';
 import type * as React from 'react';
@@ -50,9 +51,28 @@ const RUN_STATUS_STYLE: Record<
   cancelled: { variant: 'slate', icon: Ban },
 };
 
-/** The state of one run. */
-export function RunBadge({ status }: { status: RunStatus }) {
+/**
+ * The state of one run. A running run whose server stopped reads
+ * "Interrupted — resuming" until another server takes it over: its own word
+ * and a still icon (nothing is working on it yet, so nothing spins), in the
+ * badge's orange.
+ */
+export function RunBadge({
+  status,
+  stalled = false,
+}: {
+  status: RunStatus;
+  /** A running run nobody is stepping right now (`Run.stalled`). */
+  stalled?: boolean;
+}) {
   const { t } = useT('automations');
+  if (status === 'running' && stalled) {
+    return (
+      <Badge variant="orange" icon={RefreshCw}>
+        {t('runs.status.stalled')}
+      </Badge>
+    );
+  }
   const { variant, icon } = RUN_STATUS_STYLE[status];
   return (
     <Badge variant={variant} icon={icon}>

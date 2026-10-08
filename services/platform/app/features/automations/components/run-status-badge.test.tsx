@@ -48,3 +48,27 @@ describe('run status icons', () => {
     );
   });
 });
+
+describe('an interrupted run', () => {
+  it('reads Interrupted with a still icon while it waits for a server', () => {
+    const { container } = render(<RunBadge status="running" stalled />);
+    // Its own word, never colour alone, and nothing spins: no server is
+    // working on it yet.
+    expect(screen.getByText('Interrupted — resuming')).toBeInTheDocument();
+    const svg = container.querySelector('svg');
+    expect(svg).not.toBeNull();
+    expect(svg).toHaveClass('lucide-refresh-cw');
+    expect(svg).not.toHaveClass('animate-spin');
+  });
+
+  it('reads Running again once a server took it over', () => {
+    render(<RunBadge status="running" stalled={false} />);
+    expect(screen.getByText('Running')).toBeInTheDocument();
+    expect(screen.queryByText('Interrupted — resuming')).toBeNull();
+  });
+
+  it('never marks a run that is not running as interrupted', () => {
+    render(<RunBadge status="waiting" stalled />);
+    expect(screen.getByText('Waiting')).toBeInTheDocument();
+  });
+});

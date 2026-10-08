@@ -360,5 +360,12 @@
  * manage an agent's tools through a conditional tools-only configuration
  * facet; saved models, instructions and secret grants remain independent.
  * No public REST delegation or agent-verdict endpoint is added. Additive.
+ *
+ * 3.18.0 — 2026-10-08: a run's `waitingFor` gains `in_doubt` — a write its
+ * server was making when it stopped may already have happened, and a person
+ * decides in the app how to continue (its `detail` reads
+ * `in_doubt:<nodeId>`); `failureCode` gains `engine_incompatible` and
+ * `effect_in_doubt`; runs carry `resumeCount`, `lastResume {reason:
+ * shutdown | lease_expired, at}` and `stalled`. Additive.
  */
-export const API_CONTRACT_VERSION = '3.17.0';
+export const API_CONTRACT_VERSION = '3.18.0';

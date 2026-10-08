@@ -41,6 +41,7 @@ import {
   projectRun,
   readRunAgentRetry,
   readRunCursorNode,
+  readRunParkNode,
   readRunStatus,
   runReasonKey,
 } from '../lib/run-view';
@@ -57,6 +58,7 @@ import { IssueImportResult } from './issue-import-result';
 import { NodeInspector } from './node-inspector';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
+import { RunInDoubtCard } from './run-in-doubt-card';
 import { RunBadge } from './run-status-badge';
 
 /**
@@ -257,7 +259,7 @@ function RunDetailBody({
           size="lg"
           title={t('runs.heading', { automation: displayName })}
         />
-        <RunBadge status={status} />
+        <RunBadge status={status} stalled={run.stalled === true} />
         {(() => {
           const retryAttempt = readRunAgentRetry(run);
           if (retryAttempt === null) return null;
@@ -270,6 +272,23 @@ function RunDetailBody({
             </Text>
           );
         })()}
+        {/* A run another server took over, or a stopping one handed on:
+            how often, and the last time when and why — the platform's
+            recovery, told apart from anything the reader did. */}
+        {typeof run.resumeCount === 'number' && run.resumeCount > 0 && (
+          <Text as="span" variant="muted" className="text-xs">
+            {[
+              t('runs.resumed.label', { count: run.resumeCount }),
+              run.lastResume === undefined
+                ? null
+                : t(`runs.resumed.${run.lastResume.reason}`, {
+                    date: formatDate(new Date(run.lastResume.at), 'long'),
+                  }),
+            ]
+              .filter((part) => part !== null)
+              .join(' · ')}
+          </Text>
+        )}
         <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
           {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
         </Badge>
@@ -351,10 +370,31 @@ function RunDetailBody({
             />
           );
         }
+        // A write that may already have happened when the run was
+        // interrupted: the card names it and offers the ways on, in place of
+        // the waiting line.
+        const inDoubtNode =
+          run.waitingFor === 'in_doubt'
+            ? readRunParkNode(run.detail)
+            : undefined;
+        if (inDoubtNode !== undefined && !isRunFinished(status)) {
+          return (
+            <RunInDoubtCard
+              organizationId={organizationId}
+              runId={runId}
+              node={inDoubtNode}
+              iterates={
+                automation?.nodes.find((node) => node.id === inDoubtNode)
+                  ?.forEach !== undefined
+              }
+              onFocusLost={onFocusLost}
+            />
+          );
+        }
         // The failure sentence of a failed run; the park of a waiting one
         // in words (the ask card above already says what an ask waits on).
-        // The raw `repeat:<node>` / `agent:<node>` / `room:<node>` detail
-        // never renders.
+        // The raw `repeat:<node>` / `agent:<node>` / `room:<node>` /
+        // `in_doubt:<node>` detail never renders.
         const reason = runReasonKey(run);
         if (reason === undefined) return null;
         if (reason.kind === 'failed') {

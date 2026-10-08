@@ -18,7 +18,11 @@ import type { WorkflowAgentFailureCode } from './agent_retry.ts';
  *   (a connector action refused or failed), `llm_output_invalid` (the
  *   model's reply did not satisfy the node's `outputSchema`),
  *   `approval_rejected`, `execution_limit` (the execution guard),
- *   `automation_deleted` (the automation vanished mid-flight);
+ *   `automation_deleted` (the automation vanished mid-flight),
+ *   `engine_incompatible` (the run's saved progress could not be read by
+ *   this version of Tale, so it was stopped instead of starting over),
+ *   `effect_in_doubt` (a person failed the run at a write that may already
+ *   have reached its service when the run was interrupted);
  * - an `llm` node's provider, reusing the chat surface's own vocabulary —
  *   `credit_exhausted`, `auth_error`, `rate_limited`, `provider_unreachable`,
  *   `provider_error`, …: the account or the provider, not the request;
@@ -33,6 +37,8 @@ const ENGINE_FAILURE_CODES = [
   'approval_rejected',
   'execution_limit',
   'automation_deleted',
+  'engine_incompatible',
+  'effect_in_doubt',
 ] as const;
 
 const AGENT_FAILURE_CODES = [

@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 81 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 82 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -620,6 +620,20 @@ output:
       appears. Turn **Enabled** off and **Save** → no run starts at the next
       minute. (Without a runnable harness the agent run itself fails at its
       launch; the start and the coalesced occurrence still show.)
+- [ ] `AUTO-F57` · **A crashed worker's run reads Interrupted, then
+      resumes** — With one backend worker, start a live run whose step works for a few
+      minutes (an agent step), open its run page, and once it reads **Running**
+      kill the worker without warning (`docker kill -s KILL` on its
+      container); leave it down for a minute and reload the page → the badge
+      reads `automations.runs.status.stalled` with a still icon, not
+      `automations.runs.status.running`. Start the worker again → within about
+      a minute and a half, without a reload, the badge reads
+      `automations.runs.status.running` again and the header shows
+      `automations.runs.resumed.label` followed by
+      `automations.runs.resumed.lease_expired` with the time; a step that had
+      finished before the kill shows once in the steps list. Check the badge
+      and the header line in the light and the dark theme and at 390 px wide
+      (the line wraps, nothing is cut).
 
 ## Boundary & error tests
 

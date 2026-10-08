@@ -13498,6 +13498,112 @@ async function checkAutomationRunLifecycle(
     `race=[${raceKinds.join(',')}] (want go,in_doubt), stale=${staleBegin.kind}, staleRows=${goneItem[0]?.count} (want 0), reused=${reused.kind} (want done), open item=${open?.itemIndex} (want 0), audit=${decidedAudit[0]?.count} (want 1), events=${decidedEvents.length}, steps=${decidedSteps} (want 1), second decision=${secondDecision} (want a refusal)`,
   );
 
+  // ---- #4h: what the run read says about a run that moved between servers
+  // [AUTO-R18]. A lapsed lease, and a shutdown hand-off nobody claimed yet,
+  // read stalled; a live lease, a budget hand-off after a takeover and a row
+  // an image without leases claimed last do not. The count and the last
+  // move ride the read as `resumeCount` and `lastResume`, an in-doubt park
+  // as `waitingFor: in_doubt`, and no owner ever leaves the backend.
+  const readNow = Date.now();
+  const stalledProbe = async (
+    startedBy: string,
+    lease: {
+      leaseEpoch: number | null;
+      expiresAt: number | null;
+      resumedAt?: number;
+      reason?: 'shutdown' | 'lease_expired';
+      claimedAt: number;
+    },
+  ): Promise<string> => {
+    const runId = await insertProbeRun(startedBy, {
+      status: 'running',
+      claimEpoch: 1,
+    });
+    await sql`
+      UPDATE app.automation_runs SET
+        lease_owner = ${lease.expiresAt === null ? null : 'probe-host:1:0.5.0:none'},
+        lease_epoch = ${lease.leaseEpoch},
+        lease_expires_at_ms = ${lease.expiresAt},
+        claimed_at_ms = ${lease.claimedAt},
+        wake_at_ms = ${readNow + 600_000},
+        resume_count = ${lease.reason === undefined ? 0 : 1},
+        last_resume_reason = ${lease.reason ?? null},
+        last_resumed_at_ms = ${lease.resumedAt ?? null}
+      WHERE id = ${runId}
+    `;
+    return runId;
+  };
+  const lapsedId = await stalledProbe('itest:stalled-lapsed', {
+    leaseEpoch: 1,
+    expiresAt: readNow - 1_000,
+    claimedAt: readNow - 60_000,
+  });
+  const liveId = await stalledProbe('itest:stalled-live', {
+    leaseEpoch: 1,
+    expiresAt: readNow + 30_000,
+    claimedAt: readNow - 5_000,
+  });
+  const handedOnId = await stalledProbe('itest:stalled-handed-on', {
+    leaseEpoch: 1,
+    expiresAt: null,
+    claimedAt: readNow - 60_000,
+    resumedAt: readNow - 2_000,
+    reason: 'shutdown',
+  });
+  const budgetId = await stalledProbe('itest:stalled-budget', {
+    leaseEpoch: 1,
+    expiresAt: null,
+    claimedAt: readNow - 60_000,
+    // A takeover stamps the resume with the claim's own instant.
+    resumedAt: readNow - 60_000,
+    reason: 'lease_expired',
+  });
+  const oldImageId = await stalledProbe('itest:stalled-old-image', {
+    leaseEpoch: null,
+    expiresAt: null,
+    claimedAt: readNow - 60_000,
+  });
+  const parkedId = await insertProbeRun('itest:in-doubt-read', {
+    status: 'waiting',
+  });
+  await sql`
+    UPDATE app.automation_runs SET detail = 'in_doubt:send'
+    WHERE id = ${parkedId}
+  `;
+  const readRun = async (runId: string) => {
+    const row = await store.getRun(sql, orgId, runId);
+    return row === null ? null : store.toRunDetail(row);
+  };
+  const [lapsed, live, handedOn, budget, oldImage, parked] = await Promise.all(
+    [lapsedId, liveId, handedOnId, budgetId, oldImageId, parkedId].map(readRun),
+  );
+  const handedOnSummary = (await store.listRuns(sql, orgId, { limit: 200 }))
+    .filter((row) => row.id === handedOnId)
+    .map(store.toRunSummary)[0];
+  for (const runId of [lapsedId, liveId, handedOnId, budgetId, oldImageId]) {
+    await cancelProbeRun(runId);
+  }
+  await cancelProbeRun(parkedId);
+  // The lapsed run still names its owner in the row: the read must not.
+  const wireKeys = JSON.stringify([lapsed, live, handedOn, handedOnSummary]);
+  record(
+    'the run read says a run stalled only while no server steps it, and when and why it last moved [AUTO-R18]',
+    lapsed?.stalled === true &&
+      live?.stalled === false &&
+      handedOn?.stalled === true &&
+      budget?.stalled === false &&
+      oldImage?.stalled === false &&
+      handedOn?.resumeCount === 1 &&
+      handedOn?.lastResume?.reason === 'shutdown' &&
+      handedOn?.lastResume?.at === readNow - 2_000 &&
+      handedOnSummary?.stalled === true &&
+      handedOnSummary?.resumeCount === 1 &&
+      handedOnSummary?.lastResume?.reason === 'shutdown' &&
+      parked?.waitingFor === 'in_doubt' &&
+      !/probe-host|leaseOwner|lease_owner/.test(wireKeys),
+    `stalled: lapsed=${lapsed?.stalled} (want true), live=${live?.stalled} (want false), handedOn=${handedOn?.stalled} (want true), budget=${budget?.stalled} (want false), oldImage=${oldImage?.stalled} (want false); handedOn resumeCount=${handedOn?.resumeCount} lastResume=${JSON.stringify(handedOn?.lastResume)}; summary=${JSON.stringify(handedOnSummary === undefined ? null : { stalled: handedOnSummary.stalled, resumeCount: handedOnSummary.resumeCount })}; parked waitingFor=${parked?.waitingFor} (want in_doubt); owner on the wire=${/probe-host/.test(wireKeys)}`,
+  );
+
   // ---- #5: the live-op query identifies an in-flight agent turn (adopt, not
   // re-kick) and returns null once it settles.
   const opRun = await sql<{ id: string }[]>`

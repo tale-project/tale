@@ -7,6 +7,7 @@ import {
   readEffects,
   readRunAgentRetry,
   readRunCursorNode,
+  readRunParkNode,
   readRunStatus,
   runReasonKey,
 } from './run-view';
@@ -250,5 +251,36 @@ describe('runReasonKey', () => {
       key: 'runs.waiting.agent',
       values: { node: 'draft' },
     });
+  });
+
+  it('says which step may already have run when a write waits for a person', () => {
+    expect(
+      runReasonKey({
+        status: 'waiting',
+        detail: 'in_doubt:send_invoice',
+        waitingFor: 'in_doubt',
+      }),
+    ).toEqual({
+      kind: 'waiting',
+      key: 'runs.waiting.in_doubt',
+      values: { node: 'send_invoice' },
+    });
+  });
+});
+
+describe('readRunParkNode', () => {
+  it.each([
+    ['repeat:tick', 'tick'],
+    ['agent:draft', 'draft'],
+    ['room:draft', 'draft'],
+    ['in_doubt:send_invoice', 'send_invoice'],
+  ])('reads the node off %s', (detail, node) => {
+    expect(readRunParkNode(detail)).toBe(node);
+  });
+
+  it('reads nothing off an approval park or no detail', () => {
+    expect(readRunParkNode('approval:appr-1')).toBeUndefined();
+    expect(readRunParkNode(null)).toBeUndefined();
+    expect(readRunParkNode(undefined)).toBeUndefined();
   });
 });
