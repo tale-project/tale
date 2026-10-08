@@ -55,7 +55,7 @@ A `label` or `description` puts the field in the standard label-and-field frame;
 
 ## Accessibility
 
-- The field is a group named by its label. Its description includes the whole time as the locale writes it, so entering the group announces it, such as "Until, 6:00 PM".
+- The field is a group named by its label. Its description starts with the whole time as the locale writes it, then your `description`, error and `aria-describedby`, so entering the group announces the time before any help, such as "Until, 6:00 PM".
 - Each part is a spin button with its own name (**Hours**, **Minutes**, **AM/PM**) and a spoken value: the hour as "9 PM" or "21 Uhr", the minutes as "30 minutes", the day period as its word. A cleared part reads "Empty".
 - The ring around the field shows that it has focus, and the focused part is filled in the accent colour, as a pressed chip is, so you can see which part a digit goes into. The fill keeps more than 3:1 contrast against the field in both themes.
 - Clicking the label focuses the hour; clicking the field's padding or separator focuses the nearest part.

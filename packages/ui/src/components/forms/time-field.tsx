@@ -604,11 +604,13 @@ export function TimeField({
     parts.push(segments[segment]);
   });
 
+  // The time comes first, so entering the field says "Until, 6:00 PM"
+  // before any help text that names other times.
   const describedBy = [
+    ids.spoken,
     description !== undefined && ids.description,
     errorMessage !== undefined && ids.error,
     ariaDescribedBy,
-    ids.spoken,
   ]
     .filter(Boolean)
     .join(' ');

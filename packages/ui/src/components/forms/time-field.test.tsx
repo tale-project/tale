@@ -378,8 +378,9 @@ describe('TimeField', () => {
         />,
       );
       const group = screen.getByRole('group', { name: 'Until' });
+      // The time first, so entering the field says it before the help.
       expect(group).toHaveAccessibleDescription(
-        'Local time. Pick a later time. 18:00',
+        '18:00 Local time. Pick a later time.',
       );
       const hour = within(group).getByRole('spinbutton', { name: 'Hours' });
       expect(hour).toHaveAttribute('aria-invalid', 'true');
@@ -388,6 +389,24 @@ describe('TimeField', () => {
       await user.click(screen.getByText('Until'));
       expect(hour).toHaveFocus();
       await checkAccessibility(container);
+    });
+
+    it('says its own time before a hint the host describes it by', () => {
+      render(
+        <>
+          <TimeField
+            aria-label="Until"
+            aria-describedby="hint"
+            hourCycle={24}
+            value={{ hour: 18, minute: 0 }}
+            onValueChange={() => {}}
+          />
+          <p id="hint">The last run starts at 17:45.</p>
+        </>,
+      );
+      expect(
+        screen.getByRole('group', { name: 'Until' }),
+      ).toHaveAccessibleDescription('18:00 The last run starts at 17:45.');
     });
 
     it('keeps focus and a half-typed part when an error comes and goes', async () => {
