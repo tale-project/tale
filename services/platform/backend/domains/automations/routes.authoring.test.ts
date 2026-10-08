@@ -179,6 +179,80 @@ describe('app automation acceptance gate', () => {
       message: 'Project not found',
     });
   });
+  it('refuses an invalid save with every problem and where it is, and saves nothing [AUTO-R16]', async () => {
+    const invalid = {
+      ...document(2),
+      nodes: [
+        { id: 'stale', type: 'transform', code: 'return 1;' },
+        ...document(2).nodes,
+      ],
+      output: '{{ nodes.nope.output }}',
+    };
+    const result = await post('/double/save', { document: invalid });
+    expect(result.status).toBe(400);
+    const body = (await result.json()) as {
+      error: string;
+      data?: { errors?: unknown[]; warnings?: unknown[]; hint?: string };
+    };
+    expect(body.error).toBe('AUTOMATION_INVALID');
+    // The structured part rides under `data`, the one place the app's fetch
+    // layer keeps beside the code and the sentence.
+    expect(body.data?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'REF_UNKNOWN_NODE',
+          at: expect.objectContaining({ pointer: '/output' }),
+        }),
+      ]),
+    );
+    expect(body.data?.warnings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'UNUSED_NODE', nodeId: 'stale' }),
+      ]),
+    );
+    expect(typeof body.data?.hint).toBe('string');
+    expect(io.save).not.toHaveBeenCalled();
+  });
+  it('refuses to deploy a stored version that no longer validates, naming its problems [AUTO-R16]', async () => {
+    io.document = { ...document(2), output: '{{ nodes.nope.output }}' };
+    const result = await post('/double/deploy', { version: 2 });
+    expect(result.status).toBe(400);
+    const body = (await result.json()) as {
+      error: string;
+      data?: { errors?: unknown[] };
+    };
+    expect(body.error).toBe('AUTOMATION_INVALID');
+    expect(body.data?.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'REF_UNKNOWN_NODE' }),
+      ]),
+    );
+    expect(io.deploy).not.toHaveBeenCalled();
+  });
+  it('saves and deploys a version whose only problems are warnings [AUTO-R17]', async () => {
+    const warned = {
+      ...document(2),
+      nodes: [
+        { id: 'stale', type: 'transform', code: 'return 1;' },
+        ...document(2).nodes,
+      ],
+    };
+    const saved = await post('/double/save', { document: warned });
+    expect(saved.status).toBe(201);
+    expect(await saved.json()).toMatchObject({
+      name: 'double',
+      version: 2,
+      warnings: expect.arrayContaining([
+        expect.objectContaining({ code: 'UNUSED_NODE' }),
+      ]),
+    });
+    expect(io.save).toHaveBeenCalledTimes(1);
+
+    io.document = warned;
+    const deployed = await post('/double/deploy', { version: 2 });
+    expect(deployed.status).toBe(200);
+    expect(io.deploy).toHaveBeenCalledWith('double', 2, { testsPassed: true });
+  });
   it('preserves a store refusal after the shared deploy gate', async () => {
     io.document = document(2);
     io.deploy.mockRejectedValueOnce(

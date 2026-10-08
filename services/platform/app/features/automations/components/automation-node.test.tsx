@@ -197,6 +197,62 @@ describe('AutomationNodeBox', () => {
     expect(onFocus).not.toHaveBeenCalled();
   });
 
+  it('counts its problems on its face and says them in its name', () => {
+    render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        issueCounts={{ errors: 2, warnings: 1 }}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole('button');
+    expect(button).toHaveAccessibleName(/\(2 errors and 1 warning\)$/);
+    // The chips are decoration: the name already says it in words.
+    const marker = button.querySelector('[data-slot="flow-node-issue-marker"]');
+    expect(marker).toHaveAttribute('aria-hidden', 'true');
+    expect(marker?.querySelector('[data-severity="error"]')).toHaveTextContent(
+      '2',
+    );
+    expect(button).toHaveClass('border-destructive');
+  });
+
+  it('frames a node with warnings only in amber, and keeps the selection ring', () => {
+    render(
+      <AutomationNodeBox
+        node={node}
+        selected
+        inspectorId="inspector"
+        sources={[]}
+        issueCounts={{ errors: 0, warnings: 1 }}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole('button');
+    expect(button).toHaveClass('border-amber-600', 'ring-2');
+    expect(button).toHaveAccessibleName(/\(1 warning\)$/);
+  });
+
+  it('says nothing more without problems', () => {
+    render(
+      <AutomationNodeBox
+        node={node}
+        selected={false}
+        inspectorId="inspector"
+        sources={[]}
+        issueCounts={{ errors: 0, warnings: 0 }}
+        onSelect={vi.fn()}
+      />,
+    );
+    const button = screen.getByRole('button');
+    expect(button).not.toHaveAccessibleName(/problem|error|warning/i);
+    expect(
+      button.querySelector('[data-slot="flow-node-issue-marker"]'),
+    ).toBeNull();
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(
       <AutomationNodeBox
@@ -205,6 +261,7 @@ describe('AutomationNodeBox', () => {
         inspectorId="inspector"
         sources={['calc']}
         runStatus="ok"
+        issueCounts={{ errors: 1, warnings: 1 }}
         onSelect={vi.fn()}
       />,
     );

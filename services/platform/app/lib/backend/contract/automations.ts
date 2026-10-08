@@ -84,7 +84,9 @@ export interface AutomationsContract {
       organizationId: string;
       automation: unknown;
     };
-    returns: { name: string; version: number };
+    /** `warnings` are the problems the save let through — they never
+     * refuse one (`lib/shared/schemas/automation-issues.ts` reads them). */
+    returns: { name: string; version: number; warnings?: unknown[] };
   };
   'automations/mutations:setAutomationProjects': {
     kind: 'mutation';

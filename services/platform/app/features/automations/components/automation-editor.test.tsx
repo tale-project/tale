@@ -28,6 +28,8 @@ const {
   deploy,
   toastSpy,
   refetch,
+  validationMock,
+  invalidateValidation,
 } = vi.hoisted(() => ({
   state: {
     document: {
@@ -72,6 +74,56 @@ const {
   deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
   toastSpy: vi.fn(),
   refetch: vi.fn(),
+  /** What the draft check answers. Arrays are set whole per test, so their
+   * identity is stable across renders the way a settled query's is. */
+  validationMock: {
+    status: 'ready' as 'idle' | 'checking' | 'ready' | 'failed',
+    errors: [] as Array<Record<string, unknown> & { id: string }>,
+    warnings: [] as Array<Record<string, unknown> & { id: string }>,
+    calls: [] as Array<{
+      document: unknown;
+      isDraft: boolean;
+      enabled: boolean;
+    }>,
+    /** The developer capability; a member's editor checks nothing. */
+    canAuthor: true,
+  },
+  invalidateValidation: vi.fn(),
+}));
+
+// The draft check is a server round trip; the page's handling of its answer
+// is what these tests hold, so the hook answers from `validationMock`.
+vi.mock('../hooks/use-automation-validation', () => ({
+  useAutomationValidation: ({
+    document,
+    isDraft,
+    enabled,
+  }: {
+    document: unknown;
+    isDraft: boolean;
+    enabled: boolean;
+  }) => {
+    validationMock.calls.push({ document, isDraft, enabled });
+    const currentHash = document === null ? null : JSON.stringify(document);
+    if (!enabled || currentHash === null) {
+      return {
+        status: 'idle',
+        errors: [],
+        warnings: [],
+        settledFor: null,
+        currentHash,
+      };
+    }
+    return {
+      status: validationMock.status,
+      errors: validationMock.errors,
+      warnings: validationMock.warnings,
+      settledFor:
+        validationMock.status === 'ready' ? currentHash : 'an older draft',
+      currentHash,
+    };
+  },
+  useInvalidateAutomationValidation: () => invalidateValidation,
 }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
@@ -85,7 +137,10 @@ vi.mock('@tale/ui/use-toast', () => ({
 // live runs) from members; these tests exercise that surface, so they run
 // with the developer capability granted.
 vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true, cannot: () => false }),
+  useAbility: () => ({
+    can: () => validationMock.canAuthor,
+    cannot: () => !validationMock.canAuthor,
+  }),
   useAbilityLoading: () => false,
 }));
 
@@ -264,6 +319,7 @@ vi.mock('@tale/ui/json-viewer', () => ({
   ),
 }));
 
+import { withIssueIds } from '../lib/issues';
 import { AutomationEditor } from './automation-editor';
 
 const onSelectVersion = vi.fn();
@@ -373,6 +429,12 @@ beforeEach(() => {
   state.deployedDetailError = undefined;
   state.realDetailRead = false;
   refetch.mockClear();
+  validationMock.status = 'ready';
+  validationMock.errors = [];
+  validationMock.warnings = [];
+  validationMock.calls = [];
+  validationMock.canAuthor = true;
+  invalidateValidation.mockClear();
 });
 
 const detailQueryKey = [
@@ -447,8 +509,10 @@ describe('AutomationEditor real detail read recovery', () => {
       await user.keyboard('{Enter}');
       await waitFor(() => expect(finishRead).toBeDefined());
       expect(retryButton).toHaveFocus();
+      // A server fault has no words for the reader: the generic sentence,
+      // never the body it answered with.
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'Service unavailable',
+        'Something went wrong — try again',
       );
       expect(screen.queryByText('Loading the automation…')).toBeNull();
       expect(retryButton).toHaveAttribute('aria-busy', 'true');
@@ -1645,6 +1709,182 @@ describe('AutomationEditor', () => {
 
   it('passes an axe audit', async () => {
     const { container } = renderPage();
+    await checkAccessibility(container);
+  });
+});
+
+describe('AutomationEditor problems', () => {
+  /** The draft's prompt reads a node that does not exist. */
+  const promptError = {
+    level: 'error' as const,
+    code: 'REF_UNKNOWN_NODE',
+    message: 'nodes.nope does not exist',
+    hint: 'reference an existing node',
+    at: { pointer: '/nodes/0/prompt', range: [4, 9] as [number, number] },
+    params: { node: 'summary', field: 'prompt', ref: 'nope', available: [] },
+  };
+
+  function refusal() {
+    return {
+      data: {
+        code: 'AUTOMATION_INVALID',
+        message: 'automation failed validation — fix errors before saving',
+        errors: [promptError],
+        warnings: [],
+      },
+    };
+  }
+
+  const problemsButton = () =>
+    screen.getByRole('button', { name: /^(Problems|No problems)/ });
+
+  it('counts what the check found and keeps Save disabled with the reason', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user } = renderPage();
+    expect(problemsButton()).toHaveAccessibleName('Problems: 1 error');
+    await editTheNode(user);
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
+    act(() => saveButton().focus());
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Fix 1 error to save',
+    );
+  });
+
+  it('keeps Save waiting while a fix is checked, and lets it act once the check settles clean', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    validationMock.status = 'checking';
+    const { user, rerender } = renderPage();
+    await editTheNode(user);
+    act(() => saveButton().focus());
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(
+      'Checking your changes…',
+    );
+    validationMock.errors = [];
+    validationMock.status = 'ready';
+    rerender(page());
+    expect(saveButton()).toBeEnabled();
+    expect(problemsButton()).toHaveAccessibleName('No problems');
+  });
+
+  it('never blocks Save on a check that failed', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    validationMock.status = 'failed';
+    const { user } = renderPage();
+    await editTheNode(user);
+    expect(saveButton()).toBeEnabled();
+    expect(problemsButton()).toHaveAccessibleName("Problems: couldn't check");
+  });
+
+  it('opens the list under the canvas and goes to the field with the text selected', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    expect(problemsButton()).toHaveAttribute('aria-expanded', 'true');
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    expect(problemsButton()).toHaveAttribute('aria-controls', dock.id);
+    const row = within(dock).getByRole('button', {
+      name: /Error: .*summary › Prompt/,
+    });
+    await waitFor(() => expect(row).toHaveFocus());
+    await user.keyboard('{Enter}');
+    const prompt = await screen.findByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Prompt',
+    });
+    await waitFor(() => expect(prompt).toHaveFocus());
+    expect([prompt.selectionStart, prompt.selectionEnd]).toEqual([4, 9]);
+    // The field carries its own problem, and the row stays marked current.
+    expect(prompt).toHaveAttribute('aria-invalid', 'true');
+    expect(row).toHaveAttribute('aria-current', 'true');
+  });
+
+  it('closes the list on Escape and returns focus to the Problems button', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const dock = screen.getByRole('region', { name: 'Problems' });
+    await waitFor(() =>
+      expect(within(dock).getAllByRole('button')[0]).toBeDefined(),
+    );
+    act(() =>
+      within(dock)
+        .getByRole('button', { name: /Error:/ })
+        .focus(),
+    );
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: 'Problems' })).toBeNull();
+    expect(problemsButton()).toHaveFocus();
+  });
+
+  it('lands a refused save in Problems on its first error, with no toast [AUTO-R16]', async () => {
+    saveMutation.mutateAsync = vi.fn().mockRejectedValue(refusal());
+    const { user } = renderPage();
+    await editTheNode(user);
+    await user.click(saveButton());
+    await user.click(screen.getByRole('button', { name: 'Save version' }));
+
+    const dock = await screen.findByRole('region', { name: 'Problems' });
+    const row = within(dock).getByRole('button', { name: /Error:/ });
+    await waitFor(() => expect(row).toHaveFocus());
+    expect(toastSpy).not.toHaveBeenCalled();
+    expect(problemsButton()).toHaveAccessibleName('Problems: 1 error');
+    // The server's errors hold Save until the draft changes.
+    expect(saveButton()).toHaveAttribute('aria-disabled', 'true');
+    await waitFor(() =>
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Saving was refused. 1 error',
+      ),
+    );
+  });
+
+  it('points a refused deploy at Problems', async () => {
+    deploy.mutate.mockImplementation(
+      (
+        _args: unknown,
+        handlers: { onError: (error: unknown) => void } | undefined,
+      ) => {
+        handlers?.onError(refusal());
+      },
+    );
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Deploy v3' }));
+    expect(
+      screen.getByText(
+        'This version has problems that block deploying it. Problems lists them.',
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Problems' })).toBeVisible();
+  });
+
+  it("says why a problem outside the nodes can't be gone to", async () => {
+    validationMock.errors = withIssueIds([
+      {
+        level: 'error' as const,
+        code: 'OUTPUT_MISSING',
+        message: 'the automation has no output',
+        at: { pointer: '/output', subject: 'missing' },
+        params: {},
+      },
+    ]);
+    const { user } = renderPage();
+    await user.click(problemsButton());
+    const row = within(
+      screen.getByRole('region', { name: 'Problems' }),
+    ).getByRole('button', { name: /Error:/ });
+    expect(row).toHaveAttribute('aria-disabled', 'true');
+    expect(row).toHaveAccessibleDescription(/can't be edited here/);
+  });
+
+  it('checks nothing and shows no Problems for a member', () => {
+    validationMock.canAuthor = false;
+    renderPage();
+    expect(screen.queryByRole('button', { name: /^Problems/ })).toBeNull();
+    expect(validationMock.calls.every((call) => !call.enabled)).toBe(true);
+  });
+
+  it('passes an axe audit with the Problems list open', async () => {
+    validationMock.errors = withIssueIds([promptError]);
+    const { user, container } = renderPage();
+    await user.click(problemsButton());
     await checkAccessibility(container);
   });
 });

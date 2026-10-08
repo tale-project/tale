@@ -16,7 +16,15 @@ import {
 } from '@tale/ui/editor';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Field } from '@tale/ui/field';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
+import { IssueFocusProvider, useRequestIssueFocus } from '@tale/ui/issue-focus';
+import type { IssueItem, IssueListHandle } from '@tale/ui/issue-list';
+import {
+  IssueAnnouncer,
+  IssueCountButton,
+  type IssueCounts,
+} from '@tale/ui/issue-summary';
 import { PageActionHeader } from '@tale/ui/page-action-header';
 import {
   ResponsiveDialog,
@@ -38,14 +46,23 @@ import {
   SearchX,
   Zap,
 } from 'lucide-react';
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
+import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
+import { savedWarningsSchema } from '@/lib/shared/schemas/automation-issues';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import {
@@ -59,17 +76,31 @@ import {
   useAutomationRuns,
   useNodeTypeCatalog,
 } from '../hooks/queries';
+import {
+  useAutomationValidation,
+  useInvalidateAutomationValidation,
+} from '../hooks/use-automation-validation';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { automationDetailPathname } from '../lib/detail-paths';
 import { DOCUMENT_DIRTY_KEY } from '../lib/dirty-keys';
 import { readDocument, readPositions } from '../lib/document';
 import {
   automationErrorCode,
+  automationErrorIssues,
   automationErrorLatestVersion,
   automationErrorMessage,
   isMissingAutomationRead,
+  type AutomationErrorIssues,
 } from '../lib/errors';
 import { buildGraph } from '../lib/graph';
+import { fieldsWithIssueControl } from '../lib/inspector-fields';
+import {
+  issueCountsByNode,
+  sortIssues,
+  toIssueView,
+  withIssueIds,
+  type AutomationIssue,
+} from '../lib/issues';
 import { nodeStatusMap, projectRun, readRunCursorNode } from '../lib/run-view';
 import {
   AUTOMATION_EDITOR_WORKBENCH_GRID,
@@ -79,6 +110,10 @@ import {
 } from '../lib/workbench';
 import { AutomationCanvas } from './automation-canvas';
 import { AutomationEditorActions } from './automation-editor-actions';
+import {
+  AutomationProblemsDock,
+  AutomationProblemsSheet,
+} from './automation-problems';
 import {
   AutomationRunDialog,
   type AutomationRunRequest,
@@ -167,15 +202,29 @@ interface AutomationEditorProps {
  * the shared dirty guard still confirms navigation before these props change. */
 export function AutomationEditor(props: AutomationEditorProps) {
   return (
-    <AutomationEditorScope
-      key={JSON.stringify([
-        props.organizationId,
-        props.automationSlug,
-        props.projectId ?? null,
-      ])}
-      {...props}
-    />
+    // "Go to" a problem: the Problems list asks, the inspector's controls
+    // answer — one registry for the page, the node sheet included.
+    <IssueFocusProvider>
+      <AutomationEditorScope
+        key={JSON.stringify([
+          props.organizationId,
+          props.automationSlug,
+          props.projectId ?? null,
+        ])}
+        {...props}
+      />
+    </IssueFocusProvider>
   );
+}
+
+/** The problems a refused save or deploy listed, for the document it refused. */
+interface ServerIssues {
+  /** Hash of the document they belong to. */
+  hash: string;
+  errors: AutomationIssue[];
+  warnings: AutomationIssue[];
+  /** The check's result when they arrived: a newer one replaces them. */
+  basis: readonly AutomationIssue[];
 }
 
 /**
@@ -195,6 +244,13 @@ export function AutomationEditor(props: AutomationEditorProps) {
  *
  * The most recent run is laid over the canvas by default, because the first
  * question anyone opening an automation has is "did the last one work".
+ *
+ * For an author, the document on screen is checked as it changes
+ * (`useAutomationValidation`): the Problems button counts what the check
+ * found, the dock under the canvas (a sheet on narrow screens) lists it,
+ * node boxes and fields carry their own problems, and Save stays disabled,
+ * with the reason, while errors stand. A save or deploy the server refuses
+ * for errors lands in the same list — one report, never a second toast.
  */
 function AutomationEditorScope({
   organizationId,
@@ -365,6 +421,166 @@ function AutomationEditorScope({
     [catalogQuery.data],
   );
 
+  // ── Problems ──────────────────────────────────────────────────────────
+  // What the engine finds in the document on screen. Members never have one
+  // checked: the route is author-gated, and they cannot change it anyway.
+  const invalidateValidation = useInvalidateAutomationValidation(
+    organizationId,
+    automationSlug,
+  );
+  const { locale } = useLocale();
+  const requestIssueFocus = useRequestIssueFocus();
+  const validation = useAutomationValidation({
+    organizationId,
+    automationSlug,
+    document: automation,
+    isDraft: draft !== null,
+    enabled: canAuthor,
+  });
+  /** A refused save's or deploy's own list, shown until the document
+   * changes or the check settles anew. */
+  const [serverIssues, setServerIssues] = useState<ServerIssues | null>(null);
+  const shownServerIssues =
+    serverIssues !== null &&
+    serverIssues.hash === validation.currentHash &&
+    serverIssues.basis === validation.errors
+      ? serverIssues
+      : null;
+  const shownErrors = shownServerIssues?.errors ?? validation.errors;
+  const shownWarnings = shownServerIssues?.warnings ?? validation.warnings;
+  const issueStatus =
+    shownServerIssues === null ? validation.status : ('ready' as const);
+  const issueCounts = useMemo<IssueCounts>(
+    () => ({ errors: shownErrors.length, warnings: shownWarnings.length }),
+    [shownErrors, shownWarnings],
+  );
+  const controlsOf = useCallback(
+    (node: NodeDef) =>
+      fieldsWithIssueControl(
+        node,
+        nodeTypes.find((def) => def.type === node.type)?.allowedFields ?? [],
+      ),
+    [nodeTypes],
+  );
+  const issueViews = useMemo(
+    () =>
+      automation === null
+        ? []
+        : sortIssues([...shownErrors, ...shownWarnings]).map((issue) =>
+            toIssueView(issue, automation, { locale, t, controlsOf }),
+          ),
+    [automation, shownErrors, shownWarnings, locale, t, controlsOf],
+  );
+  const issueItems = useMemo(
+    () => issueViews.map((view) => view.item),
+    [issueViews],
+  );
+  const countsByNode = useMemo(
+    () =>
+      automation === null
+        ? new Map<string, IssueCounts>()
+        : issueCountsByNode([...shownErrors, ...shownWarnings], automation),
+    [automation, shownErrors, shownWarnings],
+  );
+  const selectedNodeIssues = useMemo(
+    () =>
+      issueViews.filter(
+        (view) =>
+          view.navigation.kind !== 'unavailable' &&
+          view.navigation.nodeId === selectedNodeId,
+      ),
+    [issueViews, selectedNodeId],
+  );
+  const [problemsOpen, setProblemsOpen] = useState(false);
+  const [activeIssueId, setActiveIssueId] = useState<string | null>(null);
+  /** The Problems sheet is closing to take the reader to a field. */
+  const [handingOn, setHandingOn] = useState(false);
+  /** Focus the list once the panel has opened: on its current row, or on
+   * the first error when a refusal opened it. */
+  const [focusProblems, setFocusProblems] = useState<
+    'current' | 'firstError' | null
+  >(null);
+  /** The save dialog closes onto the Problems list, not back onto Save. */
+  const [saveClosesOnProblems, setSaveClosesOnProblems] = useState(false);
+  const problemsButtonRef = useRef<HTMLButtonElement>(null);
+  const problemsListRef = useRef<IssueListHandle>(null);
+  const problemsDockId = useId();
+  /** One sentence per settled check of a draft, and one per refusal. */
+  const [announcement, setAnnouncement] = useState<{
+    key: number;
+    context?: string;
+  }>({ key: 0 });
+  const announcedHashRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (draft === null || validation.status !== 'ready') return;
+    if (validation.settledFor === null) return;
+    if (announcedHashRef.current === validation.settledFor) return;
+    announcedHashRef.current = validation.settledFor;
+    setAnnouncement((previous) => ({ key: previous.key + 1 }));
+  }, [draft, validation.status, validation.settledFor]);
+  useEffect(() => {
+    if (focusProblems === null || !problemsOpen) return undefined;
+    const frame = requestAnimationFrame(() => {
+      const firstError =
+        focusProblems === 'firstError'
+          ? issueViews.find((view) => view.issue.level === 'error')?.issue.id
+          : undefined;
+      problemsListRef.current?.focus(firstError);
+      setFocusProblems(null);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusProblems, problemsOpen, issueViews]);
+
+  /** Show what a refused save or deploy listed, and take the reader there. */
+  const showRefusal = useCallback(
+    (refused: AutomationErrorIssues, hash: string, context: string) => {
+      setServerIssues({
+        hash,
+        errors: withIssueIds(refused.errors),
+        warnings: withIssueIds(refused.warnings),
+        basis: validation.errors,
+      });
+      setHandingOn(false);
+      setProblemsOpen(true);
+      setFocusProblems('firstError');
+      setAnnouncement((previous) => ({ key: previous.key + 1, context }));
+    },
+    [validation.errors],
+  );
+  const toggleProblems = (): void => {
+    if (problemsOpen) {
+      setProblemsOpen(false);
+      return;
+    }
+    setHandingOn(false);
+    setProblemsOpen(true);
+    // Opening lands on the list's current row, so the arrow keys walk it at
+    // once. The sheet does that itself as it opens; the dock is no dialog.
+    if (!isWorkbenchCompact) setFocusProblems('current');
+  };
+  const closeProblems = (): void => {
+    setProblemsOpen(false);
+    problemsButtonRef.current?.focus();
+  };
+  /** "Go to": pick the node, then focus the field and select the text. */
+  const goToIssue = (item: IssueItem): void => {
+    const view = issueViews.find((candidate) => candidate.issue.id === item.id);
+    if (view === undefined || view.navigation.kind === 'unavailable') return;
+    const { navigation } = view;
+    setActiveIssueId(item.id);
+    if (isWorkbenchCompact) {
+      // The node's own sheet takes over from this one.
+      setHandingOn(true);
+      setProblemsOpen(false);
+    }
+    setSelectedNodeId(navigation.nodeId);
+    if (navigation.kind === 'field') {
+      requestIssueFocus(navigation.anchor, navigation.range);
+    } else {
+      requestIssueFocus(ptr('nodes', navigation.nodeIndex));
+    }
+  };
+
   const onChangeNode = useCallback(
     (patch: Partial<NodeDef>) => {
       if (!automation || selectedNodeId === null) return;
@@ -410,6 +626,7 @@ function AutomationEditorScope({
           return;
         }
         pendingSaveRef.current = { resolve, reject };
+        setSaveClosesOnProblems(false);
         setSaveDialogOpen(true);
       }),
     [],
@@ -429,14 +646,23 @@ function AutomationEditorScope({
     setDraft(null);
   }, []);
 
+  // Save waits while the check stands on errors — the draft's own, or,
+  // while its check runs, the last one's. A check that failed blocks
+  // nothing: the server checks every save and refuses an invalid one.
+  const errorCount = shownErrors.length;
+  const saveBlocked =
+    errorCount > 0 && (issueStatus === 'ready' || issueStatus === 'checking');
+  const invalidReason = !saveBlocked
+    ? undefined
+    : issueStatus === 'checking'
+      ? t('problems.checkingDraft')
+      : t('problems.saveBlocked', { count: errorCount });
   const controller = useMemo<EditorController>(
     () => ({
       isDirty,
       isSaving: save.isPending,
-      // Nothing about a draft document can be judged in the browser — the
-      // store owns the naming rules and the schema — so a draft is always
-      // savable and the refusal, when there is one, comes from the server.
-      isValid: true,
+      isValid: !saveBlocked,
+      ...(invalidReason !== undefined && { invalidReason }),
       isLoading: automationQuery.isPending,
       dirtyKeys: isDirty ? DOCUMENT_DIRTY_KEYS : NO_DIRTY_KEYS,
       save: requestSave,
@@ -445,6 +671,8 @@ function AutomationEditorScope({
     [
       isDirty,
       save.isPending,
+      saveBlocked,
+      invalidReason,
       automationQuery.isPending,
       requestSave,
       discardDraft,
@@ -561,10 +789,14 @@ function AutomationEditorScope({
     lookingVersion !== undefined && lookingVersion === meta?.deployedVersion;
   const selectedNode =
     graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
+  const selectedNodeIndex = automation.nodes.findIndex(
+    (node) => node.id === selectedNodeId,
+  );
   /** Append the draft as a version built on `baseVersion` (none: append
    * whatever the latest is), then show the version that landed. */
   const submitSave = async (baseVersion: number | undefined): Promise<void> => {
     const submittedEpoch = draftEpochRef.current;
+    const submittedHash = validation.currentHash;
     const saved = await save.mutateAsync({
       organizationId,
       automation,
@@ -588,20 +820,53 @@ function AutomationEditorScope({
     });
     if (draftEpochRef.current !== submittedEpoch) return;
     setSaveDialogOpen(false);
+    // A save can change what the checks of this automation read (the
+    // versions its calls resolve to); the version's own check settles anew,
+    // and until it does the warnings the save let through stand in for it.
+    invalidateValidation();
+    const savedWarnings = savedWarningsSchema.safeParse(saved);
+    if (
+      submittedHash !== null &&
+      savedWarnings.success &&
+      savedWarnings.data.warnings.length > 0
+    ) {
+      setServerIssues({
+        hash: submittedHash,
+        errors: [],
+        warnings: withIssueIds(savedWarnings.data.warnings),
+        basis: validation.errors,
+      });
+    }
     draftBaseRef.current = saved.version;
     setDraft((current) => (current === automation ? null : current));
     setSaveMessage('');
     // The save appended a version; show it, whichever one was on screen.
     onSelectVersion(undefined);
   };
+  /** A refusal for errors, with its list, for the document on screen. */
+  const refusalIssues = (error: unknown): AutomationErrorIssues | undefined =>
+    automationErrorCode(error) === 'AUTOMATION_INVALID'
+      ? automationErrorIssues(error)
+      : undefined;
   const confirmSave = async (): Promise<void> => {
     const pending = pendingSaveRef.current;
+    const submittedHash = validation.currentHash;
     try {
       await submitSave(draftBaseRef.current);
       pendingSaveRef.current = null;
       pending?.resolve();
     } catch (error) {
       pendingSaveRef.current = null;
+      const refused = refusalIssues(error);
+      if (refused !== undefined && submittedHash !== null) {
+        // The server's check found errors: they land in Problems, which is
+        // the one report — the Save cluster stays silent.
+        setSaveClosesOnProblems(true);
+        setSaveDialogOpen(false);
+        showRefusal(refused, submittedHash, t('problems.refusedSave'));
+        pending?.reject(new EditorSaveCancelledError());
+        return;
+      }
       setSaveDialogOpen(false);
       if (automationErrorCode(error) === 'AUTOMATION_VERSION_STALE') {
         // Another version landed after the draft started. Not a failure the
@@ -625,9 +890,15 @@ function AutomationEditorScope({
     const stale = staleSave;
     setStaleSave(null);
     if (stale === null) return;
+    const submittedHash = validation.currentHash;
     try {
       await submitSave(stale.latestVersion ?? undefined);
     } catch (error) {
+      const refused = refusalIssues(error);
+      if (refused !== undefined && submittedHash !== null) {
+        showRefusal(refused, submittedHash, t('problems.refusedSave'));
+        return;
+      }
       toast({
         variant: 'destructive',
         description: automationErrorMessage(error),
@@ -672,6 +943,18 @@ function AutomationEditorScope({
               },
               {
                 onError: (error) => {
+                  // The version on screen no longer passes the check: its
+                  // problems land in Problems, and the alert points there.
+                  // With a draft on screen they would describe another
+                  // document, so the alert keeps the server's sentence.
+                  const refused =
+                    draft === null ? refusalIssues(error) : undefined;
+                  const hash = validation.currentHash;
+                  if (refused !== undefined && hash !== null) {
+                    showRefusal(refused, hash, t('versions.deployRefused'));
+                    setDeployRefusal(t('problems.refusedDeploy'));
+                    return;
+                  }
                   setDeployRefusal(automationErrorMessage(error));
                 },
               },
@@ -769,6 +1052,25 @@ function AutomationEditorScope({
         >
           {t('detail.runLive')}
         </Button>
+      )}
+      {canAuthor && (
+        // Last of the automation's own verbs, right before Save: what the
+        // check found decides whether Save can act.
+        <IssueCountButton
+          ref={problemsButtonRef}
+          counts={issueCounts}
+          status={
+            issueStatus === 'checking'
+              ? 'checking'
+              : issueStatus === 'failed'
+                ? 'failed'
+                : 'ready'
+          }
+          expanded={problemsOpen}
+          {...(problemsOpen &&
+            !isWorkbenchCompact && { controls: problemsDockId })}
+          onClick={toggleProblems}
+        />
       )}
     </>
   );
@@ -905,7 +1207,23 @@ function AutomationEditorScope({
               framed={false}
               centerActions={isMobile ? canvasToolbarActions : undefined}
               {...(runStatusByNode !== undefined && { runStatusByNode })}
+              issueCountsByNode={countsByNode}
             />
+            {/* Under the canvas, spanning its column only, so the inspector
+                beside it keeps its full height. Below `lg` the list opens
+                in a sheet instead (further down). */}
+            {canAuthor && problemsOpen && !isWorkbenchCompact && (
+              <AutomationProblemsDock
+                ref={problemsListRef}
+                id={problemsDockId}
+                items={issueItems}
+                counts={issueCounts}
+                status={issueStatus === 'idle' ? 'ready' : issueStatus}
+                activeId={activeIssueId}
+                onActivate={goToIssue}
+                onClose={closeProblems}
+              />
+            )}
           </div>
           {/* Only a picked node opens the inspector; until then the canvas
               runs to the window's edge. With a side panel to put it in
@@ -929,10 +1247,38 @@ function AutomationEditorScope({
               organizationId={organizationId}
               {...(projectId !== undefined && { projectId })}
               onDeselect={deselectNode}
+              issues={selectedNodeIssues}
+              nodeIndex={selectedNodeIndex}
             />
           )}
         </div>
       </div>
+
+      {canAuthor && isWorkbenchCompact && (
+        <AutomationProblemsSheet
+          open={problemsOpen}
+          onOpenChange={(open) => {
+            if (!open) setProblemsOpen(false);
+          }}
+          items={issueItems}
+          counts={issueCounts}
+          status={issueStatus === 'idle' ? 'ready' : issueStatus}
+          activeId={activeIssueId}
+          onActivate={goToIssue}
+          listRef={problemsListRef}
+          handingOn={handingOn}
+        />
+      )}
+      {canAuthor && (
+        <IssueAnnouncer
+          counts={issueCounts}
+          status="ready"
+          announceKey={announcement.key}
+          {...(announcement.context !== undefined && {
+            context: announcement.context,
+          })}
+        />
+      )}
 
       {/* The compact counterpart of the side panel above: a picked node's
           fields in a sheet over the canvas instead of pushed below it. Kept
@@ -978,10 +1324,14 @@ function AutomationEditorScope({
                   organizationId={organizationId}
                   {...(projectId !== undefined && { projectId })}
                   onDeselect={deselectNode}
+                  issues={selectedNodeIssues}
+                  nodeIndex={selectedNodeIndex}
                 />
                 {canAuthor && (
                   <div className="bg-background border-border sticky bottom-0 z-10 -mb-6 flex items-center justify-end gap-2 border-t pt-3 pb-6">
-                    <AutomationEditorActions />
+                    {/* No pointer hovers a sheet: why Save waits is a
+                        visible line here, not a tooltip. */}
+                    <AutomationEditorActions inlineReason />
                   </div>
                 )}
               </>
@@ -1001,6 +1351,9 @@ function AutomationEditorScope({
         }}
         title={t('detail.saveDialog.title')}
         description={t('detail.saveDialog.description')}
+        // A refusal for errors closes the dialog onto the Problems list,
+        // which takes focus itself.
+        preventCloseAutoFocus={saveClosesOnProblems}
         footer={
           <>
             <Button

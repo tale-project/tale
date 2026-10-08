@@ -36,7 +36,7 @@ import '@/app/globals.css';
  * cuts those controls off first.
  */
 
-const { automation } = vi.hoisted(() => {
+const { automation, check } = vi.hoisted(() => {
   const nodes: {
     id: string;
     type: string;
@@ -70,8 +70,39 @@ const { automation } = vi.hoisted(() => {
       ui: { positions },
       deployedVersion: 1 as number | undefined,
     },
+    /** What the draft check answers: nothing, unless a test plants a problem. */
+    check: { errors: [] as Array<Record<string, unknown> & { id: string }> },
   };
 });
+
+/** The `diff` node's code starts with a word the check refuses. */
+const CODE_PROBLEM = {
+  id: 'error|REF_UNKNOWN_NODE|/nodes/1/code|0-6',
+  level: 'error',
+  code: 'REF_UNKNOWN_NODE',
+  message: 'nodes.nope does not exist',
+  at: { pointer: '/nodes/1/code', range: [0, 6] },
+  params: { node: 'diff', field: 'code', ref: 'nope', available: ['pulls'] },
+};
+
+// The check is a server round trip; the page's handling of its answer is
+// what these tests lay out, so the hook answers from `check`.
+vi.mock('../hooks/use-automation-validation', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-automation-validation')
+  >()),
+  useAutomationValidation: ({ document }: { document: unknown }) => {
+    const hash = document === null ? null : JSON.stringify(document);
+    return {
+      status: 'ready',
+      errors: check.errors,
+      warnings: [],
+      settledFor: hash,
+      currentHash: hash,
+    };
+  },
+  useInvalidateAutomationValidation: () => () => undefined,
+}));
 
 // Browser ESM links named imports eagerly, so every mocked module keeps its
 // real exports and overrides only the hooks this page reads.
@@ -160,7 +191,10 @@ vi.mock(
   }),
 );
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  check.errors = [];
+});
 
 const ZOOM_CONTROLS = ['Zoom in', 'Zoom out', 'Reset view'];
 
@@ -641,5 +675,73 @@ describe('automation editor workbench in Chromium', () => {
       automation.nodes = nodes;
       automation.ui.positions = positions;
     }
+  });
+
+  it('opens Problems under the canvas column on a desktop and goes to the offending text', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(1280, 800);
+    renderEditorTab();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Problems: 1 error' }),
+    );
+    const dock = await screen.findByRole('region', { name: 'Problems' });
+    // The dock takes part of the canvas column, never the whole canvas: the
+    // zoom cluster above it stays drawn.
+    await expectWholeCanvas();
+    const canvas = screen.getByRole('group', { name: 'Automation canvas' });
+    expect(dock.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+      canvas.getBoundingClientRect().bottom - 1,
+    );
+    const row = within(dock).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    await userEvent.keyboard('{Enter}');
+
+    const code = await screen.findByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code',
+    });
+    await vi.waitFor(() => expect(code).toHaveFocus());
+    expect([code.selectionStart, code.selectionEnd]).toEqual([0, 6]);
+    // The inspector opened beside the canvas, and the dock stays open.
+    expect(screen.getByRole('region', { name: 'Problems' })).toBeVisible();
+    const box = screen.getByRole('button', { name: /^diff/i });
+    expect(box).toHaveAccessibleName(/\(1 error\)$/);
+  });
+
+  it('lists Problems in a sheet on a tablet and hands the reader to the node sheet', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(900, 800);
+    renderEditorTab();
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Problems: 1 error' }),
+    );
+    const sheet = await screen.findByRole('dialog', { name: 'Problems' });
+    const row = within(sheet).getByRole('button', { name: /Error:/ });
+    await vi.waitFor(() => expect(row).toHaveFocus());
+    await userEvent.keyboard('{Enter}');
+
+    const nodeSheet = await screen.findByRole('dialog', { name: 'diff' });
+    const code = within(nodeSheet).getByRole<HTMLTextAreaElement>('textbox', {
+      name: 'Code',
+    });
+    await vi.waitFor(() => expect(code).toHaveFocus());
+    expect([code.selectionStart, code.selectionEnd]).toEqual([0, 6]);
+    expect(screen.queryByRole('dialog', { name: 'Problems' })).toBeNull();
+  });
+
+  it('says why Save waits in a visible line on a phone', async () => {
+    check.errors = [CODE_PROBLEM];
+    await page.viewport(390, 844);
+    renderEditorTab();
+    await selectNode('diff');
+    const sheet = await screen.findByRole('dialog');
+    await userEvent.type(
+      within(sheet).getByRole('textbox', { name: 'Code' }),
+      ' ',
+    );
+    const reason = within(sheet).getByText('Fix 1 error to save');
+    expect(reason).toBeVisible();
+    const save = within(sheet).getByRole('button', { name: 'Save' });
+    expect(save).toBeDisabled();
+    expect(save).toHaveAccessibleDescription('Fix 1 error to save');
   });
 });

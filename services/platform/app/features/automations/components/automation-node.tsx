@@ -2,6 +2,12 @@
 
 import { Badge } from '@tale/ui/badge';
 import { cn } from '@tale/ui/cn';
+import {
+  FlowNodeIssueMarker,
+  flowNodeIssueFrameClass,
+  flowNodeIssueText,
+} from '@tale/ui/flow/node-issue-marker';
+import type { IssueCounts } from '@tale/ui/issue-summary';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { AlertTriangle } from 'lucide-react';
 import { createContext, useContext, useMemo } from 'react';
@@ -34,6 +40,8 @@ export interface CanvasNodeContextValue {
   runStatusByNode: ReadonlyMap<string, NodeRunStatus>;
   /** The derived incoming edges, by target node. */
   incomingByNode: ReadonlyMap<string, DerivedEdge[]>;
+  /** What the editor's check found on each node, when it checks one. */
+  issueCountsByNode: ReadonlyMap<string, IssueCounts>;
 }
 
 const CanvasNodeContext = createContext<CanvasNodeContextValue | null>(null);
@@ -47,6 +55,8 @@ function useCanvasNode(): CanvasNodeContextValue {
   }
   return value;
 }
+
+const NO_ISSUES: IssueCounts = { errors: 0, warnings: 0 };
 
 /** The node payload React Flow carries for one document node. */
 export interface AutomationNodeData extends Record<string, unknown> {
@@ -72,6 +82,8 @@ export interface AutomationNodeBoxProps {
   /** Node ids this node reads from, derived from its references. */
   sources: readonly string[];
   runStatus?: NodeRunStatus | undefined;
+  /** The problems the editor's check found on this node. */
+  issueCounts?: IssueCounts | undefined;
   onSelect: () => void;
   onFocus?: () => void;
 }
@@ -86,8 +98,10 @@ export interface AutomationNodeBoxProps {
  *
  * What the box shows is what the engine will do: the node's id and type, its
  * declarative control flow as badges, the nodes it reads from (spelled out in
- * words, so the graph is readable without seeing the lines at all), and its
- * status under the run being overlaid.
+ * words, so the graph is readable without seeing the lines at all), its
+ * status under the run being overlaid, and the problems the editor's check
+ * found on it — counted on its face, coloured into its frame, and said in
+ * words at the end of its name.
  */
 export function AutomationNodeBox({
   node,
@@ -95,10 +109,13 @@ export function AutomationNodeBox({
   inspectorId,
   sources,
   runStatus,
+  issueCounts,
   onSelect,
   onFocus,
 }: AutomationNodeBoxProps) {
   const { t } = useT('automations');
+  const counts = issueCounts ?? NO_ISSUES;
+  const issueText = flowNodeIssueText(t, counts);
   const badges = useMemo(() => controlFlowBadges(node), [node]);
 
   const badgeLabel = (kind: string, value: string, maxRepeats?: number) =>
@@ -128,6 +145,9 @@ export function AutomationNodeBox({
         // A skipped node stays on the path the run drew — a condition turned
         // here — but it is not part of what happened, so it steps back.
         runStatus === 'skipped' && 'opacity-60',
+        // The frame takes the worst problem's colour; the selection ring
+        // stays its own, so a picked node with a problem shows both.
+        flowNodeIssueFrameClass(counts),
         selected && 'ring-ring ring-2',
       )}
     >
@@ -136,6 +156,10 @@ export function AutomationNodeBox({
           {humanizeNodeId(node.id)}
         </span>
         <span className="flex shrink-0 items-center gap-1">
+          <FlowNodeIssueMarker
+            errors={counts.errors}
+            warnings={counts.warnings}
+          />
           {agentHasUnpinnedModel(node) && (
             <>
               <AlertTriangle
@@ -168,6 +192,7 @@ export function AutomationNodeBox({
           ))}
         </span>
       )}
+      {issueText !== '' && <span className="sr-only"> {issueText}</span>}
     </button>
   );
 }
@@ -185,6 +210,7 @@ export function AutomationNode({ data }: NodeProps) {
     onFocusNode,
     runStatusByNode,
     incomingByNode,
+    issueCountsByNode,
   } = useCanvasNode();
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the canvas builds every node's data itself
   const { node } = data as AutomationNodeData;
@@ -207,6 +233,7 @@ export function AutomationNode({ data }: NodeProps) {
         inspectorId={inspectorId}
         sources={sources}
         runStatus={runStatusByNode.get(node.id)}
+        issueCounts={issueCountsByNode.get(node.id)}
         onSelect={() => {
           onSelect(selectedNodeId === node.id ? null : node.id);
         }}

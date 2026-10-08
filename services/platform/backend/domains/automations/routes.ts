@@ -94,6 +94,17 @@ const saveSchema = z.object({
 
 const deploySchema = z.object({ version: z.number().int().min(1) });
 
+// A draft checked without saving it: the document as the editor holds it, and
+// which parts of the analysis to answer beside the issues (the analysis by
+// default; the inferred types only when asked, since they are the bulky part).
+const validateSchema = z.object({
+  document: z.unknown(),
+  detail: z
+    .array(z.enum(['analysis', 'types']))
+    .max(2)
+    .optional(),
+});
+
 // One strict shape per kind, the REST door's twin: the editor sends only
 // the kind's own fields, and a key of another kind (or an unknown one) is
 // refused instead of stored — the store guards the same rule for callers
@@ -204,7 +215,18 @@ function handleError<E extends OrgEnv>(
   throw error;
 }
 
-/** The app and MCP authoring doors share the engine's validation/test gate. */
+/** The parts of a refusal the editor reads as structure, not as a sentence. */
+const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
+
+/**
+ * The app and MCP authoring doors share the engine's validation/test gate.
+ *
+ * A refusal keeps its fields at the top level, where other readers of this
+ * door find them, and nests the structured part again under `data`: the
+ * app's fetch layer carries only `data` beside the code and the sentence, so
+ * a refused save or deploy reaches the editor with every issue and where it
+ * is, not as one flattened message.
+ */
 function authoringRefusal(
   c: Context<OrgEnv>,
   result: unknown,
@@ -220,7 +242,19 @@ function authoringRefusal(
           code === 'AUTOMATION_DEPLOY_REJECTED'
         ? 409
         : 400;
-  return c.json({ ...result, error: code, message: result.error }, status);
+  const data: Record<string, unknown> = {};
+  for (const key of REFUSAL_DETAIL_KEYS) {
+    if (result[key] !== undefined) data[key] = result[key];
+  }
+  return c.json(
+    {
+      ...result,
+      error: code,
+      message: result.error,
+      ...(Object.keys(data).length > 0 && { data }),
+    },
+    status,
+  );
 }
 
 /** Agent nodes whose `model` is set but `modelProvider` is not — the
@@ -694,6 +728,41 @@ export function createAutomationRoutes(deps: {
       );
       if (storeError !== undefined) throw storeError;
       return authoringRefusal(c, result) ?? c.json(result, 201);
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Check a draft without saving it — the editor's Problems panel. A suffix
+  // route like every per-automation verb, never a fixed first segment, so it
+  // takes no name away from authors. Read-only: it writes and audits nothing,
+  // but it reads the organization's other automations and triggers to check
+  // the calls between them, so it takes the authoring roles like a save.
+  app.post('/:name{.+}/validate', async (c) => {
+    const denied = requireAuthor(c);
+    if (denied) return denied;
+    const body = validateSchema.safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (body.data.document === undefined) {
+      return invalidBodyIssuesResponse(c, [
+        { path: 'document', message: 'is required' },
+      ]);
+    }
+    try {
+      assembleAutomationAuthoringHost();
+      const store = pgAutomationStore(deps.sql, {
+        organizationId: c.get('orgId'),
+        actor: c.get('sessionBundle').user.id,
+      });
+      const result = await dispatch(
+        'validate_automation',
+        {
+          automation: body.data.document,
+          detail: body.data.detail ?? ['analysis'],
+        },
+        { store },
+      );
+      return authoringRefusal(c, result) ?? c.json(result);
     } catch (error) {
       return handleError(c, error);
     }

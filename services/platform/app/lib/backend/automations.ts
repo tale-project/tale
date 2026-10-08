@@ -68,7 +68,7 @@ function stringArg(args: Record<string, unknown>, key: string): string {
 }
 
 /** Automation names are '/'-separated paths — encode per segment. */
-function namePath(name: string): string {
+export function namePath(name: string): string {
   return name.split('/').map(encodeURIComponent).join('/');
 }
 
