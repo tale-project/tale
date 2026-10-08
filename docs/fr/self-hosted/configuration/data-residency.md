@@ -3,7 +3,7 @@ title: Choisir et déplacer les stockages
 description: Distingue les stockages par défaut de ceux d’une organisation, configure les connexions et prépare la migration des données existantes.
 ---
 
-Choisis le stockage de trois catégories : enregistrements applicatifs, connaissances recherchables et fichiers d’origine. Déplacer l’une ne déplace pas les autres. Le stockage ne détermine pas non plus où un fournisseur de modèles ou un connecteur traite une requête ; inclus ces destinations dans ton évaluation de résidence.
+Choisis le stockage de trois catégories : enregistrements applicatifs, connaissances recherchables et fichiers d’origine. Déplacer l’une ne déplace pas les autres. Le stockage ne détermine pas non plus où un fournisseur de modèles ou un connector traite une requête ; inclus ces destinations dans ton évaluation de résidence.
 
 ## Choisir la portée du changement
 

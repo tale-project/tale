@@ -4,6 +4,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
 import { Field } from './field';
+import { FIELD_INVALID } from './field-focus';
 import { Input } from './input';
 
 describe('Field', () => {
@@ -26,6 +27,113 @@ describe('Field', () => {
     );
     expect(getByRole('textbox')).toHaveAttribute('aria-invalid', 'true');
     expect(getByRole('alert')).toHaveTextContent('Required');
+  });
+
+  it("draws the design's Error state on the control: the destructive border", () => {
+    const { getByRole, rerender } = render(
+      <Field label="Email" htmlFor="email" error="Required">
+        <Input id="email" className="font-mono" />
+      </Field>,
+    );
+    // The control's own classes stay; the invalid border joins them.
+    expect(getByRole('textbox')).toHaveClass(
+      'font-mono',
+      ...FIELD_INVALID.split(' '),
+    );
+    rerender(
+      <Field label="Email" htmlFor="email">
+        <Input id="email" className="font-mono" />
+      </Field>,
+    );
+    expect(getByRole('textbox')).toHaveClass('font-mono');
+    expect(getByRole('textbox')).not.toHaveClass('border-destructive');
+  });
+
+  describe('issues', () => {
+    const ISSUES = [
+      {
+        id: 'unknown-node',
+        severity: 'error' as const,
+        message: 'There is no node called "nope".',
+      },
+      {
+        id: 'maybe-empty',
+        severity: 'warning' as const,
+        message: 'This can be empty when the triage is skipped.',
+      },
+    ];
+
+    it('describes the control with every line, and leaves the description in place', () => {
+      const { getByRole } = render(
+        <Field
+          label="Prompt"
+          htmlFor="prompt"
+          description="What the agent is asked."
+          issues={ISSUES}
+        >
+          <Input id="prompt" />
+        </Field>,
+      );
+      const input = getByRole('textbox');
+      expect(input).toHaveAccessibleDescription(
+        'Error: There is no node called "nope". Warning: This can be empty when the triage is skipped. What the agent is asked.',
+      );
+      expect(getByRole('list')).toHaveTextContent(
+        'There is no node called "nope".',
+      );
+    });
+
+    it('marks the control invalid only when an error is among them', () => {
+      const { getByRole, rerender } = render(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(getByRole('textbox')).toHaveAttribute('aria-invalid', 'true');
+      expect(getByRole('textbox')).toHaveClass('border-destructive');
+      rerender(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES.slice(1)}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(getByRole('textbox')).not.toHaveAttribute('aria-invalid');
+      expect(getByRole('textbox')).not.toHaveClass('border-destructive');
+    });
+
+    it('never raises an alert for them', () => {
+      const { queryByRole } = render(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(queryByRole('alert')).toBeNull();
+    });
+
+    it('keeps the error and the issues apart, the error first', () => {
+      const { getByRole } = render(
+        <Field
+          label="Prompt"
+          htmlFor="prompt"
+          error="Required"
+          issues={ISSUES.slice(1)}
+        >
+          <Input id="prompt" />
+        </Field>,
+      );
+      expect(getByRole('textbox')).toHaveAccessibleDescription(
+        'Required Warning: This can be empty when the triage is skipped.',
+      );
+      expect(getByRole('alert')).toHaveTextContent('Required');
+    });
+
+    it('passes axe audit with issues', async () => {
+      const { container } = render(
+        <Field label="Prompt" htmlFor="prompt" issues={ISSUES}>
+          <Input id="prompt" />
+        </Field>,
+      );
+      await checkAccessibility(container);
+    });
   });
 
   describe('accessibility', () => {

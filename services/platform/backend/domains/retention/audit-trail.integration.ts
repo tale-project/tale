@@ -1,12 +1,3 @@
-/**
- * Real Postgres proof of the cleanup's audit trail, on a seeded sweep in an
- * organization of its own: a held run records its start and end and
- * destroys nothing; a released run writes exactly one system row per
- * category with that category's counts — never one per record — between
- * its start and end rows; the chain still verifies afterwards and anchors
- * on the hash the audit-prefix row recorded; and a destruction row the
- * chain refuses takes its deletes down with it and fails the run.
- */
 import { randomUUID } from 'node:crypto';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,6 +9,16 @@ import { getConfigRoot } from '../../core/lib/file_io.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { verifyAuditChain } from '../audit_logs/verify.ts';
+/**
+ * Real Postgres proof of the cleanup's audit trail, on a seeded sweep in an
+ * organization of its own: a held run records its start and end and
+ * destroys nothing; a released run writes exactly one system row per
+ * category with that category's counts — never one per record — between
+ * its start and end rows; the chain still verifies afterwards and anchors
+ * on the hash the audit-prefix row recorded; and a destruction row the
+ * chain refuses takes its deletes down with it and fails the run.
+ */
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { applyRetentionBounds, runRetentionCleanup } from './service.ts';
 
 interface TrailRow {
@@ -513,7 +514,9 @@ async function seedSweep(
       ${ancient}, ${ancient}, ${ancient}
     )
   `;
-  await sql`
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`
     INSERT INTO app.automation_runs (
       org_id, name, version, status, mode, started_by, started_at_ms,
       finished_at_ms
@@ -525,6 +528,7 @@ async function seedSweep(
       (${orgId}, 'rta-running', 1, 'running', 'live', 'trigger:itest',
        ${ancient}, NULL)
   `;
+  });
   await sql`
     INSERT INTO app.sandbox_tool_calls (
       org_id, session_id, tool, user_id, outcome, created_at_ms

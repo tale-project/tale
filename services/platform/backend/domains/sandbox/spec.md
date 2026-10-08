@@ -227,9 +227,9 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
   this workspace. Nothing here states or tests it.
 - **Waiting for room**: what a task run, an automation step and a crawl do after `SBX-R8` and
   `SBX-R9` belongs to the tasks, automations and websites domains. Not covered here: a
-  deployment that is full or short of memory, the place in line a waiting start gets, giving a
-  slot back when a turn ends, and waking the waiting runs (`sessions.ts`, `idle-release.ts`,
-  `core/node_only/sandbox/capacity_refusal.ts`).
+  deployment that is full or short of memory, a workspace whose runtime already runs four execs,
+  the place in line a waiting start gets, giving a slot back when a turn ends, and waking the
+  waiting runs (`sessions.ts`, `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
 - **Health checks and repair**: ending a session after its lifetime while sparing a turn that
   is still working, closing a workspace whose sandbox disappeared, collecting failed starts,
   reclaiming the sandboxes of ended runs and crawls, and picking a turn up again after a

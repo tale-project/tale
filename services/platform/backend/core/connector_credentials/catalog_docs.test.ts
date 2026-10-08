@@ -57,7 +57,7 @@ const LOCALES = {
   fr: {
     messages: catalogSchema.parse(frMessages),
     instanceAddress:
-      'Certains connecteurs demandent aussi l’adresse de l’instance.',
+      'Certains connectors demandent aussi l’adresse de l’instance.',
   },
 } as const;
 

@@ -46,7 +46,7 @@ dataSubjectRequests:
       label: Unrechtmässige Verarbeitung
 dsarPolicy:
   ownerOnlyNotice:
-    Nur der Owner kann diese Richtlinie ändern. Admins können sie
+    Nur der Inhaber kann diese Richtlinie ändern. Admins können sie
     lesen. Jede Lockerung der Schutzmassnahmen (kürzere Karenzzeit,
     Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24
     Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann.

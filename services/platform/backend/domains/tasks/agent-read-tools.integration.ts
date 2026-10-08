@@ -1,3 +1,8 @@
+import { createHash, randomUUID } from 'node:crypto';
+
+import type { Sql } from 'postgres';
+
+import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 /** Real Postgres proof of the read tools a manager agent reconciles a whole
  * project with (#3955), driven over the real workspace-tool door
  * (`POST /api/tools/execute`) with native session tokens for project agents'
@@ -18,11 +23,7 @@
  *
  * Nothing here launches a sandbox: the runs are rows, and no read starts a
  * run. */
-import { createHash, randomUUID } from 'node:crypto';
-
-import type { Sql } from 'postgres';
-
-import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
 import { addTaskComment } from './comments.ts';
 
@@ -891,7 +892,9 @@ export async function checkAgentTaskReadTools(
       projectId: string,
       detail: string,
     ): Promise<string> => {
-      const rows = await sql<{ id: string }[]>`
+      const rows = await sql.begin(async (fixtureTx) => {
+        await markAutomationWriterInTx(fixtureTx);
+        return fixtureTx<{ id: string }[]>`
         INSERT INTO app.automation_runs (org_id, project_id, name, version,
           status, mode, started_by, input, detail, started_at_ms)
         VALUES (${orgId}, ${projectId}, ${`itest/read-${suffix}`}, 1,
@@ -899,6 +902,7 @@ export async function checkAgentTaskReadTools(
           ${detail}, ${Date.now()})
         RETURNING id
       `;
+      });
       return rows[0]?.id ?? '';
     };
     const askRun = await workflowRun(askTask, projectA, 'agent:triage');
@@ -1415,8 +1419,11 @@ export async function checkAgentTaskReadTools(
               )})`;
     await sql`DELETE FROM app.sandbox_sessions
               WHERE session_id = ANY(${[...sessionIds]})`;
-    await sql`DELETE FROM app.automation_runs
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`DELETE FROM app.automation_runs
               WHERE org_id = ${orgId} AND name = ${`itest/read-${suffix}`}`;
+    });
     await sql`DELETE FROM app.approvals
               WHERE org_id = ${orgId} AND metadata ->> 'projectId' = ${projectA}`;
     await sql`DELETE FROM app.projects WHERE id = ANY(${[projectA, projectB]})`;

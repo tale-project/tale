@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { sessionOpLastSignOfLifeMs } from '../../core/sandbox/agent_deadline.ts';
 import type { SandboxAgentOpKind } from '../../core/sandbox/session_constants.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 
 /**
  * The agent-turn recovery primitives shared by the task and automation
@@ -65,8 +66,9 @@ export async function visitRecoveryCandidates<T>(
  * silent while its chain is alive; re-attaching it would start a second
  * chain beside the first, and a third on a later sweep. A running job that
  * started before the window, with the op silent since, belongs to a worker
- * that died with it: drive jobs carry no heartbeat and expire only after
- * twelve hours, so the re-attach must not wait for it.
+ * that died with it: the re-attach does not wait for it. A drive job's
+ * 60-second heartbeat (`jobs/tasks.ts`) has pg-boss fail such a job soon
+ * after its worker dies; its twelve-hour expiry would be far too late.
  */
 export async function driveJobPending(
   sql: Sql,
@@ -79,7 +81,7 @@ export async function driveJobPending(
   const rows = await sql<{ pending: boolean }[]>`
     SELECT EXISTS (
       SELECT 1 FROM pgboss.job
-      WHERE name = ${args.queue} AND data ->> 'execId' = ${args.execId}
+      WHERE name = ${physicalTaskQueue(args.queue)} AND data ->> 'execId' = ${args.execId}
         AND (state IN ('created', 'retry')
           OR (state = 'active'
             AND started_on >= to_timestamp(${args.staleBeforeMs / 1000})))

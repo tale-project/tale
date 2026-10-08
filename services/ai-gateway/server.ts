@@ -51,6 +51,7 @@ startReactServer({
   port: Number(process.env.PORT ?? 3004),
   distDir: resolve(import.meta.dir, 'dist'),
   logPrefix: 'ai-gateway',
+  servingService: 'ai-gateway',
   localeRouting: 'none',
   shutdownMarkerPath: process.env.SHUTDOWN_MARKER_PATH,
   securityHeaders: defaultReactServerSecurityHeaders,

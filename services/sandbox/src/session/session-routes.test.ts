@@ -321,6 +321,31 @@ beforeAll(() => {
             { headers: { 'content-type': 'application/x-ndjson' } },
           );
         }
+        if (text.includes('__exec_limit__')) {
+          // runnerd's own refusal at its live-exec cap (daemon main.ts).
+          return new Response(
+            ndjson([
+              {
+                t: 'fail',
+                code: 'EXEC_LIMIT',
+                message: 'live exec cap 4 reached',
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (text.includes('__duplicate__')) {
+          return new Response(
+            ndjson([
+              {
+                t: 'fail',
+                code: 'DUPLICATE_EXEC',
+                message: 'exec id is live',
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         return new Response(
           ndjson([
             { t: 'start', execId: 'e1', startedAtMs: 1 },
@@ -1275,6 +1300,48 @@ describe('SessionRoutes (fake runnerd)', () => {
     // 0 is the "not measured" sentinel (wire.ts contract) — the process never
     // spawned, so no runner wall-clock exists to forward.
     expect(payload.durationMs).toBe(0);
+  });
+
+  test('a session whose every live-exec place is taken refuses the exec as EXEC_LIMIT, not a runtime error', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_full', organizationId: 'org_f' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_full/exec', { method: 'POST' }),
+      'sess_full',
+      JSON.stringify({ execId: 'e5', command: ['echo', '__exec_limit__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    // The platform waits for a place instead of failing the work, so the
+    // refusal keeps runnerd's own code: the process never ran.
+    expect(payload).toMatchObject({
+      status: 'failed',
+      exitCode: null,
+      durationMs: 0,
+      errorCode: 'EXEC_LIMIT',
+      errorMessage: 'live exec cap 4 reached',
+    });
+  });
+
+  test('any other pre-spawn refusal still reads as a runtime error', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_dup', organizationId: 'org_f' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_dup/exec', { method: 'POST' }),
+      'sess_dup',
+      JSON.stringify({ execId: 'e1', command: ['echo', '__duplicate__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(payload).toMatchObject({
+      status: 'failed',
+      errorCode: 'RUNTIME_ERROR',
+      errorMessage: 'exec id is live',
+    });
   });
 
   test.each(['exec', 'attach'] as const)(

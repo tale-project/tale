@@ -32,11 +32,6 @@ import {
 import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { useCanUseAutomations } from '@/app/features/automations/hooks/use-can-use-automations';
 import { HomePanelToggle } from '@/app/features/home/components/home-panel-toggle';
-import {
-  clearProjectMemory,
-  isProjectAutomationsPath,
-  persistProjectMemory,
-} from '@/app/features/home/lib/project-memory';
 import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
 import {
   isProjectTasksPath,
@@ -95,9 +90,10 @@ function ProjectDetailLayout() {
   const navigate = useNavigate();
 
   // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
-  // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
-  // tab strip), not inside the project shell — so those child routes render
-  // bare, exactly like the agents layout skips its header on detail pages.
+  // (`AutomationDetailShell` — "<project> / Automations / <name>" breadcrumb
+  // + its own tab strip), not inside the project shell — so those child
+  // routes render bare, exactly like the agents layout skips its header on
+  // detail pages. The rail lights Automations there (`isProjectAutomationPage`).
   // The project-nav Automations tab opens the bound-automations LIST; detail
   // keeps this bare-outlet match so only the list stays under project chrome.
   const isAutomationDetail = useMatch({
@@ -114,52 +110,7 @@ function ProjectDetailLayout() {
   const contentRef = useRef<HTMLDivElement>(null);
   const focusContent = useCallback(() => contentRef.current?.focus(), []);
 
-  // Remember this project's detail page, so the Home rail tile can reopen it
-  // instead of always resuming the last chat thread (see
-  // `use-navigation-items.ts`). Guarded on the pathname still being under
-  // this project's own root: a route change updates `location.pathname` (and
-  // re-runs this effect) on the render just before this component unmounts,
-  // so an unguarded write would persist wherever the user navigated TO,
-  // under THIS project's key. An automation page this viewer may not open
-  // is never remembered: Home would keep reopening the denial.
-  const projectRoot = `/dashboard/${organizationId}/projects/${projectId}`;
   const canUseAutomations = useCanUseAutomations();
-  useEffect(() => {
-    if (isMissing) return;
-    if (
-      location.pathname !== projectRoot &&
-      !location.pathname.startsWith(`${projectRoot}/`)
-    ) {
-      return;
-    }
-    if (!canUseAutomations && isProjectAutomationsPath(location.pathname)) {
-      return;
-    }
-    persistProjectMemory(organizationId, location.pathname);
-  }, [
-    isMissing,
-    organizationId,
-    location.pathname,
-    projectRoot,
-    canUseAutomations,
-  ]);
-
-  // A remembered project can be deleted, or left behind by a membership
-  // change, between one visit and the next. When the rail RESTORED us here,
-  // drop the stale memory and fall back to the list: the user asked for
-  // Home, so give them Home's own place rather than a dead end they never
-  // chose. A link someone shared keeps the explanatory not-found message
-  // below instead of bouncing away.
-  const wasRestored = location.state.navRestore === true;
-  useEffect(() => {
-    if (!isMissing || !wasRestored) return;
-    clearProjectMemory(organizationId);
-    void navigate({
-      to: '/dashboard/$id/projects',
-      params: { id: organizationId },
-      replace: true,
-    });
-  }, [isMissing, wasRestored, organizationId, navigate]);
 
   // The Automations tab is conditional: a project with nothing bound gets no
   // tab rather than one that opens an empty list. `listAutomations` scoped to

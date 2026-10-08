@@ -57,8 +57,10 @@ interface HandlerNames {
       retargetAgentCursor: FunctionRef;
     };
     mutations: FunctionRef & {
+      beginNodeAttempt: FunctionRef;
       claimRun: FunctionRef;
       continueRun: FunctionRef;
+      finishNodeAttempt: FunctionRef;
       finishRun: FunctionRef;
       heartbeatRun: FunctionRef;
       openLlmStepCall: FunctionRef;

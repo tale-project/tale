@@ -7,6 +7,7 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 import { History } from 'lucide-react';
 
+import type { RunWaitingFor } from '@/app/lib/backend/contract/automations';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 
@@ -23,7 +24,9 @@ export interface AutomationRunSummary {
   mode: string;
   startedBy: string;
   startedVia?: 'schedule' | 'webhook' | 'event';
-  waitingFor?: 'approval' | 'ask' | 'agent' | 'room' | 'repeat';
+  waitingFor?: RunWaitingFor;
+  /** A running run waiting for a server to take it over. */
+  stalled?: boolean;
   detail?: string;
   startedAt: number;
   finishedAt?: number;
@@ -106,7 +109,10 @@ export function RunList({
                 })}
             className="hover:bg-muted/50 focus-visible:bg-muted/50 flex flex-wrap items-center gap-2 px-3 py-2.5 focus-visible:outline-none"
           >
-            <RunBadge status={readRunStatus(run.status)} />
+            <RunBadge
+              status={readRunStatus(run.status)}
+              stalled={run.stalled === true}
+            />
             <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
               {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
             </Badge>

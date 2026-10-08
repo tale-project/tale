@@ -300,6 +300,28 @@ export interface StoreAdapter {
     modelId: string,
     nodeType: 'llm' | 'agent',
   ): Promise<boolean | undefined>;
+  /**
+   * The kinds of the ENABLED triggers that start runs of an automation —
+   * for the validator's `TRIGGER_INPUT_MISMATCH` warning, which checks the
+   * input such a trigger starts a run with against the `inputs` schema. A
+   * host without triggers leaves it out.
+   */
+  triggerKinds?(name: string): Promise<ReadonlyArray<TriggerKind>>;
+}
+
+/** The ways a host starts a run on its own. */
+export type TriggerKind = 'schedule' | 'webhook' | 'event';
+
+/**
+ * The input a schedule trigger starts a run with — the one shape the host
+ * fires and the validator checks, so the two cannot drift. Webhook and
+ * event runs carry the delivery's payload, which a document cannot predict.
+ */
+export function scheduleTriggerInput(firedAt: number): {
+  trigger: 'schedule';
+  firedAt: number;
+} {
+  return { trigger: 'schedule', firedAt };
 }
 
 // ---------------------------------------------------------------------- llm

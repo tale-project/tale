@@ -1,7 +1,11 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import { parseCron } from '../../../lib/automations/cron.ts';
-import type { RunSummary } from '../../../lib/engine/api/dispatch.ts';
+import type {
+  LegacyRunQuarantine,
+  RunSummary,
+} from '../../../lib/engine/api/dispatch.ts';
+import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   AUTOMATION_NAME_RE,
@@ -20,11 +24,20 @@ import {
   boundCheckpointTrace,
   truncateRunDetail,
 } from '../../core/automations/bound_run_payload.ts';
-import type { NodeCheckpoint } from '../../core/automations/checkpoints.ts';
+import {
+  mergeParkedAgentCursor,
+  type NodeCheckpoint,
+  parkedAgentSettled,
+  parksAgentTurn,
+} from '../../core/automations/checkpoints.ts';
 import { wallClockIn } from '../../core/automations/cron.ts';
 import {
+  ENGINE_DEFER_MS,
+  ENGINE_DEFER_WINDOW_MS,
+  IN_DOUBT_POLL_MS,
   LIVENESS_SWEEP_LIMIT,
   RUN_CLAIM_PROMISE_MS,
+  RUN_LEASE_MS,
 } from '../../core/automations/liveness.ts';
 import {
   runIdempotencyRequestHash,
@@ -35,8 +48,9 @@ import {
   hashWebhookToken,
   mintWebhookToken,
 } from '../../core/automations/webhook_token.ts';
-import { toJson } from '../../db/sql.ts';
+import { jsonParam, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { engineVersion, instanceId } from '../../lib/instance.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog, lockAuditChain } from '../audit_logs/service.ts';
 import {
@@ -46,19 +60,27 @@ import {
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import {
+  describeLegacyQuarantine,
+  legacyRunStopSchema,
+} from './legacy-quarantine.ts';
+import {
   managedConfigurationHash,
   managedDefinitionValue,
   managedScheduleValue,
 } from './managed-configuration-value';
+import { type RunEventKind, recordRunEventInTx } from './run-events.ts';
 import { recordTriggerRunOutcome } from './trigger-failures.ts';
+import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 /**
  * The automation store over PG — versions (immutable, contiguous),
  * bindings, deployments, triggers, tombstones, and the durable RUN
- * substrate the reused 0.4 stepper drives: claim with an epoch fence,
- * heartbeat/progress renewing the wakeAt liveness promise, suspend with a
- * chainSeq-fenced poll chain, continue hand-offs, and a single terminal
- * door. Scheduling maps 1:1 from the 0.4 scheduler onto pg-boss
+ * substrate the reused 0.4 stepper drives: a claim that takes a lease (one
+ * walker per run) and bumps the epoch fence, heartbeat/progress renewing the
+ * lease and the wakeAt liveness promise, suspend with a chainSeq-fenced poll
+ * chain, continue hand-offs, and a single terminal door — every run-state
+ * write ONE statement fenced by the walker's epoch and a live status.
+ * Scheduling maps 1:1 from the 0.4 scheduler onto pg-boss
  * (`automation.step` / `automation.poll` jobs with `startAfter`), enqueued
  * IN the same transaction as the state write (the constitution's
  * transactional-enqueue rule) so a scheduled resume can never outrun or
@@ -1547,6 +1569,7 @@ export interface RunRow {
    * other status, and for a failure recorded before the code existed. */
   failureCode: string | null;
   claimEpoch: number;
+  legacyQuarantine?: unknown;
   chainSeq: number;
   startedAt: number;
   finishedAt: number | null;
@@ -1554,19 +1577,62 @@ export interface RunRow {
    * `agent:<node>` park that is an ask apart from one that is an agent turn
    * still running (`waitingFor`). Read with the row, never answered raw. */
   askPending: boolean;
+  /** How often another server took the run over after its own stopped
+   * responding, or a stopping server handed it on. */
+  resumeCount: number;
+  /** Why the run was last handed on; null while it never was. Answered as
+   * `lastResume`, never raw. */
+  lastResumeReason: 'shutdown' | 'lease_expired' | null;
+  /** When the run was last handed on; null while it never was. */
+  lastResumedAt: number | null;
+  /** A running run nobody is stepping right now: its server stopped
+   * responding, or a stopping server handed it on and no other has taken
+   * it yet. */
+  stalled: boolean;
 }
+
+/** Why and when a run was last handed to another server. */
+export interface RunLastResume {
+  reason: 'shutdown' | 'lease_expired';
+  at: number;
+}
+
+/**
+ * A running run nobody is stepping right now, read off its lease: the lease
+ * lapsed (its server stopped responding), or a stopping server released it
+ * and stamped the hand-off after the claim it held, and no server has
+ * claimed it since. Two things are NOT stalled: a budget hand-off, which
+ * releases the lease without a stamp, so a busy queue never reads
+ * "Interrupted"; and a row an image without leases claimed last
+ * (`lease_epoch` <> `claim_epoch`). The hand-off stamp must be strictly
+ * after the claim: a takeover stamps both with the same instant, and a later
+ * budget hand-off of that claim is not an interruption.
+ */
+const RUN_STALLED_SQL = `coalesce(
+    status = 'running' AND lease_epoch = claim_epoch AND (
+      (lease_expires_at_ms IS NOT NULL
+       AND lease_expires_at_ms < (extract(epoch FROM now()) * 1000)::bigint)
+      OR (lease_expires_at_ms IS NULL AND last_resumed_at_ms IS NOT NULL
+          AND last_resumed_at_ms > coalesce(claimed_at_ms, 0))
+    ),
+    false
+  )`;
 
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", name, version, project_id AS "projectId",
   status, mode, started_by AS "startedBy", input, output, checkpoints, trace,
   effects, detail, failure_code AS "failureCode",
-  claim_epoch AS "claimEpoch", chain_seq AS "chainSeq",
+  claim_epoch AS "claimEpoch", legacy_quarantine AS "legacyQuarantine", chain_seq AS "chainSeq",
   started_at_ms::float8 AS "startedAt", finished_at_ms::float8 AS "finishedAt",
   EXISTS (
     SELECT 1 FROM app.automation_human_asks a
     WHERE a.run_id = app.automation_runs.id AND a.status = 'pending'
       AND a.expires_at_ms > (extract(epoch FROM now()) * 1000)::bigint
-  ) AS "askPending"
+  ) AS "askPending",
+  resume_count AS "resumeCount",
+  last_resume_reason AS "lastResumeReason",
+  last_resumed_at_ms::float8 AS "lastResumedAt",
+  ${RUN_STALLED_SQL} AS "stalled"
 `;
 
 async function runRow(
@@ -1727,10 +1793,16 @@ export function toRunSummary(
     | 'startedAt'
     | 'finishedAt'
     | 'askPending'
-  >,
+    | 'resumeCount'
+    | 'lastResumeReason'
+    | 'lastResumedAt'
+    | 'stalled'
+  > &
+    Partial<Pick<RunRow, 'legacyQuarantine' | 'claimEpoch'>>,
 ): RunSummary {
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
+  const lastResume = runLastResume(row);
   return {
     // One value under both names: the listing rows said `runId` and the
     // single read `id`, so a client mapping rows by `id` read undefined.
@@ -1743,15 +1815,32 @@ export function toRunSummary(
     // hand out run handles without saying which project they belong to.
     projectId: row.projectId,
     status: row.status,
+    ...legacyRunReadFields(row),
     mode: row.mode,
     startedBy: row.startedBy,
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(row.detail !== null ? { detail: row.detail } : {}),
     ...(row.failureCode !== null ? { failureCode: row.failureCode } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
+    // Present only once something happened: a run that was never handed on
+    // reads exactly as it did before these fields existed.
+    ...(row.resumeCount > 0 ? { resumeCount: row.resumeCount } : {}),
+    ...(lastResume !== undefined ? { lastResume } : {}),
+    ...(row.stalled ? { stalled: true } : {}),
     startedAt: row.startedAt,
     ...(row.finishedAt !== null ? { finishedAt: row.finishedAt } : {}),
   };
+}
+
+/** Why and when the run was last handed to another server — both stamps
+ * or nothing. */
+export function runLastResume(
+  row: Pick<RunRow, 'lastResumeReason' | 'lastResumedAt'>,
+): RunLastResume | undefined {
+  const { lastResumeReason: reason, lastResumedAt: at } = row;
+  if (reason !== 'shutdown' && reason !== 'lease_expired') return undefined;
+  if (typeof at !== 'number') return undefined;
+  return { reason, at };
 }
 
 /** The run row stores `input` as a JSON-encoded string (the stepper's
@@ -1791,12 +1880,14 @@ export function runStartedVia(
 /**
  * What a `waiting` run is parked on, read off the park's `detail` — the
  * stepper writes `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`
- * (an agent turn whose start waits for sandbox room) and
- * `repeat:<nodeId>` — with the one distinction the detail cannot carry: an
- * agent park whose question is pending is an `ask`, waiting on a person,
- * where the same park without one is an agent turn still running. A client
- * used to have to filter on the undocumented prefix to tell "needs a human"
- * from "polling"; `status=waiting` alone filled an alert with healthy runs.
+ * (an agent turn whose start waits for sandbox room), `repeat:<nodeId>` and
+ * `in_doubt:<nodeId>` (a write that may already have happened when the run
+ * was interrupted, waiting for a person) — with the one distinction the
+ * detail cannot carry: an agent park whose question is pending is an `ask`,
+ * waiting on a person, where the same park without one is an agent turn
+ * still running. A client used to have to filter on the undocumented prefix
+ * to tell "needs a human" from "polling"; `status=waiting` alone filled an
+ * alert with healthy runs.
  */
 export function runWaitingFor(
   row: Pick<RunRow, 'status' | 'detail' | 'askPending'>,
@@ -1806,24 +1897,53 @@ export function runWaitingFor(
   if (row.detail.startsWith('repeat:')) return 'repeat';
   if (row.detail.startsWith('agent:')) return row.askPending ? 'ask' : 'agent';
   if (row.detail.startsWith('room:')) return 'room';
+  if (row.detail.startsWith('in_doubt:')) return 'in_doubt';
   return undefined;
 }
 
 /** The full row as the single read answers it: every column, `waitingFor`
  * beside `detail` while the run is parked, `startedVia` on a trigger's run,
- * and never the raw ask fact. */
-export function toRunDetail(row: RunRow): Omit<RunRow, 'askPending'> & {
+ * `lastResume` once it was handed on, and never the raw ask fact or the raw
+ * resume stamps. */
+export function toRunDetail(row: RunRow): Omit<
+  RunRow,
+  'askPending' | 'lastResumeReason' | 'lastResumedAt' | 'legacyQuarantine'
+> & {
+  legacyQuarantine?: LegacyRunQuarantine;
   waitingFor?: RunSummary['waitingFor'];
   startedVia?: RunSummary['startedVia'];
+  lastResume?: RunLastResume;
 } {
-  const { askPending: _askPending, ...rest } = row;
+  const {
+    askPending: _askPending,
+    legacyQuarantine: _legacyQuarantine,
+    lastResumeReason: _lastResumeReason,
+    lastResumedAt: _lastResumedAt,
+    ...rest
+  } = row;
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
+  const lastResume = runLastResume(row);
   return {
     ...rest,
+    ...legacyRunReadFields(row),
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
+    ...(lastResume !== undefined ? { lastResume } : {}),
   };
+}
+
+function legacyRunReadFields(row: {
+  legacyQuarantine?: unknown;
+  claimEpoch?: number;
+}): {
+  legacyQuarantine?: LegacyRunQuarantine;
+} {
+  const hold = describeLegacyQuarantine(
+    row.legacyQuarantine,
+    row.claimEpoch ?? Number.NaN,
+  );
+  return hold === undefined ? {} : { legacyQuarantine: hold };
 }
 
 export interface ListRunsOptions {
@@ -2045,6 +2165,7 @@ export async function beginRunInTx(
   tx: TransactionSql,
   args: BeginRunArgs,
 ): Promise<{ runId: string; version: number } | null> {
+  await markAutomationWriterInTx(tx);
   {
     const deployed =
       args.mode === 'live' || args.version === undefined
@@ -2104,10 +2225,12 @@ export async function beginRunInTx(
         ${args.apiKeyId ?? null},
         ${tx.json(toJson(JSON.stringify(args.input)))},
         ${tx.json(toJson({ nodes: {}, executions: 0 }))},
-        ${now}, 0, ${now}
+        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}
       )
       RETURNING id
     `;
+    // Born with the claim promise, not overdue: the step job below is its
+    // continuation, and an overdue row would also be re-poked by the sweep.
     const runId = inserted[0]?.id;
     if (!runId) throw new Error('run insert failed');
     await enqueueStep(tx, args.organizationId, runId, 0);
@@ -2133,6 +2256,7 @@ export async function cancelRunInTx(
    * row attributes to the run's starter as `system`. */
   actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
+  await markAutomationWriterInTx(tx);
   {
     const now = Date.now();
     const rows = await tx<
@@ -2143,7 +2267,8 @@ export async function cancelRunInTx(
         -- The park string (repeat:poll, approval:<id>) described a wait the
         -- run is no longer in; detail is documented as "the failure or wait
         -- reason; null while the run has none" (2026-09-14 eval, g5-8).
-        detail = NULL
+        detail = NULL,
+        lease_owner = NULL, lease_expires_at_ms = NULL
       WHERE id = ${runId} AND org_id = ${organizationId}
         AND status IN ('queued', 'running', 'waiting')
       RETURNING name, version, mode, started_by AS "startedBy"
@@ -2154,6 +2279,13 @@ export async function cancelRunInTx(
       // no-op, so a client needs no second read to learn whether the run
       // finished on its own, was already cancelled, or is not there.
       const current = await runRow(tx, organizationId, runId);
+      if (current?.status === 'quarantined') {
+        throw new AutomationError(
+          'RUN_QUARANTINED',
+          'This run is on hold with unknown external effects; use the explicit stop request.',
+          409,
+        );
+      }
       return current === null
         ? { cancelled: false }
         : { cancelled: false, status: current.status };
@@ -2204,6 +2336,91 @@ export async function cancelRun(
   actor?: string,
 ): Promise<{ cancelled: boolean; status?: string }> {
   return sql.begin((tx) => cancelRunInTx(tx, organizationId, runId, actor));
+}
+
+/** Records an explicit stop request without asserting termination, clearing
+ * the hold, changing task state, or rewriting historical asks/checkpoints. */
+export async function requestLegacyRunStopInTx(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    runId: string;
+    actor: string;
+    request: unknown;
+  },
+): Promise<{
+  requested: true;
+  status: 'quarantined';
+  legacyQuarantine: LegacyRunQuarantine;
+}> {
+  const request = legacyRunStopSchema.parse(args.request);
+  await markAutomationWriterInTx(tx);
+  const [row] = await tx<
+    { status: string; claimEpoch: number; hold: unknown }[]
+  >`
+    SELECT status, claim_epoch AS "claimEpoch", legacy_quarantine AS hold
+    FROM app.automation_runs WHERE org_id = ${args.organizationId} AND id = ${args.runId}
+    FOR UPDATE
+  `;
+  const hold =
+    row === undefined
+      ? undefined
+      : describeLegacyQuarantine(row.hold, row.claimEpoch);
+  if (
+    row?.status !== 'quarantined' ||
+    hold === undefined ||
+    hold.claimEpoch !== request.expectedClaimEpoch ||
+    hold.observedAt !== request.expectedObservedAt
+  ) {
+    throw new AutomationError(
+      'RUN_QUARANTINE_CHANGED',
+      'The held run changed; read it again before requesting a stop.',
+      409,
+    );
+  }
+  // An identical retry answers the already recorded decision; it never
+  // substitutes another actor or emits duplicate cleanup/audit work.
+  if (hold.resolution !== null)
+    return { requested: true, status: 'quarantined', legacyQuarantine: hold };
+  const decision = {
+    action: 'stop' as const,
+    actor: args.actor,
+    at: Date.now(),
+  };
+  await tx`SELECT set_config('tale.automation_legacy_stop_run', ${args.runId}, true)`;
+  await tx`UPDATE app.automation_runs SET legacy_quarantine =
+    jsonb_set(legacy_quarantine, '{resolution}', ${tx.json(toJson(decision))}::jsonb)
+    WHERE org_id = ${args.organizationId} AND id = ${args.runId}`;
+  // Reuse owned session cancellation. It is a request, not evidence that a
+  // sandbox or an already-sent external operation has actually terminated.
+  await stopRunSandboxSessions(tx, args.organizationId, args.runId);
+  await createAuditLog(tx, {
+    organizationId: args.organizationId,
+    actorId: args.actor,
+    actorType: 'user',
+    action: 'automation.run.legacy_stop_requested',
+    category: 'ai',
+    resourceType: 'automation_run',
+    resourceId: args.runId,
+    status: 'success',
+    metadata: {
+      expectedClaimEpoch: hold.claimEpoch,
+      observedAt: hold.observedAt,
+      unknownExternalEffectsAcknowledged: true,
+    },
+  });
+  await recordRunEventInTx(tx, {
+    organizationId: args.organizationId,
+    runId: args.runId,
+    kind: 'legacy_stop_requested',
+    detail: { actor: args.actor, at: decision.at },
+  });
+  await emitRunHint(tx, args.organizationId, args.runId);
+  return {
+    requested: true,
+    status: 'quarantined',
+    legacyQuarantine: { ...hold, resolution: decision },
+  };
 }
 
 // ---------------------------------------------------- idempotent starts
@@ -2358,6 +2575,7 @@ export async function deleteRunInTx(
   tx: TransactionSql,
   args: { organizationId: string; runId: string; actor: string },
 ): Promise<{ deleted: boolean }> {
+  await markAutomationWriterInTx(tx);
   const rows = await tx<
     { name: string; version: number; mode: string; status: string }[]
   >`
@@ -2367,6 +2585,13 @@ export async function deleteRunInTx(
   `;
   const row = rows[0];
   if (row === undefined) return { deleted: false };
+  if (row.status === 'quarantined') {
+    throw new AutomationError(
+      'RUN_QUARANTINED',
+      'The run is on hold because its external outcome is unknown. A stop request does not authorize deletion.',
+      409,
+    );
+  }
   if (!TERMINAL_RUN_STATUSES.has(row.status)) {
     throw new AutomationError(
       'RUN_ACTIVE',
@@ -2412,54 +2637,237 @@ export async function deleteRunInTx(
 
 // ----------------------------------------------- the stepper's run contract
 
+/** The statuses a run can still move out of — the fence of every run-state
+ * write. */
+const LIVE_RUN_STATUSES: ReadonlySet<string> = new Set([
+  'queued',
+  'running',
+  'waiting',
+]);
+
+/** What a claim reads off the locked run row before it decides. */
+interface ClaimPrior {
+  status: string;
+  claimEpoch: number;
+  leaseEpoch: number | null;
+  leaseOwner: string | null;
+  leaseExpiresAt: number | null;
+  wakeAt: number | null;
+  claimedAt: number | null;
+  engineProtocol: number;
+  engineVersion: string | null;
+}
+
+type ClaimDecision =
+  | { kind: 'claim'; tookOver: boolean }
+  | { kind: 'terminal' }
+  | { kind: 'leased' }
+  | { kind: 'deferred' };
+
+/**
+ * Whether a step job may walk the run now. A queued or parked run is free. A
+ * running run is free only once nobody steps it: its lease was released (a
+ * hand-off) or lapsed (its walker died) — or, for a run an image without
+ * leases claimed last (`lease_epoch` <> `claim_epoch`), once that image's
+ * `wake_at_ms` promise lapsed, which its own heartbeat keeps renewing (the
+ * sweep that finds it lapsed turns it into a lapsed lease first, so the
+ * claim its poke queues takes the run over). A live
+ * lease is refused whoever holds it, this process included: a worker runs
+ * several walkers, so "it is mine" would let two of them step one run.
+ */
+function decideClaim(prior: ClaimPrior, now: number): ClaimDecision {
+  if (!LIVE_RUN_STATUSES.has(prior.status)) return { kind: 'terminal' };
+  const leased = prior.leaseEpoch === prior.claimEpoch;
+  const free =
+    prior.status !== 'running' ||
+    (leased
+      ? prior.leaseExpiresAt === null || prior.leaseExpiresAt <= now
+      : prior.wakeAt === null || prior.wakeAt <= now);
+  if (!free) return { kind: 'leased' };
+  // A newer engine wrote progress this one may misread: never step it.
+  if (prior.engineProtocol > ENGINE_PROTOCOL) return { kind: 'deferred' };
+  return {
+    kind: 'claim',
+    tookOver:
+      prior.status === 'running' && leased && prior.leaseExpiresAt !== null,
+  };
+}
+
+/**
+ * Claim a run for one walker: lock the row, decide, and take the lease in the
+ * same transaction. Two concurrent claims serialize on the row lock — the
+ * later one reads the first one's live lease and is refused (`leased`), so a
+ * duplicate step job or a sweep re-poke never starts a second walker. A
+ * claim that takes a running run whose lease lapsed counts as a takeover:
+ * the run's resume count grows and the takeover is recorded. Every claim
+ * bumps the epoch, so a walker that lost its run is refused at its next
+ * write.
+ */
 export async function claimRun(
   sql: Sql,
   organizationId: string,
   runId: string,
 ): Promise<{ claimed: boolean; status: string; epoch: number }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
-    // ATOMIC claim: the epoch bump reads and writes the SAME row under the
-    // UPDATE's row lock, so two concurrent claims (a liveness re-poke racing
-    // the live chain, a pg-boss retry) serialize and get DISTINCT epochs —
-    // the later one wins and the earlier walker's writes read back 'stale' at
-    // the epoch fence. The old read-then-write under READ COMMITTED was a
-    // lost update: both read N, both wrote N+1, and both passed the fence,
-    // double-stepping one run.
+    const rows = await tx<ClaimPrior[]>`
+      SELECT status, claim_epoch AS "claimEpoch", lease_epoch AS "leaseEpoch",
+             lease_owner AS "leaseOwner",
+             lease_expires_at_ms::float8 AS "leaseExpiresAt",
+             wake_at_ms::float8 AS "wakeAt",
+             claimed_at_ms::float8 AS "claimedAt",
+             engine_protocol AS "engineProtocol",
+             engine_version AS "engineVersion"
+      FROM app.automation_runs
+      WHERE id = ${runId} AND org_id = ${organizationId}
+      FOR UPDATE
+    `;
+    const prior = rows[0];
+    if (!prior) return { claimed: false, status: 'missing', epoch: 0 };
+    const decision = decideClaim(prior, now);
+    if (decision.kind === 'terminal') {
+      return { claimed: false, status: prior.status, epoch: prior.claimEpoch };
+    }
+    if (decision.kind === 'leased') {
+      return { claimed: false, status: 'leased', epoch: prior.claimEpoch };
+    }
+    if (decision.kind === 'deferred') {
+      await deferToNewerEngine(tx, { organizationId, runId, prior, now });
+      return { claimed: false, status: 'deferred', epoch: prior.claimEpoch };
+    }
+    const { tookOver } = decision;
+    // `lease_epoch` reads the OLD `claim_epoch`, like every right-hand side
+    // of one SET: it lands equal to the new epoch.
     const claimed = await tx<{ claimEpoch: number }[]>`
       UPDATE app.automation_runs SET
-        status = 'running', claim_epoch = claim_epoch + 1, claimed_at_ms = ${now},
-        wake_at_ms = ${now + RUN_CLAIM_PROMISE_MS}
+        status = 'running',
+        claim_epoch = claim_epoch + 1,
+        lease_epoch = claim_epoch + 1,
+        claimed_at_ms = ${now},
+        lease_owner = ${instanceId()},
+        lease_expires_at_ms = ${now + RUN_LEASE_MS},
+        wake_at_ms = ${now + RUN_LEASE_MS},
+        engine_protocol = GREATEST(engine_protocol, ${ENGINE_PROTOCOL}::int),
+        engine_version = ${engineVersion()},
+        resume_count = resume_count + ${tookOver ? 1 : 0}::int,
+        last_resume_reason = CASE WHEN ${tookOver}::boolean
+          THEN 'lease_expired' ELSE last_resume_reason END,
+        last_resumed_at_ms = CASE WHEN ${tookOver}::boolean
+          THEN ${now}::bigint ELSE last_resumed_at_ms END
       WHERE id = ${runId} AND org_id = ${organizationId}
-        AND status IN ('queued', 'running', 'waiting')
       RETURNING claim_epoch AS "claimEpoch"
     `;
-    if (claimed[0]) {
-      await emitRunHint(tx, organizationId, runId);
-      return { claimed: true, status: 'running', epoch: claimed[0].claimEpoch };
+    const epoch = claimed[0]?.claimEpoch;
+    if (epoch === undefined) throw new Error('run claim found no row');
+    if (tookOver) {
+      await recordRunEventInTx(tx, {
+        organizationId,
+        runId,
+        kind: 'taken_over',
+        detail: {
+          previousOwner: prior.leaseOwner,
+          previousEngine: prior.engineVersion,
+        },
+      });
     }
-    // Not claimable — report WHY (terminal vs missing) so the stepper's turn
-    // exits with the same status it always did.
-    const row = await runRow(tx, organizationId, runId);
-    if (!row) return { claimed: false, status: 'missing', epoch: 0 };
-    return { claimed: false, status: row.status, epoch: row.claimEpoch };
+    await emitRunHint(tx, organizationId, runId);
+    return { claimed: true, status: 'running', epoch };
   });
 }
 
+/**
+ * A run a newer engine stepped is not this engine's to read. While a roll is
+ * in progress — a newer engine claimed it recently — its step goes back to
+ * the queue a few seconds out, for a worker of the newer release to take.
+ * Past that window (a rollback after the newer release stepped it), it is
+ * left to the sweep: one claim attempt per promise, never a hot loop.
+ */
+async function deferToNewerEngine(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    runId: string;
+    prior: ClaimPrior;
+    now: number;
+  },
+): Promise<void> {
+  const { organizationId, runId, prior, now } = args;
+  console.warn(
+    `[automations] run ${runId} needs engine protocol ${prior.engineProtocol}; this engine is ${ENGINE_PROTOCOL} — deferred`,
+  );
+  await recordRunEventInTx(tx, {
+    organizationId,
+    runId,
+    kind: 'engine_deferred',
+    detail: {
+      requiredProtocol: prior.engineProtocol,
+      engineProtocol: ENGINE_PROTOCOL,
+    },
+    oncePerEngine: true,
+  });
+  if (
+    prior.claimedAt === null ||
+    prior.claimedAt < now - ENGINE_DEFER_WINDOW_MS
+  ) {
+    return;
+  }
+  await tx`
+    UPDATE app.automation_runs SET
+      wake_at_ms = ${now + ENGINE_DEFER_MS + RUN_CLAIM_PROMISE_MS}
+    WHERE id = ${runId} AND org_id = ${organizationId}
+  `;
+  await enqueueStep(tx, organizationId, runId, ENGINE_DEFER_MS);
+}
+
+/**
+ * Renew a live walker's lease (and the promise that mirrors it). Only the
+ * lease of THIS claim: a walker that lost the run, or one that already
+ * released its lease by parking or handing off, renews nothing — a late tick
+ * must not bring a released lease back.
+ */
 export async function heartbeatRun(
   sql: Sql,
   organizationId: string,
   runId: string,
   epoch: number,
 ): Promise<{ alive: boolean }> {
-  const rows = await sql<{ id: string }[]>`
+  return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    const rows = await tx<{ id: string }[]>`
     UPDATE app.automation_runs SET
-      wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+      lease_expires_at_ms = ${now + RUN_LEASE_MS},
+      wake_at_ms = ${now + RUN_LEASE_MS}
     WHERE id = ${runId} AND org_id = ${organizationId}
       AND status = 'running' AND claim_epoch = ${epoch}
+      AND lease_epoch = ${epoch} AND lease_expires_at_ms IS NOT NULL
     RETURNING id
   `;
-  return { alive: rows.length > 0 };
+    return { alive: rows.length > 0 };
+  });
+}
+
+/**
+ * Why a fenced write changed nothing: the run is gone (`missing`), it ended
+ * (its terminal status), or another walker holds a newer claim (`stale`).
+ * Read only after a write matched no row — the fast path never reads.
+ */
+async function whyNotWritten(
+  tx: TransactionSql,
+  organizationId: string,
+  runId: string,
+  epoch: number,
+): Promise<string> {
+  const rows = await tx<{ status: string; claimEpoch: number }[]>`
+    SELECT status, claim_epoch AS "claimEpoch" FROM app.automation_runs
+    WHERE id = ${runId} AND org_id = ${organizationId}
+  `;
+  const row = rows[0];
+  if (!row) return 'missing';
+  if (!LIVE_RUN_STATUSES.has(row.status)) return row.status;
+  if (row.claimEpoch !== epoch) return 'stale';
+  return row.status;
 }
 
 interface CheckpointsShape {
@@ -2511,6 +2919,13 @@ function boundIncomingCheckpoint(checkpoint: unknown): unknown {
   return boundCheckpointTrace(checkpoint as NodeCheckpoint);
 }
 
+/**
+ * Record a walker's progress: one node's checkpoint merged into the stored
+ * `nodes` (server-side, so two commits of one claim never drop each other's
+ * node), the forEach cursor replaced or dropped, and the lease renewed. ONE
+ * statement fenced by the walker's epoch and a live status; top-level keys
+ * this engine does not know survive the write.
+ */
 export async function recordProgress(
   sql: Sql,
   args: {
@@ -2524,42 +2939,73 @@ export async function recordProgress(
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (!row) return { status: 'missing' };
-    if (
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.status === 'cancelled'
-    ) {
-      return { status: row.status };
-    }
-    if (row.claimEpoch !== args.epoch) return { status: 'stale' };
-    const checkpoints = readCheckpoints(row.checkpoints);
-    const nodes =
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    const nodeKey =
       args.nodeId !== undefined && args.checkpoint !== undefined
-        ? Object.assign({}, checkpoints.nodes, {
-            [args.nodeId]: boundIncomingCheckpoint(args.checkpoint),
-          })
-        : checkpoints.nodes;
-    await tx`
+        ? args.nodeId
+        : null;
+    const checkpoint =
+      nodeKey === null
+        ? null
+        : jsonParam(tx, boundIncomingCheckpoint(args.checkpoint));
+    const cursor = jsonParam(tx, args.cursor);
+    const rows = await tx<{ status: string }[]>`
       UPDATE app.automation_runs SET
-        checkpoints = ${tx.json(
-          toJson({
-            nodes,
-            ...(args.cursor !== undefined && args.cursor !== null
-              ? { cursor: args.cursor }
-              : {}),
-            executions: args.executions,
-          }),
-        )},
-        wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
-      WHERE id = ${args.runId}
+        checkpoints =
+          (CASE WHEN jsonb_typeof(checkpoints) = 'object'
+                THEN checkpoints - 'cursor' ELSE '{}'::jsonb END)
+          || jsonb_build_object(
+               'nodes',
+               (CASE WHEN jsonb_typeof(checkpoints -> 'nodes') = 'object'
+                     THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END)
+               || (CASE WHEN ${nodeKey}::text IS NULL THEN '{}'::jsonb
+                        ELSE jsonb_build_object(${nodeKey}::text, ${checkpoint}::jsonb)
+                   END),
+               'executions', ${args.executions}::int)
+          || (CASE WHEN ${cursor}::jsonb IS NULL THEN '{}'::jsonb
+                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
+        lease_expires_at_ms = CASE WHEN lease_expires_at_ms IS NULL THEN NULL
+                                   ELSE ${now + RUN_LEASE_MS}::bigint END,
+        wake_at_ms = ${now + RUN_LEASE_MS}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING status
     `;
+    const written = rows[0];
+    if (!written) {
+      return {
+        status: await whyNotWritten(
+          tx,
+          args.organizationId,
+          args.runId,
+          args.epoch,
+        ),
+      };
+    }
     await emitRunHint(tx, args.organizationId, args.runId);
-    return { status: row.status };
+    return { status: written.status };
   });
 }
 
+/**
+ * Park a run: `waiting` with the park string, its cursor and a poll chain
+ * that comes back after `resumeInMs`. The walker's lease is released — a
+ * parked run has no walker — and the chain sequence moves on, so a poll of
+ * an earlier park finds nothing to do. `event` records why the park happened
+ * when the run's history should say more than its park string. A park on
+ * something that happened while the walker was on its way here wakes the
+ * run at once instead.
+ *
+ * The cursor an agent node parks with is the one its walker loaded, and the
+ * stored one may have moved on since: the turn settled, or a person's answer
+ * moved the turn to a new exec or a later deadline. The step job each of them
+ * queued found the run still held by this walker and did nothing, so the
+ * park keeps what they wrote (`mergeParkedAgentCursor`) — dropping a result
+ * would leave the run waiting for one that already came, until its deadline
+ * failed it.
+ */
 export async function suspendRun(
   sql: Sql,
   args: {
@@ -2570,46 +3016,143 @@ export async function suspendRun(
     cursor?: unknown;
     executions: number;
     resumeInMs: number;
+    event?: { kind: RunEventKind; detail?: Record<string, unknown> };
   },
 ): Promise<{ suspended: boolean }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (
-      !row ||
-      row.status === 'cancelled' ||
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.claimEpoch !== args.epoch
-    ) {
-      return { suspended: false };
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    // An agent node's park merges what the stored cursor gained while its
+    // walker was on its way here; the row is locked first, so a settle or a
+    // retarget either landed already or waits for the park.
+    let parkCursor = args.cursor;
+    if (parksAgentTurn(args.cursor)) {
+      const stored = await tx<{ cursor: unknown }[]>`
+        SELECT checkpoints -> 'cursor' AS cursor FROM app.automation_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          AND claim_epoch = ${args.epoch}
+        FOR UPDATE
+      `;
+      if (stored[0] !== undefined) {
+        parkCursor = mergeParkedAgentCursor(stored[0].cursor, args.cursor);
+      }
     }
-    const checkpoints = readCheckpoints(row.checkpoints);
-    const seq = row.chainSeq + 1;
-    await tx`
+    const cursor = jsonParam(tx, parkCursor);
+    const rows = await tx<{ seq: number }[]>`
       UPDATE app.automation_runs SET
         status = 'waiting', detail = ${truncateRunDetail(args.detail)},
-        checkpoints = ${tx.json(
-          toJson({
-            nodes: checkpoints.nodes,
-            ...(args.cursor !== undefined && args.cursor !== null
-              ? { cursor: args.cursor }
-              : {}),
-            executions: args.executions,
-          }),
-        )},
-        wake_at_ms = ${Date.now() + args.resumeInMs},
-        chain_seq = ${seq}
-      WHERE id = ${args.runId}
+        checkpoints =
+          (CASE WHEN jsonb_typeof(checkpoints) = 'object'
+                THEN checkpoints - 'cursor' ELSE '{}'::jsonb END)
+          || jsonb_build_object(
+               'nodes',
+               CASE WHEN jsonb_typeof(checkpoints -> 'nodes') = 'object'
+                    THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END,
+               'executions', ${args.executions}::int)
+          || (CASE WHEN ${cursor}::jsonb IS NULL THEN '{}'::jsonb
+                   ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
+        wake_at_ms = ${now + args.resumeInMs},
+        chain_seq = chain_seq + 1,
+        lease_owner = NULL, lease_expires_at_ms = NULL
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING chain_seq AS seq
     `;
-    await enqueuePoll(tx, {
-      organizationId: args.organizationId,
-      runId: args.runId,
-      seq,
-      pollMs: args.resumeInMs,
-    });
+    const parked = rows[0];
+    if (!parked) return { suspended: false };
+    if (
+      parkedAgentSettled(parkCursor) ||
+      (await approvalDecided(tx, args.organizationId, args.detail)) ||
+      (args.detail.startsWith('in_doubt:') &&
+        (await inDoubtSettled(tx, args.organizationId, args.runId)))
+    ) {
+      // What the park waits on happened while the walker was on its way
+      // here — a person decided the approval, the agent's turn settled, or
+      // the write in doubt was finished by the walker that was making it.
+      // Its own wake found the run still walking and did nothing, so the
+      // park wakes the run itself instead of waiting for its poll.
+      await tx`
+        UPDATE app.automation_runs SET
+          wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+      `;
+      await enqueueStep(tx, args.organizationId, args.runId, 0);
+    } else {
+      await enqueuePoll(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        seq: parked.seq,
+        pollMs: args.resumeInMs,
+      });
+    }
+    if (args.event !== undefined) {
+      await recordRunEventInTx(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        kind: args.event.kind,
+        ...(args.event.detail !== undefined && { detail: args.event.detail }),
+      });
+    }
     await emitRunHint(tx, args.organizationId, args.runId);
     return { suspended: true };
   });
+}
+
+/**
+ * Whether the approval a park waits on (`approval:<id>`) was decided already.
+ * Read after the park's own write, which holds the run's row: a decision
+ * locks that row before it writes (`lockRunInTx`), so it either committed
+ * before this read — and is seen here — or it waits for the park and then
+ * finds the run parked and wakes it. Its read is a statement of its own:
+ * one inside the park's write would read the approvals as they were before
+ * the write waited for the row.
+ */
+async function approvalDecided(
+  tx: TransactionSql,
+  organizationId: string,
+  detail: string,
+): Promise<boolean> {
+  if (!detail.startsWith('approval:')) return false;
+  const approvalId = detail.slice('approval:'.length);
+  const rows = await tx<{ decided: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.approvals
+      WHERE id = ${approvalId} AND org_id = ${organizationId}
+        AND status <> 'pending'
+    ) AS decided
+  `;
+  return rows[0]?.decided ?? false;
+}
+
+/**
+ * Whether a park on a write that may already have happened is due: a person
+ * decided about it, or no write of the run is open any more. The second
+ * happens when the walker that was making the write outlived its lease and
+ * recorded how the call ended after another walker had parked the run on it:
+ * the next walker then reads that end instead of anyone being asked.
+ */
+async function inDoubtSettled(
+  tx: TransactionSql,
+  organizationId: string,
+  runId: string,
+): Promise<boolean> {
+  const rows = await tx<{ settled: boolean }[]>`
+    SELECT (
+      EXISTS (
+        SELECT 1 FROM app.automation_node_attempts
+        WHERE run_id = ${runId} AND org_id = ${organizationId}
+          AND status = 'started' AND resolution IS NOT NULL
+      )
+      OR NOT EXISTS (
+        SELECT 1 FROM app.automation_node_attempts
+        WHERE run_id = ${runId} AND org_id = ${organizationId}
+          AND kind = 'connector' AND status = 'started'
+          AND resolution IS NULL
+      )
+    ) AS settled
+  `;
+  return rows[0]?.settled ?? false;
 }
 
 /** One hop of a parked run's poll chain (the pg-boss `automation.poll`
@@ -2620,6 +3163,7 @@ export async function pollParkedRun(
   args: { organizationId: string; runId: string; seq: number; pollMs: number },
 ): Promise<{ due: boolean; rearmed: boolean }> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const row = await runRow(tx, args.organizationId, args.runId);
     if (!row || row.status !== 'waiting' || row.chainSeq !== args.seq) {
       return { due: false, rearmed: false };
@@ -2633,32 +3177,70 @@ export async function pollParkedRun(
           })
         : undefined;
     const agent = cursor?.agent;
-    // An agent park is quiet until its settle lands or its deadline passes;
-    // anything else counts as due — the stepper is the arbiter, this hop
-    // only a filter. (The approval-park branch returns with the approvals
-    // domain.)
-    const due =
-      agent !== undefined
+    // A write that may already have happened waits for a person: due once
+    // they decided, or once nothing is in doubt any more (their decision and
+    // a late finish of the write each wake the run themselves; this hop is
+    // the backstop). An agent park is quiet until its settle lands or its
+    // deadline passes; anything else counts as due — the stepper is the
+    // arbiter, this hop only a filter. (The approval-park branch returns
+    // with the approvals domain.)
+    const inDoubt = row.detail?.startsWith('in_doubt:') === true;
+    const due = inDoubt
+      ? await inDoubtSettled(tx, args.organizationId, args.runId)
+      : agent !== undefined
         ? agent.result !== undefined || Date.now() > (agent.deadlineAt ?? 0)
         : true;
+    // Both writes below are fenced by the park this hop belongs to: the row
+    // was read without a lock, and a decision may have woken it and a walker
+    // claimed it since — its lease's promise is not this hop's to move.
     if (due) {
-      await tx`
-        UPDATE app.automation_runs SET wake_at_ms = ${Date.now()}
-        WHERE id = ${args.runId}
+      // The step job below is the continuation; the promise gives its claim
+      // time to happen before the sweep pokes again.
+      const woken = await tx<{ id: string }[]>`
+        UPDATE app.automation_runs SET
+          wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          AND status = 'waiting' AND chain_seq = ${args.seq}
+        RETURNING id
       `;
+      if (!woken[0]) return { due: false, rearmed: false };
       await enqueueStep(tx, args.organizationId, args.runId, 0);
       return { due: true, rearmed: false };
     }
-    await tx`
+    // A person may take hours to decide, and the decision wakes the run
+    // itself: an in-doubt park re-arms only at the backstop interval.
+    const next = inDoubt ? { ...args, pollMs: IN_DOUBT_POLL_MS } : args;
+    const rearmed = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
-        wake_at_ms = ${Date.now() + args.pollMs}
-      WHERE id = ${args.runId}
+        wake_at_ms = ${Date.now() + next.pollMs}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND status = 'waiting' AND chain_seq = ${args.seq}
+      RETURNING id
     `;
-    await enqueuePoll(tx, args);
+    if (!rearmed[0]) return { due: false, rearmed: false };
+    await enqueuePoll(tx, next);
     return { due: false, rearmed: true };
   });
 }
 
+/** Why a walker handed its run on before it was done: its server is
+ * stopping. A budget hand-off (the turn ran out of time) carries none. */
+export interface RunHandoff {
+  reason: 'shutdown';
+  /** The node the walker was in, and its forEach item. */
+  nodeId?: string;
+  itemIndex?: number;
+  /** The node's body was cut off mid-call rather than finished. */
+  interrupted?: boolean;
+}
+
+/**
+ * Hand a run on to the next turn: release the walker's lease and queue the
+ * step that continues it after `resumeInMs`. The promise covers the delay
+ * plus the time the claim may take. A hand-off because the server is
+ * stopping is counted on the run and recorded, so its page can say it was
+ * resumed after a restart; a budget hand-off changes nothing a person sees.
+ */
 export async function continueRun(
   sql: Sql,
   args: {
@@ -2666,29 +3248,64 @@ export async function continueRun(
     runId: string;
     epoch: number;
     resumeInMs: number;
+    handoff?: RunHandoff;
   },
 ): Promise<{ scheduled: boolean }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (
-      !row ||
-      row.status === 'cancelled' ||
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.claimEpoch !== args.epoch
-    ) {
-      return { scheduled: false };
-    }
-    await tx`
+    await markAutomationWriterInTx(tx);
+    const now = Date.now();
+    const handedOff = args.handoff !== undefined;
+    const rows = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
-        wake_at_ms = ${Date.now() + args.resumeInMs}
-      WHERE id = ${args.runId}
+        wake_at_ms = ${now + args.resumeInMs + RUN_CLAIM_PROMISE_MS},
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        resume_count = resume_count + ${handedOff ? 1 : 0}::int,
+        last_resume_reason = CASE WHEN ${handedOff}::boolean
+          THEN 'shutdown' ELSE last_resume_reason END,
+        last_resumed_at_ms = CASE WHEN ${handedOff}::boolean
+          THEN ${now}::bigint ELSE last_resumed_at_ms END
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING id
     `;
+    if (!rows[0]) return { scheduled: false };
     await enqueueStep(tx, args.organizationId, args.runId, args.resumeInMs);
+    const handoff = args.handoff;
+    if (handoff !== undefined) {
+      const where = {
+        ...(handoff.nodeId !== undefined && { nodeId: handoff.nodeId }),
+        ...(handoff.itemIndex !== undefined && {
+          itemIndex: handoff.itemIndex,
+        }),
+      };
+      await recordRunEventInTx(tx, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        kind: 'handed_off',
+        detail: { reason: handoff.reason, ...where },
+      });
+      if (handoff.interrupted === true) {
+        await recordRunEventInTx(tx, {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          kind: 'node_interrupted',
+          detail: where,
+        });
+      }
+      await emitRunHint(tx, args.organizationId, args.runId);
+    }
     return { scheduled: true };
   });
 }
 
+/**
+ * The terminal door: land the run on `success` or `failed` in ONE statement
+ * fenced by the walker's epoch and a live status, then — only when it landed
+ * — write its audit row, keep its trigger's streak, and free what it held. A
+ * stop that committed first wins: this write then matches nothing, and
+ * nothing else happens (no audit row, no trigger outcome, no second close).
+ */
 export async function finishRun(
   sql: Sql,
   args: {
@@ -2710,19 +3327,17 @@ export async function finishRun(
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
-    const row = await runRow(tx, args.organizationId, args.runId);
-    if (
-      !row ||
-      row.status === 'cancelled' ||
-      row.status === 'success' ||
-      row.status === 'failed' ||
-      row.claimEpoch !== args.epoch
-    ) {
-      return { status: row?.status ?? 'missing' };
-    }
-    const checkpoints = readCheckpoints(row.checkpoints);
+    await markAutomationWriterInTx(tx);
     const now = Date.now();
-    await tx`
+    const rows = await tx<
+      {
+        name: string;
+        version: number;
+        mode: string;
+        startedBy: string;
+        startedAt: number;
+      }[]
+    >`
       UPDATE app.automation_runs SET
         status = ${args.status},
         output = coalesce(${args.output === undefined ? null : tx.json(toJson(JSON.stringify(args.output)))}, output),
@@ -2730,12 +3345,30 @@ export async function finishRun(
         effects = ${tx.json(toJson(args.effects ?? []))},
         detail = ${truncateRunDetail(args.detail) ?? null},
         failure_code = ${args.status === 'failed' ? (args.failureCode ?? null) : null},
-        checkpoints = ${tx.json(
-          toJson({ nodes: checkpoints.nodes, executions: args.executions }),
-        )},
-        wake_at_ms = NULL, finished_at_ms = ${now}
-      WHERE id = ${args.runId}
+        checkpoints = jsonb_build_object(
+          'nodes',
+          CASE WHEN jsonb_typeof(checkpoints -> 'nodes') = 'object'
+               THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END,
+          'executions', ${args.executions}::int),
+        wake_at_ms = NULL, finished_at_ms = ${now},
+        lease_owner = NULL, lease_expires_at_ms = NULL
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+        AND claim_epoch = ${args.epoch}
+        AND status IN ('queued', 'running', 'waiting')
+      RETURNING name, version, mode, started_by AS "startedBy",
+                started_at_ms::float8 AS "startedAt"
     `;
+    const row = rows[0];
+    if (!row) {
+      return {
+        status: await whyNotWritten(
+          tx,
+          args.organizationId,
+          args.runId,
+          args.epoch,
+        ),
+      };
+    }
     // The provenance record, atomic with the finish (LIVE runs only). The
     // full fold (approvals + connector effects) grows with those domains;
     // the terminal audit row is the contract that must never be missing.
@@ -2794,29 +3427,74 @@ export async function finishRun(
 
 // ---------------------------------------------------------------- liveness
 
-/** The sweep: overdue non-terminal runs get a fresh stepper poke. */
+/**
+ * The sweep: overdue non-terminal runs get a fresh stepper poke. Each poke
+ * re-checks the promise in its own write, so two sweeps that overlap poke a
+ * run once. A running run whose lease lapsed — its walker died — is recorded
+ * as such and its open views told, so its page can say it is being resumed.
+ *
+ * A running run an image without leases claimed last (`lease_epoch` <>
+ * `claim_epoch`) has only that image's promise, and once the promise lapsed
+ * its walker is gone too. The poke turns the lapsed promise into a lapsed
+ * lease of the claim it names: the step it queues then takes the run over.
+ * Left as it was, that step would read the fresh promise the poke itself
+ * wrote and refuse the run as held — every sweep, for good.
+ */
 export async function sweepOverdueRuns(
   sql: Sql,
   limit = LIVENESS_SWEEP_LIMIT,
 ): Promise<number> {
-  const rows = await sql<{ id: string; orgId: string }[]>`
-    SELECT id, org_id AS "orgId" FROM app.automation_runs
+  const now = Date.now();
+  const rows = await sql<
+    { id: string; orgId: string; owner: string | null; leaseExpired: boolean }[]
+  >`
+    SELECT id, org_id AS "orgId", lease_owner AS "owner",
+           (status = 'running' AND (
+              lease_epoch IS DISTINCT FROM claim_epoch
+              OR (lease_expires_at_ms IS NOT NULL
+                  AND lease_expires_at_ms < ${now}))) AS "leaseExpired"
+    FROM app.automation_runs
     WHERE status IN ('queued', 'running', 'waiting')
-      AND wake_at_ms IS NOT NULL AND wake_at_ms < ${Date.now()}
+      AND wake_at_ms IS NOT NULL AND wake_at_ms < ${now}
     ORDER BY wake_at_ms
     LIMIT ${limit}
   `;
+  let poked = 0;
   for (const row of rows) {
-    await sql.begin(async (tx) => {
-      await tx`
+    const won = await sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const at = Date.now();
+      // Every right-hand side reads the row as it was before this write.
+      const updated = await tx<{ id: string }[]>`
         UPDATE app.automation_runs SET
-          wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
-        WHERE id = ${row.id}
+          wake_at_ms = ${at + RUN_CLAIM_PROMISE_MS},
+          lease_epoch = CASE
+            WHEN status = 'running' AND lease_epoch IS DISTINCT FROM claim_epoch
+            THEN claim_epoch ELSE lease_epoch END,
+          lease_expires_at_ms = CASE
+            WHEN status = 'running' AND lease_epoch IS DISTINCT FROM claim_epoch
+            THEN ${at}::bigint ELSE lease_expires_at_ms END
+        WHERE id = ${row.id} AND org_id = ${row.orgId}
+          AND status IN ('queued', 'running', 'waiting')
+          AND wake_at_ms IS NOT NULL AND wake_at_ms < ${at}
+        RETURNING id
       `;
+      if (!updated[0]) return false;
       await enqueueStep(tx, row.orgId, row.id, 0);
+      if (row.leaseExpired) {
+        await recordRunEventInTx(tx, {
+          organizationId: row.orgId,
+          runId: row.id,
+          kind: 'lease_expired',
+          detail: { owner: row.owner },
+        });
+        await emitRunHint(tx, row.orgId, row.id);
+      }
+      return true;
     });
+    if (won) poked++;
   }
-  return rows.length;
+  return poked;
 }
 
 /**
@@ -2825,24 +3503,141 @@ export async function sweepOverdueRuns(
  * behind. A `running` walker is already awake and reads the decision itself;
  * terminal or foreign runs are a silent no-op (a stale approval must not
  * throw the resolution). Same claim-promise + step enqueue as the liveness
- * sweep.
+ * sweep. It joins the caller's transaction, so the wake commits with the
+ * decision that caused it, and a decision whose wake cannot be queued is not
+ * recorded either.
  */
-export async function pokeParkedRun(
+export async function pokeParkedRunInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; runId: string },
+): Promise<boolean> {
+  await markAutomationWriterInTx(tx);
+  const rows = await tx<{ id: string }[]>`
+    UPDATE app.automation_runs SET
+      wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+      AND status = 'waiting'
+    RETURNING id
+  `;
+  if (!rows[0]) return false;
+  await enqueueStep(tx, args.organizationId, args.runId, 0);
+  return true;
+}
+
+/**
+ * Wake a run parked on a write that may already have happened once nothing
+ * is in doubt any more: the walker that was making the write outlived its
+ * lease, another walker parked the run on it, and the first one then
+ * recorded how the call ended. The next walker reads that end — the output,
+ * or the failure — instead of anyone being asked. Its own transaction, after
+ * the finish committed: the write locks the run row alone, the order every
+ * run write takes. Answers whether the run was woken.
+ */
+export async function wakeSettledInDoubtPark(
   sql: Sql,
   args: { organizationId: string; runId: string },
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
     const rows = await tx<{ id: string }[]>`
       UPDATE app.automation_runs SET
         wake_at_ms = ${Date.now() + RUN_CLAIM_PROMISE_MS}
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-        AND status = 'waiting'
+        AND status = 'waiting' AND detail LIKE 'in_doubt:%'
+        AND NOT EXISTS (
+          SELECT 1 FROM app.automation_node_attempts
+          WHERE run_id = ${args.runId} AND org_id = ${args.organizationId}
+            AND kind = 'connector' AND status = 'started'
+            AND resolution IS NULL
+        )
       RETURNING id
     `;
     if (!rows[0]) return false;
     await enqueueStep(tx, args.organizationId, args.runId, 0);
+    await emitRunHint(tx, args.organizationId, args.runId);
     return true;
   });
+}
+
+/**
+ * Lock a run's row for a decision that will wake it in the same
+ * transaction — taken BEFORE the decided row's own lock. A run's terminal
+ * doors (finish, cancel, delete) lock the run first and the rows that hang
+ * off it after, so a decision taking them the other way round could
+ * deadlock against a stop. Holding the run also orders the decision against
+ * the walker's park: a park that commits first is woken by the decision's
+ * poke, and one that waits for the decision reads it (`suspendRun`). A run
+ * that is not there locks nothing.
+ */
+export async function lockRunInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; runId: string },
+): Promise<void> {
+  await tx`
+    SELECT 1 FROM app.automation_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+    FOR UPDATE
+  `;
+}
+
+/**
+ * A stopping process hands on every run it still holds a lease on: the lease
+ * is released, the run counted as resumed after a shutdown, and one step job
+ * per run queued for whichever process takes it next — one transaction, so
+ * nothing is released without its continuation. When that transaction
+ * cannot commit (the job queue is already closing), the leases are released
+ * alone with an overdue promise, and the next sweep tick of a live process
+ * pokes them. Answers how many runs were handed on.
+ */
+export async function releaseOwnedRunLeases(sql: Sql): Promise<number> {
+  const owner = instanceId();
+  try {
+    return await sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const now = Date.now();
+      const rows = await tx<{ id: string; orgId: string }[]>`
+        UPDATE app.automation_runs SET
+          lease_owner = NULL, lease_expires_at_ms = NULL,
+          wake_at_ms = ${now + RUN_CLAIM_PROMISE_MS},
+          resume_count = resume_count + 1,
+          last_resume_reason = 'shutdown', last_resumed_at_ms = ${now}
+        WHERE status = 'running' AND lease_owner = ${owner}
+          AND lease_epoch = claim_epoch AND lease_expires_at_ms IS NOT NULL
+        RETURNING id, org_id AS "orgId"
+      `;
+      for (const row of rows) {
+        await enqueueStep(tx, row.orgId, row.id, 0);
+        await recordRunEventInTx(tx, {
+          organizationId: row.orgId,
+          runId: row.id,
+          kind: 'handed_off',
+          detail: { reason: 'shutdown_release' },
+        });
+        await emitRunHint(tx, row.orgId, row.id);
+      }
+      return rows.length;
+    });
+  } catch (error) {
+    console.warn(
+      '[automations] could not hand this process’s runs on; releasing their leases for the sweep instead:',
+      error,
+    );
+    return sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const now = Date.now();
+      const rows = await tx<{ id: string }[]>`
+      UPDATE app.automation_runs SET
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        wake_at_ms = ${now},
+        resume_count = resume_count + 1,
+        last_resume_reason = 'shutdown', last_resumed_at_ms = ${now}
+      WHERE status = 'running' AND lease_owner = ${owner}
+        AND lease_epoch = claim_epoch AND lease_expires_at_ms IS NOT NULL
+      RETURNING id
+    `;
+      return rows.length;
+    });
+  }
 }
 
 // ---------------------------------------------------------------- deletion
@@ -2857,14 +3652,20 @@ export async function deleteAutomationCascade(
     // dropped): deleting mid-run would remove the versions the stepper needs
     // to load, stranding the run non-terminal forever — the liveness sweep
     // re-claims it every ~3min and its sandbox session is never freed. Refuse
-    // while any run is live; cancel it (which now stops sessions + audits) or
-    // let it finish first.
+    // while any run is live or held. A hold is not released by cancellation.
     const active = await tx<{ status: string }[]>`
       SELECT status FROM app.automation_runs
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
-        AND status IN ('queued', 'running', 'waiting')
+        AND status IN ('queued', 'running', 'waiting', 'quarantined')
       LIMIT 1
     `;
+    if (active[0]?.status === 'quarantined') {
+      throw new AutomationError(
+        'RUN_QUARANTINED',
+        'A run of this automation is on hold because its external outcome is unknown. Preserve its definition and evidence.',
+        409,
+      );
+    }
     if (active[0]) {
       throw new AutomationError(
         'AUTOMATION_HAS_ACTIVE_RUNS',

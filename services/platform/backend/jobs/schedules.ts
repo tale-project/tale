@@ -1,5 +1,7 @@
 import type { PgBoss } from 'pg-boss';
+import type { Sql } from 'postgres';
 
+import { addJobInTx } from './enqueue.ts';
 import type { TaskIdentifier } from './tasks.ts';
 
 /**
@@ -135,5 +137,25 @@ export async function registerSchedules(boss: PgBoss): Promise<void> {
   }
   for (const name of RETIRED_SCHEDULES) {
     await boss.unschedule(name);
+  }
+}
+
+/**
+ * One liveness sweep as a worker starts, beside the minute schedule: a
+ * worker restarted after a crash pokes the runs the dead one left — their
+ * leases lapsed half a minute after its last heartbeat — at once, instead
+ * of at the next minute. Every booting worker sends one; the sweep re-checks
+ * each run in its own write, so two overlapping sweeps poke a run once. A
+ * send that fails is logged and never fails the boot: the schedule sweeps
+ * within the minute anyway.
+ */
+export async function sweepRunsAtBoot(sql: Sql): Promise<void> {
+  try {
+    await addJobInTx(sql, 'automation.liveness', {});
+  } catch (error) {
+    console.warn(
+      '[backend] could not queue the boot liveness sweep; the minute schedule runs it:',
+      error,
+    );
   }
 }

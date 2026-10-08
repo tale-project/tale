@@ -50,18 +50,14 @@ export function SidebarNavItem({
     return null;
   }
 
-  // Where this tile goes: the section's own landing page by default — a rail
-  // click from outside the section resets to its entry point, not the last
-  // place inside it. Home, Knowledge and Automations are the exceptions:
-  // `item.to`/`item.state` already resolve to a remembered deep link when
-  // one exists (see `useNavigationItems`), so this stays a plain pass-through.
+  // Where this tile goes: the section's overview, every time — from another
+  // section and from inside this one. A rail click is a request for the
+  // section, never a replay of a place in it, so it always lands on the same
+  // page: Home a fresh composer, a tabbed section its first tab.
   const linkProps = {
     to: item.to,
     params: item.params,
-    ...(isActive && item.reentrySearch !== undefined
-      ? { search: item.reentrySearch }
-      : {}),
-    ...(item.state !== undefined ? { state: item.state } : {}),
+    ...(item.search !== undefined ? { search: item.search } : {}),
     preload: 'render',
   } as const;
 
@@ -146,6 +142,12 @@ export function SidebarNavItem({
       {...linkProps}
       data-indicator-key={item.href}
       aria-label={accessibleName}
+      // The section the page belongs to, by the same rule that places the
+      // pill. TanStack only stamps `aria-current` itself when the URL starts
+      // with the tile's own `to`, which misses Knowledge's other tabs and
+      // every Home page but the composer; its own stamp never names a tile
+      // this rule leaves out, so the two cannot disagree.
+      aria-current={isActive ? 'page' : undefined}
       className={linkClassName}
     >
       {rowContent}

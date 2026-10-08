@@ -264,6 +264,14 @@ export interface RunConnectorArgs {
    * process-global slot is shared by every concurrent org.
    */
   execSessionId?: string;
+  /**
+   * The caller's own stop: an automation run's turn passes its signal so a
+   * live call still running when the server is shutting down is cut
+   * (`INTERRUPTED`) instead of holding the walker. An in-process reference —
+   * it reaches this door only through direct calls and the ctx shim, which
+   * hands its arguments over untouched.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -325,6 +333,7 @@ export async function runConnectorAction(
       ...(args.idempotencyKey !== undefined
         ? { idempotencyKey: args.idempotencyKey }
         : {}),
+      ...(args.signal !== undefined ? { signal: args.signal } : {}),
       // A live yaml-js body needs a host-capable runner: the session-bound
       // one when the caller owns a session, the in-process one otherwise.
       // The process-global slot stays the data-only runner for mock bodies.

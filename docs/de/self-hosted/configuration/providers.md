@@ -113,7 +113,7 @@ Coding-Agenten richten sich außerdem nach dem Kontextfenster, das der Katalog f
 
 Auf einem Modell, das nicht Claude ist, lässt eine verwaltete Claude-Code-Sitzung außerdem die Zuordnungszeile weg, die Claude Code sonst an den Anfang jedes Systemprompts stellt. Diese Zeile ändert sich mit jeder Anfrage, und ein Server, der Prompt-Anfänge zwischenspeichert, müsste sonst bei jedem Schritt die ganze Konversation neu berechnen.
 
-## Wo die Connectoren liegen
+## Wo die Connectors liegen {#wo-die-connectoren-liegen}
 
 Mitgelieferte Definitionen liegen unter `configs/platform/system/providers/<slug>/provider.yml`, ihre statischen Kataloge unter `configs/platform/system/models/<slug>/models.yml`. Anthropic verwendet beispielsweise `providers/anthropic/provider.yml` und `models/anthropic/models.yml`. Die Dateien gehören zum Image und ändern sich mit dessen Version.
 

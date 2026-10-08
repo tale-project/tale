@@ -3,13 +3,13 @@ title: Deinen ersten Agenten erstellen
 description: Richte einen Projektagenten für eine kleine Textaufgabe ein, starte ihn über die Aufgabenübersicht und prüfe sein Ergebnis.
 ---
 
-Erstelle einen Agenten, der eine Kontaktnachricht zusammenfasst und einen nächsten Schritt empfiehlt. Diese Übung nutzt die Aufgabenbeschreibung als Eingabe. So kannst du den gesamten Ablauf prüfen, bevor Connectoren oder gemeinsames Wissen hinzukommen: Agent einrichten, eine Aufgabe starten und das Ergebnis prüfen.
+Erstelle einen Agenten, der eine Kontaktnachricht zusammenfasst und einen nächsten Schritt empfiehlt. Diese Übung nutzt die Aufgabenbeschreibung als Eingabe. So kannst du den gesamten Ablauf prüfen, bevor Connectors oder gemeinsames Wissen hinzukommen: Agent einrichten, eine Aufgabe starten und das Ergebnis prüfen.
 
 ## Bevor du beginnst
 
 Du brauchst ein Projekt mit Bearbeitungszugriff, eine verfügbare Agent-Laufzeit mit passenden Modellzugangsdaten und eine funktionierende Sandbox-Zuteilung. Ein Administrator verwaltet [KI-Anbieter](/de/platform/admin/providers) und [Sandboxes](/de/platform/admin/sandboxes). Dass ein Modell im Chat funktioniert, genügt allein nicht: Die gewählte Agent-Laufzeit muss ihre Zugangsdaten verwenden können.
 
-Fehlen die Agentenseite oder die Modellauswahl, kläre zuerst Zugriff und Einrichtung. Für diese Übung sind keine Skills, Connectoren, Plattform-Tools oder eingeblendeten Secrets nötig.
+Fehlen die Agentenseite oder die Modellauswahl, kläre zuerst Zugriff und Einrichtung. Für diese Übung sind keine Skills, Connectors, Plattform-Tools oder eingeblendeten Secrets nötig.
 
 ## Den Agenten erstellen
 

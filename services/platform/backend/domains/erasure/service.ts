@@ -26,6 +26,7 @@ import {
 } from '../../lib/rate-limit.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
@@ -1198,13 +1199,16 @@ export async function processErasure(
   // which this pass used to leave behind: a retention defect, since a run
   // started from the builder carried the subject's data as much as any.
   await pass('automationRuns', async () => {
-    const removed = await sql<{ id: string }[]>`
+    return sql.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      const removed = await tx<{ id: string }[]>`
       DELETE FROM app.automation_runs
       WHERE org_id = ${organizationId}
         AND started_by = ANY(${[`user:${targetUserId}`, `api-key:${targetUserId}`, targetUserId]})
       RETURNING id
     `;
-    return removed.length;
+      return removed.length;
+    });
   });
 
   // The sandbox workspaces the subject's runs with the organization's agents

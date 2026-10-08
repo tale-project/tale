@@ -108,6 +108,12 @@ export async function delegateAgentTaskReview(
       taskId: task.id,
       runId: input.expected.runId,
     });
+    if (source?.implementationAgentId === auth.agentId)
+      throw new TaskError(
+        'TASK_REVIEWER_NOT_INDEPENDENT',
+        'The implementation agent cannot delegate the review of its own work',
+        403,
+      );
     if (source?.evidenceRevision !== input.expected.evidenceRevision)
       return stale();
     const block = await agentReviewBlockedReason(tx, {

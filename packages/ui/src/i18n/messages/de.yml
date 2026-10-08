@@ -310,6 +310,10 @@ recurrence:
   custom: Benutzerdefiniert
   back: Zurück zur Schnellauswahl
   workweekRange: Mo–Fr
+  nextRuns: Nächste Läufe
+  scheduleLabel: Zeitplan
+  customInterval: Benutzerdefiniertes Intervall
+  customTimes: Benutzerdefinierte Uhrzeiten
   nextDates: Nächste Termine
   sentence:
     daily: '{count, plural, one {Täglich} other {Alle # Tage}}'
@@ -324,6 +328,31 @@ recurrence:
     yearly: '{count, plural, one {Jährlich} other {Alle # Jahre}}'
     monthDay: '{day}.'
     dayCount: '{count, plural, one {# Tag} other {# Tage}}'
+  schedule:
+    sentence:
+      minutely: '{count, plural, one {Jede Minute} other {Alle # Minuten}}'
+      hourly: '{count, plural, one {Stündlich} other {Alle # Stunden}}'
+      hourlyAt: '{count, plural, one {Stündlich} other {Alle # Stunden}}, {minute, plural, one {# Minute} other {# Minuten}} nach der vollen Stunde'
+      withTimes: '{hourCycle, select, h12 {{rule} um {times}} other {{rule} um {times} Uhr}}'
+      withWindow: '{rule}, {window}'
+    hoursRange: '{hourCycle, select, h12 {{from}–{to}} other {{from}–{to} Uhr}}'
+    dayRange: '{first}–{last}'
+    compact:
+      at: '{days} um {times}'
+      timeCount: '{count, plural, one {#-mal} other {#-mal}}'
+      minutePast: ':{mm}'
+      hoursRange: '{from}–{to}'
+  occurrences:
+    dateTime: '{date}, {time}'
+    inZone: '{label} · {zone}'
+    viewerZone: 'Deine Zeitzone ist {zone}.'
+    local: '{time} in deiner Zeitzone'
+    localOtherDay: '{date}, {time} in deiner Zeitzone'
+    clockChange: Zeitumstellung
+    shiftedForward: '{time} gibt es an diesem Tag nicht, deshalb startet dieser Lauf um {actual}.'
+    repeatedHour: '{time} kommt an diesem Tag zweimal vor; der Lauf startet nur beim ersten Mal.'
+    intervalRepeated: 'Die Uhr wird zurückgestellt: Diese Stunde wiederholt sich, die Läufe behalten ihren echten Abstand.'
+    empty: Keine anstehenden Läufe.
   editor:
     unit: Einheit
     units:
@@ -331,12 +360,34 @@ recurrence:
       weekly: Woche
       monthly: Monat
       yearly: Jahr
-    every: '{count, plural, one {{unit, select, weekly {Jede} yearly {Jedes} other {Jeden}}} other {Alle}}'
+    every: '{count, plural, one {{unit, select, weekly {Jede} yearly {Jedes} minutely {Jede} hourly {Jede} other {Jeden}}} other {Alle}}'
     unitNoun:
       daily: '{count, plural, one {Tag} other {Tage}}'
       weekly: '{count, plural, one {Woche} other {Wochen}}'
       monthly: '{count, plural, one {Monat} other {Monate}}'
       yearly: '{count, plural, one {Jahr} other {Jahre}}'
+    intervalOption:
+      minutely: '{count, plural, one {Minute} other {# Minuten}}'
+      hourly: '{count, plural, one {Stunde} other {# Stunden}}'
+    minutePast: '{count, plural, one {Minute} other {Minuten}} nach der vollen Stunde'
+    at: Um
+    timeName: 'Uhrzeit {index}'
+    addTime: Uhrzeit hinzufügen
+    removeTime: '{time} entfernen'
+    maxTimes: 'Höchstens {count} Uhrzeiten pro Tag.'
+    duplicateTime: Steht schon in der Liste — läuft nur einmal.
+    onlyBetween: Nur zwischen
+    and: und
+    windowFrom: Von
+    windowUntil: Bis
+    windowHint:
+      sameDay: 'Jeden Tag startet der erste Lauf um {first}, der letzte um {last}.'
+      overnight: 'Läuft über Nacht: Der erste Lauf startet um {first}, der letzte um {last} am nächsten Morgen.'
+      nextMorning: 'Läuft am nächsten Morgen: Der erste Lauf startet um {first}, der letzte um {last}.'
+      once: 'Jeden Tag gibt es nur einen Lauf, um {time}.'
+      onceNextMorning: 'Jeden Tag gibt es nur einen Lauf, um {time} am nächsten Morgen.'
+      allDay: 'Gleicher Beginn und gleiches Ende bedeutet: den ganzen Tag.'
+      none: Zwischen diesen Uhrzeiten startet kein Lauf. Erweitere den Zeitraum oder wähle ein kürzeres Intervall.
     onWeekdays: Am
     onDay: Am Tag
     onDate: Am
@@ -352,5 +403,34 @@ recurrence:
     saturday: Sa
     sunday: So
 
+timeField:
+  hours: Stunden
+  minutes: Minuten
+  dayPeriod: AM/PM
+  minuteValue: '{minute, plural, one {# Minute} other {# Minuten}}'
+  empty: Leer
+  pasteInvalid: Das ist keine Uhrzeit. Füge eine wie {example} ein.
+
 siteFooter:
   copyright: © {year} Tale von Ruler GmbH. MIT-lizenziert.
+
+issues:
+  srPrefix:
+    error: 'Fehler:'
+    warning: 'Warnung:'
+    info: 'Hinweis:'
+  summary: '{errors, plural, =0 {{warnings, plural, =0 {Keine Probleme} one {# Warnung} other {# Warnungen}}} one {# Fehler{warnings, plural, =0 {} one { und # Warnung} other { und # Warnungen}}} other {# Fehler{warnings, plural, =0 {} one { und # Warnung} other { und # Warnungen}}}}'
+  none: Keine Probleme
+  listLabel: Probleme
+  listFailed: Die Prüfung ist fehlgeschlagen. Die Liste ist möglicherweise nicht aktuell.
+  buttonLabel: 'Probleme: {summary}'
+  buttonLabelChecking: 'Probleme: {summary}. Wird geprüft…'
+  buttonLabelFailed: 'Probleme: Prüfung fehlgeschlagen'
+  checking: Wird geprüft…
+  checkFailed: Prüfung fehlgeschlagen
+  announce: '{context}. {summary}'
+  nodeSummary: '({summary})'
+  fixLabel: 'So behebst du es:'
+  technicalDetails: Technische Details
+  learnMore: Mehr erfahren
+  goTo: Zur Stelle
