@@ -79,7 +79,7 @@ export async function migrate(tx: TransactionSql): Promise<void> {
     SELECT to_regclass('public."member"') IS NOT NULL
        AND to_regclass('public."user"') IS NOT NULL AS ready
   `;
-  if (authTables[0]?.ready === true) {
+  if (authTables[0]?.ready) {
     const members = await tx<
       {
         orgId: string;
