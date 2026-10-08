@@ -1,0 +1,114 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  AGENT_HANDLE_BASE_MAX,
+  AGENT_HANDLE_MAX,
+  agentHandleBase,
+  agentHandleCandidate,
+  deriveAgentHandles,
+  handleFitsBase,
+  isAgentHandle,
+  nextAgentHandle,
+} from './agent-handle';
+
+describe('an agent handle is its name in plain letters [PROJ-R18]', () => {
+  it.each([
+    ['My Opus Agent #3', 'my-opus-agent-3'],
+    ['Research Bot', 'research-bot'],
+    ['Büro Agent', 'buero-agent'],
+    ['BÜRO ÄRGER ÖL', 'buero-aerger-oel'],
+    ['Straße & Café', 'strasse-cafe'],
+    ['GROẞE Sache', 'grosse-sache'],
+    ["O'Brien's agent", 'obriens-agent'],
+    ['O’Brien’s agent', 'obriens-agent'],
+    ['Coder (v2)', 'coder-v2'],
+    ['Søren Łódź Þór Æsir Œuvre', 'soren-lodz-thor-aesir-oeuvre'],
+    ['Crème brûlée', 'creme-brulee'],
+    ['  --Leading and trailing--  ', 'leading-and-trailing'],
+    ['ﬁnance Ａgent', 'finance-agent'],
+    ['发票助手', 'agent'],
+    ['🚀', 'agent'],
+    ['Standard agent', 'standard-agent'],
+    ['Standard-Agent', 'standard-agent'],
+    ['Agent standard', 'agent-standard'],
+  ])('%s → %s', (name, handle) => {
+    expect(agentHandleBase(name)).toBe(handle);
+    expect(isAgentHandle(handle)).toBe(true);
+  });
+
+  it('cuts a long name to the base limit without a trailing hyphen', () => {
+    const name = `${'a'.repeat(47)} ${'b'.repeat(12)}`;
+    const base = agentHandleBase(name);
+    expect(base).toBe('a'.repeat(47));
+    expect(base.length).toBeLessThanOrEqual(AGENT_HANDLE_BASE_MAX);
+
+    const sixty = 'Quarterly revenue reconciliation agent for the finance team';
+    expect(agentHandleBase(sixty)).toBe(
+      'quarterly-revenue-reconciliation-agent-for-the-f',
+    );
+  });
+
+  it('adds -02, -03 … -99 and then -100 when the base is taken', () => {
+    expect(agentHandleCandidate('my-opus-agent-3', 1)).toBe('my-opus-agent-3');
+    expect(agentHandleCandidate('my-opus-agent-3', 2)).toBe(
+      'my-opus-agent-3-02',
+    );
+    expect(agentHandleCandidate('my-opus-agent-3', 99)).toBe(
+      'my-opus-agent-3-99',
+    );
+    expect(agentHandleCandidate('my-opus-agent-3', 100)).toBe(
+      'my-opus-agent-3-100',
+    );
+
+    const taken = new Set(['my-opus-agent-3']);
+    expect(nextAgentHandle('my-opus-agent-3', taken)).toBe(
+      'my-opus-agent-3-02',
+    );
+    const crowded = new Set(
+      Array.from({ length: 99 }, (_, i) =>
+        agentHandleCandidate('agent', i + 1),
+      ),
+    );
+    expect(nextAgentHandle('agent', crowded)).toBe('agent-100');
+  });
+
+  it('keeps the suffix and cuts the base when a suffix would overflow', () => {
+    const base = 'a'.repeat(AGENT_HANDLE_BASE_MAX);
+    expect(agentHandleCandidate(base, 100)).toHaveLength(52);
+    const long = agentHandleCandidate(base, 12345);
+    expect(long.endsWith('-12345')).toBe(true);
+    expect(long.length).toBeLessThanOrEqual(AGENT_HANDLE_MAX);
+    expect(isAgentHandle(long)).toBe(true);
+  });
+
+  it('knows which handles a base offers', () => {
+    expect(handleFitsBase('qa-bot', 'qa-bot')).toBe(true);
+    expect(handleFitsBase('qa-bot-02', 'qa-bot')).toBe(true);
+    expect(handleFitsBase('qa-bot-100', 'qa-bot')).toBe(true);
+    expect(handleFitsBase('my-opus-agent-3', 'my-opus-agent')).toBe(false);
+    expect(handleFitsBase('qa-bot-1', 'qa-bot')).toBe(false);
+    expect(handleFitsBase('qa-bot-01', 'qa-bot')).toBe(false);
+    expect(handleFitsBase('research-bot', 'qa-bot')).toBe(false);
+  });
+
+  it('gives the oldest agent the clean handle and skips reserved ones', () => {
+    const minted = deriveAgentHandles(
+      [
+        { id: 'b', name: 'My Opus Agent 3', handle: null, createdAt: 2 },
+        { id: 'a', name: 'My Opus Agent #3', handle: null, createdAt: 1 },
+        { id: 'c', name: '发票助手', handle: null, createdAt: 3 },
+        { id: 'd', name: '🚀', handle: null, createdAt: 4 },
+        { id: 'e', name: 'Invoice checker', handle: null, createdAt: 5 },
+        { id: 'f', name: 'Kept', handle: 'agent', createdAt: 0 },
+      ],
+      new Set(['invoice-checker']),
+    );
+    expect(Object.fromEntries(minted)).toEqual({
+      a: 'my-opus-agent-3',
+      b: 'my-opus-agent-3-02',
+      c: 'agent-02',
+      d: 'agent-03',
+      e: 'invoice-checker-02',
+    });
+  });
+});

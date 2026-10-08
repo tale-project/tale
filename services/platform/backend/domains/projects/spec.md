@@ -119,6 +119,17 @@ records how many.
 - **Example**: An agent is assigned to four tasks. Noah deletes the agent → the four tasks
   are unassigned.
 
+### PROJ-R18 · An agent's mention handle is its name in plain letters, unique in its project
+
+The handle is what a person types after `@` to find the agent: lowercase letters, digits and
+single hyphens, with German umlauts and ß spelled out and other accents dropped, at most 48
+characters before a suffix. When another agent of the project already holds it, or a person or
+an automation of the organization answers to it, the agent gets the next free one: `-02`,
+`-03` and on. A name with no letter or digit that can be spelled this way gives `agent`.
+
+- **Example**: Mia adds an agent named "My Opus Agent #3" → it answers to `@my-opus-agent-3`.
+  Noah then adds "My Opus Agent 3" → it answers to `@my-opus-agent-3-02`.
+
 ## Secrets
 
 ### PROJ-R13 · Only owners and admins can change a project's secrets
