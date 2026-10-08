@@ -43,7 +43,6 @@ export interface RunConfig {
   shard: { index: number; count: number };
   processes: number;
   scenarioModule: string;
-  insecureTls: boolean;
   localAddresses: string[];
   /** Seconds between progress lines and worker snapshots. */
   progressSeconds: number;
@@ -243,7 +242,6 @@ export async function runLoad(config: RunConfig): Promise<RunOutcome> {
       worker: w,
       snapshotEveryMs: config.progressSeconds * 1000,
       scenarioModule: config.scenarioModule,
-      insecureTls: config.insecureTls,
       localAddresses: config.localAddresses,
     };
     child.send({ type: 'start', config: workerConfig } satisfies ToWorker);

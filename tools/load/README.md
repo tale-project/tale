@@ -137,6 +137,10 @@ node tools/load/src/cli.ts run --plan plan.json --profile load --users <1M / N> 
 node tools/load/src/cli.ts merge shard-*.json --out million.json
 ```
 
+A target behind a private certificate authority (a staging deployment, Caddy's `tls internal`)
+stays verified: point `NODE_EXTRA_CA_CERTS` at the authority's root certificate. The harness has
+no switch that turns certificate checks off.
+
 Users are partitioned exactly by the shard index (`shardRange` in `src/plan.ts`), so no user runs
 twice. Each generator writes its own report; `merge` folds the histograms exactly — percentiles
 do not average. Seed once, with the full count, before the generators start.

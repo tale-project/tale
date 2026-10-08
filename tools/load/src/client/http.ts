@@ -33,8 +33,6 @@ export interface AgentOptions {
   keepAliveTimeoutMs?: number;
   /** Sockets per origin; `null` (the default) is unbounded. */
   connections?: number | null;
-  /** Accept self-signed certificates, for staging targets. */
-  insecureTls?: boolean;
   /**
    * Source address for outgoing connections. A generator holding tens of
    * thousands of streams runs out of ephemeral ports on one address (about
@@ -58,7 +56,6 @@ export function createAgent(options: AgentOptions = {}): Agent {
     bodyTimeout: 0,
     connect: {
       timeout: options.connectTimeoutMs ?? 10_000,
-      ...(options.insecureTls === true ? { rejectUnauthorized: false } : {}),
       ...(options.localAddress === undefined
         ? {}
         : { localAddress: options.localAddress }),

@@ -37,7 +37,6 @@ export interface WorkerConfig {
   snapshotEveryMs: number;
   /** Absolute path of the module exporting `runVirtualUser`. */
   scenarioModule: string;
-  insecureTls: boolean;
   /** Source addresses for outgoing connections; empty: the system's choice. */
   localAddresses: string[];
 }
@@ -114,9 +113,9 @@ async function main(): Promise<void> {
       baseUrls: config.baseUrls,
       agents:
         config.localAddresses.length === 0
-          ? [createAgent({ insecureTls: config.insecureTls })]
+          ? [createAgent()]
           : config.localAddresses.map((localAddress) =>
-              createAgent({ insecureTls: config.insecureTls, localAddress }),
+              createAgent({ localAddress }),
             ),
       metrics,
       authSecret: config.authSecret,

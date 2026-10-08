@@ -131,7 +131,6 @@ interface RunFlags {
   breakpointP95: number;
   breakpointErrorRate: number;
   progressSeconds: number;
-  insecureTls: boolean;
   scenarioModule?: string;
   localAddress: string[];
 }
@@ -213,7 +212,6 @@ async function runCommand(flags: RunFlags): Promise<number> {
     scenarioModule:
       flags.scenarioModule ??
       fileURLToPath(new URL('../scenario/index.ts', import.meta.url)),
-    insecureTls: flags.insecureTls,
     localAddresses: flags.localAddress,
     progressSeconds: flags.progressSeconds,
     metricsEndpoints: flags.metrics.map((url) => ({
@@ -373,11 +371,6 @@ export function createRunCommand(): Command {
       'seconds between progress lines',
       positiveInteger,
       5,
-    )
-    .option(
-      '--insecure-tls',
-      'accept self-signed certificates (test deployments only)',
-      false,
     )
     .option(
       '--local-address <ip>',
