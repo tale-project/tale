@@ -824,7 +824,11 @@ protect_shared_cache_network() {
 # MUST run as the agent uid (10001) with the agent HOME so runnerd's execs (also
 # uid 10001, same HOME) see the builder definition; root-owned buildx state would
 # be invisible to them. The definition lives under the persistent workspace
-# (~/.docker), so it survives resume — hence the inspect-first idempotency.
+# (~/.docker/buildx/instances/<name>), so it survives resume: when the agent uid
+# already owns it, boot selects it without starting the Docker CLI at all
+# (every `docker buildx` call starts the CLI and its buildx plugin, two Go
+# binaries, while runnerd waits to start). Otherwise `inspect` adopts a
+# definition the file check could not see, and `create` registers a new one.
 #
 # Best-effort: any failure just leaves the agent on the inner dockerd's local
 # builder (cold cache), never blocks the session. The remote `create` only
@@ -835,20 +839,44 @@ setup_shared_buildx_builder() {
   # Select a builder keyed by the full validated endpoint; never adopt that
   # legacy definition, and explicitly fall back to the local daemon on failure.
   export BUILDX_BUILDER=default
-  _builder=$(/usr/bin/env -u NODE_OPTIONS -u NODE_PATH /opt/node/bin/node -e 'const {createHash}=require("node:crypto"); process.stdout.write("tale-build-"+createHash("sha256").update(process.env.TALE_BUILDKITD_ENDPOINT).digest("hex").slice(0,24))')
+  # Called as part of an || list, so `set -e` does not apply inside: no step
+  # of the setup can abort the session's boot.
+  _select_shared_buildx_builder ||
+    echo "[entrypoint] WARN: could not set up shared buildx builder (${TALE_BUILDKITD_ENDPOINT}); using the inner dockerd builder (cold cache)" >&2
+}
+
+# "tale-build-" and the first 24 hex digits of the endpoint's SHA-256: the
+# name earlier runtimes derived with node, so existing workspaces keep their
+# builder. Fails on a missing or malformed digest instead of naming a builder.
+_shared_buildx_builder_name() {
+  _digest=$(printf '%s' "$1" | sha256sum | cut -c1-24) || return 1
+  case "${_digest}" in
+    '' | *[!0-9a-f]*) return 1 ;;
+  esac
+  [ "${#_digest}" -eq 24 ] || return 1
+  printf 'tale-build-%s\n' "${_digest}"
+}
+
+_select_shared_buildx_builder() {
+  _builder=$(_shared_buildx_builder_name "${TALE_BUILDKITD_ENDPOINT}") || return 1
   _bk() {
     /usr/bin/setpriv --reuid 10001 --regid 10001 --init-groups -- \
       /usr/bin/env HOME=/agent/.runtime/home /usr/bin/docker buildx "$@"
   }
-  if _bk inspect "${_builder}" >/dev/null 2>&1 ||
-    _bk create --name "${_builder}" --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
-      >/var/log/buildx-create.log 2>&1; then
-    export BUILDX_BUILDER="${_builder}"
-    echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=${BUILDX_BUILDER} -> ${TALE_BUILDKITD_ENDPOINT}"
-  else
-    echo "[entrypoint] WARN: could not set up shared buildx builder (${TALE_BUILDKITD_ENDPOINT}); using the inner dockerd builder (cold cache)" >&2
+  # Where buildx keeps the definition for the agent's environment.
+  _bk_instance="${BUILDX_CONFIG:-${DOCKER_CONFIG:-/agent/.runtime/home/.docker}/buildx}/instances/${_builder}"
+  if /usr/bin/setpriv --reuid 10001 --regid 10001 --init-groups -- \
+    /bin/sh -c '[ -f "$1" ] && [ -O "$1" ]' sh "${_bk_instance}"; then
+    :
+  elif _bk inspect "${_builder}" >/dev/null 2>&1; then
+    :
+  elif ! _bk create --name "${_builder}" --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
+    >/var/log/buildx-create.log 2>&1; then
     tail -n 3 /var/log/buildx-create.log >&2 2>/dev/null || true
+    return 1
   fi
+  export BUILDX_BUILDER="${_builder}"
+  echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=${BUILDX_BUILDER} -> ${TALE_BUILDKITD_ENDPOINT}"
 }
 
 # ---------------------------------------------------------------------------

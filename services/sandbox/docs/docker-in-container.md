@@ -256,8 +256,11 @@ the transparent proxy and DNS path. A moved egress proxy is reattached and the
 builder's stale egress configuration is repaired during provisioning/adoption.
 
 The runtime derives its buildx builder name from the configured endpoint, so
-persistent workspaces do not retain an earlier global endpoint by name. Builder
-setup failure selects the local builder. A bare remote `docker build` needs
+persistent workspaces do not retain an earlier global endpoint by name. A
+resumed workspace whose agent user already owns that builder's definition
+selects it without starting the Docker CLI; otherwise startup inspects or
+creates it. Builder setup failure, including a failure to derive the name,
+selects the local builder and never stops the session from starting. A bare remote `docker build` needs
 `--load` before the resulting image can run in the session's inner engine.
 
 On upgrade, organization caches start cold. The old global containers are
