@@ -16,6 +16,7 @@ import type {
 import { createWebhookRoutes } from '../../backend/domains/automations/triggers.ts';
 import { API_CONTACT_STATUSES } from '../../backend/domains/conversations/api-sync.ts';
 import { PLATFORM_CAPABILITIES } from '../../backend/domains/governance/competence.ts';
+import type { McpCaller } from '../../backend/domains/mcp/caller.ts';
 import { handleMcpRequest } from '../../backend/domains/mcp/protocol.ts';
 import { PRODUCT_STATUSES } from '../../backend/domains/products/service.ts';
 import { describeByteCap } from '../../backend/lib/byte-cap.ts';
@@ -1274,12 +1275,14 @@ describe('a task answers its schedule and how it repeats', () => {
  * until these replies were held against their schemas.
  */
 describe('MCP JSON-RPC envelopes validate against their documented schemas', () => {
-  const rc = {
-    ctx: { runAction: vi.fn(), runQuery: vi.fn() },
-    user: { userId: 'user-1', email: 'user@example.com', name: 'User' },
-    org: { organizationId: 'org-1', orgSlug: 'acme' },
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the handler touches exactly this surface
-  } as never;
+  const caller: McpCaller = {
+    organizationId: 'org-1',
+    orgSlug: 'acme',
+    userId: 'user-1',
+    role: 'developer',
+    credential: { kind: 'api-key', apiKeyId: 'key-1' },
+  };
+  const options = { host: { engine: vi.fn(), capability: vi.fn() } };
   const post = (body: unknown) =>
     new Request('http://localhost/api/v1/mcp', {
       method: 'POST',
@@ -1291,18 +1294,20 @@ describe('MCP JSON-RPC envelopes validate against their documented schemas', () 
     const validate = responseValidator('/api/v1/mcp', 'post', '200');
     const single: unknown = await (
       await handleMcpRequest(
-        rc,
+        caller,
         post({ jsonrpc: '2.0', id: 1, method: 'ping' }),
+        options,
       )
     ).json();
     expect(validate(single), JSON.stringify(validate.errors)).toBe(true);
     const batch: unknown = await (
       await handleMcpRequest(
-        rc,
+        caller,
         post([
           { jsonrpc: '2.0', id: 1, method: 'ping' },
           { jsonrpc: '2.0', id: 'b', method: 'resources/list' },
         ]),
+        options,
       )
     ).json();
     expect(validate(batch), JSON.stringify(validate.errors)).toBe(true);
@@ -1310,7 +1315,11 @@ describe('MCP JSON-RPC envelopes validate against their documented schemas', () 
 
   it('a parse error, whose id is null, validates against the 400 schema', async () => {
     const validate = responseValidator('/api/v1/mcp', 'post', '400');
-    const response = await handleMcpRequest(rc, post('not json at all'));
+    const response = await handleMcpRequest(
+      caller,
+      post('not json at all'),
+      options,
+    );
     expect(response.status).toBe(400);
     const body: unknown = await response.json();
     expect(body).toMatchObject({ id: null, error: { code: -32700 } });

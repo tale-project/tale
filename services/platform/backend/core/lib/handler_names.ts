@@ -78,11 +78,6 @@ interface HandlerNames {
       readAgentCursor: FunctionRef;
     };
   };
-  automations_builder: FunctionRef & {
-    run_session: FunctionRef & {
-      dispatchEngineMethod: FunctionRef;
-    };
-  };
   browser_sessions: FunctionRef & {
     sessions: FunctionRef & {
       claimBrowserSession: FunctionRef;
@@ -92,9 +87,6 @@ interface HandlerNames {
   chat: FunctionRef & {
     branches: FunctionRef & {
       getThreadLineageIds: FunctionRef;
-    };
-    capabilities_action: FunctionRef & {
-      dispatchCapabilityAs: FunctionRef;
     };
     handover: FunctionRef & {
       getTaskHandoverInternal: FunctionRef;
@@ -236,11 +228,6 @@ interface HandlerNames {
   knowledge_entries: FunctionRef & {
     internal_queries: FunctionRef & {
       listEntriesForAgent: FunctionRef;
-    };
-  };
-  members: FunctionRef & {
-    internal_queries: FunctionRef & {
-      getMemberRole: FunctionRef;
     };
   };
   products: FunctionRef & {

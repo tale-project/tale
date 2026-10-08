@@ -10,38 +10,60 @@
  *
  * Authentication is deliberately out of scope here: the `/api/v1/mcp` door
  * (`backend/rest/v1-mcp.ts`, behind the REST door in `backend/rest/v1.ts`)
- * owns it, so these tests drive the post-auth handler with a hand-built
- * context.
+ * owns it and hands this layer a proven caller, so these tests drive the
+ * post-auth handler with a hand-built caller and a host whose engine and
+ * capability surface are stand-ins.
  */
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
-import { internal } from '../../core/lib/handler_names';
-import type { RestContext } from '../../core/lib/rest/helpers';
-import { handleMcpRequest, MAX_BATCH_MESSAGES } from './protocol';
-
-// The REST helpers resolve identity through Better Auth; the handler under test
-// never reaches it, but importing the module must not boot the auth stack.
-vi.mock('../auth', () => ({ createAuth: vi.fn() }));
+import type { McpCaller } from './caller';
+import {
+  handleMcpRequest,
+  MAX_BATCH_MESSAGES,
+  type McpRequestOptions,
+} from './protocol';
 
 const ORG = 'org_mcp_1';
 const USER = 'user_mcp_1';
+const KEY = 'key_mcp_1';
 
-function context(
-  runAction = vi.fn(),
-  runQuery = vi.fn(),
-): {
-  rc: RestContext;
-  runAction: ReturnType<typeof vi.fn>;
-} {
-  const rc: RestContext = {
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the handler only uses runAction and runQuery
-    ctx: { runAction, runQuery } as unknown as RestContext['ctx'],
-    user: { userId: USER, email: 'key@example.test', name: 'Key holder' },
-    org: { organizationId: ORG, orgSlug: 'acme' },
+/** The caller the door proves for a key whose holder has `role`. */
+function keyCaller(role = 'developer'): McpCaller {
+  return {
+    organizationId: ORG,
+    orgSlug: 'acme',
+    userId: USER,
+    role,
+    credential: { kind: 'api-key', apiKeyId: KEY },
   };
-  return { rc, runAction };
+}
+
+/** The handler for one key holder, whose tool calls reach `engine` and
+ * `capability` — by default one stand-in for both surfaces. */
+function context(
+  engine = vi.fn(),
+  role = 'developer',
+  capability = engine,
+): {
+  caller: McpCaller;
+  serve: (
+    request: Request,
+    admit?: McpRequestOptions['admit'],
+  ) => Promise<Response>;
+} {
+  const caller = keyCaller(role);
+  const host = { engine, capability };
+  return {
+    caller,
+    serve: (request, admit) =>
+      handleMcpRequest(
+        caller,
+        request,
+        admit === undefined ? { host } : { host, admit },
+      ),
+  };
 }
 
 function rpc(body: unknown): Request {
@@ -54,11 +76,11 @@ function rpc(body: unknown): Request {
 
 async function call(
   body: unknown,
-  runAction = vi.fn(),
-  runQuery = vi.fn(),
+  dispatch = vi.fn(),
+  role = 'developer',
 ): Promise<{ status: number; payload: Record<string, unknown> }> {
-  const { rc } = context(runAction, runQuery);
-  const response = await handleMcpRequest(rc, rpc(body));
+  const { serve } = context(dispatch, role);
+  const response = await serve(rpc(body));
   return {
     status: response.status,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
@@ -306,7 +328,7 @@ describe('tools/list', () => {
 
 describe('tools/call — the engine surface', () => {
   it('dispatches as the api key holder and returns the result as text', async () => {
-    const runAction = vi.fn().mockResolvedValue({ automations: [] });
+    const dispatch = vi.fn().mockResolvedValue({ automations: [] });
     const { payload } = await call(
       {
         jsonrpc: '2.0',
@@ -314,24 +336,18 @@ describe('tools/call — the engine surface', () => {
         method: 'tools/call',
         params: { name: 'list_automations', arguments: {} },
       },
-      runAction,
+      dispatch,
     );
 
-    expect(runAction).toHaveBeenCalledWith(
-      internal.automations_builder.run_session.dispatchEngineMethod,
-      {
-        organizationId: ORG,
-        actor: `api-key:${USER}`,
-        method: 'list_automations',
-        params: {},
-      },
-    );
+    // The engine acts as the door's caller: the host records it as
+    // `api-key:<userId>` with the key (`engine-host.test.ts`).
+    expect(dispatch).toHaveBeenCalledWith(keyCaller(), 'list_automations', {});
     expect(isErrorFlag(payload)).toBe(false);
     expect(JSON.parse(resultText(payload))).toEqual({ automations: [] });
   });
 
   it('passes the tool arguments through as engine params', async () => {
-    const runAction = vi.fn().mockResolvedValue({ runId: 'r1', version: 2 });
+    const dispatch = vi.fn().mockResolvedValue({ runId: 'r1', version: 2 });
     await call(
       {
         jsonrpc: '2.0',
@@ -342,16 +358,16 @@ describe('tools/call — the engine surface', () => {
           arguments: { name: 'billing/dunning', input: { dry: true } },
         },
       },
-      runAction,
+      dispatch,
     );
-    expect(runAction.mock.calls[0][1]).toMatchObject({
-      method: 'start_run',
-      params: { name: 'billing/dunning', input: { dry: true } },
+    expect(dispatch).toHaveBeenCalledWith(expect.anything(), 'start_run', {
+      name: 'billing/dunning',
+      input: { dry: true },
     });
   });
 
   it('keeps a structured refusal readable and flags it isError', async () => {
-    const runAction = vi.fn().mockResolvedValue({
+    const dispatch = vi.fn().mockResolvedValue({
       error: 'durable runs are not supported in this environment',
     });
     const { status, payload } = await call(
@@ -361,7 +377,7 @@ describe('tools/call — the engine surface', () => {
         method: 'tools/call',
         params: { name: 'start_run', arguments: { name: 'nope' } },
       },
-      runAction,
+      dispatch,
     );
     // Still a successful JSON-RPC exchange — the refusal is the tool's
     // answer, readable by the model, and the flag says it is a failure.
@@ -433,7 +449,7 @@ describe('tools/call — the engine surface', () => {
       },
       types: { inputs: {}, nodes: {}, output: { type: 'null' } },
     };
-    const runAction = vi.fn().mockResolvedValue(verdict);
+    const dispatch = vi.fn().mockResolvedValue(verdict);
     const { payload } = await call(
       {
         jsonrpc: '2.0',
@@ -444,14 +460,14 @@ describe('tools/call — the engine surface', () => {
           arguments: { automation: { name: 'x', nodes: [] } },
         },
       },
-      runAction,
+      dispatch,
     );
     expect(isErrorFlag(payload)).toBe(false);
     expect(JSON.parse(resultText(payload))).toEqual(verdict);
   });
 
   it('reports a thrown call as isError with its message', async () => {
-    const runAction = vi
+    const dispatch = vi
       .fn()
       .mockRejectedValue(new Error('Role "member" lacks the capability'));
     const { status, payload } = await call(
@@ -461,7 +477,7 @@ describe('tools/call — the engine surface', () => {
         method: 'tools/call',
         params: { name: 'cancel_run', arguments: { runId: 'r1' } },
       },
-      runAction,
+      dispatch,
     );
     // A tool failure is still a successful JSON-RPC exchange.
     expect(status).toBe(200);
@@ -471,10 +487,12 @@ describe('tools/call — the engine surface', () => {
 });
 
 describe('tools/call — the capability surface', () => {
-  it('routes a capability tool to the capability action as the key holder', async () => {
-    const runAction = vi.fn().mockResolvedValue({ capabilities: [] });
-    const { payload } = await call(
-      {
+  it('routes a capability tool to the capability surface as the key holder', async () => {
+    const engine = vi.fn();
+    const capability = vi.fn().mockResolvedValue({ capabilities: [] });
+    const { serve } = context(engine, 'developer', capability);
+    const response = await serve(
+      rpc({
         jsonrpc: '2.0',
         id: 9,
         method: 'tools/call',
@@ -482,19 +500,17 @@ describe('tools/call — the capability surface', () => {
           name: 'search_capabilities',
           arguments: { query: 'send an invoice' },
         },
-      },
-      runAction,
+      }),
     );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const payload = (await response.json()) as Record<string, unknown>;
 
-    expect(runAction).toHaveBeenCalledWith(
-      internal.chat.capabilities_action.dispatchCapabilityAs,
-      {
-        organizationId: ORG,
-        userId: USER,
-        method: 'search_capabilities',
-        params: { query: 'send an invoice' },
-      },
+    expect(capability).toHaveBeenCalledWith(
+      keyCaller(),
+      'search_capabilities',
+      { query: 'send an invoice' },
     );
+    expect(engine).not.toHaveBeenCalled();
     expect(isErrorFlag(payload)).toBe(false);
   });
 
@@ -506,7 +522,7 @@ describe('tools/call — the capability surface', () => {
     ],
     ['no deployment', '"billing" has no deployed version'],
   ])('flags a capability refused for %s', async (_case, reason) => {
-    const runAction = vi.fn().mockResolvedValue({
+    const dispatch = vi.fn().mockResolvedValue({
       status: 'refused',
       id: 'automation.billing',
       reason,
@@ -522,7 +538,7 @@ describe('tools/call — the capability surface', () => {
           arguments: { id: 'automation.billing', input: {} },
         },
       },
-      runAction,
+      dispatch,
     );
     // The call did not do what it was asked — a generic client must see that
     // without parsing the reason.
@@ -534,7 +550,7 @@ describe('tools/call — the capability surface', () => {
   });
 
   it('answers an unavailable knowledge base as a readable result flagged isError', async () => {
-    const runAction = vi.fn().mockResolvedValue({
+    const dispatch = vi.fn().mockResolvedValue({
       status: 'unavailable',
       reason: 'The knowledge base could not be searched: no embedding model.',
     });
@@ -545,7 +561,7 @@ describe('tools/call — the capability surface', () => {
         method: 'tools/call',
         params: { name: 'get_knowledge', arguments: { query: 'refunds' } },
       },
-      runAction,
+      dispatch,
     );
     // The tool could not do its job — a generic client must not read the
     // reason as a passage list.
@@ -558,8 +574,8 @@ describe('tools/call — arguments are held to the advertised schema', () => {
   const invalid = async (
     name: string,
     args: unknown,
-  ): Promise<{ message: string; runAction: ReturnType<typeof vi.fn> }> => {
-    const runAction = vi.fn();
+  ): Promise<{ message: string; dispatch: ReturnType<typeof vi.fn> }> => {
+    const dispatch = vi.fn();
     const { status, payload } = await call(
       {
         jsonrpc: '2.0',
@@ -567,30 +583,30 @@ describe('tools/call — arguments are held to the advertised schema', () => {
         method: 'tools/call',
         params: { name, arguments: args },
       },
-      runAction,
+      dispatch,
     );
     expect(status).toBe(200);
     expect(payload.error).toMatchObject({ code: -32602 });
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- asserted above
     return {
       message: (payload.error as { message: string }).message,
-      runAction,
+      dispatch,
     };
   };
 
   it('refuses a wrongly typed argument and runs nothing', async () => {
-    const { message, runAction } = await invalid('search_capabilities', {
+    const { message, dispatch } = await invalid('search_capabilities', {
       query: 42,
     });
     expect(message).toContain('arguments.query');
     expect(message).toContain('string');
-    expect(runAction).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('refuses a missing required argument instead of answering an empty search', async () => {
-    const { message, runAction } = await invalid('search_capabilities', {});
+    const { message, dispatch } = await invalid('search_capabilities', {});
     expect(message).toContain("required property 'query'");
-    expect(runAction).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('refuses a value outside the declared range', async () => {
@@ -631,11 +647,11 @@ describe('tools/call — arguments are held to the advertised schema', () => {
       ['get_knowledge', { query: '' }],
       ['get_knowledge', { query: '  ' }],
     ] as const) {
-      const { message, runAction } = await invalid(name, args);
+      const { message, dispatch } = await invalid(name, args);
       expect(message, `${name} ${JSON.stringify(args)}`).toContain(
         'arguments.',
       );
-      expect(runAction).not.toHaveBeenCalled();
+      expect(dispatch).not.toHaveBeenCalled();
     }
   });
 
@@ -653,7 +669,7 @@ describe('tools/call — arguments are held to the advertised schema', () => {
   });
 
   it('leaves the automation DOCUMENT to the engine but holds the envelope around it', async () => {
-    const runAction = vi.fn().mockResolvedValue({ ok: true, errors: [] });
+    const dispatch = vi.fn().mockResolvedValue({ ok: true, errors: [] });
     // Inside the document anything goes: the engine validates the grammar.
     const open = await call(
       {
@@ -665,10 +681,10 @@ describe('tools/call — arguments are held to the advertised schema', () => {
           arguments: { automation: { name: 'x', nodes: [], anything: 1 } },
         },
       },
-      runAction,
+      dispatch,
     );
     expect(open.payload.error).toBeUndefined();
-    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledTimes(1);
 
     // A stray key BESIDE the document is a typo the client hears about.
     const strict = await call(
@@ -681,80 +697,112 @@ describe('tools/call — arguments are held to the advertised schema', () => {
           arguments: { automation: { name: 'x', nodes: [] }, anything: 1 },
         },
       },
-      runAction,
+      dispatch,
     );
     expect(strict.payload.error).toMatchObject({
       code: -32602,
       message: expect.stringContaining('anything'),
     });
-    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('tools/call — the developer gate on persistence tools', () => {
   it('refuses save_automation for a member key as data, without dispatching', async () => {
-    const runAction = vi.fn();
-    const runQuery = vi.fn().mockResolvedValue('member');
-    const { payload } = await call(saveCall(12), runAction, runQuery);
+    const dispatch = vi.fn();
+    const { payload } = await call(saveCall(12), dispatch, 'member');
 
     expect(isErrorFlag(payload)).toBe(true);
     const text = resultText(payload);
-    expect(text).toContain('save_automation is refused for this key');
-    expect(text).toContain('developer');
     // The refusal carries the same code the store's own role refusal does,
     // so a client branches on `code` here as on every other refusal.
-    expect(JSON.parse(text)).toMatchObject({
+    expect(JSON.parse(text)).toEqual({
+      error:
+        'save_automation is refused for this key: Role "member" lacks the developer-settings capability required to perform this action.',
       code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+      hint: 'saving, deploying and trigger binding need a key whose holder has the developer capability; every read and run tool remains available',
     });
-    expect(runAction).not.toHaveBeenCalled();
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it('refuses a key whose holder is not a member of the organization', async () => {
-    const runAction = vi.fn();
-    const runQuery = vi.fn().mockResolvedValue(null);
-    const { payload } = await call(saveCall(13), runAction, runQuery);
+  it.each(['deploy_automation', 'set_trigger'])(
+    'refuses %s for a member key as data, without dispatching',
+    async (name) => {
+      const dispatch = vi.fn();
+      const { payload } = await call(
+        {
+          jsonrpc: '2.0',
+          id: 16,
+          method: 'tools/call',
+          params: {
+            name,
+            arguments:
+              name === 'deploy_automation'
+                ? { name: 'billing/dunning', version: 1 }
+                : { name: 'billing/dunning', trigger: { kind: 'webhook' } },
+          },
+        },
+        dispatch,
+        'member',
+      );
+      expect(isErrorFlag(payload)).toBe(true);
+      expect(JSON.parse(resultText(payload))).toMatchObject({
+        code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+      });
+      expect(dispatch).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a key whose holder is no longer a member of the organization', async () => {
+    const dispatch = vi.fn();
+    const { payload } = await call(saveCall(13), dispatch, 'disabled');
 
     expect(isErrorFlag(payload)).toBe(true);
-    expect(resultText(payload)).toContain('Not a member');
-    expect(runAction).not.toHaveBeenCalled();
+    expect(resultText(payload)).toContain(
+      'save_automation is refused for this key: Not a member of organization \\"acme\\".',
+    );
+    expect(dispatch).not.toHaveBeenCalled();
   });
 
   it('dispatches save_automation for a developer key', async () => {
-    const runAction = vi
+    const dispatch = vi
       .fn()
       .mockResolvedValue({ name: 'billing/dunning', version: 1 });
-    const runQuery = vi.fn().mockResolvedValue('developer');
-    const { payload } = await call(saveCall(14), runAction, runQuery);
+    const { payload } = await call(saveCall(14), dispatch, 'developer');
 
     expect(isErrorFlag(payload)).toBe(false);
-    expect(runAction).toHaveBeenCalledWith(
-      internal.automations_builder.run_session.dispatchEngineMethod,
-      expect.objectContaining({ method: 'save_automation' }),
+    expect(dispatch).toHaveBeenCalledWith(
+      keyCaller('developer'),
+      'save_automation',
+      { automation: { name: 'billing/dunning', nodes: [] } },
     );
   });
 
-  it('leaves read tools ungated — no role lookup happens', async () => {
-    const runAction = vi.fn().mockResolvedValue({ automations: [] });
-    const runQuery = vi.fn();
-    await call(
+  it('leaves read tools ungated for a member key', async () => {
+    const dispatch = vi.fn().mockResolvedValue({ automations: [] });
+    const { payload } = await call(
       {
         jsonrpc: '2.0',
         id: 15,
         method: 'tools/call',
         params: { name: 'list_automations', arguments: {} },
       },
-      runAction,
-      runQuery,
+      dispatch,
+      'member',
     );
-    expect(runQuery).not.toHaveBeenCalled();
+    expect(isErrorFlag(payload)).toBe(false);
+    expect(dispatch).toHaveBeenCalledWith(
+      keyCaller('member'),
+      'list_automations',
+      {},
+    );
   });
 });
 
 describe('protocol errors', () => {
   it('acknowledges a notification with 202 and no body', async () => {
-    const { rc } = context();
-    const response = await handleMcpRequest(
-      rc,
+    const { serve } = context();
+    const response = await serve(
       rpc({ jsonrpc: '2.0', method: 'notifications/initialized' }),
     );
     expect(response.status).toBe(202);
@@ -762,11 +810,8 @@ describe('protocol errors', () => {
   });
 
   it('treats any message without an id as a notification — acknowledged, never answered', async () => {
-    const { rc } = context();
-    const response = await handleMcpRequest(
-      rc,
-      rpc({ jsonrpc: '2.0', method: 'ping' }),
-    );
+    const { serve } = context();
+    const response = await serve(rpc({ jsonrpc: '2.0', method: 'ping' }));
     expect(response.status).toBe(202);
     expect(await response.text()).toBe('');
   });
@@ -776,9 +821,8 @@ describe('protocol errors', () => {
   // 64-bit ids never matched one (2026-09-19 evaluation, K8-2): the literal
   // is refused as an invalid request naming it, the way the REST door does.
   it('refuses a whole number beyond 2^53 − 1 instead of rounding it (-32600)', async () => {
-    const { rc } = context();
-    const response = await handleMcpRequest(
-      rc,
+    const { serve } = context();
+    const response = await serve(
       new Request('http://localhost/api/v1/mcp', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -795,8 +839,7 @@ describe('protocol errors', () => {
           'Invalid request: "id" is a whole number beyond 2^53 − 1, which cannot be carried exactly; send it as a string',
       },
     });
-    const nested = await handleMcpRequest(
-      rc,
+    const nested = await serve(
       new Request('http://localhost/api/v1/mcp', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -838,7 +881,7 @@ describe('protocol errors', () => {
   });
 
   it('refuses an MCP-Protocol-Version it never negotiates, accepts one it does', async () => {
-    const { rc } = context();
+    const { serve } = context();
     const request = (version: string) =>
       new Request('https://app.example.test/api/v1/mcp', {
         method: 'POST',
@@ -848,7 +891,7 @@ describe('protocol errors', () => {
         },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }),
       });
-    const refused = await handleMcpRequest(rc, request('2024-11-05'));
+    const refused = await serve(request('2024-11-05'));
     expect(refused.status).toBe(400);
     // The body is read before the header is judged, so the refusal carries
     // the message's own id — a client matching replies by id used to get
@@ -857,7 +900,7 @@ describe('protocol errors', () => {
       id: 1,
       error: { code: -32600, message: expect.stringContaining('2024-11-05') },
     });
-    const accepted = await handleMcpRequest(rc, request('2025-03-26'));
+    const accepted = await serve(request('2025-03-26'));
     expect(accepted.status).toBe(200);
   });
 
@@ -1003,10 +1046,10 @@ describe('protocol errors', () => {
 describe('batches', () => {
   const batch = async (
     entries: unknown[],
-    runAction = vi.fn(),
+    dispatch = vi.fn(),
   ): Promise<{ status: number; replies: unknown }> => {
-    const { rc } = context(runAction);
-    const response = await handleMcpRequest(rc, rpc(entries));
+    const { serve } = context(dispatch);
+    const response = await serve(rpc(entries));
     return {
       status: response.status,
       replies: response.status === 202 ? undefined : await response.json(),
@@ -1080,7 +1123,7 @@ describe('run tools', () => {
     ['invalid', true],
     ['success', false],
   ])('reads a run that ended %s as isError=%s', async (status, flagged) => {
-    const runAction = vi.fn().mockResolvedValue({
+    const dispatch = vi.fn().mockResolvedValue({
       version: 2,
       status,
       output: status === 'success' ? 3 : undefined,
@@ -1097,7 +1140,7 @@ describe('run tools', () => {
         method: 'tools/call',
         params: { name: 'run_deployed', arguments: { name: 'math/sum' } },
       },
-      runAction,
+      dispatch,
     );
     expect(isErrorFlag(payload)).toBe(flagged);
   });
@@ -1118,7 +1161,7 @@ describe('run tools', () => {
   ])(
     'reads a test_automation answer %j as isError=%s',
     async (answer, flagged) => {
-      const runAction = vi.fn().mockResolvedValue(answer);
+      const dispatch = vi.fn().mockResolvedValue(answer);
       const { payload } = await call(
         {
           jsonrpc: '2.0',
@@ -1129,14 +1172,14 @@ describe('run tools', () => {
             arguments: { automation: { name: 'math/sum', nodes: [] } },
           },
         },
-        runAction,
+        dispatch,
       );
       expect(isErrorFlag(payload)).toBe(flagged);
     },
   );
 
   it('lets a run input be any JSON value — the automation’s own schema judges it', async () => {
-    const runAction = vi
+    const dispatch = vi
       .fn()
       .mockResolvedValue({ version: 1, status: 'success', output: 3 });
     const { payload } = await call(
@@ -1149,12 +1192,12 @@ describe('run tools', () => {
           arguments: { name: 'math/sum', input: [1, 2] },
         },
       },
-      runAction,
+      dispatch,
     );
     expect(payload.error).toBeUndefined();
-    expect(runAction.mock.calls[0][1]).toMatchObject({
-      method: 'run_deployed',
-      params: { name: 'math/sum', input: [1, 2] },
+    expect(dispatch).toHaveBeenCalledWith(expect.anything(), 'run_deployed', {
+      name: 'math/sum',
+      input: [1, 2],
     });
     expect(isErrorFlag(payload)).toBe(false);
   });
@@ -1187,9 +1230,8 @@ describe('batch budget', () => {
   });
 
   it('refuses a batch above the cap with -32600', async () => {
-    const { rc } = context();
-    const response = await handleMcpRequest(
-      rc,
+    const { serve } = context();
+    const response = await serve(
       rpc(
         Array.from({ length: MAX_BATCH_MESSAGES + 1 }, (_, i) => ({
           jsonrpc: '2.0',
@@ -1205,43 +1247,38 @@ describe('batch budget', () => {
   });
 
   it('admits the first tool call on the door’s charge and asks for every further one', async () => {
-    const runAction = vi.fn().mockResolvedValue({ automations: [] });
+    const dispatch = vi.fn().mockResolvedValue({ automations: [] });
     const admit = vi.fn().mockResolvedValue(null);
-    const { rc } = context(runAction);
-    const response = await handleMcpRequest(
-      rc,
+    const { serve } = context(dispatch);
+    const response = await serve(
       rpc([listCall(1), listCall(2), listCall(3)]),
-      { admit },
+      admit,
     );
     const replies = (await response.json()) as Array<Record<string, unknown>>;
     expect(replies.map((reply) => reply.id)).toEqual([1, 2, 3]);
     expect(replies.every((reply) => reply.result !== undefined)).toBe(true);
     expect(admit).toHaveBeenCalledTimes(2);
-    expect(runAction).toHaveBeenCalledTimes(3);
+    expect(dispatch).toHaveBeenCalledTimes(3);
   });
 
   it('answers a refused admission as -32000 for that call alone, and runs nothing for it', async () => {
-    const runAction = vi.fn().mockResolvedValue({ automations: [] });
+    const dispatch = vi.fn().mockResolvedValue({ automations: [] });
     const admit = vi.fn().mockResolvedValue({ retryAfterMs: 1500 });
-    const { rc } = context(runAction);
-    const response = await handleMcpRequest(
-      rc,
-      rpc([listCall(1), listCall(2)]),
-      { admit },
-    );
+    const { serve } = context(dispatch);
+    const response = await serve(rpc([listCall(1), listCall(2)]), admit);
     const replies = (await response.json()) as Array<Record<string, unknown>>;
     expect(replies[0]).toMatchObject({ id: 1, result: expect.anything() });
     expect(replies[1]).toMatchObject({
       id: 2,
       error: { code: -32000, data: { retryAfterMs: 1500 } },
     });
-    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledTimes(1);
   });
 
   it('never consults the hook for a single request — the door already charged it', async () => {
     const admit = vi.fn();
-    const { rc } = context(vi.fn().mockResolvedValue({ automations: [] }));
-    await handleMcpRequest(rc, rpc(listCall(1)), { admit });
+    const { serve } = context(vi.fn().mockResolvedValue({ automations: [] }));
+    await serve(rpc(listCall(1)), admit);
     expect(admit).not.toHaveBeenCalled();
   });
 });

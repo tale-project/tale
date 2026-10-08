@@ -3,25 +3,25 @@
  * MCP tools over streamable HTTP (JSON responses; no SSE stream is offered).
  *
  * POST /api/v1/mcp with `Authorization: Bearer <org API key>` — the same
- * credential and auth path as every /api/v1 REST surface. The tool inventory
+ * credential and auth path as every /api/v1 REST surface; the door hands this
+ * layer the proven caller (`caller.ts`). The tool inventory
  * (`lib/mcp/tools.ts`) covers two surfaces, and `tools/call` routes by which one
- * owns the name:
+ * owns the name, through the host the door binds (`engine-host.ts`):
  *
  *  - the automation engine's dispatch table — author, validate, test, save,
  *    deploy, run, and then manage what was persisted (runs, versions,
- *    triggers) — through the internal engine-dispatch bridge, which assembles
- *    the shared automation authoring host and drives `dispatch()` against the
- *    org's automation store with live execution enabled. This is the same
- *    authoring/validation host used by the app's editor;
+ *    triggers) — driven by `dispatch()` against the org's automation store
+ *    with live execution enabled. This is the same authoring/validation host
+ *    used by the app's editor;
  *  - the organization's capability surface — search it, invoke one, retrieve
- *    knowledge — through `chat.capabilities_action.dispatchCapabilityAs`, the
- *    same registry and dispatcher a chat turn uses.
+ *    knowledge — through `dispatchCapabilityAs`, the same registry and
+ *    dispatcher a chat turn uses.
  *
  * Authorization beyond the key: tools that persist or rebind an automation
- * (save, deploy, set_trigger) and tools that start or stop live work resolve
- * the key holder's role and require the developer capability, exactly as the
- * in-app mutations do. The key proves who is calling; the role decides what
- * the call may do.
+ * (save, deploy, set_trigger) read the caller's role and require the
+ * developer capability, exactly as the in-app mutations do; tools that start
+ * or stop live work are gated by the store. The key proves who is calling;
+ * the role decides what the call may do.
  *
  * A refusal is never a protocol error. The engine and the capability surface
  * both answer refusals as DATA (`{error, hint}` / `{status: 'refused'}`), and
@@ -51,16 +51,12 @@
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
-import { AppError } from '../../../lib/shared/errors/app-error';
+import { defineAbilityFor } from '../../../lib/permissions/ability';
 import {
   INEXACT_NUMBER_MESSAGE,
   parseJsonExact,
 } from '../../../lib/utils/json-exact';
-import { internal } from '../../core/lib/handler_names';
-import {
-  requireRestDeveloper,
-  type RestContext,
-} from '../../core/lib/rest/helpers';
+import type { McpCaller } from './caller';
 
 type McpTool = (typeof MCP_TOOLS)[number];
 
@@ -106,21 +102,17 @@ const DEVELOPER_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 /** Null when the key holder may persist automations; otherwise the reason,
- * taken from the same role check the in-app mutations apply. Anything that is
- * not a role refusal (an infrastructure failure) re-throws. */
-async function developerRefusal(rc: RestContext): Promise<string | null> {
-  try {
-    await requireRestDeveloper(rc);
-    return null;
-  } catch (error) {
-    if (error instanceof AppError) {
-      const data: unknown = error.data;
-      return isRecord(data) && typeof data.message === 'string'
-        ? data.message
-        : 'the key holder lacks the developer capability';
-    }
-    throw error;
+ * from the same ability the in-app mutations check. The door refuses a
+ * disabled member before this layer runs; the check stays so a caller built
+ * any other way is never mistaken for a developer. */
+function developerRefusal(caller: McpCaller): string | null {
+  if (caller.role === 'disabled') {
+    return `Not a member of organization "${caller.orgSlug}".`;
   }
+  if (defineAbilityFor(caller.role).cannot('read', 'developerSettings')) {
+    return `Role "${caller.role}" lacks the developer-settings capability required to perform this action.`;
+  }
+  return null;
 }
 
 /** A JSON-RPC request id as MCP restricts it: a string or an integer. A
@@ -253,7 +245,25 @@ function argumentProblem(
 
 // --------------------------------------------------------------- dispatch
 
+/** The two surfaces a tool call reaches, each acting as the caller. The door
+ * binds them to the database (`engine-host.ts`). */
+export interface McpHost {
+  /** One method of the automation engine's dispatch table. */
+  readonly engine: (
+    caller: McpCaller,
+    method: string,
+    params: Record<string, unknown>,
+  ) => Promise<unknown>;
+  /** One method of the organization's capability surface. */
+  readonly capability: (
+    caller: McpCaller,
+    method: string,
+    params: Record<string, unknown>,
+  ) => Promise<unknown>;
+}
+
 export interface McpRequestOptions {
+  readonly host: McpHost;
   /** Called before every tool call in a request AFTER the first — the door
    * charged the HTTP request itself, so each further dispatch a batch
    * carries is charged here. Null admits the call; a wait refuses that call
@@ -270,7 +280,7 @@ interface RequestState {
 /** One JSON-RPC message → its reply, or null for a notification (a message
  * without an id is acknowledged, never answered). */
 async function handleMessage(
-  rc: RestContext,
+  caller: McpCaller,
   message: unknown,
   options: McpRequestOptions,
   state: RequestState,
@@ -398,7 +408,7 @@ async function handleMessage(
       state.toolCalls += 1;
       try {
         if (DEVELOPER_TOOLS.has(name)) {
-          const refusal = await developerRefusal(rc);
+          const refusal = developerRefusal(caller);
           if (refusal !== null) {
             // The same role refusal the store raises on the live and run
             // tools (`ActorAuthError`), under the same code — every refusal
@@ -410,28 +420,10 @@ async function handleMessage(
             });
           }
         }
-        if (tool.kind === 'capability') {
-          const result: unknown = await rc.ctx.runAction(
-            internal.chat.capabilities_action.dispatchCapabilityAs,
-            {
-              organizationId: rc.org.organizationId,
-              userId: rc.user.userId,
-              method: name,
-              params: args,
-            },
-          );
-          return toolResult(tool, id, result);
-        }
-        const result: unknown = await rc.ctx.runAction(
-          internal.automations_builder.run_session.dispatchEngineMethod,
-          {
-            organizationId: rc.org.organizationId,
-            actor: `api-key:${rc.user.userId}`,
-            ...(rc.apiKeyId !== undefined ? { apiKeyId: rc.apiKeyId } : {}),
-            method: name,
-            params: args,
-          },
-        );
+        const result: unknown =
+          tool.kind === 'capability'
+            ? await options.host.capability(caller, name, args)
+            : await options.host.engine(caller, name, args);
         return toolResult(tool, id, result);
       } catch (error) {
         // Only a THROWN failure lands here — a refusal is data and was returned
@@ -461,9 +453,9 @@ function respond(reply: JsonRpcReply): Response {
  * covered where they live.
  */
 export async function handleMcpRequest(
-  rc: RestContext,
+  caller: McpCaller,
   request: Request,
-  options: McpRequestOptions = {},
+  options: McpRequestOptions,
 ): Promise<Response> {
   let message: unknown;
   try {
@@ -530,13 +522,13 @@ export async function handleMcpRequest(
     // each other's side effects, and replies are matched by id regardless.
     const replies: Record<string, unknown>[] = [];
     for (const entry of message) {
-      const reply = await handleMessage(rc, entry, options, state);
+      const reply = await handleMessage(caller, entry, options, state);
       if (reply !== null) replies.push(reply.body);
     }
     return replies.length === 0
       ? new Response(null, { status: 202 })
       : Response.json(replies);
   }
-  const reply = await handleMessage(rc, message, options, state);
+  const reply = await handleMessage(caller, message, options, state);
   return reply === null ? new Response(null, { status: 202 }) : respond(reply);
 }

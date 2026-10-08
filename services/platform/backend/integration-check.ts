@@ -14315,9 +14315,10 @@ async function checkAutomationTriggerDelivery(
 }
 
 /**
- * The platform MCP endpoint (/api/v1/mcp): the 0.4 protocol layer
- * (`handleMcpRequest`) reused whole over two pg-backed handlers — the engine
- * dispatch (org store, live) and the capability surface. Proves the frames
+ * The platform MCP endpoint (/api/v1/mcp): the MCP domain's protocol layer
+ * (`domains/mcp/protocol.ts`) over the two pg-backed surfaces its host binds
+ * (`domains/mcp/engine-host.ts`) — the engine dispatch (org store, live) and
+ * the capability surface. Proves the frames
  * (initialize, notification → 202, batch → -32600, unknown method → -32601,
  * GET → 405), the engine lane end-to-end (save → deploy → start_run, which
  * runs LIVE at this endpoint and settles through the durable stepper — the
