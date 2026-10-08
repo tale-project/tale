@@ -44,6 +44,22 @@ export interface DatePickerProps {
    * box would read as the one field still waiting to be filled in.
    */
   variant?: 'default' | 'ghost';
+  /** The earliest day that can be picked (ms epoch); days before it are
+   * disabled in the calendar. */
+  minDate?: number;
+  /** The latest day that can be picked (ms epoch); days after it are
+   * disabled in the calendar. */
+  maxDate?: number;
+  /**
+   * Names the trigger: a visible label's id. Include the trigger's own `id`
+   * after it (`"expiry-label expiry"`) so the name keeps the chosen date —
+   * a label alone would replace the date the trigger reads out. Leave
+   * `htmlFor` off that label: a native label takes over the self-reference
+   * and drops the date again.
+   */
+  'aria-labelledby'?: string;
+  /** Ids of the hint or error text that describes the field. */
+  'aria-describedby'?: string;
 }
 
 /**
@@ -100,6 +116,10 @@ const MonthNavHeader = memo(function MonthNavHeader({
 });
 
 interface TriggerProps {
+  /** Handed down by react-datepicker from the picker's own props. */
+  id?: string;
+  'aria-labelledby'?: string;
+  'aria-describedby'?: string;
   value?: string;
   onClick?: () => void;
   disabled?: boolean;
@@ -120,6 +140,9 @@ interface TriggerProps {
 const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
   (
     {
+      id,
+      'aria-labelledby': ariaLabelledBy,
+      'aria-describedby': ariaDescribedBy,
       value,
       onClick,
       disabled,
@@ -154,6 +177,9 @@ const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
       >
         <Button
           ref={setTriggerRef}
+          id={id}
+          aria-labelledby={ariaLabelledBy}
+          aria-describedby={ariaDescribedBy}
           type="button"
           variant="ghost"
           disabled={disabled}
@@ -200,6 +226,10 @@ export function DatePicker({
   id,
   className,
   variant = 'default',
+  minDate,
+  maxDate,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
 }: DatePickerProps) {
   const { t } = useT('common');
   const locale = useDateFnsLocale();
@@ -214,7 +244,12 @@ export function DatePicker({
         }
         dateFormat={DISPLAY_FORMAT}
         locale={locale}
+        minDate={minDate !== undefined ? new Date(minDate) : undefined}
+        maxDate={maxDate !== undefined ? new Date(maxDate) : undefined}
+        ariaLabelledBy={ariaLabelledBy}
+        ariaDescribedBy={ariaDescribedBy}
         chooseDayAriaLabelPrefix={t('datePicker.chooseDay')}
+        disabledDayAriaLabelPrefix={t('datePicker.unavailableDay')}
         monthAriaLabelPrefix={t('datePicker.month')}
         disabled={disabled}
         placeholderText={placeholder ?? t('datePicker.placeholder')}
