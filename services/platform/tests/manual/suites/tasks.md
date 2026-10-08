@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 141 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 143 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -827,6 +827,17 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   for your answer** instead; one at the review gate shows **Waiting on you** or
   **Waiting on {name}**. An agent-assigned card names its agent beside the
   avatar. The card's title reads the same sentence to a screen reader.
+- [ ] `TASK-F76` · **Fold the finished lanes** — On a board with tasks in
+  **Done** and **Cancelled**, hover **Done** → beside **+** a fold icon
+  (**Collapse Done**, `tasks.board.collapseLane`); select it, then fold
+  **Cancelled** → each turns into a narrow rail with its glyph, its count and
+  its name standing on end, and the other lanes keep their width; reload and
+  open another project's board → this board keeps its rails, the other board
+  its own lanes. Drag a card from **In review** onto the **Done** rail → the
+  rail lights up while the card is over it, the drop moves the task to
+  **Done** and the rail's count grows. Select the rail (**Expand Done**,
+  `tasks.board.expandLane`) → the lane opens with its cards. Before the cards
+  load, the placeholder already shows the rails.
 
 ## Boundary & error tests
 
@@ -1397,6 +1408,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Add task** opens its field with the caret in it, **Enter** adds and a screen
   reader hears **Added "{title}"** (`tasks.board.quickAdded`), **Esc** closes it
   and focus stays in the lane.
+- [ ] `TASK-A21` · **Fold a lane by keyboard** — Tab to **Done**'s fold icon
+  → it shows on focus, is named **Collapse Done** and reads as expanded;
+  **Enter** folds the lane and the focus lands on the rail, named **Expand
+  Done** and read as collapsed; **Enter** opens it again with the focus back
+  on the fold icon. Pick up a card in **In review** with **Space**, press **→**
+  and **Space** → the card drops into the folded **Done**, and a screen reader
+  hears where it landed.
 
 ## Performance
 

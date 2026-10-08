@@ -114,7 +114,7 @@ The current review also explains self-review, changed implementation ownership, 
 
 ## Use statuses to communicate progress
 
-Change **Status** in the task details, or drag a card to another column on **Board**. The status picker is the keyboard-accessible alternative to dragging.
+Change **Status** in the task details, or drag a card to another column on **Board**. The status picker is the keyboard-accessible alternative to dragging. **Done** and **Cancelled** fold to a narrow rail with the fold icon beside their name, so finished work stays out of the way: the rail keeps the column's count, opens again when you select it, and still takes a card you drag onto it. Each board remembers its folded columns in this browser.
 
 | Status | Meaning |
 | --- | --- |
