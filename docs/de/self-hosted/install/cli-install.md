@@ -534,6 +534,15 @@ Der öffentliche Nachweis `native.configuration` enthält pro Ressource den beab
 
 `tale status` — den aktuellen Deployment-Status anzeigen. Keine Argumente.
 
+`tale deploy smoke --url <url>` — prüft ein laufendes Deployment über seine öffentliche URL, so wie ein Browser es erreicht. Ohne `--full` sendet der Befehl keine Zugangsdaten und schreibt nichts, du kannst ihn also gegen jedes Deployment laufen lassen, auch gegen die Produktion. Er prüft `/api/health` (mit `--expected-version <version>` auch die Version), die Bereitschaft der API, die App-Shell und ihr Skript, eine anonyme Sitzungsabfrage und ob `/events` und `/api/app` Besucher ohne Sitzung abweisen. Unverschlüsseltes `http://` ist nur für `localhost` erlaubt; bei einer eigenen Zertifizierungsstelle setzt du `NODE_EXTRA_CA_CERTS` auf deren Stammzertifikat.
+
+- `--full` — meldet sich zusätzlich mit einem eigens dafür angelegten Konto an und durchläuft einen Nutzerablauf: Er öffnet den Live-Update-Stream der Organisation, erstellt eine Aufgabe, wartet auf deren Live-Update, liest sie zurück und löscht sie. Hinterlege das Konto in `TALE_SMOKE_EMAIL` und `TALE_SMOKE_PASSWORD`; es darf keinen zweiten Faktor verlangen. Sieht das Konto kein Projekt, legt der erste Lauf eines namens „Tale deployment smoke“ an, das spätere Läufe wiederverwenden.
+- `--chat` — führt mit `--full` zusätzlich eine Chat-Runde mit dem ersten Modell aus, das dem Konto zur Verfügung steht. Die Runde verbraucht Modell-Tokens; die Unterhaltung landet danach im Papierkorb.
+- `--organization <id-or-slug>`, `--project <id>` — wo der Ablauf läuft; standardmäßig in der ersten Organisation und dem ersten Projekt des Kontos.
+- `--timeout <seconds>` — Obergrenze für jede Anfrage und jede Wartezeit (Standard `15`); `--turn-timeout <seconds>` begrenzt die Chat-Runde (Standard `120`).
+
+Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `skip`), Dauer und Grund auf. Exit-Code `0` heißt, dass alle Prüfungen bestanden wurden, `5`, dass mindestens eine fehlgeschlagen ist, und `2`, dass eine Option ungültig ist. Der vollständige Ablauf löscht seine Aufgabe und meldet sich ab, auch wenn eine Prüfung fehlschlägt.
+
 `tale logs <service>` — Logs eines Dienstes streamen (`service` ist einer der laufenden Dienste; auf einem reinen Dev-Stack ohne Deployment fällt der Befehl auf den Dev-Container zurück).
 
 - `-f, --follow` — der Log-Ausgabe folgen, während sie geschrieben wird.

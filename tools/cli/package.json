@@ -29,6 +29,7 @@
     "ajv": "8.20.0",
     "commander": "14.0.3",
     "crc-32": "1.2.2",
+    "eventsource-parser": "4.1.1",
     "is-reference": "3.0.3",
     "jszip": "3.10.1",
     "periscopic": "4.0.3",
