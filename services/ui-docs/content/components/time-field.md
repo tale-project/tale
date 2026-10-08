@@ -55,6 +55,7 @@ Pasting a whole time into any part replaces the time: `17:30`, `1730`, `17h30`, 
 
 - The field is a group named by its label. Its description includes the whole time as the locale writes it, so entering the group announces it, such as "Until, 6:00 PM".
 - Each part is a spin button with its own name (**Hours**, **Minutes**, **AM/PM**) and a spoken value: the hour as "9 PM" or "21 Uhr", the minutes as "30 minutes", the day period as its word. A cleared part reads "Empty".
+- The ring around the field shows that it has focus, and the focused part is filled in the accent colour, as a pressed chip is, so you can see which part a digit goes into. The fill keeps more than 3:1 contrast against the field in both themes.
 - Clicking the label focuses the hour; clicking the field's padding or separator focuses the nearest part.
 - Every part is at least 24px wide and 24px tall. On a phone, a part scrolls into view when it takes focus, and the hour and minutes open the numeric keyboard.
 

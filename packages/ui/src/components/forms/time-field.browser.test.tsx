@@ -60,6 +60,33 @@ async function expectNoAxeViolations(element: Element) {
 /** Chromium writes U+202F before AM/PM; compare words, not the space. */
 const plain = (text: string | null) => (text ?? '').replace(/[\s  ]+/g, ' ');
 
+/** A computed colour as sRGB channels, read back through a canvas so any
+ *  syntax the engine computes reads the same way. */
+function channels(color: string): [number, number, number] {
+  const context = document.createElement('canvas').getContext('2d');
+  if (context === null) throw new Error('No 2D canvas to read a colour');
+  context.fillStyle = color;
+  context.fillRect(0, 0, 1, 1);
+  const [red = 0, green = 0, blue = 0] = context.getImageData(0, 0, 1, 1).data;
+  return [red, green, blue];
+}
+
+/** WCAG relative luminance. */
+function luminance(color: string): number {
+  const [red, green, blue] = channels(color).map((channel) => {
+    const value = channel / 255;
+    return value <= 0.039_28 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * (red ?? 0) + 0.7152 * (green ?? 0) + 0.0722 * (blue ?? 0);
+}
+
+function contrast(one: string, other: string): number {
+  const [light, dark] = [luminance(one), luminance(other)].toSorted(
+    (a, b) => b - a,
+  );
+  return ((light ?? 0) + 0.05) / ((dark ?? 0) + 0.05);
+}
+
 describe.each(['light', 'dark'])('TimeField in %s', (theme) => {
   it('passes axe as a plain field, with an error and disabled', async () => {
     await page.viewport(1024, 768);
@@ -86,6 +113,27 @@ describe.each(['light', 'dark'])('TimeField in %s', (theme) => {
       ),
     );
     await expectNoAxeViolations(container);
+  });
+
+  it('fills the focused part so it stands out from the field', async () => {
+    await page.viewport(1024, 768);
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    render(<Field hourCycle={24} />);
+    const group = screen.getByRole('group', { name: 'Start' });
+    const [hour, minute] = within(group).getAllByRole('spinbutton');
+    if (hour === undefined || minute === undefined) throw new Error('parts');
+    const field = getComputedStyle(group).backgroundColor;
+    await userEvent.click(hour);
+    // Only the fill tells the parts apart: the ring is the group's.
+    expect(
+      contrast(getComputedStyle(hour).backgroundColor, field),
+    ).toBeGreaterThanOrEqual(3);
+    expect(getComputedStyle(minute).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+    await userEvent.keyboard('{Tab}');
+    expect(minute).toHaveFocus();
+    expect(
+      contrast(getComputedStyle(minute).backgroundColor, field),
+    ).toBeGreaterThanOrEqual(3);
   });
 });
 

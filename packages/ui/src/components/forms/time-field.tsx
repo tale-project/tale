@@ -143,8 +143,12 @@ function wrap(value: number, size: number): number {
   return ((value % size) + size) % size;
 }
 
+// The focused part is filled with the accent, as a pressed chip is: the
+// group's ring says the field has focus, and only this fill says which part
+// a digit goes into, so it keeps well over 3:1 against the field in both
+// themes.
 const SEGMENT_CLASSES =
-  'min-w-0 rounded-sm bg-transparent px-0.5 text-center tabular-nums caret-transparent outline-none selection:bg-transparent focus:bg-accent focus:text-foreground disabled:cursor-not-allowed';
+  'min-w-0 rounded-sm bg-transparent px-0.5 text-center tabular-nums caret-transparent outline-none selection:bg-transparent focus:bg-(--color-accent-base) focus:text-(--color-accent-fg) disabled:cursor-not-allowed';
 
 /**
  * A time of day as segmented spin buttons — "[9]:[30] [PM]" in English,
