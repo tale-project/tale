@@ -14963,6 +14963,31 @@ async function checkMcp(
     `init=${JSON.stringify(initRow ?? null)}, get_run=${JSON.stringify(getRunRow ?? null)}, memberSave=${JSON.stringify(memberSaveRow ?? null)}, leaked=${leaked}, oldLeft=${oldLeft[0]?.n} (want 0)`,
   );
 
+  // The Origin rule ships log-only (MCP-R22): a browser origin the
+  // deployment does not list is answered like the deployment's own while
+  // TALE_MCP_ORIGIN_ENFORCE is unset, so no client breaks before the
+  // per-client survey decides the default.
+  const pingFrom = async (origin: string): Promise<number> =>
+    (
+      await fetch(`${base}/api/v1/mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'x-organization-slug': orgSlug,
+          origin,
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 41, method: 'ping' }),
+      })
+    ).status;
+  const foreignOriginStatus = await pingFrom('https://itest-foreign.example');
+  const ownOriginStatus = await pingFrom(base);
+  record(
+    'MCP answers a foreign browser origin while the Origin rule is log-only (MCP-R22)',
+    foreignOriginStatus === 200 && ownOriginStatus === 200,
+    `foreign→${foreignOriginStatus}, own→${ownOriginStatus} (want 200 both)`,
+  );
+
   record(
     'platform MCP endpoint (/api/v1/mcp)',
     initOk &&

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { recordMcpActivity } from '../domains/mcp/activity.ts';
 import type { McpCaller } from '../domains/mcp/caller.ts';
@@ -210,6 +210,61 @@ describe('POST /api/v1/mcp', () => {
       data: { retryAfterMs: 4000 },
     });
     expect(engine).toHaveBeenCalledTimes(1);
+  });
+
+  describe('the Origin rule [MCP-R22]', () => {
+    const ENV_KEYS = [
+      'SITE_URL',
+      'TALE_MCP_ALLOWED_ORIGINS',
+      'TALE_MCP_ORIGIN_ENFORCE',
+    ] as const;
+    const saved = Object.fromEntries(
+      ENV_KEYS.map((key) => [key, process.env[key]]),
+    );
+    beforeEach(() => {
+      process.env.SITE_URL = 'https://tale.example';
+      delete process.env.TALE_MCP_ALLOWED_ORIGINS;
+      delete process.env.TALE_MCP_ORIGIN_ENFORCE;
+    });
+    afterEach(() => {
+      for (const key of ENV_KEYS) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
+    });
+
+    it('logs a request from an origin it does not accept and still answers it, while not enforced', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const response = await post(listCall(1), {
+        origin: 'https://evil.example',
+      });
+      expect(response.status).toBe(200);
+      expect(engine).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledWith(
+        '[mcp] origin-mismatch origin=https://evil.example org=org-acme user=user-ada enforced=false',
+      );
+    });
+
+    it('refuses it, running nothing, once the operator enforces the rule', async () => {
+      process.env.TALE_MCP_ORIGIN_ENFORCE = 'true';
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const response = await post(listCall(1), {
+        origin: 'https://evil.example',
+      });
+      expect(response.status).toBe(403);
+      expect(await response.json()).toMatchObject({ code: 'ORIGIN_FORBIDDEN' });
+      expect(engine).not.toHaveBeenCalled();
+    });
+
+    it("answers a request without an Origin, or from the deployment's own, without a word", async () => {
+      process.env.TALE_MCP_ORIGIN_ENFORCE = 'true';
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect((await post(listCall(1))).status).toBe(200);
+      expect(
+        (await post(listCall(2), { origin: 'https://tale.example' })).status,
+      ).toBe(200);
+      expect(warn).not.toHaveBeenCalled();
+    });
   });
 
   it('refuses an Idempotency-Key header and runs nothing [MCP-R20]', async () => {

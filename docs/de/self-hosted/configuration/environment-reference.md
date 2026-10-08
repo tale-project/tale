@@ -246,6 +246,15 @@ Ohne Wert gilt die normale Sitzungsdauer. Mit gesetztem Limit läuft eine inakti
 
 Trag hier deinen eigenen Helpdesk ein, damit Personen nach einem Fehler das Team erreichen, das dein Deployment betreibt. Kennt die Fehlerseite die Organisation, hängt der Link `organizationId=<id>` an den Query-String an, hinter eine bereits vorhandene Query, und ersetzt einen `organizationId`-Parameter, den die URL schon trägt. Jeder andere Wert, etwa `mailto:` oder eine URL ohne Schema, wird mit einer Warnung im Log des Dienstes `platform` ignoriert, und der Link behält den Standardwert.
 
+## MCP-Endpunkt {#mcp-endpoint}
+
+| Name | Default | Beschreibung |
+| --- | --- | --- |
+| `TALE_MCP_ALLOWED_ORIGINS` | nicht gesetzt | **Optional, gelesen von `backend-api` und der Rolle `all`.** Browser-Origins, von denen der [MCP-Endpunkt](/de/develop/mcp-endpoint) neben `SITE_URL` und `ADDITIONAL_SITE_URLS` eine Anfrage mit `Origin`-Kopfzeile annimmt. Durch Kommas oder Leerzeichen getrennt, jeweils `scheme://host[:port]` ohne Pfad, etwa der eigene Origin eines Desktop-Editors wie `vscode-file://vscode-app`. Ein fehlerhafter Eintrag verhindert den Backend-Start. |
+| `TALE_MCP_ORIGIN_ENFORCE` | `false` | **Optional, gelesen von `backend-api` und der Rolle `all`.** Mit `true` lehnt der Endpunkt eine Anfrage von jedem anderen Origin mit `403` und `ORIGIN_FORBIDDEN` ab; mit `false` protokolliert er sie nur. |
+
+Coding-Agents im Terminal und serverseitige Clients senden keinen `Origin`, für sie greift die Prüfung nie. Eine Browserseite einer anderen Website sendet einen, und über einen API-Schlüssel in einer solchen Seite würde diese Website den Endpunkt erreichen. Solange die Durchsetzung aus ist, protokolliert der Endpunkt jede Anfrage von einem Origin außerhalb der Liste als `[mcp] origin-mismatch` mit dem Origin, der Organisation und der Person. Lies diese Zeilen, um zu sehen, welche deiner Clients einen Origin senden, bevor du `TALE_MCP_ORIGIN_ENFORCE=true` setzt, und trag ihre Origins in `TALE_MCP_ALLOWED_ORIGINS` ein.
+
 ## Sandbox-Infrastruktur {#sandbox-infrastructure}
 
 Der Sandbox-Spawner liest die folgenden Einstellungen. Übergib sie seiner Umgebung und erstelle den Dienst nach einer Änderung neu. `SANDBOX_MAX_SESSIONS` legt die gemeinsame Kapazität aller Organisationen fest. Die drei Arbeitslimits einer Organisation ergeben automatisch ihre Gesamtsumme; liegt sie über dieser Kapazität, kannst du die Limits nicht speichern. Unter [Sandboxes](/de/platform/admin/sandboxes) verwaltest du die Limits und siehst tatsächliche Laufzeitzahlen und Host-Messwerte getrennt von der Kontingentbelegung.

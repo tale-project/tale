@@ -64,7 +64,7 @@ A successful `get_docs` result contains the automation reference as text and has
 
 Every additional tool call in a batch consumes the same request budget as a separate call. If a batch exhausts its budget, the refused entry is JSON-RPC `-32000` with `data.retryAfterMs`; the enclosing HTTP response remains `200` and has no `Retry-After`. A single request rejected at the HTTP boundary gets REST `429`. Handle both cases using the [rate-limit guidance](/develop/rate-limits).
 
-The endpoint supplies no CORS headers for browser key use. Keep the API key on a trusted server or in the MCP client's credential store.
+The endpoint supplies no CORS headers for browser key use. Keep the API key on a trusted server or in the MCP client's credential store. A request whose `Origin` header names a site the deployment does not accept is logged, and refused with `403` `ORIGIN_FORBIDDEN` where the operator enforces that check ([environment reference](/self-hosted/configuration/environment-reference#mcp-endpoint)). Coding agents in a terminal send no `Origin`.
 
 ## The tools
 

@@ -37399,7 +37399,7 @@
             }
           },
           "403": {
-            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "description": "Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none; or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -39052,6 +39052,7 @@
                   "ORG_FORBIDDEN",
                   "ORG_SLUG_INVALID",
                   "ORG_SLUG_REQUIRED",
+                  "ORIGIN_FORBIDDEN",
                   "PRECONDITION_FAILED",
                   "PRODUCT_NOT_FOUND",
                   "PRODUCT_STALE",
@@ -39279,6 +39280,7 @@
                   "ORG_FORBIDDEN",
                   "ORG_SLUG_INVALID",
                   "ORG_SLUG_REQUIRED",
+                  "ORIGIN_FORBIDDEN",
                   "PRECONDITION_FAILED",
                   "PRODUCT_NOT_FOUND",
                   "PRODUCT_STALE",
@@ -39497,6 +39499,7 @@
               "ORG_FORBIDDEN",
               "ORG_SLUG_INVALID",
               "ORG_SLUG_REQUIRED",
+              "ORIGIN_FORBIDDEN",
               "PRECONDITION_FAILED",
               "PRODUCT_NOT_FOUND",
               "PRODUCT_STALE",

@@ -94,6 +94,19 @@ for it, while the calls before it stand.
 - **Example**: Ada's budget has room for two more requests. Her script sends one request carrying
   three tool calls → the first two run, and the third is answered with the time to wait.
 
+### MCP-R22 · A request from a foreign browser origin is logged, and refused when enforced
+
+A coding agent on a terminal or a server sends no `Origin` and is never judged. A request that
+carries one must come from the deployment's own addresses or an origin the operator lists
+(`TALE_MCP_ALLOWED_ORIGINS`); from anywhere else it is logged with the origin, the organization and
+the person, and — where the operator turned enforcement on (`TALE_MCP_ORIGIN_ENFORCE=true`) —
+refused (`ORIGIN_FORBIDDEN`) before anything runs. The log line never prints a value that is not an
+origin.
+
+- **Example**: A web page on `evil.example` holds Ada's key and calls the endpoint → the call is
+  answered and the log names `https://evil.example`; once the operator enforces the rule, the same
+  call is refused and nothing runs. Ada's Claude Code in her terminal is answered either way.
+
 ### MCP-R20 · An Idempotency-Key header is refused; a start names its key as an argument
 
 One request can carry many calls, so one header cannot name a start. A request with an

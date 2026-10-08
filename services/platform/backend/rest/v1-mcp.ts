@@ -4,6 +4,11 @@ import type { Sql } from 'postgres';
 import { mcpCallLogLine, recordMcpActivity } from '../domains/mcp/activity.ts';
 import { callerFromRest } from '../domains/mcp/caller.ts';
 import { mcpHost } from '../domains/mcp/engine-host.ts';
+import {
+  judgeMcpOrigin,
+  loggableOrigin,
+  mcpOriginEnforced,
+} from '../domains/mcp/origin.ts';
 import { handleMcpRequest } from '../domains/mcp/protocol.ts';
 import {
   RateLimitExceededError,
@@ -47,6 +52,26 @@ export function createRestMcpRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   // The protocol layer reads the body itself, so the door's default byte
   // cap is applied here as middleware (a 413 in the door envelope).
   app.post('/mcp', restBodyLimit(DEFAULT_BODY_BYTES), async (c) => {
+    // A browser page from another site must not drive a key it holds: a
+    // request that carries an Origin the deployment does not accept is
+    // logged, and refused once the operator enforces the rule
+    // (`domains/mcp/origin.ts`). CLI and server clients send no Origin.
+    const origin = c.req.header('origin');
+    if (judgeMcpOrigin(origin) === 'mismatch') {
+      console.warn(
+        `[mcp] origin-mismatch origin=${loggableOrigin(origin ?? '')} org=${c.get('organizationId')} user=${c.get('userId')} enforced=${mcpOriginEnforced()}`,
+      );
+      if (mcpOriginEnforced()) {
+        return c.json(
+          {
+            error:
+              'Requests from this origin are not accepted on the MCP endpoint — a browser page reaches it only from an origin the operator allows',
+            code: 'ORIGIN_FORBIDDEN',
+          },
+          403,
+        );
+      }
+    }
     // A JSON-RPC batch carries up to twenty calls, so one HTTP header
     // cannot name a start: the key is a tool argument (`idempotencyKey`
     // on start_run, run_deployed and invoke_capability). The header used

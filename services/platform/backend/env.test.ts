@@ -18,6 +18,24 @@ describe('loadEnv', () => {
       expect(() => loadEnv({ ...BASE, TOTP_CLIENT_NAME: value })).toThrow();
     }
   });
+  it('refuses an MCP origin list that holds something other than origins', () => {
+    expect(
+      loadEnv({
+        ...BASE,
+        TALE_MCP_ALLOWED_ORIGINS:
+          'https://editor.example, vscode-file://vscode-app',
+        TALE_MCP_ORIGIN_ENFORCE: 'true',
+      }).TALE_MCP_ALLOWED_ORIGINS,
+    ).toBe('https://editor.example, vscode-file://vscode-app');
+    for (const value of ['https://x.example/path', 'not an origin']) {
+      expect(() =>
+        loadEnv({ ...BASE, TALE_MCP_ALLOWED_ORIGINS: value }),
+      ).toThrow(/TALE_MCP_ALLOWED_ORIGINS/);
+    }
+    expect(() =>
+      loadEnv({ ...BASE, TALE_MCP_ORIGIN_ENFORCE: 'yes' }),
+    ).toThrow();
+  });
   it('validates and normalizes the authenticator environment', () => {
     expect(loadEnv(BASE).TOTP_ENVIRONMENT).toBeUndefined();
     expect(

@@ -396,7 +396,10 @@
  * Tools that execute an automation draw from the `rest:execute` budget
  * (`RATE_LIMITED`, `data.retryAfterMs`), and `run_deployed`, `start_run`,
  * `cancel_run` and `delete_trigger` refuse a member before anything runs.
- * No REST operation changes. A script that matched the -32602 argument
- * error, or read the indented text, reads the tool result instead.
+ * A request whose `Origin` the deployment does not accept is logged, and
+ * refused with 403 `ORIGIN_FORBIDDEN` where the operator enforces the rule
+ * (TALE_MCP_ORIGIN_ENFORCE); clients that send no `Origin` are not judged.
+ * No other REST operation changes. A script that matched the -32602
+ * argument error, or read the indented text, reads the tool result instead.
  */
 export const API_CONTRACT_VERSION = '3.20.0';

@@ -64,7 +64,7 @@ Un résultat `get_docs` réussi contient la référence des automatisations en t
 
 Chaque appel d'outil supplémentaire d'un lot consomme le même budget qu'un appel séparé. Si le lot épuise son budget, l'entrée refusée contient JSON-RPC `-32000` avec `data.retryAfterMs`. La réponse HTTP reste `200`, sans `Retry-After`. Une requête unique refusée à l'entrée HTTP reçoit le `429` REST. Gère les deux cas selon les [limites de débit](/fr/develop/rate-limits).
 
-Le point d'accès ne fournit pas d'en-têtes CORS pour utiliser une clé dans une page web. Conserve la clé sur un serveur de confiance ou dans le stockage d'identifiants du client MCP.
+Le point d'accès ne fournit pas d'en-têtes CORS pour utiliser une clé dans une page web. Conserve la clé sur un serveur de confiance ou dans le stockage d'identifiants du client MCP. Une requête dont l’en-tête `Origin` nomme un site que le déploiement n’accepte pas est journalisée, et refusée avec `403` `ORIGIN_FORBIDDEN` là où l’opérateur impose cette vérification ([référence de l’environnement](/fr/self-hosted/configuration/environment-reference#mcp-endpoint)). Les agents de code lancés dans un terminal n’envoient pas d’`Origin`.
 
 ## Les outils
 

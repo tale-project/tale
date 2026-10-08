@@ -6,6 +6,7 @@ import {
   totpEnvironmentSchema,
 } from '../lib/shared/authenticator-name.ts';
 import { ensureWebdavHmacKey } from '../lib/webdav/hmac-key.ts';
+import { invalidAllowedOrigins } from './domains/mcp/origin.ts';
 
 /**
  * Process roles: `api` serves HTTP/SSE, `worker` runs pg-boss task queues,
@@ -102,6 +103,29 @@ const envSchema = z.object({
         });
       }
     }),
+  /**
+   * Browser origins, besides the site's own, from which the MCP endpoint
+   * takes requests that carry an `Origin` (comma- or space-separated, each
+   * `scheme://host[:port]`, e.g. a desktop editor's own origin). Read per
+   * request by `domains/mcp/origin.ts`; validated here so a typo fails boot.
+   */
+  TALE_MCP_ALLOWED_ORIGINS: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      const invalid = invalidAllowedOrigins(value);
+      if (invalid.length > 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `TALE_MCP_ALLOWED_ORIGINS must list origins (scheme://host[:port], no path), got: ${invalid.join(', ')}`,
+        });
+      }
+    }),
+  /**
+   * Whether the MCP endpoint refuses (403 `ORIGIN_FORBIDDEN`) a request
+   * whose `Origin` it does not accept, rather than only logging it.
+   */
+  TALE_MCP_ORIGIN_ENFORCE: z.enum(['true', 'false']).optional(),
   /**
    * Sentry-compatible error reporting (Sentry, GlitchTip, Bugsink), opt-in —
    * unset disables it entirely. See `error-reporting.ts`.

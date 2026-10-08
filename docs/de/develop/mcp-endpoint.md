@@ -64,7 +64,7 @@ Bei Erfolg enthält `get_docs` die Automatisierungsreferenz als Text, ohne geset
 
 Jeder zusätzliche Tool-Aufruf im Batch verbraucht dasselbe Anfragebudget wie ein eigener Aufruf. Ist das Budget erschöpft, enthält der betroffene Eintrag JSON-RPC `-32000` mit `data.retryAfterMs`. Die HTTP-Antwort bleibt `200` ohne `Retry-After`. Eine einzelne Anfrage, die bereits am HTTP-Eingang abgelehnt wird, erhält REST `429`. Behandle beide Fälle nach der [Referenz zu Ratenlimits](/de/develop/rate-limits).
 
-Der Endpunkt liefert keine CORS-Header für API-Schlüssel in Webseiten. Bewahre den Schlüssel auf einem vertrauenswürdigen Server oder im Zugangsdaten-Speicher des MCP-Clients auf.
+Der Endpunkt liefert keine CORS-Header für API-Schlüssel in Webseiten. Bewahre den Schlüssel auf einem vertrauenswürdigen Server oder im Zugangsdaten-Speicher des MCP-Clients auf. Eine Anfrage, deren `Origin`-Kopfzeile eine Website nennt, die das Deployment nicht annimmt, wird protokolliert und mit `403` `ORIGIN_FORBIDDEN` abgelehnt, wo der Betreiber diese Prüfung durchsetzt ([Umgebungsreferenz](/de/self-hosted/configuration/environment-reference#mcp-endpoint)). Coding-Agents im Terminal senden keinen `Origin`.
 
 ## Die Tools
 

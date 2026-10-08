@@ -6566,6 +6566,9 @@ export function buildSpec(): Json {
           jsonRpcError,
         ),
         '401': standardErrors['401'],
+        '403': errorResponse(
+          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none',
+        ),
         '429': standardErrors['429'],
       },
     },
