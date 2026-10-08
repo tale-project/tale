@@ -37,6 +37,7 @@ import {
   sandboxServerError,
 } from './error-reporting.ts';
 import { makeHealthProbe } from './health-probe.ts';
+import { bootNativeHostAdmission } from './host-admission-native.ts';
 import { HostDiskProbe } from './host-disk.ts';
 import {
   autoSessionCapacity,
@@ -67,6 +68,9 @@ const imageWarmup = new ImageWarmup(() => backend.warmImage());
 // published to a registry, so the pull is guaranteed to 404.
 const imageWarmupEnabled = process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1';
 const bootAdoption = new BootAdoption();
+// Deliberately disabled: no operator setting exposes phase admission yet.
+// This one boot-owned instance is the only injection for all growth writers.
+const nativeAdmission = await bootNativeHostAdmission(cfg);
 
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
@@ -148,6 +152,7 @@ function getSessionRoutes(): SessionRoutes {
       () => controlRoutes.isDraining,
       hostMemory ?? undefined,
       hostDisk ?? undefined,
+      nativeAdmission,
     );
   }
   return sessionRoutes;

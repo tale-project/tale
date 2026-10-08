@@ -5,6 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFile, readlink } from 'node:fs/promises';
 
+import type { HostAdmissionIdentity } from './host-admission-model.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 
 export const HOST_ADMISSION_OWNER_NAME = 'tale-native-host-admission-v1';
@@ -106,7 +107,7 @@ export class DockerAdmissionOwner {
     this.monotonic = deps.monotonic ?? (() => performance.now());
   }
 
-  async acquire(): Promise<HostAdmissionOwnerIdentity> {
+  async acquire(recoverRetired = false): Promise<HostAdmissionOwnerIdentity> {
     if (this.owned) {
       await this.assertCurrent();
       return { ...this.owned };
@@ -208,7 +209,15 @@ export class DockerAdmissionOwner {
     // failure or lost acknowledgement is reconciled ONLY by exact labels;
     // no error text, elapsed lease or absent local PID grants ownership.
     await this.call(args, deadline);
-    const owner = await this.inspect(HOST_ADMISSION_OWNER_NAME, deadline);
+    let owner = await this.inspect(HOST_ADMISSION_OWNER_NAME, deadline);
+    if (
+      recoverRetired &&
+      Object.entries(labels).some(([key, value]) => owner.labels[key] !== value)
+    ) {
+      await this.retireRecord(owner, daemonId, deadline);
+      await this.call(args, deadline);
+      owner = await this.inspect(HOST_ADMISSION_OWNER_NAME, deadline);
+    }
     if (
       owner.status !== 'created' ||
       owner.running ||
@@ -262,6 +271,127 @@ export class DockerAdmissionOwner {
       owner.labels[`${LABEL}generation`] !== owned.generation
     )
       throw new Error('Native admission authority changed');
+  }
+
+  /** A journal may cross generations only when its preserved metadata record
+   * proves the exact former writer is stopped/gone. Records are renamed, not
+   * deleted, so a crash between name release and acquisition keeps lineage. */
+  async assertPriorRetired(identity: HostAdmissionIdentity): Promise<void> {
+    const owned = this.owned;
+    if (
+      !owned ||
+      identity.daemonId !== owned.daemonId ||
+      !UUID.test(identity.authorityGeneration)
+    )
+      throw new Error('Native admission recovery identity unavailable');
+    const deadline = this.monotonic() + 15_000;
+    const raw = await this.output(
+      [
+        'ps',
+        '--all',
+        '--no-trunc',
+        '--filter',
+        `label=${LABEL}version=1`,
+        '--filter',
+        `label=${LABEL}generation=${identity.authorityGeneration}`,
+        '--format',
+        '{{.ID}}',
+      ],
+      deadline,
+    );
+    const ids = raw.trim().split('\n').filter(Boolean);
+    if (ids.length !== 1 || !CID.test(ids[0] ?? ''))
+      throw new Error('Native admission recovery lineage unavailable');
+    const prior = await this.inspect(ids[0] ?? '', deadline);
+    if (
+      prior.labels[`${LABEL}boot`] !== identity.hostBootId ||
+      prior.labels[`${LABEL}generation`] !== identity.authorityGeneration
+    )
+      throw new Error('Native admission recovery lineage changed');
+    await this.requireRetired(prior, owned.daemonId, deadline);
+    await this.assertCurrent(Math.min(15_000, deadline - this.monotonic()));
+  }
+
+  private async requireRetired(
+    record: Container,
+    daemonId: string,
+    deadline: number,
+  ): Promise<void> {
+    const cid = record.labels[`${LABEL}container`];
+    const started = record.labels[`${LABEL}started`];
+    const generation = record.labels[`${LABEL}generation`];
+    const boot = record.labels[`${LABEL}boot`];
+    if (
+      record.status !== 'created' ||
+      record.running ||
+      record.labels[`${LABEL}version`] !== '1' ||
+      record.labels[`${LABEL}daemon`] !== daemonId ||
+      typeof cid !== 'string' ||
+      !CID.test(cid) ||
+      typeof started !== 'string' ||
+      !STARTED.test(started) ||
+      typeof generation !== 'string' ||
+      !UUID.test(generation) ||
+      typeof boot !== 'string' ||
+      !UUID.test(boot)
+    )
+      throw new Error('Native admission prior owner is unknown');
+    const raw = await this.output(
+      [
+        'ps',
+        '--all',
+        '--no-trunc',
+        '--filter',
+        `id=${cid}`,
+        '--format',
+        '{{.ID}}',
+      ],
+      deadline,
+    );
+    const ids = raw.trim().split('\n').filter(Boolean);
+    if (ids.length === 0) return;
+    if (ids.length !== 1 || ids[0] !== cid)
+      throw new Error('Native admission prior owner inventory changed');
+    const prior = await this.inspect(cid, deadline);
+    if (
+      prior.id !== cid ||
+      prior.image !== record.image ||
+      prior.running ||
+      (prior.status !== 'exited' && prior.status !== 'dead') ||
+      prior.startedAt !== started
+    )
+      throw new Error(
+        'Native admission prior owner is still active or changed',
+      );
+  }
+
+  private async retireRecord(
+    record: Container,
+    daemonId: string,
+    deadline: number,
+  ): Promise<void> {
+    await this.requireRetired(record, daemonId, deadline);
+    const before = await this.inspect(HOST_ADMISSION_OWNER_NAME, deadline);
+    if (JSON.stringify(before) !== JSON.stringify(record))
+      throw new Error('Native admission prior record changed');
+    const renamed = await this.call(
+      [
+        'rename',
+        record.id,
+        `${HOST_ADMISSION_OWNER_NAME}-retired-${record.id}`,
+      ],
+      deadline,
+    );
+    if (
+      renamed.exitCode !== 0 ||
+      renamed.stdoutTruncated ||
+      renamed.stderrTruncated
+    )
+      throw new Error('Native admission prior record retirement is uncertain');
+    const after = await this.inspect(record.id, deadline);
+    if (JSON.stringify(after) !== JSON.stringify(record))
+      throw new Error('Native admission prior record changed');
+    await this.requireRetired(after, daemonId, deadline);
   }
 
   private requireRunning(value: Container): void {
