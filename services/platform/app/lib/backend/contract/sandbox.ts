@@ -3,6 +3,7 @@
  * adapters in `../settings.ts` bind these names to authenticated HTTP routes.
  */
 
+import type { WaitingAgentRunCounts } from '@/backend/domains/sandbox/sessions';
 import type { SandboxDeploymentLimits } from '@/lib/shared/schemas/sandbox-capacity';
 
 export interface SandboxContract {
@@ -87,44 +88,62 @@ export interface SandboxContract {
       nearLimit: boolean;
     }>;
   };
+  /** The organization's workspaces, and how many agent runs wait for room
+   * (every one counted, by reason): the demand an admin weighs raising the
+   * limit of agent workers against. */
   'sandbox/session_queries_public:listSandboxesForOrg': {
     kind: 'query';
     args: { organizationId: string };
-    returns: null | Array<{
-      sessionId: string;
-      ownerType: string;
-      ownerId: string;
-      ownerLabel?: string | null;
-      createdBy: string;
-      ownerName: null | string;
-      ownerEmail: null | string;
-      agentKind: null | string;
-      status: 'active' | 'creating' | 'degraded' | 'stopped';
-      pinned: boolean;
-      createdAt: number;
-      expiresAt: number;
-      lastActivityAt: null | number;
-      busy: boolean;
-      totalSpentCents: number;
-      /** The op the row leads with: a running one, else the latest. */
-      currentOp: null | SandboxOpView;
-      /** Every op still running in this workspace, oldest first — a project
-       * agent runs its tasks concurrently in the one workspace it owns. */
-      runningOps: SandboxOpView[];
-      /** When the workspace is deleted for being unused, if it stays
-       * unused; null when nothing will delete it. */
-      deletesAt?: number | null;
-      /** An administrator's Destroy still under way (`pending`), or one
-       * whose every attempt failed (`failed`); null when none is. */
-      destroyState?: 'pending' | 'failed' | null;
-    }>;
+    returns: null | {
+      sessions: SandboxSessionListRow[];
+      waitingRuns: WaitingAgentRunCounts;
+    };
   };
+}
+
+/** One workspace on the Sandboxes page. */
+interface SandboxSessionListRow {
+  sessionId: string;
+  ownerType: string;
+  ownerId: string;
+  ownerLabel?: string | null;
+  createdBy: string;
+  ownerName: null | string;
+  ownerEmail: null | string;
+  agentKind: null | string;
+  /** Which of its agent's workers a project agent's workspace is: the
+   * agent's own (`agent`) or one a member's runs work in (`member`), and
+   * its number within that family. */
+  worker?: { number: number; scope: 'agent' | 'member' };
+  status: 'active' | 'creating' | 'degraded' | 'stopped';
+  pinned: boolean;
+  createdAt: number;
+  expiresAt: number;
+  lastActivityAt: null | number;
+  busy: boolean;
+  totalSpentCents: number;
+  /** The op the row leads with: a running one, else the latest. */
+  currentOp: null | SandboxOpView;
+  /** Every op still running in this workspace, oldest first: a worker
+   * runs one task at a time, but a steered turn's predecessor or a turn
+   * started during a rolling deploy can run beside it. */
+  runningOps: SandboxOpView[];
+  /** When the workspace is deleted for being unused, if it stays
+   * unused; null when nothing will delete it. */
+  deletesAt?: number | null;
+  /** An administrator's Destroy still under way (`pending`), or one
+   * whose every attempt failed (`failed`); null when none is. */
+  destroyState?: 'pending' | 'failed' | null;
 }
 
 /** One sandbox operation (an agent turn) as the settings page sees it. */
 interface SandboxOpView {
   kind?: 'task-agent' | 'workflow-agent';
   taskId?: string;
+  /** The task a project agent's op works, as a reader knows it: its key
+   * (`KEY-12`, when its project has one) and title. Absent for a task gone
+   * since. */
+  task?: { id: string; projectId: string; key?: string; title: string };
   workflowRunId?: string;
   threadId?: string;
   execId: string;

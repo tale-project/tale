@@ -6,6 +6,7 @@ import { Row, Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
+import { Link } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -26,10 +27,10 @@ import { SandboxQuotaEditor } from './sandbox-quota-editor';
 import { sandboxRuntimeState } from './sandbox-runtime-state';
 import { WorkspaceCleanupEditor } from './workspace-cleanup-editor';
 
-type SandboxList = NonNullable<
+type SandboxView = NonNullable<
   ReturnsOf<'sandbox/session_queries_public:listSandboxesForOrg'>
 >;
-type SandboxRow = SandboxList[number];
+type SandboxRow = SandboxView['sessions'][number];
 
 interface SandboxesSettingsProps {
   organizationId: string;
@@ -164,9 +165,21 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
               ? t('deletedAgent')
               : (s.ownerLabel ?? s.ownerName ?? s.ownerEmail ?? s.ownerId);
           // A long owner name or fallback identifier stays within this column.
+          // An agent's workspace also says which of its workers it is: one
+          // agent working three tasks at once has three rows.
           return (
             <Stack gap={0} className="max-w-[220px] min-w-0">
               <span className="truncate font-medium">{ownerLabel}</span>
+              {s.worker !== undefined && (
+                <span className="text-muted-foreground truncate text-xs">
+                  {t(
+                    s.worker.scope === 'member'
+                      ? 'worker.member'
+                      : 'worker.agent',
+                    { number: s.worker.number },
+                  )}
+                </span>
+              )}
               {s.ownerEmail && !s.ownerLabel && s.ownerName && (
                 <span className="text-muted-foreground truncate text-xs">
                   {s.ownerEmail}
@@ -248,9 +261,10 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         id: 'task',
         size: 150,
         header: t('columns.task'),
-        // Every turn executing in this workspace: a project agent runs its
-        // tasks concurrently in the one workspace it owns, so a single
-        // "current" op would hide its siblings.
+        // Every turn executing in this workspace: a worker works one task at
+        // a time, but a steered turn's predecessor (or a turn started during
+        // a rolling deploy) can run beside it, and a single "current" op
+        // would hide it. A task reads as its key and title, opening it.
         cell: ({ row }) => {
           const ops = row.original.runningOps;
           const lead = ops[0];
@@ -260,7 +274,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
             );
           }
           return (
-            <Stack gap={0}>
+            <Stack gap={0} className="min-w-0">
               <span className="text-xs">
                 {t(
                   lead.kind === 'workflow-agent'
@@ -272,6 +286,24 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
                 )}
               </span>
               {ops.map((op) => {
+                if (op.task !== undefined) {
+                  const name =
+                    op.task.key !== undefined
+                      ? `${op.task.key} ${op.task.title}`
+                      : op.task.title;
+                  return (
+                    <Link
+                      key={op.execId}
+                      to="/dashboard/$id/tasks/$taskId"
+                      params={{ id: organizationId, taskId: op.task.id }}
+                      title={name}
+                      className="text-muted-foreground hover:text-foreground focus-visible:ring-ring block truncate rounded-sm text-xs underline-offset-2 hover:underline focus-visible:ring-1 focus-visible:outline-none"
+                    >
+                      {name}
+                    </Link>
+                  );
+                }
+                // A task gone since, or a workflow run, keeps its id prefix.
                 const runId = op.taskId ?? op.workflowRunId;
                 return runId === undefined ? null : (
                   <span
@@ -384,6 +416,11 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     <>
       <SandboxQuotaEditor
         organizationId={organizationId}
+        // The demand a higher limit would meet: read with the workspaces,
+        // so only for those who manage them.
+        waitingForWorkers={
+          canManage ? data?.waitingRuns.byReason.org_limit : undefined
+        }
         deploymentLimits={
           deploymentLimits.isError ? undefined : deploymentLimits.data
         }
@@ -414,10 +451,10 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         >
           <DataTable<SandboxRow>
             columns={columns}
-            data={data ?? []}
+            data={data?.sessions ?? []}
             isLoading={isLoading}
             error={error}
-            approxRowCount={data?.length}
+            approxRowCount={data?.sessions.length}
             getRowId={(row) => row.sessionId}
             emptyState={{
               icon: Box,

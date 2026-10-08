@@ -34,6 +34,9 @@ interface SandboxQuotaEditorProps {
   deploymentLimits?: ReturnsOf<'sandbox/session_queries_public:getSandboxDeploymentLimits'>;
   deploymentLimitsLoading: boolean;
   onRefreshDeploymentLimits: () => void;
+  /** How many agent runs wait for a free agent worker: what raising that
+   * limit would start now. Absent when the reader cannot see it. */
+  waitingForWorkers?: number;
 }
 
 const QUOTA_FIELDS = [
@@ -52,6 +55,7 @@ export function SandboxQuotaEditor({
   deploymentLimits,
   deploymentLimitsLoading,
   onRefreshDeploymentLimits,
+  waitingForWorkers,
 }: SandboxQuotaEditorProps) {
   const { t } = useT('sandboxes');
   const ability = useAbility();
@@ -293,6 +297,15 @@ export function SandboxQuotaEditor({
                           {t('limits.usageUnavailable')}
                         </p>
                       )}
+                      {budget === 'project' &&
+                      waitingForWorkers !== undefined &&
+                      waitingForWorkers > 0 ? (
+                        <p className="text-muted-foreground text-xs">
+                          {t('limits.waitingForWorkers', {
+                            count: waitingForWorkers,
+                          })}
+                        </p>
+                      ) : null}
                     </div>
                   </SettingsFieldRow>
                 );

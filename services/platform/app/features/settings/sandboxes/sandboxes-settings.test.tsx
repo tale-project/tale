@@ -26,24 +26,53 @@ const { state, query, mutate, refreshCapacity, refreshLimits, toast } =
     toast: vi.fn(),
   }));
 
-/** One project-agent op as the view lists it. */
-function taskOp(execId: string, taskId: string, startedAt: number) {
+/** One project-agent op as the view lists it: with its task's key and
+ * title, unless the task is gone since. */
+function taskOp(
+  execId: string,
+  taskId: string,
+  startedAt: number,
+  task?: { key?: string; title: string },
+) {
   return {
     kind: 'task-agent' as const,
     execId,
     taskId,
+    ...(task !== undefined
+      ? { task: { id: taskId, projectId: 'project-1', ...task } }
+      : {}),
     status: 'running',
     startedAt,
   };
 }
 
-/** Alice's workspace with three tasks executing in it at once — a project
- * agent runs its tasks concurrently in the one workspace it owns. */
+/** The list read's answer: the workspaces, and the agent runs waiting for
+ * room by reason. */
+function view(sessions: unknown[], waitingForWorkers = 0) {
+  return {
+    sessions,
+    waitingRuns: {
+      total: waitingForWorkers,
+      byReason: {
+        org_limit: waitingForWorkers,
+        host: 0,
+        destroy_pending: 0,
+        exec_limit: 0,
+        unknown: 0,
+      },
+    },
+  };
+}
+
+/** Alice's first worker, with three turns executing in it at once: its
+ * task's turn, a steered turn's predecessor still in its kill grace, and a
+ * turn whose task is gone since. */
 const aliceRow = {
   sessionId: 'session-alice',
   ownerType: 'project_agent',
   ownerId: 'agent-alice',
   ownerLabel: 'Alice',
+  worker: { number: 1, scope: 'agent' as const },
   createdBy: 'system:task-agent',
   ownerName: null,
   ownerEmail: null,
@@ -55,11 +84,20 @@ const aliceRow = {
   pinned: false,
   busy: true,
   totalSpentCents: 12.5,
-  currentOp: taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3),
+  currentOp: taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3, {
+    key: 'WEB-12',
+    title: 'Release notes',
+  }),
   runningOps: [
     taskOp('exec-1', 'd01a4b15-0000-4000-8000-000000000001', 1),
-    taskOp('exec-2', 'a91fb5c0-0000-4000-8000-000000000002', 2),
-    taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3),
+    taskOp('exec-2', '3be051fb-0000-4000-8000-000000000003', 2, {
+      key: 'WEB-12',
+      title: 'Release notes',
+    }),
+    taskOp('exec-3', '3be051fb-0000-4000-8000-000000000003', 3, {
+      key: 'WEB-12',
+      title: 'Release notes',
+    }),
   ],
 };
 
@@ -91,6 +129,30 @@ const hibernatedRow = {
   // Noon UTC, so the day reads the same in every runner's time zone.
   deletesAt: Date.UTC(2026, 9, 31, 12),
 };
+
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  Link: ({
+    children,
+    to,
+    params,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    to: string;
+    params: Record<string, string>;
+  }) => (
+    <a
+      href={Object.entries(params).reduce(
+        (href, [key, value]) => href.replace(`$${key}`, value),
+        to,
+      )}
+      {...rest}
+    >
+      {children}
+    </a>
+  ),
+}));
 
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({
@@ -130,7 +192,7 @@ beforeEach(() => {
     // Deliberately return cached private rows even for skipped requests. A
     // permission downgrade must remove already-fetched metadata from the UI.
     data: name.endsWith(':listSandboxesForOrg')
-      ? [
+      ? view([
           {
             sessionId: 'session-private',
             ownerId: 'agent-private',
@@ -148,7 +210,7 @@ beforeEach(() => {
           aliceRow,
           orphanRow,
           hibernatedRow,
-        ]
+        ])
       : name === 'governance/queries:getPolicy'
         ? null
         : name.endsWith(':getSandboxQuotaUsage')
@@ -247,7 +309,7 @@ describe.each(SHIPPED_LOCALES)(
           };
         }
         return name.endsWith(':listSandboxesForOrg')
-          ? { ...answer, data: [aliceRow] }
+          ? { ...answer, data: view([aliceRow]) }
           : answer;
       });
     });
@@ -435,6 +497,41 @@ describe('SandboxesSettings access', () => {
     expect(mutate).not.toHaveBeenCalled();
   });
 
+  it('tells a manager how many agent runs wait for a free worker, under the agent workers limit', () => {
+    state.canManage = true;
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: view([aliceRow], 2) }
+        : answer;
+    });
+    renderSettings();
+    expect(
+      screen.getByRole('spinbutton', { name: 'Agent workers' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Each task an agent works on at the same time runs in a sandbox of its own.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('2 agent runs are waiting for a free worker.'),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the waiting count from a developer, who reads no workspaces', () => {
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: view([aliceRow], 2) }
+        : answer;
+    });
+    renderSettings();
+    expect(screen.queryByText(/waiting for a free worker/)).toBeNull();
+  });
+
   it('lets organization settings managers query and view workspaces', () => {
     state.canManage = true;
     renderSettings();
@@ -473,21 +570,76 @@ describe('SandboxesSettings workspace rows', () => {
     state.canManage = true;
   });
 
-  it('lists every task running in a workspace, not just the latest one', () => {
+  it('lists every turn running in a worker by its task, not just the latest one', () => {
     renderSettings();
     const row = screen.getByText('Alice').closest('tr');
     expect(row).not.toBeNull();
     expect(
       within(row as HTMLElement).getByText('3 project tasks'),
     ).toBeInTheDocument();
-    for (const id of ['d01a4b15', 'a91fb5c0', '3be051fb']) {
-      expect(within(row as HTMLElement).getByText(id)).toBeInTheDocument();
-    }
+    // A task reads as its key and title and opens on its own page.
+    const links = within(row as HTMLElement).getAllByRole('link', {
+      name: 'WEB-12 Release notes',
+    });
+    expect(links).toHaveLength(2);
+    expect(links[0]).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/tasks/3be051fb-0000-4000-8000-000000000003',
+    );
+    // A task gone since keeps its id prefix; no raw id of a known task.
+    expect(
+      within(row as HTMLElement).getByText('d01a4b15'),
+    ).toBeInTheDocument();
+    expect(within(row as HTMLElement).queryByText('3be051fb')).toBeNull();
     // Lifetime spend of the workspace, in dollars.
     expect(within(row as HTMLElement).getByText('$0.13')).toBeInTheDocument();
     expect(
       within(row as HTMLElement).getByText('claude-code'),
     ).toBeInTheDocument();
+  });
+
+  it('names the worker each of an agent’s workspaces is, its own or a member’s', () => {
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? {
+            ...answer,
+            data: view([
+              aliceRow,
+              {
+                ...aliceRow,
+                sessionId: 'session-alice-w2',
+                worker: { number: 2, scope: 'agent' },
+                currentOp: null,
+                runningOps: [
+                  taskOp('exec-4', 'task-changelog', 4, {
+                    key: 'WEB-13',
+                    title: 'Changelog',
+                  }),
+                ],
+              },
+              {
+                ...hibernatedRow,
+                worker: { number: 2, scope: 'member' },
+              },
+            ]),
+          }
+        : answer;
+    });
+    renderSettings();
+    const [first, second] = screen
+      .getAllByText('Alice')
+      .map((cell) => cell.closest('tr') as HTMLElement);
+    expect(within(first as HTMLElement).getByText('Worker 1')).toBeVisible();
+    expect(within(second as HTMLElement).getByText('Worker 2')).toBeVisible();
+    expect(
+      within(second as HTMLElement).getByRole('link', {
+        name: 'WEB-13 Changelog',
+      }),
+    ).toHaveAttribute('href', '/dashboard/org-1/tasks/task-changelog');
+    const bob = screen.getByText('Bob').closest('tr') as HTMLElement;
+    expect(within(bob).getByText('Member worker 2')).toBeVisible();
   });
 
   it('names a workspace whose agent was deleted, never its raw id', () => {
@@ -554,7 +706,7 @@ describe('SandboxesSettings Destroy', () => {
     query.mockImplementation((name: string) => {
       const answer = reads?.(name);
       return name.endsWith(':listSandboxesForOrg')
-        ? { ...answer, data: rows }
+        ? { ...answer, data: view(rows) }
         : answer;
     });
   }
