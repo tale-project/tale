@@ -614,6 +614,15 @@ function nextGrid(plan: GridPlan, after: number): number | null {
     const next = plan.minuteAtOrAfter(date, minute);
     if (next === minute) return at;
     if (next === null) {
+      // Nothing is left on this wall-clock day, unless the clock goes back
+      // before the day ends and shows its minutes again: continue from that
+      // change, so the repeated minutes are read a second time.
+      const dayEnd = zonedInstant(addDays(date, 1), MIDNIGHT, plan.zone);
+      const change = changeAfter(at, dayEnd, plan.zone);
+      if (change < dayEnd) {
+        at = Math.max(at + MINUTE_MS, change);
+        continue;
+      }
       const day = plan.atOrAfter(addDays(date, 1));
       if (day === null) return null;
       at = Math.max(at + MINUTE_MS, zonedInstant(day, MIDNIGHT, plan.zone));
@@ -641,6 +650,17 @@ function previousGrid(
     const previous = plan.minuteAtOrBefore(date, minute);
     if (previous === minute) return at;
     if (previous === null) {
+      // Nothing came earlier on this wall-clock day, unless the clock went
+      // back since the day began: before that change it read later minutes,
+      // so continue from the minute before it.
+      const dayStart = zonedInstant(date, MIDNIGHT, plan.zone);
+      if (
+        dayStart < at &&
+        offsetAt(dayStart, plan.zone) !== offsetAt(at, plan.zone)
+      ) {
+        at = Math.min(at - MINUTE_MS, changeBefore(at, dayStart, plan.zone));
+        continue;
+      }
       const day = plan.atOrBefore(addDays(date, -1));
       if (day === null) return null;
       const dayEnd =

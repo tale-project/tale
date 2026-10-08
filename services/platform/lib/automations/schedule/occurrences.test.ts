@@ -6,8 +6,10 @@
  * gap and start once in a repeated hour; grids (minutely and hourly rules,
  * cron starting with `*`) keep their pace in real time. The matrix covers
  * Europe/Zurich, America/New_York, Australia/Lord_Howe (30-minute shifts)
- * and Asia/Kolkata (a half-hour offset, no DST). Day rules are held to the
- * repeating task's own series by a seeded property test.
+ * and Asia/Kolkata (a half-hour offset, no DST); the grid check adds
+ * Africa/Cairo, America/Santiago and Asia/Beirut, whose clocks change at
+ * midnight. Day rules are held to the repeating task's own series by a
+ * seeded property test.
  */
 
 import {
@@ -422,16 +424,25 @@ function gridByDefinition(
 }
 
 describe('grid walks against the grid by definition', () => {
+  // Cairo, Santiago and Beirut change their clocks at midnight, so the
+  // repeated hour is the last of its day: nothing on the grid is left that
+  // day until the clock goes back.
   const zones: [string, string[]][] = [
     ['Europe/Zurich', ['2026-03-29T01:00Z', '2026-10-25T01:00Z']],
     ['America/New_York', ['2026-03-08T07:00Z', '2026-11-01T06:00Z']],
     ['Australia/Lord_Howe', ['2026-04-04T15:00Z', '2026-10-03T15:30Z']],
     ['Asia/Kolkata', ['2026-03-29T01:00Z']],
+    ['Africa/Cairo', ['2026-04-23T22:00Z', '2026-10-29T21:00Z']],
+    ['America/Santiago', ['2026-04-05T03:00Z', '2026-09-06T04:00Z']],
+    ['Asia/Beirut', ['2026-03-28T22:00Z', '2026-10-24T21:00Z']],
   ];
+  const everyDay = [0, 1, 2, 3, 4, 5, 6];
   const rules: Extract<ScheduleRule, { frequency: 'minutely' | 'hourly' }>[] = [
     { frequency: 'minutely', interval: 4 },
+    { frequency: 'minutely', interval: 15 },
     { frequency: 'minutely', interval: 20 },
     { frequency: 'minutely', interval: 30 },
+    { frequency: 'hourly', interval: 1, minute: 0 },
     { frequency: 'hourly', interval: 1, minute: 30 },
     { frequency: 'hourly', interval: 2, minute: 0 },
     { frequency: 'hourly', interval: 3, minute: 15 },
@@ -446,6 +457,38 @@ describe('grid walks against the grid by definition', () => {
       interval: 2,
       minute: 0,
       window: { weekdays: [0, 1, 6], hours: { from: '01:00', to: '05:00' } },
+    },
+    // Windows that close or open inside a repeated hour: one pass of it is
+    // in the window's last (or first) minutes, the other pass too.
+    {
+      frequency: 'minutely',
+      interval: 15,
+      window: { weekdays: everyDay, hours: { from: '00:00', to: '02:30' } },
+    },
+    {
+      frequency: 'minutely',
+      interval: 15,
+      window: { weekdays: everyDay, hours: { from: '22:00', to: '03:00' } },
+    },
+    {
+      frequency: 'minutely',
+      interval: 10,
+      window: { weekdays: everyDay, hours: { from: '02:30', to: '05:00' } },
+    },
+    {
+      frequency: 'minutely',
+      interval: 5,
+      window: { weekdays: everyDay, hours: { from: '00:30', to: '01:30' } },
+    },
+    {
+      frequency: 'minutely',
+      interval: 10,
+      window: { weekdays: everyDay, hours: { from: '01:30', to: '05:00' } },
+    },
+    {
+      frequency: 'minutely',
+      interval: 10,
+      window: { weekdays: everyDay, hours: { from: '23:30', to: '00:00' } },
     },
   ];
 
@@ -481,6 +524,49 @@ describe('grid walks against the grid by definition', () => {
       }
     }
     expect(mismatches).toEqual([]);
+  });
+
+  it('runs the repeated last hour of a Cairo day twice, and marks both', () => {
+    const hourly = rule(
+      { frequency: 'hourly', interval: 1, minute: 0 },
+      'Africa/Cairo',
+    );
+    const after = at('2026-10-29T19:30Z');
+    expect(occurrencesAfter(hourly, after, 3).map(iso)).toEqual([
+      '2026-10-29T20:00Z',
+      '2026-10-29T21:00Z',
+      '2026-10-29T22:00Z',
+    ]);
+    expect(
+      upcomingOccurrences(hourly, after, 3).map(({ at: ms, clockChange }) => [
+        iso(ms),
+        clockChange?.kind ?? null,
+      ]),
+    ).toEqual([
+      ['2026-10-29T20:00Z', 'repeatedHour'],
+      ['2026-10-29T21:00Z', 'repeatedHour'],
+      ['2026-10-29T22:00Z', null],
+    ]);
+    expect(iso(previousOccurrence(hourly, at('2026-10-29T21:59Z')) ?? 0)).toBe(
+      '2026-10-29T21:00Z',
+    );
+    const quarterHour = rule(
+      { frequency: 'minutely', interval: 15 },
+      'Africa/Cairo',
+    );
+    expect(
+      between(
+        quarterHour,
+        at('2026-10-29T20:30Z'),
+        at('2026-10-29T21:30Z'),
+      ).map(iso),
+    ).toEqual([
+      '2026-10-29T20:30Z',
+      '2026-10-29T20:45Z',
+      '2026-10-29T21:00Z',
+      '2026-10-29T21:15Z',
+      '2026-10-29T21:30Z',
+    ]);
   });
 
   it('starts the repeated 02:00 of an every-2-hours grid in Zurich', () => {
@@ -792,6 +878,29 @@ describe('cron schedules', () => {
       }
     }
   });
+
+  it('runs both passes of a repeated hour, as the scan matcher did', () => {
+    for (const [expression, zone, from] of [
+      ['0 * * * *', 'Africa/Cairo', '2026-10-29T18:00Z'],
+      ['*/15 0-2 * * *', 'Europe/Zurich', '2026-10-24T21:00Z'],
+      ['*/10 1 * * *', 'America/New_York', '2026-11-01T04:00Z'],
+    ] as const) {
+      let cursor = at(from);
+      for (let i = 0; i < 16; i += 1) {
+        const mine = nextOccurrence(cron(expression, zone), cursor);
+        const theirs = firstOccurrenceBetween(
+          parseCron(expression),
+          zone,
+          cursor,
+          cursor + 2 * DAY,
+        );
+        expect(mine, `${expression} in ${zone} after ${iso(cursor)}`).toBe(
+          theirs,
+        );
+        cursor = mine ?? cursor + DAY;
+      }
+    }
+  });
 });
 
 describe('countBetween', () => {
@@ -922,6 +1031,37 @@ describe('decideDue', () => {
       'skip',
     );
     expect(skipped.fire).toBe(from + 5010 * MINUTE);
+  });
+
+  it('starts the second pass of a repeated hour a window opens in', () => {
+    // New York falls back at 06:00Z on 2026-11-01: 01:30–01:50 EDT are
+    // 05:30Z–05:50Z, then 01:00–01:50 EST are 06:00Z–06:50Z. The scan claimed
+    // 05:30Z, then was away until 06:20Z.
+    const night = rule(
+      {
+        frequency: 'minutely',
+        interval: 10,
+        window: {
+          weekdays: [0, 1, 2, 3, 4, 5, 6],
+          hours: { from: '01:30', to: '05:00' },
+        },
+      },
+      'America/New_York',
+    );
+    const claimed = at('2026-11-01T05:30Z');
+    expect(
+      decideDue(night, claimed, claimed, at('2026-11-01T06:20Z'), 'latest'),
+    ).toEqual({
+      fire: at('2026-11-01T05:50Z'),
+      handledThrough: at('2026-11-01T05:50Z'),
+      missed: {
+        count: 1,
+        capped: false,
+        firstAt: at('2026-11-01T05:40Z'),
+        lastAt: at('2026-11-01T05:40Z'),
+      },
+      next: at('2026-11-01T06:30Z'),
+    });
   });
 
   it('never starts what an earlier scan already claimed', () => {
