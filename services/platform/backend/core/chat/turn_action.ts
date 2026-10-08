@@ -1378,6 +1378,7 @@ export async function executeTurn(
     userId: args.userId,
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
     threadId: args.threadId,
+    ...(threadProjectId !== null ? { projectId: threadProjectId } : {}),
     userText,
     ...(audioTranscriptAppendix.length > 0 ? { audioTranscriptAppendix } : {}),
     ...(documentAppendix.length > 0 ? { documentAppendix } : {}),

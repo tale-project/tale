@@ -32,6 +32,8 @@ interface SideResult {
   /** The refusal's stable code when the server names one — see
    * `ChatTurnOutcome.code`. */
   readonly code?: string;
+  /** See `ChatTurnOutcome.budgetScope`. */
+  readonly budgetScope?: string;
 }
 
 export interface ArenaActions {

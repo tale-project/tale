@@ -12,14 +12,20 @@ import { describe, expect, it } from 'vitest';
 
 import { incrementUsageLedger } from './service.ts';
 
-function capturingSql(): { sql: Sql; statements: string[] } {
+function capturingSql(): {
+  sql: Sql;
+  statements: string[];
+  bindings: unknown[][];
+} {
   const statements: string[] = [];
-  const tag = (strings: TemplateStringsArray) => {
+  const bindings: unknown[][] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     statements.push(strings.join('?'));
+    bindings.push(values);
     return Promise.resolve([]);
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call is exercised by the ledger
-  return { sql: tag as unknown as Sql, statements };
+  return { sql: tag as unknown as Sql, statements, bindings };
 }
 
 describe('incrementUsageLedger', () => {
@@ -46,5 +52,73 @@ describe('incrementUsageLedger', () => {
         /audio_duration_sec =\s+CASE\s+WHEN app\.usage_ledger\.audio_duration_sec IS NULL\s+AND EXCLUDED\.audio_duration_sec IS NULL THEN NULL/,
       );
     }
+  });
+
+  it('books spend in a project into the project’s own buckets too [GOV-R14]', async () => {
+    const { sql, statements, bindings } = capturingSql();
+    const timestamp = Date.UTC(2026, 9, 7, 12);
+    await incrementUsageLedger(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      inputTokens: 10,
+      outputTokens: 5,
+      costEstimateCents: 3,
+      timestamp,
+      projectIds: ['project_1'],
+    });
+    const project = statements.flatMap((text, index) =>
+      text.includes('INSERT INTO app.project_usage') ? [index] : [],
+    );
+    // One project bucket per period, beside each ledger bucket.
+    expect(statements).toHaveLength(6);
+    expect(project).toHaveLength(3);
+    expect(project.map((index) => bindings[index]?.slice(0, 4))).toEqual([
+      ['org_1', 'project_1', 'daily', '2026-10-07'],
+      ['org_1', 'project_1', 'weekly', '2026-W41'],
+      ['org_1', 'project_1', 'monthly', '2026-10'],
+    ]);
+    expect(bindings[project[0] ?? -1]?.slice(4, 8)).toEqual([10, 5, 15, 3]);
+  });
+
+  it('books spend outside a project into the ledger alone', async () => {
+    const { sql, statements } = capturingSql();
+    await incrementUsageLedger(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      inputTokens: 1,
+      outputTokens: 1,
+      costEstimateCents: 1,
+      timestamp: Date.now(),
+    });
+    expect(statements.some((text) => text.includes('app.project_usage'))).toBe(
+      false,
+    );
+  });
+
+  it('books spend in several projects into each project’s buckets [GOV-R14]', async () => {
+    const { sql, statements, bindings } = capturingSql();
+    await incrementUsageLedger(sql, {
+      organizationId: 'org_1',
+      userId: '__automation__',
+      inputTokens: 1,
+      outputTokens: 1,
+      costEstimateCents: 2,
+      timestamp: Date.UTC(2026, 9, 7, 12),
+      projectIds: ['project_1', 'project_2', 'project_1'],
+    });
+    const booked = statements.flatMap((text, index) =>
+      text.includes('INSERT INTO app.project_usage')
+        ? [String(bindings[index]?.[1])]
+        : [],
+    );
+    // Three periods for each project, a repeated id booked once.
+    expect(booked.toSorted()).toEqual([
+      'project_1',
+      'project_1',
+      'project_1',
+      'project_2',
+      'project_2',
+      'project_2',
+    ]);
   });
 });
