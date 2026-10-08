@@ -346,6 +346,9 @@ export interface TaskPayloads {
     continuation?: number;
     scanStartedAt?: string;
     takeover?: string;
+    /** Who asked for the scan: its embeddings are their spend. A scan the
+     * scheduler started names nobody. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Register a website (or URL list) in the corpus + kick its first scan
    * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */
@@ -355,6 +358,8 @@ export interface TaskPayloads {
     scanInterval: string;
     organizationId: string;
     urls?: string[];
+    /** Who added the site: its first scan is their spend. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Push the corpus-side truth onto one (orgSlug, domain) websites row. */
   'websites.row_sync': { orgSlug: string; domain: string };

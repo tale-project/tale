@@ -65,6 +65,10 @@ viewDialog:
   scanPausedNotice: L'analyse est suspendue après plusieurs échecs d'accès à
     la base de connaissances. Vérifie la connexion sous Paramètres →
     Résidence des données, puis reprends l'analyse.
+  embeddingLimitNotice: Une limite d'utilisation a arrêté la dernière analyse
+    avant que toutes les pages soient consultables par le sens. Ces pages sont
+    enregistrées, et l'analyse les reprend d'elle-même une fois la limite
+    réinitialisée ou relevée.
   scanError:
     runtime: L'analyse n'a pas eu lieu.
     notInCorpus: Cette liste d'URL n'est pas dans le crawler. Supprime-la et

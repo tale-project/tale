@@ -10,7 +10,11 @@ import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
 import { PageIndexer, type StoreOutcome, storePageText } from './crawl_action';
 import { EmbeddingDimensionMismatch, pinDimensions } from './dimensions';
-import { embedderForOrg, EmbeddingNotConfigured } from './embedding';
+import {
+  embedderForOrg,
+  EmbeddingBudgetExceeded,
+  EmbeddingNotConfigured,
+} from './embedding';
 
 vi.mock('./connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./connection')>()),
@@ -409,5 +413,108 @@ describe('PageIndexer.embedVectorless', () => {
     await expect(indexer.embedVectorless(Date.now() - 1)).resolves.toBe(2);
 
     expect(indexPage).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A usage limit that binds whoever a scan is for stops its embedding, not
+ * the scan: the page is stored without vectors — the site's own content
+ * search still reads it — the rest of the link embeds nothing, and the
+ * website row says why, so the hourly pass can resume the scan once the
+ * limit allows it.
+ */
+describe('PageIndexer at a usage limit', () => {
+  const identity = {
+    domain: 'ruler.example',
+    orgSlug: 'ruler',
+    organizationId: 'org-1',
+    requestedBy: { userId: 'user-1', apiKeyId: 'key-1' },
+  };
+
+  function storedPageCorpus(): { sql: Sql; inserts: unknown[][] } {
+    const inserts: unknown[][] = [];
+    const unsafe = (text: string, params: unknown[] = []) => {
+      if (text.includes('SELECT content, title')) {
+        return Promise.resolve([{ content: TEXT.repeat(20), title: 'About' }]);
+      }
+      if (text.includes('INSERT INTO public_web.chunks')) inserts.push(params);
+      return Promise.resolve([]);
+    };
+    const sql = {
+      unsafe,
+      begin: async (run: (tx: { unsafe: typeof unsafe }) => Promise<void>) =>
+        run({ unsafe }),
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return { sql: sql as unknown as Sql, inserts };
+  }
+
+  afterEach(() => {
+    vi.mocked(embedderForOrg).mockReset();
+    vi.restoreAllMocks();
+  });
+
+  it('stores the page without vectors, embeds nothing more, and notes the limit on the row [GOV-R4] [WEB-R11]', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    const embedAll = vi.fn(() =>
+      Promise.reject(new EmbeddingBudgetExceeded('Usage limit reached.')),
+    );
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only what indexPage calls
+      { dimensions: 8, embedAll } as unknown as Awaited<
+        ReturnType<typeof embedderForOrg>
+      >,
+    );
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const ctx = { runMutation } as unknown as ActionCtx;
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const { sql, inserts } = storedPageCorpus();
+    const indexer = new PageIndexer(ctx, sql, identity, meter);
+
+    await indexer.indexPage('https://ruler.example/about');
+    await indexer.indexPage('https://ruler.example/team');
+    await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
+    await indexer.finish();
+
+    expect(embedderForOrg).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({ meter }),
+    );
+    // Asked once; the second page went straight to text without vectors.
+    expect(embedAll).toHaveBeenCalledTimes(1);
+    expect(inserts.length).toBeGreaterThan(0);
+    // The vector column (the 7th parameter) stays empty.
+    expect(inserts.every((params) => params[6] === null)).toBe(true);
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+      reason: 'Usage limit reached.',
+      requestedBy: { userId: 'user-1', apiKeyId: 'key-1' },
+    });
+  });
+
+  it('clears the note once a link embedded again', async () => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only what indexPage calls
+      {
+        dimensions: 8,
+        embedAll: vi.fn(async (texts: string[]) => texts.map(() => [0])),
+      } as unknown as Awaited<ReturnType<typeof embedderForOrg>>,
+    );
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const ctx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(ctx, storedPageCorpus().sql, identity);
+
+    await indexer.indexPage('https://ruler.example/about');
+    await indexer.finish();
+
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+    });
   });
 });

@@ -137,6 +137,8 @@ export function createWebsiteRoutes(deps: {
         organizationId: c.get('orgId'),
         domain: body.data.domain,
         scanInterval: body.data.scanInterval,
+        // The first scan is the spend of whoever added the site.
+        requestedBy: { userId: c.get('sessionBundle').user.id },
         ...(body.data.title !== undefined ? { title: body.data.title } : {}),
         ...(body.data.description !== undefined
           ? { description: body.data.description }
@@ -220,7 +222,9 @@ export function createWebsiteRoutes(deps: {
   app.post('/:websiteId/resume', mayManage, async (c) => {
     try {
       const website = await loadOwnedWebsite(deps.sql, c);
-      await resumeScanning(deps.sql, website);
+      await resumeScanning(deps.sql, website, {
+        userId: c.get('sessionBundle').user.id,
+      });
       return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
@@ -232,7 +236,9 @@ export function createWebsiteRoutes(deps: {
       const website = await loadOwnedWebsite(deps.sql, c);
       return c.json({
         ok: true,
-        ...(await scanWebsiteNow(deps.sql, website)),
+        ...(await scanWebsiteNow(deps.sql, website, {
+          userId: c.get('sessionBundle').user.id,
+        })),
       });
     } catch (error) {
       return handleError(c, error);

@@ -379,6 +379,8 @@ describe('runWebsitesScan', () => {
 
     expect(scanWebsiteImpl).toHaveBeenCalledWith(expect.anything(), {
       ...payload,
+      // The link's embeddings are metered as the scan's spend.
+      embeddingMeter: expect.objectContaining({ open: expect.any(Function) }),
       signal,
     });
   });

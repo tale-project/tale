@@ -17,6 +17,10 @@ import {
   privateCrawlHostsAllowed,
 } from '../../../lib/net/crawl-host-policy.ts';
 import { safeFetch } from '../../../lib/net/safe-fetch.ts';
+import {
+  AUTOMATION_SUBJECT_ID,
+  EMBEDDING_SLUG,
+} from '../../../lib/shared/constants/usage.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   countWebsitePagesByState,
@@ -36,6 +40,7 @@ import {
   scanDueWebsitesImpl,
   scanWebsiteImpl,
   persistRobotsRules,
+  type ScanRequester,
 } from '../../core/knowledge/crawl_action.ts';
 import {
   CRAWLER_PRODUCT_TOKEN,
@@ -72,6 +77,8 @@ import {
 } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { directCallBlocked } from '../governance/direct-calls.ts';
+import { embeddingMeter } from '../knowledge/embedding-meter.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
@@ -230,6 +237,7 @@ function readerView(row: WebsiteRow): string {
     row.failedPageCount,
     row.metadata?.lastSyncError ?? null,
     row.metadata?.scanPausedAt ?? null,
+    row.metadata?.embeddingLimitedAt ?? null,
   ]);
 }
 
@@ -565,6 +573,101 @@ export async function recordScanFailure(
   return { paused: pauseNow };
 }
 
+/**
+ * Note on the row that a usage limit stopped a scan's embedding — when, the
+ * refusal's sentence, and whose spend the scan was, for the hourly pass
+ * that resumes it (`knowledge/usage-limit-resume.ts`) — or, with no
+ * `reason`, clear the note: a scan embedded again.
+ */
+export async function recordEmbeddingLimit(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    domain: string;
+    reason?: string;
+    requestedBy?: ScanRequester;
+  },
+): Promise<void> {
+  const website = await getWebsiteByDomain(
+    sql,
+    args.organizationId,
+    args.domain,
+  );
+  if (!website || website.status === 'deleting') return;
+  if (args.reason === undefined) {
+    if (website.metadata?.embeddingLimitedAt == null) return;
+    await patchWebsite(sql, {
+      websiteId: website.id,
+      metadata: {
+        embeddingLimitedAt: null,
+        embeddingLimitReason: null,
+        embeddingLimitRequestedBy: null,
+      },
+    });
+    return;
+  }
+  await patchWebsite(sql, {
+    websiteId: website.id,
+    metadata: {
+      embeddingLimitedAt: Date.now(),
+      embeddingLimitReason: args.reason.slice(0, 1000),
+      embeddingLimitRequestedBy:
+        args.requestedBy !== undefined ? { ...args.requestedBy } : null,
+    },
+  });
+}
+
+/** How many noted sites one hourly pass looks at. */
+const USAGE_LIMIT_RESUME_BATCH = 200;
+
+/** The requester a usage-limit note recorded, read back off the row. */
+function notedRequester(metadata: unknown): ScanRequester | undefined {
+  if (!isRecord(metadata)) return undefined;
+  const noted: unknown = metadata.embeddingLimitRequestedBy;
+  if (!isRecord(noted) || typeof noted.userId !== 'string') return undefined;
+  return {
+    userId: noted.userId,
+    ...(typeof noted.apiKeyId === 'string' ? { apiKeyId: noted.apiKeyId } : {}),
+  };
+}
+
+/**
+ * The hourly pass over the sites whose scan a usage limit stopped
+ * embedding (`recordEmbeddingLimit`): a site whose requester's limits have
+ * room again is scanned now, under the same requester, and the scan embeds
+ * the pages stored without vectors. A site still over its limit is left
+ * for the next pass — nothing is fetched for it; a paused or scanning site
+ * is left alone.
+ */
+export async function resumeUsageLimitedScans(sql: Sql): Promise<number> {
+  const rows = await sql<WebsiteRow[]>`
+    SELECT ${sql.unsafe(WEBSITE_COLUMNS)} FROM app.websites
+    WHERE metadata ->> 'embeddingLimitedAt' IS NOT NULL
+      AND status IS DISTINCT FROM 'scanning'
+      AND status IS DISTINCT FROM 'deleting'
+    ORDER BY (metadata ->> 'embeddingLimitedAt')::float8, id
+    LIMIT ${USAGE_LIMIT_RESUME_BATCH}
+  `;
+  let queued = 0;
+  for (const website of rows) {
+    if (scanPausedAt(website.metadata ?? undefined) !== null) continue;
+    const requestedBy = notedRequester(website.metadata);
+    const blocked = await directCallBlocked(sql, {
+      organizationId: website.organizationId,
+      subject: {
+        userId: requestedBy?.userId ?? AUTOMATION_SUBJECT_ID,
+        agentSlug: EMBEDDING_SLUG,
+        ...(requestedBy?.apiKeyId !== undefined
+          ? { apiKeyId: requestedBy.apiKeyId }
+          : {}),
+      },
+    });
+    if (blocked !== null) continue;
+    if ((await scanWebsiteNow(sql, website, requestedBy)).queued) queued += 1;
+  }
+  return queued;
+}
+
 /** Clear the failure bookkeeping after a completed scan (the 0.4 twin). */
 async function clearScanFailures(
   sql: Sql,
@@ -706,6 +809,17 @@ export function crawlHandlers(sql: Sql): ShimHandlers {
       await clearScanFailures(sql, args);
       return null;
     },
+    'websites/internal_mutations:recordEmbeddingLimit': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the engine passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        domain: string;
+        reason?: string;
+        requestedBy?: ScanRequester;
+      };
+      await recordEmbeddingLimit(sql, args);
+      return null;
+    },
     'websites/internal_queries:listWebsitesForScanScheduling': async () =>
       listWebsitesForScanScheduling(sql),
     'sandbox/session_mutations:reserveSessionSlotAndInsert': async (raw) => {
@@ -770,6 +884,7 @@ function crawlScheduler(sql: Sql, jobId?: string): ShimScheduler {
         organizationId: string;
         continuation?: number;
         scanStartedAt?: string;
+        requestedBy?: ScanRequester;
       };
       if (jobId !== undefined && (await scanJobEnded(sql, jobId))) {
         console.warn(
@@ -941,6 +1056,8 @@ export async function registerWebsite(
     title?: string;
     description?: string;
     urls?: readonly string[];
+    /** Who added the site: its first scan is their spend. */
+    requestedBy?: ScanRequester;
   },
 ): Promise<RegisterWebsiteResult> {
   const domain = crawlableDomain(args.domain);
@@ -1004,6 +1121,9 @@ export async function registerWebsite(
       scanInterval: args.scanInterval,
       organizationId: args.organizationId,
       ...(listedUrls !== undefined ? { urls: listedUrls } : {}),
+      ...(args.requestedBy !== undefined
+        ? { requestedBy: { ...args.requestedBy } }
+        : {}),
     });
     return { id, merged, domain };
   });
@@ -1023,6 +1143,7 @@ export async function runWebsiteRegister(
     scanInterval: string;
     organizationId: string;
     urls?: string[];
+    requestedBy?: ScanRequester;
   },
 ): Promise<void> {
   const isList = args.urls !== undefined && args.urls.length > 0;
@@ -1132,6 +1253,9 @@ export async function runWebsiteRegister(
     domain: args.domain,
     orgSlug,
     organizationId: args.organizationId,
+    ...(args.requestedBy !== undefined
+      ? { requestedBy: { ...args.requestedBy } }
+      : {}),
   });
 
   await addJobInTx(
@@ -1348,7 +1472,11 @@ export async function deregisterAndDeleteWebsite(
  * bookkeeping is cleared and a scan is queued — in one transaction, so a row
  * never reads `scanning` without the job that will scan it.
  */
-async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
+async function queueScan(
+  sql: Sql,
+  website: WebsiteRow,
+  requestedBy?: ScanRequester,
+): Promise<void> {
   const orgSlug = await requireSlug(sql, website.organizationId);
   await sql.begin(async (tx) => {
     await patchWebsite(tx, {
@@ -1369,6 +1497,7 @@ async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
       domain: website.domain,
       orgSlug,
       organizationId: website.organizationId,
+      ...(requestedBy !== undefined ? { requestedBy: { ...requestedBy } } : {}),
     });
   });
 }
@@ -1377,8 +1506,9 @@ async function queueScan(sql: Sql, website: WebsiteRow): Promise<void> {
 export async function resumeScanning(
   sql: Sql,
   website: WebsiteRow,
+  requestedBy?: ScanRequester,
 ): Promise<void> {
-  await queueScan(sql, website);
+  await queueScan(sql, website, requestedBy);
 }
 
 /**
@@ -1392,11 +1522,12 @@ export async function resumeScanning(
 export async function scanWebsiteNow(
   sql: Sql,
   website: WebsiteRow,
+  requestedBy?: ScanRequester,
 ): Promise<{ queued: boolean }> {
   if (website.status === 'scanning' || website.status === 'deleting') {
     return { queued: false };
   }
-  await queueScan(sql, website);
+  await queueScan(sql, website, requestedBy);
   return { queued: true };
 }
 
@@ -1664,6 +1795,7 @@ export async function runWebsitesScan(
     continuation?: number;
     scanStartedAt?: string;
     takeover?: string;
+    requestedBy?: ScanRequester;
   },
   job?: { signal?: AbortSignal; jobId?: string },
 ): Promise<void> {
@@ -1672,6 +1804,18 @@ export async function runWebsitesScan(
   }
   await scanWebsiteImpl(crawlCtx(sql, job?.jobId), {
     ...payload,
+    // The scan's embeddings are its requester's spend — the organization's
+    // (`__automation__`) for a scan the scheduler started.
+    embeddingMeter: embeddingMeter(sql, {
+      organizationId: payload.organizationId,
+      subject: {
+        userId: payload.requestedBy?.userId ?? AUTOMATION_SUBJECT_ID,
+        agentSlug: EMBEDDING_SLUG,
+        ...(payload.requestedBy?.apiKeyId !== undefined
+          ? { apiKeyId: payload.requestedBy.apiKeyId }
+          : {}),
+      },
+    }),
     ...(job?.signal === undefined ? {} : { signal: job.signal }),
   });
 }

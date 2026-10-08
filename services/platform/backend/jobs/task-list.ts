@@ -135,6 +135,12 @@ export type TaskHandler = (
 
 export type BackendTaskList = Record<string, TaskHandler>;
 
+/** Who asked for a website scan: the scan's embeddings are their spend. */
+const SCAN_REQUESTER = z.object({
+  userId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
+});
+
 const orgScaffoldSchema = z.object({
   orgSlug: z.string().min(1),
   cleanFirst: z.boolean().optional(),
@@ -637,10 +643,13 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     'knowledge.resume_usage_limited': async () => {
       const { requeueUsageLimitedFiles } =
         await import('../domains/knowledge/usage-limit-resume.ts');
+      const { resumeUsageLimitedScans } =
+        await import('../domains/websites/service.ts');
       const requeued = await requeueUsageLimitedFiles(deps.sql);
-      if (requeued > 0) {
+      const rescanned = await resumeUsageLimitedScans(deps.sql);
+      if (requeued + rescanned > 0) {
         console.info(
-          `[knowledge] re-queued ${requeued} file(s) a usage limit had parked`,
+          `[knowledge] resumed ${requeued} file(s) and ${rescanned} website scan(s) a usage limit had parked`,
         );
       }
     },
@@ -1217,6 +1226,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           continuation: z.number().int().min(0).optional(),
           scanStartedAt: z.string().optional(),
           takeover: z.string().min(1).optional(),
+          requestedBy: SCAN_REQUESTER.optional(),
         })
         .parse(payload);
       await runWebsitesScan(deps.sql, input, context);
@@ -1229,6 +1239,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           scanInterval: z.string().min(1),
           organizationId: z.string().min(1),
           urls: z.array(z.string()).optional(),
+          requestedBy: SCAN_REQUESTER.optional(),
         })
         .parse(payload);
       await runWebsiteRegister(deps.sql, input);
