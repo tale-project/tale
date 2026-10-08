@@ -13,12 +13,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   createAuditLog,
+  findActingMember,
   pgAutomationStore,
   resolveAccessScope,
   runConnectorAction,
   searchKnowledgeForOrg,
 } = vi.hoisted(() => ({
   createAuditLog: vi.fn(),
+  findActingMember: vi.fn(),
   pgAutomationStore: vi.fn(),
   resolveAccessScope: vi.fn(),
   runConnectorAction: vi.fn(),
@@ -33,9 +35,16 @@ vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   searchKnowledgeForOrg,
 }));
 vi.mock('./shim.ts', () => ({ resolveAccessScope }));
+vi.mock('../../auth/membership.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
+  findActingMember,
+}));
 
 import { KnowledgeError } from '../knowledge/service.ts';
-import { buildCapabilitySurface } from './capabilities.ts';
+import {
+  buildCapabilitySurface,
+  dispatchCapabilityAs,
+} from './capabilities.ts';
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the surface only threads the handle through to the mocked ports
 const sql = {} as Sql;
@@ -231,5 +240,50 @@ describe('the automation registry of the capability surface', () => {
       status: 'refused',
       code: 'CAPABILITY_NOT_FOUND',
     });
+  });
+});
+
+/**
+ * The MCP endpoint's dispatch re-checks who calls before any tool runs: a
+ * member, or a team's or the organization's own API key acting with the
+ * role it was made with — never a project's key, which reaches its project
+ * alone.
+ */
+describe('dispatchCapabilityAs', () => {
+  const call = () =>
+    dispatchCapabilityAs(sql, {
+      organizationId: 'org_1',
+      userId: 'identity_1',
+      method: 'get_knowledge',
+      params: { query: 'returns policy', corpus: 'private' },
+    });
+  const acting = (
+    role: string,
+    kind?: 'team' | 'project' | 'organization',
+  ) => ({
+    id: 'm-1',
+    organizationId: 'org_1',
+    userId: 'identity_1',
+    role,
+    ...(kind !== undefined ? { apiKeyOwner: { kind } } : {}),
+  });
+
+  it('lets a team’s or the organization’s key call with the role it was made with [APIKEY-R4]', async () => {
+    for (const kind of ['team', 'organization'] as const) {
+      findActingMember.mockResolvedValueOnce(acting('editor', kind));
+      await expect(call()).resolves.toEqual({ status: 'ok', passages: [] });
+    }
+  });
+
+  it('refuses a project’s key, a disabled member and a stranger [APIKEY-R6]', async () => {
+    for (const member of [
+      acting('developer', 'project'),
+      acting('disabled'),
+      null,
+    ]) {
+      findActingMember.mockResolvedValueOnce(member);
+      await expect(call()).rejects.toMatchObject({ code: 'ORG_FORBIDDEN' });
+    }
+    expect(searchKnowledgeForOrg).not.toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 82 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 83 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -44,9 +44,10 @@ Stack up + signed in per [SETUP.md](../setup.md) as owner/admin. Mock mode (A)
 is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
 target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
-select lists every member's live key, read from
-`GET /api/app/governance/api-keys` (disabled and expired keys are left out;
-GOV-F48 covers a rule on such a key).
+select lists every live key that works in the organization — members' own
+keys and the keys made for members, teams, projects and the organization —
+read from `GET /api/app/governance/api-keys` (disabled and expired keys are
+left out; GOV-F48 covers a rule on such a key).
 
 **GOV-F40–GOV-F47 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
@@ -141,6 +142,19 @@ agent.
   creates a second key in their own session → it joins the select within
   seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
   answers 403, and no response carries a key secret.
+- [ ] `GOV-F53` · **A team's key spends as the team** — create the Finance
+  team's API key (settings.md SET-F78) and a GOV-F4-style **Team** rule on
+  Finance with **Max requests** 2; open the GOV-F4b dialog → the **API key**
+  select lists the team's key as **‹name› · Team Finance**
+  (`governance.budgets.apiKeyOwnerTeam`) and the organization's key as
+  **‹name› · The organization**
+  (`governance.budgets.apiKeyOwnerOrganization`). Send REST chat messages
+  with the team's key until the team's cap is reached → the next send answers
+  429 `BUDGET_EXCEEDED` naming the team's cap, while no member's personal
+  usage under **Settings → Usage** grew; **Usage analytics** lists the key as
+  its own row, **API key of team Finance**
+  (`analytics.usage.tables.users.teamKey`), and the active-user count does
+  not count it. **Delete the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the

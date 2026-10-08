@@ -3,7 +3,7 @@ title: Gérer les limites de requêtes
 description: Planifie les appels REST, MCP et webhook, interprète Retry-After et réessaie sans dupliquer un travail déjà accepté.
 ---
 
-Tale limite le trafic API par détenteur de clé. Toutes les clés d’une même personne partagent son budget. Compte donc l’ensemble des intégrations et processus de suivi utilisant cette identité, plutôt que chaque clé séparément.
+Tale limite le trafic API par détenteur de clé. Toutes les clés d’une même personne partagent son budget ; une clé qu’un propriétaire ou un admin a créée pour un membre, une équipe, un projet ou l’organisation a son propre budget. Compte donc l’ensemble des intégrations et processus de suivi utilisant cette identité, plutôt que chaque clé séparément.
 
 Les limites ci-dessous décrivent le backend actuel. Un proxy de l’opérateur ou un fournisseur en aval peut ajouter ses propres limites.
 
@@ -64,4 +64,4 @@ Une réponse `304` après vérification d’`ETag` compte toujours comme une req
 
 Demande uniquement les champs nécessaires, comme `?fields=status,finishedAt` pour une exécution. Espace les lectures lorsqu’une décision humaine est attendue et arrête-les une fois l’exécution terminée. [Démarrer puis suivre une exécution](/fr/develop/api-reference#demarrer-une-execution-puis-la-suivre) explique les états et les démarrages idempotents.
 
-Pour les imports importants, utilise les opérations groupées prises en charge, telles que `POST /api/v1/contacts/bulk`, et répartis les lots dans le temps. Créer d’autres clés pour la même personne n’augmente pas le budget. Si un traitement nécessite sa propre identité de service, prépare-la par le processus habituel de comptes et de permissions. Changer de clé n’est pas une stratégie de relance.
+Pour les imports importants, utilise les opérations groupées prises en charge, telles que `POST /api/v1/contacts/bulk`, et répartis les lots dans le temps. Créer d’autres clés pour la même personne n’augmente pas le budget. Un traitement qui a besoin de sa propre identité et de son propre budget peut utiliser une clé qu’un propriétaire ou un admin crée pour une équipe, un projet ou l’organisation. Changer de clé n’est pas une stratégie de relance.

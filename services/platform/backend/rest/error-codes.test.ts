@@ -474,6 +474,14 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // `/api/auth/api-key/create` judges the holder's roles and grants;
   // REST authenticates existing keys and mounts no key-creation route.
   'API_KEY_CREATE_FORBIDDEN',
+  // And its update and delete: a key bound to an organization (a member's,
+  // a team's, a project's or the organization's own) is changed and ended
+  // at that organization's door, so `/api/auth/api-key/update` and
+  // `/delete` refuse it. REST mounts neither.
+  'API_KEY_ORGANIZATION_MANAGED',
+  // The app's members door refuses to make an API key's own identity a
+  // member; REST adds no member.
+  'MEMBER_ADD_FORBIDDEN',
   // The same door's team-name rule (one name per organization, judged in
   // the before-hooks of `/organization/create-team` and `/update-team`);
   // REST has no team write, and SCIM answers its own 409 `uniqueness`.

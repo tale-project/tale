@@ -459,9 +459,12 @@ describe('deleteOrganization', () => {
     // (tasks and bindings reference projects) and alphabetical otherwise;
     // the governance ledger and the tombstone table are the deliberate
     // survivors — never a hand-kept list that a new table would miss. The
-    // realtime outbox sits in its own schema, outside the catalog walk.
+    // realtime outbox sits in its own schema, outside the catalog walk. The
+    // API keys bound to the organization go first, before the walk takes
+    // their bindings (none are held here, so no secret or identity follows).
     const deletes = writes.filter((t) => t.startsWith('DELETE FROM'));
     expect(deletes.map((t) => /^DELETE FROM ([\w."]+)/.exec(t)?.[1])).toEqual([
+      'app.api_key_owners',
       'app.automation_project_bindings',
       'app.memories',
       'app.sso_synced_team_members',

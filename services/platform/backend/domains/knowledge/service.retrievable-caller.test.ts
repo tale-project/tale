@@ -26,6 +26,12 @@ const REF = 's3:mail/bob-brief.txt';
 interface Script {
   /** The member row for the asking user, keyed by user id. */
   members?: Record<string, { role: string }>;
+  /** The live API key whose own identity a user id is — a team's, a
+   * project's or the organization's — keyed by that id. */
+  keyIdentities?: Record<
+    string,
+    { kind: 'team' | 'project' | 'organization'; role: string }
+  >;
   /** The conversation the attachment arrived on. */
   conversation?: {
     id: string;
@@ -52,6 +58,31 @@ function fakeSql(script: Script): Sql {
       return Promise.resolve(
         member
           ? [{ id: 'm-1', organizationId: ORG, userId, role: member.role }]
+          : [],
+      );
+    }
+    if (text.includes('FROM app.api_key_owners')) {
+      const userId = values[0];
+      const identity =
+        typeof userId === 'string' ? script.keyIdentities?.[userId] : undefined;
+      return Promise.resolve(
+        identity && typeof userId === 'string'
+          ? [
+              {
+                apiKeyId: `key-${userId}`,
+                organizationId: ORG,
+                kind: identity.kind,
+                principalUserId: userId,
+                teamId: identity.kind === 'team' ? 'team-1' : null,
+                projectId: identity.kind === 'project' ? 'project-1' : null,
+                role: identity.role,
+                name: 'Sync key',
+                createdBy: 'u-admin',
+                createdAt: 1,
+                revokedAt: null,
+                revokedBy: null,
+              },
+            ]
           : [],
       );
     }
@@ -94,6 +125,8 @@ async function dispatch(
     includeConversationScoped?: boolean;
     /** Whether the door asked for mail — the chat tools do; default yes. */
     includeConversationMessages?: boolean;
+    /** The caller's teams, as the access scope resolved them. */
+    teamIds?: string[];
   },
 ): Promise<string[]> {
   const handler = knowledgeShimHandlers(fakeSql(script))[FILTER];
@@ -102,7 +135,7 @@ async function dispatch(
     organizationId: ORG,
     fileIds: [REF],
     access: {
-      teamIds: [],
+      teamIds: args.teamIds ?? [],
       projectIds: [],
       includeHub: true,
       includeConversationScoped: args.includeConversationScoped ?? true,
@@ -178,6 +211,58 @@ describe('filterRetrievableRagFileIds through the shim [KNOW-R5]', () => {
           conversation: assigned,
         },
         { userId: 'u-assignee' },
+      ),
+    ).toEqual([]);
+  });
+
+  it('admits a team’s mail to that team’s key, and never to a project’s key [APIKEY-R6]', async () => {
+    // A project's audience holds its teams, yet its key reaches the project
+    // alone: no conversation of those teams is retrievable for it.
+    const teamMail = {
+      id: 'conv-3',
+      assigneeUserId: null,
+      assigneeTeamId: 'team-1',
+    };
+    const keyIdentities = {
+      'u-team-key': { kind: 'team', role: 'member' },
+      'u-project-key': { kind: 'project', role: 'developer' },
+    } as const;
+    expect(
+      await dispatch(
+        { keyIdentities, conversation: teamMail },
+        { userId: 'u-team-key', teamIds: ['team-1'] },
+      ),
+    ).toEqual([REF]);
+    expect(
+      await dispatch(
+        { keyIdentities, conversation: teamMail },
+        { userId: 'u-project-key', teamIds: ['team-1'] },
+      ),
+    ).toEqual([]);
+  });
+
+  it('admits an unassigned inbox row to the organization’s key acting as an admin [APIKEY-R6]', async () => {
+    const triage = { id: 'conv-2', assigneeUserId: null, assigneeTeamId: null };
+    expect(
+      await dispatch(
+        {
+          keyIdentities: {
+            'u-org-key': { kind: 'organization', role: 'admin' },
+          },
+          conversation: triage,
+        },
+        { userId: 'u-org-key' },
+      ),
+    ).toEqual([REF]);
+    expect(
+      await dispatch(
+        {
+          keyIdentities: {
+            'u-org-key': { kind: 'organization', role: 'developer' },
+          },
+          conversation: triage,
+        },
+        { userId: 'u-org-key' },
       ),
     ).toEqual([]);
   });

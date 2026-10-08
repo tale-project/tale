@@ -112,8 +112,22 @@ function apiKeyName(key: OrgApiKeyWire): string {
   return key.name || key.start || key.id;
 }
 
-function apiKeyOwner(key: OrgApiKeyWire): string | null {
-  return key.ownerName || key.ownerEmail || null;
+/** Whose key it is: the person it acts as, or — for a key that is not a
+ * person — the team, project or organization it belongs to. */
+function apiKeyOwner(
+  key: OrgApiKeyWire,
+  t: ReturnType<typeof useT>['t'],
+): string | null {
+  switch (key.ownerKind) {
+    case 'team':
+      return t('budgets.apiKeyOwnerTeam', { name: key.teamName ?? '—' });
+    case 'project':
+      return t('budgets.apiKeyOwnerProject', { name: key.projectName ?? '—' });
+    case 'organization':
+      return t('budgets.apiKeyOwnerOrganization');
+    default:
+      return key.ownerName || key.ownerEmail || null;
+  }
 }
 
 /** The state chip of a key that can no longer spend here; nothing for a
@@ -162,7 +176,7 @@ function ApiKeyRuleTarget({
       </HStack>
       {!unknown && (
         <Text as="span" variant="caption">
-          {apiKeyOwner(apiKey) ?? t('budgets.apiKeyOwnerUnknown')}
+          {apiKeyOwner(apiKey, t) ?? t('budgets.apiKeyOwnerUnknown')}
         </Text>
       )}
     </Stack>
@@ -374,7 +388,7 @@ function RuleDialog({
       apiKeys
         .filter((key) => key.status === 'active' || key.id === draft.apiKeyId)
         .map((key) => {
-          const owner = apiKeyOwner(key);
+          const owner = apiKeyOwner(key, t);
           const option: SearchableSelectOption = {
             value: key.id,
             label: owner ? `${apiKeyName(key)} · ${owner}` : apiKeyName(key),
@@ -385,7 +399,7 @@ function RuleDialog({
           }
           return option;
         }),
-    [apiKeys, draft.apiKeyId],
+    [apiKeys, draft.apiKeyId, t],
   );
 
   const handleSubmit = useCallback(

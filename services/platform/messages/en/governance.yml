@@ -83,6 +83,9 @@ budgets:
     weekly: Weekly
     monthly: Monthly
   apiKeyOwnerUnknown: Owner unknown
+  apiKeyOwnerTeam: Team {name}
+  apiKeyOwnerProject: Project {name}
+  apiKeyOwnerOrganization: The organization
   apiKeyInactive: This key can no longer spend in this organization, so the rule limits nothing. Choose an active key or remove the rule.
   apiKeyStatus:
     expired: Expired

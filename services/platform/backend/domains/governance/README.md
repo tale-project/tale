@@ -15,7 +15,10 @@ page, the budget gate, erasure and retention are its readers.
    write-retired and goes in a later release (see _Not yet_).
 2. **`user_id` is a bare user id** — the person responsible for the spend — or the one sentinel
    `__automation__` (`lib/shared/constants/usage.ts`, `AUTOMATION_SUBJECT_ID`) for spend nobody is
-   responsible for. It never carries a door, a prefix, a session or a system marker.
+   responsible for. It never carries a door, a prefix, a session or a system marker. A team's, a
+   project's or the organization's own API key (`domains/api_keys/owners.ts`) is the one subject
+   that is a `"user"` id but no person: it books under the identity it acts as, the
+   `principal_user_id` of its `app.api_key_owners` row.
 3. **The person is who started the work.** A chat turn spends for the member who sent it (or the
    member a REST key acts for). A managed agent turn spends for the person who started the run —
    from a task, a comment, the REST API or the MCP endpoint — and a retry continues its starter's
@@ -56,7 +59,10 @@ page, the budget gate, erasure and retention are its readers.
    the sentinel; the budget gate sums a member's rows by bare id and a team's by its members' bare
    ids; erasure deletes the subject's rows by bare id (and the legacy door forms); an impersonal
    subject (`OrgBudgetSubject.impersonal`) is measured against the organization's caps and, when
-   keyed, the key's — never a personal, team or role cap.
+   keyed, the key's — never a personal or role cap, and a team's cap only for a team's own key
+   (`loadBudgetSubject`), whose spend a team cap counts beside its members' (the key's binding,
+   `o.team_id`, never the ledger's `team_id`). The usage page shows a key identity as its own
+   labelled row and no active user.
 
 ## Lanes (the write side)
 
@@ -76,7 +82,7 @@ page, the budget gate, erasure and retention are its readers.
 | Reader | What it assumes |
 | --- | --- |
 | Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel, folded through `usageLedgerSubject` so a legacy door form (`user:<id>`, `api-key:<id>`) is the person's row and `trigger:<id>` the sentinel's; the sentinel is a labelled row and no active user; project agent slugs resolve to names; a row is a transcription or speech row only when its seconds or characters are `> 0` (the upsert once stamped `0` on every second request) |
-| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids under the same forms, key caps `api_key_id`; an impersonal subject has no personal bucket |
+| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids — and the identities of the team's own keys — under the same forms, key caps `api_key_id`; an impersonal subject has no personal bucket |
 | Member's own view (`/my/budget-status`, Settings > Usage) | the same `usageLedgerSubjectForms(<own id>)` as the gate |
 | Erasure (`domains/erasure/service.ts`) | the subject's rows are `user_id IN (<id>, user:<id>, api-key:<id>)` — the two door forms cover rows booked before rule 2 held |
 | Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows |
@@ -98,9 +104,11 @@ page, the budget gate, erasure and retention are its readers.
   — a task turn's connector calls act for the run's starter while the run is live, and for
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an
   auto-retry keeps the failed run's starter.
-- `domains/governance/budget-gate.test.ts` — an impersonal subject binds no personal cap.
+- `domains/governance/budget-gate.test.ts` — an impersonal subject binds no personal cap; a
+  team's own key is held to its team's cap and counted toward it (`APIKEY-R9`).
 - `domains/governance/usage-metrics.test.ts`, `app/features/analytics/usage/usage-metrics-page.test.tsx`
-  — the sentinel is labelled and excluded from active users; a project agent shows its name.
+  — the sentinel is labelled and excluded from active users; a project agent shows its name; a
+  key identity is its own row and no active user.
 - `backend/integration-check.ts` — `checkSandboxGatewayKeyReclaim`: a trigger run books under the
   sentinel, a keyed run under person + key; the MCP one-shot run records its key.
 

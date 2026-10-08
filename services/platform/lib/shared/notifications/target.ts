@@ -83,6 +83,11 @@ export type NotificationTarget =
       to: '/dashboard/$id/settings/governance/policies-limits';
       params: { id: string };
     }
+  // The member's API keys — where a key an admin made for them is ended.
+  | {
+      to: '/dashboard/$id/settings/api/rest';
+      params: { id: string };
+    }
   // The websites list, filtered to the status the alert is about.
   | {
       to: '/dashboard/$id/websites';
@@ -224,6 +229,13 @@ export function personalNotificationTarget(args: {
       to: '/dashboard/$id/settings/governance/policies-limits',
       params: { id },
     };
+  }
+
+  // An API key an Owner or Admin made for the member (`api_key_created`)
+  // opens their API keys, where it is listed and revoked. Mirrors
+  // `buildPersonalNotificationUrl`.
+  if (params?.apiKeys === true) {
+    return { to: '/dashboard/$id/settings/api/rest', params: { id } };
   }
 
   // A paused schedule (`automation_failed`) opens its automation's General

@@ -46,7 +46,7 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 688
+      "height": 860
     },
     {
       "file": "images/get-started/settings-organization-members.webp",
@@ -853,6 +853,18 @@
       "dpr": 2,
       "width": 2880,
       "height": 2520
+    },
+    {
+      "file": "images/platform/settings-api-keys-organization.webp",
+      "shot": "settings-api-keys-organization",
+      "route": "/dashboard/:orgId/settings/api/rest",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 1048
     },
     {
       "file": "images/platform/settings-branding.webp",

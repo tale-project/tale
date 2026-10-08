@@ -17,6 +17,8 @@ export interface TeamDeletionImpact {
   documents: { scoped: number; becomeOrgWide: number };
   conversations: { queued: number };
   syncConfigs: { scoped: number };
+  /** The team's own API keys, which stop working with it. */
+  apiKeys: number;
 }
 
 /** What an atomic team delete retired, as the door answers it. */

@@ -19,6 +19,7 @@ vi.mock('../../lib/org-config.ts', () => ({
 const {
   checkOrgBudget,
   findBudgetViolation,
+  loadBudgetSubject,
   readBudgetStanding,
   resolveTurnAllowance,
 } = await import('./budget-gate.ts');
@@ -626,6 +627,200 @@ describe('readBudgetStanding', () => {
   });
 });
 
+/**
+ * An API key that is not a person — a team's, a project's or the
+ * organization's own — spends under its own identity: no personal, role or
+ * default cap binds it; the organization's and its own key caps do, and a
+ * team's key counts toward, and is held to, its team's shared cap.
+ */
+describe('loadBudgetSubject — an API key that is its own identity [APIKEY-R9]', () => {
+  function identitySql(binding: Record<string, unknown> | null) {
+    const queries: string[] = [];
+    const sql = async (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      queries.push(text);
+      // The key's own identity; its audience (the acting-audience read, a
+      // UNION) is not what its budget is measured by.
+      if (
+        text.includes('FROM app.api_key_owners') &&
+        !text.includes(' UNION ')
+      ) {
+        return binding === null ? [] : [binding];
+      }
+      // No member row, and no team membership: a key is nobody's colleague.
+      return [];
+    };
+    return { sql: sql as never, queries };
+  }
+  const binding = (kind: string, extra: Record<string, unknown> = {}) => ({
+    apiKeyId: 'key-1',
+    organizationId: 'org-1',
+    kind,
+    principalUserId: 'identity-1',
+    teamId: kind === 'team' ? 'team-1' : null,
+    projectId: kind === 'project' ? 'project-1' : null,
+    role: 'developer',
+    name: 'Sync',
+    createdBy: 'ada',
+    createdAt: '1',
+    revokedAt: null,
+    revokedBy: null,
+    ...extra,
+  });
+
+  it('is impersonal, keyed by its own key, and a team’s key is in its team', async () => {
+    const team = identitySql(binding('team'));
+    await expect(
+      loadBudgetSubject(team.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.toEqual({
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: ['team-1'],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+    });
+    for (const kind of ['project', 'organization']) {
+      const other = identitySql(binding(kind));
+      await expect(
+        loadBudgetSubject(other.sql, {
+          organizationId: 'org-1',
+          userId: 'identity-1',
+          apiKeyId: 'key-1',
+        }),
+      ).resolves.toMatchObject({ userTeamIds: [], impersonal: true });
+    }
+    // A key bound to another organization is no subject of this one's teams.
+    const elsewhere = identitySql(binding('team', { organizationId: 'org-2' }));
+    await expect(
+      loadBudgetSubject(elsewhere.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.toMatchObject({ userTeamIds: [], impersonal: true });
+  });
+
+  it('is still the key once it was revoked, never a person', async () => {
+    // Work the key started before its revocation keeps spending as the key.
+    const revoked = identitySql(binding('team', { revokedAt: '5' }));
+    await expect(
+      loadBudgetSubject(revoked.sql, {
+        organizationId: 'org-1',
+        userId: 'identity-1',
+      }),
+    ).resolves.toMatchObject({
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+      userTeamIds: ['team-1'],
+    });
+    const read = revoked.queries.find(
+      (q) => q.includes('FROM app.api_key_owners') && !q.includes(' UNION '),
+    );
+    expect(read).not.toContain('revoked_at_ms IS NULL');
+  });
+
+  it('measures the key’s cap against all its identity spent, the key named or not', async () => {
+    // A run the key's REST comment started books under the identity alone.
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'apiKey',
+          apiKeyId: 'key-1',
+          period: 'daily',
+          maxCostCents: 1_000,
+        },
+      ],
+    };
+    const { sql, queries, bindings } = recordingLedger({
+      apiKey: { totalTokens: 0, costEstimate: 1_000, requestCount: 3 },
+    });
+    const violation = await findBudgetViolation(sql, {
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: [],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      apiKeyIdentity: 'identity-1',
+    });
+    expect(violation).toMatchObject({ scope: 'apiKey', code: 'COST_LIMIT' });
+    const index = queries.findIndex((q) => q.includes('api_key_id ='));
+    expect(queries[index]).toContain('OR user_id = ANY(');
+    expect(bindings[index]?.[3]).toEqual(
+      expect.arrayContaining(['identity-1', 'user:identity-1']),
+    );
+  });
+
+  it('holds a team’s key to its team’s shared cap and the organization’s, never a personal one', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', period: 'daily', maxCostCents: 100 },
+        {
+          scope: 'role',
+          scopeId: 'developer',
+          period: 'daily',
+          maxCostCents: 50,
+        },
+        {
+          scope: 'team',
+          scopeId: 'team-1',
+          period: 'daily',
+          maxCostCents: 800,
+        },
+        { scope: 'org', period: 'daily', maxCostCents: 10_000 },
+      ],
+    };
+    const { sql, queries } = recordingLedger({
+      // Were a personal cap applied, the default's 100 would be spent.
+      user: { totalTokens: 0, costEstimate: 100, requestCount: 1 },
+      teams: {
+        'team-1': { totalTokens: 0, costEstimate: 650, requestCount: 4 },
+      },
+      org: { totalTokens: 0, costEstimate: 1_000, requestCount: 9 },
+    });
+    const allowance = await resolveTurnAllowance(sql, {
+      organizationId: 'org-1',
+      userId: 'identity-1',
+      userTeamIds: ['team-1'],
+      impersonal: true,
+      apiKeyId: 'key-1',
+      defaultCents: 500,
+      reservations: holds(0, 0),
+    });
+    // 800 − 650 = 150 left under the team's cap.
+    expect(allowance).toEqual({ allowed: true, budgetCents: 150 });
+    expect(queries.some((q) => q.includes('user_id ='))).toBe(false);
+  });
+
+  it('counts the keys a team owns toward the team, by their binding', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        {
+          scope: 'team',
+          scopeId: 'team-1',
+          period: 'daily',
+          maxCostCents: 800,
+        },
+      ],
+    };
+    const { sql, queries } = recordingLedger({});
+    await resolveTurnAllowance(sql, {
+      ...SUBJECT,
+      defaultCents: 500,
+      reservations: holds(0, 0),
+    });
+    const team = queries.find((q) => q.includes('"teamMember"'));
+    expect(team).toContain('FROM app.api_key_owners o');
+    expect(team).toContain("o.owner_kind = 'team'");
+  });
+});
+
 describe('findBudgetViolation', () => {
   // Tuesday 2026-09-15 13:00 UTC.
   const NOW = Date.UTC(2026, 8, 15, 13);
@@ -657,9 +852,10 @@ describe('findBudgetViolation', () => {
 
     const violation = await findBudgetViolation(sql, SUBJECT, { now: NOW });
 
-    // A team's usage is read through membership, never the ledger's team_id.
+    // A team's usage is read through membership, never the ledger's team_id
+    // (the keys it owns are found by their binding's `o.team_id`).
     expect(queries.some((q) => q.includes('"teamMember"'))).toBe(true);
-    expect(queries.some((q) => q.includes('team_id'))).toBe(false);
+    expect(queries.some((q) => /(?<!o\.)\bteam_id\b/.test(q))).toBe(false);
     expect(violation).toEqual({
       scope: 'team',
       teamId: 'team-1',

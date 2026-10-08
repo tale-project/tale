@@ -43,6 +43,7 @@ import {
   saveSkillForViewer,
   type SkillWritePrecondition,
 } from '../core/skills/file_actions.ts';
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
   contactBulkItemSchema,
   contactCreateSchema,
@@ -222,6 +223,15 @@ const contactPatchBody = blankStringsAsNull(
   contactFieldsSchema.extend(expectedUpdatedAtField),
 );
 
+/** Whose key it is: a person's own (`user`, every organization they belong
+ * to), one made for a member, or a team's, a project's or the
+ * organization's own — the last four work in one organization only. */
+interface KeyOwnerFacts {
+  kind: 'user' | 'member' | 'team' | 'project' | 'organization';
+  team: { id: string; name: string | null } | null;
+  project: { id: string; name: string | null } | null;
+}
+
 /** What `/me` says about the key itself. Keys are minted, rotated and
  * revoked in the app — nothing under `/api/v1` does — so this is the one
  * place an unattended caller can see its own expiry coming. */
@@ -230,6 +240,7 @@ interface KeyFacts {
   name: string | null;
   /** Epoch ms; null for a key that never expires. */
   expiresAt: number | null;
+  owner: KeyOwnerFacts;
 }
 
 /**
@@ -243,12 +254,24 @@ interface KeyFacts {
 async function readKeyFacts(
   sql: Sql,
   apiKeyId: string,
+  owner: ApiKeyOwner | null,
 ): Promise<KeyFacts | null> {
   if (apiKeyId === '') return null;
   const rows = await sql<
-    { id: string; name: string | null; expiresAt: Date | null }[]
+    {
+      id: string;
+      name: string | null;
+      expiresAt: Date | null;
+      teamName: string | null;
+      projectName: string | null;
+    }[]
   >`
-    SELECT "id", "name", "expiresAt" FROM "apikey" WHERE "id" = ${apiKeyId}
+    SELECT k."id", k."name", k."expiresAt",
+           (SELECT t."name" FROM "team" t
+            WHERE t."id" = ${owner?.teamId ?? null}) AS "teamName",
+           (SELECT p.name FROM app.projects p
+            WHERE p.id = ${owner?.projectId ?? null}) AS "projectName"
+    FROM "apikey" k WHERE k."id" = ${apiKeyId}
     LIMIT 1
   `;
   const row = rows[0];
@@ -257,6 +280,15 @@ async function readKeyFacts(
     id: row.id,
     name: row.name,
     expiresAt: row.expiresAt instanceof Date ? row.expiresAt.getTime() : null,
+    owner: {
+      kind: owner?.kind ?? 'user',
+      team:
+        owner?.teamId != null ? { id: owner.teamId, name: row.teamName } : null,
+      project:
+        owner?.projectId != null
+          ? { id: owner.projectId, name: row.projectName }
+          : null,
+    },
   };
 }
 
@@ -275,7 +307,23 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
    * send) and every organization the holder belongs to — no other route
    * tells a client its own slug. */
   app.get('/me', noQuery, async (c) => {
-    const memberships = await listUserOrganizations(deps.sql, c.get('userId'));
+    const owner = c.get('apiKeyOwner');
+    // A key bound to one organization works there alone: that is the one
+    // organization it lists, with the role it acts with.
+    const memberships =
+      owner === null
+        ? await listUserOrganizations(deps.sql, c.get('userId'))
+        : (
+            await deps.sql<{ name: string }[]>`
+              SELECT "name" FROM "organization"
+              WHERE "id" = ${c.get('organizationId')} LIMIT 1
+            `
+          ).map((org) => ({
+            organizationId: c.get('organizationId'),
+            slug: c.get('orgSlug'),
+            name: org.name,
+            role: c.get('role'),
+          }));
     // The one gate on this surface a role does not decide — the
     // browser-session pool's import and delete sit behind the deployment
     // editor allowlist (`TALE_DEPLOYMENT_CONFIG_ADMINS`) — answered here
@@ -362,7 +410,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             })
           ).kind === 'open',
       },
-      key: await readKeyFacts(deps.sql, c.get('apiKeyId')),
+      key: await readKeyFacts(deps.sql, c.get('apiKeyId'), owner),
     });
   });
 

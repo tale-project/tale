@@ -27,9 +27,11 @@ Die Regel ist überall dieselbe: Eine Anfrage zählt für die Person, die die Ar
 
 Ein erneuter Versuch eines Agentenlaufs führt den Lauf fort, den sein Starter angestoßen hat; seine Nutzung bleibt deshalb bei dieser Person. Handelt eine Integration mit einem API-Schlüssel für ein anderes Mitglied, zählt der Lauf für dieses Mitglied, und das Limit des Schlüssels zählt ihn ebenfalls.
 
+Ein API-Schlüssel, den ein Admin für ein Mitglied erstellt hat, zählt für dieses Mitglied, wie dessen eigener Schlüssel. Ein Schlüssel, der einem Team, einem Projekt oder der Organisation gehört ([API-Schlüssel](/de/platform/admin/api-keys#create-a-key-for-someone-else)), ist keine Person: Was er anstößt, zählt für den Schlüssel selbst. Die Nutzungsanalyse zeigt ihn als eigene Zeile unter **Nutzung pro Benutzer**, unter dem Namen des Schlüssels mit seinem Team, seinem Projekt oder der Organisation darunter, und zählt ihn nie als aktive Person. Der Schlüssel eines Teams zählt zusätzlich für die Nutzung seines Teams.
+
 ## Welche Limits gelten
 
-- **Persönliche, Team- und Rollenlimits** binden die Person, der eine Anfrage angerechnet wird. Ein Lauf, den ein Zeitplan, ein Webhook oder ein Ereignis gestartet hat, hat keine solche Person und wird an keinem davon gemessen.
+- **Persönliche, Team- und Rollenlimits** binden die Person, der eine Anfrage angerechnet wird. Ein Lauf, den ein Zeitplan, ein Webhook oder ein Ereignis gestartet hat, hat keine solche Person und wird an keinem davon gemessen. Ebenso wenig der eigene Schlüssel eines Teams, eines Projekts oder der Organisation, außer dass der Schlüssel eines Teams an das Limit seines Teams gebunden ist.
 - **Organisationslimits** binden jede Anfrage, auch die Läufe eines Triggers.
 - **API-Schlüssellimits** binden die Anfragen, die mit diesem Schlüssel authentifiziert wurden: die damit gesendeten Chatnachrichten, die damit gestellten Aufrufe der Modell-Endpunkte und die damit gestarteten Läufe.
 

@@ -27,8 +27,8 @@ vi.mock('../documents/agent-list.ts', () => ({
   ),
 }));
 
-vi.mock('../../auth/membership.ts', () => ({
-  findOrganizationMember: vi.fn(
+vi.mock('../../auth/membership.ts', () => {
+  const findOrganizationMember = vi.fn(
     (_sql: unknown, organizationId: string, userId: string) =>
       Promise.resolve(
         userId === 'u-gone'
@@ -40,17 +40,40 @@ vi.mock('../../auth/membership.ts', () => ({
               role: userId === 'u-disabled' ? 'disabled' : 'member',
             },
       ),
-  ),
-}));
+  );
+  // The acting member is the person's own row — or, for `u-project-key`,
+  // a project's own API key acting as a developer.
+  const findActingMember = vi.fn(
+    (sql: unknown, organizationId: string, userId: string) =>
+      userId === 'u-project-key'
+        ? Promise.resolve({
+            id: 'api-key:key-1',
+            organizationId,
+            userId,
+            role: 'developer',
+            apiKeyOwner: { kind: 'project', projectId: 'proj-1' },
+          })
+        : findOrganizationMember(sql, organizationId, userId),
+  );
+  return { findOrganizationMember, findActingMember };
+});
 
 vi.mock('../projects/service.ts', () => ({
   getProjectAuthContext: vi.fn(
-    (_sql: unknown, args: { organizationId: string; userId: string }) =>
+    (
+      _sql: unknown,
+      args: { organizationId: string; userId: string },
+      _email?: string,
+      options: { projectScope?: string } = {},
+    ) =>
       Promise.resolve({
         organizationId: args.organizationId,
         userId: args.userId,
         role: 'member',
         teamIds: ['team-a'],
+        ...(options.projectScope !== undefined
+          ? { projectScope: options.projectScope }
+          : {}),
       }),
   ),
   listProjects: vi.fn(() =>
@@ -102,6 +125,57 @@ describe('the chat document listing door', () => {
     const call = vi.mocked(listDocumentsForAgent).mock.lastCall?.[1];
     expect(call).not.toHaveProperty('projectId');
     expect(call).not.toHaveProperty('includeHub');
+  });
+});
+
+/**
+ * A project's own API key reaches its project alone through the chat tools
+ * too: its files and tasks, never the hub's documents — not even their
+ * titles — and none of the organization's contacts, products, websites or
+ * inbox.
+ */
+describe('a project’s own API key in the chat tools [APIKEY-R6]', () => {
+  const handlers = () => chatShimHandlers({} as unknown as Sql);
+
+  it('lists its project’s files and never the hub', async () => {
+    const list = handlers()['documents/internal_queries:listForAgent'];
+    if (list === undefined) throw new Error('list door missing');
+    for (const args of [
+      { includeHub: true },
+      { projectId: 'proj-1', includeHub: true },
+    ]) {
+      vi.mocked(listDocumentsForAgent).mockClear();
+      await list({ organizationId: 'org-1', userId: 'u-project-key', ...args });
+      const call = vi.mocked(listDocumentsForAgent).mock.calls[0]?.[1];
+      expect(call).toMatchObject({ projectIds: ['proj-1'] });
+      expect(call).not.toHaveProperty('includeHub');
+    }
+  });
+
+  it('reads its project’s subjects and none of the organization’s', async () => {
+    const gate =
+      handlers()['sandbox/workspace_access:resolveWorkspaceReadAccess'];
+    if (gate === undefined) throw new Error('gate missing');
+    const allowed = async (userId: string, subject: string) =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the gate answers { allowed }
+      (
+        (await gate({ organizationId: 'org-1', userId, subject })) as {
+          allowed: boolean;
+        }
+      ).allowed;
+    for (const subject of ['documents', 'tasks', 'projects']) {
+      expect(await allowed('u-project-key', subject)).toBe(true);
+    }
+    for (const subject of [
+      'contacts',
+      'products',
+      'websites',
+      'conversations',
+    ]) {
+      expect(await allowed('u-project-key', subject)).toBe(false);
+      // A member reads them all.
+      expect(await allowed('u-1', subject)).toBe(true);
+    }
   });
 });
 

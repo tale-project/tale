@@ -219,10 +219,15 @@ describe('API-key refusal feedback', () => {
       prefix: 'tale_',
       enabled: true,
       expiresAt: null,
-      createdAt: new Date(),
+      createdAt: Date.now(),
       lastRequest: null,
+      owner: { kind: 'user' as const },
+      role: null,
+      createdBy: null,
+      canRevoke: true,
     };
-    client.setQueryData(['api-keys', 'org-1'], [key]);
+    const listKey = ['backend', 'org-1', 'api_key', 'settings-list'];
+    client.setQueryData(listKey, [key]);
     const { user } = render(
       <QueryClientProvider client={client}>
         <ApiKeyRevokeDialog
@@ -240,7 +245,7 @@ describe('API-key refusal feedback', () => {
       await screen.findByText("Couldn't revoke API key"),
     ).toBeInTheDocument();
     expect(apiKey.delete).toHaveBeenCalledWith({ keyId: 'key-1' });
-    expect(client.getQueryData(['api-keys', 'org-1'])).toEqual([key]);
+    expect(client.getQueryData(listKey)).toEqual([key]);
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(onSuccess).not.toHaveBeenCalled();
   });

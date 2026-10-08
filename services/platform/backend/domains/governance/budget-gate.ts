@@ -18,6 +18,7 @@ import {
   buildPeriodKeyFromTimestamp,
 } from '../../core/governance/helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import { readKeyIdentity } from '../api_keys/owners.ts';
 
 /**
  * The org budget gate over the policy FILE + `app.usage_ledger`, with the
@@ -50,7 +51,13 @@ const NO_USAGE: UsageTotals = {
 export type UsageScope =
   | { kind: 'user'; userId: string }
   | { kind: 'team'; teamId: string }
-  | { kind: 'apiKey'; apiKeyId: string }
+  | {
+      kind: 'apiKey';
+      apiKeyId: string;
+      /** The key's own identity, when it is not a person: everything it
+       * spends is the key's, whether or not the booking named the key. */
+      identity?: string;
+    }
   | { kind: 'org' };
 
 /**
@@ -85,6 +92,8 @@ async function periodUsage(
       `;
       break;
     case 'team':
+      // The team's current members, and every key the team owns — a
+      // revoked one's spend this period still counts: it was the team's.
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
@@ -96,6 +105,11 @@ async function periodUsage(
             JOIN "team" t ON t."id" = tm."teamId"
             WHERE tm."teamId" = ${scope.teamId}
               AND t."organizationId" = ${organizationId}
+            UNION ALL
+            SELECT o.principal_user_id FROM app.api_key_owners o
+            WHERE o.team_id = ${scope.teamId}
+              AND o.org_id = ${organizationId}
+              AND o.owner_kind = 'team'
           )
       `;
       break;
@@ -106,7 +120,12 @@ async function periodUsage(
                coalesce(sum(request_count), 0)::float8 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND api_key_id = ${scope.apiKeyId}
+          AND (api_key_id = ${scope.apiKeyId}
+               OR user_id = ANY(${
+                 scope.identity === undefined
+                   ? []
+                   : usageLedgerSubjectForms(scope.identity)
+               }))
       `;
       break;
     case 'org':
@@ -140,10 +159,16 @@ export interface OrgBudgetSubject {
    * measured against `apiKey`-scoped caps. */
   apiKeyId?: string;
   /** A subject that is nobody: a managed turn of a run a trigger started
-   * (booked under `__automation__`), or an op without a run to attribute.
-   * No personal, team or role cap binds it — there is no person to bind —
-   * only the organization's and, when a key was involved, the key's. */
+   * (booked under `__automation__`), an op without a run to attribute, or
+   * an API key that is not a person (`loadBudgetSubject`). No personal or
+   * role cap binds it — there is no person to bind — only the
+   * organization's, the key's when a key was involved, and the shared cap
+   * of the team in `userTeamIds` (a team's own key). */
   impersonal?: boolean;
+  /** For an API key that is not a person, its identity (`userId`): all
+   * its spend is the key's — a run its REST comment started books under
+   * the identity without naming the key — so the key's caps count it. */
+  apiKeyIdentity?: string;
 }
 
 /**
@@ -151,6 +176,12 @@ export interface OrgBudgetSubject {
  * their role — so every lane that asks is measured in the same buckets: a
  * team joined or a role changed binds the next request, whichever lane it
  * takes.
+ *
+ * An API key that is not a person — a team's, a project's or the
+ * organization's own (`domains/api_keys/owners.ts`) — is no member: no
+ * personal, role or default cap binds it. Its own key caps and the
+ * organization's do, and a team's key is measured against its team's shared
+ * caps, its spend counting toward the team.
  */
 export async function loadBudgetSubject(
   sql: Sql | TransactionSql,
@@ -160,6 +191,26 @@ export async function loadBudgetSubject(
     findOrganizationMember(sql, args.organizationId, args.userId),
     getUserTeamIds(sql, args.organizationId, args.userId),
   ]);
+  // A person has a member row; only a subject without one can be a key —
+  // read live or revoked: work the key started before it was revoked still
+  // spends as the key, never as a person.
+  const principal =
+    member === null ? await readKeyIdentity(sql, args.userId) : null;
+  if (principal !== null) {
+    return {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      userTeamIds:
+        principal.kind === 'team' &&
+        principal.teamId !== null &&
+        principal.organizationId === args.organizationId
+          ? [principal.teamId]
+          : [],
+      impersonal: true,
+      apiKeyId: args.apiKeyId ?? principal.apiKeyId,
+      apiKeyIdentity: args.userId,
+    };
+  }
   return {
     organizationId: args.organizationId,
     userId: args.userId,
@@ -237,7 +288,8 @@ async function bucketsFor(
   const org = subject.organizationId;
   const buckets: BudgetBucket[] = [];
   // The personal triple binds a person; an impersonal subject has none
-  // (its team list is empty too, so no team bucket follows).
+  // (and no team either, but for a team's own API key, whose spend is its
+  // team's).
   if (subject.impersonal !== true) {
     buckets.push({
       scope: 'user',
@@ -315,6 +367,9 @@ async function bucketsFor(
         await periodUsage(sql, org, periodKey, {
           kind: 'apiKey',
           apiKeyId: subject.apiKeyId,
+          ...(subject.apiKeyIdentity !== undefined
+            ? { identity: subject.apiKeyIdentity }
+            : {}),
         }),
         reservations.apiKey,
       ),
