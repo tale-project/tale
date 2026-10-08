@@ -15446,6 +15446,442 @@ async function checkMcpAuthoringParity(
   await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
 }
 
+/**
+ * The MCP discovery tools and the validator's organization warnings on the
+ * real schema (MCP-R15, MCP-R23): connected vs not-connected connectors, the
+ * names of agent secrets for an owner and an empty list for a member — never
+ * a value — projects and skills a member cannot read answered as not found,
+ * another organization's project, secret and connector invisible, the raised
+ * events, and the five warnings on `validate_automation` and on the editor's
+ * own validate route (the Problems panel).
+ */
+async function checkMcpDiscovery(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { EMITTED_EVENT_TYPES } = await import('../lib/shared/event-types.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-discovery');
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-discovery-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-discovery-member'),
+  );
+  let rpcId = 900;
+  /** One tool call: whether it was refused, the JSON it answered, and the
+   * raw body (searched for a secret's value). */
+  const tool = async (
+    name: string,
+    args: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{
+    isError: boolean;
+    value: Record<string, unknown>;
+    raw: string;
+  }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: rpcId,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    });
+    const raw = await res.text();
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+          isError: z.boolean(),
+        }),
+      })
+      .safeParse(JSON.parse(raw));
+    if (!parsed.success) return { isError: true, value: {}, raw };
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return {
+      isError: parsed.data.result.isError,
+      value: value.success ? value.data : {},
+      raw,
+    };
+  };
+  const now = Date.now();
+  const sentinel = `SENTINEL-discovery-${randomUUID()}`;
+  const secretName = 'ITEST_DISCOVERY_TOKEN';
+
+  // The organization's state: GitHub connected, one agent secret stored, a
+  // team project the member is not in. Another organization holds its own
+  // project, secret and connector.
+  const githubRows = await sql<{ id: string }[]>`
+    INSERT INTO app.connector_credentials (
+      org_id, connector_slug, auth_method, name, encrypted_data, config,
+      status, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'github', 'bearer', 'itest-discovery', ${sql.json({})},
+      ${sql.json({})}, 'active', 'itest', ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const githubCredential = githubRows[0]?.id ?? '';
+  const storedSecret = await fetch(
+    `${base}/api/app/agent-secrets?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        name: secretName,
+        value: sentinel,
+        description: 'itest discovery secret',
+      }),
+    },
+  );
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Discovery HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const hrRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Discovery HR project', ${teamRows[0]?.id ?? ''},
+            ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = hrRows[0]?.id ?? '';
+  const foreignOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${foreignOrgId}, 'Discovery Foreign Tenant',
+            ${`discovery-foreign-${foreignOrgId.slice(0, 8)}`}, now())
+  `;
+  const foreignRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${foreignOrgId}, 'Foreign discovery project', 'itest', ${now},
+            ${now})
+    RETURNING id
+  `;
+  const foreignProject = foreignRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.agent_secrets (
+      org_id, name, encrypted_value, created_by, updated_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${foreignOrgId}, 'ITEST_FOREIGN_SECRET', ${sql.json({ v: sentinel })},
+      'itest', 'itest', ${now}, ${now}
+    )
+  `;
+  // A catalogued connector nobody in this organization connected — the
+  // foreign tenant connects it, which must not count here.
+  const activeHere = new Set(
+    (
+      await sql<{ slug: string }[]>`
+        SELECT DISTINCT connector_slug AS slug FROM app.connector_credentials
+        WHERE org_id = ${orgId} AND status = 'active'
+      `
+    ).map((row) => row.slug),
+  );
+  const unconnected =
+    ['shopify', 'confluence', 'discord', 'twilio', 'tavily', 'glitchtip'].find(
+      (slug) => !activeHere.has(slug),
+    ) ?? 'shopify';
+  await sql`
+    INSERT INTO app.connector_credentials (
+      org_id, connector_slug, auth_method, name, encrypted_data, config,
+      status, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${foreignOrgId}, ${unconnected}, 'bearer', 'itest-foreign',
+      ${sql.json({})}, ${sql.json({})}, 'active', 'itest', ${now}, ${now}
+    )
+  `;
+
+  try {
+    // list_connectors: connected here, not connected here (though connected
+    // in the other tenant), and the filter.
+    const connectors = await tool('list_connectors', {}, memberKey);
+    const connectorRows = z
+      .object({
+        connectors: z.array(
+          z.object({ slug: z.string(), connected: z.boolean() }).loose(),
+        ),
+      })
+      .safeParse(connectors.value);
+    const connectedOf = (slug: string) =>
+      connectorRows.success
+        ? connectorRows.data.connectors.find((row) => row.slug === slug)
+            ?.connected
+        : undefined;
+    const filtered = await tool('list_connectors', { query: 'GITHUB' });
+    record(
+      'MCP list_connectors says which connectors this organization connected, and no other organization’s (MCP-R23)',
+      !connectors.isError &&
+        connectedOf('github') === true &&
+        connectedOf(unconnected) === false &&
+        !filtered.isError &&
+        JSON.stringify(filtered.value).includes('"github"') &&
+        !JSON.stringify(filtered.value).includes(`"${unconnected}"`),
+      `github=${String(connectedOf('github'))} (want true), ${unconnected}=${String(connectedOf(unconnected))} (want false), filtered=${JSON.stringify(filtered.value).slice(0, 120)}`,
+    );
+
+    // list_agent_secrets: the owner reads the name and a masked preview,
+    // the member an empty list saying why; nobody a value, nobody another
+    // tenant's name.
+    const ownerSecrets = await tool('list_agent_secrets', {});
+    const memberSecrets = await tool('list_agent_secrets', {}, memberKey);
+    const ownerNames = z
+      .object({ secrets: z.array(z.object({ name: z.string() }).loose()) })
+      .safeParse(ownerSecrets.value);
+    record(
+      'MCP list_agent_secrets names secrets to an owner and nobody else, never a value or another organization’s (MCP-R23)',
+      storedSecret.status < 300 &&
+        !ownerSecrets.isError &&
+        ownerNames.success &&
+        ownerNames.data.secrets.some((row) => row.name === secretName) &&
+        !ownerSecrets.raw.includes(sentinel) &&
+        !ownerSecrets.raw.includes('ITEST_FOREIGN_SECRET') &&
+        !memberSecrets.isError &&
+        JSON.stringify(memberSecrets.value.secrets) === '[]' &&
+        typeof memberSecrets.value.note === 'string' &&
+        !memberSecrets.raw.includes(secretName),
+      `stored → ${storedSecret.status}, owner=${ownerSecrets.raw.includes(sentinel) ? 'VALUE LEAKED' : JSON.stringify(ownerSecrets.value).slice(0, 160)}, member=${JSON.stringify(memberSecrets.value).slice(0, 120)}`,
+    );
+
+    // list_projects and list_skills: the member's view leaves out the team
+    // project; the other tenant's project is nobody's here.
+    const memberProjects = await tool('list_projects', {}, memberKey);
+    const ownerProjects = await tool('list_projects', {});
+    const memberHrSkills = await tool(
+      'list_skills',
+      { projectId: hrProject },
+      memberKey,
+    );
+    const ownerHrSkills = await tool('list_skills', { projectId: hrProject });
+    const foreignSkills = await tool('list_skills', {
+      projectId: foreignProject,
+    });
+    const orgSkills = await tool('list_skills', {}, memberKey);
+    record(
+      'MCP list_projects and list_skills answer only projects the person can read in their organization (MCP-R23)',
+      !memberProjects.isError &&
+        !memberProjects.raw.includes(hrProject) &&
+        !ownerProjects.isError &&
+        ownerProjects.raw.includes(hrProject) &&
+        !ownerProjects.raw.includes(foreignProject) &&
+        memberHrSkills.value.code === 'PROJECT_NOT_FOUND' &&
+        !ownerHrSkills.isError &&
+        Array.isArray(ownerHrSkills.value.skills) &&
+        foreignSkills.value.code === 'PROJECT_NOT_FOUND' &&
+        !orgSkills.isError &&
+        Array.isArray(orgSkills.value.skills),
+      `member projects hide HR=${!memberProjects.raw.includes(hrProject)}, owner sees HR=${ownerProjects.raw.includes(hrProject)}, owner sees foreign=${ownerProjects.raw.includes(foreignProject)}, member HR skills=${String(memberHrSkills.value.code)}, foreign skills=${String(foreignSkills.value.code)}`,
+    );
+
+    // list_events, list_harnesses, list_models.
+    const events = await tool('list_events', {}, memberKey);
+    const eventNames = z
+      .object({
+        events: z.array(
+          z.object({ name: z.string(), description: z.string() }),
+        ),
+      })
+      .safeParse(events.value);
+    const harnesses = await tool('list_harnesses', {}, memberKey);
+    const harnessRows = z
+      .object({
+        harnesses: z.array(
+          z.object({ slug: z.string(), default: z.boolean() }).loose(),
+        ),
+      })
+      .safeParse(harnesses.value);
+    const models = await tool('list_models', {}, memberKey);
+    const noRuntime = await tool(
+      'list_models',
+      { harness: 'itest-no-such-runtime' },
+      memberKey,
+    );
+    record(
+      'MCP list_events, list_harnesses and list_models answer the raised events, the runtimes and the governed models',
+      eventNames.success &&
+        JSON.stringify(eventNames.data.events.map((e) => e.name).sort()) ===
+          JSON.stringify([...EMITTED_EVENT_TYPES].sort()) &&
+        harnessRows.success &&
+        harnessRows.data.harnesses.filter((row) => row.default).length === 1 &&
+        !models.isError &&
+        Array.isArray(models.value.models) &&
+        JSON.stringify(noRuntime.value.models) === '[]' &&
+        String(noRuntime.value.hint).includes('list_harnesses'),
+      `events=${eventNames.success ? eventNames.data.events.length : 'ERR'} (want ${EMITTED_EVENT_TYPES.length}), harnesses=${JSON.stringify(harnesses.value).slice(0, 160)}, models=${JSON.stringify(models.value).slice(0, 80)}, unknown runtime=${JSON.stringify(noRuntime.value).slice(0, 120)}`,
+    );
+
+    // The five warnings, on MCP for the owner and the member, and on the
+    // editor's validate route. A legacy trigger row waits for an event Tale
+    // does not raise (set_trigger refuses one today).
+    const name = 'itest-discovery/agent';
+    await sql`
+      INSERT INTO app.automation_triggers (
+        org_id, name, kind, event, enabled, created_by, created_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, 'event', 'invoice.paid', true, 'itest', ${now},
+        ${now}
+      )
+    `;
+    const doc = {
+      version: 1,
+      name,
+      nodes: [
+        {
+          id: 'reply',
+          type: 'agent',
+          model: 'test-model',
+          prompt: 'Draft the reply.',
+          harness: 'itest-no-such-runtime',
+          skills: ['itest-no-such-skill'],
+          connectors: ['github', unconnected, 'itest-gmial'],
+          secrets: [secretName, 'ITEST_NO_SUCH_SECRET'],
+        },
+      ],
+      output: '{{ nodes.reply.output.text }}',
+    };
+    const issueList = z.array(
+      z
+        .object({
+          code: z.string(),
+          params: z.record(z.string(), z.unknown()).optional(),
+        })
+        .loose(),
+    );
+    const verdict = z
+      .object({ errors: issueList, warnings: issueList })
+      .loose();
+    const ORG_CODES = new Set([
+      'SKILL_UNKNOWN',
+      'CONNECTOR_NOT_CONNECTED',
+      'SECRET_UNKNOWN',
+      'HARNESS_UNKNOWN',
+      'EVENT_UNKNOWN',
+    ]);
+    /** The org-state warnings of a verdict, as `CODE:subject` strings. */
+    const orgWarnings = (value: unknown): string[] | null => {
+      const parsed = verdict.safeParse(value);
+      if (!parsed.success) return null;
+      if (parsed.data.errors.some((issue) => ORG_CODES.has(issue.code))) {
+        return null;
+      }
+      return parsed.data.warnings
+        .filter((issue) => ORG_CODES.has(issue.code))
+        .map((issue) => {
+          const params = issue.params ?? {};
+          const subject =
+            params.skill ??
+            params.connector ??
+            params.secret ??
+            params.harness ??
+            params.event;
+          return `${issue.code}:${String(subject)}`;
+        })
+        .sort();
+    };
+    const expected = [
+      `CONNECTOR_NOT_CONNECTED:${unconnected}`,
+      'CONNECTOR_NOT_CONNECTED:itest-gmial',
+      'EVENT_UNKNOWN:invoice.paid',
+      'HARNESS_UNKNOWN:itest-no-such-runtime',
+      'SECRET_UNKNOWN:ITEST_NO_SUCH_SECRET',
+      'SKILL_UNKNOWN:itest-no-such-skill',
+    ].sort();
+    const ownerVerdict = await tool('validate_automation', {
+      automation: doc,
+      detail: [],
+    });
+    const memberVerdict = await tool(
+      'validate_automation',
+      { automation: doc, detail: [] },
+      memberKey,
+    );
+    const editor = await fetch(
+      `${base}/api/app/automations/${name}/validate?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ document: doc, detail: [] }),
+      },
+    );
+    const editorBody: unknown = await editor.json();
+    const ownerSeen = orgWarnings(ownerVerdict.value);
+    const memberSeen = orgWarnings(memberVerdict.value);
+    const editorSeen = orgWarnings(editorBody);
+    record(
+      'validation warns about a skill, connector, secret, runtime and event the organization lacks, over MCP and in the editor (MCP-R15)',
+      !ownerVerdict.isError &&
+        JSON.stringify(ownerSeen) === JSON.stringify(expected) &&
+        !('analysis' in ownerVerdict.value) &&
+        !('types' in ownerVerdict.value) &&
+        !ownerVerdict.raw.includes(sentinel) &&
+        // A member is told nothing about secret names.
+        JSON.stringify(memberSeen) ===
+          JSON.stringify(
+            expected.filter((entry) => !entry.startsWith('SECRET_UNKNOWN')),
+          ) &&
+        editor.status === 200 &&
+        JSON.stringify(editorSeen) === JSON.stringify(expected),
+      `owner=${JSON.stringify(ownerSeen)}, member=${JSON.stringify(memberSeen)}, editor ${editor.status}=${JSON.stringify(editorSeen)}, want ${JSON.stringify(expected)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name = 'itest-discovery/agent'
+    `;
+    await sql`
+      DELETE FROM app.connector_credentials
+      WHERE id = ${githubCredential} AND org_id = ${orgId}
+    `;
+    await fetch(`${base}/api/app/agent-secrets/${secretName}?orgId=${orgId}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+    await sql`DELETE FROM app.agent_secrets WHERE org_id = ${foreignOrgId}`;
+    await sql`
+      DELETE FROM app.connector_credentials WHERE org_id = ${foreignOrgId}
+    `;
+    await sql`DELETE FROM app.projects WHERE org_id = ${foreignOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrgId}`;
+    // The lanes after this one spend the same request budget.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  }
+}
+
 /** The retired standalone goal-authoring endpoint no longer accepts work. */
 async function checkRetiredBuilderRoute(
   base: string,
@@ -61469,6 +61905,10 @@ async function main(): Promise<void> {
         'checkMcpAuthoringParity',
         () =>
           checkMcpAuthoringParity(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpDiscovery',
+        () => checkMcpDiscovery(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
       ],
       [
         'checkRetiredBuilderRoute',
