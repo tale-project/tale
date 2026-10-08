@@ -21,6 +21,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
+      - ci/tale664-canary-base-20261007
   schedule:
     # Nightly at 02:30 UTC.
     - cron: '30 2 * * *'

@@ -11,6 +11,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
+      - ci/tale664-canary-base-20261007
   push:
     branches:
       - main

@@ -183,7 +183,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "ci/tale664-canary-base-20261007"]
             },
             "push": {
               "branches": ["main"]
@@ -3021,7 +3021,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "ci/tale664-canary-base-20261007"]
             },
             "push": {
               "branches": ["main"]
@@ -3356,7 +3356,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "ci/tale664-canary-base-20261007"]
             },
             "schedule": [
               {
@@ -5479,7 +5479,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "ci/tale664-canary-base-20261007"]
             },
             "push": {
               "branches": ["main"],
