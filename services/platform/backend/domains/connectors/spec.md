@@ -4,9 +4,9 @@
 
 A connector lets an agent or an automation act in an outside system: read a mailbox, file a
 ticket, fetch issues. These rules cover whom such a call acts for, when it is refused, how an
-account is connected by signing in at the outside system, and what importing tasks through a
-connector may write. The catalog of connectors and what each one can do are not covered; see
-Not yet.
+account is connected by signing in at the outside system, what importing tasks through a
+connector may write, and where an agent's call runs. The catalog of connectors and what each
+one can do are not covered; see Not yet.
 
 ## Whom a connector call acts for
 
@@ -119,6 +119,29 @@ leaves the task's status and its description as they are in Tale.
 
 - **Example**: An issue was imported and Mia moved its task to Done. The import runs again →
   the task is still Done, and there is one task for the issue.
+
+## Where a connector call runs
+
+### CONN-R13 · An agent's connector call runs on the platform, never inside the agent's sandbox
+
+The connector's code runs in the platform with the organization's credential, and the
+sandbox gets back only the result. No process of the agent's sandbox is handed the
+credential for the call.
+
+- **Example**: Mia's agent searches the web through the Tavily connector → the search runs
+  on the platform with the organization's Tavily key, and nothing in Mia's sandbox sees
+  the key.
+
+### CONN-R14 · An agent's connector calls are bounded on the platform
+
+One sandbox session's agents have at most four connector calls running at once; a further
+call is refused as busy and can be tried again. A call that outlives its time limit can no
+longer reach the outside system, and an agent's call stores no files in the organization's
+file store.
+
+- **Example**: Mia's agent starts five Google Drive listings at once → four run and the
+  fifth is refused as busy; a listing still paging after its minute is cut off at its next
+  request, and a Gmail attachment the agent reads is not saved to the organization's files.
 
 ## Not yet
 
