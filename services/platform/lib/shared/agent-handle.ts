@@ -22,10 +22,10 @@ export const AGENT_HANDLE_MAX = 52;
 
 /** The base of a name with no letter or digit Tale can spell in ASCII
  * ("发票助手", "🚀"). */
-export const AGENT_HANDLE_FALLBACK = 'agent';
+const AGENT_HANDLE_FALLBACK = 'agent';
 
 /** Lowercase letters and digits in runs joined by single hyphens. */
-export const AGENT_HANDLE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const AGENT_HANDLE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** Letters NFKD does not take apart into a base letter and a mark, spelled
  * the way their languages write them without the letter. */
