@@ -181,8 +181,17 @@ always verifies; there is no unsigned mode.
 Image warming runs beside control startup and session adoption. While a cold
 runtime image is being pulled, new local creates return `429 runtime_image`
 with `Retry-After: 5`; health, limits and existing-session operations remain
-available. A failed warmup ends that wait, and subsequent creates report their
-own backend result. Device-placed creates follow the target device's readiness.
+available. A failed pull does not end that wait: while the image is absent
+every create would fail, so creates keep answering `429 runtime_image` (with a
+`Retry-After` of 5–60 s that follows the next attempt) and the pull is retried
+after 30 s, 1, 2, 5 and then every 10 minutes. Session containers run with
+`--pull=never`: an implicit pull of the multi-gigabyte image could never finish
+inside the run's 30 s budget. A create that finds the image gone (an
+`image prune` on an idle host removes it, since stopped sessions keep no
+container) restarts the warmup and answers `429 runtime_image` instead of
+`502`. `GET /health` reports the image's state (`unchecked`, `pulling`, `ready`
+or `missing`, with the last error) without turning unhealthy over it.
+Device-placed creates follow the target device's readiness.
 
 Docker create failures remove only a container bearing that attempt's private
 ownership label, using its immutable container ID. A concurrent replacement

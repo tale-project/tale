@@ -69,6 +69,7 @@ import {
 import {
   dockerRm,
   dockerRmSucceeded,
+  isDockerMissingImage,
   isDockerNoSuchObject,
   runDocker,
 } from '../../spawn-util.ts';
@@ -125,6 +126,12 @@ export class DockerSessionBackend implements SessionBackend {
       cfg.hostSessionRoot,
     ),
   ) {}
+
+  private runtimeImageMissing: ((detail: string) => void) | null = null;
+
+  onRuntimeImageMissing(listener: (detail: string) => void): void {
+    this.runtimeImageMissing = listener;
+  }
 
   /** runnerd token: derived from SANDBOX_TOKEN (always set — loadConfig fails
    * closed without it). Matches SessionRoutes.tokenFor. */
@@ -501,6 +508,9 @@ export class DockerSessionBackend implements SessionBackend {
       if (!nameConflict) {
         await this.cleanupCreateAttempt(spec.sessionId, createAttemptId);
       }
+      // The run never pulls (`--pull=never`): a missing image fails at once,
+      // and the spawner's warmup pulls it outside any create's budget.
+      if (isDockerMissingImage(stderr)) this.runtimeImageMissing?.(stderr);
       throw new Error(
         `docker run (session) failed: ${stderr || run.stdout.trim()}`,
       );

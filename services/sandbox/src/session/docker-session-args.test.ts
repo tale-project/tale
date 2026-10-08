@@ -222,6 +222,9 @@ describe('buildDockerSessionRunArgs', () => {
     // Distinct session label so the one-shot sweep never reaps a session.
     expect(args).toContain('tale.sandbox-session=1');
     expect(args).not.toContain('tale.sandbox=1');
+    // Never an implicit pull: a multi-gigabyte image cannot arrive inside
+    // the run's budget, and the warmup owns pulling it.
+    expect(args).toContain('--pull=never');
     // Daemon dispatch is the only positional; no user entry path in argv.
     expect(args[args.length - 1]).toBe('daemon');
     expect(args[args.length - 2]).toBe('tale-sandbox-runtime:test');

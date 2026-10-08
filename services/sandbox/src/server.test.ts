@@ -13,6 +13,7 @@ import {
   sign,
   verify,
 } from './auth.ts';
+import { DockerBackend } from './backend/docker/docker-backend.ts';
 import { loadConfig } from './config.ts';
 import { ImageWarmup } from './image-warmup.ts';
 import { SessionRoutes } from './session/session-routes.ts';
@@ -134,6 +135,71 @@ describe('session HTTP routes', () => {
       pending.mockRestore();
       create.mockRestore();
       get.mockRestore();
+    }
+  });
+
+  test('a create that failed on a missing image waits like the creates after it', async () => {
+    // The backend heard the image was gone and restarted the warmup before
+    // its 502 came back: that create gets the retryable wait, not a failure.
+    const pending = spyOn(ImageWarmup.prototype, 'pending')
+      .mockReturnValueOnce(false)
+      .mockReturnValue(true);
+    const create = spyOn(
+      SessionRoutes.prototype,
+      'handleCreate',
+    ).mockImplementation(async () =>
+      Response.json({ error: 'create_failed' }, { status: 502 }),
+    );
+    const post = () => {
+      const timestamp = String(Date.now());
+      const nonce = crypto.randomUUID();
+      return router(
+        new Request('http://sandbox/v1/sessions', {
+          method: 'POST',
+          body: '{}',
+          headers: {
+            [SIGNATURE_HEADER]: sign(
+              'POST',
+              '/v1/sessions',
+              timestamp,
+              '{}',
+              'route-test-secret',
+              nonce,
+            ),
+            [TIMESTAMP_HEADER]: timestamp,
+            [NONCE_HEADER]: nonce,
+          },
+        }),
+      );
+    };
+    try {
+      const waiting = await post();
+      expect(waiting.status).toBe(429);
+      expect(await waiting.json()).toMatchObject({ error: 'runtime_image' });
+      expect(create).toHaveBeenCalledTimes(1);
+      // Any other failure stands.
+      pending.mockReturnValue(false);
+      expect((await post()).status).toBe(502);
+    } finally {
+      pending.mockRestore();
+      create.mockRestore();
+    }
+  });
+
+  test('health reports where the runtime image stands without failing on it', async () => {
+    const health = spyOn(DockerBackend.prototype, 'health').mockResolvedValue({
+      ok: true,
+      detail: '27.0.0',
+    });
+    try {
+      const response = await router(new Request('http://sandbox/health'));
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({
+        status: 'ok',
+        runtimeImage: { state: expect.any(String), lastError: null },
+      });
+    } finally {
+      health.mockRestore();
     }
   });
 

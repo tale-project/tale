@@ -56,6 +56,10 @@ const cfg = loadConfig();
 const { host: backend, createSession: createSessionBackend } =
   await loadBackends(cfg);
 const imageWarmup = new ImageWarmup(() => backend.warmImage());
+// `SANDBOX_SKIP_IMAGE_WARMUP=1` skips the pull entirely — used by the local
+// `bun run dev` script where the runtime image is built ad-hoc and never
+// published to a registry, so the pull is guaranteed to 404.
+const imageWarmupEnabled = process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1';
 
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
@@ -106,7 +110,16 @@ async function sizeSessionCapacity(): Promise<void> {
 let sessionRoutes: SessionRoutes | null = null;
 let sessionBackend: SessionBackend | null = null;
 function getSessionBackend(): SessionBackend {
-  sessionBackend ??= createSessionBackend();
+  if (sessionBackend === null) {
+    sessionBackend = createSessionBackend();
+    // A create that finds the image gone (an image prune on an idle host)
+    // pulls it again; creates wait meanwhile instead of failing one by one.
+    if (imageWarmupEnabled) {
+      sessionBackend.onRuntimeImageMissing?.(
+        (detail) => void imageWarmup.restart(detail),
+      );
+    }
+  }
   return sessionBackend;
 }
 function getSessionRoutes(): SessionRoutes {
@@ -198,6 +211,9 @@ async function handleHealth(): Promise<Response> {
       status: 'ok',
       dockerServerVersion: health.detail,
       disks: hostDisk?.status() ?? null,
+      // Informational, like `disks`: a missing image holds creates (429
+      // runtime_image) but is no reason to restart the spawner.
+      runtimeImage: imageWarmup.status(),
     },
     200,
   );
@@ -288,17 +304,14 @@ async function handleSessionRoutes(
 
   // POST /v1/sessions (create)
   if (req.method === 'POST' && path === '/v1/sessions') {
-    if (imageWarmup.pending()) {
-      return jsonResponse(
-        {
-          error: 'runtime_image',
-          message: 'the sandbox runtime image is being prepared; retry shortly',
-        },
-        429,
-        { 'retry-after': '5' },
-      );
-    }
-    return getSessionRoutes().handleCreate(body, req.signal);
+    const waiting = imageWarmup.refusal();
+    if (waiting !== null) return waiting;
+    const created = await getSessionRoutes().handleCreate(body, req.signal);
+    // A create that failed on a missing image restarted the warmup: it gets
+    // the same retryable wait as the creates after it, not a 502.
+    return created.status === 502
+      ? (imageWarmup.refusal() ?? created)
+      : created;
   }
   // GET /v1/sessions?organizationId=… (list)
   if (req.method === 'GET' && path === '/v1/sessions') {
@@ -589,10 +602,7 @@ async function main(): Promise<void> {
 
   // Warm beside startup: control, health and existing sessions stay available
   // while a cold registry transfer runs. Only local creates wait (429 above).
-  // `SANDBOX_SKIP_IMAGE_WARMUP=1` skips the pull entirely — used by the
-  // local `bun run dev` script where the runtime image is built ad-hoc
-  // and never published to a registry, so the pull is guaranteed to 404.
-  if (process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1') {
+  if (imageWarmupEnabled) {
     void imageWarmup.start();
   }
 

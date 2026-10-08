@@ -114,3 +114,85 @@ describe('what a session create asks the docker daemon', () => {
     expect((calls[0] ?? []).filter(mountLookup)).toHaveLength(0);
   });
 });
+
+// A create whose `docker run` the daemon refuses with `runStderr`; reports
+// what the backend told its runtime-image listener.
+async function refusedRun(runStderr: string): Promise<{
+  heard: string[];
+  error: string | null;
+  run: string[] | null;
+}> {
+  const sourceRoot = resolve(import.meta.dir, '../..');
+  const script = `
+import { mock } from 'bun:test';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const source = ${JSON.stringify(sourceRoot)};
+const success = {exitCode:0, stdout:'', stderr:'', stdoutTruncated:false, stderrTruncated:false};
+let run = null;
+const spawnPath = join(source,'spawn-util.ts');
+const realSpawn = await import(spawnPath);
+mock.module(spawnPath, () => ({...realSpawn,
+  runDocker: async (args) => {
+    if (args[0] === 'run') {
+      run = args;
+      return {...success, exitCode:125, stderr:${JSON.stringify(runStderr)}};
+    }
+    if (args[0] === 'inspect') return {...success, exitCode:1, stderr:'No such container'};
+    return args[0] === 'volume' && args[1] === 'inspect'
+      ? {...success, stdout:'{"tale.sandbox-cache":"1"}'}
+      : success;
+  },
+}));
+console.warn = () => {};
+const {DockerSessionBackend} = await import(join(source,'backend/docker/docker-session-backend.ts'));
+const {TEST_SESSION_CONFIG} = await import(join(source,'session/session-test-config.ts'));
+const root = await mkdtemp(join(tmpdir(),'tale-create-image-'));
+const cfg = {
+ backend:'docker', sandboxToken:'test',runtimeImage:'runtime:test',runtimeTier:'runc',dockerInContainer:false,dockerBuildCache:false,
+ transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
+ egressNetwork:'control',egressProxy:'http://egress:3128',
+ session:{...TEST_SESSION_CONFIG,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
+};
+const backend = new DockerSessionBackend(cfg);
+const heard = [];
+backend.onRuntimeImageMissing((detail) => heard.push(detail));
+let error = null;
+try {
+  await backend.createSession({sessionId:'image-a',organizationId:'org-image',profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
+} catch (e) { error = e.message; }
+await rm(root,{recursive:true,force:true});
+console.log(JSON.stringify({heard,error,run}));
+`;
+  const child = Bun.spawn([process.execPath, '-e', script], {
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
+  const [stdout, stderr, exit] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (exit !== 0) throw new Error(`Create probe failed: ${stderr}`);
+  return JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}');
+}
+
+describe('a create on a host without the runtime image', () => {
+  test('never pulls, fails at once and tells the warmup', async () => {
+    const stderr =
+      'docker: Error response from daemon: No such image: runtime:test.';
+    const { heard, error, run } = await refusedRun(stderr);
+    expect(run).toContain('--pull=never');
+    expect(error).toContain('No such image');
+    expect(heard).toEqual([stderr]);
+  });
+
+  test('any other refusal is no news for the warmup', async () => {
+    const { heard, error } = await refusedRun(
+      'docker: Error response from daemon: failed to initialize logging driver',
+    );
+    expect(error).toContain('logging driver');
+    expect(heard).toEqual([]);
+  });
+});

@@ -93,8 +93,20 @@ export class DockerBackend implements HostBackend {
     );
   }
 
+  /** Throws while the image stays absent, so the warmup keeps creates
+   * waiting and tries again instead of reading a failed pull as done. */
   async warmImage(): Promise<void> {
-    await ensureImage(this.cfg.runtimeImage);
+    let failure = '';
+    const present = await ensureImage(this.cfg.runtimeImage, {
+      onFailure: (detail) => {
+        failure = detail;
+      },
+    });
+    if (!present) {
+      throw new Error(
+        `the runtime image ${this.cfg.runtimeImage} is not on this host and could not be pulled${failure === '' ? '' : `: ${failure}`}`,
+      );
+    }
   }
 
   async sweepOrphans(opts: SweepOptions): Promise<number> {

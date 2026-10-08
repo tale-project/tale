@@ -22,6 +22,7 @@ import {
   RUN_DOCKER_DEFAULT_TIMEOUT_MS,
   dockerCliLoad,
   ensureImage,
+  isDockerMissingImage,
   resolveDockerTimeoutMs,
   runDocker,
 } from './spawn-util.ts';
@@ -224,6 +225,49 @@ describe('runDocker — default timeout', () => {
       { args: ['image', 'inspect', 'tale/runtime:test'], timeoutMs: undefined },
       { args: ['pull', 'tale/runtime:test'], timeoutMs: IMAGE_PULL_TIMEOUT_MS },
     ]);
+  });
+
+  test('ensureImage: a pull that keeps failing says why', async () => {
+    const run: typeof runDocker = async (args) => ({
+      exitCode: 1,
+      stdout: '',
+      stderr: args[0] === 'pull' ? 'Error response from daemon: denied\n' : '',
+      stdoutTruncated: false,
+      stderrTruncated: false,
+    });
+    const heard: string[] = [];
+    const error = console.error;
+    console.error = () => {};
+    try {
+      expect(
+        await ensureImage('tale/runtime:test', {
+          run,
+          attempts: 1,
+          onFailure: (detail) => heard.push(detail),
+        }),
+      ).toBe(false);
+    } finally {
+      console.error = error;
+    }
+    expect(heard).toEqual(['Error response from daemon: denied']);
+  });
+
+  test('a missing image is told apart from other run failures', () => {
+    for (const stderr of [
+      'docker: Error response from daemon: No such image: tale-sandbox-runtime:latest.',
+      "Unable to find image 'tale-sandbox-runtime:latest' locally",
+      'docker: Error response from daemon: pull access denied for tale-sandbox-runtime, repository does not exist',
+    ]) {
+      expect(isDockerMissingImage(stderr)).toBe(true);
+    }
+    for (const stderr of [
+      'Error: No such container: tale-sbx-ses-a',
+      'Conflict. The container name "/tale-sbx-ses-a" is already in use',
+      'failed to initialize logging driver',
+      '',
+    ]) {
+      expect(isDockerMissingImage(stderr)).toBe(false);
+    }
   });
 });
 

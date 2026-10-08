@@ -42,7 +42,14 @@ gaps fail with `OUTPUT_GAP`. A failing output consumer also ends that attachment
 
 Cold runtime-image warming runs in the background. New local sessions wait
 with `429 runtime_image` and `Retry-After: 5`, while control, health and existing
-sessions remain available. Session lookups whose backend inventory or endpoint
+sessions remain available. Session containers start with `--pull=never`, so a
+host that lost the image (an `image prune` while no session ran) fails a create
+at once; that create restarts the warmup and answers the same `429
+runtime_image`. A pull that fails is retried after 30 s, 1, 2, 5 and then every
+10 minutes, and creates wait meanwhile (`Retry-After` follows the next pull,
+5–60 s). `GET /health` reports `runtimeImage: { state, lastError,
+nextAttemptAtMs }` with `state` one of `unchecked`, `pulling`, `ready` or
+`missing`; a missing image never makes the spawner unhealthy. Session lookups whose backend inventory or endpoint
 cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.
