@@ -175,6 +175,31 @@ describe('MentionTextarea', () => {
     expect(onValue).toHaveBeenLastCalledWith('@ada hi');
   });
 
+  it('follows names that arrive late until someone types, then keeps the words', async () => {
+    function Late({ names }: { names: Record<string, string> }) {
+      const [value, setValue] = useState('Hi [@Old Name](mention:user/u-ada)');
+      return (
+        <MentionTextarea
+          label="Comment"
+          kinds={KINDS}
+          options={OPTIONS}
+          nameOf={(ref) => names[`${ref.kind}:${ref.id}`]}
+          value={value}
+          onValueChange={setValue}
+        />
+      );
+    }
+    const { user, rerender } = render(<Late names={{}} />);
+    const field = screen.getByRole('textbox', { name: 'Comment' });
+    expect(field).toHaveValue('Hi @Old Name');
+    rerender(<Late names={{ 'user:u-ada': 'Ada Lovelace' }} />);
+    expect(field).toHaveValue('Hi @Ada Lovelace');
+    await user.click(field);
+    await user.keyboard('{End}!');
+    rerender(<Late names={{ 'user:u-ada': 'Ada King' }} />);
+    expect(field).toHaveValue('Hi @Ada Lovelace!');
+  });
+
   it('never opens the picker inside code', async () => {
     const { user } = render(<Field />);
     const field = screen.getByRole('textbox', { name: 'Comment' });

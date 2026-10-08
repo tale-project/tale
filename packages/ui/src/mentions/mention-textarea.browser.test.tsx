@@ -160,6 +160,27 @@ describe('MentionTextarea in a real engine', () => {
     expect(onValue).toHaveBeenLastCalledWith('Hi ');
   });
 
+  // A spelling correction rewrites the word before the caret; it never
+  // rewrites the last word of a name.
+  it('keeps a name an autocorrect would rewrite', () => {
+    const onValue = vi.fn();
+    render(<Field initial={`Hi ${ADA}`} onValue={onValue} />);
+    const textarea = field();
+    textarea.focus();
+    const end = textarea.value.length;
+    textarea.setSelectionRange(end, end);
+    const correction = new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'insertReplacementText',
+      data: 'Lovelock',
+    });
+    textarea.dispatchEvent(correction);
+    expect(correction.defaultPrevented).toBe(true);
+    expect(textarea).toHaveValue('Hi @Ada Lovelace');
+    expect(onValue).not.toHaveBeenCalled();
+  });
+
   it('copies and pastes a mention as a mention', async () => {
     const onValue = vi.fn();
     render(<Field initial={`Hi ${ADA}`} onValue={onValue} />);
