@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 81 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 103 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -302,7 +302,7 @@ output:
 - [ ] `AUTO-F25` · **Approval card** — (env-gated: live run parked on a write
       approval) Open the parked run → Card `automations.runs.approval.title` names
       the operation; **Approve** (`automations.runs.approval.approve`) lets the
-      step act on the next poll and the run resumes; **Reject**
+      step act right away and the run resumes; **Reject**
       (`automations.runs.approval.reject`) fails the step and the run stops — the
       card disappears once the run is terminal.
 - [ ] `AUTO-F26` · **Ask card** — (env-gated: a run parked on an agent
@@ -640,6 +640,114 @@ output:
       the same automation from the organization's list (`AUTO-F4`) → The same
       trail and rail. Choose **Automations** in the rail → The organization's
       list. Repeat in DE and FR (**Automatisierungen** / **Automatisations**).
+- [ ] `AUTO-F58` · **A crashed worker's run reads Interrupted, then
+      resumes** — With one backend worker, start a live run whose step works for a few
+      minutes (an `llm` step asked for a long answer; an agent step parks the
+      run as **Waiting** instead), open its run page, and once it reads **Running**
+      kill the worker without warning (`docker kill -s KILL` on its
+      container); leave it down for a minute and reload the page → the badge
+      reads `automations.runs.status.stalled` with a still icon, not
+      `automations.runs.status.running`. Start the worker again → within about
+      a minute and a half, without a reload, the badge reads
+      `automations.runs.status.running` again and the header shows
+      `automations.runs.resumed.label` followed by
+      `automations.runs.resumed.lease_expired` with the time; a step that had
+      finished before the kill shows once in the steps list. Check the badge
+      and the header line in the light and the dark theme and at 390 px wide
+      (the line wraps, nothing is cut).
+- [ ] `AUTO-F59` · **An interrupted write waits for you** — Deploy an
+      automation whose live step writes a file to a WebDAV share you can slow
+      down (`type: webdav.write`; a large file, or a local share behind a
+      throttling proxy), let the approval policy allow WebDAV writes without a
+      person, and start a live run. While the step is writing, kill the worker
+      stepping it (`docker kill -s KILL` on its container) and start it again
+      → within about a minute and a half the run reads
+      `automations.runs.waiting.in_doubt` and shows the card
+      `automations.runs.inDoubt.title` with what the step was sending; nothing
+      new reaches the share. Choose **Run it again**
+      (`automations.runs.inDoubt.retry`) and confirm
+      (`automations.runs.inDoubt.retryConfirm.title`) →
+      `automations.runs.inDoubt.resolved.retry`, the file is written once more
+      and the run succeeds. Repeat with **Skip it**
+      (`automations.runs.inDoubt.skip`) →
+      `automations.runs.inDoubt.resolved.skip`, the run continues and the
+      step's output reads `null`; and with **Fail the run**
+      (`automations.runs.inDoubt.fail`, confirmed with
+      `automations.runs.inDoubt.failConfirm.title`) → **Failed**
+      (`automations.runs.status.failed`), its detail saying a person chose to
+      fail the run at that step because it may already have run — naming the
+      step once, never a path such as `batch[1:0]/send`.
+- [ ] `AUTO-F60` · **A deploy hands a run on** — With two backend workers
+      (`docker compose up -d --scale backend-worker=2`), deploy an automation
+      of five steps in a row that each work for about 30 seconds (an `llm`
+      step asked for a long answer, for example) and start a live run. While
+      its third step works, find the worker stepping it — the first segment
+      of the run's `lease_owner` (`SELECT lease_owner FROM
+      app.automation_runs WHERE id = '{runId}'` in the app database) is that
+      container's hostname — and stop it gracefully (`docker stop`, not
+      `kill`) → the third step finishes, the other worker continues with the
+      fourth within seconds, and the badge reads
+      `automations.runs.status.stalled` for at most a few seconds before
+      `automations.runs.status.running`; the run succeeds, each step shows
+      once in the steps list and the effects, and the header shows
+      `automations.runs.resumed.label` followed by
+      `automations.runs.resumed.shutdown`. Repeat with steps that each work
+      for two minutes → the step under way is cut about 20 seconds into the
+      stop, runs again on the other worker, and still shows once.
+- [ ] `AUTO-F61` · **An interrupted write is decided from its task** —
+      Interrupt a write as in `AUTO-F59`, this time in the run of an
+      automation that owns a project task, then open that task as a member
+      who can work it → the panel reads `tasks.run.waitingDecision` with no
+      spinner and shows the card `automations.runs.inDoubt.title`; **Skip
+      it** (`automations.runs.inDoubt.skip`) decides it from the task and the
+      run goes on. As a member who can only read the task → the panel reads
+      `tasks.run.waitingDecisionOther` and shows no card. On the run page
+      meanwhile the canvas marks the step
+      `automations.runs.nodeStatus.waiting` with a still icon, and on the run
+      of `AUTO-F58`, while it reads `automations.runs.status.stalled`, its
+      step reads `automations.runs.nodeStatus.interrupted` — nothing spins on
+      a step no server is running.
+- [ ] `AUTO-F62` · **A wrong reference shows while typing** — As a
+      Developer, open an automation's **Editor**, select an `llm` node and add
+      `{{ nodes.nope.output }}` to its **Prompt** → within about a second the
+      Problems button (`issues.buttonLabel`) counts 1 error, the node's box
+      shows a red error chip and its name ends with the count
+      (`issues.nodeSummary`), the reason sits under the Prompt field, and
+      **Save** is disabled; focusing it shows `automations.problems.saveBlocked`.
+- [ ] `AUTO-F63` · **Go to a problem** — With the draft from `AUTO-F62`,
+      click the Problems button and press Enter on the error's row → the list
+      opens under the canvas (`automations.problems.title`), the row reads
+      the problem's title, where it is and how to fix it
+      (`issues.fixLabel`), and Enter opens the node in the inspector with the
+      Prompt field focused and the reference to nope selected.
+- [ ] `AUTO-F64` · **A fix clears it** — Remove the reference again → the
+      Problems button reads `issues.none`, the node's chip and the field's
+      line disappear, **Save** is enabled, and a screen reader hears
+      `issues.none` once (not at every keystroke).
+- [ ] `AUTO-F65` · **Warnings never block** — Give a node a `when` that
+      reads a field of a node with a `when` of its own → the Problems button
+      counts a warning, not an error; **Save** stays enabled, the version
+      saves, and the warning is still listed afterwards.
+- [ ] `AUTO-F66` · **A refused save lands in Problems** — Block the check's
+      request in DevTools (so Save stays enabled), make the draft invalid as
+      in `AUTO-F62` and save it with a message → the save dialog closes onto
+      the Problems list with its first error focused, the list shows the
+      server's problems, a screen reader hears
+      `automations.problems.refusedSave`, no toast appears, and no version
+      is added.
+- [ ] `AUTO-F67` · **Problems in every language** — Switch the interface to
+      Deutsch, then Français, with the draft from `AUTO-F62` → the Problems
+      button, the filter (`automations.problems.filter.all`), each row's
+      title, location, explanation, cause and fix are translated; only
+      **Technical details** (`issues.technicalDetails`) keeps the engine's
+      English message.
+- [ ] `AUTO-F68` · **From a phone's node sheet to the problems** — At 390 px,
+      with the draft from `AUTO-F62`, open a different node and type in one of
+      its fields → under the fields, `automations.problems.saveBlocked` stands
+      beside **Save** with `automations.problems.open` next to it; tap it →
+      the node's sheet closes, the Problems sheet opens on All
+      (`automations.problems.filter.all`) with focus on the first error, and
+      Enter on it opens the node that holds the error with its field focused.
 
 ## Boundary & error tests
 
@@ -717,7 +825,6 @@ output:
       pending card disappears. On another live task, the Editor can cancel;
       the Member sees the terminal state after reload. Use the task panel:
       Member and Editor seats have no Automations navigation (`AUTO-F53`).
-
 - [ ] `AUTO-B12` · **A project automation whose project is gone keeps a way
       out** — Open an automation from a project's **Automations** tab
       (`AUTO-F57`) and copy the URL. As a Developer outside the project's
@@ -728,6 +835,36 @@ output:
       saying the project was not found; below 768 px the back arrow
       (`common.aria.back`) leads there too. Open one of its runs → the
       automation's name returns to the automation under the same URL.
+- [ ] `AUTO-B13` · **Stop beats a finishing step** — Deploy an automation
+      whose last step is an `llm` step asking for a long answer (a few
+      seconds of model time), start a live run, open **Stop the run**
+      (`automations.runs.cancel`) and confirm it
+      (`automations.runs.cancelConfirm.title`) as the answer is about to
+      land; repeat it a few times → each run reads either **Stopped**
+      (`automations.runs.status.cancelled`) or **Succeeded**
+      (`automations.runs.status.success`) and keeps it after a hard reload;
+      Settings › Audit log has exactly one ending entry per run: a cancelled
+      action for a Stopped run, a success action for a Succeeded one, never
+      both. A Stopped run shows no output.
+- [ ] `AUTO-B14` · **Two organizations' approvals on one worker** — With one
+      backend worker, deploy in each of two organizations an automation whose
+      live step writes a file to a WebDAV share (`type: webdav.write`) that
+      the approval policy holds for a person, and start a live run in both at
+      the same moment → each run waits on its own approval card
+      (`automations.runs.approval.title`) in its own organization, and neither
+      fails with a message about a different organization; approving each lets
+      that run finish.
+- [ ] `AUTO-B15` · **The check fails, the save still works** — Block the
+      check's request (`/api/app/automations/…/validate` in DevTools) and
+      edit a node → the Problems button reads `issues.checkFailed` and the
+      list says `automations.problems.checkFailed`; **Save** stays possible,
+      and saving an invalid draft is refused into the Problems list
+      (`AUTO-F66`).
+- [ ] `AUTO-B16` · **Members check nothing** — Sign in as a Member and open
+      `/dashboard/{org}/automations/{slug}/editor` directly → the access gate
+      answers instead of the editor and the network log shows no validate
+      request; posting a document to the validate route with that session
+      answers 403 and saves nothing.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -738,6 +875,8 @@ is revived by the liveness sweep — the "Running now forever" incident class
 the chaos door `testing/e2e_chaos:severRunWakes` refuses unless the deployment
 sets `TALE_E2E=1` or `TALE_CHAOS_DOORS=1`. Executed end-to-end 2026-07-31 on
 the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
+Those doors were Convex functions, gone with that backend: mark the five boxes
+**ENVIRONMENT** with [`BL-8`](../reference/not-a-finding.md#known-debt).
 
 - [ ] `AUTO-L1` · **Healthy park cadence** — Set `TALE_CHAOS_DOORS=1` →
       save+deploy a probe (one transform, repeat-until that never ends, capped
@@ -781,6 +920,37 @@ the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
       active one `aria-current="page"`), keyboard reachable with visible focus;
       below `md` the Editor's action cluster sits in the floating dock, wraps
       within the viewport width and never covers the bottom navigation.
+- [ ] `AUTO-A6` · **Interrupted badge and in-doubt card** → On the run of
+      `AUTO-F58` and the card of `AUTO-F59`, keyboard only: Tab reaches **Run
+      it again**, **Skip it** and **Fail the run** in that order with a
+      visible focus ring; Enter opens the two confirmations, focus stays
+      inside each and Escape returns it to its button; after a choice focus
+      lands on the resolved sentence (`automations.runs.inDoubt.resolved.*`).
+      A screen reader reads the badge's word
+      (`automations.runs.status.stalled`), not only its icon, and the card's
+      title and body; heading navigation reaches the card's title, and a run
+      that parks while its page is open is announced once
+      (`automations.runs.waiting.in_doubt`). At 390 px wide the actions wrap
+      and nothing is cut; at 200 % zoom the card reads without scrolling
+      sideways.
+- [ ] `AUTO-A7` · **Problems by keyboard** → Tab reaches the Problems
+      button after the run verbs and before **Save**; Enter opens the list
+      with focus on a row; Up, Down, Home and End move between rows; Enter
+      goes to the field; Escape closes the list and focus returns to the
+      button.
+- [ ] `AUTO-A8` · **Problems to a screen reader** → A node with problems
+      announces its counts after its name; a field with a problem announces
+      the message as its description, never as an alert; the list's rows
+      start with "Error:" or "Warning:" (`issues.srPrefix.error`).
+- [ ] `AUTO-A9` · **Problems in every mode** → In dark mode, with reduced
+      motion, at 200 % zoom and at 375 px wide: chips, frames and field
+      lines keep AA contrast, the list opens without movement under reduced
+      motion, and the Problems sheet is usable at 375 px without horizontal
+      scrolling.
+- [ ] `AUTO-A10` · **The save shortcut with errors** → With the draft from
+      `AUTO-F62`, press ⌘S (Ctrl+S) in the Prompt field → the browser's
+      "Save page as" dialog does not open, focus moves to **Save** and its
+      tooltip says `automations.problems.saveBlocked`; nothing is saved.
 
 ## Performance
 
@@ -789,3 +959,14 @@ the dev stack (cadence froze after sever, sweep poked once, cadence resumed).
 - [ ] `AUTO-P2` · **Workbench interaction** → Canvas + panels visible < 2 s on
       a seeded pack; node select → inspector update and live run-status overlays
       feel instant (< 100 ms, no layout jank while a run streams)
+- [ ] `AUTO-P3` · **One organization's burst leaves room for another** — With
+      one backend worker at the default `WORKER_CONCURRENCY` (5), set
+      `AUTOMATION_ORG_CONCURRENCY=2` in `.env` and restart the worker. In
+      organization A start ten live runs of an automation whose one step
+      works for about 30 seconds; while they run, start one live run in
+      organization B → B's run reads **Running**
+      (`automations.runs.status.running`) within a few seconds and succeeds
+      while most of A's runs still read **Queued**
+      (`automations.runs.status.queued`); A's run list shows about two
+      **Running** at a time — never five, one per worker slot — and all ten
+      succeed. Remove the setting and restart the worker afterwards.

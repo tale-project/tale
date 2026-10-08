@@ -185,6 +185,7 @@ deleteFile:
 breadcrumb:
   navigation: Breadcrumb
   documents: Documents
+  loadFailed: Couldn't load this folder's breadcrumb. Try again.
   oneDrive: OneDrive
   googleDrive: Google Drive
 aria:

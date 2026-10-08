@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
+import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { beginRun } from './store.ts';
 
@@ -131,6 +132,19 @@ describe('durable run admission', () => {
     });
     expect(writes).toHaveLength(2);
     expect(addJobInTx).toHaveBeenCalledTimes(2);
+  });
+
+  it('is born with the claim promise, never overdue for the sweep', async () => {
+    const { sql, writes } = fakeStore();
+    await beginRun(sql, args);
+    // version, then the promise, then the start: the promise lies one claim
+    // window past the start the step job continues from.
+    const [version, wakeAt, startedAt] = (writes[0] ?? []).filter(
+      (value): value is number => typeof value === 'number',
+    );
+    expect(version).toBe(1);
+    expect(wakeAt).toBe((startedAt ?? 0) + RUN_CLAIM_PROMISE_MS);
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
   });
 
   it('allows an explicitly saved version in mock mode [AUTO-R5]', async () => {

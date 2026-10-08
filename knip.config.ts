@@ -78,6 +78,10 @@ export default {
         // by the name it reads from the directory (`backend/db/migrate.ts`),
         // so nothing imports them statically.
         'backend/db/migrations/*.ts',
+        // Retained released declaration surface: native tests import its two
+        // execution entries, while the provenance guard reads every exact
+        // declaration through fs. Keep this single historical module closed.
+        'tests/fixtures/automation-legacy-v1/agent-flow.ts',
         // Playwright specs. The config now builds via the shared
         // `createPlaywrightConfig` factory (@tale/e2e), so knip's playwright
         // plugin can't statically read testDir/testMatch — declare them here.
@@ -283,10 +287,18 @@ export default {
         'scripts/check-deployment-acceptance.ts',
       ],
       project: ['**/*.ts'],
-      // The embedded native workflow validator imports Ajv from platform
-      // source. A CLI-only filtered install must provide that runtime edge,
-      // even though this workspace does not import the package directly.
-      ignoreDependencies: ['ajv'],
+      // The embedded native workflow validator imports Ajv and the
+      // expression parser (acorn, periscopic, zimmerframe, is-reference) from
+      // platform source. A CLI-only filtered install must provide those
+      // runtime edges, even though this workspace does not import them
+      // directly.
+      ignoreDependencies: [
+        'ajv',
+        'acorn',
+        'is-reference',
+        'periscopic',
+        'zimmerframe',
+      ],
     },
     'tools/plop': {
       entry: ['generators/**/*.ts', 'helpers/**/*.ts'],

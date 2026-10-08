@@ -43,8 +43,18 @@ describe('isPermanentFailureCode [AUTO-R13]', () => {
     'turn_crashed',
     'deadline',
     'harness_error',
+    // A run stopped on unreadable saved progress, or failed by a person at a
+    // write that may already have happened: a fresh run starts clean and
+    // repeats neither.
+    'engine_incompatible',
+    'effect_in_doubt',
   ])('leaves %s out', (code) => {
     expect(isPermanentFailureCode(code)).toBe(false);
+  });
+
+  it('names the interruption codes a run can carry', () => {
+    expect(RUN_FAILURE_CODES).toContain('engine_incompatible');
+    expect(RUN_FAILURE_CODES).toContain('effect_in_doubt');
   });
 
   it('leaves out a failure no site classified, and an unknown code', () => {

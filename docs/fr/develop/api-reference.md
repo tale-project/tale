@@ -742,20 +742,26 @@ Une fois l’exécution terminée, lis-la en entier pour obtenir `output`, la `t
 
 `status: waiting` ne signifie pas nécessairement qu’une personne doit intervenir. Consulte `waitingFor` :
 
-- `approval` attend une décision humaine ; `ask` attend une réponse à une question.
+- `approval` attend une décision humaine ; `ask` attend une réponse à une question ; `in_doubt` (depuis le contrat 3.18.0) attend qu’une personne décide de la suite : une écriture que l’exécution effectuait quand son serveur s’est arrêté a peut-être déjà atteint son service, ou peut-être pas.
 - `agent` attend la fin d’un tour d’agent ; `room` attend qu’un tour d’agent trouve une place de sandbox pour démarrer (depuis le contrat 3.14.0) ; `repeat` attend qu’un nœud atteigne sa condition `repeatUntil`. Ces trois états peuvent durer plusieurs minutes sans anomalie.
 
-Pour repérer les exécutions qui nécessitent une personne, filtre donc sur `waitingFor` égal à `approval` ou `ask`. `detail` identifie le point d’attente, par exemple `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>` ou `repeat:<nodeId>`. Après un échec, il contient l’explication de cet échec.
+Pour repérer les exécutions qui nécessitent une personne, filtre donc sur `waitingFor` égal à `approval`, `ask` ou `in_doubt`. `detail` identifie le point d’attente, par exemple `approval:<approvalId>`, `agent:<nodeId>`, `room:<nodeId>`, `repeat:<nodeId>` ou `in_doubt:<nodeId>`. Après un échec, il contient l’explication de cet échec.
+
+Une exécution en attente sur `in_doubt` se décide dans l’application, sur la page de l’exécution : relancer l’étape, l’ignorer ou faire échouer l’exécution. L’API signale ce point d’attente, mais ne permet pas de le résoudre.
+
+Une exécution peut changer de serveur en cours de route : un serveur mis à jour ou redémarré la transmet, et un autre la reprend quand le serveur qui l’exécute ne répond plus. Les étapes déjà terminées ne s’exécutent pas une seconde fois. Depuis le contrat 3.18.0, une exécution indique `resumeCount`, le nombre de ces changements, et `lastResume`, le dernier d’entre eux : sa raison `reason` (`shutdown` ou `lease_expired`) et son heure `at`. `stalled: true` signale une exécution `running` qu’aucun serveur n’exécute pour le moment ; un autre la reprend en une minute et demie environ. Un résumé omet ces trois champs tant qu’ils ne sont pas renseignés.
 
 `POST /api/v1/projects/{id}/runs/{runId}/cancel` arrête l’exécution à la prochaine limite entre nœuds. Il n’annule pas les effets déjà produits.
 
 Une exécution en échec expose un `failureCode` stable en plus du message lisible dans `detail`. Les autres états renvoient `null` ; une ancienne exécution en échec peut aussi ne pas avoir de code. Les résumés omettent un code non renseigné.
 
+Deux codes concernent une exécution interrompue (contrat 3.18.0). `engine_incompatible` signifie que cette version de Tale n’a pas pu lire la progression enregistrée de l’exécution et l’a arrêtée au lieu de la recommencer : aucune étape ne s’est exécutée deux fois. `effect_in_doubt` signifie qu’une personne a fait échouer l’exécution sur une écriture qui avait peut-être déjà atteint son service ; vérifie ce service avant de lancer une nouvelle exécution.
+
 Une exécution lancée par un déclencheur (`startedBy: "trigger:<id>"`) porte aussi `startedVia` — `schedule`, `webhook` ou `event` —, lu dans l’entrée de l’exécution elle-même : une liste distingue ainsi une exécution planifiée d’une livraison webhook, et une ancienne exécution garde son type même si la liaison change ensuite. Les exécutions lancées par une personne ou une clé API omettent ce champ (contrat 2.1.0).
 
 | Origine de l’échec | Exemples et action |
 | --- | --- |
-| Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
+| Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
 | Fournisseur de modèle | Par exemple `credit_exhausted` ou `rate_limited` : résous le problème du fournisseur avant un nouvel essai. |
 | Exécution d’agent | Par exemple `harness_error`, `session_gone`, `deadline` ou `budget_exceeded` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
 

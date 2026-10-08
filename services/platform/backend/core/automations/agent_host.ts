@@ -1819,6 +1819,11 @@ async function readCursorState(
 export async function driveWorkflowAgentTurnImpl(
   ctx: ActionCtx,
   args: TurnKeys,
+  options: {
+    /** Ends this window early with the turn still running — its server is
+     * stopping — so the next window, on another process, drains on. */
+    signal?: AbortSignal;
+  } = {},
 ): Promise<null> {
   // Orphan check: the run may have been cancelled, failed by the stepper's
   // deadline, or moved past this node. An orphan turn is cut, its key
@@ -1872,6 +1877,7 @@ export async function driveWorkflowAgentTurnImpl(
       harness: args.harness,
       onText: progress.onText,
       onTimeline: progress.onTimeline,
+      ...(options.signal !== undefined && { signal: options.signal }),
     });
   } catch (err) {
     console.error('[agent-host] drive window threw:', err);

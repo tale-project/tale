@@ -1,6 +1,3 @@
-/** Native HTTP/token, PostgreSQL and contention proof of independent agent
- * review. All source runs are inert fixtures, all queued agent work is held,
- * and the harness denies external provider traffic. */
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -13,6 +10,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import { AGENT_TOOL_CATALOG } from '../../core/sandbox/tool_names.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
+/** Native HTTP/token, PostgreSQL and contention proof of independent agent
+ * review. All source runs are inert fixtures, all queued agent work is held,
+ * and the harness denies external provider traffic. */
+import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import { insertSessionToken } from '../sandbox/sessions.ts';
 import { checkAgentReviewFiles } from './agent-review-files.integration.ts';
@@ -601,8 +602,11 @@ export async function checkAgentTaskReviews(
     }
     const protectedTask = await submitted('Protected automation ask');
     const protectedInput = await inputFor(protectedTask.taskId);
-    await sql`INSERT INTO app.automation_runs (org_id, project_id, name, version, status, mode, started_by, input, detail, started_at_ms)
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`INSERT INTO app.automation_runs (org_id, project_id, name, version, status, mode, started_by, input, detail, started_at_ms)
       VALUES (${orgId}, ${project}, ${`itest/review-${fx.suffix}`}, 1, 'waiting', 'live', ${editor}, ${sql.json({ task: { id: protectedTask.taskId } })}, 'agent:triage', ${fx.now})`;
+    });
     const protectedResult = await dispatch(token, protectedInput);
     record(
       'agent review: a live automation question remains protected',
@@ -902,7 +906,10 @@ export async function checkAgentTaskReviews(
     await sql`DELETE FROM app.sandbox_session_tokens WHERE token_hash IN ${sql(tokenHashes)}`;
     await sql`DELETE FROM app.sandbox_sessions WHERE org_id = ${orgId} AND session_id IN ${sql([...sessions])}`;
     await sql`DELETE FROM app.approvals WHERE org_id = ${orgId} AND metadata ->> 'projectId' IN ${sql([project, neighbor])}`;
-    await sql`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${`itest/review-${fx.suffix}`}`;
+    await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx`DELETE FROM app.automation_runs WHERE org_id = ${orgId} AND name = ${`itest/review-${fx.suffix}`}`;
+    });
     await sql`DELETE FROM app.projects WHERE id IN ${sql([project, neighbor, foreignProject])}`;
     await fx.teardownUsers();
     await release();

@@ -10,6 +10,7 @@ import { DatePicker } from './date-picker';
 import { NumberStepper } from './number-stepper';
 import { RecurrencePicker } from './recurrence-picker';
 import { Switch } from './switch';
+import { TimeField } from './time-field';
 import { ToggleChipGroup } from './toggle-chip-group';
 
 import '../../globals.css';
@@ -174,5 +175,92 @@ describe('recurrence controls keep their targets (real layout)', () => {
       expect(size(segment).height).toBeGreaterThanOrEqual(24);
       expect(size(segment).width).toBeGreaterThanOrEqual(24);
     }
+  });
+});
+
+describe('time field parts keep their targets (real layout)', () => {
+  it.each([
+    ['default', 1280],
+    ['default', 375],
+    ['sm', 1280],
+  ] as const)('gives every %s part 24px at %ipx', async (fieldSize, width) => {
+    await page.viewport(width, 800);
+    render(
+      <div className="p-8">
+        <TimeField
+          aria-label="Start"
+          hourCycle={12}
+          size={fieldSize}
+          value={{ hour: 21, minute: 5 }}
+          onValueChange={() => {}}
+        />
+      </div>,
+    );
+    const group = screen.getByRole('group', { name: 'Start' });
+    for (const part of within(group).getAllByRole('spinbutton')) {
+      expect(
+        size(part).width,
+        part.getAttribute('aria-label') ?? '',
+      ).toBeGreaterThanOrEqual(24);
+      expect(
+        size(part).height,
+        part.getAttribute('aria-label') ?? '',
+      ).toBeGreaterThanOrEqual(24);
+    }
+  });
+});
+
+describe('the schedule picker keeps its targets (real layout)', () => {
+  it('gives remove 32px, Add time and the window checkbox 24px, and every time part 24px', async () => {
+    await page.viewport(1280, 900);
+    render(
+      <div className="w-72 p-8">
+        <RecurrencePicker
+          granularity="time"
+          allowNever={false}
+          value={{
+            frequency: 'weekly',
+            interval: 1,
+            weekdays: [1, 2, 3, 4, 5],
+            times: ['09:00', '17:30'],
+          }}
+          reference={{ year: 2026, month: 9, day: 29, weekday: 2 }}
+          onChange={() => {}}
+        />
+      </div>,
+    );
+    screen.getByRole('button', { name: /^Schedule:/ }).click();
+    const dialog = await screen.findByRole('dialog', { name: 'Schedule' });
+    for (const row of within(dialog).getAllByRole('radio')) {
+      expect(size(row).height).toBeCloseTo(36, 0);
+    }
+    within(dialog).getByRole('button', { name: 'Custom times' }).click();
+    const at = await within(dialog).findByRole('list', { name: 'At' });
+    await Promise.all(
+      dialog
+        .getAnimations({ subtree: true })
+        .map((animation) => animation.finished),
+    );
+    for (const remove of within(at).getAllByRole('button', {
+      name: /^Remove/,
+    })) {
+      expect(size(remove).width).toBeCloseTo(32, 0);
+      expect(size(remove).height).toBeCloseTo(32, 0);
+    }
+    for (const part of within(at).getAllByRole('spinbutton')) {
+      expect(size(part).width).toBeGreaterThanOrEqual(24);
+      expect(size(part).height).toBeGreaterThanOrEqual(24);
+    }
+    const add = within(dialog).getByRole('button', { name: 'Add time' });
+    expect(size(add).height).toBeGreaterThanOrEqual(24);
+    within(dialog).getByRole('button', { name: 'Back to presets' }).click();
+    (
+      await within(dialog).findByRole('button', { name: 'Custom interval' })
+    ).click();
+    const checkbox = await within(dialog).findByRole('checkbox', {
+      name: 'Only between',
+    });
+    // 16px box, 24px target: a tap just outside the box still lands.
+    expect(tapsAround(checkbox, 3.5)).toEqual(everywhere);
   });
 });

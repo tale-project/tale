@@ -194,6 +194,7 @@ deleteFile:
 breadcrumb:
   navigation: Brotkrumennavigation
   documents: Dokumente
+  loadFailed: Der Ordnerpfad konnte nicht geladen werden. Versuche es erneut.
   oneDrive: OneDrive
   googleDrive: Google Drive
 aria:
