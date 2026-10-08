@@ -23,15 +23,42 @@ export const ISSUE_SEVERITY_ICON: Readonly<Record<IssueSeverity, LucideIcon>> =
 /**
  * The glyph's colour per severity. Only the ICON is amber for a warning —
  * amber text fails AA on a light surface, so warning text stays
- * `text-foreground`. The amber pair is the one `Alert`'s warning variant
- * paints its icon with.
+ * `text-foreground`. The glyph alone tells a warning from an error by
+ * sight, so it keeps 3:1 (WCAG 1.4.11) on every surface a list row sits
+ * on, its hover and current-row fill included: amber-700 holds 4.6:1 even
+ * on `bg-muted`, where amber-600 drops to 2.9:1. Dark keeps amber-500
+ * (7:1 or more on every dark surface).
  */
 export const ISSUE_SEVERITY_ICON_CLASS: Readonly<
   Record<IssueSeverity, string>
 > = {
   error: 'text-destructive',
-  warning: 'text-amber-600 dark:text-amber-500',
+  warning: 'text-amber-700 dark:text-amber-500',
   info: 'text-muted-foreground',
+};
+
+/**
+ * A count chip's fill and text per blocking severity: a tint of the
+ * severity's colour under text that keeps AA on it (4.7:1 or more on every
+ * surface, light and dark). The chip's glyph takes the text colour.
+ */
+export const ISSUE_SEVERITY_CHIP_CLASS: Readonly<
+  Record<Exclude<IssueSeverity, 'info'>, string>
+> = {
+  error: 'bg-destructive/10 text-destructive',
+  warning: 'bg-amber-500/15 text-amber-800 dark:text-amber-300',
+};
+
+/**
+ * The border colour of a part that holds a problem (a flow node's frame).
+ * Both clear 3:1 against the page and a card in either theme. A frame
+ * repeats what a chip or a message already says, so it may stay amber-600.
+ */
+export const ISSUE_SEVERITY_FRAME_CLASS: Readonly<
+  Record<Exclude<IssueSeverity, 'info'>, string>
+> = {
+  error: 'border-destructive',
+  warning: 'border-amber-600 dark:border-amber-500',
 };
 
 export interface IssueSeverityIconProps {

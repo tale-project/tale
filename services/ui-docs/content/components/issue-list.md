@@ -19,6 +19,8 @@ Pass `onActivate` and every row becomes a button. Choose a row and the example r
 
 The list is a single tab stop. Up and Down move between rows, Home and End jump to the first and last, and Enter or Space activates the row. A row's **Technical details** and **Learn more** join the tab order only while that row is the current one, so Tab moves from the row through its own details and then out of the list. **Go to** appears beside the code on hover and keyboard focus.
 
+The list lays out its rows by its own width, so give it the full width of its column. When the list is narrower than 32rem, for example in a phone sheet or a side panel, the code moves under the location so a long title keeps the width to wrap in. **Go to** is left out there, because the whole row is the button and nothing hovers a phone. Every row is at least 36px tall.
+
 When you cannot take the reader to a problem, for example because the editor has no control for that part, set `unavailableReason`. The row stays focusable and readable, says the reason on the row itself, and ignores activation. The reason is not a tooltip, because a tooltip never appears on a touch screen.
 
 ## Write each problem for the reader
@@ -37,9 +39,9 @@ When you cannot take the reader to a problem, for example because the editor has
 | `docsHref` | Opens **Learn more** in a new tab. |
 | `unavailableReason` | Why going to this problem is not possible here. |
 
-Translate every field before you pass it in; the list adds only its own labels, from the package's `issues` catalog. Severity never relies on colour: each row has the severity's icon (a crossed circle, a warning triangle, an info circle) and a visually hidden "Error:", "Warning:" or "Note:" before the title. The row's accessible name is the severity, title and location; its description is the explanation and cause. Only the error icon is red and only the warning icon is amber. Warning text stays in the foreground colour, because amber text does not reach AA contrast on a light surface.
+Translate every field before you pass it in; the list adds only its own labels, from the package's `issues` catalog. Severity never relies on colour: each row has the severity's icon (a crossed circle, a warning triangle, an info circle) and a visually hidden "Error:", "Warning:" or "Note:" before the title. The row's accessible name is the severity, title and location; its description is the explanation and cause. Only the error icon is red and only the warning icon is amber. Warning text stays in the foreground colour, because amber text does not reach AA contrast on a light surface. The warning icon is a deeper amber in the light theme, so it keeps 3:1 contrast on a muted surface and on a row's hover fill.
 
-`IssueSeverityIcon`, `ISSUE_SEVERITY_ICON` and `ISSUE_SEVERITY_ICON_CLASS` from `@tale/ui/issue-severity` give other surfaces the same glyphs and colours. The icon is decorative unless you pass `label`.
+`IssueSeverityIcon`, `ISSUE_SEVERITY_ICON` and `ISSUE_SEVERITY_ICON_CLASS` from `@tale/ui/issue-severity` give other surfaces the same glyphs and colours. The icon is decorative unless you pass `label`. `ISSUE_SEVERITY_CHIP_CLASS` colours a count chip and `ISSUE_SEVERITY_FRAME_CLASS` colours the border of a part that holds a problem. Take the warning amber from these constants rather than writing it again.
 
 ## Show checking, failure and nothing to fix
 
@@ -58,7 +60,7 @@ The dimmed states are meant to last a moment. If a result can stay out of date f
 
 ## Count and announce the result
 
-`IssueCountButton` is the toggle of a problems panel. It shows a red count and an amber count, "No problems" when both are zero, a spinner beside the last counts while `status` is `checking`, and "Couldn't check" when it is `failed`. Its accessible name says the counts in words, such as "Problems: 2 errors and 1 warning". Pass `expanded` and `controls` for the panel it opens. A changed count pops once, the same way `CountBadge` does; reduced motion keeps it still.
+`IssueCountButton` is the toggle of a problems panel. It shows a red count and an amber count, "No problems" when both are zero, and "Couldn't check" when `status` is `failed`. While `status` is `checking` it keeps the last counts and shows a spinner in place of the first count's icon. With no counts to keep, it shows "Checking…" where "No problems" stood. A check runs at every pause in typing, so the button keeps its width and the toolbar around it does not shift. Its accessible name says the counts in words, such as "Problems: 2 errors and 1 warning". Pass `expanded` and `controls` for the panel it opens. A changed count pops once, the same way `CountBadge` does; reduced motion keeps it still.
 
 `IssueAnnouncer` speaks a settled result to screen readers through a visually hidden polite status region. It speaks once for each new `announceKey` while `status` is `ready`, and never for the key it mounts with. Key it by finished check rather than by keystroke. Add `context` when the result answers something, such as "Saving was refused". Mount one announcer per surface and let it be the only thing that announces the result; the field messages and the list do not announce themselves.
 

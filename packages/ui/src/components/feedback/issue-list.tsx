@@ -91,9 +91,22 @@ export interface IssueListProps {
   className?: string;
 }
 
-/** The row grid: icon · title and location · code and "go to". */
+/**
+ * The row grid: icon · title and location · code and "go to". The list is a
+ * size container, and the trailing column needs room: below 32rem (a phone,
+ * a side panel) the code drops under the location instead, so a long title
+ * keeps the width to wrap in. Every row is at least 36px tall.
+ */
 const ROW_GRID =
-  'grid w-full grid-cols-[1rem_minmax(0,1fr)_auto] gap-x-2 gap-y-0.5 px-3 py-2 text-left';
+  'grid min-h-9 w-full grid-cols-[1rem_minmax(0,1fr)] gap-x-2 gap-y-0.5 px-3 py-2 text-left @lg/issue-list:grid-cols-[1rem_minmax(0,1fr)_auto]';
+
+/** The grid row the code takes in a narrow list: the first one free under
+ * the title, after the location and the "can't go there" reason. */
+const NARROW_CODE_ROW = ['row-start-2', 'row-start-3', 'row-start-4'] as const;
+
+/** Opacity changes on the motion tokens; reduced motion makes them instant. */
+const FADE =
+  'transition-opacity duration-[var(--duration-short)] ease-[var(--ease-out-quint)] motion-reduce:transition-none';
 
 interface IssueDetailIds {
   explanation?: string;
@@ -223,6 +236,8 @@ function RowContent({
   goTo?: string;
 }) {
   const hasLocation = issue.location !== undefined;
+  const narrowCodeRow =
+    NARROW_CODE_ROW[(hasLocation ? 1 : 0) + (reasonId === undefined ? 0 : 1)];
   return (
     <>
       <IssueSeverityIcon
@@ -252,17 +267,29 @@ function RowContent({
         </span>
       )}
       {(issue.code !== undefined || goTo !== undefined) && (
+        // Narrow: the code on a line of its own under the title column, and
+        // no "go to" hint — the whole row is the button, and nothing hovers
+        // a phone. Wide: both on the trailing edge.
         <span
           aria-hidden="true"
-          className="col-start-3 row-span-2 row-start-1 flex flex-col items-end gap-0.5"
+          className={cn(
+            'col-start-2 gap-0.5 @lg/issue-list:col-start-3 @lg/issue-list:row-span-2 @lg/issue-list:row-start-1 @lg/issue-list:flex @lg/issue-list:flex-col @lg/issue-list:items-end',
+            narrowCodeRow,
+            issue.code === undefined ? 'hidden' : 'flex',
+          )}
         >
           {issue.code !== undefined && (
-            <span className="text-muted-foreground font-mono text-xs">
+            <span className="text-muted-foreground font-mono text-xs break-words">
               {issue.code}
             </span>
           )}
           {goTo !== undefined && (
-            <span className="text-muted-foreground inline-flex items-center gap-1 text-xs opacity-0 transition-opacity duration-[var(--duration-short)] group-hover/issue:opacity-100 group-focus-visible/issue:opacity-100 motion-reduce:transition-none">
+            <span
+              className={cn(
+                'text-muted-foreground hidden items-center gap-1 text-xs opacity-0 group-hover/issue:opacity-100 group-focus-visible/issue:opacity-100 @lg/issue-list:inline-flex',
+                FADE,
+              )}
+            >
               <CornerDownLeft className="size-3.5" />
               {goTo}
             </span>
@@ -283,6 +310,9 @@ function RowContent({
  * Enter or Space activates. A row's "Technical details" and "Learn more"
  * join the tab order only while that row is the current one, so Tab goes
  * row → its details → out. Without `onActivate` the rows are plain text.
+ *
+ * The list is a size container (`@container/issue-list`) and fills the
+ * width of its column; under 32rem a row's code moves under its title.
  */
 export const IssueList = forwardRef<IssueListHandle, IssueListProps>(
   function IssueList(
@@ -375,17 +405,15 @@ export const IssueList = forwardRef<IssueListHandle, IssueListProps>(
     const failed = status === 'failed';
     const listLabel =
       ariaLabelledBy === undefined ? (ariaLabel ?? t('listLabel')) : undefined;
-    const dimClass = cn(
-      'transition-opacity duration-[var(--duration-short)] motion-reduce:transition-none',
-      dimmed && 'opacity-60',
-    );
+    const dimClass = cn(FADE, dimmed && 'opacity-60');
 
     return (
       <div
         ref={swapRef}
         data-slot="issue-list"
         data-status={status}
-        className={className}
+        // Rows lay out by the list's own width, not the window's.
+        className={cn('@container/issue-list', className)}
         aria-busy={status === 'checking' || undefined}
       >
         {failed && (

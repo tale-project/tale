@@ -72,17 +72,46 @@ describe('IssueCountButton', () => {
     ).toHaveTextContent('No problems');
   });
 
-  it('keeps the last counts beside "Checking…" while a check runs', () => {
-    render(
+  it('keeps the last counts in place while a check runs, the spinner in the first glyph', () => {
+    const { container, rerender } = render(
+      <IssueCountButton counts={{ errors: 1, warnings: 2 }} />,
+    );
+    const glyphs = () =>
+      [...container.querySelectorAll('svg')].map((svg) =>
+        svg.getAttribute('class'),
+      );
+    expect(glyphs()).toEqual([
+      expect.stringContaining('lucide-circle-x'),
+      expect.stringContaining('lucide-triangle-alert'),
+    ]);
+    rerender(
       <IssueCountButton
-        counts={{ errors: 1, warnings: 0 }}
+        counts={{ errors: 1, warnings: 2 }}
         status="checking"
       />,
     );
     const button = screen.getByRole('button', {
-      name: 'Problems: 1 error. Checking…',
+      name: 'Problems: 1 error and 2 warnings. Checking…',
     });
-    expect(button).toHaveTextContent('Checking…1');
+    // The same text, so the same width: a check at every pause in typing
+    // never moves the toolbar around the button.
+    expect(button).toHaveTextContent(/^12$/);
+    expect(glyphs()).toEqual([
+      expect.stringContaining('motion-safe:animate-spin'),
+      expect.stringContaining('lucide-triangle-alert'),
+    ]);
+  });
+
+  it('says "Checking…" in place of "No problems" while a check runs', () => {
+    render(
+      <IssueCountButton
+        counts={{ errors: 0, warnings: 0 }}
+        status="checking"
+      />,
+    );
+    expect(
+      screen.getByRole('button', { name: 'Problems: Checking…' }),
+    ).toHaveTextContent(/^Checking…$/);
   });
 
   it('says it could not check', () => {

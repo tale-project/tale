@@ -70,21 +70,40 @@ export interface IssueCountButtonProps {
   className?: string;
 }
 
-/** A count that pops once when it changes — `CountBadge`'s recipe. */
+/** The spinner of a running check, in a glyph's place. */
+function CheckingGlyph() {
+  return (
+    <LoaderCircle
+      aria-hidden="true"
+      className="text-muted-foreground size-4 shrink-0 motion-safe:animate-spin"
+    />
+  );
+}
+
+/** A count that pops once when it changes — `CountBadge`'s recipe, on the
+ * motion tokens: the medium duration, landing on the out-quint ease. While a
+ * check runs the spinner takes its glyph's place, as `Button`'s does: the
+ * button keeps its width, so the toolbar around it never jumps. */
 function CountPart({
   count,
   severity,
+  checking = false,
 }: {
   count: number;
   severity: 'error' | 'warning';
+  checking?: boolean;
 }) {
   const Icon = severity === 'error' ? CircleX : TriangleAlert;
   return (
-    <span className="animate-in zoom-in-50 inline-flex items-center gap-1 duration-300 motion-reduce:animate-none">
-      <Icon
-        aria-hidden="true"
-        className={cn('size-4 shrink-0', ISSUE_SEVERITY_ICON_CLASS[severity])}
-      />
+    <span className="animate-in zoom-in-50 inline-flex items-center gap-1 duration-[var(--duration-medium)] ease-[var(--ease-out-quint)] motion-reduce:animate-none">
+      {checking ? (
+        <CheckingGlyph />
+      ) : (
+        <Icon
+          aria-hidden="true"
+          className={cn('size-4 shrink-0', ISSUE_SEVERITY_ICON_CLASS[severity])}
+        />
+      )}
       {count}
     </span>
   );
@@ -96,6 +115,10 @@ function CountPart({
  * check" when it failed. Its accessible name says it in words ("Problems:
  * 2 errors and 1 warning"), since the glyphs alone mean nothing to a screen
  * reader. A changed number pops once; reduced motion keeps it still.
+ *
+ * A check runs at every pause in typing, so it never changes the button's
+ * width: the last counts stay and the spinner takes the first one's glyph
+ * (with none, "Checking…" stands where "No problems" did).
  */
 export const IssueCountButton = forwardRef<
   HTMLButtonElement,
@@ -120,21 +143,33 @@ export const IssueCountButton = forwardRef<
 
   let name: string;
   if (status === 'failed') name = t('buttonLabelFailed');
-  else if (status === 'checking') name = t('buttonLabelChecking', { summary });
-  else if (total === 0) name = summary;
+  // With no counts to keep, a running check claims nothing: "Problems:
+  // Checking…", never "No problems" before the result is in.
+  else if (status === 'checking' && total === 0) {
+    name = t('buttonLabel', { summary: t('checking') });
+  } else if (status === 'checking') {
+    name = t('buttonLabelChecking', { summary });
+  } else if (total === 0) name = summary;
   else name = t('buttonLabel', { summary });
 
+  const checking = status === 'checking';
   const parts =
     total === 0 ? null : (
       <>
         {errors > 0 && (
-          <CountPart key={`errors-${errors}`} count={errors} severity="error" />
+          <CountPart
+            key={`errors-${errors}`}
+            count={errors}
+            severity="error"
+            checking={checking}
+          />
         )}
         {warnings > 0 && (
           <CountPart
             key={`warnings-${warnings}`}
             count={warnings}
             severity="warning"
+            checking={checking && errors === 0}
           />
         )}
       </>
@@ -151,15 +186,11 @@ export const IssueCountButton = forwardRef<
         <span>{t('checkFailed')}</span>
       </>
     );
-  } else if (status === 'checking') {
+  } else if (checking && total === 0) {
     content = (
       <>
-        <LoaderCircle
-          aria-hidden="true"
-          className="text-muted-foreground size-4 shrink-0 motion-safe:animate-spin"
-        />
+        <CheckingGlyph />
         <span>{t('checking')}</span>
-        {parts}
       </>
     );
   } else if (total === 0) {

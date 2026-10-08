@@ -265,6 +265,67 @@ describe.each(['light', 'dark'])('IssueList contrast (%s)', (theme) => {
   );
 });
 
+describe('IssueList — width', () => {
+  function parts() {
+    const row = rowOf(/Reads a node/);
+    return {
+      row: row.getBoundingClientRect(),
+      title: within(row)
+        .getByText('Reads a node that does not exist')
+        .getBoundingClientRect(),
+      location: within(row)
+        .getByText('Draft reply › Prompt')
+        .getBoundingClientRect(),
+      code: within(row).getByText('REF_UNKNOWN_NODE').getBoundingClientRect(),
+      goTo: within(row).getByText('Go to'),
+    };
+  }
+
+  it('drops the code under the location when the list is narrow, so the title keeps the width', () => {
+    render(
+      <div className="w-80">
+        <IssueList issues={ISSUES} onActivate={() => {}} />
+      </div>,
+    );
+    const { row, title, location, code, goTo } = parts();
+    expect(code.top).toBeGreaterThanOrEqual(location.bottom);
+    expect(code.left).toBeCloseTo(title.left, 0);
+    // The title runs to the row's padding, not to a trailing column.
+    expect(row.right - title.right).toBeLessThan(16);
+    // Nothing hovers a phone: the whole row is the button.
+    expect(getComputedStyle(goTo).display).toBe('none');
+    expect(row.height).toBeGreaterThanOrEqual(36);
+  });
+
+  it('keeps the code and "go to" on the trailing edge when the list is wide', () => {
+    render(
+      <div className="w-[40rem]">
+        <IssueList issues={ISSUES} onActivate={() => {}} />
+      </div>,
+    );
+    const { row, title, code, goTo } = parts();
+    expect(code.top).toBeCloseTo(title.top, -1);
+    expect(code.left).toBeGreaterThan(title.right);
+    expect(row.right - code.right).toBeCloseTo(12, 0);
+    // Laid out (blockified in its flex column), shown on hover and focus.
+    expect(getComputedStyle(goTo).display).toBe('flex');
+  });
+
+  it('keeps every row at least 36px tall', () => {
+    render(
+      <div className="w-80">
+        <IssueList
+          issues={[{ id: 'bare', severity: 'info', title: 'A note' }]}
+          onActivate={() => {}}
+        />
+      </div>,
+    );
+    expect(
+      rowOf(/A note/).getBoundingClientRect().height,
+    ).toBeGreaterThanOrEqual(36);
+  });
+});
+
 describe('IssueList — motion', () => {
   it('fades the "go to" hint and the dim by opacity alone', () => {
     render(

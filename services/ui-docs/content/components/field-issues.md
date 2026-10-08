@@ -21,7 +21,7 @@ The prompt reads a node that does not exist. Choose the problem in the list: foc
 
 Pass `issues` to `Field`, each with an `id`, a `severity` of `error` or `warning`, and a translated `message`. Each problem gets its own line under the control, with the severity icon and a visually hidden "Error:" or "Warning:". Error text uses the destructive colour. Warning text stays in the foreground colour beside an amber icon.
 
-Every line is added to the control's `aria-describedby`, after any `error` and before the description. An error among them sets `aria-invalid`; warnings alone do not. The lines are never an alert, so a screen reader does not repeat them at every keystroke. Announce the check's result once with [`IssueAnnouncer`](/docs/components/issue-list#count-and-announce-the-result). Unlike `error`, `issues` leave the description in place.
+Every line is added to the control's `aria-describedby`, after any `error` and before the description. An error among them sets `aria-invalid` and draws the control's border in the destructive colour, as `error` does; warnings alone do neither. The lines are never an alert, so a screen reader does not repeat them at every keystroke. Announce the check's result once with [`IssueAnnouncer`](/docs/components/issue-list#count-and-announce-the-result). Unlike `error`, `issues` leave the description in place.
 
 `Field` passes these attributes to its single child element. In a custom layout built on `FieldShell`, render `FieldIssueMessages` with an `idPrefix` and join `fieldIssueDescribedBy(idPrefix, issues)` into the control's `aria-describedby` yourself.
 

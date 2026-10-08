@@ -4,6 +4,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
 import { Field } from './field';
+import { FIELD_INVALID } from './field-focus';
 import { Input } from './input';
 
 describe('Field', () => {
@@ -26,6 +27,26 @@ describe('Field', () => {
     );
     expect(getByRole('textbox')).toHaveAttribute('aria-invalid', 'true');
     expect(getByRole('alert')).toHaveTextContent('Required');
+  });
+
+  it("draws the design's Error state on the control: the destructive border", () => {
+    const { getByRole, rerender } = render(
+      <Field label="Email" htmlFor="email" error="Required">
+        <Input id="email" className="font-mono" />
+      </Field>,
+    );
+    // The control's own classes stay; the invalid border joins them.
+    expect(getByRole('textbox')).toHaveClass(
+      'font-mono',
+      ...FIELD_INVALID.split(' '),
+    );
+    rerender(
+      <Field label="Email" htmlFor="email">
+        <Input id="email" className="font-mono" />
+      </Field>,
+    );
+    expect(getByRole('textbox')).toHaveClass('font-mono');
+    expect(getByRole('textbox')).not.toHaveClass('border-destructive');
   });
 
   describe('issues', () => {
@@ -69,12 +90,14 @@ describe('Field', () => {
         </Field>,
       );
       expect(getByRole('textbox')).toHaveAttribute('aria-invalid', 'true');
+      expect(getByRole('textbox')).toHaveClass('border-destructive');
       rerender(
         <Field label="Prompt" htmlFor="prompt" issues={ISSUES.slice(1)}>
           <Input id="prompt" />
         </Field>,
       );
       expect(getByRole('textbox')).not.toHaveAttribute('aria-invalid');
+      expect(getByRole('textbox')).not.toHaveClass('border-destructive');
     });
 
     it('never raises an alert for them', () => {

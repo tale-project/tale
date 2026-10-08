@@ -366,7 +366,7 @@ issues:
   buttonLabel: 'Problèmes : {summary}'
   buttonLabelChecking: 'Problèmes : {summary}. Vérification en cours…'
   buttonLabelFailed: 'Problèmes : vérification impossible'
-  checking: Vérification en cours…
+  checking: Vérification…
   checkFailed: Vérification impossible
   announce: '{context}. {summary}'
   nodeSummary: '({summary})'

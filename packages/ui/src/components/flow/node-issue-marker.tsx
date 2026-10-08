@@ -2,6 +2,10 @@ import { CircleX, TriangleAlert } from 'lucide-react';
 
 import { cn } from '../../lib/cn';
 import {
+  ISSUE_SEVERITY_CHIP_CLASS,
+  ISSUE_SEVERITY_FRAME_CLASS,
+} from '../feedback/issue-severity';
+import {
   formatIssueCounts,
   type IssueCounts,
   type IssueTranslate,
@@ -14,7 +18,7 @@ export interface FlowNodeIssueMarkerProps {
 }
 
 const CHIP =
-  'animate-in fade-in inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-xs font-medium tabular-nums duration-[var(--duration-short)] motion-reduce:animate-none';
+  'animate-in fade-in inline-flex h-5 items-center gap-1 rounded-full px-1.5 text-xs font-medium tabular-nums duration-[var(--duration-short)] ease-[var(--ease-out-quint)] motion-reduce:animate-none';
 
 /**
  * The problem counts on a flow node's face: a red chip for errors, an amber
@@ -40,7 +44,7 @@ export function FlowNodeIssueMarker({
       {errors > 0 && (
         <span
           data-severity="error"
-          className={cn(CHIP, 'bg-destructive/10 text-destructive')}
+          className={cn(CHIP, ISSUE_SEVERITY_CHIP_CLASS.error)}
         >
           <CircleX className="size-3 shrink-0" />
           {errors}
@@ -49,10 +53,7 @@ export function FlowNodeIssueMarker({
       {warnings > 0 && (
         <span
           data-severity="warning"
-          className={cn(
-            CHIP,
-            'bg-amber-500/15 text-amber-800 dark:text-amber-300',
-          )}
+          className={cn(CHIP, ISSUE_SEVERITY_CHIP_CLASS.warning)}
         >
           <TriangleAlert className="size-3 shrink-0" />
           {warnings}
@@ -84,7 +85,7 @@ export function flowNodeIssueText(
  * problem shows both.
  */
 export function flowNodeIssueFrameClass(counts: IssueCounts): string {
-  if (counts.errors > 0) return 'border-destructive';
-  if (counts.warnings > 0) return 'border-amber-600 dark:border-amber-500';
+  if (counts.errors > 0) return ISSUE_SEVERITY_FRAME_CLASS.error;
+  if (counts.warnings > 0) return ISSUE_SEVERITY_FRAME_CLASS.warning;
   return '';
 }

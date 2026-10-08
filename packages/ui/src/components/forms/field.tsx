@@ -6,6 +6,8 @@ import {
   useId,
 } from 'react';
 
+import { cn } from '../../lib/cn';
+import { FIELD_INVALID } from './field-focus';
 import {
   type FieldIssue,
   FieldIssueMessages,
@@ -23,7 +25,8 @@ export interface FieldProps {
   /**
    * Problems a check found with this field's value, one line each under the
    * control. They describe the control (`aria-describedby`) and an error
-   * among them marks it invalid, but they are never an alert: the check's
+   * among them marks it invalid (`aria-invalid` and the destructive border,
+   * as `error` does), but they are never an alert: the check's
    * result is announced once elsewhere, not at every keystroke. Unlike
    * `error`, they leave the description in place.
    */
@@ -53,11 +56,12 @@ export function Field({
   const describedBy =
     [errorId, issuesId, descriptionId].filter(Boolean).join(' ') || undefined;
 
-  // Inject aria-describedby (and aria-invalid when an error, or an error
-  // among the issues, is present) into the first child element if it's a
-  // single valid element. This is best-effort: call sites where children
-  // isn't a single element (e.g. a label-wrapped checkbox) will simply not
-  // receive the props, leaving existing behavior.
+  // Inject aria-describedby (and, when an error or an error among the issues
+  // is present, aria-invalid and the destructive border of the design's
+  // Error state) into the first child element if it's a single valid
+  // element. This is best-effort: call sites where children isn't a single
+  // element (e.g. a label-wrapped checkbox) will simply not receive the
+  // props, leaving existing behavior.
   let enhancedChildren: ReactNode = children;
   const onlyChild = Children.count(children) === 1 ? children : null;
   if (
@@ -73,9 +77,16 @@ export function Field({
     const rawInvalid = childProps['aria-invalid'];
     const fallbackInvalid =
       typeof rawInvalid === 'boolean' ? rawInvalid : undefined;
+    const rawClassName = childProps['className'];
     enhancedChildren = cloneElement(onlyChild, {
       'aria-describedby': merged,
       'aria-invalid': invalid ? true : fallbackInvalid,
+      ...(invalid && {
+        className: cn(
+          typeof rawClassName === 'string' ? rawClassName : undefined,
+          FIELD_INVALID,
+        ),
+      }),
     });
   }
 
