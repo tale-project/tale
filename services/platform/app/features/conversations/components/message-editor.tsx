@@ -229,13 +229,18 @@ function MilkdownEditorInner({
       } catch (error) {
         console.error('Failed to improve content:', error);
         // No provider is a configuration fact the person can act on; every
-        // other refusal carries the door's own sentence.
+        // other refusal carries the door's own sentence — a reached usage
+        // limit's names the limit and when it resets, under its own title.
+        const code = backendErrorCode(error);
         const description =
-          backendErrorCode(error) === 'IMPROVE_UNAVAILABLE'
+          code === 'IMPROVE_UNAVAILABLE'
             ? tConversations('editor.improveUnavailable')
             : backendErrorMessage(error, '');
         toast({
-          title: tConversations('editor.improveFailed'),
+          title:
+            code === 'BUDGET_EXCEEDED'
+              ? tConversations('editor.improveLimitReached')
+              : tConversations('editor.improveFailed'),
           ...(description ? { description } : {}),
           variant: 'destructive',
         });

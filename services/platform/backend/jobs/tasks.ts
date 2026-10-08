@@ -148,6 +148,8 @@ export interface TaskPayloads {
     threadId: string;
     userId: string;
     firstMessage: string;
+    /** The API key that sent the message, when one did. */
+    apiKeyId?: string;
   };
   /** One readiness-poll step of a parked send — self-chaining until the
    * media settle and the thread idles, then claims and runs the turn. */

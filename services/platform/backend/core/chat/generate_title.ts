@@ -4,6 +4,7 @@ import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
+import { estimateTokens } from '../../../lib/chat/types';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { createBuilderModel } from '../automations_builder/model_call';
 import type { ActionCtx } from '../lib/ctx';
@@ -54,6 +55,16 @@ export interface PreferredChatModel {
  * thinking-by-default model with no off literal spends the title's whole
  * 48-token budget reasoning and answers nothing — a paid miss.
  */
+/** The accessible models the governance read answered, off the untyped
+ * ctx seam; none when it answered something else. */
+function accessibleModelRefsOf(value: unknown): string[] {
+  if (typeof value !== 'object' || value === null) return [];
+  const refs: unknown = Reflect.get(value, 'accessibleModelRefs');
+  return Array.isArray(refs)
+    ? refs.filter((ref): ref is string => typeof ref === 'string')
+    : [];
+}
+
 function runsWithoutThinking(entry: ModelCatalogEntry): boolean {
   return entry.reasoning === undefined || entry.reasoning.off !== undefined;
 }
@@ -82,6 +93,9 @@ export async function pickDirectModel(
   ctx: ActionCtx,
   organizationId: string,
   preferred: PreferredChatModel | null,
+  /** Whose call it is: only a model the organization's model access rules
+   * let them use is picked, as for their chat turns. */
+  userId: string,
 ): Promise<DirectModelTarget | null> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
 
@@ -119,12 +133,32 @@ export async function pickDirectModel(
     });
   }
 
+  // The models the member may use, under the organization's model access
+  // rules — one read for every candidate, as the composer's picker filters.
+  const governance: unknown = await ctx.runQuery(
+    internal.governance.internal_queries.resolveModelGovernanceInternal,
+    {
+      organizationId,
+      userId,
+      supportedModels: [
+        ...new Set(
+          candidates.flatMap((candidate) =>
+            candidate.catalog.map((entry) => entry.id),
+          ),
+        ),
+      ],
+    },
+  );
+  const accessible = new Set(accessibleModelRefsOf(governance));
+
   // The shared allowlist predicate (dialect-equivalent ids admit) — the
   // one the picker, the serving checks and the voice resolvers apply.
   const permits = (
     candidate: (typeof candidates)[number],
     modelId: string,
-  ): boolean => modelAllowlistPermits(candidate.allowlist, modelId);
+  ): boolean =>
+    accessible.has(modelId) &&
+    modelAllowlistPermits(candidate.allowlist, modelId);
 
   const walk = (
     admits: (entry: ModelCatalogEntry) => boolean,
@@ -176,37 +210,102 @@ export async function pickDirectModel(
  *  naming it cost" instead of blending them. */
 export const TITLE_AGENT_SLUG = 'thread-title';
 
-/** What one naming attempt produced: the title, and what it SPENT. Naming a
- *  thread is a real model call — small, but paid for — so the tokens leave
- *  this function even when the title does not. */
-interface TitleAttempt {
-  readonly title: string | null;
-  readonly spend?: {
-    readonly model: string;
-    readonly provider: string;
-    readonly inputTokens: number;
-    readonly outputTokens: number;
-  };
+/** Where a naming attempt's call is held and booked. Injected rather than
+ *  reached for, the way the connector bridge takes its dispatch: this body
+ *  runs on a ctx shim that has no ledger of its own. Naming a thread is a
+ *  model call the organization pays for — small, but held against the
+ *  member's limits while it runs and booked after it, whether or not its
+ *  reply makes a usable title. */
+export interface TitleMeter {
+  /** Hold the call's worst case; `null` when a limit refuses it. */
+  open(call: {
+    provider: string;
+    model: string;
+    promptTokens: number;
+    maxOutputTokens: number;
+  }): Promise<{ lease: unknown } | null>;
+  /** Book what the call reported in its hold's place. */
+  settle(
+    lease: unknown,
+    usage: {
+      provider: string;
+      model: string;
+      inputTokens: number;
+      outputTokens: number;
+    },
+  ): Promise<void>;
+  /** Release the hold of a call that reported nothing. */
+  release(lease: unknown): Promise<void>;
 }
 
-/** One model attempt at a title. Never throws — every miss (no model,
- * provider failure, empty reply) means "use the fallback", so errors are
- * logged here rather than escaping past the fallback write. */
+/** One model attempt at a title. Never throws — every miss (no model, a
+ * reached limit, provider failure, empty reply) means "use the fallback",
+ * so errors are logged here rather than escaping past the fallback write. */
 async function generateWithModel(
   ctx: ActionCtx,
   organizationId: string,
   userId: string,
   firstMessage: string,
   signal: AbortSignal,
-): Promise<TitleAttempt> {
+  meter: TitleMeter | undefined,
+): Promise<string | null> {
   let target: DirectModelTarget | null = null;
+  let lease: unknown;
+  const book = async (usage: { prompt: number; completion: number }) => {
+    if (meter === undefined || target === null) return;
+    await meter
+      .settle(lease, {
+        provider: target.providerSlug,
+        model: target.modelId,
+        inputTokens: usage.prompt,
+        outputTokens: usage.completion,
+      })
+      .catch((error: unknown) => {
+        // Best-effort: a ledger failure must not cost the title.
+        console.warn('[generateThreadTitle] usage write failed:', error);
+      });
+  };
+  const release = async () => {
+    if (meter === undefined) return;
+    await meter.release(lease).catch((error: unknown) => {
+      console.warn(
+        "[generateThreadTitle] releasing the call's hold failed; it lapses at its deadline:",
+        error,
+      );
+    });
+  };
   try {
     const preferred: PreferredChatModel | null = await ctx.runQuery(
       internal.user_preferences.queries.getChatModelInternal,
       { userId, organizationId },
     );
-    target = await pickDirectModel(ctx, organizationId, preferred);
-    if (target === null) return { title: null };
+    target = await pickDirectModel(ctx, organizationId, preferred, userId);
+    if (target === null) return null;
+    const messages = [
+      { role: 'system', content: TITLE_INSTRUCTIONS } as const,
+      {
+        role: 'user',
+        content: firstMessage.slice(0, FIRST_MESSAGE_MAX_CHARS),
+      } as const,
+    ];
+    if (meter !== undefined) {
+      const admitted = await meter.open({
+        provider: target.providerSlug,
+        model: target.modelId,
+        promptTokens: estimateTokens(
+          messages.map((message) => message.content).join('\n'),
+        ),
+        maxOutputTokens: TITLE_MAX_OUTPUT_TOKENS,
+      });
+      if (admitted === null) {
+        // A limit the member reached binds the title too: no call.
+        console.warn(
+          '[generateThreadTitle] a usage limit refused the naming call; fallback title used',
+        );
+        return null;
+      }
+      lease = admitted.lease;
+    }
     const model = createBuilderModel(ctx, {
       organizationId,
       target,
@@ -214,80 +313,44 @@ async function generateWithModel(
       signal,
     });
     const reply = await model({
-      messages: [
-        { role: 'system', content: TITLE_INSTRUCTIONS },
-        {
-          role: 'user',
-          content: firstMessage.slice(0, FIRST_MESSAGE_MAX_CHARS),
-        },
-      ],
+      messages,
       temperature: TITLE_TEMPERATURE,
       turn: 1,
     });
+    // The call happened whether or not the reply was usable — a ledger
+    // that counted only good titles would under-report the bill.
+    if (reply.usage !== undefined) await book(reply.usage);
+    else await release();
     const title = reply.content.replace(/\s+/g, ' ').trim();
-    return {
-      title: title.length > 0 ? title.slice(0, TITLE_MAX_LEN) : null,
-      // The call happened whether or not the reply was usable — a ledger
-      // that counted only good titles would under-report the bill.
-      ...(reply.usage !== undefined
-        ? {
-            spend: {
-              model: target.modelId,
-              provider: target.providerSlug,
-              inputTokens: reply.usage.prompt,
-              outputTokens: reply.usage.completion,
-            },
-          }
-        : {}),
-    };
+    return title.length > 0 ? title.slice(0, TITLE_MAX_LEN) : null;
   } catch (error) {
+    if (error instanceof EmptyReplyError && target !== null) {
+      // The call happened — a thinking-by-default model spent the reply
+      // budget reasoning and said nothing. A miss, not a fault: one line,
+      // no stack, and the tokens it cost are booked with the fallback.
+      console.warn(
+        `[generateThreadTitle] ${target.providerSlug}/${target.modelId} returned no text (${error.usage.prompt} in, ${error.usage.completion} out); fallback title used`,
+      );
+      await book(error.usage);
+      return null;
+    }
+    await release();
     if (signal.aborted) {
       // The race was lost and the call torn down on purpose — the fallback
       // title is already on its way; this is the expected shape, not a fault.
       console.warn(
         `[generateThreadTitle] model call aborted after ${TITLE_TIMEOUT_MS}ms; fallback title used`,
       );
-      return { title: null };
-    }
-    if (error instanceof EmptyReplyError && target !== null) {
-      // The call happened — a thinking-by-default model spent the reply
-      // budget reasoning and said nothing. A miss, not a fault: one line,
-      // no stack, and the tokens it cost leave with the fallback.
-      console.warn(
-        `[generateThreadTitle] ${target.providerSlug}/${target.modelId} returned no text (${error.usage.prompt} in, ${error.usage.completion} out); fallback title used`,
-      );
-      return {
-        title: null,
-        spend: {
-          model: target.modelId,
-          provider: target.providerSlug,
-          inputTokens: error.usage.prompt,
-          outputTokens: error.usage.completion,
-        },
-      };
+      return null;
     }
     console.warn('[generateThreadTitle] model generation failed:', error);
-    return { title: null };
+    return null;
   }
 }
 
 /** The naming attempt as a PLAIN exported function — the internalAction
  * above wraps it, and the 0.5 backend's `chat.generate_title` job runs it
  * on the ctx shim (same pattern as the turn engine). */
-/** Where a naming attempt's tokens are booked. Injected rather than reached
- *  for, the way the connector bridge takes its dispatch: this body runs on a
- *  ctx shim that has no ledger of its own. */
-export type TitleUsageRecorder = (entry: {
-  organizationId: string;
-  userId: string;
-  agentSlug: string;
-  model: string;
-  provider: string;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-}) => Promise<void>;
-
 export async function generateThreadTitleImpl(
   ctx: ActionCtx,
   args: {
@@ -296,7 +359,7 @@ export async function generateThreadTitleImpl(
     userId: string;
     firstMessage: string;
   },
-  recordUsage?: TitleUsageRecorder,
+  meter?: TitleMeter,
 ): Promise<null> {
   {
     // Cleared once the race settles — a won race must not leave a
@@ -313,34 +376,16 @@ export async function generateThreadTitleImpl(
           args.userId,
           args.firstMessage,
           deadline.signal,
+          meter,
         ),
-        new Promise<TitleAttempt>((resolve) => {
+        new Promise<string | null>((resolve) => {
           timeout = setTimeout(() => {
             deadline.abort();
-            resolve({ title: null });
+            resolve(null);
           }, TITLE_TIMEOUT_MS);
         }),
       ]);
-      // Book the spend BEFORE the title write: naming a thread is a model
-      // call the org pays for, and it went unledgered for as long as this
-      // lane has existed — the tokens showed up on the provider's bill and
-      // nowhere else. Best-effort: a ledger failure must not cost the title.
-      if (attempt.spend !== undefined && recordUsage !== undefined) {
-        const spend = attempt.spend;
-        await recordUsage({
-          organizationId: args.organizationId,
-          userId: args.userId,
-          agentSlug: TITLE_AGENT_SLUG,
-          model: spend.model,
-          provider: spend.provider,
-          inputTokens: spend.inputTokens,
-          outputTokens: spend.outputTokens,
-          totalTokens: spend.inputTokens + spend.outputTokens,
-        }).catch((error: unknown) => {
-          console.warn('[generateThreadTitle] usage write failed:', error);
-        });
-      }
-      const title = attempt.title ?? deriveFallbackTitle(args.firstMessage);
+      const title = attempt ?? deriveFallbackTitle(args.firstMessage);
       if (title !== null) {
         await ctx.runMutation(internal.chat.threads.setThreadTitleInternal, {
           organizationId: args.organizationId,

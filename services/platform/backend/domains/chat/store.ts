@@ -111,6 +111,9 @@ export async function appendMessageRow(
     error?: string;
     truncation?: { droppedMessages: number };
     status?: string;
+    /** The API key that sent a user message: naming the thread it opens is
+     * the key's spend too. */
+    apiKeyId?: string;
   },
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
@@ -193,6 +196,9 @@ export async function appendMessageRow(
           threadId: message.threadId,
           userId: meta[0].userId,
           firstMessage,
+          ...(message.apiKeyId !== undefined
+            ? { apiKeyId: message.apiKeyId }
+            : {}),
         });
       }
     }
@@ -468,6 +474,9 @@ function pgTurnStore(
               .join(''),
             ...(setup.truncation !== undefined
               ? { truncation: setup.truncation }
+              : {}),
+            ...(setup.spend?.apiKeyId !== undefined
+              ? { apiKeyId: setup.spend.apiKeyId }
               : {}),
           });
         }
