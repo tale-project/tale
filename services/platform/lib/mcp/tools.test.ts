@@ -258,7 +258,9 @@ describe('MCP tool roles and budgets', () => {
     ).toEqual(['start_run']);
   });
 
-  test('every tool that executes an automation draws from the execution budget', () => {
+  test('every tool that executes an automation draws from the execution budget [MCP-R5]', () => {
+    // answer_run_ask resumes a waiting run: the REST door charges its
+    // answer to the same budget, so a spent key is refused on both.
     expect(
       MCP_TOOLS.filter((tool) => tool.lane === 'execute').map(
         (tool) => tool.name,
@@ -269,6 +271,7 @@ describe('MCP tool roles and budgets', () => {
       'deploy_automation',
       'run_deployed',
       'start_run',
+      'answer_run_ask',
       'invoke_capability',
     ]);
   });

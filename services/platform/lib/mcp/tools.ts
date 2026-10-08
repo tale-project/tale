@@ -167,14 +167,17 @@ function engineRole(name: Method): McpToolSpec['role'] {
 }
 
 /** Tools that execute an automation — a run on the mocks, its tests, the
- * deploy gate's tests, a live run, a capability — and draw from the same
- * execution budget the REST API's run starts do. */
+ * deploy gate's tests, a live run, a capability, the answer a waiting run
+ * resumes on — and draw from the same execution budget the REST API's run
+ * starts and run answers do: a key whose budget is spent is refused on
+ * both doors alike. */
 const EXECUTE_TOOLS: ReadonlySet<string> = new Set([
   'run_automation',
   'test_automation',
   'deploy_automation',
   'run_deployed',
   'start_run',
+  'answer_run_ask',
   'invoke_capability',
 ]);
 

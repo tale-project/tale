@@ -200,8 +200,9 @@ quote, and the error itself is logged and reported on the server, never sent to 
 
 A tool that executes an automation — a run on the mocks (`run_automation`), its tests
 (`test_automation`), a deploy (whose gate runs the tests), a live run (`run_deployed`,
-`start_run`) or a capability (`invoke_capability`) — draws one execution from the key holder's
-run-start budget, the one the REST API's run starts draw from, once its role check has passed.
+`start_run`), the answer a waiting run resumes on (`answer_run_ask`) or a capability
+(`invoke_capability`) — draws one execution from the key holder's run-start budget, the one the
+REST API's run starts and run answers draw from, once its role check has passed.
 When the budget is spent, the call is refused (`RATE_LIMITED`) with how long to wait
 (`data.retryAfterMs`) and nothing runs. Reads, validation and saving never draw from it, and
 neither does a call refused for its arguments or its role.
