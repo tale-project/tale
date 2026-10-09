@@ -314,6 +314,15 @@ staged, and keep regeneration on its original-prompt path:
 `app/features/chat/components/chat-surface.test.tsx` covers the component
 boundary; persisted cards after reload remain manual in `CHAT-F8`.
 
+<a id="contacts-source-catalog-tale-293"></a>
+
+Contacts Source filtering exposes all supported origins from the shared catalog,
+including Shopify and Webhook, with the existing source labels. The real table's
+selection, URL serialization and restored source/locale, list request, and matching
+rows for Shopify, Webhook and the original four sources are covered by
+`app/features/contacts/components/contact-table.wire.test.tsx`.
+Real-browser focus, layout and visual transitions remain manual.
+
 Automation-owned tasks retain their workflow name and description after a failed
 live-run read, show an accessible error with retry, keep that surface during
 retry, and restore workflow actions only after a successful read. Successful
