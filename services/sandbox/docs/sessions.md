@@ -275,14 +275,18 @@ evicted first under the shared budget. An active writer that exhausts its
 budget ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
 `REPLAY_UNAVAILABLE`. The disk-backed spool is the sole retained output history.
 
-A checkpoint is durably written before its acknowledged prefix is pruned,
-so a run can produce more than 64 MiB over its lifetime while the consumer
-keeps acknowledging progress. A `gap` event identifies any pruned sequence
-interval; consumers restore the durable checkpoint before continuing. Spool
-segments and checkpoints live under the runtime-owned `TMPDIR`; normal
-disposal removes them and startup clears that directory after a crash. A
-runtime restart loses execs and checkpoints, and never clears user files
-elsewhere in the persistent workspace.
+A checkpoint is committed (written to a temporary file and renamed into
+place) before its acknowledged prefix is pruned, so a run can produce more
+than 64 MiB over its lifetime while the consumer keeps acknowledging progress.
+A `gap` event identifies any pruned sequence interval; consumers restore the
+committed checkpoint before continuing. Spool segments and checkpoints live
+under the runtime-owned `TMPDIR`; normal disposal removes them and startup
+clears that directory after a crash. A runtime restart loses execs and
+checkpoints, and never clears user files elsewhere in the persistent
+workspace. Because no checkpoint is read after a restart, the commit is not
+synced to disk: a sync per checkpoint (one every five seconds per streaming
+turn) would flush the filesystem journal for nothing, and a slow one past the
+five-second replay I/O deadline would end a healthy exec.
 
 An attach sends `replay-start` before retained history and `replay-complete`
 with `throughSeq` after delivering the
