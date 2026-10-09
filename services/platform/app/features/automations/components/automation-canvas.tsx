@@ -9,13 +9,18 @@ import {
   usePlaybackClock,
 } from '@tale/ui/flow/playback';
 import { FlowPlaybackBar, formatFlowClock } from '@tale/ui/flow/playback-bar';
-import { FlowRunTimeline } from '@tale/ui/flow/run-timeline';
+import {
+  FlowRunTimeline,
+  type FlowTimelineRow,
+} from '@tale/ui/flow/run-timeline';
 import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
 import {
   WorkflowCanvas,
   type FlowView,
   type WorkflowCanvasProps,
 } from '@tale/ui/flow/workflow-canvas';
+import { formatDuration } from '@tale/ui/format-duration';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import type { IssueCounts } from '@tale/ui/issue-summary';
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { useMediaQuery } from '@tale/ui/use-media-query';
@@ -411,6 +416,7 @@ function RunCanvas({
   onSelect: (id: string | null) => void;
 }) {
   const { t } = useT('automationRuns');
+  const { locale } = useLocale();
   const { graph } = canvasProps;
   const [view, setView] = useState<'chart' | 'steps'>('chart');
   const timeline = useMemo(
@@ -431,8 +437,28 @@ function RunCanvas({
     if (!live) setT(timeline.duration);
   }, [record, live, timeline.duration, setT]);
   if (record === undefined) return <WorkflowCanvas {...canvasProps} />;
-  const formatTime = (at: number) =>
-    formatFlowClock(timeline.toReal(at) - record.startedAt);
+  // A run of under a minute reads in seconds ("0.4s"), a longer one on a
+  // clock face ("03:12").
+  const short = (record.finishedAt ?? Date.now()) - record.startedAt < 60_000;
+  const formatTime = (at: number) => {
+    const elapsed = Math.max(0, timeline.toReal(at) - record.startedAt);
+    return short
+      ? formatDuration(elapsed, locale, { style: 'narrow', maxUnits: 1 })
+      : formatFlowClock(elapsed);
+  };
+  // How long each step worked; a step that never ran has no duration.
+  const activeOf = new Map(
+    record.nodes
+      .filter((step) => step.status !== 'skipped')
+      .map((step) => [step.path, step.activeMs]),
+  );
+  const rowDuration = (row: FlowTimelineRow): string | undefined => {
+    if (row.kind !== 'node') return undefined;
+    const active = activeOf.get(row.nodeId);
+    return active === undefined
+      ? undefined
+      : formatDuration(active, locale, { style: 'narrow', maxUnits: 1 });
+  };
   const bar = (
     <FlowPlaybackBar
       timeline={timeline}
@@ -476,6 +502,7 @@ function RunCanvas({
           selectedId={selectedId}
           onSelect={(row) => onSelect(row.nodeId ?? null)}
           formatTime={formatTime}
+          formatDuration={rowDuration}
           live={live}
           className="min-h-0 flex-1"
         />
