@@ -181,6 +181,17 @@ process identities as the captured local containers, including a final reread;
 another installation at the same version is refused. Legacy servers without that
 identity contract cannot supply acceptance. No application/configuration state is
 written. The existing lock and an owned temporary bundle copy preserve custody.
+For a private origin unreachable from the deployment host, pass
+`--origin-container "$TALE_GATEWAY_CONTAINER_ID"` with the full ID of its running
+local gateway. The CLI requires exactly one container network with an IPv4
+address and keeps that container, image, start time, restart count and network
+identity stable through acceptance. It connects through that address while
+preserving the canonical HTTPS hostname, certificate verification and both
+serving-process checks. This observes the local private gateway; it does not
+prove remote staff membership or public DNS reachability. Without this option,
+acceptance uses the origin's normal DNS route. Captured-route receipts include
+`serving.originRoute` with the container ID, network ID and address.
+
 External observations share a 120-second elapsed budget; the bundle's existing
 2 GiB/256 MiB-per-file limits bound preparation resources, but filesystem waits
 and cleanup do not have a cancellable whole-command deadline. Use an external
