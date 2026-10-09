@@ -803,17 +803,32 @@ async function cleanUp(
         json: {},
       });
       expectSuccess(cancelled, 'POST /api/app/chat/threads/:id/cancel');
+      // Ask every half second until --timeout. An ask is held to the time
+      // left, but the last one, at the deadline, gets a request's own bound:
+      // a conversation that settled just before it is still trashed.
       const deadline = Date.now() + options.timeoutMs;
-      while (Date.now() < deadline) {
+      for (;;) {
         await new Promise((resolve) =>
           setTimeout(
             resolve,
             Math.min(500, Math.max(0, deadline - Date.now())),
           ),
         );
-        if (Date.now() >= deadline) break;
-        if (await trash(deadline))
-          return 'the smoke conversation was stopped and is in the trash';
+        const last = Date.now() >= deadline;
+        try {
+          if (await trash(last ? undefined : deadline))
+            return 'the smoke conversation was stopped and is in the trash';
+        } catch (error) {
+          if (!isTimeout(error)) throw error;
+          // The server may still have taken it after the client gave up.
+          if (last)
+            throw new SmokeFailure(
+              'The smoke conversation was stopped, but its trash did not answer in time; it may still be in place.',
+            );
+          // Cut short by the deadline: the last ask follows at once.
+          continue;
+        }
+        if (last) break;
       }
       throw new SmokeFailure(
         'The smoke conversation was stopped but did not settle in time; it stays in place.',
@@ -824,6 +839,16 @@ async function cleanUp(
     expectStatus(reply, 200, 'POST /api/auth/sign-out');
     return 'signed out';
   });
+}
+
+/** Whether a request was cut off by its own time bound. */
+function isTimeout(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    error.name === 'TimeoutError'
+  );
 }
 
 /** Whether a refusal is the backend's own "your role may not" answer. */

@@ -27,6 +27,10 @@ interface FakeOptions {
   proxyForbidsDelete?: boolean;
   /** The chat turn is still generating when cleanup runs. */
   turnStillRunning?: boolean;
+  /** How long after the cancel the stopped turn settles (Infinity: never). */
+  settleMs?: number;
+  /** How long the trash takes to answer. */
+  trashDelayMs?: number;
   /** Sign-in sets its cookie, but the session read then finds none. */
   sessionCheckFails?: boolean;
 }
@@ -54,6 +58,7 @@ function fakeDeployment(options: FakeOptions = {}) {
   const trashed = new Set<string>();
   const archived = new Set<string>();
   let cancelled = false;
+  let cancelledAt = 0;
   let trashRefusals = options.turnStillRunning ? 1 : 0;
   let signedOut = false;
   const encoder = new TextEncoder();
@@ -189,12 +194,24 @@ function fakeDeployment(options: FakeOptions = {}) {
         });
       if (route === 'POST /api/app/chat/threads/th1/cancel') {
         cancelled = true;
+        cancelledAt = Date.now();
         return json({ ok: true });
       }
       if (route === 'POST /api/app/chat/threads/th1/trash') {
+        if (options.trashDelayMs !== undefined)
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.trashDelayMs),
+          );
+        const settling =
+          options.settleMs !== undefined &&
+          (!cancelled || Date.now() - cancelledAt < options.settleMs);
         // Mid-turn the trash refuses; a cancelled turn settles after one
-        // more refusal.
-        if (trashRefusals > 0 || (options.turnStillRunning && !cancelled)) {
+        // more refusal (or after `settleMs`).
+        if (
+          settling ||
+          trashRefusals > 0 ||
+          (options.turnStillRunning && !cancelled)
+        ) {
           if (cancelled) trashRefusals -= 1;
           return json({ ok: false });
         }
@@ -455,6 +472,53 @@ describe('cleanup the account is allowed', () => {
       detail: 'the smoke conversation was stopped and is in the trash',
     });
     expect(deployment.cancelled()).toBe(true);
+    expect(deployment.trashed.has('th1')).toBe(true);
+  });
+
+  test('a turn that settles just before the deadline is still trashed', async () => {
+    const deployment = fakeDeployment({ settleMs: 800 });
+    const report = await smoke(deployment.url, {
+      credentials: account,
+      chat: true,
+      timeoutMs: 1_000,
+    });
+    expect(
+      report.checks.find((c) => c.name === 'cleanup-thread'),
+    ).toMatchObject({
+      status: 'pass',
+      detail: 'the smoke conversation was stopped and is in the trash',
+    });
+    expect(deployment.trashed.has('th1')).toBe(true);
+  });
+
+  test('a turn that never settles fails once the wait is over', async () => {
+    const deployment = fakeDeployment({ settleMs: Number.POSITIVE_INFINITY });
+    const report = await smoke(deployment.url, {
+      credentials: account,
+      chat: true,
+      timeoutMs: 1_000,
+    });
+    const cleanup = report.checks.find((c) => c.name === 'cleanup-thread');
+    expect(cleanup).toMatchObject({
+      status: 'fail',
+      detail:
+        'The smoke conversation was stopped but did not settle in time; it stays in place.',
+    });
+    // The first ask, the cancel, the wait, and one last ask: never more.
+    expect(cleanup?.ms).toBeLessThan(4_000);
+    expect(deployment.trashed.has('th1')).toBe(false);
+  });
+
+  test('an ask the deadline cuts short is followed by a last full one', async () => {
+    const deployment = fakeDeployment({ settleMs: 1_200, trashDelayMs: 300 });
+    const report = await smoke(deployment.url, {
+      credentials: account,
+      chat: true,
+      timeoutMs: 1_500,
+    });
+    expect(report.checks.find((c) => c.name === 'cleanup-thread')?.status).toBe(
+      'pass',
+    );
     expect(deployment.trashed.has('th1')).toBe(true);
   });
 
