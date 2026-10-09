@@ -11,10 +11,11 @@ import { parseSessionIdleTimeoutMinutes } from '@tale/shared/utils/session-idle'
  * reads gone.
  *
  * The price is revocation latency, which is why it is off unless an
- * operator turns it on: a session deleted in the database (sign-out on
- * another device, an admin removing a member, idle revocation) keeps
- * working on ordinary requests until the cached copy expires. Open event
- * streams are not affected — they re-prove the session against the
+ * operator turns it on: a change to the session or the account (sign-out
+ * on another device, sessions a password change ended, a ban, two-factor
+ * settings) reaches ordinary requests only when the cached copy expires.
+ * Organization membership is not cached — the org gate reads it on every
+ * request — and open event streams re-prove the session against the
  * database on their own cadence.
  *
  * The cache also defers the sliding refresh that keeps `session.updatedAt`
