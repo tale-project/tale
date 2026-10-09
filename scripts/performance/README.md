@@ -149,9 +149,12 @@ with `--http` and profile real browser navigation. A build measures the toolchai
 not runtime request performance.
 
 Use a disposable, seeded deployment for the remaining inventory lanes. Run the
-platform's `backend:integration` for correctness, then separately measure API and
-worker throughput, database query/lock/pool waits, stream cancellation, queue
-latency, and RSS over repeated work and an idle recovery period. Integration/unit
+platform's `backend:integration` for correctness, then measure API and worker
+throughput, database query/lock/pool waits, stream cancellation, queue latency, and
+RSS over repeated work and an idle recovery period with the load harness
+([`tools/load`](../../tools/load/README.md)): it seeds the population, drives
+realistic virtual users against a realistic mock model provider, and reports the
+server's metrics and the database's statement statistics beside the client's. Integration/unit
 test duration is never substituted for load-test coverage. Exercise proxy,
 egress, gateway and BuildKit through their real container boundaries, including
 slow upstreams and disconnects. Use controlled model responses to avoid spending

@@ -17,6 +17,16 @@ import { invalidAllowedOrigins } from './domains/mcp/origin.ts';
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3005),
+  /**
+   * Interface the API listens on; unset, every interface (what a container
+   * needs). A process run straight on a workstation — the load harness's
+   * `stack up` — binds loopback through it. Not `HOST`: deployments already
+   * set that to the public host name, which no interface answers to.
+   */
+  BACKEND_LISTEN_HOST: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.string().min(1).optional(),
+  ),
   ROLE: z.enum(['api', 'worker', 'all']).default('all'),
   SANDBOX_AGENT_PROFILE: z.enum(['agent', 'agent-light']).default('agent'),
   TALE_SANDBOX_CLAUDE_EFFORT: z.preprocess(

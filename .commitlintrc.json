@@ -14,6 +14,7 @@
         "designs",
         "docs",
         "e2e",
+        "load",
         "manual",
         "marketing-ui",
         "opengrep",
