@@ -28,6 +28,12 @@ type ListTriggersResult = ReturnsOf<'automations/queries:listTriggers'>;
 type ListRunsResult = ReturnsOf<'automations/queries:listRuns'>;
 type GetRunResult = ReturnsOf<'automations/queries:getRun'>;
 type PendingAskResult = ReturnsOf<'automations/human_asks:getPendingAskForRun'>;
+type RunRecordResult = ReturnsOf<'automations/queries:getRunRecord'>;
+type RunNodeResult = ReturnsOf<'automations/queries:getRunNode'>;
+type RunItemsResult = ReturnsOf<'automations/queries:getRunItems'>;
+type CompareRunsResult = ReturnsOf<'automations/queries:compareRuns'>;
+type ReplayPlanResult = ReturnsOf<'automations/queries:getReplayPlan'>;
+type ReplayRunResult = ReturnsOf<'automations/mutations:replayRun'>;
 type RunInDoubtResult = ReturnsOf<'automations/queries:getRunInDoubt'>;
 type OrgAutomationMetricsResult =
   ReturnsOf<'automations/queries:getOrgAutomationMetrics'>;
@@ -207,6 +213,153 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
           `/automations/runs/${encodeURIComponent(runId)}/ask`,
           { orgId },
         ).then((body) => body.ask),
+    };
+  },
+  // A run step by step. Keyed under the run, so its own hint refreshes the
+  // record, the open step and the open page; `since` asks only for what
+  // changed after a cursor, for a reader that merges.
+  'automations/queries:getRunRecord': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    if (orgId === undefined || typeof runId !== 'string') return null;
+    const params = new URLSearchParams();
+    if (typeof args.since === 'number') params.set('since', String(args.since));
+    if (args.travels === true) params.set('include', 'travels');
+    const qs = params.size > 0 ? `?${params.toString()}` : '';
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'record',
+        runId,
+        typeof args.since === 'number' ? args.since : null,
+        args.travels === true,
+      ),
+      queryFn: () =>
+        backendFetch<{ record: RunRecordResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/record${qs}`,
+          { orgId },
+        ).then((body) => body.record),
+    };
+  },
+  'automations/queries:getRunNode': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const node = args.node;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof node !== 'string'
+    ) {
+      return null;
+    }
+    const item = typeof args.item === 'number' ? args.item : -1;
+    const pass = typeof args.pass === 'number' ? args.pass : -1;
+    const params = new URLSearchParams({
+      node,
+      item: String(item),
+      pass: String(pass),
+    });
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'node',
+        runId,
+        node,
+        item,
+        pass,
+      ),
+      queryFn: () =>
+        backendFetch<{ node: RunNodeResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/record/node?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.node),
+    };
+  },
+  'automations/queries:getRunItems': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const node = args.node;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof node !== 'string'
+    ) {
+      return null;
+    }
+    const params = new URLSearchParams({ node });
+    if (typeof args.cursor === 'string') params.set('cursor', args.cursor);
+    if (typeof args.limit === 'number') params.set('limit', String(args.limit));
+    if (args.status === 'failed') params.set('status', 'failed');
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_run',
+        'items',
+        runId,
+        node,
+        params.toString(),
+      ),
+      queryFn: () =>
+        backendFetch<{ page: RunItemsResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/record/items?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.page),
+    };
+  },
+  'automations/queries:compareRuns': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const otherRunId = args.otherRunId;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof otherRunId !== 'string'
+    ) {
+      return null;
+    }
+    // Not under the run's own entity: a run's progress hint must not run
+    // the comparison of two finished runs again.
+    return {
+      queryKey: backendKey(orgId, 'automation_run_compare', runId, otherRunId),
+      queryFn: () =>
+        backendFetch<{ diff: CompareRunsResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/compare/${encodeURIComponent(otherRunId)}`,
+          { orgId },
+        ).then((body) => body.diff),
+    };
+  },
+  'automations/queries:getReplayPlan': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const runId = args.runId;
+    const kind = args.kind;
+    if (
+      orgId === undefined ||
+      typeof runId !== 'string' ||
+      typeof kind !== 'string'
+    ) {
+      return null;
+    }
+    const params = new URLSearchParams({ kind });
+    if (typeof args.from === 'string') params.set('from', args.from);
+    if (typeof args.version === 'string' || typeof args.version === 'number') {
+      params.set('version', String(args.version));
+    }
+    if (typeof args.mode === 'string') params.set('mode', args.mode);
+    // Read when the replay dialog opens; a run's progress hint leaves it.
+    return {
+      queryKey: backendKey(
+        orgId,
+        'automation_replay_plan',
+        runId,
+        params.toString(),
+      ),
+      queryFn: () =>
+        backendFetch<{ plan: ReplayPlanResult }>(
+          `/automations/runs/${encodeURIComponent(runId)}/replay?${params.toString()}`,
+          { orgId },
+        ).then((body) => body.plan),
     };
   },
   // Keyed under the run, so the run's own hint refreshes it: a decision
@@ -492,6 +645,16 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
         `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/cancel`,
         { orgId: requireOrg(args, ctx), body: {} },
       ),
+    invalidate: invalidateRuns,
+  },
+  'automations/mutations:replayRun': {
+    run: (args, ctx) => {
+      const { organizationId: _org, runId: _run, ...request } = args;
+      return backendFetch<ReplayRunResult>(
+        `/automations/runs/${encodeURIComponent(stringArg(args, 'runId'))}/replay`,
+        { orgId: requireOrg(args, ctx), body: request },
+      );
+    },
     invalidate: invalidateRuns,
   },
   'automations/mutations:requestLegacyRunStop': {

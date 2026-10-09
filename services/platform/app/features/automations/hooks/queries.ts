@@ -1,5 +1,6 @@
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import type { ReplayRequestArgs } from '@/app/lib/backend/contract/automations';
 
 import { listNodeTypesRef } from './backend';
 
@@ -137,6 +138,93 @@ export function useRunInDoubt(
   return useBackendQuery(
     'automations/queries:getRunInDoubt',
     runId === undefined ? 'skip' : { organizationId, runId },
+  );
+}
+
+/** A run step by step: the record the run view reads — every step with
+ * its status, decisions explained, skip chain, failure and value glimpses.
+ * A finished run's record does not change, so it is not read again. */
+export function useRunRecord(
+  organizationId: string,
+  runId: string | undefined,
+  options: { travels?: boolean; finished?: boolean } = {},
+) {
+  return useBackendQuery(
+    'automations/queries:getRunRecord',
+    runId === undefined
+      ? 'skip'
+      : {
+          organizationId,
+          runId,
+          ...(options.travels === true && { travels: true }),
+        },
+    options.finished === true
+      ? { staleTime: Number.POSITIVE_INFINITY }
+      : undefined,
+  );
+}
+
+/** One unit of a run read whole — a step, or one of its items or passes:
+ * its values, rendered text, reads, change and call. */
+export function useRunNode(
+  organizationId: string,
+  runId: string | undefined,
+  unit: { node: string; item?: number; pass?: number } | undefined,
+) {
+  return useBackendQuery(
+    'automations/queries:getRunNode',
+    runId === undefined || unit === undefined
+      ? 'skip'
+      : { organizationId, runId, ...unit },
+  );
+}
+
+/** A page of a step's items and passes, failed ones alone on request. */
+export function useRunItems(
+  organizationId: string,
+  runId: string | undefined,
+  page:
+    | {
+        node: string;
+        cursor?: string;
+        limit?: number;
+        status?: 'all' | 'failed';
+      }
+    | undefined,
+) {
+  return useBackendQuery(
+    'automations/queries:getRunItems',
+    runId === undefined || page === undefined
+      ? 'skip'
+      : { organizationId, runId, ...page },
+  );
+}
+
+/** Two runs of one automation side by side. */
+export function useRunCompare(
+  organizationId: string,
+  runId: string | undefined,
+  otherRunId: string | undefined,
+) {
+  return useBackendQuery(
+    'automations/queries:compareRuns',
+    runId === undefined || otherRunId === undefined
+      ? 'skip'
+      : { organizationId, runId, otherRunId },
+  );
+}
+
+/** What running a run again would do, before it starts. */
+export function useReplayPlan(
+  organizationId: string,
+  runId: string | undefined,
+  request: ReplayRequestArgs | undefined,
+) {
+  return useBackendQuery(
+    'automations/queries:getReplayPlan',
+    runId === undefined || request === undefined
+      ? 'skip'
+      : { organizationId, runId, ...request },
   );
 }
 
