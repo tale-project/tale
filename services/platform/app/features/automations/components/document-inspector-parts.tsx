@@ -182,19 +182,17 @@ export function DocumentJsonField({
   );
   const marks = useMemo(() => {
     const text = jsonFieldText(settledValue(context.settled, field, value));
-    return {
-      diagnosticsFor: text,
-      diagnostics:
-        issues.length === 0
-          ? []
-          : fieldDiagnostics({
-              views: issues,
-              fieldPointer: pointer,
-              text,
-              kind: 'json',
-              t,
-            }),
-    };
+    const at = (shown: string) =>
+      issues.length === 0
+        ? []
+        : fieldDiagnostics({
+            views: issues,
+            fieldPointer: pointer,
+            text: shown,
+            kind: 'json',
+            t,
+          });
+    return { diagnosticsFor: text, diagnostics: at(text), diagnosticsAt: at };
   }, [context.settled, field, value, issues, pointer, t]);
   return (
     <JsonCodeField
@@ -213,6 +211,7 @@ export function DocumentJsonField({
       issues={lines}
       diagnostics={marks.diagnostics}
       diagnosticsFor={marks.diagnosticsFor}
+      diagnosticsAt={marks.diagnosticsAt}
       diagnosticsStatus={context.diagnosticsStatus}
       readOnly={readOnly}
     />

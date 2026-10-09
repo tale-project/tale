@@ -9,7 +9,7 @@ import type { CodeEditorProviders } from '@tale/ui/code-editor/providers';
 import type { TemplateScan } from '@tale/ui/code-editor/template-scan';
 import { Field } from '@tale/ui/field';
 import type { FieldIssue } from '@tale/ui/field-issue-messages';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { stableStringify } from '@/lib/shared/utils/stable-stringify';
@@ -24,6 +24,28 @@ export function jsonFieldText(value: unknown): string {
     console.warn('[automations] a field value is not serialisable', error);
     return '';
   }
+}
+
+const NOT_JSON = Symbol('not JSON');
+
+function parsedJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Text that is not JSON (yet) holds no value to compare.
+    return NOT_JSON;
+  }
+}
+
+/** Whether two texts hold the same JSON value, however each is formatted. */
+function sameJsonValue(a: string, b: string): boolean {
+  const left = parsedJson(a);
+  const right = parsedJson(b);
+  return (
+    left !== NOT_JSON &&
+    right !== NOT_JSON &&
+    stableStringify(left) === stableStringify(right)
+  );
 }
 
 /** What a JSON field accepts: an object, a list, or any JSON value. */
@@ -55,6 +77,13 @@ export interface JsonCodeFieldProps {
   issues?: readonly FieldIssue[];
   diagnostics?: readonly CodeEditorDiagnostic[];
   diagnosticsFor?: string;
+  /**
+   * The check's problems placed in a given text of the value. With it, a
+   * field whose text holds the value the check read (`diagnosticsFor`),
+   * however the author formatted it, marks its problems in that text — not
+   * only where it matches the two-space JSON the check read.
+   */
+  diagnosticsAt?: (text: string) => readonly CodeEditorDiagnostic[];
   diagnosticsStatus?: CodeEditorDiagnosticsStatus;
   providers?: CodeEditorProviders;
   readOnly: boolean;
@@ -85,6 +114,7 @@ export function JsonCodeField({
   issues,
   diagnostics,
   diagnosticsFor,
+  diagnosticsAt,
   diagnosticsStatus,
   providers,
   readOnly,
@@ -107,6 +137,21 @@ export function JsonCodeField({
     setText(jsonFieldText(value));
     setError(null);
   }, [value]);
+
+  // The check read the value as two-space JSON; the author may have written
+  // it another way. While the author's text holds the same value, its
+  // problems are placed in that text, so none loses its mark or its fix.
+  const placed = useMemo(() => {
+    if (
+      diagnosticsAt === undefined ||
+      diagnosticsFor === undefined ||
+      text === diagnosticsFor ||
+      !sameJsonValue(text, diagnosticsFor)
+    ) {
+      return { diagnostics, diagnosticsFor };
+    }
+    return { diagnostics: diagnosticsAt(text), diagnosticsFor: text };
+  }, [diagnosticsAt, diagnostics, diagnosticsFor, text]);
 
   const change = (next: string): void => {
     setText(next);
@@ -160,8 +205,12 @@ export function JsonCodeField({
         expandable={expandable && !readOnly ? { title: label } : false}
         issueAnchor={anchor}
         {...(issueReveal !== undefined && { issueReveal })}
-        {...(diagnostics !== undefined && { diagnostics })}
-        {...(diagnosticsFor !== undefined && { diagnosticsFor })}
+        {...(placed.diagnostics !== undefined && {
+          diagnostics: placed.diagnostics,
+        })}
+        {...(placed.diagnosticsFor !== undefined && {
+          diagnosticsFor: placed.diagnosticsFor,
+        })}
         {...(diagnosticsStatus !== undefined && { diagnosticsStatus })}
         {...(providers !== undefined && { providers })}
         describeDiagnostics={false}

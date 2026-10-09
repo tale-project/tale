@@ -120,7 +120,7 @@ function widen(doc: Text, from: number, to: number): [number, number] {
  * How text the host checked maps onto the text now shown: the common
  * prefix and suffix stay; a range inside what changed is gone.
  */
-function mapperFrom(
+export function mapperFrom(
   checked: string | undefined,
   doc: Text,
 ): (from: number, to: number) => [number, number] | null {
