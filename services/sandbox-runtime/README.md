@@ -493,3 +493,13 @@ and refuses with `409 incarnation_mismatch` an activity request whose
 `x-tale-runnerd-incarnation` header names another stamp, before anything
 changes. A malformed stamp is never named; without one, answers name none and
 requests are not checked.
+
+runnerd ends an exec that has stalled: no output for `TALE_EXEC_STALL_MS`
+(45 minutes unless the spawner sets it, `0` turns the watch off) and, over that
+same window, under 1% of one CPU used by the exec's processes — its subreaper
+shim and the shim's descendants, read from `/proc/<pid>/stat`, plus the CPU of
+the inner Docker engine's containers, which work for whichever exec started
+them. The exec ends through the cancel path (SIGTERM, then SIGKILL after the
+grace), and its `exit` event carries `failure: "EXEC_STALLED"`. The process
+table is read once a minute at most, and a table that cannot be read judges
+nothing.

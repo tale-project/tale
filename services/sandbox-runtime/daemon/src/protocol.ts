@@ -163,6 +163,11 @@ export type RunnerdExecEvent = (
       truncated: { stdout: boolean; stderr: boolean };
       timedOut: boolean;
       cancelled: boolean;
+      /** Why runnerd itself ended the exec, when it did: `EXEC_STALLED` —
+       * it printed nothing and its processes used under 1% of one CPU for
+       * the whole stall window (`TALE_EXEC_STALL_MS`). Absent on a natural
+       * exit, a cancel and the orphan deadline. */
+      failure?: 'EXEC_STALLED';
     }
   | {
       t: 'fail';
@@ -222,7 +227,8 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
         typeof value.cancelled === 'boolean' &&
         isObject(value.truncated) &&
         typeof value.truncated.stdout === 'boolean' &&
-        typeof value.truncated.stderr === 'boolean'
+        typeof value.truncated.stderr === 'boolean' &&
+        (value.failure === undefined || value.failure === 'EXEC_STALLED')
       );
     case 'fail':
       return (
