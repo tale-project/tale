@@ -425,3 +425,55 @@ test('profile paths and helper combinations are fixed; current Build remains gra
     finishPaths('Release', '.github/workflows/release.yml'),
   ).toThrow();
 });
+
+test('current CLI path scope preserves the retained graph and every finishing refusal', () => {
+  const { source: historic, jobs } = sample('CLI');
+  const path = FINISH_WORKFLOWS.CLI;
+  const current = {
+    ...historic,
+    [path]: readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8'),
+  };
+  const graph = z.object({ jobs: z.record(z.string(), z.unknown()) });
+  expect(graph.parse(parse(current[path])).jobs).toEqual(
+    graph.parse(parse(historic[path]!)).jobs,
+  );
+  expect(finishJobsSafe(historic, jobs)).toBe(true);
+  expect(finishJobsSafe(current, jobs)).toBe(true);
+  for (const file of Object.keys(current)) {
+    if (!isFinishPath(file)) throw new Error('Unexpected source path.');
+    expect(
+      finishJobsSafe({ ...current, [file]: current[file] + '\n' }, jobs),
+    ).toBe(false);
+    const missing = { ...current };
+    delete missing[file];
+    expect(finishJobsSafe(missing, jobs)).toBe(false);
+  }
+  for (const job of jobs) {
+    if (job.status === 'queued') {
+      for (const update of [
+        { runner_id: 9 },
+        { status: 'in_progress' },
+        { conclusion: 'success' },
+      ])
+        expect(
+          finishJobsSafe(
+            current,
+            jobs.map((value) =>
+              value.id === job.id ? { ...value, ...update } : value,
+            ),
+          ),
+        ).toBe(false);
+    } else if (job.status === 'completed' && job.conclusion !== 'skipped') {
+      expect(
+        finishJobsSafe(
+          current,
+          jobs.map((value) =>
+            value.id === job.id
+              ? Object.assign({}, value, { status: 'queued', conclusion: null })
+              : value,
+          ),
+        ),
+      ).toBe(false);
+    }
+  }
+});

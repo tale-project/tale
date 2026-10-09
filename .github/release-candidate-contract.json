@@ -4514,6 +4514,7 @@
                 "services/platform/backend/jobs/enqueue.ts",
                 "services/platform/backend/jobs/tasks.ts",
                 "services/platform/backend/lib/org-config.ts",
+                "services/platform/backend/lib/request-channel.ts",
                 "services/platform/backend/realtime/outbox.ts",
                 "services/platform/lib/**",
                 "configs/platform/**",
