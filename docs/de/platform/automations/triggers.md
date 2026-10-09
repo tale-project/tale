@@ -92,7 +92,7 @@ Ein Zeitplan behält seine Ortszeiten über die Zeitumstellungen hinweg:
 | **Den letzten nachholen, sobald Tale wieder läuft** (Standard) | Der letzte verpasste Zeitpunkt läuft einmal, egal wie spät. Frühere verpasste Zeitpunkte werden gezählt, nicht nachgeholt. |
 | **Auslassen** | Ein Lauf, der mehr als 10 Minuten zu spät ist, startet nicht und wird als verpasst gezählt. |
 
-Ein Beispiel: Ein Zeitplan läuft täglich um 09:00, und Tale ist von 08:30 bis 10:15 nicht erreichbar. Mit dem Standard startet um 10:15 ein Lauf für 09:00; mit **Auslassen** startet nichts. In beiden Fällen zeigt der Abschnitt **Trigger** danach, wie viele Läufe verpasst wurden und zwischen welchen Zeitpunkten, gezählt bis 1.000. Die Zeit, in der der Zeitplan ausgeschaltet oder pausiert war, und die Zeit vor dem Speichern zählen nie als verpasst.
+Ein Beispiel: Ein Zeitplan läuft täglich um 09:00, und Tale ist von 08:30 bis 10:15 nicht erreichbar. Mit dem Standard startet um 10:15 ein Lauf für 09:00; mit **Auslassen** startet nichts, und der Abschnitt **Trigger** zeigt, dass 1 Lauf verpasst wurde. Sobald Läufe als verpasst zählen, zeigt der Abschnitt, wie viele es waren und zwischen welchen Zeitpunkten, gezählt bis 1.000. Mit dem Standard sind das die Zeitpunkte vor dem gestarteten Lauf, etwa die früheren Starts eines Zeitplans alle 15 Minuten während desselben Ausfalls. Die Zeit, in der der Zeitplan ausgeschaltet oder pausiert war, und die Zeit vor dem Speichern zählen nie als verpasst.
 
 ## Einen Cron-Ausdruck verwenden
 

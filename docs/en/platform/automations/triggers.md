@@ -92,7 +92,7 @@ A schedule keeps its local times through daylight-saving changes:
 | **Start the latest one when Tale is back** (default) | The most recent missed time runs once, however late. Earlier missed times are counted, not run. |
 | **Skip them** | A run more than 10 minutes late does not start; it is counted as missed. |
 
-For example, a schedule that runs daily at 09:00 misses its start while Tale is down from 08:30 to 10:15. With the default, a run starts at 10:15 for 09:00; with **Skip them**, nothing starts. Either way, the **Trigger** section then says how many runs were missed and between which times, counting up to 1,000. Time the schedule spent switched off or paused, and time before it was saved, is never counted as missed.
+For example, a schedule that runs daily at 09:00 misses its start while Tale is down from 08:30 to 10:15. With the default, a run starts at 10:15 for 09:00; with **Skip them**, nothing starts, and the **Trigger** section says that 1 run was missed. Whenever runs are counted as missed, the section says how many and between which times, counting up to 1,000. With the default, those are the times before the one that started, such as the earlier starts of an every-15-minutes schedule during the same outage. Time the schedule spent switched off or paused, and time before it was saved, is never counted as missed.
 
 ## Use a cron expression
 

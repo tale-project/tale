@@ -92,7 +92,7 @@ Une planification garde ses heures locales lors des passages à l’heure d’é
 | **Lancer la dernière au retour de Tale** (par défaut) | Le dernier horaire manqué s’exécute une fois, quel que soit le retard. Les horaires manqués plus anciens sont comptés, pas rattrapés. |
 | **Les ignorer** | Une exécution en retard de plus de 10 minutes ne démarre pas ; elle est comptée comme manquée. |
 
-Par exemple, une planification quotidienne à 09:00 manque son démarrage pendant que Tale est arrêté de 08:30 à 10:15. Avec le réglage par défaut, une exécution démarre à 10:15 pour 09:00 ; avec **Les ignorer**, rien ne démarre. Dans les deux cas, la section **Déclencheur** indique ensuite combien d’exécutions ont été manquées et entre quels horaires, en comptant jusqu’à 1 000. Le temps pendant lequel la planification était désactivée ou en pause, et le temps avant son enregistrement, ne comptent jamais comme manqués.
+Par exemple, une planification quotidienne à 09:00 manque son démarrage pendant que Tale est arrêté de 08:30 à 10:15. Avec le réglage par défaut, une exécution démarre à 10:15 pour 09:00 ; avec **Les ignorer**, rien ne démarre, et la section **Déclencheur** indique 1 exécution manquée. Dès que des exécutions comptent comme manquées, la section indique combien et entre quels horaires, en comptant jusqu’à 1 000. Avec le réglage par défaut, ce sont les horaires antérieurs à celle qui a démarré, comme les démarrages précédents d’une planification toutes les 15 minutes pendant la même interruption. Le temps pendant lequel la planification était désactivée ou en pause, et le temps avant son enregistrement, ne comptent jamais comme manqués.
 
 ## Utiliser une expression cron
 
