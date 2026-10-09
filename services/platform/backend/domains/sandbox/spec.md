@@ -128,7 +128,7 @@ limit, because what frees is an empty workspace, not room.
 Every run of a project agent that works at the same time as another works in a sandbox of its
 own, a worker. One agent working three tasks at once has three workers.
 
-### SBX-R17 · Every agent worker is one sandbox and holds one agent-worker slot
+### SBX-R21 · Every agent worker is one sandbox and holds one agent-worker slot
 
 The limit of agent workers counts workers, not agents: one agent working three tasks at once
 holds three slots. A run that would need one more worker than the limit allows waits for a

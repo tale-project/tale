@@ -207,7 +207,7 @@ describe('reserveSessionSlot — each workload against its own limit [SBX-R8]', 
   });
 });
 
-describe('every agent worker holds a slot of its own [SBX-R17]', () => {
+describe('every agent worker holds a slot of its own [SBX-R21]', () => {
   const SECOND_WORKER = { ...AGENT_SESSION, sessionId: 'pa-agent-1-w2' };
 
   it("admits an agent's second worker beside its first while a slot is left", async () => {

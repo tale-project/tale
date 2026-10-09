@@ -124,7 +124,7 @@ describe('which worker a run starts in', () => {
     ).toEqual({ wait: 'destroy_pending' });
   });
 
-  it('opens and wakes no worker the organization has no slot for [SBX-R17]', () => {
+  it('opens and wakes no worker the organization has no slot for [SBX-R21]', () => {
     // Every slot is held: a stopped worker would need one, a new one too.
     expect(
       chooseWorker(

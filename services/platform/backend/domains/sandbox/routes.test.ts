@@ -239,7 +239,7 @@ describe('sandbox settings read and write authority', () => {
     ]);
   });
 
-  it('counts every run waiting for room beside the rows [SBX-R17]', async () => {
+  it('counts every run waiting for room beside the rows [SBX-R21]', async () => {
     listViews.mockResolvedValue([]);
     const counts = {
       total: 3,
