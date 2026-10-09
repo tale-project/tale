@@ -1,1 +1,2 @@
 fileSizeExceededMultiple: '{names} überschreitet das Dateigrössenlimit von {maxSize} MB.'
+budgetWarningDismiss: Schliessen

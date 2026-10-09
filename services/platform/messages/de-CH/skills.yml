@@ -1,0 +1,5 @@
+loadErrorDetail:
+  title:
+    frontmatterTooLarge: Frontmatter ist zu gross
+viewer:
+  largeFile: Grosse Datei — Syntax-Highlighting aus Leistungsgründen deaktiviert.

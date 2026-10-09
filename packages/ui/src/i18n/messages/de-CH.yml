@@ -11,5 +11,10 @@ docs:
 common:
   aria:
     close: Schliessen
+    resizePanel: Panelgrösse ändern
+  flow:
+    zoomIn: Vergrössern
 envEditor:
-  projectSecretBadKey: «{key}» muss mit einem Grossbuchstaben beginnen und darf nur Grossbuchstaben, Ziffern oder Unterstriche enthalten (maximal 64 Zeichen).
+  projectSecretBadKey: «{key}» muss mit einem Grossbuchstaben beginnen und darf
+    nur Grossbuchstaben, Ziffern oder Unterstriche enthalten (maximal 64
+    Zeichen).
