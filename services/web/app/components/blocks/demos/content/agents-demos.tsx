@@ -1,19 +1,13 @@
-import { AutomationRun } from '@/app/components/blocks/demos/automation-run';
-import { ConnectAgents } from '@/app/components/blocks/demos/connect-agents';
 import {
-  useAgentsScenario,
-  useAutomationScenario,
   useKnowledgeScenario,
   useProjectsScenario,
-  useSandboxScenario,
 } from '@/app/components/blocks/demos/demo-scenarios';
 import { KnowledgePool } from '@/app/components/blocks/demos/knowledge-pool';
 import { ProjectsBoard } from '@/app/components/blocks/demos/projects-board';
-import { SandboxWorkspace } from '@/app/components/blocks/demos/sandbox-workspace';
+import { ProductScreenshot } from '@/app/components/blocks/product-screenshot';
 
 export function AgentsHeroDemo() {
-  const scenario = useAgentsScenario('platformAgents');
-  return <ConnectAgents scenario={scenario} />;
+  return <ProductScreenshot page="agents" />;
 }
 
 export function AgentsTourProjectsDemo() {
@@ -24,14 +18,4 @@ export function AgentsTourProjectsDemo() {
 export function AgentsTourKnowledgeDemo() {
   const scenario = useKnowledgeScenario('platformAgents');
   return <KnowledgePool scenario={scenario} />;
-}
-
-export function AgentsTourAutomationsDemo() {
-  const scenario = useAutomationScenario('platformAgents');
-  return <AutomationRun scenario={scenario} />;
-}
-
-export function AgentsTourChatDemo() {
-  const scenario = useSandboxScenario('platformAgents');
-  return <SandboxWorkspace scenario={scenario} />;
 }

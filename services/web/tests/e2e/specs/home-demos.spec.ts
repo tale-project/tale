@@ -25,10 +25,7 @@ const { t: tMarketing } = createI18n(
 
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
-for (const { path, namespace } of [
-  { path: '/', namespace: 'home' },
-  { path: '/platform/agents', namespace: 'platformAgents' },
-] as const) {
+for (const { path, namespace } of [{ path: '/', namespace: 'home' }] as const) {
   test(`French sandbox reserves its final height on ${path} at 320px`, async ({
     page,
   }) => {
@@ -61,19 +58,21 @@ for (const { path, namespace } of [
 }
 
 test.describe('homepage demos', () => {
-  test('hero demo renders its complete end state under reduced motion', async ({
+  test('hero shows its actual project task under reduced motion', async ({
     page,
   }) => {
     await gotoClientPage(page, '/');
 
-    const demo = page.getByRole('img', { name: t('home.demos.tasks.label') });
-    await expect(demo).toBeVisible();
-    await expect(demo).toContainText(t('home.demos.tasks.windowTitle'));
-    await expect(demo).toContainText(t('home.demos.tasks.colInReview'));
-    await expect(demo).toContainText(t('home.demos.tasks.title3'));
-    await expect(demo).toContainText(t('home.demos.tasks.assignee3'));
-    await expect(demo).toContainText(t('home.demos.tasks.title5'));
-    await expect(demo).not.toContainText(tMarketing('demo.chrome.share'));
+    const screenshot = page.getByRole('img', {
+      name: t('demo.pages.home.label'),
+      exact: true,
+    });
+    await expect(screenshot).toBeVisible();
+    expect(
+      await screenshot.evaluate(
+        (image) => (image as HTMLImageElement).naturalWidth,
+      ),
+    ).toBeGreaterThan(0);
   });
 
   test('tour demos render their complete end states under reduced motion', async ({
@@ -99,15 +98,6 @@ test.describe('homepage demos', () => {
       );
     }
 
-    const govern = page.getByRole('img', {
-      name: t('home.demos.govern.label'),
-    });
-    await govern.scrollIntoViewIfNeeded();
-    await expect(govern).toContainText(t('home.demos.govern.approved'));
-    await expect(govern).toContainText(t('home.demos.govern.audit2'));
-    await expect(govern).toContainText(t('home.demos.automation.windowTitle'));
-    await expect(govern).not.toContainText(tMarketing('demo.chrome.share'));
-
     const projects = page.getByRole('img', {
       name: t('home.demos.projects.label'),
     });
@@ -118,7 +108,7 @@ test.describe('homepage demos', () => {
     await expect(projects).not.toContainText(tMarketing('demo.chrome.share'));
   });
 
-  test('three chapters and supporting capabilities link to every module', async ({
+  test('two chapters and supporting capabilities link to every module', async ({
     page,
   }) => {
     await gotoClientPage(page, '/');
@@ -149,29 +139,25 @@ test.describe('homepage demos', () => {
         features.locator(`a[href="/platform/${module}"]`),
       ).toHaveCount(1);
     }
-    await expect(features.getByRole('img')).toHaveCount(3);
+    await expect(features.getByRole('img')).toHaveCount(2);
   });
 });
 
 /**
- * Every platform page tells its own demo story: the shared demo components
- * take per-page scenarios from `<namespace>.demos.*`, so the same windows
- * must show different content than the homepage. End states again asserted
- * under reduced motion — no timing waits.
+ * Platform leads use distinct actual product screenshots. Supporting tours
+ * retain page-owned scenarios, with complete reduced-motion end states.
  */
-test.describe('feature page demo scenarios', () => {
-  test('automations page runs the invoice pipeline', async ({ page }) => {
+test.describe('feature page product screenshots and tours', () => {
+  test('automations page shows its real run and protected actions', async ({
+    page,
+  }) => {
     await gotoClientPage(page, '/platform/automations');
-
-    const hero = page.getByRole('img', {
-      name: t('platformAutomations.demos.automation.label'),
-    });
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText(
-      t('platformAutomations.demos.automation.trigger'),
-    );
-    await expect(hero).toContainText(t('home.demos.automation.statusAwaiting'));
-
+    await expect(
+      page.getByRole('img', {
+        name: t('demo.pages.automations.label'),
+        exact: true,
+      }),
+    ).toBeVisible();
     const govern = page.getByRole('img', {
       name: t('platformAutomations.demos.govern.label'),
     });
@@ -180,7 +166,6 @@ test.describe('feature page demo scenarios', () => {
       t('platformAutomations.demos.govern.approvalTitle'),
     );
     await expect(govern).toContainText(t('home.demos.govern.approved'));
-
     const agents = page.getByRole('img', {
       name: t('platformAutomations.demos.connect.label'),
     });
@@ -188,28 +173,18 @@ test.describe('feature page demo scenarios', () => {
     await expect(agents).toContainText(
       t('platformAutomations.demos.connect.agent1'),
     );
-
-    const projects = page.getByRole('img', {
-      name: t('platformAutomations.demos.projects.label'),
-    });
-    await projects.scrollIntoViewIfNeeded();
-    await expect(projects).toContainText(
-      t('platformAutomations.demos.projects.project1'),
-    );
   });
 
-  test('knowledge page cites the indexed manual', async ({ page }) => {
+  test('knowledge page shows its real library and cited project context', async ({
+    page,
+  }) => {
     await gotoClientPage(page, '/platform/knowledge');
-
-    const hero = page.getByRole('img', {
-      name: t('platformKnowledge.demos.knowledge.label'),
-    });
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText(
-      t('platformKnowledge.demos.knowledge.source1'),
-    );
-    await expect(hero).toContainText(t('home.demos.knowledge.typeEntry'));
-
+    await expect(
+      page.getByRole('img', {
+        name: t('demo.pages.knowledge.label'),
+        exact: true,
+      }),
+    ).toBeVisible();
     const chat = page.getByRole('img', {
       name: t('platformKnowledge.demos.hero.label'),
     });
@@ -217,12 +192,9 @@ test.describe('feature page demo scenarios', () => {
     await expect(chat).toContainText(
       t('platformKnowledge.demos.hero.citation1'),
     );
-    // Ordinary chat has one model selector; project-agent selection belongs
-    // on task assignment, not beside the model in this composer.
     await expect(chat.locator('.lucide-cpu')).toHaveCount(1);
     await expect(chat.locator('.lucide-chevron-down')).toHaveCount(1);
     await expect(chat.locator('.lucide-bot')).toHaveCount(0);
-
     const projects = page.getByRole('img', {
       name: t('platformKnowledge.demos.projects.label'),
     });
@@ -232,18 +204,16 @@ test.describe('feature page demo scenarios', () => {
     );
   });
 
-  test('agents page shows its own roster and a sandbox Files/Live pane', async ({
+  test('agents page shows its real agent roster and scoped reference material', async ({
     page,
   }) => {
     await gotoClientPage(page, '/platform/agents');
-
-    const hero = page.getByRole('img', {
-      name: t('platformAgents.demos.connect.label'),
-    });
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText(t('platformAgents.demos.connect.agent2'));
-    await expect(hero).not.toContainText(t('home.demos.connect.agent2'));
-
+    await expect(
+      page.getByRole('img', {
+        name: t('demo.pages.agents.label'),
+        exact: true,
+      }),
+    ).toBeVisible();
     const projects = page.getByRole('img', {
       name: t('platformAgents.demos.projects.label'),
     });
@@ -251,47 +221,28 @@ test.describe('feature page demo scenarios', () => {
     await expect(projects).toContainText(
       t('platformAgents.demos.projects.project1'),
     );
-
-    const sandbox = page.getByRole('img', {
-      name: t('platformAgents.demos.sandbox.label'),
+    const knowledge = page.getByRole('img', {
+      name: t('platformAgents.demos.knowledge.label'),
     });
-    await sandbox.scrollIntoViewIfNeeded();
-    await expect(sandbox).toContainText(
-      t('platformAgents.demos.sandbox.browserTitle'),
+    await knowledge.scrollIntoViewIfNeeded();
+    await expect(knowledge).toContainText(
+      t('platformAgents.demos.knowledge.source1'),
     );
-    await expect(sandbox).toContainText(
-      t('platformAgents.demos.sandbox.activeFile'),
+    await expect(knowledge).not.toContainText(
+      t('home.demos.knowledge.source1'),
     );
-    await expect(sandbox).toContainText(
-      t('platformAgents.demos.sandbox.previewTitle'),
-    );
-    for (const index of [1, 2, 3]) {
-      await expect(sandbox).toContainText(
-        t(`platformAgents.demos.sandbox.previewItem${index}`),
-      );
-      await expect(sandbox).toContainText(
-        t(`platformAgents.demos.sandbox.previewDetail${index}`),
-      );
-    }
-    await expect(sandbox).not.toContainText(t('home.demos.sandbox.prompt'));
   });
 
-  test('governance page holds a knowledge write for approval', async ({
+  test('governance page shows real audit logs and configured policy agents', async ({
     page,
   }) => {
     await gotoClientPage(page, '/platform/governance');
-
-    const hero = page.getByRole('img', {
-      name: t('platformGovernance.demos.govern.label'),
-    });
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText(
-      t('platformGovernance.demos.govern.approvalTitle'),
-    );
-    await expect(hero).toContainText(
-      t('platformGovernance.demos.govern.audit3'),
-    );
-
+    await expect(
+      page.getByRole('img', {
+        name: t('demo.pages.governance.label'),
+        exact: true,
+      }),
+    ).toBeVisible();
     const agents = page.getByRole('img', {
       name: t('platformGovernance.demos.connect.label'),
     });
@@ -299,18 +250,22 @@ test.describe('feature page demo scenarios', () => {
     await expect(agents).toContainText(
       t('platformGovernance.demos.connect.agent1'),
     );
+    const automation = page.getByRole('img', {
+      name: t('platformGovernance.demos.automation.label'),
+    });
+    await automation.scrollIntoViewIfNeeded();
+    await expect(automation).toContainText(
+      t('platformGovernance.demos.automation.trigger'),
+    );
   });
 
-  test('chat page duels announcement drafts in Arena', async ({ page }) => {
+  test('chat page shows a real structured reply and its supporting library', async ({
+    page,
+  }) => {
     await gotoClientPage(page, '/platform/chat');
-
-    const hero = page.getByRole('img', {
-      name: t('platformChat.demos.arena.label'),
-    });
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText(t('platformChat.demos.arena.prompt'));
-    await expect(hero).toContainText(t('platformChat.demos.arena.replyB3'));
-
+    await expect(
+      page.getByRole('img', { name: t('demo.pages.chat.label'), exact: true }),
+    ).toBeVisible();
     const projects = page.getByRole('img', {
       name: t('platformChat.demos.projects.label'),
     });
@@ -318,7 +273,6 @@ test.describe('feature page demo scenarios', () => {
     await expect(projects).toContainText(
       t('platformChat.demos.projects.project1'),
     );
-
     const knowledge = page.getByRole('img', {
       name: t('platformChat.demos.knowledge.label'),
     });
@@ -328,60 +282,19 @@ test.describe('feature page demo scenarios', () => {
     );
   });
 
-  test('platform hub samples each module story', async ({ page }) => {
+  test('platform hub shows its real inbox and two focused project tours', async ({
+    page,
+  }) => {
     await gotoClientPage(page, '/platform');
-
-    const hero = page.getByRole('img', {
-      name: t('platformHub.demos.hero.label'),
-    });
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText(t('platformHub.demos.hero.prompt'));
-    await expect(hero).not.toContainText(t('home.demos.hero.prompt'));
-
+    await expect(
+      page.getByRole('img', { name: t('demo.pages.hub.label'), exact: true }),
+    ).toBeVisible();
     const agents = page.getByRole('img', {
       name: t('platformHub.demos.connect.label'),
     });
     await agents.scrollIntoViewIfNeeded();
     await expect(agents).toContainText(t('platformHub.demos.connect.agent1'));
     await expect(agents).not.toContainText(t('home.demos.connect.agent1'));
-
-    const knowledge = page.getByRole('img', {
-      name: t('platformHub.demos.knowledge.label'),
-    });
-    await knowledge.scrollIntoViewIfNeeded();
-    await expect(knowledge).toContainText(
-      t('platformHub.demos.knowledge.source1'),
-    );
-    await expect(knowledge).not.toContainText(
-      t('platformKnowledge.demos.knowledge.source1'),
-    );
-
-    const automation = page.getByRole('img', {
-      name: t('platformHub.demos.automation.label'),
-    });
-    await automation.scrollIntoViewIfNeeded();
-    await expect(automation).toContainText(
-      t('platformHub.demos.automation.trigger'),
-    );
-    await expect(automation).not.toContainText(
-      t('platformAutomations.demos.automation.trigger'),
-    );
-
-    const govern = page.getByRole('img', {
-      name: t('platformHub.demos.govern.label'),
-    });
-    await govern.scrollIntoViewIfNeeded();
-    await expect(govern).toContainText(
-      t('platformHub.demos.govern.approvalTitle'),
-    );
-
-    const arena = page.getByRole('img', {
-      name: t('platformHub.demos.arena.label'),
-    });
-    await arena.scrollIntoViewIfNeeded();
-    await expect(arena).toContainText(t('platformHub.demos.arena.prompt'));
-    await expect(arena).not.toContainText(t('platformChat.demos.arena.prompt'));
-
     const projects = page.getByRole('img', {
       name: t('platformHub.demos.projects.label'),
     });
@@ -390,51 +303,44 @@ test.describe('feature page demo scenarios', () => {
       t('platformHub.demos.projects.project1'),
     );
     await expect(projects).not.toContainText(t('home.demos.projects.project1'));
+    await expect(page.getByRole('main').getByRole('img')).toHaveCount(3);
   });
 
-  test('tour stages deep-link to their module pages', async ({ page }) => {
-    const exploreAutomations = t('home.tour.explore').replace(
-      '{module}',
-      t('nav.product.automations.label'),
-    );
-
-    await gotoClientPage(page, '/');
-    const automationCard = page.locator(
-      '#features a[href="/platform/automations"]',
-    );
-    await expect(automationCard).toBeVisible();
-    await automationCard.click();
+  test('platform module cards deep-link to every module', async ({ page }) => {
+    await gotoClientPage(page, '/platform');
+    for (const module of [
+      'agents',
+      'chat',
+      'projects',
+      'automations',
+      'knowledge',
+      'governance',
+    ]) {
+      await expect(
+        page.getByRole('main').locator(`a[href="/platform/${module}"]`).first(),
+      ).toBeVisible();
+    }
+    await page
+      .getByRole('main')
+      .locator('a[href="/platform/automations"]')
+      .first()
+      .click();
     await expect(page).toHaveURL(/\/platform\/automations$/);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       t('platformAutomations.title'),
     );
-    await gotoClientPage(page, '/');
-    const exploreProjects = t('home.tour.explore').replace(
-      '{module}',
-      t('nav.product.projects.label'),
-    );
-    await expect(
-      page.getByRole('link', { name: exploreProjects }),
-    ).toHaveAttribute('href', '/platform/projects');
-
-    await gotoClientPage(page, '/platform');
-    await expect(
-      page.getByRole('link', { name: exploreAutomations }),
-    ).toBeVisible();
   });
 
-  test('projects page runs the relaunch workspace story', async ({ page }) => {
+  test('projects page shows the real board and a project-specific task tour', async ({
+    page,
+  }) => {
     await gotoClientPage(page, '/platform/projects');
-
-    const hero = page.getByRole('img', {
-      name: t('platformProjects.demos.projects.label'),
-    });
-    await expect(hero).toBeVisible();
-    await expect(hero).toContainText(
-      t('platformProjects.demos.projects.project1'),
-    );
-    await expect(hero).not.toContainText(t('home.demos.projects.project1'));
-
+    await expect(
+      page.getByRole('img', {
+        name: t('demo.pages.projects.label'),
+        exact: true,
+      }),
+    ).toBeVisible();
     const tasks = page.getByRole('img', {
       name: t('platformProjects.demos.tasks.label'),
     });
@@ -442,23 +348,11 @@ test.describe('feature page demo scenarios', () => {
     await expect(tasks).toContainText(t('platformProjects.demos.tasks.id3'));
     await expect(tasks).toContainText(t('platformProjects.demos.tasks.title3'));
     await expect(tasks).not.toContainText(t('home.demos.tasks.title3'));
-
     const chat = page.getByRole('img', {
       name: t('platformProjects.demos.hero.label'),
     });
     await chat.scrollIntoViewIfNeeded();
     await expect(chat).toContainText(t('platformProjects.demos.hero.prompt'));
     await expect(chat).not.toContainText(t('home.demos.hero.prompt'));
-
-    const knowledge = page.getByRole('img', {
-      name: t('platformProjects.demos.knowledge.label'),
-    });
-    await knowledge.scrollIntoViewIfNeeded();
-    await expect(knowledge).toContainText(
-      t('platformProjects.demos.knowledge.source1'),
-    );
-    await expect(knowledge).not.toContainText(
-      t('home.demos.knowledge.source1'),
-    );
   });
 });

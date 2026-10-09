@@ -5,7 +5,6 @@ import {
 import { useMemo } from 'react';
 
 import { AgentsBar } from '@/app/components/blocks/agents-bar';
-import { ComplianceTrust } from '@/app/components/blocks/compliance-trust';
 import { ConnectorsBar } from '@/app/components/blocks/connectors-bar';
 import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
 import { FAQ_KEYS, FaqAccordion } from '@/app/components/blocks/faq-accordion';
@@ -68,7 +67,6 @@ export function HomePage() {
 
       <Tagline />
       <ConnectorsBar />
-      <ComplianceTrust />
       <RelatedUseCases pageId="hub" />
       <FaqAccordion />
       <CtaDeploy />

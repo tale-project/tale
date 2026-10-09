@@ -4,15 +4,18 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { cn } from '@tale/ui/cn';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { Plus } from 'lucide-react';
 import { memo, useCallback, useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import type { TaskStatus } from '../lib/display';
+import { LaneQuickAdd, type LaneQuickAddConfig } from './lane-quick-add';
 import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
-import { TaskStatusBadge } from './task-status-badge';
+import { TaskStatusGlyph } from './task-status-glyph';
 import { useLaneWindowed, WindowedTaskRows } from './windowed-task-rows';
 
 /** A card's height before it is measured: the board's typical card. */
@@ -30,6 +33,8 @@ export const BoardColumn = memo(function BoardColumn({
   projectKey,
   canWorkTask = readOnlyBoard,
   dropHint = null,
+  onAddTask,
+  quickAdd,
 }: {
   status: TaskStatus;
   /** The lane's task ids in board order (the drag's working copy). */
@@ -45,6 +50,11 @@ export const BoardColumn = memo(function BoardColumn({
   /** The verb dropping the currently-dragged card here would carry ("Starts
    * the … run.") — announced in the header while the drag is active. */
   dropHint?: string | null;
+  /** Open the create dialog with this lane's status — the header's "+". */
+  onAddTask?: (status: TaskStatus) => void;
+  /** Where the lane's own "Add task" row creates; absent for a viewer who
+   * may not create here. */
+  quickAdd?: LaneQuickAddConfig;
 }) {
   const { t } = useT('tasks');
   // Column is itself a drop target so cards can be dropped into an empty lane.
@@ -90,13 +100,32 @@ export const BoardColumn = memo(function BoardColumn({
     <Stack
       as="section"
       gap={0}
-      className="bg-muted/40 w-[80vw] max-w-72 shrink-0 snap-start rounded-lg sm:w-72"
+      aria-label={t(`status.${status}`)}
+      className="group/lane bg-muted/40 w-[80vw] max-w-72 shrink-0 snap-start rounded-lg sm:w-72"
     >
-      <Row gap={2} justify="between" className="px-2.5 py-2">
-        <TaskStatusBadge status={status} />
-        <Text as="span" variant="caption" className="pr-1 tabular-nums">
+      {/* The lane names its status the way Home and the task header do: the
+          status glyph and its word, then the count and the lane's own add. */}
+      <Row gap={2} align="center" className="h-9 px-2.5">
+        <TaskStatusGlyph status={status} className="size-3.5" />
+        <Text
+          as="span"
+          className="text-foreground min-w-0 truncate text-sm font-medium"
+        >
+          {t(`status.${status}`)}
+        </Text>
+        <Text as="span" variant="caption" className="tabular-nums">
           {tasks.length}
         </Text>
+        {onAddTask !== undefined && (
+          <IconButton
+            icon={Plus}
+            size="sm"
+            variant="ghost"
+            aria-label={t('board.addToLane', { status: t(`status.${status}`) })}
+            onClick={() => onAddTask(status)}
+            className="text-muted-foreground hover:text-foreground -mr-1 ml-auto size-7 opacity-0 transition-opacity group-focus-within/lane:opacity-100 group-hover/lane:opacity-100 focus-visible:opacity-100 motion-reduce:transition-none pointer-coarse:opacity-100"
+          />
+        )}
       </Row>
       {dropHint !== null && (
         <Text
@@ -128,7 +157,7 @@ export const BoardColumn = memo(function BoardColumn({
             renderTask={renderCard}
           />
         </SortableContext>
-        {tasks.length === 0 && (
+        {tasks.length === 0 && quickAdd === undefined && (
           <Row
             gap={0}
             justify="center"
@@ -136,6 +165,9 @@ export const BoardColumn = memo(function BoardColumn({
           >
             {t('board.noTasks')}
           </Row>
+        )}
+        {quickAdd !== undefined && (
+          <LaneQuickAdd status={status} config={quickAdd} />
         )}
       </div>
     </Stack>

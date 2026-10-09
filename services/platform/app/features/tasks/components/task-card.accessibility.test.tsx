@@ -8,8 +8,6 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 import { TaskBoardProvider } from './task-board-context';
 import { TaskCard, type TaskRow } from './task-card';
 import {
-  AgentNeedsAnswerIndicator,
-  AgentWorkingIndicator,
   DueDateIndicator,
   RepeatIndicator,
   SubtaskProgress,
@@ -133,8 +131,6 @@ describe('TaskCard state accessibility', () => {
   it('gives the other compact indicators valid image names', async () => {
     const { container } = render(
       <>
-        <AgentWorkingIndicator working />
-        <AgentNeedsAnswerIndicator asking />
         <DueDateIndicator dueDate={Date.UTC(2030, 0, 1)} status="todo" />
         <RepeatIndicator
           repeat={{ frequency: 'daily', interval: 1, timezone: 'UTC' }}
@@ -143,7 +139,7 @@ describe('TaskCard state accessibility', () => {
         <SubtaskProgress done={1} total={2} />
       </>,
     );
-    expect(screen.getAllByRole('img')).toHaveLength(5);
+    expect(screen.getAllByRole('img')).toHaveLength(3);
     await checkAccessibility(container, {
       rules: { 'aria-prohibited-attr': { enabled: true } },
     });
@@ -168,9 +164,9 @@ describe('TaskCard state accessibility', () => {
         container.querySelector('span[aria-label]:not([role])'),
       ).toBeNull();
       expect(screen.getByRole('img', { name: 'Blocked' })).toBeInTheDocument();
-      expect(
-        screen.getByRole('img', { name: 'Waiting on Ava Editor' }),
-      ).toBeInTheDocument();
+      // The review state is a line of words now, read once through the
+      // title's description.
+      expect(screen.getByText('Waiting on Ava Editor')).toBeInTheDocument();
       await checkAccessibility(container, {
         rules: { 'aria-prohibited-attr': { enabled: true } },
       });
@@ -236,5 +232,67 @@ describe('TaskCard state accessibility', () => {
     expect(
       screen.getByRole('button', { name: task.title }),
     ).toHaveAccessibleDescription('Blocked');
+  });
+});
+
+function liveCard(
+  overrides: Partial<TaskRow>,
+  indicators: { running?: string[]; asking?: string[] },
+) {
+  const row = { ...task, ...overrides };
+  return render(
+    <DndContext>
+      <TaskBoardProvider
+        tasks={[row]}
+        dependencyEdges={[]}
+        runningTaskIds={indicators.running ?? []}
+        askingTaskIds={indicators.asking ?? []}
+      >
+        <TaskCard task={row} canWorkTask={() => true} />
+      </TaskBoardProvider>
+    </DndContext>,
+  );
+}
+
+describe('TaskCard live line', () => {
+  it('names the agent at work in words, and beside its avatar', () => {
+    liveCard(
+      {
+        _id: 'working',
+        status: 'in_progress',
+        assigneeType: 'agent',
+        assigneeId: 'agent-1',
+        reviewerUserId: undefined,
+      },
+      { running: ['working'] },
+    );
+    expect(screen.getByText('Ava Editor is working')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: task.title }),
+    ).toHaveAccessibleDescription(/Ava Editor is working/);
+    // The name rides beside the assignee's avatar too.
+    expect(screen.getAllByText('Ava Editor').length).toBeGreaterThan(0);
+  });
+
+  it('puts an agent waiting for an answer before its work', () => {
+    liveCard(
+      {
+        _id: 'asking',
+        status: 'in_progress',
+        assigneeType: 'agent',
+        assigneeId: 'agent-1',
+        reviewerUserId: undefined,
+      },
+      { running: ['asking'], asking: ['asking'] },
+    );
+    expect(screen.getByText('Waiting for your answer')).toBeInTheDocument();
+    expect(screen.queryByText('Ava Editor is working')).not.toBeInTheDocument();
+  });
+
+  it('says nothing for a card no one is moving', () => {
+    liveCard({ _id: 'quiet', status: 'todo', reviewerUserId: undefined }, {});
+    expect(
+      screen.queryByText(/is working|Waiting for/),
+    ).not.toBeInTheDocument();
   });
 });

@@ -5,11 +5,14 @@ import {
   Reveal,
   SectionHeading,
 } from '@/app/components/marketing';
-import { GET_STARTED_HREF, REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { getStartedUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 export function CtaDeploy() {
   const { t } = useT('home');
+  const locale = useCurrentLocale();
 
   return (
     <PageSection
@@ -28,7 +31,10 @@ export function CtaDeploy() {
           />
           <CtaPair
             align="start"
-            primary={{ label: t('cta.getStarted'), href: GET_STARTED_HREF }}
+            primary={{
+              label: t('cta.getStarted'),
+              href: getStartedUrl(locale),
+            }}
             secondary={{ label: t('cta.primary'), to: REQUEST_DEMO_PATH }}
           />
         </div>

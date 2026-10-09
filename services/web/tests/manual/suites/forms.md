@@ -63,12 +63,12 @@ true }`) but **silently discarded**, so nothing is delivered. A **503**
   interests.
 - [ ] `FORM-F4` · **Send another** — After FORM-F1, click **Send another**
   (`forms.success.sendAnother`) → The empty form returns (all fields reset to
-  defaults, privacy unchecked); a second valid submit succeeds again.
+  defaults, privacy unchecked), focus moves to the first required field, and a
+  second valid submit succeeds again.
 - [ ] `FORM-F5` · **Privacy policy link** — On either form, click **Privacy
   Policy** (`forms.privacyLink`) → Lands on `/legal/privacy-policy` and the
-  document renders. Note: the link is a plain `<a
-  href="/legal/privacy-policy">` — on `/de/contact` it still targets the
-  **English** legal page (candidate localization finding)
+  document renders in the form's current language (`/de/legal/privacy-policy`
+  and `/fr/legal/privacy-policy` on the localized forms).
 - [ ] `FORM-F6` · **Endpoint probe (live-safe)** — `curl -X POST
   {base}/api/forms/submit -H 'content-type: application/json' -d
   '{"form":"contact","payload":{"name":"probe","email":"probe@example.com","message":"manual-test
@@ -83,17 +83,21 @@ true }`) but **silently discarded**, so nothing is delivered. A **503**
 ## Boundary & error tests
 
 - [ ] `FORM-B1` · **Required fields** — Submit an empty contact form → Inline
-  field errors: **Required** on Name and Email, **Tell us a bit more (10+
-  characters)** on the empty Message (the min-length rule fires first —
-  verified live), and **You must accept the privacy policy**
+  field errors: **Enter your name.** (`forms.validation.nameRequired`),
+  **Enter your email address.** (`forms.validation.emailRequired`),
+  **Enter your message.** (`forms.validation.messageRequired`), and
+  **Confirm that you have read the Privacy Policy.**
   (`forms.privacyRequired`); no request is sent.
 - [ ] `FORM-B2` · **Invalid email** — `not-an-email` in **Email** → Inline
-  error **Invalid email**; no request sent.
+  error **Enter a valid email address.** (`forms.validation.emailInvalid`);
+  no request sent.
 - [ ] `FORM-B3` · **Short message** — Contact **Message** = `too short` (< 10
-  chars) → Inline error **Tell us a bit more (10+ characters)**.
+  chars) → Inline error **Tell us a little more. Use at least 10 characters.**
+  (`forms.validation.messageTooShort`).
 - [ ] `FORM-B4` · **Invalid phone** — Demo **Phone** = `abc` (letters) and
-  `12` (< 4 chars) → Inline errors **Invalid phone number** / **Too short**;
-  empty phone is allowed.
+  `----` (no digits), then `12` (< 4 digits) → Inline localized formatting
+  guidance (`forms.validation.phoneInvalid`) or minimum-length guidance
+  (`forms.validation.phoneTooShort`); empty phone is allowed.
 - [ ] `FORM-B5` · **Time trap** — Fill a valid contact form and submit
   **within 3 s** of page load → `role="alert"` error **Hold on — review your
   details before submitting.** (`forms.errors.tooFast`); the same submit
@@ -106,7 +110,8 @@ true }`) but **silently discarded**, so nothing is delivered. A **503**
   (limit: 5/min/IP)
 - [ ] `FORM-B7` · **Oversize payload** — curl a body > 4 KiB (e.g. a 5000-char
   `message`) → HTTP **413** `Payload too large`; via the UI the 2000-char Zod
-  cap yields **Too long** first.
+  cap yields field-specific localized length guidance first (e.g.
+  `forms.validation.messageTooLong`).
 - [ ] `FORM-B8` · **Malformed JSON** — `curl -X POST {base}/api/forms/submit
   -d 'not json'` → HTTP **400** `Invalid JSON`; a schema-invalid JSON body
   returns **400** `Validation failed`; `GET` returns **405**.
@@ -130,11 +135,12 @@ true }`) but **silently discarded**, so nothing is delivered. A **503**
   label (the `Field` component wires `label[for]`); the honeypot block is
   `aria-hidden` with `tabindex="-1"` — invisible to AT and skipped by Tab.
 - [ ] `FORM-A2` · **Error announce** → Field errors are associated with their
-  inputs; the server error is `role="alert"`; the success card is
-  `role="status"`
+  inputs, including the privacy checkbox; submitting when consent alone is
+  missing focuses that checkbox. The server error is `role="alert"`; the
+  success card is `role="status"` and receives focus.
 - [ ] `FORM-A3` · **Keyboard only** → Complete FORM-F1 with the keyboard alone
   — Tab order: Name → Email → (Company/Phone/interests) → Message → privacy
-  checkbox → **Get in touch**; Space toggles the checkbox.
+  checkbox → **Privacy Policy** link → **Get in touch**; Space toggles the checkbox.
 - [ ] `FORM-A4` · **Submit state** → While submitting, the button shows its
   loading state and a second Enter doesn't double-submit (one POST in the
   network log)

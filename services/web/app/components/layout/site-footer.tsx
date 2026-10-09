@@ -16,7 +16,7 @@ import {
 import { FOOTER_PLATFORM_PAGES } from '@/app/content/platform-pages';
 import { FOOTER_COMPANY_CTAS } from '@/app/content/site-ctas';
 import { listMarketingContent } from '@/lib/content/client';
-import { DOCS_URL } from '@/lib/docs-url';
+import { getDocsUrl } from '@/lib/docs-url';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
@@ -30,7 +30,11 @@ function RouteLink({
   children: ReactNode;
 }) {
   return (
-    <MarketingLink to={to} tone="footer">
+    <MarketingLink
+      to={to}
+      tone="footer"
+      activeOptions={{ exact: true, includeSearch: false }}
+    >
       {children}
     </MarketingLink>
   );
@@ -56,15 +60,15 @@ function LegalLink({
 }
 
 /**
- * Marketing footer — Platform · Resources · Company · Legal, with the
- * company address as a fifth column that wraps under Platform. GitHub
- * sits in the bottom bar after the theme picker.
+ * Marketing footer — four compact destination groups, with the company
+ * address and GitHub in the bottom bar.
  */
 export function SiteFooter() {
   const copyright = useSiteCopyright();
   const { t } = useT('footer');
   const { t: tNav } = useT('nav');
   const { t: tAddress } = useT('address');
+  const locale = useCurrentLocale();
 
   const columns: FooterColumn[] = [
     {
@@ -83,7 +87,11 @@ export function SiteFooter() {
     {
       heading: t('resources'),
       links: [
-        <MarketingExternalLink key="docs" href={DOCS_URL} tone="footer">
+        <MarketingExternalLink
+          key="docs"
+          href={getDocsUrl(locale)}
+          tone="footer"
+        >
           {tNav('resource.docs.label')}
         </MarketingExternalLink>,
         <MarketingExternalLink
@@ -160,23 +168,27 @@ export function SiteFooter() {
         </LegalLink>,
       ],
     },
-    // Fifth column wraps under Platform (col 1) on both 2-up and 4-up grids.
-    {
-      heading: tAddress('company'),
-      links: [],
-      className: 'col-start-1',
-      body: (
-        <address
-          className="not-italic"
-          style={{ lineHeight: 1.5, letterSpacing: '-0.14px' }}
+  ];
+
+  return (
+    <SiteFooterShell
+      logo={
+        <MarketingLink
+          to="/"
+          tone="plain"
+          activeOptions={{ exact: true, includeSearch: false }}
+          aria-label={t('homeAriaLabel')}
+          className="text-fg-base"
         >
-          <span className="text-fg-muted">
-            {tAddress('street')}
-            {' · '}
-            {tAddress('city')}
-            {' · '}
-            {tAddress('country')}
-            {' · '}
+          <TaleLogo />
+        </MarketingLink>
+      }
+      columns={columns}
+      address={
+        <address className="flex flex-wrap items-baseline gap-x-2 gap-y-1 not-italic">
+          <span>{tAddress('company')}</span>
+          <span>
+            {tAddress('street')} · {tAddress('city')} · {tAddress('country')}
           </span>
           <MarketingExternalLink
             href={EXTERNAL_LINKS.vatCheck}
@@ -186,23 +198,7 @@ export function SiteFooter() {
             {tAddress('vatId')}
           </MarketingExternalLink>
         </address>
-      ),
-    },
-  ];
-
-  return (
-    <SiteFooterShell
-      logo={
-        <MarketingLink
-          to="/"
-          tone="plain"
-          aria-label={t('homeAriaLabel')}
-          className="text-fg-base"
-        >
-          <TaleLogo />
-        </MarketingLink>
       }
-      columns={columns}
       copyrightLines={[copyright]}
       bottomTrailing={<GithubLink label={t('githubAriaLabel')} />}
       llmsTxtUrl="/llms.txt"

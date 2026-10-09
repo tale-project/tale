@@ -75,6 +75,63 @@ interface AudioStreamInfo {
   readonly channels: number;
 }
 
+export interface VideoStreamInfo {
+  codec: string;
+  width: number;
+  height: number;
+  fps: number;
+  pixelFormat: string;
+  container: string;
+  frameCount: number;
+}
+
+/** Native container/decoder facts for the first video stream. */
+export async function probeVideoStream(
+  filePath: string,
+): Promise<VideoStreamInfo> {
+  const { stdout } = await runFfmpeg(
+    ffprobeBin(),
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-count_frames',
+      '-show_entries',
+      'stream=codec_name,width,height,avg_frame_rate,pix_fmt,nb_read_frames:format=format_name',
+      '-of',
+      'json',
+      filePath,
+    ],
+    30000,
+  );
+  const parsed = JSON.parse(stdout) as {
+    streams?: {
+      codec_name?: string;
+      width?: number;
+      height?: number;
+      avg_frame_rate?: string;
+      pix_fmt?: string;
+      nb_read_frames?: string;
+    }[];
+    format?: { format_name?: string };
+  };
+  const stream = parsed.streams?.[0];
+  if (!stream) throw new Error(`No video stream in ${filePath}`);
+  const [numerator, denominator] = (stream.avg_frame_rate ?? '0/1')
+    .split('/')
+    .map(Number);
+  return {
+    codec: stream.codec_name ?? '',
+    width: stream.width ?? 0,
+    height: stream.height ?? 0,
+    fps: denominator ? (numerator ?? 0) / denominator : 0,
+    pixelFormat: stream.pix_fmt ?? '',
+    container: parsed.format?.format_name ?? '',
+    frameCount: Number(stream.nb_read_frames) || 0,
+  };
+}
+
 /** First audio stream of a container, or null when it has none. */
 export async function probeAudioStream(
   filePath: string,

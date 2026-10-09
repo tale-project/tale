@@ -235,6 +235,11 @@ views:
   board: Board
   list: Liste
 board:
+  agentWorking: '{name} arbeitet daran'
+  addTask: Aufgabe hinzufügen
+  addToLane: 'Aufgabe zu {status} hinzufügen'
+  quickAddLabel: Titel der neuen Aufgabe
+  quickAdded: '„{title}“ hinzugefügt'
   noTasks: Keine Aufgaben
 list:
   showArchived: Archivierte anzeigen
