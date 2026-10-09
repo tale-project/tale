@@ -44,6 +44,12 @@ case "$SESSION_CONNECTIONS" in
     echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION must be a whole number of connections, or 0 for no cap; got '${SESSION_CONNECTIONS}'"
     exit 1 ;;
 esac
+# connlimit counts in 32 bits: a larger value would be refused by iptables and
+# read as a kernel without the match, starting the proxy with no cap at all.
+if [ "${#SESSION_CONNECTIONS}" -gt 10 ] || [ "$SESSION_CONNECTIONS" -gt 4294967295 ]; then
+  echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION must be at most 4294967295 (0 turns the cap off); got '${SESSION_CONNECTIONS}'"
+  exit 1
+fi
 
 install_dns_resolver_rules() {
   # Kubernetes resolvers are often private Service IPs. Keep that necessary

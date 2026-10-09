@@ -356,6 +356,26 @@ describe('per-session connection cap', () => {
     expect(calls).toContain(`iptables -I ${cap(256)}`);
   });
 
+  test.each(['4294967296', '99999999999'])(
+    'refuses to start on a cap past what connlimit counts (%p)',
+    (value) => {
+      const { result, calls } = boot('', false, false, false, undefined, {
+        SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: value,
+      });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain('must be at most 4294967295');
+      expect(calls).not.toContain('proxy-start');
+    },
+  );
+
+  test('takes the largest cap connlimit counts', () => {
+    const { result, calls } = boot('', false, false, false, undefined, {
+      SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: '4294967295',
+    });
+    expect(result.status).toBe(0);
+    expect(calls).toContain(`iptables -I ${cap(4294967295)}`);
+  });
+
   test.each(['lots', '-5', '0100', '256 ', '1e3'])(
     'refuses to start on a cap that is no whole number (%p)',
     (value) => {
