@@ -793,7 +793,11 @@ export function createAccountService(
         if (row.accessToken !== current.accessToken) return;
         row.usageAttemptedAt = now().toISOString();
         if (error instanceof CipherError) row.status = 'expired';
-        else if (rejected) row.status = 'error';
+        // A refresh refusal can win this race while the old generation's
+        // usage request is still in flight. Preserve that terminal state;
+        // turning it back into `error` would make the late 401 spend the
+        // refused refresh token a second time.
+        else if (rejected && row.status !== 'expired') row.status = 'error';
       });
       if (rejected && updated?.status === 'error') return ensureFresh(updated);
       return updated ?? current;
