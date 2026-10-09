@@ -31472,6 +31472,7 @@ async function checkSsoAdminSurface(
 async function checkProvisioning(sql: Sql): Promise<void> {
   const { seedDefaultAutomationPacks, seedStarterContent } =
     await import('./domains/provisioning/service.ts');
+  const { isRecord } = await import('../lib/utils/type-utils.ts');
   // The harness's builtin catalog is a hermetic EMPTY dir — plant one REAL
   // shipped pack (copied from the repo catalog) so the seeder has something
   // to provision.
@@ -31539,8 +31540,11 @@ async function checkProvisioning(sql: Sql): Promise<void> {
       seededTriggers.every((row) => !row.enabled && row.nextDueAt === null) &&
       syncTrigger !== undefined &&
       syncTrigger.cron === null &&
-      JSON.stringify(syncTrigger.repeat) ===
-        JSON.stringify({ frequency: 'minutely', interval: 5 }),
+      // jsonb keeps its own key order, so the rule is compared by field.
+      isRecord(syncTrigger.repeat) &&
+      syncTrigger.repeat.frequency === 'minutely' &&
+      syncTrigger.repeat.interval === 5 &&
+      Object.keys(syncTrigger.repeat).length === 2,
     `seeded=${seededTriggers.map((row) => `${row.name}:${row.enabled ? 'on' : 'off'}/next=${row.nextDueAt ?? 'none'}`).join('|')} (want every one off, none due), sync cron=${syncTrigger?.cron ?? 'null'} repeat=${JSON.stringify(syncTrigger?.repeat ?? null)} (want null / minutely 5)`,
   );
 
