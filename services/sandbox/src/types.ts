@@ -64,6 +64,15 @@ export interface SpawnerConfig {
   // (env SANDBOX_BUILDKITD_CACHE_RETENTION): unset, 14 days; 0 keeps them
   // until the organization is deleted (buildkitd.ts sweepIdleBuildkitd).
   buildkitdCacheRetentionMs?: number;
+  // How long an organization's build helpers keep running once no agent
+  // session that builds may use them (env SANDBOX_BUILDKITD_IDLE_MS): unset,
+  // 10 minutes (buildkitd.ts DEFAULT_HELPER_IDLE_MS), apart from the session
+  // idle window.
+  buildkitdIdleMs?: number;
+  // The most build cache each organization's builder keeps (env
+  // SANDBOX_BUILDKITD_MAX_CACHE): unset, a tenth of the session disk, from
+  // 1 GiB to 20 GiB (buildkitd.ts buildkitCacheBudget).
+  buildkitdMaxCacheBytes?: number;
   // How long an organization's pip, npm and bun cache volumes outlive their
   // last use (env SANDBOX_PACKAGE_CACHE_RETENTION): unset, 14 days; 0 keeps
   // them until the organization is deleted (package-cache-retention.ts).
@@ -191,6 +200,12 @@ export interface SessionConfig {
    * (SANDBOX_MIN_FREE_DISK; 0 turns the floor off); unset is a twentieth of
    * each filesystem, at least 2 GiB and at most 20 GiB (host-disk.ts). */
   minFreeDiskBytes?: number;
+  /** Free space below which that disk is critical (SANDBOX_CRITICAL_FREE_DISK;
+   * 0 turns the tier off): released Docker-in-sandbox sessions are stopped
+   * at once, and the largest workspaces are logged. Unset is a quarter of
+   * the floor, at least 1 GiB; set or unset never above the floor, and off
+   * while the floor is (host-disk.ts). */
+  criticalFreeDiskBytes?: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */

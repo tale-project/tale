@@ -65,6 +65,7 @@ import {
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
+  ExecDiskFullError,
   isSessionExecLimitResult,
   SessionExecLimitError,
   sessionCancelExec,
@@ -1825,7 +1826,12 @@ export async function driveTaskAgentTurnImpl(
       );
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
-        reason: 'the agent run stopped unexpectedly',
+        // A full sandbox disk is the host's condition, named so whoever
+        // reads the failure knows what to free.
+        reason:
+          err instanceof ExecDiskFullError
+            ? `the agent run stopped: ${err.message}`
+            : 'the agent run stopped unexpectedly',
         text: '',
         failureCode: 'turn_crashed',
       });

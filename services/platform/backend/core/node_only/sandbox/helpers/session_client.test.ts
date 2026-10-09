@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
   chunkStageFiles,
   drainSessionExecResilient,
+  ExecDiskFullError,
   ExecStreamProtocolError,
   ExecOutputGapError,
   SandboxDeviceOfflineError,
@@ -888,7 +889,12 @@ describe('drainSessionExecResilient', () => {
     expect(requests).toBe(1);
   });
 
-  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'])(
+  test.each([
+    'OUTPUT_GAP',
+    'OUTPUT_LIMIT',
+    'REPLAY_UNAVAILABLE',
+    'REPLAY_DISK_FULL',
+  ])(
     'fails %s terminally without retrying missing or refused history',
     async (code) => {
       let requests = 0;
@@ -912,6 +918,25 @@ describe('drainSessionExecResilient', () => {
       expect(requests).toBe(1);
     },
   );
+
+  test('a sandbox disk that ran out ends the exec in words of its own, never the payload', async () => {
+    globalThis.fetch = (async () =>
+      sseResponse([
+        `event: error\ndata: ${JSON.stringify({ code: 'REPLAY_DISK_FULL', message: '{"internal":"payload"}' })}\n\n`,
+      ])) as unknown as typeof fetch;
+    const failure = await drainSessionExecResilient(
+      's',
+      { execId: 'e' },
+      new AbortController().signal,
+      {},
+      { resumeSinceSeq: 0 },
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ExecDiskFullError);
+    expect(failure).toMatchObject({
+      code: 'REPLAY_DISK_FULL',
+      message: 'the sandbox host ran out of disk space',
+    });
+  });
 
   test('does not advance past a refused harness record and cancels its reader', async () => {
     let cancelled = false;

@@ -7,22 +7,35 @@ import {
   spyOn,
   test,
 } from 'bun:test';
-import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  rm,
+  statfs,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  buildkitCacheBudget,
   buildkitdCacheVolumeName,
   buildkitdContainerName,
   buildkitdEndpoint,
+  builderConfiguration,
+  builderLaunchRecord,
+  builderParallelism,
   buildkitHelperLimits,
   buildkitMirrorEnvironment,
   buildkitdMirrorContainerName,
+  buildkitdMirrorRef,
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
   ensureBuildkitd,
   helperStamp,
   MIRROR_REGISTRIES,
+  resetBuildkitObservations,
   resetDiskPressurePause,
   retainBuildkitd,
   sweepIdleBuildkitd,
@@ -93,12 +106,29 @@ if (a[0] === 'ps') {
   const orgFilter = flags('--filter').find(value => value.startsWith('label=tale.org='))?.slice('label=tale.org='.length);
   done(s.sessions.filter(c => !orgFilter || c.org === orgFilter).map(c => [c.id, c.status, ...(flag('--format').includes('.Label') ? [c.org] : []), ...(flag('--format').includes('tale.profile') ? [c.profile || ''] : []), ...(flag('--format').includes('tale.docker') ? [c.docker ?? ''] : [])].join('\t')).join('\n'), 'sessions');
 }
+const networkId = name => new Bun.CryptoHasher('sha256').update(name).digest('hex');
+// Docker names each endpoint's network by id too.
+const endpoints = networks => Object.fromEntries(Object.entries(networks).map(([name, value]) => [name, { NetworkID: networkId(name), ...value }]));
+const egress = () => ({ id: s.egressId, name: '/egress', running: true, startedAt: s.egressStartedAt ?? '2026-10-01T00:00:00Z', networks: { 'tale-sandbox-net': { Aliases: ['sandbox-egress'], IPAddress: '172.30.0.2' }, ...Object.fromEntries((s.egressAttached ?? []).map(name => [name, { Aliases: ['tale-buildkit-egress'], IPAddress: '172.22.0.2', NetworkID: networkId(name) }])) } });
 if (a[0] === 'inspect') {
-  if (flag('--format').includes('"id"')) done({ id: s.egressId, name: '/egress', networks: { 'tale-sandbox-net': { Aliases: ['sandbox-egress'], IPAddress: '172.22.0.2' } } });
   if (flag('--format').includes('.Config.Env')) done('');
-  const c = find(a.at(-1));
-  if (!c) fail('Error: No such object: ' + a.at(-1));
-  done(c, 'resource');
+  // Every target answers on its own line; missing ones fail the call after
+  // the others are printed, as the Docker CLI does.
+  const lines = [];
+  const missing = [];
+  for (const target of a.slice(a.indexOf('--format') + 2)) {
+    if (target === s.egressId) { lines.push(JSON.stringify(egress())); continue; }
+    const c = find(target);
+    if (!c) { missing.push(target); continue; }
+    lines.push(JSON.stringify({ ...c, name: '/' + c.name, startedAt: c.startedAt ?? '2026-10-01T00:00:00Z', networks: endpoints(c.networks) }));
+  }
+  if (missing.length) {
+    commit();
+    if (lines.length) console.log(lines.join('\n'));
+    console.error(missing.map(target => 'Error: No such object: ' + target).join('\n'));
+    process.exit(1);
+  }
+  done(lines.join('\n'), 'resource');
 }
 if (a[0] === 'network') {
   if (a[1] === 'inspect') {
@@ -106,18 +136,22 @@ if (a[0] === 'network') {
     if (name === 'tale-sandbox-net') done({ [s.egressId]: { Name: 'egress' } });
     if (!s.networks[name]) fail('Error: No such network: ' + name);
     if (flag('--format').includes('"containers"')) done({ id: 'a'.repeat(64), labels: s.networks[name].Labels, containers: null });
-    done(s.networks[name]);
+    const network = { Id: networkId(name), ...s.networks[name] };
+    if ((s.egressAttached ?? []).includes(name)) network.Containers = { [s.egressId]: { Name: 'egress' } };
+    done(network);
   }
-  if (a[1] === 'connect') done();
+  if (a[1] === 'connect') { s.egressAttached = [...new Set([...(s.egressAttached ?? []), a.at(-2)])]; done(); }
   if (a[1] === 'rm') { const gone = Object.keys(s.networks).find(n => n.length > 0); for (const n of Object.keys(s.networks)) if (s.networks[n] && a.at(-1) === 'a'.repeat(64)) delete s.networks[n]; done(gone ?? ''); }
 }
 if (a[0] === 'volume' && a[1] === 'inspect') { if (!s.volumes[a.at(-1)]) fail('Error: No such volume: ' + a.at(-1)); done(s.volumes[a.at(-1)].labels); }
+if (a[0] === 'volume' && a[1] === 'create') { s.volumes[a.at(-1)] ??= { labels: Object.fromEntries(flags('--label').map(v => v.split('='))), sentinel: 'empty' }; done(a.at(-1)); }
 if (a[0] === 'volume' && a[1] === 'rm') { if (!s.volumes[a.at(-1)]) fail('Error: No such volume'); delete s.volumes[a.at(-1)]; done(a.at(-1)); }
 if (a[0] === 'exec') {
   if (a[2] === 'iptables') done('-P FORWARD ACCEPT\n-A FORWARD -j DROP\n');
-  if (a[2] === 'test') done();
-  if (a[2] === 'cat') done('[dns]\n nameservers = ["172.22.0.2"]');
-  if (a[2] === 'getent') done('172.22.0.2 tale-buildkit-egress');
+  if (a[2] === '/bin/sh') {
+    if (s.fenceExecFails) fail('container is restarting');
+    done(s.fenceProbe ?? '#tale-fence marker 0\n#tale-fence toml\n[dns]\n nameservers = ["172.22.0.2"]\n#tale-fence resolved\n172.22.0.2 tale-buildkit-egress');
+  }
   if (a[2] === 'buildctl' && a[3] === 'prune') {
     if (s.pruneFails) fail('buildctl: failed to dial the daemon');
     if (s.pruneGate) {
@@ -131,8 +165,11 @@ if (a[0] === 'exec') {
 }
 if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); done(); }
 if (a[0] === 'image' && a[1] === 'inspect') { const id = (s.imageIds ?? {})[a.at(-1)]; if (!id) fail('Error: No such image: ' + a.at(-1)); done(id); }
+if (a[0] === 'pull') { s.pulled = [...(s.pulled ?? []), a.at(-1)]; s.missingImages = (s.missingImages ?? []).filter((ref) => ref !== a.at(-1)); done(); }
 if (a[0] === 'run') {
   const name = flag('--name');
+  if ((s.missingImages ?? []).includes(a.at(-1)) && flag('--pull') === 'never') fail("Unable to find image '" + a.at(-1) + "' locally\ndocker: Error response from daemon: No such image: " + a.at(-1));
+  if (s.runFails === name) fail('docker: Error response from daemon: toomanyrequests: You have reached your pull rate limit');
   s.containers[name] = { id: new Bun.CryptoHasher('sha256').update(name + ':' + process.pid).digest('hex'), name, labels: Object.fromEntries(flags('--label').map(v => v.split('='))), networks: { [flag('--network')]: {} }, ports: null, running: true, image: (s.imageIds ?? {})[a.at(-1)] ?? 'sha256:' + a.at(-1) };
   done(s.containers[name].id);
 }
@@ -140,13 +177,29 @@ if (a[0] === 'stop') {
   const c = find(a.at(-1));
   if (!c) fail('Error: No such object');
   if (s.stopFails === c.name) fail('stop failed');
+  // Stopped, and started again at once (its restart policy, an operator).
+  if (s.stopNoop === c.name) done();
   if (s.stopGate && !existsSync(join(dir, 'release-stop'))) {
     writeFileSync(join(dir, 'stopping'), c.name);
     while (!existsSync(join(dir, 'release-stop'))) await Bun.sleep(5);
   }
   c.running = false; done();
 }
-if (a[0] === 'rm') { const c = find(a.at(-1)); if (c) delete s.containers[c.name]; done(); }
+if (a[0] === 'rm') {
+  const c = find(a.at(-1));
+  if (c && s.rmGate === c.name && !existsSync(join(dir, 'release-rm'))) {
+    writeFileSync(join(dir, 'removing'), c.name);
+    while (!existsSync(join(dir, 'release-rm'))) await Bun.sleep(5);
+  }
+  if (c) delete s.containers[c.name];
+  done();
+}
+if (a[0] === 'start') {
+  const c = find(a.at(-1));
+  if (!c) fail('Error: No such container: ' + a.at(-1));
+  if (s.startFails === c.name) fail('Error response from daemon: network not found');
+  c.running = true; c.startedAt = new Date().toISOString(); done(a.at(-1));
+}
 fail('Unhandled fake Docker call: ' + JSON.stringify(a));
 `;
 
@@ -170,9 +223,23 @@ interface FakeState {
       running: boolean;
       image?: string;
       finishedAt?: string;
+      startedAt?: string;
     }
   >;
   networks: Record<string, object>;
+  /** Organization networks the egress proxy is attached to. */
+  egressAttached?: string[];
+  /** The helper that is running again right after its stop. */
+  stopNoop?: string;
+  /** The helper whose `docker start` fails. */
+  startFails?: string;
+  /** The helper whose `docker run` fails. */
+  runFails?: string;
+  /** What the builder's fence probe prints instead of a current fence. */
+  fenceProbe?: string;
+  /** The fence probe's exec fails. */
+  fenceExecFails?: boolean;
+  egressStartedAt?: string;
   volumes: Record<string, { labels: Record<string, string>; sentinel: string }>;
   sessions: FakeSession[];
   sessionReads: number;
@@ -188,6 +255,12 @@ interface FakeState {
   pruneFails?: boolean;
   /** `buildctl prune` runs until a `release-prune` file appears. */
   pruneGate?: boolean;
+  /** The container whose `docker rm` waits for a `release-rm` file. */
+  rmGate?: string;
+  /** Images not on the host: a `run --pull never` of one fails. */
+  missingImages?: string[];
+  /** Images `docker pull` fetched, in order. */
+  pulled?: string[];
   /** What `docker image inspect` answers per reference (none: no such image). */
   imageIds?: Record<string, string>;
 }
@@ -220,20 +293,42 @@ const cfg: SpawnerConfig = {
   stderrMaxBytes: 1000,
   maxRequestBodyBytes: 1000,
   session: { ...TEST_SESSION_CONFIG, maxIdleMs: 1000 },
+  buildkitdIdleMs: 1000,
 };
 
 let root = '';
 let orgSequence = 0;
 const originalDockerBin = process.env.DOCKER_BIN;
 
+/** The stamp a builder launched now carries. The session root of these
+ * configurations cannot be read, so the cache cap is the shipped one. */
+function currentBuilderStamp(config: SpawnerConfig): string {
+  return helperStamp(
+    config.buildkitdImage,
+    buildkitHelperLimits(config, 'builder'),
+    builderConfiguration(
+      builderParallelism(config),
+      buildkitCacheBudget(null, config.buildkitdMaxCacheBytes),
+    ),
+  );
+}
+
+/** The proxy an organization's helpers reach the egress by. */
+const HELPER_PROXY = 'http://tale-buildkit-egress:3128/';
+
+/** The mirror mapping of an organization whose three mirrors are all up. */
+function fullMirrorMapping(organizationId: string): string {
+  return MIRROR_REGISTRIES.map(
+    (registry) => `${registry}=${buildkitdMirrorRef(organizationId, registry)}`,
+  ).join(';');
+}
+
 function seed(organizationId: string): FakeState {
   const labels = { 'tale.buildkitd': '1', 'tale.org': organizationId };
   const network = buildkitdNetworkName(organizationId);
   // Helpers launched by this release with these settings.
   const stamps = [
-    helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder'), [
-      `solver-parallelism=${Math.max(1, Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus))}`,
-    ]),
+    currentBuilderStamp(cfg),
     ...MIRROR_REGISTRIES.map((registry) =>
       helperStamp(
         cfg.buildkitdMirrorImage,
@@ -257,7 +352,19 @@ function seed(organizationId: string): FakeState {
         {
           id: String(index + 1).padStart(64, '0'),
           name,
-          labels: { ...labels, 'tale.helper-config': stamps[index] ?? '' },
+          labels: {
+            ...labels,
+            'tale.helper-config': stamps[index] ?? '',
+            // The builder, launched with every mirror up.
+            ...(index === 0
+              ? {
+                  'tale.buildkitd-launch': builderLaunchRecord(
+                    fullMirrorMapping(organizationId),
+                    HELPER_PROXY,
+                  ),
+                }
+              : {}),
+          },
           networks: { [network]: {} },
           ports: null,
           running: true,
@@ -338,6 +445,7 @@ beforeAll(async () => {
   process.env.DOCKER_BIN = executable;
 });
 beforeEach(async () => {
+  resetBuildkitObservations();
   await Promise.all(
     ['stopping', 'release-stop', 'pruning', 'release-prune'].map((name) =>
       rm(join(root, name), { force: true }),
@@ -371,7 +479,245 @@ describe('organization build-cache lifecycle', () => {
     expect(final.containers[buildkitdContainerName(org)]).toEqual(
       initial.containers[buildkitdContainerName(org)],
     );
-    expect((await calls()).filter((args) => args[0] === 'run')).toHaveLength(3);
+    // Current mirrors start again by id rather than being recreated.
+    const log = await calls();
+    expect(log.filter((args) => args[0] === 'run')).toEqual([]);
+    expect(log.filter((args) => args[0] === 'start')).toHaveLength(3);
+  });
+
+  test('a stopped helper launched otherwise than now, or that fails to start, is recreated', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const builder = buildkitdContainerName(org);
+    const drifted = buildkitdMirrorContainerName(org, 'docker.io');
+    const failing = buildkitdMirrorContainerName(org, 'ghcr.io');
+    for (const container of Object.values(initial.containers)) {
+      container.running = false;
+    }
+    initial.containers[drifted]!.labels['tale.helper-config'] = 'earlier';
+    initial.startFails = failing;
+    await save(initial);
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    } finally {
+      warn.mockRestore();
+    }
+    const log = await calls();
+    const started = log
+      .filter((args) => args[0] === 'start')
+      .map((args) => args.at(-1));
+    expect(started).not.toContain(initial.containers[drifted]?.id);
+    expect(started).toContain(initial.containers[builder]?.id);
+    const runs = log
+      .filter((args) => args[0] === 'run')
+      .map((args) => args[args.indexOf('--name') + 1] ?? '');
+    const byName = (a: string, b: string) => a.localeCompare(b);
+    expect(runs.sort(byName)).toEqual([drifted, failing].sort(byName));
+    const final = await state();
+    expect(
+      Object.values(final.containers).every((container) => container.running),
+    ).toBe(true);
+    expect(final.containers[builder]?.id).toBe(initial.containers[builder]?.id);
+    expect(final.volumes).toEqual(initial.volumes);
+  });
+
+  describe('a builder launched while a registry mirror was down', () => {
+    const builderRuns = async (builder: string) =>
+      (await calls()).filter(
+        (args) =>
+          args[0] === 'run' && args[args.indexOf('--name') + 1] === builder,
+      );
+    const mirrorsEnv = (args: string[] | undefined) =>
+      args?.find((arg) => arg.startsWith('TALE_BUILDKITD_MIRRORS='));
+
+    /** An organization whose builder came up while its ghcr.io mirror could
+     * not be launched. */
+    async function launchedWithoutGhcr(org: string): Promise<FakeState> {
+      const initial = seed(org);
+      const builder = buildkitdContainerName(org);
+      const ghcr = buildkitdMirrorContainerName(org, 'ghcr.io');
+      delete initial.containers[builder];
+      delete initial.containers[ghcr];
+      initial.runFails = ghcr;
+      await save(initial);
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+      } finally {
+        warn.mockRestore();
+      }
+      const env = mirrorsEnv((await builderRuns(builder))[0]);
+      expect(env).toContain('docker.io=');
+      expect(env).not.toContain('ghcr.io=');
+      const launched = await state();
+      delete launched.runFails;
+      return launched;
+    }
+
+    test('is recreated with every mirror once stopped, never started again without one', async () => {
+      const org = nextOrg();
+      const builder = buildkitdContainerName(org);
+      const launched = await launchedWithoutGhcr(org);
+      // Its organization went idle and the ghcr.io mirror can run again.
+      launched.containers[builder]!.running = false;
+      await save(launched);
+      resetBuildkitObservations();
+      await writeFile(join(root, 'calls.jsonl'), '');
+
+      expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+      const log = await calls();
+      expect(
+        log.filter(
+          (args) =>
+            args[0] === 'start' &&
+            args.at(-1) === launched.containers[builder]?.id,
+        ),
+      ).toEqual([]);
+      const runs = await builderRuns(builder);
+      expect(runs).toHaveLength(1);
+      expect(mirrorsEnv(runs[0])).toBe(
+        `TALE_BUILDKITD_MIRRORS=${fullMirrorMapping(org)}`,
+      );
+
+      // Launched as it would be now, its next stop ends in a start by id.
+      const relaunched = await state();
+      relaunched.containers[builder]!.running = false;
+      await save(relaunched);
+      resetBuildkitObservations();
+      await writeFile(join(root, 'calls.jsonl'), '');
+      await ensureBuildkitd(cfg, org);
+      const restarted = await calls();
+      expect(restarted.filter((args) => args[0] === 'run')).toEqual([]);
+      expect(
+        restarted.filter(
+          (args) =>
+            args[0] === 'start' &&
+            args.at(-1) === relaunched.containers[builder]?.id,
+        ),
+      ).toHaveLength(1);
+    });
+
+    test('is recreated running once idle, and kept while a build runs or the mirror stays down', async () => {
+      const org = nextOrg();
+      const builder = buildkitdContainerName(org);
+      const ghcr = buildkitdMirrorContainerName(org, 'ghcr.io');
+      const launched = await launchedWithoutGhcr(org);
+      const log = spyOn(console, 'log').mockImplementation(() => {});
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        // The mirror still cannot run: nothing to gain from a recreate.
+        await save({ ...launched, runFails: ghcr });
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        expect(await builderRuns(builder)).toEqual([]);
+
+        // It runs again, but so does a build.
+        await save({
+          ...(await state()),
+          runFails: undefined,
+          buildRunning: true,
+        });
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        expect(await builderRuns(builder)).toEqual([]);
+
+        await save({ ...(await state()), buildRunning: false });
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        const runs = await builderRuns(builder);
+        expect(runs).toHaveLength(1);
+        expect(mirrorsEnv(runs[0])).toBe(
+          `TALE_BUILDKITD_MIRRORS=${fullMirrorMapping(org)}`,
+        );
+      } finally {
+        log.mockRestore();
+        warn.mockRestore();
+      }
+      // Its cache volume stays.
+      expect((await state()).volumes[buildkitdCacheVolumeName(org)]).toEqual(
+        launched.volumes[buildkitdCacheVolumeName(org)],
+      );
+    });
+  });
+
+  test('a builder is launched with cache bounds sized from the session disk, and recreated idle when they change', async () => {
+    const org = nextOrg();
+    await save({ ...seed(org), containers: {} });
+    // A session root whose disk can be read: the test's own.
+    const sized = { ...cfg, hostSessionRoot: root };
+    const disk = await statfs(root);
+    const budget = buildkitCacheBudget(disk.blocks * disk.bsize);
+    await ensureBuildkitd(sized, org);
+    const builder = (await calls()).find(
+      (args) => args[0] === 'run' && args.includes('--privileged'),
+    );
+    expect(builder).toContain(`TALE_BUILDKITD_MAX_USED=${budget.maxUsedBytes}`);
+    expect(builder).toContain(
+      `TALE_BUILDKITD_RESERVED=${budget.reservedBytes}`,
+    );
+    expect(
+      (await state()).containers[buildkitdContainerName(org)]?.labels[
+        'tale.helper-config'
+      ],
+    ).toBe(
+      helperStamp(
+        sized.buildkitdImage,
+        buildkitHelperLimits(sized, 'builder'),
+        builderConfiguration(builderParallelism(sized), budget),
+      ),
+    );
+
+    // The operator caps it lower: the idle builder is recreated with it.
+    await writeFile(join(root, 'calls.jsonl'), '');
+    const capped = { ...sized, buildkitdMaxCacheBytes: 2 * 1024 ** 3 };
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await ensureBuildkitd(capped, org);
+    } finally {
+      log.mockRestore();
+    }
+    const relaunch = (await calls()).find(
+      (args) => args[0] === 'run' && args.includes('--privileged'),
+    );
+    expect(relaunch).toContain(`TALE_BUILDKITD_MAX_USED=${2 * 1024 ** 3}`);
+    expect(relaunch).toContain(
+      `TALE_BUILDKITD_RESERVED=${Math.floor((2 * 1024 ** 3) / 10 / 1024 ** 2) * 1024 ** 2}`,
+    );
+  });
+
+  test('helpers stop after their own idle window, not the session one', async () => {
+    const org = nextOrg();
+    await save(seed(org));
+    const now = Date.now();
+    const config = {
+      ...cfg,
+      session: { ...cfg.session, maxIdleMs: 30 * 60_000 },
+      buildkitdIdleMs: 5 * 60_000,
+    };
+    await sweepIdleBuildkitd(config, now);
+    expect(
+      (await sweepIdleBuildkitd(config, now + 5 * 60_000 - 1)).stopped,
+    ).toBe(0);
+    expect((await sweepIdleBuildkitd(config, now + 5 * 60_000)).stopped).toBe(
+      4,
+    );
+
+    // Unset, ten minutes.
+    const other = nextOrg();
+    await save(seed(other));
+    const defaults = { ...cfg };
+    delete defaults.buildkitdIdleMs;
+    await sweepIdleBuildkitd(defaults, now);
+    expect(
+      (await sweepIdleBuildkitd(defaults, now + 10 * 60_000 - 1)).stopped,
+    ).toBe(0);
+    expect(
+      (await sweepIdleBuildkitd(defaults, now + 10 * 60_000)).stopped,
+    ).toBe(4);
   });
 
   test('a builder from an earlier release is recreated once no build runs; its cache and mirrors stay', async () => {
@@ -431,9 +777,7 @@ describe('organization build-cache lifecycle', () => {
       initial.containers[builder]?.id,
     );
     expect(final.containers[builder]?.labels['tale.helper-config']).toBe(
-      helperStamp(cfg.buildkitdImage, buildkitHelperLimits(cfg, 'builder'), [
-        `solver-parallelism=${Math.max(1, Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus))}`,
-      ]),
+      currentBuilderStamp(cfg),
     );
     expect(final.volumes).toEqual(initial.volumes);
     // Bounds already applied are not applied again.
@@ -524,6 +868,59 @@ describe('organization build-cache lifecycle', () => {
     expect(final.volumes).toEqual(initial.volumes);
   });
 
+  test('a running builder whose fence went stale is recreated, keeping its cache', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.fenceProbe =
+      '#tale-fence marker 0\n#tale-fence toml\n[dns]\n nameservers = ["172.22.0.9"]\n#tale-fence resolved\n172.22.0.2 tale-buildkit-egress\n';
+    await save(initial);
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    } finally {
+      warn.mockRestore();
+    }
+    const builder = buildkitdContainerName(org);
+    const log = await calls();
+    expect(
+      log.filter((args) => args[0] === 'exec' && args[2] === '/bin/sh'),
+    ).toHaveLength(1);
+    expect(
+      log
+        .filter((args) => args[0] === 'run')
+        .map((args) => args.includes(builder)),
+    ).toEqual([true]);
+    const final = await state();
+    expect(final.containers[builder]?.id).not.toBe(
+      initial.containers[builder]?.id,
+    );
+    expect(final.volumes).toEqual(initial.volumes);
+  });
+
+  test('a fence that cannot be read is reused but never remembered as verified', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    initial.fenceExecFails = true;
+    await save(initial);
+    await ensureBuildkitd(cfg, org);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org);
+    const log = await calls();
+    expect(log.filter((args) => args[0] === 'run')).toEqual([]);
+    // Checked in full again: the probe ran once more.
+    expect(
+      log.filter((args) => args[0] === 'exec' && args[2] === '/bin/sh'),
+    ).toHaveLength(1);
+
+    const healthy = await state();
+    healthy.fenceExecFails = false;
+    await save(healthy);
+    await ensureBuildkitd(cfg, org);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org);
+    expect((await calls()).map((args) => args[0])).toEqual(['inspect']);
+  });
+
   describe('an organization that has not built for a long time', () => {
     const DAY = 24 * 60 * 60 * 1000;
     /** Seed `org` with every helper stopped `stoppedForMs` ago. */
@@ -535,6 +932,15 @@ describe('organization build-cache lifecycle', () => {
       }
       await save(initial);
       return initial;
+    }
+    /** Run without the upkeep's log lines. */
+    async function quietly<T>(work: () => Promise<T>): Promise<T> {
+      const log = spyOn(console, 'log').mockImplementation(() => {});
+      try {
+        return await work();
+      } finally {
+        log.mockRestore();
+      }
     }
     /** Two sweeps a full idle grace apart: the second may act. */
     async function sweepTwice(config: SpawnerConfig, now: number) {
@@ -553,18 +959,30 @@ describe('organization build-cache lifecycle', () => {
       expect(Object.keys(after.networks)).toEqual([]);
     });
 
+    /** The builder's cache volume is all that stays of a stopped
+     * organization within the retention: its mirrors went at the stop. */
+    async function expectBuilderCacheOnly(org: string, initial: FakeState) {
+      const after = await state();
+      const cache = buildkitdCacheVolumeName(org);
+      expect(after.volumes).toEqual({ [cache]: initial.volumes[cache]! });
+      expect(Object.keys(after.containers)).toEqual([
+        buildkitdContainerName(org),
+      ]);
+    }
+
     test('keeps them within the retention, or with the retention off', async () => {
       const now = Date.now();
       const recent = nextOrg();
       const initial = await stoppedFor(recent, 2 * DAY, now);
-      await sweepTwice(cfg, now);
-      expect((await state()).volumes).toEqual(initial.volumes);
+      await quietly(() => sweepTwice(cfg, now));
+      await expectBuilderCacheOnly(recent, initial);
 
       const kept = nextOrg();
       const old = await stoppedFor(kept, 60 * DAY, now);
-      await sweepTwice({ ...cfg, buildkitdCacheRetentionMs: 0 }, now);
-      expect((await state()).volumes).toEqual(old.volumes);
-      expect(Object.keys((await state()).containers).length).toBe(4);
+      await quietly(() =>
+        sweepTwice({ ...cfg, buildkitdCacheRetentionMs: 0 }, now),
+      );
+      await expectBuilderCacheOnly(kept, old);
     });
 
     test('is judged from the helper inventory, its stop time read again only once the retention could have passed', async () => {
@@ -573,14 +991,17 @@ describe('organization build-cache lifecycle', () => {
       await stoppedFor(org, 2 * DAY, now);
       const inspects = async () =>
         (await calls()).filter(([command]) => command === 'inspect').length;
-      await sweepTwice(cfg, now);
-      // The builder's stop time alone: no helper is inspected for a stop.
-      expect(await inspects()).toBe(1);
+      await quietly(() => sweepTwice(cfg, now));
+      // The builder's stop time, and each mirror once, right before it goes
+      // with its cache: no helper is inspected for a stop.
+      expect(await inspects()).toBe(1 + MIRROR_REGISTRIES.length);
       for (const later of [60_000, DAY, 11 * DAY]) {
         await sweepIdleBuildkitd(cfg, now + later);
       }
-      expect(await inspects()).toBe(1);
-      expect(Object.keys((await state()).containers).length).toBe(4);
+      expect(await inspects()).toBe(1 + MIRROR_REGISTRIES.length);
+      expect(Object.keys((await state()).containers)).toEqual([
+        buildkitdContainerName(org),
+      ]);
       // Twelve days on, the fourteen-day retention has passed: the builder is
       // inspected again, and its helpers and caches go.
       const log = spyOn(console, 'log').mockImplementation(() => {});
@@ -725,6 +1146,40 @@ describe('organization build-cache lifecycle', () => {
       for (const volume of [...cacheVolumes(day1), ...cacheVolumes(day2)]) {
         expect(after.volumes[volume]).toEqual(initial.volumes[volume]);
       }
+    });
+
+    test('judges stopped organizations from the inventory, reading each builder’s stop time once', async () => {
+      const now = Date.now();
+      const [older, newer] = [nextOrg(), nextOrg()];
+      const initial = await stoppedOrgs(
+        [
+          [older, 3 * DAY],
+          [newer, DAY],
+        ],
+        now,
+      );
+      const inspects = async () =>
+        (await calls()).filter(([command]) => command === 'inspect');
+      // The retention check reads each builder's stop time once, and each
+      // mirror is read once right before it goes with its cache.
+      const later = now + cfg.session.maxIdleMs + 1;
+      await quiet(() => sweepIdleBuildkitd(cfg, now));
+      await quiet(() => sweepIdleBuildkitd(cfg, later));
+      expect(await inspects()).toHaveLength(2 * (1 + MIRROR_REGISTRIES.length));
+      await writeFile(join(root, 'calls.jsonl'), '');
+      // The disk goes short: no stopped helper is inspected to choose, and
+      // only the removal reads its builder again, under the lock.
+      const disk = sessionDisk(await state(), 4.5, 1);
+      const result = await quiet(() =>
+        sweepIdleBuildkitd(cfg, later + 60_000, { sessionDisk: disk }),
+      );
+      expect(result.relieved).toBe(1);
+      expect((await inspects()).map((args) => args.at(-1))).toEqual([
+        initial.containers[buildkitdContainerName(older)]?.id,
+      ]);
+      expect((await state()).volumes[buildkitdCacheVolumeName(newer)]).toEqual(
+        initial.volumes[buildkitdCacheVolumeName(newer)],
+      );
     });
 
     test('keeps going while the disk stays short, at most three organizations a sweep', async () => {
@@ -880,7 +1335,7 @@ describe('organization build-cache lifecycle', () => {
     });
   });
 
-  test('idle-stop releases all four helpers after the existing grace, preserving caches and network for resume', async () => {
+  test('idle-stop releases all four helpers after the existing grace, keeping the builder cache and network for resume', async () => {
     const org = nextOrg();
     const initial = seed(org);
     const now = Date.now();
@@ -894,19 +1349,24 @@ describe('organization build-cache lifecycle', () => {
       stopped: 0,
       organizations: 0,
     });
-    expect(await sweepIdleBuildkitd(cfg, now + 1000)).toEqual({
-      stopped: 4,
-      organizations: 1,
-    });
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      expect(await sweepIdleBuildkitd(cfg, now + 1000)).toEqual({
+        stopped: 4,
+        organizations: 1,
+      });
+    } finally {
+      log.mockRestore();
+    }
 
+    const builder = buildkitdContainerName(org);
+    const cache = buildkitdCacheVolumeName(org);
     const stopped = await state();
-    expect(
-      Object.values(stopped.containers).every(
-        (container) => !container.running,
-      ),
-    ).toBe(true);
+    // The builder stops and keeps its cache; the mirrors go with theirs.
+    expect(Object.keys(stopped.containers)).toEqual([builder]);
+    expect(stopped.containers[builder]?.running).toBe(false);
     expect(stopped.networks).toEqual(initial.networks);
-    expect(stopped.volumes).toEqual(initial.volumes);
+    expect(stopped.volumes).toEqual({ [cache]: initial.volumes[cache]! });
     const stoppedCommands = await calls();
     expect(
       stoppedCommands
@@ -915,36 +1375,187 @@ describe('organization build-cache lifecycle', () => {
     ).toEqual(
       Object.values(initial.containers).map((container) => container.id),
     );
+    const mirrorIds = MIRROR_REGISTRIES.map(
+      (registry) =>
+        initial.containers[buildkitdMirrorContainerName(org, registry)]?.id,
+    );
+    // Each mirror by id, after its stop, then its volume by exact name.
     expect(
-      stoppedCommands.some((args) => args[0] === 'rm' || args[1] === 'rm'),
-    ).toBe(false);
+      stoppedCommands.filter((args) => args[0] === 'rm').map((args) => args),
+    ).toEqual(mirrorIds.map((id) => ['rm', id ?? '']));
+    expect(
+      stoppedCommands
+        .filter((args) => args[0] === 'volume' && args[1] === 'rm')
+        .map((args) => args.at(-1)),
+    ).toEqual(
+      MIRROR_REGISTRIES.map((registry) =>
+        buildkitdMirrorVolumeName(org, registry),
+      ),
+    );
+    expect(
+      stoppedCommands.findIndex((args) => args[0] === 'rm'),
+    ).toBeGreaterThan(
+      stoppedCommands.findLastIndex((args) => args[0] === 'stop'),
+    );
 
+    await writeFile(join(root, 'calls.jsonl'), '');
     expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
     const resumed = await state();
     expect(
       Object.values(resumed.containers).every((container) => container.running),
     ).toBe(true);
-    expect(resumed.volumes).toEqual(initial.volumes);
+    expect(resumed.volumes[cache]).toEqual(initial.volumes[cache]);
     expect(resumed.networks).toEqual(initial.networks);
+    // The builder, launched as it would be now, starts again by id after
+    // its mirrors are recreated on fresh volumes.
+    const resumeCommands = await calls();
+    const runs = resumeCommands.filter((args) => args[0] === 'run');
+    expect(runs).toHaveLength(MIRROR_REGISTRIES.length);
+    expect(runs.some((args) => args.includes('--privileged'))).toBe(false);
+    expect(
+      resumeCommands
+        .filter((args) => args[0] === 'start')
+        .map((args) => args.at(-1)),
+    ).toEqual([initial.containers[builder]?.id]);
+    expect(
+      resumeCommands.findIndex((args) => args[0] === 'start'),
+    ).toBeGreaterThan(
+      resumeCommands.findLastIndex((args) => args[0] === 'run'),
+    );
+
+    // A first launch: every helper runs bounded.
+    const fresh = nextOrg();
+    await save({ ...seed(fresh), containers: {} });
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, fresh)).toBe(buildkitdEndpoint(fresh));
     const launches = (await calls()).filter((args) => args[0] === 'run');
     expect(launches).toHaveLength(4);
     expect(
       launches.filter((args) => args.includes('--privileged')),
     ).toHaveLength(1);
     expect(launches.find((args) => args.includes('--privileged'))).toContain(
-      buildkitdContainerName(org),
+      buildkitdContainerName(fresh),
     );
     // Every helper runs bounded; the builder, shared by the organization's
     // agent sessions, with an agent session's CPUs and twice its memory.
     const agent = cfg.session.agentProfile;
     expect(agent.memory).toBe('4g');
     for (const args of launches) {
-      const builder = args.includes('--privileged');
-      expect(args).toContain(`--memory=${builder ? '8192m' : '512m'}`);
-      expect(args).toContain(`--cpus=${builder ? agent.cpus : 1}`);
+      const privileged = args.includes('--privileged');
+      expect(args).toContain(`--memory=${privileged ? '8192m' : '512m'}`);
+      expect(args).toContain(`--cpus=${privileged ? agent.cpus : 1}`);
       expect(args.some((arg) => arg.startsWith('--pids-limit='))).toBe(true);
       expect(args).toContain('--oom-score-adj=500');
       expect(args).toContain('max-size=10m');
+    }
+  });
+
+  test('an idle stop never removes a running mirror, nor a cache volume it cannot prove its own', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const restarted = buildkitdMirrorContainerName(org, 'docker.io');
+    const relabelled = buildkitdMirrorVolumeName(org, 'ghcr.io');
+    initial.stopNoop = restarted;
+    initial.volumes[relabelled]!.labels = {
+      'tale.buildkitd': '1',
+      'tale.org': 'another-org',
+    };
+    await save(initial);
+    const now = Date.now();
+    await sweepIdleBuildkitd(cfg, now);
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await sweepIdleBuildkitd(cfg, now + 1000);
+    } finally {
+      warn.mockRestore();
+      log.mockRestore();
+    }
+    const after = await state();
+    // Running again: the mirror and its cache stay.
+    expect(after.containers[restarted]?.running).toBe(true);
+    expect(after.volumes[buildkitdMirrorVolumeName(org, 'docker.io')]).toEqual(
+      initial.volumes[buildkitdMirrorVolumeName(org, 'docker.io')],
+    );
+    // Labelled for another organization: refused, never removed.
+    expect(after.volumes[relabelled]).toEqual(initial.volumes[relabelled]);
+    // The rest went as usual; the builder's cache stays.
+    expect(after.volumes[buildkitdMirrorVolumeName(org, 'quay.io')]).toBe(
+      undefined,
+    );
+    expect(after.volumes[buildkitdCacheVolumeName(org)]).toEqual(
+      initial.volumes[buildkitdCacheVolumeName(org)],
+    );
+  });
+
+  test('a missing mirror image is pulled once in the background, never inside a create', async () => {
+    const org = nextOrg();
+    await save({
+      ...seed(org),
+      containers: {},
+      missingImages: [cfg.buildkitdMirrorImage],
+    });
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      // The builder still comes up; its mirrors are unavailable this time.
+      expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+      for (let i = 0; i < 400; i += 1) {
+        if (((await state()).pulled ?? []).length > 0) break;
+        await Bun.sleep(5);
+      }
+      // Three mirrors, one image, one pull.
+      expect((await state()).pulled).toEqual([cfg.buildkitdMirrorImage]);
+      const mirrorRuns = (await calls()).filter(
+        (args) => args[0] === 'run' && args.includes(cfg.buildkitdMirrorImage),
+      );
+      expect(mirrorRuns.length).toBeGreaterThan(0);
+      expect(
+        mirrorRuns.every((args) => args.join(' ').includes('--pull never')),
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+      log.mockRestore();
+    }
+  });
+
+  test('a create arriving while idle mirrors go keeps the mirrors not yet removed', async () => {
+    const org = nextOrg();
+    const initial = seed(org);
+    const first = buildkitdMirrorContainerName(org, 'docker.io');
+    initial.rmGate = first;
+    const now = Date.now();
+    await rm(join(root, 'removing'), { force: true });
+    await rm(join(root, 'release-rm'), { force: true });
+    await save(initial);
+    await sweepIdleBuildkitd(cfg, now);
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    let release: (() => void) | undefined;
+    try {
+      const sweep = sweepIdleBuildkitd(cfg, now + 1000);
+      for (let i = 0; i < 400; i += 1) {
+        if (await Bun.file(join(root, 'removing')).exists()) break;
+        await Bun.sleep(5);
+      }
+      // A session create of the organization takes its lease while the
+      // first mirror goes; it waits behind the organization's lock with
+      // only its provisioning budget, so the rest must not hold it longer.
+      release = retainBuildkitd(org);
+      await writeFile(join(root, 'release-rm'), '');
+      await sweep;
+    } finally {
+      release?.();
+      log.mockRestore();
+    }
+    const after = await state();
+    expect(after.containers[first]).toBeUndefined();
+    for (const registry of ['ghcr.io', 'quay.io']) {
+      expect(
+        after.containers[buildkitdMirrorContainerName(org, registry)],
+      ).toBeDefined();
+      expect(after.volumes[buildkitdMirrorVolumeName(org, registry)]).toEqual(
+        initial.volumes[buildkitdMirrorVolumeName(org, registry)],
+      );
     }
   });
 

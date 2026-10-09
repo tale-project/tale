@@ -6,6 +6,7 @@
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
 
 import type { SessionDiskState } from '../host-disk.ts';
+import type { LargestWorkspaces } from '../session/workspace-usage.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
@@ -207,6 +208,18 @@ export interface BuildCacheUpkeep {
   sessionDisk?: () => Promise<SessionDiskState | null>;
 }
 
+/** How a stop ends what still runs in the session. */
+export interface StopSessionOptions {
+  /** Let the session end its own work for this long before it is killed:
+   * runnerd passes the stop on to every live exec (a harness writes its
+   * transcript, a wrapper restores what it staged) and a Docker-in-sandbox
+   * session's supervisor shuts its inner engine down. Absent or 0, the
+   * compute is killed at once — the stop of an idle session, which has
+   * nothing to end. Docker only: a Kubernetes Pod is always deleted with its
+   * own grace period. */
+  graceMs?: number;
+}
+
 export interface SessionBackend {
   readonly kind: 'docker' | 'kubernetes';
   /**
@@ -277,6 +290,7 @@ export interface SessionBackend {
   stopSession(
     sessionId: string,
     expectedCreatedAtMs?: number,
+    options?: StopSessionOptions,
   ): Promise<boolean>;
   /** Recover an abandoned startup only when its durable age and current
    * backend state prove no peer is still starting it. Fenced to the original
@@ -344,6 +358,14 @@ export interface SessionBackend {
    * containers/Pods beside them cannot be listed at all.
    */
   listWorkspaces(): Promise<BackendWorkspace[]>;
+  /**
+   * The `limit` largest workspaces this backend holds, measured now, for the
+   * log of a session disk below its critical tier. Bounded in time: what was
+   * measured by the deadline is answered, with how much that was. THROWS
+   * when the workspaces cannot be listed. Absent where the spawner does not
+   * hold the workspaces' disk (Kubernetes).
+   */
+  largestWorkspaces?(limit: number): Promise<LargestWorkspaces>;
   /**
    * The organizations holding resources beyond their sessions' workspaces
    * (Docker: the organization's build helpers, their network and cache

@@ -122,7 +122,7 @@ const realBuild = await import(buildPath);
 const { waitWithinOperation } = await import(join(source,'operation-budget.ts'));
 mock.module(buildPath, () => ({...realBuild,
   retainBuildkitd: () => {events.push('retain'); leases++; return () => {leases--;events.push('release');};},
-  ensureBuildkitdReady: async (_,org) => {
+  provisionBuildkitd: async (_,org) => {
     events.push('ensure:'+leases);
     if(scenario==='cache-failure') throw new Error('cache unavailable');
     if(['cache-timeout','cache-deadline'].includes(scenario)) {
@@ -133,7 +133,8 @@ mock.module(buildPath, () => ({...realBuild,
     }
     if(scenario==='slow-cache') { await cacheGate; events.push('late-cache'); }
     const endpoint = realBuild.buildkitdEndpoint(org);
-    return scenario==='hub-mirror-down' ? {endpoint} : {endpoint, dockerHubMirror: realBuild.buildkitdMirrorRef(org,'docker.io')};
+    const plan = {id:'e'.repeat(64),subnets:['172.19.0.0/23']};
+    return scenario==='hub-mirror-down' ? {endpoint, plan} : {endpoint, plan, dockerHubMirror: realBuild.buildkitdMirrorRef(org,'docker.io')};
   },
   sweepIdleBuildkitd: async () => {events.push('sweep'); return {stopped:0,organizations:0};},
 }));
