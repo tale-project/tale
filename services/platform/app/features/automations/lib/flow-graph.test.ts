@@ -439,6 +439,39 @@ describe('Start and End', () => {
     });
   });
 
+  it('holds End’s shape row whenever the check may work it out, so End never grows', () => {
+    const doc = shipped('github/triage-issues');
+    const shapeOf = (extra: Partial<FlowGraphContext>) => {
+      const end = build(doc, extra).graph.nodes.at(-1);
+      if (end?.kind !== 'exit') throw new Error('no End');
+      return end.shape;
+    };
+    // Nobody checks this document: no row.
+    expect(shapeOf({})).toBeUndefined();
+    // The check is running: the row waits.
+    expect(
+      shapeOf({ returns: { status: 'pending', outputs: null } }),
+    ).toBeNull();
+    // It answered with a shape, or could not tell.
+    expect(
+      shapeOf({
+        returns: { status: 'ready', outputs: {} },
+        outputShape: {
+          type: 'object',
+          properties: { reviewed: { type: 'number' } },
+        },
+      }),
+    ).toEqual(expect.stringContaining('reviewed'));
+    expect(shapeOf({ returns: { status: 'ready', outputs: {} } })).toEqual({
+      text: 'Shape known after a run',
+      code: false,
+    });
+    expect(shapeOf({ returns: { status: 'failed', outputs: null } })).toEqual({
+      text: 'Shape known after a run',
+      code: false,
+    });
+  });
+
   it('marks the outputs a pinned path leaves empty', () => {
     const { graph } = build(shipped('gmail/triage-inbox'), {
       ranOnPath: new Set(['inbox']),
