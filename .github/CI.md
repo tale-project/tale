@@ -86,16 +86,49 @@ After reviewing the decision, add `--apply --receipt /absolute/private/run-attem
 The command repeats its run, queue and deleted-ref observations, creates and flushes
 the same exclusive owner-only journal used by tail recovery, then sends at most one
 ordinary cancellation. This can stop live validation jobs for that obsolete revision;
-it never force-cancels. Cancellation does not establish a passed check. The receipt
-distinguishes confirmed cancellation, an accepted request still pending readback and
+it does not escalate to force cancellation. Cancellation does not establish a passed
+check. The receipt distinguishes confirmed cancellation, an accepted request still pending readback and
 unknown outcomes. Never replay an uncertain request or replace its receipt. Ordinary
-cancellation may leave an `always()` aggregate queued; this command does not escalate
-that into a force cancellation.
+cancellation may leave an `always()` aggregate queued; the explicit finishing mode
+below is a separate decision.
 
-Reads and writes share a 60-second, 20-request budget. Both observations must be
-fresh; a later run attempt or changed source is refused. GitHub has no atomic
-compare-and-cancel operation, so a final network race remains. The existing CI
-manager owns scheduling, exact-run selection and receipt retention; this command
+To inspect an orphan that still has queued verdict jobs at least five minutes after an
+accepted ordinary cancellation, supply that command's retained journal:
+
+```sh
+bun tools/cli/scripts/ci-retire-merge-group.ts --run 1000 --finish \
+  --ordinary-receipt /absolute/private/ordinary-run-attempt.jsonl
+```
+
+This remains read-only. Finishing currently recognizes only the exact reviewed Checks
+workflow from `6ad49e4714cd895c5c1cc79e12b6987a0fecbec5` and its verdict action/script
+closure. Every real job, including all matrix shards and backend integration, must
+have a terminal native row. Only the reviewed `Unit`, `UI` and `CI ready (Checks)`
+verdict jobs may remain queued and unassigned; candidate-only jobs are inapplicable.
+Different source, a missing real job, an assigned verdict, incomplete pagination or
+changed run identity preserves the workflow. The five-minute interval permits normal
+cancellation to settle; elapsed time alone does not prove work has stopped.
+
+After reviewing that manifest, add `--apply --receipt /absolute/private/finish-run-attempt.jsonl`
+with a **new** receipt path. This repeats the complete source, queue, deleted-ref and
+job observations before one force-cancel request. The separate journal records the
+ordinary receipt's hash, reviewed source profile and actual job conclusions, including
+failures. Confirmation requires both a cancelled run and every returned job terminal;
+otherwise the result stays pending or unknown. Never replay a force intent, replace
+its receipt, or treat cancelled checks as passed. GitHub provides no atomic comparison:
+a verdict can allocate between the final observation and the request, but the exact
+closed graph excludes any remaining test, build or deployment work from that race.
+
+Ordinary reads and writes share a 60-second, 20-request budget; explicit finishing uses
+at most 40 requests within the same deadline. HTTP Date/Age and the local observations
+must be fresh within 30 seconds. The command requests uncached metadata, and refuses
+missing, ambiguous or stale response dates. Caller-selected `GH_TOKEN` or existing
+`gh` authentication remains responsible for authorization; no secret is acquired.
+Actual Actions response rate-limit headers govern its available REST budget: a
+contradictory `/rate_limit` overview does not authorize spending a reserved balance.
+
+A later run attempt or changed source is refused. The existing CI manager owns
+scheduling, exact-run selection and receipt retention; this command
 does not start a second scheduler or change queue settings. Use the existing
 authorized credential as described above.
 
