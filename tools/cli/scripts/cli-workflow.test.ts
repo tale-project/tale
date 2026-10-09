@@ -492,6 +492,7 @@ describe('CLI command test targets', () => {
       'deployment.test.ts',
       'doctor.test.ts',
       'hash-password.test.ts',
+      'observation.test.ts',
       'platform-configuration.test.ts',
       'provision.test.ts',
     ]);

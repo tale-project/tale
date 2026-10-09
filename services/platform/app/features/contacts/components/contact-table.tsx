@@ -7,7 +7,7 @@ import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
@@ -30,12 +30,14 @@ type Contact = ContactDoc;
 
 export interface ContactsTableProps {
   organizationId: string;
+  query?: string;
   source?: string;
   locale?: string;
 }
 
 export function ContactsTable({
   organizationId,
+  query,
   source,
   locale,
 }: ContactsTableProps) {
@@ -49,7 +51,10 @@ export function ContactsTable({
 
   const { data: count } = useApproxContactCount(organizationId);
   const { columns, searchPlaceholder, pageSize } = useContactsTableConfig();
-  const [searchValue, setSearchValue] = useState('');
+  const [searchValue, setSearchValue] = useState(query ?? '');
+  useEffect(() => {
+    setSearchValue(query ?? '');
+  }, [query, organizationId]);
   const debouncedSearch = useDebounce(searchValue.trim(), 250);
   const paginatedResult = useListContactsPaginated({
     organizationId,
@@ -58,6 +63,24 @@ export function ContactsTable({
     locale,
     initialNumItems: pageSize,
   });
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setSearchValue(value);
+      void navigate({
+        to: '/dashboard/$id/contacts',
+        params: { id: organizationId },
+        replace: true,
+        search: (
+          prev: Pick<ContactsTableProps, 'query' | 'source' | 'locale'>,
+        ) => ({
+          ...prev,
+          query: value || undefined,
+        }),
+      });
+    },
+    [navigate, organizationId],
+  );
 
   const handleSourceChange = useCallback(
     (values: string[]) => {
@@ -88,6 +111,7 @@ export function ContactsTable({
   );
 
   const handleClearFilters = useCallback(() => {
+    setSearchValue('');
     void navigate({
       to: '/dashboard/$id/contacts',
       params: { id: organizationId },
@@ -216,7 +240,7 @@ export function ContactsTable({
     search: {
       serverSide: true,
       value: searchValue,
-      onChange: setSearchValue,
+      onChange: handleSearchChange,
       placeholder: searchPlaceholder,
     },
     filters: {

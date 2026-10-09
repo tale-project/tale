@@ -256,6 +256,13 @@ months, ISO week-year boundaries, out-of-window and future days are covered;
 a foreign organization reads zero. Chart granularity groups only current-window
 daily rows. Real PostgreSQL query execution remains an integration proof.
 
+The contact palette target carries its title through the actual Contacts route,
+table, shared list hook and paginated query adapters, including a match outside
+the unfiltered first page, manual query editing/clearing and a new same-page route query:
+`app/features/contacts/components/contact-table.wire.test.tsx`. Router search
+hooks and a closed synthetic HTTP transport supply deterministic inputs; browser
+navigation, layout and live backend behavior remain manual.
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:
