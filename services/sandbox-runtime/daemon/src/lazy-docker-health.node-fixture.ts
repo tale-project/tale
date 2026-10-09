@@ -136,6 +136,17 @@ void test('health tells an engine that never ran from one that has, without acti
   assert.equal(f.starts(), 1);
 });
 
+void test('a store that already holds images reads as used while its engine stays cold', async () => {
+  const f = await fixture();
+  f.proxy.markStoreUsed();
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: true,
+    dockerRecoveryRequired: false,
+    docker: { engine: 'stopped', used: true },
+  });
+  assert.equal(f.starts(), 0);
+});
+
 void test('a broken active engine fails health and can recover without activation by health', async () => {
   const f = await fixture();
   await f.proxy.ensureReady();

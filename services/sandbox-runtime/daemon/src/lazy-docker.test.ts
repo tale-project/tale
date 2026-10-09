@@ -1,12 +1,16 @@
 // Exercise the production Node transport, not Bun's different net.Socket implementation.
 import { expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, realpath, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { engineEnvironment, runnerEnvironment } from './lazy-docker.ts';
+import {
+  engineEnvironment,
+  runnerEnvironment,
+  storeHoldsImages,
+} from './lazy-docker.ts';
 
 test('Docker activation lifecycle and streams under Node', async () => {
   // Node resolves the executed file's real path. Canonicalize the fixture too so
@@ -105,4 +109,19 @@ test("the engine child sees the organization's mirror and nothing from the works
   expect(env.NO_PROXY).toBe('127.0.0.1');
   expect(env.NODE_COMPILE_CACHE).toBeUndefined();
   expect(env.BUILDX_BUILDER).toBeUndefined();
+});
+
+test('an inner store holds images once its image database has an entry', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'tale-imagedb-'));
+  try {
+    const imageDb = join(dir, 'imagedb');
+    // A fresh store has no image database yet; an empty one holds nothing.
+    expect(await storeHoldsImages(imageDb)).toBe(false);
+    await mkdir(imageDb);
+    expect(await storeHoldsImages(imageDb)).toBe(false);
+    await writeFile(join(imageDb, 'a'.repeat(64)), '{}');
+    expect(await storeHoldsImages(imageDb)).toBe(true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

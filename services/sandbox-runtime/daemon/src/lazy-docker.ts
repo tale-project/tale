@@ -294,6 +294,12 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
   }
   return {
     ensureReady,
+    /** Reports the inner store as used without starting an engine: a store
+     * that already holds images (a Kubernetes runner restarted inside the
+     * same Pod keeps its store) is worth the full released window. */
+    markStoreUsed() {
+      activated = true;
+    },
     close() {
       if (closePromise) return closePromise;
       closed = true;
@@ -321,6 +327,24 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
       return closePromise;
     },
   };
+}
+
+/** Whether the inner Docker store already holds pulled or built images (its
+ * image database has entries). Best-effort: an unreadable store reads as
+ * empty, which keeps the shorter released window. */
+export async function storeHoldsImages(
+  imageDb = '/var/lib/docker/image/overlay2/imagedb/content/sha256',
+): Promise<boolean> {
+  try {
+    return (await readdir(imageDb)).length > 0;
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
+      console.warn(
+        '[lazy-docker] could not read the inner image store:',
+        error,
+      );
+    return false;
+  }
 }
 
 function readEngineJson(
@@ -776,6 +800,7 @@ export async function runLazyDockerSupervisor() {
         throw error;
     }
     if (hasExistingContainers) await proxy.ensureReady();
+    else if (await storeHoldsImages()) proxy.markStoreUsed();
     if (shuttingDown) return;
     const runnerEnv = runnerEnvironment(boot);
     runner = spawn(
