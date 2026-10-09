@@ -2,10 +2,13 @@
 
 import {
   allBudgetRules,
-  budgetConfigOf,
   budgetConfigSchema,
+  budgetFilesOf,
   type BudgetConfig,
   type BudgetRule,
+  effectiveBudgetConfig,
+  projectBudgetsConfigSchema,
+  type ProjectBudgetsConfig,
 } from '@tale/shared/schemas/governance';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -62,7 +65,7 @@ import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
 import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
-import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
+import { withGovernancePolicyPairReadBoundary } from './policy-read-boundary';
 import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
@@ -309,14 +312,15 @@ function validateBudgetRule(rule: BudgetRule, t: TFunction): BudgetRuleErrors {
   return errors;
 }
 
-/** The rules in the order the saved file reads back — its `rules`, then its
- *  project caps — so the table does not reorder when the save lands, and a
- *  row's index keeps naming the rule it showed. */
+/** The rules in the order the saved files read back — the budgets file's,
+ *  then the project caps — so the table does not reorder when the save
+ *  lands, and a row's index keeps naming the rule it showed. */
 function inSavedOrder(rules: readonly BudgetRule[]): BudgetRule[] {
-  return allBudgetRules(budgetConfigOf(true, rules));
+  const { budgets, projectBudgets } = budgetFilesOf(true, rules);
+  return [...budgets.rules, ...projectBudgets.rules];
 }
 
-/** The saved file, both kinds of rule in it read as one list. */
+/** The saved budgets file. */
 function parseBudgetConfig(policy: unknown): BudgetConfig {
   const config = isRecord(policy) ? policy : {};
   const result = budgetConfigSchema.safeParse(config);
@@ -324,6 +328,42 @@ function parseBudgetConfig(policy: unknown): BudgetConfig {
     return result.data;
   }
   return { enabled: false, rules: [] };
+}
+
+/** The saved project caps file; null while it has never been written. */
+function parseProjectBudgets(policy: unknown): ProjectBudgetsConfig | null {
+  if (!isRecord(policy)) return null;
+  const result = projectBudgetsConfigSchema.safeParse(policy);
+  return result.success ? result.data : null;
+}
+
+/** Every field a rule saves, in one order, so two rules compare by what they
+ *  cap rather than by how their objects were built. */
+const RULE_FIELDS = [
+  'scope',
+  'scopeId',
+  'apiKeyId',
+  'period',
+  'maxTokens',
+  'maxCostCents',
+  'maxRequests',
+  'warningThresholdPercent',
+] as const;
+
+/** Whether a save would leave these rules as they are saved. */
+function sameRules(
+  saved: readonly BudgetRule[],
+  next: readonly BudgetRule[],
+): boolean {
+  const key = (rule: BudgetRule) =>
+    JSON.stringify(RULE_FIELDS.map((field) => rule[field] ?? null));
+  return (
+    saved.length === next.length &&
+    saved.every((rule, index) => {
+      const other = next[index];
+      return other !== undefined && key(rule) === key(other);
+    })
+  );
 }
 
 /** Inline form-level error, styled to match the `Input` component's own error
@@ -433,8 +473,6 @@ function RuleDialog({
         delete updated.scopeId;
         delete updated.apiKeyId;
       }
-      // A project's cap warns no one, so a threshold on it would be inert.
-      if (patch.scope === 'project') delete updated.warningThresholdPercent;
       return updated;
     });
   }, []);
@@ -699,31 +737,32 @@ function RuleDialog({
             <FieldError message={errors.limits} />
           )}
 
-          {/* A project's cap warns no one: no threshold is offered for it. */}
-          {draft.scope !== 'project' && (
-            <div>
-              <Input
-                label={t('budgets.warningThreshold')}
-                type="number"
-                value={draft.warningThresholdPercent ?? ''}
-                onChange={(e) =>
-                  updateDraft({
-                    warningThresholdPercent: e.target.value
-                      ? Number(e.target.value)
-                      : undefined,
-                  })
-                }
-                disabled={cannotManage}
-                placeholder="e.g. 80"
-                min={0}
-                max={100}
-                errorMessage={fieldError('warningThresholdPercent')}
-              />
-              <Text className="text-muted-foreground mt-1 text-xs">
-                {t('budgets.warningThresholdHelp')}
-              </Text>
-            </div>
-          )}
+          <div>
+            <Input
+              label={t('budgets.warningThreshold')}
+              type="number"
+              value={draft.warningThresholdPercent ?? ''}
+              onChange={(e) =>
+                updateDraft({
+                  warningThresholdPercent: e.target.value
+                    ? Number(e.target.value)
+                    : undefined,
+                })
+              }
+              disabled={cannotManage}
+              placeholder="e.g. 80"
+              min={0}
+              max={100}
+              errorMessage={fieldError('warningThresholdPercent')}
+            />
+            <Text className="text-muted-foreground mt-1 text-xs">
+              {/* A project's warning reaches whoever works in it, not the
+                  person reading their own usage. */}
+              {draft.scope === 'project'
+                ? t('budgets.warningThresholdProjectHelp')
+                : t('budgets.warningThresholdHelp')}
+            </Text>
+          </div>
         </Stack>
       </Stack>
     </FormDialog>
@@ -755,10 +794,15 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const { toast } = useToast();
   const ability = useAbility();
 
-  const { data: policy, isLoading: loading } = useGovernancePolicy(
+  const { data: policy, isLoading: budgetsLoading } = useGovernancePolicy(
     organizationId,
     'budgets',
   );
+  // The project caps are saved in a file of their own, beside the budgets
+  // file (`project_budgets`); the table lists the rules of both.
+  const { data: projectPolicy, isLoading: projectBudgetsLoading } =
+    useGovernancePolicy(organizationId, 'project_budgets');
+  const loading = budgetsLoading || projectBudgetsLoading;
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
@@ -826,9 +870,17 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   // A query hook that hands back a fresh wrapper object each render would
   // otherwise give `savedConfig` a new identity every render, and the
   // `[savedConfig]` effect below would `setRules` in a loop.
-  const savedConfig = useMemo(
+  const savedBudgets = useMemo(
     () => parseBudgetConfig(policy?.config),
     [policy?.config],
+  );
+  const savedProjectBudgets = useMemo(
+    () => parseProjectBudgets(projectPolicy?.config),
+    [projectPolicy?.config],
+  );
+  const savedConfig = useMemo(
+    () => effectiveBudgetConfig(savedBudgets, savedProjectBudgets),
+    [savedBudgets, savedProjectBudgets],
   );
 
   const [rules, setRules] = useState<BudgetRule[]>([]);
@@ -853,7 +905,9 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     policyType: 'budgets',
     savedEnabled: savedConfig.enabled,
     isLoading: loading,
-    buildConfig: (next) => budgetConfigOf(next, allBudgetRules(savedConfig)),
+    // The switch is the budgets file's; the file is otherwise saved as it
+    // reads, project caps an earlier release kept in it included.
+    buildConfig: (next) => ({ ...savedBudgets, enabled: next }),
     failureTitle: t('toastSaveFailedTitle'),
     failureDescription: t('budgets.saveFailed'),
   });
@@ -861,13 +915,35 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const saveConfig = useCallback(
     async (nextRules: BudgetRule[]) => {
       try {
-        await upsertMutation.mutateAsync({
-          organizationId,
-          policyType: 'budgets',
-          // A rule edit is only reachable while the section is on. A
-          // project's cap is saved in its own array (`budgetConfigOf`).
-          config: budgetConfigOf(true, nextRules),
-        });
+        // A rule edit is only reachable while the section is on.
+        const files = budgetFilesOf(true, nextRules);
+        const legacyProjectRules = savedBudgets.projectRules ?? [];
+        // The project caps first: once their file exists it is all a reader
+        // takes, so the budgets file below can drop the copy an earlier
+        // release kept there without leaving a moment with none.
+        if (
+          savedProjectBudgets === null
+            ? files.projectBudgets.rules.length > 0 ||
+              legacyProjectRules.length > 0
+            : !sameRules(savedProjectBudgets.rules, files.projectBudgets.rules)
+        ) {
+          await upsertMutation.mutateAsync({
+            organizationId,
+            policyType: 'project_budgets',
+            config: files.projectBudgets,
+          });
+        }
+        if (
+          savedBudgets.projectRules !== undefined ||
+          !savedBudgets.enabled ||
+          !sameRules(savedBudgets.rules, files.budgets.rules)
+        ) {
+          await upsertMutation.mutateAsync({
+            organizationId,
+            policyType: 'budgets',
+            config: files.budgets,
+          });
+        }
         toast({
           title: t('toastSavedTitle'),
           description: t('budgets.saved'),
@@ -885,7 +961,14 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
         });
       }
     },
-    [organizationId, upsertMutation, toast, t],
+    [
+      organizationId,
+      upsertMutation,
+      savedBudgets,
+      savedProjectBudgets,
+      toast,
+      t,
+    ],
   );
 
   const confirmRemoveRule = useCallback(() => {
@@ -1221,7 +1304,8 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   );
 }
 
-export const BudgetEditor = withGovernancePolicyReadBoundary(
+export const BudgetEditor = withGovernancePolicyPairReadBoundary(
   BudgetEditorContent,
   'budgets',
+  'project_budgets',
 );

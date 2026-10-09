@@ -149,7 +149,10 @@ const { state } = vi.hoisted(() => ({
     config: { enabled: true, rules: [] as unknown[] } as
       | Record<string, unknown>
       | undefined,
+    /** The project caps file; null while it was never written. */
+    projectConfig: null as Record<string, unknown> | null,
     result: undefined as unknown,
+    projectResult: undefined as unknown,
   },
 }));
 
@@ -158,27 +161,45 @@ function refreshPolicy() {
     data: state.isLoading ? undefined : { config: state.config },
     isLoading: state.isLoading,
   };
+  state.projectResult = {
+    data: state.isLoading
+      ? undefined
+      : state.projectConfig === null
+        ? null
+        : { config: state.projectConfig },
+    isLoading: state.isLoading,
+  };
 }
 refreshPolicy();
 
 vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => state.result,
+  useGovernancePolicy: (_organizationId: string, policyType: string) =>
+    policyType === 'project_budgets' ? state.projectResult : state.result,
 }));
 
 const { BudgetEditor } = await import('./budget-editor');
 
+/** The budgets file holding `rules`, and the project caps file holding
+ *  `projectRules` (written, and empty, unless they are left out). */
 function setLoaded(rules: unknown[] = [], projectRules?: unknown[]) {
   state.isLoading = false;
-  state.config = {
-    enabled: true,
-    rules,
-    ...(projectRules !== undefined ? { projectRules } : {}),
-  };
+  state.config = { enabled: true, rules };
+  state.projectConfig =
+    projectRules !== undefined ? { rules: projectRules } : null;
+  refreshPolicy();
+}
+/** A budgets file as an earlier release saved it: project caps in its own
+ *  `projectRules`, and no project caps file yet. */
+function setLegacy(rules: unknown[], projectRules: unknown[]) {
+  state.isLoading = false;
+  state.config = { enabled: true, rules, projectRules };
+  state.projectConfig = null;
   refreshPolicy();
 }
 function setLoading() {
   state.isLoading = true;
   state.config = undefined;
+  state.projectConfig = null;
   refreshPolicy();
 }
 
@@ -709,21 +730,73 @@ describe('BudgetEditor', () => {
       expect(scopes).toEqual(['Default', 'Organization', 'Project']);
     });
 
-    it('saves a project’s cap apart from the other rules', async () => {
+    it('saves a project’s cap in its own file, and leaves the budgets file as it is', async () => {
       upsert.mockClear();
       setLoaded([DEFAULT_RULE], [PROJECT_RULE]);
       const { user } = render(<BudgetEditor organizationId="org-1" />);
 
       await user.click(screen.getByRole('button', { name: 'Edit rule 2' }));
-      await user.click(await screen.findByRole('button', { name: /confirm/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.type(dialog.getByLabelText(/warning threshold/i), '80');
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
 
-      // An image that predates project caps still reads `rules`; the
-      // project's cap rides in an array of its own.
+      // An image that predates project caps still reads the budgets file,
+      // and saves it whole: the project's cap is never in it.
+      expect(upsert).toHaveBeenCalledTimes(1);
+      expect(upsert).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        policyType: 'project_budgets',
+        config: { rules: [{ ...PROJECT_RULE, warningThresholdPercent: 80 }] },
+      });
+    });
+
+    it('moves the project caps an earlier release saved into their own file before the budgets file drops them', async () => {
+      upsert.mockClear();
+      setLegacy([DEFAULT_RULE], [PROJECT_RULE]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('cell', { name: 'Website relaunch' }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Edit rule 1' }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.clear(dialog.getByLabelText(/max cost/i));
+      await user.type(dialog.getByLabelText(/max cost/i), '60');
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      expect(upsert.mock.calls).toEqual([
+        [
+          {
+            organizationId: 'org-1',
+            policyType: 'project_budgets',
+            config: { rules: [PROJECT_RULE] },
+          },
+        ],
+        [
+          {
+            organizationId: 'org-1',
+            policyType: 'budgets',
+            config: {
+              enabled: true,
+              rules: [{ ...DEFAULT_RULE, maxCostCents: 6_000 }],
+            },
+          },
+        ],
+      ]);
+    });
+
+    it('switches the rules off without touching the project caps an earlier release saved', async () => {
+      upsert.mockClear();
+      setLegacy([DEFAULT_RULE], [PROJECT_RULE]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('switch', { name: /budget rules/i }));
+
       expect(upsert).toHaveBeenCalledWith({
         organizationId: 'org-1',
         policyType: 'budgets',
         config: {
-          enabled: true,
+          enabled: false,
           rules: [DEFAULT_RULE],
           projectRules: [PROJECT_RULE],
         },
@@ -753,16 +826,27 @@ describe('BudgetEditor', () => {
       expect(options).toHaveLength(3);
     });
 
-    it('offers no warning threshold for a project’s cap, which warns no one', async () => {
-      setLoaded([{ scope: 'default', period: 'monthly', maxCostCents: 100 }]);
+    it('offers a warning threshold for a project’s cap, saying who sees the warning [GOV-R6]', async () => {
+      setLoaded([
+        {
+          scope: 'default',
+          period: 'monthly',
+          maxCostCents: 100,
+          warningThresholdPercent: 80,
+        },
+      ]);
       const { user } = render(<BudgetEditor organizationId="org-1" />);
 
       await user.click(screen.getByRole('button', { name: /edit rule/i }));
       const dialog = within(await screen.findByRole('dialog'));
-      expect(dialog.getByLabelText(/warning threshold/i)).toBeInTheDocument();
+      expect(dialog.getByLabelText(/warning threshold/i)).toHaveValue(80);
       await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
       await user.click(screen.getByRole('option', { name: 'Project' }));
-      expect(dialog.queryByLabelText(/warning threshold/i)).toBeNull();
+      // The threshold stays: a project's cap warns everyone chatting in it.
+      expect(dialog.getByLabelText(/warning threshold/i)).toHaveValue(80);
+      expect(
+        dialog.getByText(/everyone chatting in this project sees a warning/i),
+      ).toBeInTheDocument();
     });
 
     it('blocks saving a project rule that names no project', async () => {

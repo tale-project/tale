@@ -98,9 +98,12 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    row. An automation run that names no project belongs to every project its automation is bound
    to — the set its language context, skills and session reach already use — so it counts toward
    each, as a member's spend counts toward each of their teams; an automation bound to none
-   spends in no project. A `project` budget rule (`projectRules` in the budgets file) is measured
-   against its project's buckets, whoever spent: a project cap binds an impersonal subject too,
-   and work in several projects must fit each one's cap. A hold in flight counts toward its
+   spends in no project. A `project` budget rule (the project caps file, `project-budgets.yml`;
+   the budgets file's `projectRules` only while that file has never been written,
+   `effectiveBudgetConfig`) is measured against its project's buckets, whoever spent: a project
+   cap binds an impersonal subject too, and work in several projects must fit each one's cap. Its
+   warning threshold warns whoever chats in the project: `/my/budget-status?projectId=` adds the
+   project to the reader's standing (`readBudgetStanding`). A hold in flight counts toward its
    projects through its thread (`app.generations` and a pending voice chunk,
    `app.tts_audio_chunks`, → `app.thread_metadata.project_id`) or the projects its reservation
    stamped (`sandbox_session_ops.project_ids` — a managed turn's, a model request's, a direct

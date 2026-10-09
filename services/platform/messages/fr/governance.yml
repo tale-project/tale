@@ -33,6 +33,7 @@ budgets:
   maxRequestsHelp: Total de requêtes IA par période. Laisse vide pour aucune limite.
   warningThreshold: Seuil d'alerte (%)
   warningThresholdHelp: Alerte lorsque l'utilisation dépasse ce pourcentage de la limite.
+  warningThresholdProjectHelp: Toutes les personnes qui discutent dans ce projet voient une alerte dès que l'utilisation du projet dépasse ce pourcentage de la limite.
   orgScopeTarget: Organisation entière
   allUsers: Tous les utilisateurs
   overrideHint: "Les portées plus spécifiques remplacent les plus larges :

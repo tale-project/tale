@@ -1,6 +1,8 @@
 import {
   allBudgetRules,
+  type BudgetConfig,
   type BudgetRule,
+  effectiveBudgetConfig,
 } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -273,6 +275,28 @@ function inProjects(projectIds: readonly string[] | undefined): {
     : {};
 }
 
+/**
+ * The organization's budget policy, the one read every cap goes through:
+ * the budgets file's switch and rules, with the project caps of their own
+ * file (`effectiveBudgetConfig`). Null when there is no budgets file — its
+ * switch is the policy's, so project caps alone bind nothing.
+ */
+async function readBudgetPolicy(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<BudgetConfig | null> {
+  const budgets = await readGovernancePolicyForOrg(
+    sql,
+    organizationId,
+    'budgets',
+  );
+  if (budgets === null) return null;
+  return effectiveBudgetConfig(
+    budgets,
+    await readGovernancePolicyForOrg(sql, organizationId, 'project_budgets'),
+  );
+}
+
 /** Whether the organization's budget policy is on with at least one rule —
  * when it is not, no cap binds anyone and an admission has nothing to
  * serialize. */
@@ -280,11 +304,7 @@ export async function budgetPolicyActive(
   sql: Sql | TransactionSql,
   organizationId: string,
 ): Promise<boolean> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    organizationId,
-    'budgets',
-  );
+  const config = await readBudgetPolicy(sql, organizationId);
   return config !== null && config.enabled && allBudgetRules(config).length > 0;
 }
 
@@ -470,11 +490,7 @@ async function applicableLimitsByPeriod(
   sql: Sql | TransactionSql,
   subject: OrgBudgetSubject,
 ): Promise<{ period: BudgetRule['period']; limits: Limits }[]> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    subject.organizationId,
-    'budgets',
-  );
+  const config = await readBudgetPolicy(sql, subject.organizationId);
   const rules = config?.enabled === true ? allBudgetRules(config) : [];
   if (rules.length === 0) return [];
   const applicableRules = collectAllApplicableRules(
@@ -611,17 +627,20 @@ export async function checkOrgBudget(
  * measures it against. */
 export interface BudgetStanding {
   /** Whose usage counts: the subject's own, one of their teams' combined
-   * usage, or the whole organization's. */
-  scope: 'user' | 'team' | 'org';
+   * usage, everything spent in a project the subject works in, or the whole
+   * organization's. */
+  scope: 'user' | 'team' | 'org' | 'project';
   /** The team whose shared cap this is — team scope only. */
   teamId?: string;
+  /** The project whose cap this is — project scope only. */
+  projectId?: string;
   period: BudgetRule['period'];
   periodKey: string;
   /** When the period rolls over and this usage starts again from zero. */
   resetsAt: number;
   /** The share of a cap the budget banner starts warning at, when a rule
-   * for this bucket sets one (a team's shared cap warns at its own rule's
-   * threshold). */
+   * for this bucket sets one (a team's or a project's cap warns at its own
+   * rule's threshold). */
   warningThresholdPercent?: number;
   maxTokens?: number;
   maxCostCents?: number;
@@ -635,7 +654,8 @@ export interface BudgetStanding {
  * prospective spend, so a reader sees exactly the numbers that would refuse
  * their next request. Only buckets that carry a cap are returned; `[]` when
  * no budget policy binds. A session reader carries no API key, so key caps
- * never appear here.
+ * never appear here; a project's cap appears for a subject that names the
+ * project — a reader writing in one of its chats.
  */
 export async function readBudgetStanding(
   sql: Sql | TransactionSql,
@@ -648,10 +668,10 @@ export async function readBudgetStanding(
     subject,
   )) {
     const buckets = await bucketsFor(sql, subject, period, limits, {}, now);
-    for (const { scope, teamId, rule, usage } of buckets) {
-      // A reader's standing is their own: an API key's caps and a
-      // project's bind the work, not the person reading.
-      if (scope === 'apiKey' || scope === 'project') continue;
+    for (const { scope, teamId, projectId, rule, usage } of buckets) {
+      // A reader's standing is their own: an API key's caps bind the work,
+      // not the person reading.
+      if (scope === 'apiKey') continue;
       if (
         rule.maxTokens == null &&
         rule.maxCostCents == null &&
@@ -664,11 +684,16 @@ export async function readBudgetStanding(
           ? limits.warningThresholdPercent
           : scope === 'org'
             ? limits.orgWarningThresholdPercent
-            : limits.teamLimits.find((team) => team.teamId === teamId)
-                ?.warningThresholdPercent;
+            : scope === 'project'
+              ? limits.projectLimits.find(
+                  (project) => project.projectId === projectId,
+                )?.warningThresholdPercent
+              : limits.teamLimits.find((team) => team.teamId === teamId)
+                  ?.warningThresholdPercent;
       standings.push({
         scope,
         ...(teamId !== undefined ? { teamId } : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
         period,
         periodKey: buildPeriodKeyFromTimestamp(period, now),
         resetsAt: buildPeriodEndFromTimestamp(period, now),

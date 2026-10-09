@@ -15,6 +15,11 @@ import { piiConfigSchema } from './pii';
 export const POLICY_TYPES = [
   'system_prompt',
   'budgets',
+  // Every project's budget rules, in a file of their own beside `budgets` —
+  // so an image that predates them, or a rollback to one, saves the budgets
+  // file without dropping them. They follow the budgets file's switch. See
+  // `projectBudgetsConfigSchema`.
+  'project_budgets',
   'default_models',
   'upload_policy',
   'retention_policy',
@@ -333,11 +338,12 @@ export const budgetRuleSchema = z.object({
  * the chats in its threads, its agents' turns, its automations' agent and
  * `llm` steps, and its own API keys — as one shared bucket, like a team's.
  *
- * Saved in the file's `projectRules`, never in `rules`: an image that
- * predates project caps still parses the file — `z.object` drops the
- * unknown key — and keeps enforcing every other cap, where a `project`
- * scope inside `rules` would make the whole file unreadable to it, and so
- * no cap at all.
+ * Saved in the project caps file (`project_budgets`), never in the budgets
+ * file's `rules`: an image that predates project caps would refuse the whole
+ * budgets file over a `project` scope there, and so enforce no cap at all.
+ * The budgets file's `projectRules` is where an earlier release kept them;
+ * it is read only while the project caps file has never been written
+ * (`effectiveBudgetConfig`).
  */
 export const projectBudgetRuleSchema = z.object({
   scope: z.literal('project'),
@@ -352,32 +358,64 @@ export type BudgetRule = Omit<z.infer<typeof budgetRuleSchema>, 'scope'> & {
 
 export const budgetConfigSchema = z.object({
   rules: z.array(budgetRuleSchema),
+  /** Project caps as an earlier release saved them: read only while the
+   * project caps file has never been written. */
   projectRules: z.array(projectBudgetRuleSchema).optional(),
   enabled: z.boolean(),
 });
 export type BudgetConfig = z.infer<typeof budgetConfigSchema>;
 
-/** Every rule a budgets file holds, project caps included. */
+/**
+ * The project caps file: every project's budget rules. It has no switch of
+ * its own — with budget rules switched off in the budgets file, no project
+ * cap binds either.
+ */
+export const projectBudgetsConfigSchema = z.object({
+  rules: z.array(projectBudgetRuleSchema),
+});
+export type ProjectBudgetsConfig = z.infer<typeof projectBudgetsConfigSchema>;
+
+/** Every rule a budget policy holds, project caps included. */
 export function allBudgetRules(config: BudgetConfig): BudgetRule[] {
   return [...config.rules, ...(config.projectRules ?? [])];
 }
 
-/** The budgets file holding these rules, each kind in its own array. */
-export function budgetConfigOf(
+/**
+ * The budget policy as every reader takes it: the budgets file's switch and
+ * rules, with the project caps of their own file — or, while that file has
+ * never been written, the ones an earlier release kept in the budgets file.
+ */
+export function effectiveBudgetConfig(
+  budgets: BudgetConfig,
+  projectBudgets: ProjectBudgetsConfig | null,
+): BudgetConfig {
+  const { projectRules: legacy, ...rest } = budgets;
+  const projectRules = projectBudgets?.rules ?? legacy ?? [];
+  return { ...rest, ...(projectRules.length > 0 ? { projectRules } : {}) };
+}
+
+/** The two files these rules are saved in: the project caps in their own,
+ * every other rule in the budgets file. */
+export function budgetFilesOf(
   enabled: boolean,
   rules: readonly BudgetRule[],
-): BudgetConfig {
-  const projectRules = rules.flatMap((rule) => {
-    if (rule.scope !== 'project') return [];
-    const { scope: _scope, apiKeyId: _apiKeyId, scopeId, ...limits } = rule;
-    return [{ scope: 'project' as const, scopeId: scopeId ?? '', ...limits }];
-  });
+): { budgets: BudgetConfig; projectBudgets: ProjectBudgetsConfig } {
   return {
-    enabled,
-    rules: rules.flatMap((rule) =>
-      rule.scope === 'project' ? [] : [{ ...rule, scope: rule.scope }],
-    ),
-    ...(projectRules.length > 0 ? { projectRules } : {}),
+    budgets: {
+      enabled,
+      rules: rules.flatMap((rule) =>
+        rule.scope === 'project' ? [] : [{ ...rule, scope: rule.scope }],
+      ),
+    },
+    projectBudgets: {
+      rules: rules.flatMap((rule) => {
+        if (rule.scope !== 'project') return [];
+        const { scope: _scope, apiKeyId: _apiKeyId, scopeId, ...limits } = rule;
+        return [
+          { scope: 'project' as const, scopeId: scopeId ?? '', ...limits },
+        ];
+      }),
+    },
   };
 }
 
@@ -1286,6 +1324,7 @@ export function skillOrgWideModeOf(
 export const POLICY_SCHEMAS = {
   system_prompt: systemPromptConfigSchema,
   budgets: budgetConfigSchema,
+  project_budgets: projectBudgetsConfigSchema,
   default_models: defaultModelsConfigSchema,
   upload_policy: uploadPolicyConfigSchema,
   retention_policy: retentionPolicyConfigSchema,

@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 91 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 92 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -160,7 +160,9 @@ agent.
   the **Project** select appears (placeholder
   `governance.budgets.selectProject`, aria-label
   `governance.budgets.selectProjectAriaLabel`) and offers the active
-  projects, and **Warning threshold (%)** is gone; pick one, set **Max
+  projects, and **Warning threshold (%)** says everyone chatting in the
+  project sees its warning (`governance.budgets.warningThresholdProjectHelp`);
+  pick one, set **Max
   requests** 2 → **Confirm** → reload → the row's **Scope** reads
   **Project** and its **Target** the project's name. As a member far from
   any personal cap, send one message in a new chat of that project (its
@@ -261,6 +263,18 @@ agent.
   comment again the same way → the new run fails at its start with the API
   key's limit named, while you can still start the agent from the task in
   the app. Delete the rule
+- [ ] `GOV-F62` · **A project's budget warns in its chats** — GOV-F54-style
+  give a project a **Project** rule with **Max requests** 10 and **Warning
+  threshold (%)** 10. As a member far from any personal cap, send one message
+  in a new chat of that project → the banner above the composer reads
+  **Project ‹name›: 8 of 10 request left this month**
+  (`chat.budgetRemainingProject`), with **Dismiss** and no **View usage**
+  link; a chat outside the project shows no such banner. Edit the rule to
+  **Max requests** 2 → in the project's chat the banner turns destructive,
+  reading **Project ‹name›: Usage limit reached · resets monthly**
+  (`chat.budgetLimitReachedProject`), and Send is blocked, while the chat
+  outside the project still sends. Every label reads in German and French
+  too. **Delete the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the

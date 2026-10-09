@@ -1882,9 +1882,9 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // A budget rule that caps one project: the Project scope, its picker with
-    // the project chosen, and a monthly cost cap — no warning threshold, as a
-    // project's cap warns no one. Captured before it is confirmed, so the
-    // demo organization's rules stay as seeded.
+    // the project chosen, and a monthly cost cap, with the warning threshold
+    // that warns everyone chatting in the project left empty. Captured before
+    // it is confirmed, so the demo organization's rules stay as seeded.
     name: 'governance-budget-project-rule',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/policies-limits',
