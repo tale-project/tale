@@ -86,9 +86,10 @@ describe('engine purity', () => {
 
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
-    // periscopic scopes, the zimmerframe walker, is-reference), the shared
-    // safe YAML loader, type guards, name grammar, stable serializer, JSON
-    // bounding and the secret-key list are runtime-neutral, and so is
+    // periscopic scopes, the zimmerframe walker, is-reference), jsdiff's line
+    // diff (the unified patch between two versions), the shared safe YAML
+    // loader, type guards, name grammar, stable serializer, JSON bounding and
+    // the secret-key list are runtime-neutral, and so is
     // `@tale/ui`'s data core (summaries, shapes, diffs, pointers, hashes),
     // whose own guard (`packages/ui/src/data/pure.test.ts`) holds it to
     // imports of itself; everything else outside the engine tree is a
@@ -104,6 +105,7 @@ describe('engine purity', () => {
       '@tale/ui/data/value-diff',
       '@tale/ui/data/value-summary',
       'acorn',
+      'diff',
       'estree',
       'is-reference',
       'periscopic',
@@ -137,12 +139,13 @@ describe('engine purity', () => {
   });
 
   it('the analysis layers stay browser-safe: they never reach Ajv', () => {
-    // The editor runs the parser, typing and analysis layers in the browser,
-    // where the Content-Security-Policy forbids the code generation Ajv
-    // compiles schemas with. Ajv-based checks live in `validate/` only, so
-    // nothing these layers import — directly or through another engine
+    // The editor runs the parser, typing and analysis layers — and the
+    // document diff, which rings what another window changed — in the
+    // browser, where the Content-Security-Policy forbids the code generation
+    // Ajv compiles schemas with. Ajv-based checks live in `validate/` only,
+    // so nothing these layers import — directly or through another engine
     // module — may load it.
-    const browserSafe = ['syntax', 'typing', 'analysis']
+    const browserSafe = ['syntax', 'typing', 'analysis', 'diff']
       .map((d) => path.join(ENGINE_ROOT, 'core', d))
       .filter((d) => existsSync(d))
       .flatMap((d) => sourceFiles(d));

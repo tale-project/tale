@@ -330,6 +330,7 @@
         "class-variance-authority": "0.7.1",
         "cron-parser": "5.5.0",
         "dayjs": "1.11.20",
+        "diff": "8.0.4",
         "dompurify": "3.4.16",
         "eventsource-parser": "4.1.1",
         "fast-xml-parser": "5.8.0",
