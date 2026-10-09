@@ -1,6 +1,7 @@
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CONTACT_SOURCES } from '../../../lib/shared/contact-sources.ts';
 import {
   CONTACT_IMPORT_ROWS_MAX,
   CONTACT_LOCALE_MAX,
@@ -240,6 +241,18 @@ describe('contact listing filters', () => {
       { source: 'file_upload', locale: 'fr', cursor: null },
     );
   });
+
+  it.each(CONTACT_SOURCES)(
+    'accepts the supported Source %s',
+    async (source) => {
+      expect((await list(`source=${source}`)).status).toBe(200);
+      expect(listContacts).toHaveBeenLastCalledWith(
+        expect.anything(),
+        expect.anything(),
+        { source, cursor: null },
+      );
+    },
+  );
 
   it('refuses a Locale longer than any contact stores, as it does a Source', async () => {
     expect(
