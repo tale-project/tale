@@ -829,6 +829,18 @@ day, "up to date" forced every other open PR to rebase and re-run CI after each 
 Each queued PR still gets its own squash commit on `main`, so the release gate's
 one-PR-per-merge-commit rule holds.
 
+**Most validation runs only in the queue.** A pull request's run is the fast tier: Commitlint,
+SAST, Security (path-scoped) and the Checks lanes Format, Lint, Type check, Knip and Unit. E2E,
+Build, CLI and Backend integration pass `queue-only: 'true'` to the scope action, so on a pull
+request their scope reports not applicable and every job skips; the Checks suites in
+`CHECKS_MERGE_QUEUE_ONLY` (`tools/cli/scripts/ci-ready.ts`: Build, UI and its shards, Performance,
+Browser) carry `github.event_name != 'pull_request'` and readiness requires them skipped there.
+Each workflow still reports its `CI ready (…)` context on the PR, so the PR can enter the queue,
+and the merge group runs everything at full scope before it lands. Run the heavy suites a change
+touches locally before queueing it; a red there ejects the PR from the queue. To bring a suite
+back to pull requests, drop the scope's `queue-only` input or the job from
+`CHECKS_MERGE_QUEUE_ONLY`; `ci-ready-workflows.test.ts` pins both lists to the YAML.
+
 The seven `CI ready (…)` contexts are what the queue waits for. Every workflow listens for
 `merge_group` and runs full scope there, and each concurrency group keys on the ref; a
 merge-group ref (`gh-readonly-queue/main/pr-<n>-<sha>`) is unique, so queued runs never cancel
