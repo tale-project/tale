@@ -178,9 +178,19 @@ async function stampSkipped(
   `;
 }
 
-/** A sentence, cut to `limit` characters. */
+/**
+ * A sentence, cut to `limit` characters. The cut never falls between the
+ * two halves of a character outside the Basic Multilingual Plane (an emoji),
+ * and a lone half the text already carried is replaced: Postgres refuses a
+ * lone surrogate in jsonb, and a skip stamp it refuses fails the row's whole
+ * write.
+ */
 function bounded(message: string, limit = SKIP_DETAIL_MAX_MESSAGE): string {
-  return message.length <= limit ? message : `${message.slice(0, limit - 1)}…`;
+  if (message.length <= limit) return message.toWellFormed();
+  let end = limit - 1;
+  const last = message.charCodeAt(end - 1);
+  if (end > 1 && last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${message.slice(0, end)}…`.toWellFormed();
 }
 
 /** What a skip detail may weigh as JSON: the column's CHECK allows 8 KiB of
@@ -330,6 +340,10 @@ export interface ScheduleScanResult {
   /** Schedules another scan or a save held while this one came by; the
    * next scan takes them. */
   busy: number;
+  /** Schedules whose transaction failed for a reason that is not theirs to
+   * report (a database refusal, a bug): logged, left due, and tried again
+   * by the next scan — never a reason to stop the others. */
+  failed: number;
 }
 
 /** What one schedule's transaction did. */
@@ -552,6 +566,7 @@ export async function scanScheduledTriggers(
     missed: 0,
     late: 0,
     busy: 0,
+    failed: 0,
   };
   // No table means no organization yet, so no schedule can belong to one:
   // there is nothing to fire or retire, and every walk would die on the
@@ -574,8 +589,26 @@ export async function scanScheduledTriggers(
   const undeployedNames: string[] = [];
   const refusedNames: string[] = [];
   const orphanedNames: string[] = [];
+  const failedIds: string[] = [];
   const take = async (id: string): Promise<void> => {
-    const outcome = await processScheduleRow(sql, id, now);
+    let outcome: RowOutcome;
+    try {
+      outcome = await processScheduleRow(sql, id, now);
+    } catch (error) {
+      // One schedule's failure is its own: its transaction rolled back, so
+      // it stays exactly as due as it was and the next scan tries it again,
+      // while the walk goes on to the others. A walk ordered by due time
+      // would otherwise meet the same row first on every scan, and nothing
+      // would ever fire again. Only the error's message is logged — never
+      // the row's input.
+      result.failed++;
+      if (failedIds.length < NAMES_IN_LOG) {
+        failedIds.push(
+          `${id} (${error instanceof Error ? error.message : String(error)})`,
+        );
+      }
+      return;
+    }
     if (outcome.kind !== 'busy') result.examined++;
     switch (outcome.kind) {
       case 'busy':
@@ -697,6 +730,11 @@ export async function scanScheduledTriggers(
     if (result.missed > 0) {
       console.warn(
         `[automations] trigger scan: ${result.missed} occurrence(s) were missed and counted, not run`,
+      );
+    }
+    if (result.failed > 0) {
+      console.error(
+        `[automations] trigger scan: ${result.failed} schedule(s) failed and stay due for the next scan: ${namedList(result.failed, failedIds)}`,
       );
     }
   }

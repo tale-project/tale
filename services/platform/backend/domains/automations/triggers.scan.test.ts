@@ -220,6 +220,7 @@ const EMPTY = {
   missed: 0,
   late: 0,
   busy: 0,
+  failed: 0,
 };
 
 beforeEach(() => {
@@ -543,14 +544,76 @@ describe('scanScheduledTriggers', () => {
     expect(detail.message.length).toBeLessThanOrEqual(500);
   });
 
-  it('lets a failure that is not a refusal fail the row’s transaction', async () => {
+  it('keeps an emoji whole where it cuts a refusal, so the stamp stays storable', async () => {
     const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
-    vi.mocked(beginRunInTx).mockRejectedValueOnce(new Error('connection lost'));
-
-    await expect(scanScheduledTriggers(fake.sql, { now: NOW })).rejects.toThrow(
-      'connection lost',
+    // The property name starts at index 56, so the emoji's first half sits
+    // at index 498 — exactly where a 500-character sentence is cut.
+    const message = `Run input does not match the automation inputs schema: "${'a'.repeat(442)}😀" is required`;
+    expect(message.charCodeAt(498)).toBe(0xd83d);
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError('AUTOMATION_INPUT_INVALID', message, 400, {
+        issues: [{ path: `${'b'.repeat(498)}😀`, message: 'is required' }],
+        version: 3,
+      }),
     );
-    expect(decisionsOf(fake)).toHaveLength(0);
+
+    await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    const detail = JSON.parse(String(decisionsOf(fake)[0]?.values[11])) as {
+      message: string;
+      issues: { path: string }[];
+    };
+    expect(detail.message.isWellFormed()).toBe(true);
+    expect(detail.message.endsWith('a…')).toBe(true);
+    expect(detail.message.length).toBeLessThanOrEqual(500);
+    expect(detail.issues[0]?.path.isWellFormed()).toBe(true);
+  });
+
+  it('replaces a lone half the refusal already carried', async () => {
+    const fake = fakeScan({ due: [['t1']], rows: { t1: scheduleRow('t1') } });
+    vi.mocked(beginRunInTx).mockRejectedValueOnce(
+      new AutomationError(
+        'AUTOMATION_INPUT_INVALID',
+        'broken \ud83d text',
+        400,
+      ),
+    );
+
+    await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    const detail = JSON.parse(String(decisionsOf(fake)[0]?.values[11])) as {
+      message: string;
+    };
+    expect(detail.message).toBe('broken \ufffd text');
+  });
+
+  it('isolates a schedule whose transaction fails: the others still fire', async () => {
+    const error = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => undefined);
+    const fake = fakeScan({
+      due: [['t1', 't2']],
+      rows: { t1: scheduleRow('t1'), t2: scheduleRow('t2') },
+    });
+    vi.mocked(beginRunInTx)
+      .mockRejectedValueOnce(new Error('invalid input syntax for type json'))
+      .mockResolvedValueOnce({ runId: 'r2', version: 1 });
+
+    const result = await scanScheduledTriggers(fake.sql, { now: NOW });
+
+    // The failing row wrote nothing — its transaction rolled back, so it
+    // stays due — and the next one fired.
+    expect(result).toMatchObject({ examined: 1, fired: 1, failed: 1 });
+    const writes = decisionsOf(fake);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.values.at(-1)).toBe('t2');
+    expect(
+      error.mock.calls.some(
+        (call) =>
+          String(call[0]).includes('1 schedule(s) failed') &&
+          String(call[0]).includes('t1 (invalid input syntax for type json)'),
+      ),
+    ).toBe(true);
   });
 
   it('records unusable_cron with its reason for a schedule that cannot be read, and scans on', async () => {
