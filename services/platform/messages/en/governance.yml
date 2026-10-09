@@ -1442,6 +1442,7 @@ dataSubjectRequests:
     wfExecutionsErased: Automation runs erased
     startedAt: Started
     completedAt: Completed
+    legacyAutomationHold: Some automation runs were preserved because their earlier external actions have not been verified. Retrying does not release these holds.
     errorMessage: Error
     errorState:
       title: Could not load this request
@@ -1474,6 +1475,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejected
     gdpr_erasure_cancelled: Cancelled
   categories:
+    modelApiRequests: Model requests
     userMemories: Personal memories
     userPreferences: User preferences
     messageFeedback: Message feedback

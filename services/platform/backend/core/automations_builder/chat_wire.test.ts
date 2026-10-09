@@ -49,7 +49,7 @@ describe('the OpenAI-compatible shape', () => {
       }),
     ).toEqual({
       content: 'yaml action',
-      usage: { prompt: 120, completion: 30 },
+      usage: { prompt: 120, completion: 30, reported: true },
     });
   });
 });
@@ -87,7 +87,7 @@ describe('the Anthropic shape', () => {
     ).toEqual({
       content:
         'CAUSE: the node had no code.\n```yaml\nmethod: run_automation\n```',
-      usage: { prompt: 900, completion: 210 },
+      usage: { prompt: 900, completion: 210, reported: true },
     });
   });
 });
@@ -978,5 +978,39 @@ describe('the Responses API shape', () => {
         expect(body).toMatchObject({ reasoning: { effort: level } });
       }
     }
+  });
+});
+
+describe('reported usage validity', () => {
+  it.each([
+    undefined,
+    {},
+    { prompt_tokens: -1, completion_tokens: 2 },
+    { prompt_tokens: NaN, completion_tokens: 2 },
+    { prompt_tokens: 1.2, completion_tokens: 2 },
+  ])(
+    'keeps missing or invalid counts distinguishable from reported zero',
+    (usage) => {
+      expect(
+        parseChatReply('openai', {
+          choices: [{ message: { content: 'answer' } }],
+          usage,
+        }).usage.reported,
+      ).toBe(false);
+    },
+  );
+  it('recognizes explicit reported zero on both direct wires', () => {
+    expect(
+      parseChatReply('openai', {
+        choices: [{ message: { content: 'answer' } }],
+        usage: { prompt_tokens: 0, completion_tokens: 0 },
+      }).usage.reported,
+    ).toBe(true);
+    expect(
+      parseChatReply('anthropic', {
+        content: [{ text: 'answer' }],
+        usage: { input_tokens: 0, output_tokens: 0 },
+      }).usage.reported,
+    ).toBe(true);
   });
 });

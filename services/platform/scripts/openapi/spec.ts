@@ -10440,9 +10440,9 @@ curl -H "Authorization: Bearer <api-key>" \\
             status: { type: 'string', enum: ['active', 'superseded'] },
             source: {
               type: 'string',
-              enum: ['chat', 'manual', 'api'],
+              enum: ['chat', 'manual', 'api', 'agent'],
               description:
-                'The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form) or `api` (this door — a create or supersede over REST)',
+                'The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form), `api` (this door — a create or supersede over REST) or `agent` (a project agent or an automation’s agent step granted `knowledge_entry_write`; `createdBy` then names the agent — a project agent’s id or `automation:<name>` — not a user)',
             },
             documentId: {
               ...str,

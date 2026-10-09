@@ -103,6 +103,7 @@ jobs:
         uses: ./.github/actions/ci-scope
         with:
           filter: build
+          queue-only: 'true'
 
   # Only candidates need remote source validation; ordinary jobs keep their event SHA.
   candidate-source:

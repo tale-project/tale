@@ -47,6 +47,13 @@ cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.
 
+Docker package-cache setup runs a short root helper to set each organization's
+cache volume to mode `1777`. Its BusyBox image is pinned to a multi-architecture
+digest in `src/volume.ts`; the repository's Renovate configuration tracks that
+pin. An uncached helper still needs Docker Hub on first use, within the existing
+120-second command bound. The pin fixes image identity; it does not preload the
+helper or remove that registry dependency.
+
 ## Authentication
 
 Every route except `GET /health` is HMAC-signed with the shared `SANDBOX_TOKEN`

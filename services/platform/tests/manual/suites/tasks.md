@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 136 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 143 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -791,6 +791,26 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   `/dashboard/{org}/tasks/{taskId}` (not the board address) and confirms with
   **Link copied** (`tasks.detail.linkCopied`). An archived task shows its badge
   on that line.
+- [ ] `TASK-F70` · **Who said it, at a glance** — On a task where you, a
+  teammate and an agent have commented → your comments sit on the right as
+  bubbles; the teammate's and the agent's read on the left under their avatar
+  and name, the agent's with **Agent** (`tasks.comment.agentBadge`), each with
+  a clock time under the day pill; a second comment by the same person within
+  five minutes joins the first without repeating the name. Hovering a comment
+  shows its Edit and Delete icons (yours only, or Delete for an admin); on a
+  phone they stay visible.
+- [ ] `TASK-F71` · **A long agent report reads short first** — On a task with
+  an agent comment of 3,000+ characters → it shows its first lines fading out
+  and **Read more** (`common.actions.readMore`) → pressing it opens the rest in
+  place and turns into **Show less** (`common.actions.showLess`), which folds it
+  back and keeps the button in view. Browser find-in-page still finds a word
+  from the folded part. A short comment shows no button.
+- [ ] `TASK-F72` · **Bursts of history fold** — After four or more status
+  changes, reassignments or failed runs in a row → they read as one line
+  **N updates** (`tasks.timeline.updates`) with who made them and when; pressing
+  it lists each one with its own glyph, and pressing again folds them. In
+  German each change keeps its own casing, e.g. **Status geändert: …**, never
+  lowercased.
 
 - [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
   lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with
@@ -807,6 +827,17 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   for your answer** instead; one at the review gate shows **Waiting on you** or
   **Waiting on {name}**. An agent-assigned card names its agent beside the
   avatar. The card's title reads the same sentence to a screen reader.
+- [ ] `TASK-F76` · **Fold the finished lanes** — On a board with tasks in
+  **Done** and **Cancelled**, hover **Done** → beside **+** a fold icon
+  (**Collapse Done**, `tasks.board.collapseLane`); select it, then fold
+  **Cancelled** → each turns into a narrow rail with its glyph, its count and
+  its name standing on end, and the other lanes keep their width; reload and
+  open another project's board → this board keeps its rails, the other board
+  its own lanes. Drag a card from **In review** onto the **Done** rail → the
+  rail lights up while the card is over it, the drop moves the task to
+  **Done** and the rail's count grows. Select the rail (**Expand Done**,
+  `tasks.board.expandLane`) → the lane opens with its cards. Before the cards
+  load, the placeholder already shows the rails.
 
 ## Boundary & error tests
 
@@ -1208,6 +1239,12 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   after the next hourly date sweep the Inbox shows no **starts today** bell
   for either (`inbox.taskStartReached`); a task whose start you set to tomorrow
   rings tomorrow.
+- [ ] `TASK-B49` · **A member's run cannot write knowledge entries** — With an
+  agent granted **Add and edit knowledge entries**, sign in as a Member and
+  **Start agent** on your own task asking it to save a fact as a knowledge
+  entry → the run's **Details** shows `knowledge_entry_write` refused as
+  `member_run`, **Knowledge entries** is unchanged, and the agent's report says
+  an editor must save the fact. The same request from an Editor's run saves it.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -1361,12 +1398,23 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Title** and the switch **Create another** with its on/off state; Space
   toggles the switch; the schedule message is announced when it appears
   (`role=alert`).
+- [ ] `TASK-A18` · **Read more and folded history by keyboard** — Tab to
+  **Read more** and to an **N updates** line → each announces its state
+  (collapsed/expanded) and opens with Enter or Space; Tab reaches a comment's
+  Edit and Delete icons, each named, with a visible focus ring.
 
 - [ ] `TASK-A20` · **Lane controls by keyboard** — Tab into a lane → its **+**
   shows on focus with a visible ring and is named **Add task to {status}**;
   **Add task** opens its field with the caret in it, **Enter** adds and a screen
   reader hears **Added "{title}"** (`tasks.board.quickAdded`), **Esc** closes it
   and focus stays in the lane.
+- [ ] `TASK-A21` · **Fold a lane by keyboard** — Tab to **Done**'s fold icon
+  → it shows on focus, is named **Collapse Done** and reads as expanded;
+  **Enter** folds the lane and the focus lands on the rail, named **Expand
+  Done** and read as collapsed; **Enter** opens it again with the focus back
+  on the fold icon. Pick up a card in **In review** with **Space**, press **→**
+  and **Space** → the card drops into the folded **Done**, and a screen reader
+  hears where it landed.
 
 ## Performance
 

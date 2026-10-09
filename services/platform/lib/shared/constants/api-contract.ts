@@ -403,5 +403,14 @@
  * 3.22.0 — 2026-10-08: budget rules can cap a project — everything spent in
  * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
  * names such a cap with `data.scope` `project`. Additive.
+ *
+ * 3.23.0 — 2026-10-09: the project-agent tools vocabulary gains
+ * `knowledge_entry_write`, an explicit grant to save an organization-wide
+ * knowledge entry by topic; changing an existing entry needs the version the
+ * agent read, and a stale one is refused with the current text.
+ * `KnowledgeEntry.source` gains `agent` for what such a grant wrote, its
+ * `createdBy` naming the agent. Native `knowledge_entry_find` answers each
+ * entry's version `id` and `updatedAt` and matches its content as well. No
+ * REST operation changes. Additive.
  */
-export const API_CONTRACT_VERSION = '3.22.0';
+export const API_CONTRACT_VERSION = '3.23.0';

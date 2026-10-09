@@ -32,7 +32,7 @@ Ein Agent gehört genau einem Projekt. Wer das Projekt lesen darf, sieht seine A
 | Connectors und Tools | Verbundene Dienste und erlaubte Plattformoperationen. | Vergib Repository-Zugriff und nur die benötigten Aufgaben-Tools. |
 | Secrets | Benannte Zugangsdaten der Organisation für die laufende Sitzung. | Nutze ein eng begrenztes Token für einen Dienst ohne Connector. |
 
-Die Listen für Skills, Connectors, Tools und Secret-Namen erlauben jeweils bis zu 25 Einträge. Ein freigegebenes Schreib-Tool darf im Rahmen seiner Zugriffsregeln Daten ändern. Eine Anweisung zu vorsichtigem Vorgehen entzieht diese Berechtigung nicht. Nur Inhaber oder Admins dürfen Secret-Zuordnungen ändern.
+Die Listen für Skills, Connectors, Tools und Secret-Namen erlauben jeweils bis zu 25 Einträge. Ein freigegebenes Schreib-Tool darf im Rahmen seiner Zugriffsregeln Daten ändern. Eine Anweisung zu vorsichtigem Vorgehen entzieht diese Berechtigung nicht. Nur Inhaber oder Admins dürfen Secret-Zuordnungen ändern. Das Wissen des Projekts zu durchsuchen braucht keine Freigabe: Das kann jeder Agent.
 
 ```mermaid
 flowchart LR

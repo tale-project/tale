@@ -571,6 +571,25 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
     expect(entrypoint).not.toContain('-n "${BACKEND_UPSTREAM');
   });
 
+  test('public control paths are refused before the generic API fallback', () => {
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+      'utf8',
+    );
+    for (const path of ['/api/control', '/api/control/*']) {
+      const handle = entrypoint.split(`handle ${path} {`)[1]?.split('\n\t}')[0];
+      expect(handle).toBeDefined();
+      expect(handle).toContain('respond "Not found" 404');
+      expect(handle).not.toContain('reverse_proxy');
+    }
+    // Removing the explicit control route alone leaves /api/* forwarding it.
+    const caddyfile = readFileSync(
+      resolve(repoRoot, 'services/proxy/Caddyfile'),
+      'utf8',
+    );
+    expect(caddyfile).toContain('handle /api/* {');
+  });
+
   test('nothing routes to the retired runtime any more', () => {
     // The proxy used to fall back to `convex:*` for everything the backend
     // list did not name. That service is gone, so a fallback is a 502 — every

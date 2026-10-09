@@ -31,7 +31,7 @@ import { scheduleOrganizationSandboxRetirement } from '../sandbox/retirement-sch
 
 export class OrganizationError extends Error {
   readonly code: string;
-  readonly status: 400 | 401 | 403 | 404;
+  readonly status: 400 | 401 | 403 | 404 | 409;
   /** Structured detail a door hands on under `data` — the organizations a
    * key holder may name, on every refusal of the one it named (or did not). */
   readonly data?: Record<string, unknown>;
@@ -39,7 +39,7 @@ export class OrganizationError extends Error {
   constructor(
     code: string,
     message: string,
-    status: 400 | 401 | 403 | 404,
+    status: 400 | 401 | 403 | 404 | 409,
     data?: Record<string, unknown>,
   ) {
     super(message);
@@ -467,6 +467,28 @@ export function describeOrganizationHoldBlock(
   return null;
 }
 
+export function legacyAutomationHoldError(): OrganizationError {
+  return new OrganizationError(
+    'ORG_LEGACY_AUTOMATION_HELD',
+    'This organization has automation runs on hold because their earlier external actions have not been verified. The organization was preserved. A stop request does not release these holds.',
+    409,
+  );
+}
+
+/** This guard precedes every deletion write. The database guards remain the
+ * authority if the cutover lands after the caller's transaction snapshot. */
+export async function assertNoLegacyAutomationHolds(
+  tx: TransactionSql,
+  organizationId: string,
+): Promise<void> {
+  const held = await tx<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE org_id = ${organizationId} AND legacy_quarantine IS NOT NULL
+    LIMIT 1
+  `;
+  if (held.length > 0) throw legacyAutomationHoldError();
+}
+
 /**
  * The ONE deletion door — owner-only, whole teardown in the caller's
  * transaction so it either fully commits or leaves nothing behind. Order:
@@ -547,6 +569,7 @@ export async function deleteOrganization(
   if (holdBlock !== null) {
     throw holdBlock;
   }
+  await assertNoLegacyAutomationHolds(tx, organizationId);
 
   await logSuccess(tx, {
     auditCtx: {

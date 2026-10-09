@@ -24,6 +24,7 @@ import { incrementUsageLedger } from '../governance/service.ts';
 import {
   resolveSessionOpAttribution,
   type SessionOpAttribution,
+  withSessionOpBillingProjects,
 } from './op-attribution.ts';
 
 /**
@@ -132,7 +133,11 @@ export async function resolveImageTurnContext(
     if (ops.length === 0) return { status: 'ended' };
     outputDir = '/agent/output';
   }
-  const attribution = await resolveSessionOpAttribution(sql, args);
+  const attribution = await withSessionOpBillingProjects(
+    sql,
+    args,
+    await resolveSessionOpAttribution(sql, args),
+  );
   return { status: 'live', outputDir, subject: subjectOf(attribution) };
 }
 
@@ -319,10 +324,13 @@ export async function admitImageGeneration(
         `This turn's spend allowance has ${cents(Math.max(0, room))} left, and ${args.images === 1 ? 'an image is' : `${args.images} images are`} held at ${cents(holdCents)} until ${args.images === 1 ? 'its' : 'their'} cost is known.`,
       );
     }
+    const billingSubject = subjectOf(
+      await withSessionOpBillingProjects(tx, args, args.subject),
+    );
     const subject = await loadAttributedBudgetSubject(
       tx,
       args.organizationId,
-      args.subject,
+      billingSubject,
     );
     const violation = await findBudgetViolation(tx, subject, {
       // Every hold in flight — this turn's own allowance too: its model may
@@ -347,7 +355,7 @@ export async function admitImageGeneration(
         -- turn's) holds these images in its projects all the same.
         project_ids = coalesce(
           project_ids,
-          ${subject.projectIds !== undefined ? [...subject.projectIds] : null}
+          ${[...(subject.projectIds ?? [])]}
         )
       WHERE id = ${op.id}
     `;
@@ -440,6 +448,12 @@ export async function settleImageGeneration(
   const setKeyBudget = deps.setKeyBudget ?? setVirtualKeyBudget;
   const spent = args.charges.reduce((sum, charge) => sum + charge, 0);
   const settled = await sql.begin(async (tx) => {
+    // Settle against the admitted stamp, including an explicitly empty
+    // project list, even if a caller captured its context before a rebind.
+    const billingSubject =
+      args.charges.length === 0
+        ? args.subject
+        : subjectOf(await withSessionOpBillingProjects(tx, args, args.subject));
     for (const costCents of args.charges) {
       await incrementUsageLedger(tx, {
         organizationId: args.organizationId,
@@ -450,8 +464,8 @@ export async function settleImageGeneration(
         ...(args.subject.apiKeyId !== undefined
           ? { apiKeyId: args.subject.apiKeyId }
           : {}),
-        ...(args.subject.projectIds !== undefined
-          ? { projectIds: args.subject.projectIds }
+        ...(billingSubject.projectIds !== undefined
+          ? { projectIds: billingSubject.projectIds }
           : {}),
         provider: args.provider,
         model: args.model,

@@ -32,7 +32,7 @@ An agent belongs to exactly one project. People who can read the project can see
 | Connectors and tools | Connected services and allowed platform operations. | Grant repository access and only the task tools needed. |
 | Secrets | Named organization credentials supplied to the running session. | Use a narrowly scoped token for a service without a connector. |
 
-The skills, connectors, tools and secret-name lists each allow up to 25 entries. A grant to a write tool authorizes its supported writes within its access rules; an instruction asking the agent to be careful does not remove that permission. Only an Owner or Admin may change secret grants.
+The skills, connectors, tools and secret-name lists each allow up to 25 entries. A grant to a write tool authorizes its supported writes within its access rules; an instruction asking the agent to be careful does not remove that permission. Only an Owner or Admin may change secret grants. Searching the project's knowledge needs no grant: every agent has it.
 
 ```mermaid
 flowchart LR

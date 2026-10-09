@@ -152,8 +152,9 @@ export function memberRunGuidance(withheld: readonly string[]): string {
   return (
     'This run was started by a member who can work only their own task. ' +
     'Your task tools change only this task and the subtasks under it, and ' +
-    'you cannot sync external items into the project or save documents ' +
-    "there — deliver files through this task's delivery box." +
+    'you cannot sync external items into the project, save documents ' +
+    "there or write knowledge entries — deliver files through this task's " +
+    'delivery box.' +
     (withheld.length > 0
       ? " The agent's credentials (" +
         withheld.join(', ') +

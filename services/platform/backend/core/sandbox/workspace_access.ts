@@ -15,15 +15,19 @@
  * ONE list every read leg types its subject against, so a table added to
  * the matrix cannot go missing in a caller's private copy.
  *
- * `allowed: true` means only that the caller's ROLE may read the table. Some
- * subjects need a second, narrower gate this vocabulary does not own:
+ * `allowed: true` means only that the caller's role and API-key owner may
+ * read the table. Some subjects need a second, narrower gate this vocabulary
+ * does not own:
  * `documents` and `tasks` narrow to the caller's team/project visibility,
  * and `conversations` narrows further still to its assignment scope (a
  * conversation assigned to nobody is admin triage only). Treating `allowed:
- * true` as "read the whole org" is a leak for those three.
+ * true` as "read the whole org" is a leak for those three. Organization-wide
+ * `knowledge_entries` are a separate subject: unlike scoped documents, they
+ * are never readable by a project's own API key.
  */
 export type AgentReadSubject =
   | 'documents'
+  | 'knowledge_entries'
   | 'contacts'
   | 'products'
   | 'websites'
@@ -44,6 +48,7 @@ export type AgentReadSubject =
 export const SESSION_ACTION_SUBJECTS = [
   'tasks',
   'documents',
+  'knowledge_entries',
   'contacts',
   'products',
   'websites',

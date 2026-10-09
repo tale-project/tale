@@ -302,8 +302,6 @@ fallback:
   image: Bild
 loadingConversation: Lädt die Unterhaltung…
 speakOutLoud: Vorlesen
-showMore: Mehr anzeigen
-showLess: Weniger anzeigen
 scrollToBottom: Nach unten scrollen
 messageInfo:
   title: Nachrichteninformation
@@ -463,6 +461,9 @@ skills:
   unavailableOption: '"{slug}" (nicht verfügbar)'
   emptyConnectors: Noch keine Connectors hinzugefügt.
   emptyTools: Keine Plattform-Tools verfügbar.
+  searchLabel: Skills, Connectors und Tools durchsuchen
+  searchPlaceholder: Suchen…
+  searchEmpty: Nichts passt zu deiner Suche.
 generation:
   regionLabel: Status der Antwort
   queued: In der Warteschlange — startet gleich
