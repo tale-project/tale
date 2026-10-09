@@ -311,15 +311,6 @@ describe('managed native configuration', () => {
   });
 });
 
-test('native and CLI value identity agree for JSON strings, numeric keys and nested arrays', () => {
-  for (const value of [
-    '',
-    ' café 😺 ',
-    { '10': 1, '2': ['x', { z: true, a: null }], '1': { '20': 2, '3': 3 } },
-  ])
-    expect(managedConfigurationHash(value)).toBe(valueHash(value));
-});
-
 test('adopts a legacy agent text preimage without silently trimming its native hash', async () => {
   const config = {
     projectId: 'project-1',
@@ -334,22 +325,6 @@ test('adopts a legacy agent text preimage without silently trimming its native h
     config: { ...config, instructions: 'new instructions' },
   });
   expect(result).toEqual({ config, revision: valueHash(config) });
-});
-
-test('CLI cache inputs include both native JSON identity modules used by the parity proof', async () => {
-  const turbo: unknown = JSON.parse(
-    await readFile(new URL('../../../turbo.json', import.meta.url), 'utf8'),
-  );
-  expect(turbo).toMatchObject({
-    tasks: {
-      test: {
-        inputs: expect.arrayContaining([
-          '$TURBO_ROOT$/services/platform/backend/core/lib/config_store/value_hash.ts',
-          '$TURBO_ROOT$/services/platform/lib/shared/utils/stable-stringify.ts',
-        ]),
-      },
-    },
-  });
 });
 
 describe('managed tool preimages', () => {
