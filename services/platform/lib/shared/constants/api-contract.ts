@@ -537,5 +537,25 @@
  * recorded with the call and on the versions and audit rows it writes.
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
+ *
+ * 3.28.0 — 2026-10-09: the MCP endpoint reads, plans and changes the
+ * organization's settings, in a new `settings` group. `get_settings`
+ * answers, without `kinds`, the catalog of setting kinds (what each is, its
+ * `ops` and `acts`, `baseRisk`, the Settings pages it covers, whether this
+ * deployment serves it and what the caller's role may do) and, with
+ * `kinds`, each resource the caller may read with its `key`, `config` and
+ * native `hash`, a secret reading as `{masked: true, preview}`.
+ * `plan_settings` answers each change's `action`, `currentHash`, `diff`,
+ * `effects` and `risk`, or its `refusal`, and writes nothing.
+ * `apply_settings` is compare-and-set: `expected` names every changed
+ * resource's hash (null for one it creates); a refused change or a resource
+ * that moved applies nothing (`SETTINGS_STALE` with `data.currentHash`);
+ * changes run in a fixed order across kinds and the first failure stops the
+ * rest, the answer naming what was `applied`, what `failed` and what was
+ * `skipped`. It asks the person before every call and draws from a new
+ * `rest:settings` budget (30 a minute, 60 at once). No argument may carry a
+ * secret (`SECRET_ARGUMENT_REFUSED`); further codes `SETTINGS_KIND_UNAVAILABLE`,
+ * `SETTINGS_NOT_FOUND` and `SETTINGS_DUPLICATE`. The server instructions
+ * name the settings loop. No REST operation changes.
  */
-export const API_CONTRACT_VERSION = '3.27.0';
+export const API_CONTRACT_VERSION = '3.28.0';

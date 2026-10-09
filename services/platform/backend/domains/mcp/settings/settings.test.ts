@@ -422,7 +422,7 @@ describe('plan_settings', () => {
     });
   });
 
-  it('refuses a credential pasted into a setting, wherever it sits, without repeating it', async () => {
+  it('refuses a credential pasted into a setting, wherever it sits, without repeating it [MCP-R12]', async () => {
     const state = seeded();
     const pasted = 'sk-000000000000000000000000';
     const plan = await planSettings(contextFor(), state.registry, [
@@ -492,7 +492,7 @@ describe('apply_settings', () => {
     expect(state.writes).toEqual([]);
   });
 
-  it('applies nothing when one resource moved since it was read', async () => {
+  it('applies nothing when one resource moved since it was read [MCP-R11]', async () => {
     const state = seeded();
     const read = hashOf(state, 'governance/password_policy');
     // Ben changes the policy in the app between the agent's read and apply.
@@ -607,7 +607,7 @@ describe('apply_settings', () => {
     });
   });
 
-  it('stops at a refused write: what landed stays, the rest is skipped', async () => {
+  it('stops at a refused write: what landed stays, the rest is skipped [MCP-R11]', async () => {
     const state = seeded();
     state.store.set('provider/refused', { name: 'refused' });
     const answer = await applySettings(
@@ -744,7 +744,7 @@ describe('apply_settings', () => {
     expect(state.writes).toEqual([]);
   });
 
-  it('keeps a stored secret through the masked value it read: read, edit, write back', async () => {
+  it('keeps a stored secret through the masked value it read: read, edit, write back [MCP-R12]', async () => {
     const state = seeded();
     const read = await getSettings(contextFor(), state.registry, {
       kinds: ['provider'],
@@ -782,7 +782,7 @@ describe('apply_settings', () => {
     expect(JSON.stringify([read, answer])).not.toContain(SENTINEL);
   });
 
-  it('refuses a new secret and applies nothing', async () => {
+  it('refuses a new secret and applies nothing [MCP-R12]', async () => {
     const state = seeded();
     const answer = await applySettings(
       contextFor(),

@@ -141,6 +141,44 @@ export const READ_TOOL_RESULTS = {
     ),
     hint: z.string(),
   }),
+  get_settings: z.looseObject({
+    kinds: z
+      .array(
+        z.looseObject({
+          kind: z.string(),
+          available: z.boolean(),
+          read: z.boolean(),
+          write: z.boolean(),
+        }),
+      )
+      .optional(),
+    resources: z.array(
+      z.looseObject({
+        kind: z.string(),
+        key: z.string(),
+        id: z.string().nullable(),
+        hash: z.string(),
+      }),
+    ),
+    refused: z.array(
+      z.looseObject({ kind: z.string(), code: z.string(), error: z.string() }),
+    ),
+    nextCursor: z.string().nullable(),
+    hint: z.string(),
+  }),
+  plan_settings: z.looseObject({
+    ok: z.boolean(),
+    changes: z.array(
+      z.looseObject({
+        kind: z.string(),
+        key: z.string(),
+        op: z.string(),
+        diff: z.array(z.looseObject({ path: z.string() })),
+        effects: z.array(z.string()),
+        risk: z.string(),
+      }),
+    ),
+  }),
   search_capabilities: z.looseObject({
     capabilities: z.array(z.looseObject({ id: z.string() })),
   }),

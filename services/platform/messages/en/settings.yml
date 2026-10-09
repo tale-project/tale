@@ -78,6 +78,10 @@ mcpEndpoint:
       title: Discovery
       description: Look up what an automation may name — models, agent
         runtimes, skills, connectors, secret names, projects and events.
+    settings:
+      title: Settings
+      description: Read, plan and change the settings your role allows.
+        Secrets are always entered in Tale.
     capability:
       title: Capabilities & knowledge
       description: This organization's own surface — search what it can do,

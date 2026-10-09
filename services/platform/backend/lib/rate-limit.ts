@@ -205,6 +205,15 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 40,
   },
+  // Settings changes over MCP (`apply_settings`): a coding agent loops, and
+  // every change runs a native writer that may snapshot a history file or
+  // reach a vendor, so a key holder's changes have a budget of their own.
+  'rest:settings': {
+    kind: 'token bucket',
+    rate: 30,
+    period: MINUTE,
+    capacity: 60,
+  },
   // The sandbox-device door: a join token or device secret that matches
   // nothing is charged to its source IP — the trusted-headers posture.
   'sandbox-devices:auth-fail-ip': {

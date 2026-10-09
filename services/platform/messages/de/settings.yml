@@ -81,6 +81,10 @@ mcpEndpoint:
       description: Nachsehen, was eine Automatisierung nennen darf — Modelle,
         Agent-Laufzeiten, Skills, Connectors, Namen von Secrets, Projekte
         und Ereignisse.
+    settings:
+      title: Einstellungen
+      description: Die Einstellungen lesen, planen und ändern, die deine Rolle
+        erlaubt. Secrets gibst du immer in Tale ein.
     capability:
       title: Capabilities & Wissen
       description: Die eigene Oberfläche der Organisation — durchsuchen, was

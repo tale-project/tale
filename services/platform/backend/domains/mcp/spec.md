@@ -4,8 +4,9 @@
 
 The rules of the door a coding agent uses to work in Tale, `/api/v1/mcp`: whom a call acts as and
 what the key holder's role lets it read and change, how an agent's save, deploy and runs meet the
-editor's rules, how a refusal or a bad argument reaches the agent, what a request and a batch of
-calls cost, what is kept of a call, and which protocol revisions the endpoint speaks. The rest of
+editor's rules, how a settings change is checked and that no secret travels with it, how a refusal
+or a bad argument reaches the agent, what a request and a batch of calls cost, what is kept of a
+call, and which protocol revisions the endpoint speaks. The rest of
 what a call does once it reaches an automation, the capability surface, and the tool inventory
 itself are not covered; see Not yet. Resources and prompts are reads the tools already answer, and
 the Tale skill is the one file an agent installs to work here.
@@ -174,6 +175,36 @@ answer carries a secret's value.
   owners, admins and developers see them; Ada, an admin, gets `CRM_TOKEN` with its masked preview
   and never its value. Mia lists the projects → Sales is listed with `sales/follow-up`, and
   nothing of the HR project she is not in.
+
+## Changing settings
+
+An agent reads the organization's settings, plans a change and applies it through three tools.
+Each kind of setting is read and written by the same code the Settings page uses, so the
+person's role allows the same changes over MCP as in the app.
+
+### MCP-R11 · A settings call applies only when each setting is still what the agent read
+
+Every change names the hash of the setting the agent read, or none for a setting it creates.
+Before anything is written, each change is planned again against what is stored now: when one
+setting has moved since it was read, or one change is refused, nothing in the call is applied,
+and the agent learns the hash stored now (`SETTINGS_STALE`). The changes then run one setting at
+a time, each checking its hash again; a failure stops the rest, and the agent is told what was
+applied, what failed and what was skipped.
+
+- **Example**: Ada's agent reads the password policy and plans a longer minimum length; Ben
+  changes the policy in the app before the agent applies → refused with the policy's current
+  hash, and the branding change in the same call is not applied either.
+
+### MCP-R12 · No secret goes into or comes out of a settings call
+
+A stored secret reads as masked, with a short excerpt at most. A change may send that masked
+value back to keep the stored secret, and nothing else in its place; a credential anywhere else
+in a change — a key pasted into a description — refuses the change, naming where it was found
+and never the value (`SECRET_ARGUMENT_REFUSED`). A person enters a new secret in Tale.
+
+- **Example**: Ada's agent reads a provider whose key is stored → the key reads as masked; it
+  changes the address and sends the masked key back → the stored key is kept; it sends a key it
+  typed instead → refused, and the answer names the field, not the key.
 
 ## Answers and refusals
 
@@ -358,6 +389,9 @@ deployment of a release. A signed-in person downloads it in the app; an agent re
   a version its agent saves records the door and the key but no client name; a 2026-07-28 client
   names itself on every call (MCP-R26).
 - The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).
+- No kind of setting is served over MCP yet: each arrives with its handler beside the code that
+  writes it in the app. Until then the catalog lists it as unavailable, and a change to it is
+  refused (`SETTINGS_KIND_UNAVAILABLE`).
 - A client cannot subscribe to a resource or be told that a list changed (`subscriptions/listen`
   answers 404 on 2026-07-28): the lists are read again when a client reconnects, or on 2026-07-28
   once the time the answer named has passed.

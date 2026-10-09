@@ -282,24 +282,39 @@ export interface ToolCallContext {
   /** Asked before the call runs when the request already spent its first
    * call (a batch); a wait refuses this call at the protocol level. */
   readonly admit?: () => Promise<{ retryAfterMs: number } | null>;
-  /** Draws one execution from the caller's budget for an `execute` tool,
-   * after its role check; a wait refuses the call as `RATE_LIMITED`. */
+  /** Draws one unit from the caller's budget for a tool that executes an
+   * automation (`rest:execute`) or changes settings (`rest:settings`), after
+   * its role check; a wait refuses the call as `RATE_LIMITED`. */
   readonly charge?: (
-    lane: 'rest:execute',
+    lane: 'rest:execute' | 'rest:settings',
   ) => Promise<{ retryAfterMs: number } | null>;
 }
 
-/** The refusal of a call whose execution budget is spent. */
+/** The budget a tool's lane draws from, beyond the request itself. */
+const LANE_BUDGETS = {
+  execute: 'rest:execute',
+  settings: 'rest:settings',
+} as const;
+
+/** The refusal of a call whose execution or settings budget is spent. */
 function rateLimited(
   tool: McpToolSpec,
   retryAfterMs: number,
 ): Record<string, unknown> {
-  return {
-    error: `${tool.name} is refused for now: this key holder has started as many executions as a minute allows; retry in ${Math.max(1, Math.ceil(retryAfterMs / 1000))} s`,
-    code: 'RATE_LIMITED',
-    hint: 'wait data.retryAfterMs before calling it again; reads, validation and saving do not draw from this budget',
-    data: { retryAfterMs },
-  };
+  const wait = Math.max(1, Math.ceil(retryAfterMs / 1000));
+  return tool.lane === 'settings'
+    ? {
+        error: `${tool.name} is refused for now: this key holder has changed settings as often as a minute allows; retry in ${wait} s`,
+        code: 'RATE_LIMITED',
+        hint: 'wait data.retryAfterMs before calling it again; get_settings and plan_settings do not draw from this budget',
+        data: { retryAfterMs },
+      }
+    : {
+        error: `${tool.name} is refused for now: this key holder has started as many executions as a minute allows; retry in ${wait} s`,
+        code: 'RATE_LIMITED',
+        hint: 'wait data.retryAfterMs before calling it again; reads, validation and saving do not draw from this budget',
+        data: { retryAfterMs },
+      };
 }
 
 /** What the protocol layer answers a `tools/call` with: a tool result, or —
@@ -349,8 +364,8 @@ export async function callTool(
       };
     }
   }
-  if (tool.lane === 'execute' && context.charge !== undefined) {
-    const wait = await context.charge('rest:execute');
+  if (tool.lane !== 'api' && context.charge !== undefined) {
+    const wait = await context.charge(LANE_BUDGETS[tool.lane]);
     if (wait !== null) {
       return {
         kind: 'answer',
