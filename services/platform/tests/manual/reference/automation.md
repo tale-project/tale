@@ -71,6 +71,10 @@ failures take precedence over the phase diagnostic.
 Retained state, configuration journal, client inventory, receipt inventory,
 receipt custody/schema and target identity refusals identify their boundary before
 native HTTP, preserving the files and excluding private values.
+The actual native lock writer leaves reserved coordination metadata; observation
+validates its directory and known regular files without opening SQLite or changing
+locks. Active or retained operation metadata, unknown hidden entries, unsafe links
+and permissions, and lock bytes changed during reads refuse.
 Production observations and Ready acceptance remain separate deployment evidence.
 
 Bun Docker builders, runtimes and the React service generator match the pinned

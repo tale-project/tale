@@ -10,6 +10,10 @@ import { loadClient, stableJson, valueHash } from '../config/releases/identity';
 import { loadRelease } from '../config/releases/manifest';
 import { relativePath, sha, slug } from '../config/releases/model';
 import { verifyStage } from '../config/releases/stage';
+import {
+  deploymentLockFileNames,
+  validateLockPaths,
+} from '../state/lock-guard';
 import { configureInstance } from './identity';
 import {
   ObservationCleanupError,
@@ -65,6 +69,25 @@ function directoryEntries(directory: string) {
     );
   return entries.sort((a, b) => a.name.localeCompare(b.name));
 }
+/** A completed native writer retains its coordination files, not a client pack.
+ * Reuse non-creating path admission and only read bounded, owned bytes. */
+async function retainedLockInventory(state: string) {
+  await validateLockPaths(state);
+  const directory = join(state, '.tale');
+  return directoryEntries(directory).map((entry) => {
+    if (
+      !entry.isFile() ||
+      !deploymentLockFileNames.some((name) => name === entry.name) ||
+      entry.name === 'deployment-lock'
+    )
+      throw preconditionError(
+        'Retained lock inventory is unknown or has an unfinished operation.',
+      );
+    const path = join(directory, entry.name);
+    return { path, sha256: observationFile(path, 1_048_576).sha256 };
+  });
+}
+
 const unavailable = (
   reason:
     | 'retained_state_missing'
@@ -123,6 +146,7 @@ async function readNativeDeployment(
       'An unfinished native configuration prevents observation.',
     );
   const records = [];
+  let lockFiles: Awaited<ReturnType<typeof retainedLockInventory>> | undefined;
   const receiptInventories = new Map<string, string[]>();
   phase('nativeInventory');
   for (const entry of directoryEntries(state)) {
@@ -131,6 +155,10 @@ async function readNativeDeployment(
       throw preconditionError(
         'Retained native inventory contains a symbolic link.',
       );
+    if (entry.name === '.tale') {
+      lockFiles = await retainedLockInventory(state);
+      continue;
+    }
     if (
       !entry.isDirectory() ||
       entry.name === 'private' ||
@@ -418,6 +446,13 @@ async function readNativeDeployment(
   )
     throw preconditionError(
       'Retained native inventory changed during observation.',
+    );
+  if (
+    lockFiles &&
+    stableJson(await retainedLockInventory(state)) !== stableJson(lockFiles)
+  )
+    throw preconditionError(
+      'Retained lock inventory changed during observation.',
     );
   for (const [directory, names] of receiptInventories)
     if (

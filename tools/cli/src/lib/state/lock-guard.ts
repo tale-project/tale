@@ -11,6 +11,14 @@ import { preconditionError } from '../../utils/fail';
  * one host and a local filesystem; Bun ships SQLite on every CLI platform. */
 const held = new Map<string, Database>();
 
+export const deploymentLockFileNames = [
+  'deployment-lock',
+  'deployment-lock.sqlite',
+  'deployment-lock.sqlite-journal',
+  'deployment-lock.sqlite-wal',
+  'deployment-lock.sqlite-shm',
+] as const;
+
 async function regularPath(path: string, directory: boolean): Promise<boolean> {
   try {
     const stat = await lstat(path);
@@ -58,13 +66,7 @@ export async function validateLockPaths(
     }
     await regularPath(metadata, true);
   }
-  for (const name of [
-    'deployment-lock',
-    'deployment-lock.sqlite',
-    'deployment-lock.sqlite-journal',
-    'deployment-lock.sqlite-wal',
-    'deployment-lock.sqlite-shm',
-  ])
+  for (const name of deploymentLockFileNames)
     await regularPath(join(metadata, name), false);
   return canonical;
 }
