@@ -50,6 +50,12 @@ function fakeSql(answers: Array<{ match: string; rows: unknown[] }>) {
   return { sql: sql as never, statements };
 }
 
+/** A workflow session's owner: the automation run it executes. */
+const WORKFLOW_SESSION = {
+  match: 'FROM app.sandbox_sessions s',
+  rows: [{ runId: 'run-1' }],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -139,6 +145,7 @@ describe('settleSessionOpSpend', () => {
 
   it('attributes a workflow op to the automation run that owns its session [SBX-R14]', async () => {
     const { sql } = fakeSql([
+      WORKFLOW_SESSION,
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
         rows: [
@@ -150,7 +157,7 @@ describe('settleSessionOpSpend', () => {
         ],
       },
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'user:user-2',
@@ -182,6 +189,7 @@ describe('settleSessionOpSpend', () => {
 
   it('books a keyed start to the person and the key [SBX-R14]', async () => {
     const { sql } = fakeSql([
+      WORKFLOW_SESSION,
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
         rows: [
@@ -189,7 +197,7 @@ describe('settleSessionOpSpend', () => {
         ],
       },
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'api-key:user-3',
@@ -216,6 +224,7 @@ describe('settleSessionOpSpend', () => {
 
   it('books a trigger-started run under the automation sentinel [SBX-R14]', async () => {
     const { sql } = fakeSql([
+      WORKFLOW_SESSION,
       {
         match: 'UPDATE app.sandbox_session_ops SET spent_cents',
         rows: [
@@ -223,7 +232,7 @@ describe('settleSessionOpSpend', () => {
         ],
       },
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'trigger:t-1',

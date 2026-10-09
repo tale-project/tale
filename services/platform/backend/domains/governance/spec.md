@@ -46,8 +46,8 @@ tightens the limit of the person it belongs to, and the reverse.
 
 What a project spent is everything done in it: the chats in its threads (their titles, the
 answers read aloud and the assistant's tool calls included), the turns of its agents and the
-agent steps of the automations run in it, with the images they make, and the calls made with its
-own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
+agent and `llm` steps of the automations run in it, with the images they make, and the calls made
+with its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
 schedule started included, and binds nothing done outside the project. A run that names no
 project, of an automation installed in several projects, is each one's work: it counts toward,
 and must fit, every one of their limits, as a member's spend counts toward each of their teams.
@@ -161,8 +161,9 @@ It counts only in the organization it was granted in.
   chat is booked to the person who added it, not to the project, and a project's limit warns
   no one before it is reached. Voice output in a project is checked against its limit but holds
   nothing while it is made.
-- **An automation's model steps**: an `llm` step is admitted against no limit and booked to no
-  ledger — the organization's, a person's, a key's or a project's.
+- **An automation's model steps hold nothing while they run**: an `llm` step is checked against
+  the limits before each call and counted after it, but sets nothing aside meanwhile, so steps of
+  runs at the same moment can pass a nearly reached limit together.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

@@ -487,16 +487,15 @@ default means deleting the override and fixing what surfaces:
   backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
   forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
   or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.
-- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block: an `llm`
-  node's spend is not metered at all (`backend/core/automations/llm_call.ts` → `model_call.ts`
-  parses no usage and writes no ledger row), and an `agent` node's cents settle on
-  `app.sandbox_session_ops` under the automation's name and user, never on the run
-  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`); the stepper drops the
-  agent settle's `usage` when it records the node. A `usage` that read `0` for every `llm` node
-  would be a fabricated figure, so the surface says a run carries none (2026-09, round g).
-  Paying it down means (1) parsing usage in `parseChatReply` and booking it through
-  `incrementUsageLedger({agentSlug: run.automation})` for `llm` nodes, (2) keeping
-  `settled.usage` in the agent checkpoint trace, then (3) `?include=usage` summing both.
+- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block. An `llm`
+  node's call is booked to the usage ledger under the run's subject and the automation's name
+  (`backend/domains/automations/llm-metering.ts`, 2026-10-08), and an `agent` node's cents
+  settle on `app.sandbox_session_ops` under the same subject
+  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`) — but neither lands on
+  the run itself: the stepper keeps no `llm` node's usage and drops the agent settle's `usage`
+  when it records the node, and the ledger's buckets sum across runs. Paying it down means
+  (1) keeping each `llm` node's usage and the agent's `settled.usage` in the node's checkpoint
+  trace, then (2) `?include=usage` summing them.
 - **Approvals have no REST twin** — a run parked on `waitingFor: approval` can only be decided
   in the app (`backend/domains/approvals/routes.ts`); over REST the `detail`
   (`approval:<approvalId>`) names something no door takes (2026-09, round g). The ask half was
