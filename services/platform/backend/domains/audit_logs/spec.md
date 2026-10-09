@@ -66,7 +66,7 @@ spreadsheet shows it as text. Other text is exported as it is.
 
 ## Attribution
 
-### AUDIT-R7 · A key-made entry names the key’s maker and keeps the member it acts for as its subject
+### AUDIT-R7 · A key-made entry names the key’s maker, its subject the member it acts for
 
 An entry written during an authenticated API-key request names the maker as its acting
 principal and records the verified key ID, the member the key acts for and the event's
