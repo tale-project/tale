@@ -49,7 +49,7 @@ Exports honor the category filter and contain at most 10,000 rows, newest first.
 
 ## Retention and integrity
 
-Use **Verify now** in **Chain integrity** to check the stored audit chain. The panel shows its status and the latest automated check. If a check reports a break, preserve the reported details and investigate with the deployment operator before relying on that segment of history.
+Use **Verify now** in **Chain integrity** to check the stored audit chain. New entries join the chain within seconds of being recorded. The panel shows its status and the latest automated check. If a check reports a break, preserve the reported details and investigate with the deployment operator before relying on that segment of history.
 
 A successful check covers the retained records it examined; it does not establish an independently signed origin for the history. The [operator integrity guide](/self-hosted/operate/security/audit-log-integrity) explains the checks and their limits.
 

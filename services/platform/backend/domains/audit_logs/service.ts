@@ -297,7 +297,10 @@ export async function sealAuditChain(
   options: { batch?: number } = {},
 ): Promise<number> {
   const batch = options.batch ?? SEAL_BATCH;
-  return sql.begin(async (tx) => {
+  // Read committed, whatever the database's default: the pass reads what is
+  // committed at each statement, and a writer inserting rows meanwhile is
+  // never a serialization conflict — its rows wait for the next pass.
+  return sql.begin('isolation level read committed', async (tx) => {
     if (!(await tryLockAuditChain(tx, organizationId))) return 0;
     const pending = await tx<AuditLogRow[]>`
       SELECT ${tx.unsafe(ROW_COLUMNS)} FROM app.audit_logs

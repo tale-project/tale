@@ -253,8 +253,10 @@ function fakePool(respond: (statement: Statement) => unknown[]): {
       )(strings, ...values),
     {
       unsafe: (text: string) => ({ unsafeText: text }),
-      begin: (callback: (tx: TransactionSql) => Promise<unknown>) =>
-        callback(fake.tx),
+      begin: (
+        _mode: string,
+        callback: (tx: TransactionSql) => Promise<unknown>,
+      ) => callback(fake.tx),
     },
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the sealer touches only the tag and begin

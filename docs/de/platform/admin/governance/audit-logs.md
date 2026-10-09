@@ -49,7 +49,7 @@ Exporte berücksichtigen den Kategoriefilter und enthalten höchstens 10.000 Zei
 
 ## Aufbewahrung und Integrität
 
-Wähle im Bereich der Kettenintegrität **Jetzt prüfen**, um die gespeicherte Audit-Kette zu kontrollieren. Der Bereich zeigt den Status und die letzte automatische Prüfung. Wird eine Unterbrechung gemeldet, sichere die Details und untersuche sie mit dem Betreiber, bevor du dich auf diesen Teil der Historie verlässt.
+Wähle im Bereich der Kettenintegrität **Jetzt prüfen**, um die gespeicherte Audit-Kette zu kontrollieren. Neue Einträge werden wenige Sekunden nach der Aufzeichnung in die Kette aufgenommen. Der Bereich zeigt den Status und die letzte automatische Prüfung. Wird eine Unterbrechung gemeldet, sichere die Details und untersuche sie mit dem Betreiber, bevor du dich auf diesen Teil der Historie verlässt.
 
 Eine erfolgreiche Prüfung gilt für die aufbewahrten Datensätze, die sie untersucht hat. Sie belegt keinen unabhängig signierten Ursprung der Historie. Die [Integritätsanleitung für den Betrieb](/de/self-hosted/operate/security/audit-log-integrity) erklärt die Prüfungen und ihre Grenzen.
 

@@ -317,15 +317,14 @@ async function checkSerializableRetry(sql: Sql): Promise<void> {
 }
 
 /**
- * The audit chain-head storm (compliance-x1): every audited write of an org
- * bumps one head row, so serializable appenders that overlap all lose at the
- * head lock except the first, and a plain retry loses again whenever another
- * appender commits first. With the retry queue (`markRetryQueueKey` +
- * `pg_advisory_xact_lock` in `lockChainHead`) every appender commits, the
- * chain stays linear and the head names the last row.
+ * A burst of audited writes in one org (compliance-x1). Writers used to meet
+ * at the org's chain head, lose there under SERIALIZABLE and retry; now each
+ * writes its row unsealed, so every one commits on its first attempt, and
+ * the sealer chains them all — the head naming the last row it sealed.
  */
 async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
-  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
   const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
   const orgId = `itest-chain-${randomUUID().slice(0, 8)}`;
   const appenders = 8;
@@ -334,8 +333,7 @@ async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
     Array.from({ length: appenders }, (_, index) =>
       transactSerializable(sql, async (tx) => {
         attempts += 1;
-        // Fix the snapshot first, then let every appender overlap: each
-        // one's head read is now stale for all but the first committer.
+        // Fix the snapshot first, then let every appender overlap.
         await tx`SELECT 1`;
         await sleep(50);
         return createAuditLog(tx, {
@@ -356,26 +354,200 @@ async function checkAuditChainConcurrentAppenders(sql: Sql): Promise<void> {
     SELECT count(*)::text AS count FROM app.audit_logs WHERE org_id = ${orgId}
   `;
   const committed = Number(rows[0]?.count ?? '0');
+  const sealed = await sealAuditChainNow(sql, orgId);
   const verified = await verifyAuditChain(sql, orgId);
-  const heads = await sql<{ lastHash: string }[]>`
-    SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
-    WHERE org_id = ${orgId}
+  const heads = await sql<{ lastHash: string; lastSeq: string }[]>`
+    SELECT last_hash AS "lastHash", last_seq::text AS "lastSeq"
+    FROM app.audit_chain_heads WHERE org_id = ${orgId}
   `;
   const latest = await sql<{ integrityHash: string }[]>`
     SELECT integrity_hash AS "integrityHash" FROM app.audit_logs
-    WHERE org_id = ${orgId} ORDER BY ts DESC LIMIT 1
+    WHERE org_id = ${orgId} ORDER BY chain_seq DESC LIMIT 1
   `;
   const headNamesLatest =
     heads[0]?.lastHash !== undefined &&
-    heads[0].lastHash === latest[0]?.integrityHash;
+    heads[0].lastHash === latest[0]?.integrityHash &&
+    heads[0].lastSeq === String(appenders);
   record(
-    'audit chain: a burst of serializable appenders for one org all commit',
+    'audit chain: a burst of audited writes in one org all commit at once, and the sealer chains them',
     failures.length === 0 &&
       committed === appenders &&
+      attempts === appenders &&
+      sealed === appenders &&
       verified.valid &&
-      headNamesLatest &&
-      attempts > appenders,
-    `committed=${committed}/${appenders} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} chainValid=${verified.valid} headNamesLatest=${headNamesLatest} attempts=${attempts} (>${appenders} proves the head lock was lost at least once and the retry landed)`,
+      verified.verifiedCount === appenders &&
+      headNamesLatest,
+    `committed=${committed}/${appenders} rejected=${failures.length}${failures.length > 0 ? ` (${failures.map((f) => errorText(f.reason)).join('; ')})` : ''} attempts=${attempts} (want ${appenders}: nobody waits on a chain head) sealed=${sealed} chainValid=${verified.valid} verified=${verified.verifiedCount} headNamesLatest=${headNamesLatest}`,
+  );
+}
+
+/** One audit row for the sealing lanes below. */
+function chainProbe(orgId: string, resourceId: string) {
+  return {
+    organizationId: orgId,
+    actorId: 'itest',
+    actorType: 'system' as const,
+    action: 'itest.chain_order',
+    category: 'admin' as const,
+    resourceType: 'itest',
+    resourceId,
+    status: 'success' as const,
+  };
+}
+
+/**
+ * A transaction that commits late is sealed after a row written later: the
+ * chain's order is the order of sealing, the row keeps the time its event
+ * happened, and the chain verifies.
+ */
+async function checkAuditChainLateCommit(sql: Sql): Promise<void> {
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-late-${randomUUID().slice(0, 8)}`;
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const slow = sql.begin(async (tx) => {
+    await createAuditLog(tx, chainProbe(orgId, 'written-first'));
+    await held;
+  });
+  await sleep(50);
+  await sql.begin((tx) =>
+    createAuditLog(tx, chainProbe(orgId, 'committed-first')),
+  );
+  const firstPass = await sealAuditChainNow(sql, orgId);
+  release();
+  await slow;
+  const secondPass = await sealAuditChainNow(sql, orgId);
+  const rows = await sql<
+    { resourceId: string; ts: number; chainSeq: string }[]
+  >`
+    SELECT resource_id AS "resourceId", ts::float8 AS ts,
+           chain_seq::text AS "chainSeq"
+    FROM app.audit_logs WHERE org_id = ${orgId} ORDER BY chain_seq ASC
+  `;
+  const verified = await verifyAuditChain(sql, orgId);
+  const [first, second] = rows;
+  record(
+    'audit chain: a late-committing entry is sealed after a later one, keeps its time, and verifies',
+    firstPass === 1 &&
+      secondPass === 1 &&
+      first?.resourceId === 'committed-first' &&
+      second?.resourceId === 'written-first' &&
+      second.ts < first.ts &&
+      verified.valid &&
+      verified.verifiedCount === 2,
+    `passes=${firstPass}/${secondPass} order=${rows.map((r) => `${r.chainSeq}:${r.resourceId}@${r.ts}`).join(',')} valid=${verified.valid} verified=${verified.verifiedCount}`,
+  );
+}
+
+/**
+ * During a rolling deploy an image from before sealing moved off the write
+ * path still appends inline — chain key, head row, hash, sealed INSERT. The
+ * trigger gives that row the next position from the head it holds, so the
+ * chain stays one order with the rows the sealer chains around it.
+ */
+async function checkAuditChainInlineAppendDuringRoll(sql: Sql): Promise<void> {
+  const { createAuditLog, lockAuditChain, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const { buildAuditRecordHashInput, toStoredAuditRecord } =
+    await import('./domains/audit_logs/hash-input.ts');
+  const { computeAuditHash } = await import('./core/lib/helpers/audit_hash.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-roll-${randomUUID().slice(0, 8)}`;
+  await sql.begin((tx) => createAuditLog(tx, chainProbe(orgId, 'before')));
+  await sealAuditChainNow(sql, orgId);
+  // The older image's append, statement for statement.
+  await sql.begin(async (tx) => {
+    await lockAuditChain(tx, orgId);
+    const heads = await tx<{ lastHash: string; lastTs: number }[]>`
+      SELECT last_hash AS "lastHash", last_ts::float8 AS "lastTs"
+      FROM app.audit_chain_heads WHERE org_id = ${orgId} FOR UPDATE
+    `;
+    const head = heads[0] ?? { lastHash: '', lastTs: 0 };
+    const timestamp = Math.max(Date.now(), head.lastTs + 1);
+    const stored = toStoredAuditRecord({
+      ...chainProbe(orgId, 'inline'),
+      changedFields: [],
+      timestamp,
+    });
+    const hash = await computeAuditHash(
+      head.lastHash,
+      buildAuditRecordHashInput(stored),
+    );
+    await tx`
+      INSERT INTO app.audit_logs (
+        org_id, actor_id, actor_type, action, category, resource_type,
+        resource_id, ts, status, integrity_hash, previous_hash
+      ) VALUES (
+        ${orgId}, ${stored.actorId}, ${stored.actorType}, ${stored.action},
+        ${stored.category}, ${stored.resourceType}, ${stored.resourceId ?? null},
+        ${timestamp}, ${stored.status}, ${hash},
+        ${head.lastHash === '' ? null : head.lastHash}
+      )
+    `;
+    await tx`
+      UPDATE app.audit_chain_heads SET last_hash = ${hash}, last_ts = ${timestamp}
+      WHERE org_id = ${orgId}
+    `;
+  });
+  await sql.begin((tx) => createAuditLog(tx, chainProbe(orgId, 'after')));
+  await sealAuditChainNow(sql, orgId);
+  const rows = await sql<{ resourceId: string; chainSeq: string | null }[]>`
+    SELECT resource_id AS "resourceId", chain_seq::text AS "chainSeq"
+    FROM app.audit_logs WHERE org_id = ${orgId} ORDER BY chain_seq ASC
+  `;
+  const verified = await verifyAuditChain(sql, orgId);
+  const order = rows.map((r) => `${r.chainSeq}:${r.resourceId}`).join(',');
+  record(
+    "audit chain: an older image's inline append during a roll takes its position from the head",
+    order === '1:before,2:inline,3:after' &&
+      verified.valid &&
+      verified.verifiedCount === 3,
+    `order=${order} (want 1:before,2:inline,3:after) valid=${verified.valid} verified=${verified.verifiedCount}`,
+  );
+}
+
+/**
+ * Every worker runs a sealer; two that reach one org at once never chain a
+ * row twice or fork the chain — the chain key lets one in, the other comes
+ * back next round.
+ */
+async function checkAuditChainRacingSealers(sql: Sql): Promise<void> {
+  const { createAuditLog, sealAuditChain, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const { verifyAuditChain } = await import('./domains/audit_logs/verify.ts');
+  const orgId = `itest-race-${randomUUID().slice(0, 8)}`;
+  const rowsWritten = 40;
+  await sql.begin(async (tx) => {
+    for (let index = 0; index < rowsWritten; index += 1) {
+      await createAuditLog(tx, chainProbe(orgId, String(index)));
+    }
+  });
+  const passes = await Promise.all(
+    Array.from({ length: 4 }, () => sealAuditChain(sql, orgId, { batch: 15 })),
+  );
+  const rest = await sealAuditChainNow(sql, orgId);
+  const positions = await sql<
+    { count: string; distinct: string; max: string }[]
+  >`
+    SELECT count(*)::text AS count, count(DISTINCT chain_seq)::text AS distinct,
+           max(chain_seq)::text AS max
+    FROM app.audit_logs WHERE org_id = ${orgId}
+  `;
+  const verified = await verifyAuditChain(sql, orgId);
+  const sealedTotal = passes.reduce((sum, n) => sum + n, 0) + rest;
+  const shape = positions[0];
+  record(
+    'audit chain: sealers racing on one org chain every row exactly once',
+    sealedTotal === rowsWritten &&
+      shape?.distinct === String(rowsWritten) &&
+      shape.max === String(rowsWritten) &&
+      verified.valid &&
+      verified.verifiedCount === rowsWritten,
+    `passes=${passes.join('+')}+${rest} (want ${rowsWritten} in all) positions=${shape?.distinct}/${shape?.count} max=${shape?.max} valid=${verified.valid}`,
   );
 }
 
@@ -46521,11 +46693,12 @@ async function checkLoginThrottleAndAuditChain(
   );
 
   // The chain: failure rows + a lockout row + a success row, hash-linked.
-  // Rows and head come from ONE snapshot: an audit write commits its row
-  // and the head together, but a job of another lane (or this lane's own
-  // lockout bell) appending a row between two autocommit reads leaves the
-  // head one row ahead of the tail just read — seen as `chain=true,
-  // head=false` on an otherwise intact chain.
+  // The sealer chains them first. Rows and head then come from ONE
+  // snapshot: a sealing pass commits its rows and the head together, but a
+  // pass between two autocommit reads would leave the head ahead of the
+  // tail just read — seen as `chain=true, head=false` on an intact chain.
+  const { sealAuditChainNow } = await import('./domains/audit_logs/service.ts');
+  await sealAuditChainNow(sql, orgId);
   const { rows, headRows } = await sql.begin(
     'isolation level repeatable read read only',
     async (tx) => {
@@ -46542,10 +46715,10 @@ async function checkLoginThrottleAndAuditChain(
            ts::float8 AS "timestamp", status,
            error_message AS "errorMessage", metadata,
            integrity_hash AS "integrityHash", previous_hash AS "previousHash",
-           pii_scrubbed AS "piiScrubbed"
+           chain_seq::text AS "chainSeq", pii_scrubbed AS "piiScrubbed"
     FROM app.audit_logs
-    WHERE org_id = ${orgId}
-    ORDER BY ts ASC
+    WHERE org_id = ${orgId} AND integrity_hash IS NOT NULL
+    ORDER BY chain_seq ASC NULLS FIRST, ts ASC, id ASC
   `;
       const heads = await tx<{ lastHash: string }[]>`
     SELECT last_hash AS "lastHash" FROM app.audit_chain_heads
@@ -46579,7 +46752,7 @@ async function checkLoginThrottleAndAuditChain(
         break;
       }
     }
-    previousHash = row.integrityHash;
+    previousHash = row.integrityHash ?? '';
   }
   const headOk = headRows[0]?.lastHash === rows[rows.length - 1]?.integrityHash;
   record(
@@ -53922,7 +54095,8 @@ async function checkAuditSurface(
     `;
     headReached = status[0]?.headReached ?? false;
   }
-  const { createAuditLog } = await import('./domains/audit_logs/service.ts');
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
   await sql.begin((tx) =>
     createAuditLog(tx, {
       organizationId: orgId,
@@ -53934,6 +54108,8 @@ async function checkAuditSurface(
       status: 'success',
     }),
   );
+  // The worker's sealer chains the probe within seconds; here, now.
+  await sealAuditChainNow(sql, orgId);
   const probeRows = await sql<{ id: string; action: string }[]>`
     SELECT id, action FROM app.audit_logs
     WHERE org_id = ${orgId} AND action = 'itest.integrity_probe'
@@ -54104,6 +54280,7 @@ async function checkAuditSurface(
       status: 'success',
     }),
   );
+  await sealAuditChainNow(sql, orgId);
   const bellProbeRows = await sql<{ id: string }[]>`
     SELECT id FROM app.audit_logs
     WHERE org_id = ${orgId} AND action = 'itest.bell_probe'
@@ -54193,6 +54370,10 @@ async function checkAuditSurface(
       last_verified_ts = ${(auditCutoff ?? Date.now()) - 24 * 3_600_000},
       last_verified_id = 'itest-reaped-anchor',
       last_verified_hash = 'itest-reaped-hash',
+      last_verified_seq = (
+        SELECT coalesce(min(chain_seq), 1) - 1 FROM app.audit_logs
+        WHERE org_id = ${orgId}
+      ),
       head_reached = false
     WHERE org_id = ${orgId}
   `;
@@ -54204,6 +54385,10 @@ async function checkAuditSurface(
       last_verified_ts = ${firstRowTs - 1},
       last_verified_id = 'itest-vanished-anchor',
       last_verified_hash = 'itest-vanished-hash',
+      last_verified_seq = (
+        SELECT coalesce(min(chain_seq), 1) - 1 FROM app.audit_logs
+        WHERE org_id = ${orgId}
+      ),
       head_reached = false
     WHERE org_id = ${orgId}
   `;
@@ -64108,6 +64293,9 @@ async function main(): Promise<void> {
   try {
     await checkSerializableRetry(sql);
     await checkAuditChainConcurrentAppenders(sql);
+    await checkAuditChainLateCommit(sql);
+    await checkAuditChainInlineAppendDuringRoll(sql);
+    await checkAuditChainRacingSealers(sql);
     await checkTransactionalEnqueue(sql);
     await checkLegacyAutomationProtocol(databaseUrl, record);
     await checkLegacyAgentFlow(databaseUrl, record);

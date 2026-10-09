@@ -1165,6 +1165,7 @@ logs:
       geprüft}} – keine Manipulation festgestellt.'
     truncatedNote: 'Nur die ersten {count} Einträge wurden geprüft. Bitte den Betreiber deiner Installation, den restlichen Bereich zu prüfen.'
     unsignedScrubNote: '{count, plural, one {Für # bereinigten Eintrag fehlt ein passender Löschantrag} other {Für # bereinigte Einträge fehlt ein passender Löschantrag}}. Prüfe die Löschvorgänge, bevor du dich auf diesen Verlauf verlässt.'
+    awaitingSealNote: '{count, plural, one {# Eintrag wurde eben erst geschrieben und ist noch nicht in der Kette} other {# Einträge wurden eben erst geschrieben und sind noch nicht in der Kette}}. Prüfe in ein paar Sekunden noch einmal, um sie einzubeziehen.'
     brokenTitle: Ketten-Integrität verletzt
     brokenBody:
       Die Hash-Kette stimmt beim unten stehenden Eintrag nicht überein.

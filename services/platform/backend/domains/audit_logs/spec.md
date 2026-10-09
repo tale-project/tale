@@ -37,6 +37,17 @@ check raises the alert again instead of assuming it was seen.
 - **Example**: A break is found while notifications cannot be written → the break is on
   record, and the next check raises the alert.
 
+### AUDIT-R7 · An entry joins the chain within seconds, in the order it is sealed
+
+Writing an entry never waits for the chain: the entry is stored with the change it records and
+sealed by the worker shortly after, onto the entry sealed before it. The chain's order is the
+order of sealing, not the event's time, so an entry whose change was committed late follows
+entries with a later time. An entry not sealed yet is no break; the check reports how many wait.
+
+- **Example**: Two admins change settings at the same moment; the second change commits first →
+  both entries are sealed within seconds, the second-committed one after the other, and the
+  check passes.
+
 ## Reading the log
 
 ### AUDIT-R4 · A page of the audit log holds 50 entries unless asked otherwise, 200 at most
@@ -82,6 +93,5 @@ scrubs the entry's personal data while retaining its place in the log.
   No test here holds it (`routes.ts`).
 - **Which actions are recorded**, and what an entry carries: decided by each domain that
   writes one.
-- **How an entry is sealed**: the exact text that is sealed, and how two entries written at
-  the same moment are ordered (`hash-input.ts`, `service.ts`).
+- **How an entry is sealed**: the exact text that is sealed (`hash-input.ts`).
 - **How often the log is checked**, and who is alerted.
