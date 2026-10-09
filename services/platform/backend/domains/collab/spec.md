@@ -134,6 +134,8 @@ again, the unread notices about its pause are marked as read.
 - **Mentions while a deploy rolls**: a browser tab of the previous release shows a saved
   mention as a link that goes nowhere, and its edit field shows the stored form; a comment
   edited through the previous release loses the list of people it named, so its next edit
-  notifies them again.
+  notifies them again. The other way round, a tab of the new release whose request lands on an
+  api still on the previous release saves its mentions unchecked and notifies nobody, without
+  saying so.
 - **Undecided: should the mentions in a task an agent creates notify the people they name?**
   An agent's description is stored like a person's, but nobody is told (`agentCreateTaskTrusted`).
