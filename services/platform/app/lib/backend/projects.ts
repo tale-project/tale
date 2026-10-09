@@ -21,7 +21,11 @@ import type {
 } from './adapters';
 import { BackendApiError, backendFetch } from './api-client';
 import { invalidateChatThreads, setChatThreadSharedWithProject } from './chat';
-import { backendEntityPrefix, backendKey } from './query-keys';
+import {
+  backendEntityPrefix,
+  backendKey,
+  projectCapabilityCatalogKey,
+} from './query-keys';
 
 // ---------------------------------------------------------------------------
 // Wire rows (what the pg backend answers) + 0.4-shape projections
@@ -601,7 +605,14 @@ const projectWriteInvalidate = (
   ctx: AdapterContext,
 ): void => {
   const orgId = orgOf(args, ctx);
-  if (orgId !== undefined) invalidateProjects(client, orgId);
+  if (orgId !== undefined) {
+    invalidateProjects(client, orgId);
+    if (typeof args.projectId === 'string') {
+      void client.invalidateQueries({
+        queryKey: projectCapabilityCatalogKey(orgId, args.projectId),
+      });
+    }
+  }
 };
 
 export const projectWriteAdapters: Record<string, WriteAdapter> = {

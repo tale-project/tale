@@ -4371,41 +4371,38 @@ export async function searchTasks(
     toHit(hit, hit.description ?? hit.title),
   );
 
-  if (results.length < SEARCH_MAX_RESULTS) {
-    const commentHits = await sql<(FieldHit & { body: string })[]>`
-      SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
-             t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
-             t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
-             t.archived_at_ms::float8 AS "archivedAt",
-             m.text AS body
-      FROM app.task_discussion_message_meta meta
-      JOIN app.messages m ON m.id = meta.message_id
-      JOIN app.tasks t ON t.id = meta.task_id
-      WHERE meta.org_id = ${auth.organizationId}
-        AND t.project_id = ANY(${projectIds})
-        AND ${commentSearchMatch(sql, patterns)}
-      ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
-               m.created_at_ms DESC
-      LIMIT ${SEARCH_MAX_RESULTS}
-    `;
-    names = await currentMentionNames(
-      sql,
-      auth.organizationId,
-      commentHits.map((hit) => searchSnippetSource(hit.body)),
-    );
-    for (const hit of commentHits) {
-      if (results.length >= SEARCH_MAX_RESULTS) break;
-      if (seen.has(hit.taskId)) continue;
-      seen.add(hit.taskId);
-      results.push(toHit(hit, hit.body));
-    }
-    results.sort(
-      (a, b) =>
-        Number(a.archived ?? false) - Number(b.archived ?? false) ||
-        b.updatedAt - a.updatedAt,
-    );
+  const commentHits = await sql<(FieldHit & { body: string })[]>`
+    SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
+           t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
+           t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
+           t.archived_at_ms::float8 AS "archivedAt",
+           m.text AS body
+    FROM app.task_discussion_message_meta meta
+    JOIN app.messages m ON m.id = meta.message_id
+    JOIN app.tasks t ON t.id = meta.task_id
+    WHERE meta.org_id = ${auth.organizationId}
+      AND t.project_id = ANY(${projectIds})
+      AND ${commentSearchMatch(sql, patterns)}
+    ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
+             m.created_at_ms DESC
+    LIMIT ${SEARCH_MAX_RESULTS}
+  `;
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    commentHits.map((hit) => searchSnippetSource(hit.body)),
+  );
+  for (const hit of commentHits) {
+    if (seen.has(hit.taskId)) continue;
+    seen.add(hit.taskId);
+    results.push(toHit(hit, hit.body));
   }
-  return results;
+  results.sort(
+    (a, b) =>
+      Number(a.archived ?? false) - Number(b.archived ?? false) ||
+      b.updatedAt - a.updatedAt,
+  );
+  return results.slice(0, SEARCH_MAX_RESULTS);
 }
 
 // ---------------------------------------------------------------------------

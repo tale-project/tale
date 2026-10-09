@@ -14,6 +14,7 @@ import { Archive, Pencil, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalMatters } from '../hooks/queries';
@@ -41,9 +42,18 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
     data: matters,
     isLoading,
     isError,
+    error,
+    refetch,
   } = useLegalMatters(organizationId, {
     status: statusFilter,
   });
+
+  const { regionRef, retryRead, focusRegion } =
+    useListReadRecovery<HTMLElement>({
+      error,
+      results: matters ?? [],
+      retry: refetch,
+    });
 
   const statusOptions = useMemo(
     () => [
@@ -139,6 +149,8 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
   return (
     <>
       <SettingsSection
+        ref={regionRef}
+        tabIndex={-1}
         title={t('legalHold.sections.matters.title')}
         description={t('legalHold.sections.matters.description')}
       >
@@ -182,6 +194,9 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
           columns={columns}
           data={matters ?? []}
           isLoading={isLoading}
+          error={error}
+          onRetry={retryRead}
+          onErrorFocusLost={focusRegion}
           approxRowCount={matters?.length}
           getRowId={(row) => row._id}
           emptyState={{

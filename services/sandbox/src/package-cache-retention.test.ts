@@ -89,6 +89,8 @@ if (command === 'volume' && (sub === 'inspect' || sub === 'rm')) {
   delete s.volumes[name];
   done(name);
 }
+// The local runtime identity used by the one-shot permission helper.
+if (command === 'image' && sub === 'inspect') done('sha256:' + 'a'.repeat(64));
 // The one-shot chmod that makes a new cache writable.
 if (command === 'run') done();
 if (command === 'ps') {

@@ -26,6 +26,9 @@ configFields:
   - key: imapPort
     label: IMAP port
     type: number
+    integer: true
+    min: 1
+    max: 65535
     default: 993
     description: IMAP port (993 for implicit TLS).
   - key: smtpHost
@@ -36,6 +39,9 @@ configFields:
   - key: smtpPort
     label: SMTP port
     type: number
+    integer: true
+    min: 1
+    max: 65535
     default: 465
     description: SMTP port (465 for implicit TLS, 587 for STARTTLS).
   - key: security

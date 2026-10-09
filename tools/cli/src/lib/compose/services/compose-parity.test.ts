@@ -883,6 +883,7 @@ describe('release artifact identity', () => {
     name?: string;
     id?: string;
     if?: string;
+    'continue-on-error'?: boolean;
     run?: string;
     uses?: string;
     env?: Record<string, string | number>;
@@ -1489,6 +1490,14 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
     const job = release.jobs.build!;
     const step = documentStep();
     const image = job.steps.find((entry) => entry.name === 'Build and push')!;
+    const retry = job.steps.find(
+      (entry) =>
+        entry.name ===
+        'Retry build and push after a transient registry failure',
+    )!;
+    const backoff = job.steps.find(
+      (entry) => entry.name === 'Back off before retrying the registry',
+    )!;
     const setup = job.steps.find(
       (entry) => entry.name === 'Setup Bun for document checks',
     )!;
@@ -1497,10 +1506,18 @@ if [ "$SERVICE" = "$TEST_FAILED_VALIDATION" ]; then exit 37; fi
       { name: 'arm64', runner: 'ubuntu-24.04-arm', platform: 'linux/arm64' },
     ]);
     expect(image.id).toBe('image');
+    expect(image['continue-on-error']).toBe(true);
     expect(image.with?.push).toBe(true);
+    expect(backoff.if).toBe("steps.image.outcome == 'failure'");
+    expect(backoff.run).toBe('sleep 15');
+    expect(retry.id).toBe('image_retry');
+    expect(retry.if).toBe("steps.image.outcome == 'failure'");
+    expect(retry['continue-on-error']).toBeUndefined();
+    expect(retry.uses).toBe(image.uses);
+    expect(retry.with).toEqual(image.with);
     expect(step.env).toEqual({
       DOCUMENT_IMAGE:
-        '${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image.outputs.digest }}',
+        '${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image_retry.outputs.digest || steps.image.outputs.digest }}',
       DOCUMENT_PLATFORM: '${{ matrix.arch.platform }}',
       DOCUMENT_REVISION: '${{ steps.meta.outputs.revision }}',
       DOCUMENT_VERSION: '${{ needs.prepare.outputs.version_number }}',

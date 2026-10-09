@@ -47,7 +47,7 @@ Supprimer des identifiants retire l’accès aux automatisations et agents qui e
 
 ## Préparer une application OAuth
 
-Les propriétaires et les admins utilisent **Apps OAuth**, en bas de page, pour configurer les applications fournisseur utilisées pendant le consentement. Une application propre à l’organisation remplace celle du déploiement. Si aucune n’existe, le connector ne peut pas commencer l’autorisation et la page indique qu’il n’est pas configuré.
+Les propriétaires et les admins utilisent **Apps OAuth**, en bas de page, pour configurer les applications fournisseur utilisées pendant le consentement. Une application propre à l’organisation remplace celle du déploiement. Si aucune n’existe, le connector ne peut pas commencer l’autorisation et la page indique qu’il n’est pas configuré. Si Tale ne peut pas vérifier si une application d’import de connaissances est configurée, sa ligne affiche **Statut indisponible** sans **Configurer**, et **Réessayer** relance la vérification. Tu pourras configurer l’application dès que la vérification aboutira.
 
 Sélectionne **Configurer**, renseigne l’identifiant client et le secret du fournisseur, puis enregistre chez celui-ci les URI de redirection exactes affichées dans le dialogue. Une application Microsoft peut aussi demander l’identifiant du répertoire ou du locataire. Lors d’une modification ultérieure, laisse le champ du secret enregistré vide pour le conserver.
 

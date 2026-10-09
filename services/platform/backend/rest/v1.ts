@@ -13,6 +13,7 @@ import {
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
+import { withApiKeyAuditActor } from '../domains/audit_logs/request-actor.ts';
 import { isModelApiDoorPath } from '../domains/model_api/wire.ts';
 import {
   listSelectableOrganizations,
@@ -413,6 +414,23 @@ export function createRestV1Routes(deps: {
     c.set('apiKeyId', apiKeyId);
     c.set('apiKeyOwner', null);
     return next();
+  });
+
+  // Authorization stays with the member; every audit append made during
+  // this verified request instead names the key and its maker. A person's
+  // own key has no binding row: that verified user is also its maker.
+  app.use(async (c, next) => {
+    const apiKeyId = c.get('apiKeyId');
+    if (!apiKeyId) return next();
+    return withApiKeyAuditActor(
+      {
+        organizationId: c.get('organizationId'),
+        apiKeyId,
+        makerUserId: c.get('apiKeyOwner')?.createdBy ?? c.get('userId'),
+        subjectUserId: c.get('userId'),
+      },
+      next,
+    );
   });
 
   // A project's own key reaches its project and nothing else: every other

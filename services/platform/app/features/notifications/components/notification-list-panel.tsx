@@ -6,6 +6,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Tabs } from '@tale/ui/tabs';
 import {
   ArrowDownWideNarrow,
+  BellDot,
   CheckCheck,
   ChevronLeft,
   ClockArrowDown,
@@ -76,6 +77,32 @@ const SORT_TIP_HOLD_MS = 1500;
 // identical (screen readers skip a live region whose text did not change).
 const ARRIVAL_ANNOUNCE_HOLD_MS = 1000;
 
+type NotificationStream = 'org' | 'personal';
+
+/** A stream's unread rows past its loaded pages, as the panel last judged
+ *  them, kept while the stream's unread count still reads `count` or, after a
+ *  single read, while the list still reads that row (`readId`) as unread. */
+interface HeldUnreadBeyond {
+  count: number;
+  beyond: number;
+  readId?: string;
+}
+
+/** `held` while a re-read it waits for is still out: the count has not moved,
+ *  or the list still reads the row the panel read as unread. */
+function standingHold(
+  held: HeldUnreadBeyond | null,
+  count: number,
+  rows: readonly { _id: string; read: boolean }[],
+): HeldUnreadBeyond | null {
+  if (!held) return null;
+  if (held.count === count) return held;
+  return held.readId !== undefined &&
+    rows.some((row) => row._id === held.readId && !row.read)
+    ? held
+    : null;
+}
+
 // Strip a leading `notifications.` namespace prefix that was accidentally
 // stored in earlier rows — we already bind the namespace with
 // useT('notifications'), so a prefixed key resolves to nothing.
@@ -127,6 +154,57 @@ export function NotificationListPanel({
   const markMyRead = useMarkMyNotificationRead();
   const markAllMyRead = useMarkAllMyNotificationsRead();
 
+  // Pagination walks each stream's read and unread rows together, so an older
+  // unread row can sit on a page not loaded yet: its count says so, the loaded
+  // rows don't. A row hidden after a read still counts as loaded — the server
+  // counts it until the write lands.
+  const orgUnread = unread ?? 0;
+  const orgUnreadLoaded = useMemo(
+    () => results.filter((n) => !n.read).length,
+    [results],
+  );
+  const personalUnreadLoaded = useMemo(
+    () => myNotifications.filter((n) => !n.read).length,
+    [myNotifications],
+  );
+  // A read reaches the list and the count in two separate re-reads, in either
+  // order. A single read keeps the stream's figure from before the read until
+  // both have landed: the count has moved and the list reads the row as read.
+  // "Mark all as read" holds zero until the count moves, since it reads the
+  // unloaded pages too. So neither order flashes a wrong state.
+  const [heldBeyond, setHeldBeyond] = useState<
+    Record<NotificationStream, HeldUnreadBeyond | null>
+  >({ org: null, personal: null });
+  const orgHold = standingHold(heldBeyond.org, orgUnread, results);
+  const orgUnreadBeyond = orgHold
+    ? orgHold.beyond
+    : Math.max(0, orgUnread - orgUnreadLoaded);
+  const personalHold = standingHold(
+    heldBeyond.personal,
+    myUnread,
+    myNotifications,
+  );
+  const personalUnreadBeyond = personalHold
+    ? personalHold.beyond
+    : Math.max(0, myUnread - personalUnreadLoaded);
+
+  useEffect(() => {
+    setHeldBeyond((prev) => {
+      const org = standingHold(prev.org, orgUnread, results);
+      const personal = standingHold(prev.personal, myUnread, myNotifications);
+      return org === prev.org && personal === prev.personal
+        ? prev
+        : { org, personal };
+    });
+  }, [orgUnread, myUnread, results, myNotifications]);
+
+  const holdUnreadBeyond = useCallback(
+    (stream: NotificationStream, held: HeldUnreadBeyond | null) => {
+      setHeldBeyond((prev) => ({ ...prev, [stream]: held }));
+    },
+    [],
+  );
+
   const restoreHiddenNotifications = useCallback(
     (notificationIds: string[]) => {
       setHiddenIds((prev) => {
@@ -146,11 +224,23 @@ export function NotificationListPanel({
         next.add(notificationId);
         return next;
       });
+      holdUnreadBeyond('org', {
+        count: orgUnread,
+        beyond: orgUnreadBeyond,
+        readId: notificationId,
+      });
       void markRead.mutateAsync({ notificationId }).catch(() => {
         restoreHiddenNotifications([notificationId]);
+        holdUnreadBeyond('org', null);
       });
     },
-    [markRead, restoreHiddenNotifications],
+    [
+      markRead,
+      restoreHiddenNotifications,
+      holdUnreadBeyond,
+      orgUnread,
+      orgUnreadBeyond,
+    ],
   );
 
   const handleMarkMyRead = useCallback(
@@ -160,11 +250,23 @@ export function NotificationListPanel({
         next.add(notificationId);
         return next;
       });
+      holdUnreadBeyond('personal', {
+        count: myUnread,
+        beyond: personalUnreadBeyond,
+        readId: notificationId,
+      });
       void markMyRead.mutateAsync({ notificationId }).catch(() => {
         restoreHiddenNotifications([notificationId]);
+        holdUnreadBeyond('personal', null);
       });
     },
-    [markMyRead, restoreHiddenNotifications],
+    [
+      markMyRead,
+      restoreHiddenNotifications,
+      holdUnreadBeyond,
+      myUnread,
+      personalUnreadBeyond,
+    ],
   );
 
   const handleMarkAllRead = useCallback(() => {
@@ -189,11 +291,15 @@ export function NotificationListPanel({
         return next;
       });
     }
+    holdUnreadBeyond('org', { count: orgUnread, beyond: 0 });
+    holdUnreadBeyond('personal', { count: myUnread, beyond: 0 });
     void markAllRead.mutateAsync({ organizationId }).catch(() => {
       restoreHiddenNotifications(orgHiddenIds);
+      holdUnreadBeyond('org', null);
     });
     void markAllMyRead.mutateAsync({ organizationId }).catch(() => {
       restoreHiddenNotifications(personalHiddenIds);
+      holdUnreadBeyond('personal', null);
     });
   }, [
     filter,
@@ -203,6 +309,9 @@ export function NotificationListPanel({
     results,
     myNotifications,
     restoreHiddenNotifications,
+    holdUnreadBeyond,
+    orgUnread,
+    myUnread,
   ]);
 
   const handleFilterChange = useCallback((next: NotificationsFilter) => {
@@ -297,20 +406,28 @@ export function NotificationListPanel({
       return b.item.createdAt - a.item.createdAt;
     });
   }, [myItems, items, sort]);
-  const unreadCount = (unread ?? 0) + myUnread;
+  const unreadCount = orgUnread + myUnread;
   // Drive one "Load more" affordance off BOTH streams: it's enabled while
   // either has another page, shows progress while either is fetching, and a
   // click advances every stream that still has more.
   const canLoadMore = status === 'CanLoadMore' || myStatus === 'CanLoadMore';
   const isLoadingMore = status === 'LoadingMore' || myStatus === 'LoadingMore';
   const hasVisibleItems = items.length > 0 || myItems.length > 0;
+  // Unread rows wait on a page not loaded yet: the Unread tab must not claim
+  // you're caught up while one does, and only a stream with pages left can
+  // hold one.
+  const unreadBeyondLoaded =
+    ((status === 'CanLoadMore' || status === 'LoadingMore') &&
+      orgUnreadBeyond > 0) ||
+    ((myStatus === 'CanLoadMore' || myStatus === 'LoadingMore') &&
+      personalUnreadBeyond > 0);
   // Pagination is server-side over the full stream (read + unread); the Unread
-  // tab filters client-side. When you're caught up (`unreadCount === 0`) the
+  // tab filters client-side. With no unread row past the loaded pages the
   // remaining pages are only read history — "Load more" would not surface
   // anything visible and contradicts the empty state.
   const showLoadMore =
     (canLoadMore || isLoadingMore) &&
-    (hasVisibleItems || filter === 'all' || unreadCount > 0);
+    (hasVisibleItems || filter === 'all' || unreadBeyondLoaded);
   const handleLoadMore = useCallback(() => {
     if (status === 'CanLoadMore') loadMore(LOAD_MORE_NUM_ITEMS);
     if (myStatus === 'CanLoadMore') loadMoreMy(LOAD_MORE_NUM_ITEMS);
@@ -482,6 +599,18 @@ export function NotificationListPanel({
                 className="size-5 motion-safe:animate-spin"
               />
               <p className="text-xs">{t('loading')}</p>
+            </div>
+          ) : filter === 'unread' && unreadBeyondLoaded ? (
+            // The count proves unread rows the loaded pages don't hold yet;
+            // "Load more" below walks to them.
+            <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">
+              <BellDot className="size-8" aria-hidden="true" />
+              <p className="text-foreground text-sm font-medium">
+                {t('emptyOlderUnreadTitle')}
+              </p>
+              <p className="min-h-8 text-xs">
+                {t('emptyOlderUnreadDescription')}
+              </p>
             </div>
           ) : (
             <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">

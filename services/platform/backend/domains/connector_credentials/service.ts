@@ -283,10 +283,19 @@ function normalizeConfig(
     }
     if (field.type === 'number') {
       const n = typeof value === 'number' ? value : Number(value);
-      if (!Number.isFinite(n)) {
+      if (
+        !Number.isFinite(n) ||
+        (field.integer === true && !Number.isInteger(n)) ||
+        (field.min !== undefined && n < field.min) ||
+        (field.max !== undefined && n > field.max)
+      ) {
+        const range =
+          field.min !== undefined && field.max !== undefined
+            ? ` between ${field.min} and ${field.max}`
+            : '';
         throw new ConnectorCredentialError(
           'CREDENTIAL_CONFIG_INVALID',
-          `"${field.label}" must be a number.`,
+          `"${field.label}" must be a number${range}.`,
         );
       }
       out[field.key] = n;

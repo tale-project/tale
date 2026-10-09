@@ -21,6 +21,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
+import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -41,6 +42,7 @@ export function MessageEditForm({
   const [text, setText] = useState(initialText);
   const [submitting, setSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const { isComposing, compositionProps } = useImeComposition();
 
   // Grow with the content: height resets so a deleted line shrinks the box
   // back instead of leaving dead space.
@@ -87,6 +89,7 @@ export function MessageEditForm({
     >
       <textarea
         ref={textareaRef}
+        {...compositionProps}
         value={text}
         onChange={(event) => {
           setText(event.target.value);
@@ -95,6 +98,7 @@ export function MessageEditForm({
         aria-label={t('editMessage')}
         rows={1}
         onKeyDown={(event) => {
+          if (isComposing(event.nativeEvent)) return;
           if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
             submit();

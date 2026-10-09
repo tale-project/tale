@@ -10,7 +10,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { pickBrokerCandidate } from './broker-selection.ts';
+import {
+  brokerFailureArgsSchema,
+  pickBrokerCandidate,
+} from './broker-selection.ts';
 
 const NOW = Date.UTC(2026, 8, 28, 12, 0, 0);
 
@@ -197,4 +200,36 @@ describe('pickBrokerCandidate', () => {
       ).selected?.hash,
     ).toBe('account-b');
   });
+});
+
+describe('broker failure boundary', () => {
+  const account = { organizationId: 'org', brokerTokenHash: 'a'.repeat(64) };
+  it('accepts the typed subscription refusal and the existing untyped rate limit', () => {
+    expect(
+      brokerFailureArgsSchema.parse({
+        ...account,
+        apiErrorStatus: 403,
+        providerErrorKind: 'subscription_access_disabled',
+      }),
+    ).toEqual({
+      ...account,
+      apiErrorStatus: 403,
+      providerErrorKind: 'subscription_access_disabled',
+    });
+    expect(
+      brokerFailureArgsSchema.parse({ ...account, apiErrorStatus: 429 }),
+    ).toEqual({ ...account, apiErrorStatus: 429 });
+  });
+  it.each(['model_capacity', 'forbidden', 'unknown'])(
+    'rejects an unrelated provider class %s',
+    (providerErrorKind) => {
+      expect(
+        brokerFailureArgsSchema.safeParse({
+          ...account,
+          apiErrorStatus: 403,
+          providerErrorKind,
+        }).success,
+      ).toBe(false);
+    },
+  );
 });
