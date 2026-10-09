@@ -7,6 +7,7 @@ import {
 } from '../../../lib/shared/arena.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { toJson } from '../../db/sql.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { loadActiveHolds } from '../legal_holds/service.ts';
 import { loadOwnedThread } from './threads.ts';
@@ -494,6 +495,36 @@ export async function settleArenaPair(
         WHERE b.thread_id = ${idB} AND b.org_id = ${args.organizationId}
           AND a.thread_id = ${idA} AND a.org_id = ${args.organizationId}
       `;
+      // And its name: B is never named on its own, so it takes the one A
+      // has now — the title A was given, or the name the person chose for
+      // it since. While A's title is still being made, that title would
+      // land on A alone, which is trashed below, so B is named from its own
+      // first message instead.
+      const named = await tx<{ id: string }[]>`
+        UPDATE app.threads b SET title = a.title
+        FROM app.threads a
+        WHERE b.id = ${idB} AND b.org_id = ${args.organizationId}
+          AND a.id = ${idA} AND a.org_id = ${args.organizationId}
+          AND a.title IS NOT NULL
+        RETURNING b.id
+      `;
+      if (named.length === 0) {
+        const [first] = await tx<{ text: string | null }[]>`
+          SELECT text FROM app.messages
+          WHERE thread_id = ${idB} AND role = 'user'
+          ORDER BY "order", step_order
+          LIMIT 1
+        `;
+        const firstMessage = (first?.text ?? '').trim();
+        if (firstMessage.length > 0) {
+          await addJobInTx(tx, 'chat.generate_title', {
+            organizationId: args.organizationId,
+            threadId: idB,
+            userId: thread.userId,
+            firstMessage,
+          });
+        }
+      }
     } else {
       await tx`
         UPDATE app.thread_metadata SET arena = NULL
