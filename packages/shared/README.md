@@ -33,6 +33,12 @@ Every subpath below is declared in `package.json` `exports`.
   (`platformConfigurationSchema`) and when stored state already is what was
   asked for (`resourceConverged`). Server-only: it compares
   `configurationHash` digests, so it sits outside the browser-safe `schemas/`.
+- **`@tale/shared/schemas/settings-kinds`** — the settings a coding agent reads
+  and changes through the MCP settings tools: one descriptor per kind
+  (`SETTINGS_KINDS`: scope, the Settings pages it covers, operations, secret
+  paths, risk, apply order, description), the declarable kinds those tools
+  leave to the automation tools, every page of Settings (`SETTINGS_AREAS`) and
+  the effects a planned change can carry (`SETTINGS_EFFECTS`).
 - **`@tale/shared/schemas/{automation-pack,automation-settings,task-contract}`**
   — automation package declarations and limits, operator settings forms and task
   bindings. Catalog reads, ZIP decoding and engine validation stay in the platform.
