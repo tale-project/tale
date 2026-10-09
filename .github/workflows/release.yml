@@ -266,15 +266,16 @@ jobs:
           file: services/${{ matrix.service.name }}/Dockerfile
           platforms: ${{ matrix.arch.platform }}
           push: true
+          # zstd output and OCI media types match the first attempt so a retry
+          # publishes the same artifact shape.
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version_number }}
             ${{ matrix.service.name == 'platform' && format('AUTOMATION_WRITER_PROTOCOL={0}', steps.meta.outputs.automation-protocol) || '' }}
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
-            ${{ matrix.arch.name == 'amd64' && format('type=gha,scope={0}', matrix.service.name) || '' }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true,compression=zstd,compression-level=3,force-compression=true
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
