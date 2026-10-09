@@ -611,9 +611,9 @@ records and delete them after.
 - [ ] `KNOW-B11` · **An import lists its refused rows by line** — Products →
   **Add product** → **From your device** with a CSV whose header is line 1
   and whose lines 2–6 are: a good row; an empty name; price `notanumber`;
-  currency `EURO`; status `flying` → **Import** → toast **Import successful**
-  (`products.import.success`) "Imported 1 products, 4 failed"; the dialog
-  stays open with the banner **4 rows were not imported**
+  currency `EURO`; status `flying` → **Import** → warning toast **Partially
+  imported** (`common.import.partialTitle`) "Imported 1 products, 4 failed";
+  the dialog stays open with the banner **4 rows were not imported**
   (`common.import.rowErrorsTitle`) listing `Row 3: name: must not be blank`,
   `Row 4: price: must be a number`, `Row 5: currency: …`, `Row 6: status:
   must be one of …` (`common.import.rowError`); the table shows the one

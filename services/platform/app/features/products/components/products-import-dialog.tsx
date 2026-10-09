@@ -47,6 +47,7 @@ interface ImportProductsDialogProps {
   isOpen: boolean;
   onClose: () => void;
   organizationId: string;
+  /** Called after a clean import; a partial one keeps the dialog open. */
   onSuccess?: () => void;
 }
 
@@ -175,16 +176,24 @@ export function ProductsImportDialog({
         setRowErrors(failedRows);
 
         if (result.success > 0) {
+          // Only a clean import is done. A partial one keeps the dialog open
+          // over the rows it could not land, so the user can fix those lines
+          // and import them again instead of losing the list.
+          const partial = failedRows.length > 0;
           toast({
-            title: t('import.success'),
+            title: partial
+              ? tCommon('import.partialTitle')
+              : t('import.success'),
             description: t('import.successDescription', {
               success: result.success,
               failed: failedRows.length,
             }),
-            variant: 'success',
+            variant: partial ? 'warning' : 'success',
           });
-          onSuccess?.();
-          if (failedRows.length === 0) handleClose();
+          if (!partial) {
+            onSuccess?.();
+            handleClose();
+          }
         } else {
           toast({
             title: t('noneImported'),
