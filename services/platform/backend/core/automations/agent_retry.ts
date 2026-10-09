@@ -28,6 +28,11 @@ export type WorkflowAgentFailureCode =
    * almost no CPU for the sandbox's stall window. A re-kick at once would
    * most likely hang the same way, so none follows. */
   | 'turn_stalled'
+  /** The sandbox ran out of memory and the kernel's OOM killer ended the
+   * harness or its session. Re-kicked like any failure, but only after
+   * `resourceExhaustedRetryDelayMs` for the node's attempt: at once it
+   * would meet the same limit. */
+  | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
   | 'harvest_failed'

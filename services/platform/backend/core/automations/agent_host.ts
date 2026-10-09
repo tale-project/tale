@@ -2718,9 +2718,11 @@ async function continueOrSettle(
                 ? 'deadline'
                 : sandboxEnd?.failure === 'stalled'
                   ? 'turn_stalled'
-                  : spendRefused
-                    ? 'budget_exceeded'
-                    : 'harness_error',
+                  : sandboxEnd?.failure === 'out_of_memory'
+                    ? 'resource_exhausted'
+                    : spendRefused
+                      ? 'budget_exceeded'
+                      : 'harness_error',
           }
         : {}),
       ...(errored && ended?.apiErrorStatus !== undefined

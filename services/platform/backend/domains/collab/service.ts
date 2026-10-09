@@ -1250,6 +1250,7 @@ const AGENT_RUN_FAILED_BODY_KEY: Record<TaskRunFailureClass, string> = {
   start: 'agentRunFailedBody',
   interrupted: 'agentRunFailedBody',
   stalled: 'agentRunFailedBody',
+  out_of_memory: 'agentRunFailedBody',
   unknown: 'agentRunFailedBody',
 };
 

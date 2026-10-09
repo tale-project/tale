@@ -84,6 +84,16 @@ export interface RunnerdHealth {
   liveExecs: number;
   /** Optional dependency diagnostics; do not affect daemon liveness. */
   dependencies?: { docker?: { ok: boolean }; egress?: { ok: boolean } };
+  /** The session's memory as its cgroup counts it: in use, the limit (null
+   * for none), the peak since the container started where the kernel
+   * reports one, and how many processes the OOM killer has ended in it.
+   * Absent where the cgroup cannot be read and on older runtime images. */
+  memory?: {
+    currentBytes: number;
+    maxBytes: number | null;
+    peakBytes?: number;
+    oomKills?: number;
+  };
   /** Absent on older runtime images; pressure reclamation then fails closed. */
   activity?: {
     generation: string;
@@ -178,6 +188,15 @@ export type RunnerdExecEvent = (
        * the whole stall window (`TALE_EXEC_STALL_MS`). Absent on a natural
        * exit, a cancel and the orphan deadline. */
       failure?: 'EXEC_STALLED';
+      /** The kernel's OOM killer ended the exec: it died of SIGKILL that
+       * neither a cancel, its deadline nor the stall watch sent, while the
+       * session's `memory.events` counted a new `oom_kill`. Absent
+       * otherwise. */
+      oomKilled?: true;
+      /** The session's memory peak (`memory.peak`) when the exec ended, where
+       * the kernel reports one: since the container started, not this exec's
+       * own. */
+      sessionMemoryPeakBytes?: number;
     }
   | {
       t: 'fail';
@@ -238,7 +257,11 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
         isObject(value.truncated) &&
         typeof value.truncated.stdout === 'boolean' &&
         typeof value.truncated.stderr === 'boolean' &&
-        (value.failure === undefined || value.failure === 'EXEC_STALLED')
+        (value.failure === undefined || value.failure === 'EXEC_STALLED') &&
+        (value.oomKilled === undefined || value.oomKilled === true) &&
+        (value.sessionMemoryPeakBytes === undefined ||
+          (nonNegativeNumber(value.sessionMemoryPeakBytes) &&
+            Number.isSafeInteger(value.sessionMemoryPeakBytes)))
       );
     case 'fail':
       return (

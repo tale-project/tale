@@ -13,8 +13,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { taskRunFailureClass } from '../../../lib/shared/task-run-failure';
-import { STALLED_TURN_REASON } from '../chat/external_turn_shared';
-import { isAutoRetryableFailure } from './task_auto_retry';
+import {
+  OUT_OF_MEMORY_TURN_REASON,
+  STALLED_TURN_REASON,
+} from '../chat/external_turn_shared';
+import {
+  isAutoRetryableFailure,
+  resourceExhaustedRetryDelayMs,
+} from './task_auto_retry';
 
 const io = vi.hoisted(() => ({
   stdout: '',
@@ -242,6 +248,32 @@ describe('a task agent turn the sandbox ended as stalled', () => {
     expect(isAutoRetryableFailure('turn_stalled')).toBe(false);
     expect(taskRunFailureClass('turn_stalled')).toBe('stalled');
   });
+
+  it.each(['OOM_KILLED', 'SESSION_OOM'])(
+    'settles %s as resource_exhausted, retried only after a pause',
+    async (code) => {
+      io.result = endedBySandbox(code, 137);
+      const { ctx, mutations } = makeCtx({
+        status: 'running',
+        execId: 'exec-1',
+      });
+
+      await driveTaskAgentTurnImpl(ctx, KEYS);
+
+      const failed = failedMarks(mutations);
+      expect(failed[0]?.args).toMatchObject({
+        failureCode: 'resource_exhausted',
+        error: OUT_OF_MEMORY_TURN_REASON,
+      });
+      expect(isAutoRetryableFailure('resource_exhausted')).toBe(true);
+      expect(taskRunFailureClass('resource_exhausted')).toBe('out_of_memory');
+      expect(
+        [undefined, 1, 2, 7].map((attempt) =>
+          resourceExhaustedRetryDelayMs(attempt),
+        ),
+      ).toEqual([120_000, 600_000, 1_800_000, 1_800_000]);
+    },
+  );
 
   it('keeps an ordinary crash a retryable harness error', async () => {
     io.result = endedBySandbox('RUNTIME_ERROR', 1);

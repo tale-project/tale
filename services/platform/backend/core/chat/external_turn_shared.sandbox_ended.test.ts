@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionExecResult } from '../node_only/sandbox/helpers/session_client';
 import {
   classifyHarnessEnd,
+  OUT_OF_MEMORY_TURN_REASON,
   sandboxEndOf,
   STALLED_TURN_REASON,
 } from './external_turn_shared';
@@ -72,6 +73,18 @@ describe('sandboxEndOf', () => {
     };
     expect(sandboxEndOf(window)).toBeUndefined();
     expect(classifyHarnessEnd(window).errored).toBe(false);
+  });
+
+  it.each([
+    ['the exec', 'OOM_KILLED', 137],
+    ['the whole session', 'SESSION_OOM', -1],
+  ])('names a memory limit that ended %s', (_, code, exitCode) => {
+    const window = { ...quietWindow, execResult: execResult(code, exitCode) };
+    expect(sandboxEndOf(window)).toEqual({
+      failure: 'out_of_memory',
+      reason: OUT_OF_MEMORY_TURN_REASON,
+    });
+    expect(classifyHarnessEnd(window).errored).toBe(true);
   });
 
   it('reads nothing while the exec still runs, or for an ordinary crash', () => {

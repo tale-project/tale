@@ -62,6 +62,15 @@ export const sandboxErrorCodeLiterals = [
   // (SANDBOX_EXEC_STALL_MINUTES). A hang, not a crash — retrying it at once
   // would most likely hang the same way.
   'EXEC_STALLED',
+  // The kernel's OOM killer ended the exec: it died of a SIGKILL nothing of
+  // the sandbox's sent while its session counted a new OOM kill. The
+  // session ran out of its memory limit; a retry at once would meet the
+  // same limit.
+  'OOM_KILLED',
+  // The session's container died with an exec in flight, and Docker
+  // recorded that the OOM killer ended processes in it. As SESSION_LOST,
+  // with the cause known.
+  'SESSION_OOM',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];

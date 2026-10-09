@@ -108,6 +108,25 @@ export async function readSessionMemory(
   };
 }
 
+/** How many processes the OOM killer has ended in the session so far
+ * (`memory.events` `oom_kill`, which counts the whole subtree), or null
+ * where the cgroup cannot be read. */
+export async function readOomKills(
+  root = process.env.TALE_CGROUP_ROOT ?? CGROUP_ROOT,
+): Promise<number | null> {
+  const events = await readCgroupFile(`${root}/memory.events`);
+  return events === null ? null : statValue(events, 'oom_kill');
+}
+
+/** The session's memory peak since the container started (`memory.peak`,
+ * Linux 5.19 and later), or null where the kernel reports none. */
+export async function readMemoryPeak(
+  root = process.env.TALE_CGROUP_ROOT ?? CGROUP_ROOT,
+): Promise<number | null> {
+  const peak = (await readCgroupFile(`${root}/memory.peak`))?.trim();
+  return peak !== undefined && /^\d+$/.test(peak) ? Number(peak) : null;
+}
+
 /** Whether a session this full refuses a new exec: its working set has
  * reached `percent` of its limit. Never without a limit, a reading, or with
  * the check off (0). */

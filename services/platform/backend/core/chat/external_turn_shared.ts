@@ -1125,6 +1125,19 @@ export function harnessOutputTail(stderr: string): string {
  * window (`services/sandbox/src/wire.ts`). */
 const EXEC_STALLED_CODE = 'EXEC_STALLED';
 
+/** The exec result codes of a harness the sandbox's memory limit ended:
+ * the kernel's OOM killer ended the exec (`OOM_KILLED`), or the session's
+ * container with it (`SESSION_OOM`; `services/sandbox/src/wire.ts`). */
+const OUT_OF_MEMORY_CODES: ReadonlySet<string> = new Set([
+  'OOM_KILLED',
+  'SESSION_OOM',
+]);
+
+/** The reason a turn settles failed with when its sandbox ran out of
+ * memory. */
+export const OUT_OF_MEMORY_TURN_REASON =
+  "The agent's sandbox ran out of memory: the kernel's OOM killer ended the agent. A retry follows after a pause; if it keeps happening, the agent sessions need a larger memory limit (SANDBOX_AGENT_MEMORY).";
+
 /** The reason a turn settles failed with when the sandbox ended its harness
  * as stalled. */
 export const STALLED_TURN_REASON =
@@ -1285,16 +1298,23 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
  * the reason such a turn settles with. Read beside {@link classifyHarnessEnd},
  * whose crash reading it refines: `stalled` when runnerd ended the exec
  * because it printed nothing and its processes used under 1% of one CPU for
- * the whole stall window (`EXEC_STALLED`). A hang an immediate retry would
- * most likely meet again, so each host settles it with a code of its own.
+ * the whole stall window (`EXEC_STALLED`), `out_of_memory` when the session's
+ * memory limit ended it (`OOM_KILLED`, `SESSION_OOM`). Either would most
+ * likely meet an immediate retry again, so each host settles it with a code
+ * of its own.
  * Nothing while the exec still runs, and nothing when the harness ended its
  * turn itself: its own end stands.
  */
 export function sandboxEndOf(
   window: HarnessEndWindow,
-): { failure: 'stalled'; reason: string } | undefined {
+): { failure: 'stalled' | 'out_of_memory'; reason: string } | undefined {
   if (window.ended !== undefined || !window.exited) return undefined;
-  if (window.execResult?.errorCode !== EXEC_STALLED_CODE) return undefined;
+  const code = window.execResult?.errorCode;
+  // Out of memory: the limit, not the harness, ended the turn, and a retry
+  // at once would meet the same limit.
+  if (code !== undefined && OUT_OF_MEMORY_CODES.has(code))
+    return { failure: 'out_of_memory', reason: OUT_OF_MEMORY_TURN_REASON };
+  if (code !== EXEC_STALLED_CODE) return undefined;
   // What it printed last is what it hung on.
   const tail = window.stderrTail ?? '';
   return {

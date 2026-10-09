@@ -6,6 +6,8 @@ import {
   admissionMemoryPercentFromEnv,
   DEFAULT_ADMISSION_MEMORY_PERCENT,
   memoryRefusesExec,
+  readMemoryPeak,
+  readOomKills,
   readSessionMemory,
   statValue,
 } from './session-memory.ts';
@@ -108,5 +110,25 @@ describe('memoryRefusesExec', () => {
     expect(memoryRefusesExec(memory(950, null), 90)).toBe(false);
     expect(memoryRefusesExec(null, 90)).toBe(false);
     expect(memoryRefusesExec(memory(1000, 1000), 0)).toBe(false);
+  });
+});
+
+describe('the OOM kills and the peak', () => {
+  test('counts the OOM kills of the whole session from memory.events', async () => {
+    write({
+      'memory.events':
+        'low 0\nhigh 0\nmax 12\noom 3\noom_kill 2\noom_group_kill 0\n',
+    });
+    expect(await readOomKills(cgroup)).toBe(2);
+  });
+
+  test('reads the peak where the kernel reports one', async () => {
+    write({ 'memory.peak': `${700 * MiB}\n` });
+    expect(await readMemoryPeak(cgroup)).toBe(700 * MiB);
+  });
+
+  test('reads neither where the cgroup has no such files', async () => {
+    expect(await readOomKills(cgroup)).toBeNull();
+    expect(await readMemoryPeak(cgroup)).toBeNull();
   });
 });

@@ -161,6 +161,9 @@ export class DockerSessionBackend implements SessionBackend {
   ) {}
 
   private runtimeImageMissing: ((detail: string) => void) | null = null;
+  /** Dead incarnations whose inspect said the OOM killer ended processes in
+   * them, by session id: their creation stamp. */
+  private readonly outOfMemory = new Map<string, number>();
 
   onRuntimeImageMissing(listener: (detail: string) => void): void {
     this.runtimeImageMissing = listener;
@@ -767,18 +770,23 @@ export class DockerSessionBackend implements SessionBackend {
       [
         'inspect',
         '--format',
-        expectedCreatedAtMs === undefined
-          ? '{{.State.Running}}'
-          : '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
+        '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.OOMKilled}}',
         containerName,
       ],
       { timeoutMs: 5_000, priority: true },
     );
     if (inspect.exitCode === 0) {
-      const [running, created] = inspect.stdout
+      const [running, created, oomKilled] = inspect.stdout
         .replace(/\r?\n$/, '')
         .split('\t');
-      if (running !== 'true') return false;
+      if (running !== 'true') {
+        // A dead container the OOM killer hit: the routes say so to the
+        // exec it took down (takeOutOfMemory).
+        const stamp = Number(created);
+        if (oomKilled === 'true' && Number.isFinite(stamp))
+          this.outOfMemory.set(sessionId, stamp);
+        return false;
+      }
       if (expectedCreatedAtMs === undefined) return true;
       const stamp = Number(created);
       if (
@@ -798,6 +806,12 @@ export class DockerSessionBackend implements SessionBackend {
     throw new Error(
       `docker inspect ${containerName} failed: ${inspect.stderr.trim() || inspect.stdout.trim()}`,
     );
+  }
+
+  takeOutOfMemory(sessionId: string, createdAtMs: number): boolean {
+    const stamp = this.outOfMemory.get(sessionId);
+    this.outOfMemory.delete(sessionId);
+    return stamp === createdAtMs;
   }
 
   /** Current `State.Status` of the named container, or null when it can't be
