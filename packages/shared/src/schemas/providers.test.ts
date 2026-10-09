@@ -300,6 +300,20 @@ describe('providerDefinitionSchema', () => {
         constraints,
       }),
     ).toBe(false);
+    expect(
+      parse({
+        method: 'subscription-key',
+        accountIdVar: 'TALE_SUBSCRIPTION_ACCOUNT_ID',
+        constraints,
+      }),
+    ).toBe(true);
+    expect(
+      parse({
+        method: 'subscription-key',
+        accountIdVar: 'not-an-env-name',
+        constraints,
+      }),
+    ).toBe(false);
   });
 
   it('rejects broker constraints demanding direct execution', () => {

@@ -153,3 +153,33 @@ describe('provider_credentials/actions:updateCredentialWithDefinition', () => {
     });
   });
 });
+
+describe('static subscription account identity transport', () => {
+  it.each(['createCredential', 'updateCredential'] as const)(
+    'forwards the account ID through %s',
+    async (operation) => {
+      const fetchMock = vi
+        .spyOn(window, 'fetch')
+        .mockResolvedValue(
+          jsonResponse(200, { ok: true, credentialId: 'cred-subscription' }),
+        );
+      await settingsWriteAdapters[
+        `provider_credentials/actions:${operation}`
+      ]?.run(
+        {
+          credentialId: 'cred-subscription',
+          providerSlug: 'openai',
+          authMethod: 'subscription-key',
+          name: 'ChatGPT',
+          secret: 'synthetic-token',
+          accountId: 'synthetic-account',
+        },
+        { organizationId: 'org1' },
+      );
+      expect(jsonBody(fetchMock.mock.calls[0]?.[1])).toMatchObject({
+        secret: 'synthetic-token',
+        accountId: 'synthetic-account',
+      });
+    },
+  );
+});

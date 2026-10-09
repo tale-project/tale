@@ -248,12 +248,20 @@ export function createProviderSettingRoutes(deps: {
           );
         }
         const iconUrl = readSystemEntryIcon('providers', provider.name);
+        const subscriptionAccountIdVar = provider.auth.find(
+          (entry) =>
+            entry.method === 'subscription-key' &&
+            entry.accountIdVar !== undefined,
+        )?.accountIdVar;
         results.push({
           name: provider.name,
           displayName: provider.displayName,
           origin,
           ...(iconUrl !== undefined ? { iconUrl } : {}),
           apiFormat: provider.apiFormat,
+          ...(subscriptionAccountIdVar !== undefined
+            ? { subscriptionAccountIdVar }
+            : {}),
           ...(provider.baseUrl !== undefined
             ? { baseUrl: provider.baseUrl }
             : {}),

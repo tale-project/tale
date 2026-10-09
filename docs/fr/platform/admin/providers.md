@@ -46,6 +46,10 @@ Pour utiliser un abonnement Anthropic sans courtier, choisis **Clé d'abonnement
 
 Tale ne renouvelle pas un jeton collé. Quand il expire, ou quand tu passes à un autre compte Claude, utilise l’action de remplacement de la ligne pour en coller un nouveau, puis relance la tâche. [Renouveler ou retirer des identifiants](#renouveler-ou-retirer-des-identifiants) décrit cette action.
 
+## Coller un jeton d’abonnement OpenAI ChatGPT
+
+Choisis **Clé d'abonnement**, colle le jeton d’accès et saisis l’**ID du compte** ChatGPT indiqué par la revendication `chatgpt_account_id`. Tale transmet ces valeurs à Codex sous `TALE_SUBSCRIPTION_TOKEN` et `TALE_SUBSCRIPTION_ACCOUNT_ID`. Limite les modèles à ceux pris en charge par ton abonnement; ces identifiants servent uniquement aux tâches et aux automatisations.
+
 ## Connecter un courtier d’abonnement
 
 Les courtiers d’abonnement prennent en charge les abonnements Anthropic via Claude Code et les abonnements OpenAI ChatGPT via Codex. Ces identifiants servent aux agents de tâche et d’automatisation ; les chats nécessitent des identifiants d’accès direct à l’API, pour les [raisons expliquées plus haut](#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat).

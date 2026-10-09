@@ -17,6 +17,7 @@ export interface ProviderCredentialsContract {
       envName?: string;
       modelAllowlist?: string[];
       secret?: string;
+      accountId?: string;
       broker?: unknown;
       organizationId: string;
       name: string;
@@ -39,6 +40,7 @@ export interface ProviderCredentialsContract {
       envName?: string;
       modelAllowlist?: null | string[];
       secret?: string;
+      accountId?: string;
       broker?: unknown;
       organizationId: string;
       credentialId: string;

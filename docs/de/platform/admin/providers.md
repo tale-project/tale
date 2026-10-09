@@ -46,6 +46,10 @@ Um ein Anthropic-Abonnement ohne Broker zu nutzen, wähle **Abo-Schlüssel** und
 
 Tale erneuert ein eingefügtes Token nicht. Läuft es ab oder wechselst du zu einem anderen Claude-Konto, füge über die Ersetzen-Aktion der Zeile ein neues ein und starte die Aufgabe danach erneut. [Zugangsdaten rotieren oder stilllegen](#zugangsdaten-rotieren-oder-stilllegen) beschreibt diese Aktion.
 
+## Einen OpenAI-ChatGPT-Abonnement-Token einfügen
+
+Wähle **Abo-Schlüssel**, füge den Zugriffstoken ein und trage die ChatGPT-**Konto-ID** aus dem Anspruch `chatgpt_account_id` ein. Tale übergibt beide Werte als `TALE_SUBSCRIPTION_TOKEN` und `TALE_SUBSCRIPTION_ACCOUNT_ID` an Codex. Beschränke die Modelle auf dein ChatGPT-Abo; die Zugangsdaten funktionieren nur in Aufgaben und Automatisierungen.
+
 ## Einen Abo-Broker verbinden
 
 Abo-Broker unterstützen Anthropic-Abonnements über Claude Code und OpenAI-ChatGPT-Abonnements über Codex. Diese Zugangsdaten dienen Agenten für Aufgaben und Automatisierungen. Chats benötigen Zugangsdaten für den direkten API-Zugriff, aus den [oben genannten Gründen](#abos-in-aufgaben-nutzen-nicht-im-chat).
