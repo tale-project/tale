@@ -42,6 +42,29 @@ playback:
     room: Auf einen Sandbox-Platz gewartet
     repeat: Pause zwischen Durchgängen
     in_doubt: Auf eine Entscheidung gewartet
+conditions:
+  ran: '{step} lief, weil seine Bedingung zutraf.'
+  skippedWhen: '{step} wurde übersprungen, weil seine Bedingung nicht zutraf.'
+  skippedElse: '{step} wurde übersprungen, weil {partner} lief.'
+  ranElse: '{step} lief, weil {partner} durch seine eigene Bedingung übersprungen wurde.'
+  skippedUpstream: '{step} wurde übersprungen, weil er {via} liest und {via} übersprungen wurde.'
+  failedContinued: '{step} ist fehlgeschlagen, und der Lauf ging ohne ihn weiter.'
+  onlyIf: Nur wenn
+  repeatUntil: Wiederholen bis
+  raw: Diese Bedingung ist als Code geschrieben.
+  joined:
+    and: 'Alle müssen zutreffen:'
+    or: 'Eine muss zutreffen:'
+  verdict:
+    yes: Ja
+    no: Nein
+    notChecked: Nicht geprüft
+values:
+  items: '{count, plural, one {# Element} other {# Elemente}}'
+  fields: '{count, plural, one {# Feld} other {# Felder}}'
+  missing: nicht vorhanden
+  withheld: zurückgehalten
+  tooLarge: zu umfangreich zum Speichern
 runtime:
   codes:
     EXPR_SYNTAX:

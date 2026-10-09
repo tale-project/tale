@@ -7,11 +7,13 @@ import { Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 
+import type { RecordedStep } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodeRunView } from '../lib/run-view';
 import { EffectList } from './effect-list';
 import { RunStatusBadge } from './run-status-badge';
+import { RunStepConditions } from './run-step-conditions';
 
 /**
  * What ONE step of a run did: its status, why it was skipped or how it failed,
@@ -23,10 +25,13 @@ import { RunStatusBadge } from './run-status-badge';
  */
 export function RunStepDetail({
   runView,
+  step,
   heading,
   badge,
 }: {
   runView: NodeRunView;
+  /** The step as the run's record keeps it: why it ran or not. */
+  step?: RecordedStep;
   /** Section title: the run dialog names the step. The inspector's Last
    *  run tab already says what this is, so it gives none. */
   heading?: string;
@@ -56,6 +61,7 @@ export function RunStepDetail({
       {runView.error !== undefined && (
         <Alert variant="destructive" description={runView.error} />
       )}
+      {step !== undefined && <RunStepConditions step={step} />}
       {runView.note !== undefined && (
         <Text as="p" variant="muted" className="text-xs text-pretty">
           {runView.note}

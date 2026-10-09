@@ -738,6 +738,9 @@ function RunDetailBody({
             nodeType={nodeTypes.find((def) => def.type === selectedNode.type)}
             catalogUnavailable={catalogQuery.isError}
             runView={projection.byNode.get(selectedNode.id)}
+            recordStep={recordQuery.data?.nodes.find(
+              (step) => step.path === selectedNode.id,
+            )}
             readOnly
             onChange={() => {
               // A recorded run is history: the inspector renders it read-only.

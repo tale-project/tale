@@ -504,6 +504,43 @@ const STATE_WORDS: Readonly<
   notSet: (t, a) => t('condition.notSet', { a }),
 };
 
+/** The opposite of each comparison: "{a} is not greater than {b}". */
+const NEGATED_COMPARE_WORDS: Readonly<Record<CompareOp, PairWords>> = {
+  gt: (t, operands) => t('condition.notGt', operands),
+  gte: (t, operands) => t('condition.notGte', operands),
+  lt: (t, operands) => t('condition.notLt', operands),
+  lte: (t, operands) => t('condition.notLte', operands),
+  eq: (t, operands) => t('condition.neq', operands),
+  neq: (t, operands) => t('condition.eq', operands),
+};
+
+/** The opposite of each text test. */
+const NEGATED_TEXT_WORDS: Readonly<
+  Record<'contains' | 'notContains' | 'startsWith' | 'endsWith', PairWords>
+> = {
+  contains: (t, operands) => t('condition.notContains', operands),
+  notContains: (t, operands) => t('condition.contains', operands),
+  startsWith: (t, operands) => t('condition.notStartsWith', operands),
+  endsWith: (t, operands) => t('condition.notEndsWith', operands),
+};
+
+/** The opposite of each state. */
+const NEGATED_STATE: Readonly<
+  Record<
+    'empty' | 'notEmpty' | 'set' | 'notSet',
+    'empty' | 'notEmpty' | 'set' | 'notSet'
+  >
+> = { empty: 'notEmpty', notEmpty: 'empty', set: 'notSet', notSet: 'set' };
+
+export interface RenderConditionOptions {
+  /** How an operand reads; its words alone by default. A run view puts
+   *  the value it read beside it. */
+  operand?: (operand: Operand, ctx: ConditionTextContext) => string;
+  /** Say the condition the way it did NOT hold: "{a} is not greater than
+   *  {b}"; joined parts flip too ("not all" reads "one of them not"). */
+  negated?: boolean;
+}
+
 /**
  * A phrase as a sentence fragment that completes "Runs only if …" ("…
  * nur, wenn …", "… seulement si …"); null for a raw condition, which the
@@ -512,6 +549,7 @@ const STATE_WORDS: Readonly<
 export function renderCondition(
   phrase: Phrase,
   ctx: ConditionTextContext,
+  { operand = renderOperand, negated = false }: RenderConditionOptions = {},
 ): string | null {
   const { t } = ctx;
   switch (phrase.kind) {
@@ -521,30 +559,35 @@ export function renderCondition(
     case 'or': {
       const parts: string[] = [];
       for (const part of phrase.parts) {
-        const text = renderCondition(part, ctx);
+        const text = renderCondition(part, ctx, { operand, negated });
         if (text === null) return null;
         parts.push(text);
       }
+      // Not all of them held: one of them did not; not one held: none did.
+      const all = (phrase.kind === 'and') !== negated;
       return new Intl.ListFormat(ctx.locale, {
-        type: phrase.kind === 'and' ? 'conjunction' : 'disjunction',
+        type: all ? 'conjunction' : 'disjunction',
       }).format(parts);
     }
     case 'compare':
-      return COMPARE_WORDS[phrase.op](t, {
-        a: renderOperand(phrase.a, ctx),
-        b: renderOperand(phrase.b, ctx),
+      return (negated ? NEGATED_COMPARE_WORDS : COMPARE_WORDS)[phrase.op](t, {
+        a: operand(phrase.a, ctx),
+        b: operand(phrase.b, ctx),
       });
     case 'contains':
     case 'notContains':
     case 'startsWith':
     case 'endsWith':
-      return TEXT_WORDS[phrase.kind](t, {
-        a: renderOperand(phrase.a, ctx),
-        b: renderOperand(phrase.b, ctx),
+      return (negated ? NEGATED_TEXT_WORDS : TEXT_WORDS)[phrase.kind](t, {
+        a: operand(phrase.a, ctx),
+        b: operand(phrase.b, ctx),
       });
     default:
       // `empty`, `notEmpty`, `set`, `notSet`: one operand.
-      return STATE_WORDS[phrase.kind](t, renderOperand(phrase.a, ctx));
+      return STATE_WORDS[negated ? NEGATED_STATE[phrase.kind] : phrase.kind](
+        t,
+        operand(phrase.a, ctx),
+      );
   }
 }
 

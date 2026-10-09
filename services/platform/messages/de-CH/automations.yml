@@ -1,5 +1,6 @@
 condition:
   gt: '{a} grösser als {b} ist'
+  notGt: '{a} nicht grösser als {b} ist'
   quote: '«{text}»'
 runs:
   quarantine:

@@ -680,6 +680,13 @@ condition:
   notContains: "{a} doesn't contain {b}"
   startsWith: '{a} starts with {b}'
   endsWith: '{a} ends with {b}'
+  notGt: '{a} is not greater than {b}'
+  notGte: '{a} is not at least {b}'
+  notLt: '{a} is not less than {b}'
+  notLte: '{a} is not at most {b}'
+  notStartsWith: "{a} doesn't start with {b}"
+  notEndsWith: "{a} doesn't end with {b}"
+  withValue: '{operand} ({value})'
   ref:
     node: '{path} of {node}'
     nodeOutput: 'the output of {node}'

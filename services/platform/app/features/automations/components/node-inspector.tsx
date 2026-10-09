@@ -29,6 +29,7 @@ import { useCopyButton } from '@tale/ui/use-copy';
 import { AlertTriangle, Check, Copy, X } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
+import type { RecordedStep } from '@/app/lib/backend/contract/automations';
 import type { FlowFacts } from '@/lib/engine/core/analysis/flow';
 import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { Automation, NodeDef } from '@/lib/engine/core/types';
@@ -511,6 +512,8 @@ export interface NodeInspectorProps {
   catalogUnavailable?: boolean;
   /** What the overlaid run did to this node, when one is shown. */
   runView?: NodeRunView | undefined;
+  /** The node's step in the run's record: why it ran or not. */
+  recordStep?: RecordedStep | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   /** For the agent node's equipment pickers (skills/connectors/tools/secrets
@@ -631,6 +634,7 @@ export interface NodeFieldsProps {
   nodeType: NodeTypeSummary | undefined;
   catalogUnavailable?: boolean;
   runView?: NodeRunView | undefined;
+  recordStep?: RecordedStep | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   organizationId: string;
@@ -751,6 +755,7 @@ export function NodeFields({
   nodeType,
   catalogUnavailable = false,
   runView,
+  recordStep,
   readOnly,
   onChange,
   organizationId,
@@ -1247,7 +1252,12 @@ export function NodeFields({
           ),
         })}
         {...(runView !== undefined && {
-          run: <RunStepDetail runView={runView} />,
+          run: (
+            <RunStepDetail
+              runView={runView}
+              {...(recordStep !== undefined && { step: recordStep })}
+            />
+          ),
         })}
       />
     </div>

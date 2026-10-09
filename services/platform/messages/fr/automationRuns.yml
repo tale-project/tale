@@ -42,6 +42,29 @@ playback:
     room: Attente d’une place en sandbox
     repeat: Pause entre deux passages
     in_doubt: Attente d’une décision
+conditions:
+  ran: L’étape {step} s’est exécutée, car sa condition était remplie.
+  skippedWhen: L’étape {step} a été ignorée, car sa condition n’était pas remplie.
+  skippedElse: L’étape {step} a été ignorée, car l’étape {partner} s’est exécutée.
+  ranElse: L’étape {step} s’est exécutée, car l’étape {partner} a été ignorée par sa propre condition.
+  skippedUpstream: L’étape {step} a été ignorée, car elle lit l’étape {via}, qui a été ignorée.
+  failedContinued: L’étape {step} a échoué et l’exécution a continué sans elle.
+  onlyIf: Seulement si
+  repeatUntil: Répéter jusqu’à
+  raw: Cette condition est écrite en code.
+  joined:
+    and: 'Toutes doivent être remplies :'
+    or: 'Une seule doit être remplie :'
+  verdict:
+    yes: Oui
+    no: Non
+    notChecked: Non vérifié
+values:
+  items: '{count, plural, one {# élément} other {# éléments}}'
+  fields: '{count, plural, one {# champ} other {# champs}}'
+  missing: absent
+  withheld: masqué
+  tooLarge: trop volumineux pour être conservé
 runtime:
   codes:
     EXPR_SYNTAX:

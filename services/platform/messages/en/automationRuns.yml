@@ -42,6 +42,29 @@ playback:
     room: Waited for a sandbox slot
     repeat: Paused between passes
     in_doubt: Waited for a decision
+conditions:
+  ran: '{step} ran because its condition was true.'
+  skippedWhen: '{step} was skipped because its condition was false.'
+  skippedElse: '{step} was skipped because {partner} ran.'
+  ranElse: '{step} ran because {partner} was skipped by its own condition.'
+  skippedUpstream: '{step} was skipped because it reads {via}, which was skipped.'
+  failedContinued: '{step} failed and the run went on without it.'
+  onlyIf: Only if
+  repeatUntil: Repeat until
+  raw: This condition is written as code.
+  joined:
+    and: 'All of these must hold:'
+    or: 'One of these must hold:'
+  verdict:
+    yes: Yes
+    no: No
+    notChecked: Not checked
+values:
+  items: '{count, plural, one {# item} other {# items}}'
+  fields: '{count, plural, one {# field} other {# fields}}'
+  missing: missing
+  withheld: withheld
+  tooLarge: too large to keep
 runtime:
   codes:
     EXPR_SYNTAX:
