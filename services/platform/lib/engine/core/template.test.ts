@@ -506,11 +506,31 @@ describe('traced evaluation — what each sub-expression held', () => {
     expect(runner.plainCalls()).toBe(1);
   });
 
-  it('never evaluates again an expression whose runner stopped', async () => {
+  it('evaluates plainly a probed unit the runner stopped at its deadline', async () => {
     const runner = runnerWith({
       evalExprProbed: async () => {
         throw new RunnerStopped(
           'evaluation timed out after 1000ms; the node-vm runner process was killed',
+          { timedOut: true },
+        );
+      },
+    });
+    setCodeRunner(runner);
+    const { value, trace } = await evalConditionTraced(
+      'input.n > 1',
+      scope,
+      '/w',
+    );
+    expect(value).toBe(true);
+    expect(trace.units[0]).toMatchObject({ probes: [], probed: 'none' });
+    expect(runner.plainCalls()).toBe(1);
+  });
+
+  it('never evaluates again an expression whose runner broke', async () => {
+    const runner = runnerWith({
+      evalExprProbed: async () => {
+        throw new RunnerStopped(
+          'the node-vm runner process died twice before acknowledging this evaluation',
         );
       },
     });
@@ -520,7 +540,6 @@ describe('traced evaluation — what each sub-expression held', () => {
     );
     expect(error).toBeInstanceOf(ExprError);
     expect((error as ExprError).stopped).toBe(true);
-    expect((error as ExprError).failure?.reason).toBe('EXPR_TIMEOUT');
     expect(runner.plainCalls()).toBe(0);
     // Nor does explaining it.
     expect(await explainFailure(error, scope)).toBe(false);
@@ -867,6 +886,24 @@ describe('explainFailure', () => {
     // The failure itself is unchanged.
     expect(error.failure?.reason).toBe('EXPR_READ_MISSING');
   });
+
+  it.each([
+    ['whole', 'hunter22'],
+    ['cut to its start', `sk-${'q'.repeat(40)}`],
+  ])(
+    'keeps a secret of the scope out of the trace’s copy of the message (%s)',
+    async (_quoted, secret) => {
+      const withSecret = { input: { apiKey: secret } };
+      const error = await failureOf(() =>
+        evalTemplates('{{ JSON.parse(input.apiKey) }}', withSecret, '/w'),
+      );
+      expect(error.message).toContain(secret.slice(0, 8));
+      await expect(explainFailure(error, withSecret)).resolves.toBe(true);
+      const traced = error.failure?.trace?.units[0]?.error?.message ?? '';
+      expect(traced).toContain('[withheld]');
+      expect(traced).not.toContain(secret.slice(0, 8));
+    },
+  );
 
   it('explains a value missing from text', async () => {
     const error = await failureOf(() =>

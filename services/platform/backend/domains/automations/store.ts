@@ -2746,7 +2746,8 @@ export async function beginRunInTx(
       INSERT INTO app.automation_runs (
         org_id, name, version, project_id, status, mode, started_by,
         api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms,
-        record_bytes, replay_of_run_id, replay_kind, replay_from_node
+        record_bytes, replay_of_run_id, replay_kind, replay_from_node,
+        replay_lineage_started_by
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${version},
         ${projectId}, 'queued', ${args.mode}, ${args.startedBy},
@@ -2755,7 +2756,16 @@ export async function beginRunInTx(
         ${tx.json(toJson({ nodes: args.replay?.reused ?? {}, executions: 0 }))},
         ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}, ${start.bytes},
         ${args.replay?.of ?? null}, ${args.replay?.kind ?? null},
-        ${args.replay?.fromNode ?? null}
+        ${args.replay?.fromNode ?? null},
+        -- Whose runs this one carries (0192): its source's starter and the
+        -- starters the source carried in turn, so an erasure of any of them
+        -- finds it after the source itself is gone.
+        (SELECT array_append(
+                  coalesce(s.replay_lineage_started_by, '{}'::text[]),
+                  s.started_by)
+           FROM app.automation_runs s
+          WHERE s.id = ${args.replay?.of ?? null}
+            AND s.org_id = ${args.organizationId})
       )
       RETURNING id
     `;

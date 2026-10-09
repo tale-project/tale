@@ -10,6 +10,7 @@ import {
   type ValueRecord,
 } from '../../../lib/engine/core/record/types.ts';
 import { recordBudget } from '../../../lib/engine/core/record/value.ts';
+import { storableJson } from '../../../lib/shared/utils/storable-text.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { jsonParam } from '../../db/sql.ts';
 import { emitRunHint } from './store.ts';
@@ -171,7 +172,16 @@ export async function writeNodeRunsInTx(
   },
 ): Promise<void> {
   if (args.rows.length === 0) return;
-  await upsertRows(tx, args, false);
+  // The record never fails the run it records: a batch the database
+  // refuses is logged and dropped inside a savepoint, and the run's own
+  // progress in this transaction commits as if it had not been there.
+  try {
+    await tx.savepoint((sp) => upsertRows(sp, args, false));
+  } catch (error) {
+    console.error(
+      `[automations] run ${args.runId}: ${args.rows.length} step record(s) were not stored (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
 }
 
 /**
@@ -218,9 +228,10 @@ async function upsertRows(
   fenced: boolean,
 ): Promise<boolean> {
   const now = Date.now();
+  // Whatever a step read or returned, the rows go in as text jsonb keeps.
   const rows = jsonParam(
     tx,
-    args.rows.map((row) => nodeRunRowOf(row.record)),
+    storableJson(args.rows.map((row) => nodeRunRowOf(row.record))),
   );
   const written = await tx<{ path: string }[]>`
     INSERT INTO app.automation_node_runs AS s (

@@ -442,12 +442,14 @@ describe('processErasure', () => {
       s.text.startsWith('DELETE FROM app.automation_runs'),
     );
     expect(runs?.text).toBe(
-      'DELETE FROM app.automation_runs WHERE org_id = ? AND legacy_quarantine IS NULL AND id IN ( WITH RECURSIVE lineage AS ( SELECT id FROM app.automation_runs WHERE org_id = ? AND started_by = ANY(?) UNION SELECT r.id FROM app.automation_runs r JOIN lineage l ON r.replay_of_run_id = l.id WHERE r.org_id = ? ) SELECT id FROM lineage ) RETURNING id',
+      'DELETE FROM app.automation_runs WHERE org_id = ? AND legacy_quarantine IS NULL AND id IN ( WITH RECURSIVE lineage AS ( SELECT id FROM app.automation_runs WHERE org_id = ? AND (started_by = ANY(?) OR replay_lineage_started_by && ?::text[]) UNION SELECT r.id FROM app.automation_runs r JOIN lineage l ON r.replay_of_run_id = l.id WHERE r.org_id = ? ) SELECT id FROM lineage ) RETURNING id',
     );
+    const starters = ['user:subject', 'api-key:subject', 'subject'];
     expect(runs?.values).toEqual([
       'org_1',
       'org_1',
-      ['user:subject', 'api-key:subject', 'subject'],
+      starters,
+      starters,
       'org_1',
     ]);
     const settle = fake.statements.find(
@@ -558,9 +560,14 @@ describe('processErasure', () => {
         text.startsWith('SELECT')
       ) {
         expect(text).toContain('legacy_quarantine IS NOT NULL');
+        // Held runs are counted across the same lineage the delete takes.
+        expect(text).toContain('WITH RECURSIVE lineage');
         expect(values).toEqual([
           'org_1',
+          'org_1',
           ['user:subject', 'api-key:subject', 'subject'],
+          ['user:subject', 'api-key:subject', 'subject'],
+          'org_1',
         ]);
         return [{ count: 1 }];
       }
@@ -572,6 +579,7 @@ describe('processErasure', () => {
         expect(values).toEqual([
           'org_1',
           'org_1',
+          ['user:subject', 'api-key:subject', 'subject'],
           ['user:subject', 'api-key:subject', 'subject'],
           'org_1',
         ]);

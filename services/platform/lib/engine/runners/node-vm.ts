@@ -332,6 +332,7 @@ class RunnerProcess {
     entry.reject(
       new RunnerStopped(
         `evaluation timed out after ${entry.request.timeoutMs}ms; the node-vm runner process was killed`,
+        { timedOut: true },
       ),
     );
     this.replace(

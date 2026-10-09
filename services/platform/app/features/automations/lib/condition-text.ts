@@ -561,7 +561,13 @@ export function renderCondition(
       for (const part of phrase.parts) {
         const text = renderCondition(part, ctx, { operand, negated });
         if (text === null) return null;
-        parts.push(text);
+        // A group of the other kind inside reads in brackets, so
+        // `a && (b || c)` and `(a && b) || c` never read alike.
+        parts.push(
+          part.kind === 'and' || part.kind === 'or'
+            ? t('condition.group', { parts: text })
+            : text,
+        );
       }
       // Not all of them held: one of them did not; not one held: none did.
       const all = (phrase.kind === 'and') !== negated;

@@ -125,6 +125,44 @@ const NO_RUN_WORDS: RunWords = {
   explanations: [],
 };
 
+/** The gates in front of each step: an only-if gate, or the if/else gate
+ *  whose Yes it is — the condition the step's `when` writes. */
+function gatesOf(graph: FlowGraph): Map<string, string[]> {
+  const kinds = new Map(graph.nodes.map((node) => [node.id, node.kind]));
+  const gates = new Map<string, string[]>();
+  for (const edge of graph.edges) {
+    if (kinds.get(edge.source) !== 'gate') continue;
+    if (edge.kind !== 'gate' && edge.kind !== 'branch-yes') continue;
+    gates.set(edge.target, [...(gates.get(edge.target) ?? []), edge.source]);
+  }
+  return gates;
+}
+
+/**
+ * Problems per row of the List view, which has no row for a condition: a
+ * step's own, with those of the condition in front of it.
+ */
+export function flowStepIssues(
+  graph: FlowGraph,
+  issues: ReadonlyMap<string, IssueCounts> | undefined,
+): ReadonlyMap<string, IssueCounts> {
+  const out = new Map(issues ?? []);
+  if (issues === undefined) return out;
+  for (const [step, gates] of gatesOf(graph)) {
+    let counts = out.get(step) ?? NO_ISSUES;
+    for (const gate of gates) {
+      const own = issues.get(gate);
+      if (own === undefined) continue;
+      counts = {
+        errors: counts.errors + own.errors,
+        warnings: counts.warnings + own.warnings,
+      };
+    }
+    out.set(step, counts);
+  }
+  return out;
+}
+
 /**
  * Every node's name, description, strip and List view lines — one place,
  * so the chart and the List view say the same.
@@ -163,6 +201,7 @@ export function describeFlowGraph(
     graph.nodes.map((node) => [node.id, flowNodeTitle(node, t)]),
   );
   const drawn = graph.edges.filter((edge) => !edge.layoutOnly);
+  const guards = gatesOf(graph);
   const incoming = new Map<string, FlowEdge[]>();
   const outgoing = new Map<string, FlowEdge[]>();
   for (const edge of drawn) {
@@ -336,6 +375,20 @@ export function describeFlowGraph(
         reads,
         ...conditions(node.id),
         ...decisions(node.id),
+        // The List view has no row for a condition: its problems are said
+        // on the step it guards.
+        ...(guards.get(node.id) ?? []).map((gate) => {
+          const gateIssues = flowNodeIssueText(
+            tIssues,
+            issues?.get(gate) ?? NO_ISSUES,
+          );
+          return gateIssues === ''
+            ? null
+            : t('node.rowWithDetail', {
+                label: titleOf(gate),
+                detail: gateIssues,
+              });
+        }),
         leadsTo(node.id),
         node.unreachable ? t('node.unreachable') : null,
       ];

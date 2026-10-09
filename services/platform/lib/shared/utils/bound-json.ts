@@ -24,6 +24,8 @@
 
 import { pointerOf } from '@tale/ui/data/json-pointer';
 
+import { cutText } from './storable-text';
+
 export interface BoundJsonLimits {
   /** Characters kept per string before the count marker. */
   readonly maxString: number;
@@ -146,12 +148,4 @@ export function boundJsonOutOfBand(
     return entry;
   };
   return { value: walk(value, 0), cuts, total };
-}
-
-/** The first `max` UTF-16 units of `text`, one fewer when the cut would
- * split a character that takes two. */
-function cutText(text: string, max: number): string {
-  const head = text.slice(0, max);
-  const last = head.charCodeAt(head.length - 1);
-  return last >= 0xd800 && last <= 0xdbff ? head.slice(0, -1) : head;
 }

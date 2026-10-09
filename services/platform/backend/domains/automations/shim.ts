@@ -266,12 +266,15 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
           checkpoints: unknown;
           startedAt: number;
           recordBytes: number;
+          recordRows: number;
         }[]
       >`
         SELECT id, org_id AS "organizationId", name, version, status, mode,
                started_by AS "startedBy", input, checkpoints,
                started_at_ms::float8 AS "startedAt",
-               record_bytes AS "recordBytes"
+               record_bytes AS "recordBytes",
+               (SELECT count(*)::int FROM app.automation_node_runs n
+                 WHERE n.run_id = ${args.runId}) AS "recordRows"
         FROM app.automation_runs
         WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         LIMIT 1
@@ -297,6 +300,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         document: version.document,
         openNodeRuns,
         recordBytes: run.recordBytes,
+        recordRows: run.recordRows,
       };
     },
 

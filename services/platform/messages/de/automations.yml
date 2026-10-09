@@ -676,6 +676,7 @@ problems:
   emptyFiltered: '{filter, select, errors {Keine Fehler} warnings {Keine Warnungen} other {Keine Probleme}}'
   fieldPart: '{part}: {message}'
 condition:
+  group: '({parts})'
   gt: '{a} größer als {b} ist'
   gte: '{a} mindestens {b} ist'
   lt: '{a} kleiner als {b} ist'

@@ -60,9 +60,16 @@ export interface ProbedResult {
  * shares the runner.
  */
 export class RunnerStopped extends Error {
-  constructor(message: string, options?: { cause?: unknown }) {
+  /** The runner stopped this evaluation because it outlived its deadline
+   * (and replaced the process it ran in), not because the runner broke. */
+  readonly timedOut: boolean;
+  constructor(
+    message: string,
+    options?: { cause?: unknown; timedOut?: boolean },
+  ) {
     super(message, options);
     this.name = 'RunnerStopped';
+    this.timedOut = options?.timedOut === true;
   }
 }
 

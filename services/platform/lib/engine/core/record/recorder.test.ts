@@ -179,6 +179,35 @@ describe('createRecorder', () => {
     });
   });
 
+  // REGRESSION: every step of every subautomation walk was kept, so rows
+  // multiplied with the items that walked them (100 orders × 100 lines × 5
+  // steps), and every read of the record loaded them all.
+  it('keeps the steps of subautomation walks only while the run’s rows last', () => {
+    const rec = createRecorder(clocks());
+    const batch = { path: 'batch', item: -1, pass: -1 };
+    rec.unitStarted(batch, { nodeId: 'batch', nodeType: 'forEach' });
+    const items = 600;
+    for (let item = 0; item < items; item++) {
+      for (const child of ['check', 'send']) {
+        const key = { path: `batch[${item}:-1]/${child}`, item: -1, pass: -1 };
+        rec.unitStarted(key, { nodeId: child, nodeType: 'transform' });
+        rec.unitFinished(key, { status: 'ok', output: item });
+      }
+    }
+    rec.unitFinished(batch, { status: 'ok' });
+    const rows = rec.snapshot();
+    expect(rows.length).toBeLessThanOrEqual(RECORD_MAX_ROWS + 1);
+    expect(rows.some((r) => r.key.path === 'batch')).toBe(true);
+  });
+
+  it('holds the run’s row cap across turns', () => {
+    const rec = createRecorder({ ...clocks(), rowsKept: RECORD_MAX_ROWS });
+    const nested = { path: 'batch[0:-1]/send', item: -1, pass: -1 };
+    rec.unitStarted(nested, { nodeId: 'send', nodeType: 'transform' });
+    rec.unitStarted(node, { nodeId: 'fetch', nodeType: 'transform' });
+    expect(rec.snapshot().map((r) => r.key.path)).toEqual(['fetch']);
+  });
+
   it('counts passes on the step row', () => {
     const rec = createRecorder(clocks());
     rec.unitStarted(node, { nodeId: 'fetch', nodeType: 'transform' });

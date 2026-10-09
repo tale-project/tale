@@ -9,6 +9,7 @@
  * at the one place it arrives.
  */
 
+import { cutText, storableText } from '../../../shared/utils/storable-text';
 import { credentialKind } from '../secret-patterns';
 import {
   FAILURE_PARAM_LENGTH,
@@ -16,6 +17,10 @@ import {
   type FailureParams,
   type StepFailure,
 } from './types';
+
+/** The most of the engine's own failure sentence a record keeps (as much
+ * as a run's detail does). */
+const FAILURE_MESSAGE_LENGTH = 4096;
 
 /** Every reason a step can fail with. A newer server may answer a reason an
  * older reader does not know; readers fall back to the run-level code. */
@@ -237,7 +242,9 @@ export function classifyStepFailure(
     code: ctx.code,
     reason: cause.reason,
     params: cleanParams(cause.params),
-    message: ctx.message,
+    // The engine's sentence, shown under the technical details: as much as
+    // a run's detail keeps, and storable whatever text it quotes.
+    message: storableText(cutText(ctx.message, FAILURE_MESSAGE_LENGTH)),
     ...(ctx.hint !== undefined && { hint: ctx.hint }),
     ...(at !== undefined && { at }),
     ...(cause.trace !== undefined && { trace: cause.trace }),
@@ -259,10 +266,7 @@ function cleanParams(params: FailureParams): FailureParams {
 
 function cleanText(text: string): string | null {
   if (credentialKind(text) !== undefined) return null;
-  if (text.length <= FAILURE_PARAM_LENGTH) return text;
-  const head = text.slice(0, FAILURE_PARAM_LENGTH);
-  const last = head.charCodeAt(head.length - 1);
-  return last >= 0xd800 && last <= 0xdbff ? head.slice(0, -1) : head;
+  return storableText(cutText(text, FAILURE_PARAM_LENGTH));
 }
 
 const READ_MISSING_RE =
@@ -345,7 +349,7 @@ export function exprFailureOf(
   if (notFunction !== null) {
     return withAt({
       reason: 'EXPR_NOT_FUNCTION',
-      params: { ...base, callee: (notFunction[1] ?? '').slice(0, 80) },
+      params: { ...base, callee: cutText(notFunction[1] ?? '', 80) },
     });
   }
   if (SYNTAX_RE.test(message)) {

@@ -26,7 +26,12 @@ import {
   flowCompareLabels,
   type FlowCompareFace,
 } from './compare/compare';
-import { describeFlowGraph, flowListFormat, type FlowWords } from './describe';
+import {
+  describeFlowGraph,
+  flowListFormat,
+  flowStepIssues,
+  type FlowWords,
+} from './describe';
 import {
   FlowNodeIssueMarker,
   flowNodeIssueFrameClass,
@@ -160,6 +165,10 @@ export function FlowStepList({
     [graph, compare, t],
   );
   const items = useMemo(() => itemsOf(graph), [graph]);
+  const stepIssues = useMemo(
+    () => flowStepIssues(graph, issues),
+    [graph, issues],
+  );
   const order = useMemo(
     () =>
       items.flatMap((item) =>
@@ -213,7 +222,7 @@ export function FlowStepList({
       baseId={baseId}
       selected={selectedId === node.id}
       tabbable={tabStop === node.id}
-      counts={issues?.get(node.id) ?? NO_ISSUES}
+      counts={stepIssues.get(node.id) ?? NO_ISSUES}
       state={run?.nodes[node.id]?.state ?? 'idle'}
       compared={
         compared === null
