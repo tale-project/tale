@@ -37,6 +37,7 @@ const PURE_SHARED_HELPERS = [
   ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
   path.resolve(ENGINE_ROOT, '../shared/utils/bound-json.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/utils/storable-text.ts'),
   path.resolve(ENGINE_ROOT, '../shared/audit-redaction.ts'),
 ];
 
@@ -114,6 +115,7 @@ describe('engine purity', () => {
       path.join('lib', 'utils', 'type-utils'),
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
       path.join('lib', 'shared', 'utils', 'bound-json'),
+      path.join('lib', 'shared', 'utils', 'storable-text'),
       path.join('lib', 'shared', 'audit-redaction'),
     ];
     const offenders: string[] = [];

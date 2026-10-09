@@ -182,6 +182,32 @@ export async function checkAutomationNodeRuns(
     `one=${JSON.stringify(afterLate)}`,
   );
 
+  // ---- what jsonb refuses never fails the write: half an emoji and a NUL
+  // character in a step's output are kept as U+FFFD, and the write commits.
+  const odd = createRecorder({ now: () => Date.now(), budget: recordBudget() });
+  const oddKey = { path: 'odd', item: -1, pass: -1 };
+  odd.unitStarted(oddKey, { nodeId: 'odd', nodeType: 'transform' });
+  odd.unitFinished(oddKey, {
+    status: 'ok',
+    output: { value: 'cut \ud83d and nul \u0000' },
+  });
+  await sql.begin(async (tx) => {
+    await writeNodeRunsInTx(tx, {
+      organizationId: orgId,
+      runId,
+      epoch: 2,
+      rows: odd.drain(),
+    });
+  });
+  const storable = (await rowsOf(runId)).find((r) => r.path === 'odd');
+  record(
+    'a step output jsonb would refuse is stored as it can be, never failing the write',
+    JSON.stringify(storable?.output ?? null).includes(
+      'cut \ufffd and nul \ufffd',
+    ),
+    `odd=${JSON.stringify(storable)}`,
+  );
+
   // ---- the start write is fenced by the run row itself.
   const startedStale = await recordNodeRunsStarted(sql, {
     organizationId: orgId,
