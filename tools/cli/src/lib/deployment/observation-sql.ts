@@ -36,7 +36,9 @@ const corpus = (
 FROM ${schema}.chunks;`;
 export const OBSERVATION_KNOWLEDGE_SQL = ACCEPTANCE_SQL['knowledge-db'].replace(
   'ROLLBACK;',
-  `${corpus('private_knowledge')}\n${corpus('public_web')}\nROLLBACK;`,
+  // A callback keeps the SQL regex's dollar-apostrophe literal; a replacement
+  // string would expand that sequence and consume its closing SQL quote.
+  () => `${corpus('private_knowledge')}\n${corpus('public_web')}\nROLLBACK;`,
 );
 const count = z.number().int().nonnegative().safe();
 const corpusSchema = z.strictObject({
