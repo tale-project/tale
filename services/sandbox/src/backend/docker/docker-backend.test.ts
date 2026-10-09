@@ -158,6 +158,7 @@ test('the legacy one-shot sweep runs at the first tick after boot and then hourl
   const backend = new DockerBackend(loadConfig(), {
     boot,
     sweep,
+    sweepPackageCaches: async () => 0,
     now: () => now,
   });
   await backend.init();
@@ -192,4 +193,14 @@ test('the legacy one-shot sweep runs at the first tick after boot and then hourl
   now += 1;
   await backend.sweepOrphans(SWEEP);
   expect(legacyRuns().at(-1)).toBe(true);
+});
+
+test('a sweep tick counts the package caches the retention sweep removed', async () => {
+  process.env.SANDBOX_TOKEN = 'docker-backend-test';
+  const backend = new DockerBackend(loadConfig(), {
+    boot: async () => {},
+    sweep: async () => ({ removed: 2, legacySwept: true }),
+    sweepPackageCaches: async () => 3,
+  });
+  expect(await backend.sweepOrphans(SWEEP)).toBe(5);
 });

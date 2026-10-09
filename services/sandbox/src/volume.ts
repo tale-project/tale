@@ -20,21 +20,21 @@ function orgSlug(organizationId: string): string {
 }
 
 export function pipCacheVolumeName(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): string {
   return `${cfg.cacheVolumePrefix.pip}-${orgSlug(organizationId)}`;
 }
 
 export function npmCacheVolumeName(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): string {
   return `${cfg.cacheVolumePrefix.npm}-${orgSlug(organizationId)}`;
 }
 
 export function bunCacheVolumeName(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): string {
   return `${cfg.cacheVolumePrefix.bun}-${orgSlug(organizationId)}`;
@@ -72,7 +72,7 @@ async function cacheVolumeLabel(
  * wins, so one prefix extending another never misreads an id). THROWS when
  * the volume list cannot be read. */
 export async function listCacheVolumeOrganizations(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
 ): Promise<string[]> {
   const listed = await runDocker(
     [
@@ -112,7 +112,7 @@ export async function listCacheVolumeOrganizations(
  * were removed; THROWS when one could not be (still mounted, a daemon
  * hiccup), so the caller retries. */
 export async function removeCacheVolumes(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): Promise<number> {
   let removed = 0;

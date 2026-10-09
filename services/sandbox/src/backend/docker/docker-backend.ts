@@ -13,6 +13,7 @@ import {
   LEGACY_SWEEP_INTERVAL_MS,
   releaseSpawnerLock,
 } from '../../cleanup.ts';
+import { makePackageCacheSweep } from '../../package-cache-retention.ts';
 import {
   ensureImage,
   runDocker,
@@ -96,6 +97,7 @@ export interface DockerBackendDeps {
   /** The lock + boot sweep `init` runs. */
   boot?: (cfg: SpawnerConfig) => Promise<void>;
   sweep?: typeof dockerSweepOrphans;
+  sweepPackageCaches?: () => Promise<number>;
   now?: () => number;
 }
 
@@ -120,6 +122,10 @@ export class DockerBackend implements HostBackend {
   /** When the periodic sweep next runs its legacy one-shot half. */
   private legacySweepDueAtMs = 0;
 
+  /** Removes the package caches no organization used for their retention;
+   * hourly, whatever the sweep's own interval. */
+  private readonly sweepPackageCaches: () => Promise<number>;
+
   constructor(
     private readonly cfg: SpawnerConfig,
     deps: DockerBackendDeps = {},
@@ -127,6 +133,8 @@ export class DockerBackend implements HostBackend {
     this.boot = deps.boot ?? bootHost;
     this.sweep = deps.sweep ?? dockerSweepOrphans;
     this.now = deps.now ?? Date.now;
+    this.sweepPackageCaches =
+      deps.sweepPackageCaches ?? makePackageCacheSweep(cfg);
   }
 
   async init(): Promise<void> {
@@ -184,6 +192,6 @@ export class DockerBackend implements HostBackend {
     if (legacySwept) {
       this.legacySweepDueAtMs = this.now() + LEGACY_SWEEP_INTERVAL_MS;
     }
-    return removed;
+    return removed + (await this.sweepPackageCaches());
   }
 }

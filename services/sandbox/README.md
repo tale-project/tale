@@ -284,6 +284,28 @@ let its agent sessions finish and unpin or stop any warm sessions, then leave
 the helpers stopped for the retention period. Its next build starts with a
 cold cache; session workspaces and package-cache volumes are separate.
 
+## Organization package caches
+
+On Docker, every session without Docker inside mounts its organization's
+pip (shared with uv), npm and bun cache volumes,
+`tale-sandbox-{pip,npm,bun}-cache-<organization>` with the
+`tale.sandbox-cache=1` label; sessions with Docker inside start with cold
+caches instead. None of these tools evicts on its own, so each create records
+the organization's last use under the session root, in
+`.package-caches/<organization>.used` beside `.pins/` and `.owners/`. Once an
+hour the host sweep removes an organization's three volumes when no session
+container of the organization exists, in any state, and that use is older
+than `SANDBOX_PACKAGE_CACHE_RETENTION` (14 days by default, as for the build
+caches; `off` keeps them until the organization is deleted). A session
+container the sweep sees counts as a use. Caches without a recorded use, such
+as those of a host upgraded from an earlier release, get one at first sight,
+so nothing goes before a full retention has passed. A create holds its
+organization's caches from before it prepares them until its container
+exists: no removal starts meanwhile, and a create that arrives during a
+removal waits for it; Docker also refuses to remove a volume a container
+mounts. The organization's next session after a removal starts with empty
+caches and fills them again.
+
 Kubernetes sessions use their inner Docker builder. The Kubernetes backend
 does not provision these organization helpers or call the Docker CLI during
 reconciliation. See the [Kubernetes deployment contract](docs/kubernetes.md).

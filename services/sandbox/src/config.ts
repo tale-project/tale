@@ -304,6 +304,9 @@ export function loadConfig(): SpawnerConfig {
   const buildkitdCacheRetentionMs = retentionEnv(
     'SANDBOX_BUILDKITD_CACHE_RETENTION',
   );
+  const packageCacheRetentionMs = retentionEnv(
+    'SANDBOX_PACKAGE_CACHE_RETENTION',
+  );
   const buildkitdCpus = process.env.SANDBOX_BUILDKITD_CPUS?.trim()
     ? numEnv('SANDBOX_BUILDKITD_CPUS', 0, { min: 0.1 })
     : undefined;
@@ -551,6 +554,9 @@ export function loadConfig(): SpawnerConfig {
     ...(buildkitdMemoryBytes !== undefined ? { buildkitdMemoryBytes } : {}),
     ...(buildkitdCacheRetentionMs !== undefined
       ? { buildkitdCacheRetentionMs }
+      : {}),
+    ...(packageCacheRetentionMs !== undefined
+      ? { packageCacheRetentionMs }
       : {}),
     ...(buildkitdIdleCacheBytes !== undefined
       ? { buildkitdIdleCacheBytes }

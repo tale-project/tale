@@ -64,6 +64,10 @@ export interface SpawnerConfig {
   // (env SANDBOX_BUILDKITD_CACHE_RETENTION): unset, 14 days; 0 keeps them
   // until the organization is deleted (buildkitd.ts sweepIdleBuildkitd).
   buildkitdCacheRetentionMs?: number;
+  // How long an organization's pip, npm and bun cache volumes outlive their
+  // last use (env SANDBOX_PACKAGE_CACHE_RETENTION): unset, 14 days; 0 keeps
+  // them until the organization is deleted (package-cache-retention.ts).
+  packageCacheRetentionMs?: number;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
   // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client
