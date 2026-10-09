@@ -83,9 +83,24 @@ agentRun:
     settled: Finished
     failed: Failed
     cancelled: Cancelled
-  # Replaces "Queued" while the org's sandbox budget is full — the run
-  # starts by itself the moment a slot frees.
-  waitingForSlot: Waiting for a sandbox slot
+  # Replaces "Queued" while the run waits for room, one short state per
+  # reason; `unknown` is a wait that kept no reason (most waits are for a
+  # worker). The run starts by itself once that room frees.
+  waiting:
+    org_limit: Waiting for a worker
+    host: Waiting for room
+    destroy_pending: Waiting for a workspace
+    exec_limit: Waiting for its sandbox
+    unknown: Waiting for a worker
+  # What the short state means, said under it while the run waits.
+  waitingWhy:
+    org_limit: All of your organization's agent workers are busy. The run starts on its own when one is free.
+    host: The sandbox host is full or short of memory or disk. The run starts on its own once there is room.
+    destroy_pending: An admin is deleting the workspace this run would use. The run starts in a fresh one once that is done.
+    exec_limit: Its sandbox is still finishing an earlier process. The run starts on its own in a moment.
+    unknown: The run starts on its own as soon as there is room for it.
+  # Shown to Owners and Admins beside "All … agent workers are busy".
+  manageWorkers: Manage agent workers
   # Caption under the status line while a machine-kicked retry runs — the
   # user must be able to tell the platform's retry from their own.
   autoRetrying: 'Auto-retry {n} of {max}'
@@ -104,7 +119,7 @@ agentRun:
     setup: Something this agent needs is missing — its model, one of its skills, or the agent itself. An Editor or Admin can fix it on the project's Agents tab.
     input: An attachment on this task is no longer in storage — Details names it. Remove it from the task or upload it again, then start the agent again.
     time_limit: The run reached its time limit before the agent finished. Start the agent again, or split the task into smaller ones.
-    capacity: The run waited too long for a free sandbox. Start the agent again when fewer agents are busy.
+    capacity: The run waited too long for a free worker. Start the agent again when fewer agents are busy.
     model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
     start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
     interrupted: The run was interrupted before the agent finished. Start the agent again.

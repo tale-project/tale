@@ -1,10 +1,13 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { standingWorkerSessionId } from '../../core/sandbox/session_naming.test-helpers.ts';
+import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   AGENT_RUN_FEEDBACK_EXCERPT_CHARS,
+  agentRunWorkerNumber,
   cancelAgentRunInTx,
   failAgentRun,
   failAgentRunFromTurn,
@@ -12,9 +15,13 @@ import {
   kickAgentRun,
   launchAgentRun,
   listTaskAgentRunSummaries,
+  parkedRunSql,
+  parkedWaitingReasonSql,
   settleAgentRun,
+  wakeAgentParkedAgentRun,
   wakeOrganizationParkedAgentRun,
   wakeParkedAgentRuns,
+  withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
 import {
   announceAgentRunFailed,
@@ -55,15 +62,16 @@ function fakeTx(answer: (text: string) => Row[]): {
     calls.push({ text, values });
     return Promise.resolve(answer(text));
   };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
-  return { tx: tag as unknown as TransactionSql, statements, calls };
+  const tx = Object.assign(tag, { unsafe: (text: string) => text });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+  return { tx: tx as unknown as TransactionSql, statements, calls };
 }
 
 const KEYS = { organizationId: 'org-1', runId: 'run-1', taskId: 'task-1' };
 
 /** The parked-run wake's claim, as its statement opens. */
 const CLAIM =
-  'SELECT id, org_id AS "organizationId", exec_id AS "execId", task_id AS "taskId" FROM app.project_agent_runs';
+  'SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId", r.task_id AS "taskId", r.agent_id AS "agentId", r.session_id AS "sessionId" FROM app.project_agent_runs r';
 
 describe('cancelAgentRunInTx — the run must belong to the authorized task', () => {
   beforeEach(() => {
@@ -121,6 +129,60 @@ describe('cancelAgentRunInTx — the run must belong to the authorized task', ()
       harness: 'opencode',
       deadlineAt: 1000,
     });
+  });
+});
+
+describe('withdrawWaitingAgentRunInTx — a waiting run is taken back before it starts [TASK-R25]', () => {
+  beforeEach(() => {
+    vi.mocked(recordTaskAgentRunLedgerEntry).mockReset();
+  });
+
+  const TASK = { id: 'task-1', organizationId: 'org-1' };
+  const SELECT_WAITING = 'SELECT id FROM app.project_agent_runs';
+
+  it('cancels the task’s parked run that never launched, under its row lock', async () => {
+    const { tx, statements } = fakeTx((text) => {
+      if (text.startsWith(SELECT_WAITING)) return [{ id: 'run-1' }];
+      if (text.startsWith('UPDATE app.project_agent_runs')) {
+        return [
+          {
+            id: 'run-1',
+            execId: 'exec-1',
+            sessionId: 'pa-1',
+            agentId: 'agent-1',
+            harness: 'opencode',
+            deadlineAt: 1000,
+          },
+        ];
+      }
+      return [];
+    });
+    await expect(withdrawWaitingAgentRunInTx(tx, TASK)).resolves.toBe(true);
+    const select = statements.find((text) => text.startsWith(SELECT_WAITING));
+    expect(select).toContain('WHERE task_id = ? AND org_id = ?');
+    expect(select).toContain("status = 'queued'");
+    expect(select).toContain('waiting_for_capacity_at_ms IS NOT NULL');
+    expect(select).toContain('launched_at_ms IS NULL');
+    expect(select).toContain('FOR UPDATE');
+    const update = statements.find((text) =>
+      text.startsWith('UPDATE app.project_agent_runs'),
+    );
+    expect(update).toContain("status = 'cancelled'");
+    expect(recordTaskAgentRunLedgerEntry).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ runId: 'run-1', finalStatus: 'cancelled' }),
+    );
+  });
+
+  it('leaves a run that works, or was woken a moment ago, alone', async () => {
+    const { tx, statements } = fakeTx(() => []);
+    await expect(withdrawWaitingAgentRunInTx(tx, TASK)).resolves.toBe(false);
+    expect(
+      statements.some((text) =>
+        text.startsWith('UPDATE app.project_agent_runs'),
+      ),
+    ).toBe(false);
+    expect(recordTaskAgentRunLedgerEntry).not.toHaveBeenCalled();
   });
 });
 
@@ -605,14 +667,36 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
     expect(claim).toContain("status = 'queued'");
     expect(claim).toContain('waiting_for_capacity_at_ms IS NOT NULL');
     expect(claim).toContain('deadline_at_ms > ?');
-    expect(claim).toContain('FOR UPDATE SKIP LOCKED');
+    expect(claim).toContain('FOR UPDATE OF r SKIP LOCKED');
     expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('wakes the parked run of the agent with the fewest runs working first, then the oldest park [TASK-R25]', async () => {
+    const { sql, statements } = fakeSql(() => []);
+    await wakeOrganizationParkedAgentRun(sql, 'org-1');
+    const claim = statements.find((text) => text.startsWith(CLAIM)) ?? '';
+    const order = claim.slice(claim.indexOf('ORDER BY'));
+    // The agent's working runs count first: one agent's burst of parked
+    // runs never stands ahead of every other agent's later start.
+    expect(order).toContain('working.agent_id = r.agent_id');
+    expect(order).toContain("working.status = 'running'");
+    expect(order.indexOf('working.agent_id')).toBeLessThan(
+      order.indexOf('r.waiting_for_capacity_at_ms'),
+    );
   });
 
   it('un-parks the claimed run and re-enqueues its turn in the same transaction', async () => {
     const { sql, statements } = fakeSql((text) =>
       text.startsWith(CLAIM)
-        ? [{ id: 'run-1', organizationId: 'org-1', execId: 'exec-1' }]
+        ? [
+            {
+              id: 'run-1',
+              organizationId: 'org-1',
+              execId: 'exec-1',
+              agentId: 'agent-1',
+              sessionId: 'pa-agent-1',
+            },
+          ]
         : [],
     );
     const woken = await wakeOrganizationParkedAgentRun(sql, 'org-1');
@@ -654,10 +738,10 @@ describe('wakeParkedAgentRuns — the release edge reaches every organization', 
     const claims = calls.filter((call) => call.text.startsWith(CLAIM));
     expect(claims.map((call) => call.text)).toEqual([
       expect.stringContaining(
-        'WHERE CASE WHEN ? THEN org_id = ? ELSE org_id <> ? END',
+        'WHERE CASE WHEN ? THEN r.org_id = ? ELSE r.org_id <> ? END',
       ),
       expect.stringContaining(
-        'WHERE CASE WHEN ? THEN org_id = ? ELSE org_id <> ? END',
+        'WHERE CASE WHEN ? THEN r.org_id = ? ELSE r.org_id <> ? END',
       ),
     ]);
     expect(claims.map((call) => call.values.slice(0, 3))).toEqual([
@@ -706,8 +790,9 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       });
       return Promise.resolve([]);
     };
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
-    return { sql: tag as unknown as Sql, statements };
+    const sql = Object.assign(tag, { unsafe: (text: string) => text });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+    return { sql: sql as unknown as Sql, statements };
   }
 
   it('walks the tie-free creation order, newest first, from before a page', async () => {
@@ -766,9 +851,10 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       expect(selected).not.toMatch(new RegExp(`\\b${column}\\b`));
     }
     expect(selected).toContain('left(feedback, ?) AS feedback');
-    // A cancelled run keeps its park stamp; only a queued one is waiting.
-    expect(selected).toContain(
-      "(status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)",
+    // A cancelled run keeps its park stamp; only a queued one is waiting,
+    // and only a waiting one shows why.
+    expect(statements[0]?.values).toEqual(
+      expect.arrayContaining([parkedRunSql(), parkedWaitingReasonSql()]),
     );
     expect(statements[0]?.values).toContain(AGENT_RUN_FEEDBACK_EXCERPT_CHARS);
   });
@@ -1234,5 +1320,198 @@ describe('the run card tells a final failure from one about to be retried', () =
       'task-1',
     );
     expect(card?.retryPending).toBeUndefined();
+  });
+});
+
+describe('the worker a run reads as working in [TASK-R24]', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+  const run = {
+    agentId: AGENT,
+    sessionId: standingWorkerSessionId(AGENT, 2),
+    status: 'queued',
+    sessionClaimedAt: null as number | null,
+    waitingForCapacityAt: null as number | null,
+  };
+
+  it('names the worker of a running run, or of a queued run that claimed it', () => {
+    expect(agentRunWorkerNumber({ ...run, status: 'running' })).toBe(2);
+    expect(agentRunWorkerNumber({ ...run, sessionClaimedAt: 5 })).toBe(2);
+  });
+
+  it('names none for a run that has not claimed one, waits, or ended', () => {
+    expect(agentRunWorkerNumber(run)).toBeUndefined();
+    expect(
+      agentRunWorkerNumber({
+        ...run,
+        sessionClaimedAt: 5,
+        waitingForCapacityAt: 6,
+      }),
+    ).toBeUndefined();
+    expect(
+      agentRunWorkerNumber({ ...run, status: 'settled', sessionClaimedAt: 5 }),
+    ).toBeUndefined();
+  });
+
+  it('puts the worker on the task’s run card', async () => {
+    const { sql } = fakeSql((text) =>
+      text.includes('LEFT JOIN app.project_agents a')
+        ? [
+            {
+              id: 'run-1',
+              status: 'running',
+              agentId: AGENT,
+              agentName: 'Scribe',
+              harness: 'claude-code',
+              model: 'm',
+              error: null,
+              failureCode: null,
+              resultText: null,
+              waitingForCapacityAt: null,
+              waitingReason: null,
+              sessionId: standingWorkerSessionId(AGENT, 3),
+              sessionClaimedAt: 4,
+              trigger: 'manual',
+              autoRetryAttempt: null,
+              startedBy: 'user-ada',
+              startedAt: 1,
+              settledAt: null,
+            },
+          ]
+        : [],
+    );
+    const card = await getLatestAgentRunCardForTask(sql, 'org-1', 'task-1');
+    expect(card?.worker).toBe(3);
+  });
+});
+
+describe('what every read shows of a waiting run [TASK-R25]', () => {
+  const collapse = (text: string) => text.replaceAll(/\s+/g, ' ');
+  const PARKED =
+    "(status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)";
+
+  it('reads a run as waiting, and why, only while it is queued and parked', () => {
+    expect(collapse(parkedRunSql())).toBe(PARKED);
+    expect(collapse(parkedWaitingReasonSql())).toBe(
+      `CASE WHEN ${PARKED} THEN waiting_reason END`,
+    );
+  });
+
+  it('keeps the same rule behind the alias of a read that joins another table', () => {
+    expect(collapse(parkedWaitingReasonSql('r'))).toBe(
+      "CASE WHEN (r.status = 'queued' AND r.waiting_for_capacity_at_ms IS NOT NULL) THEN r.waiting_reason END",
+    );
+  });
+});
+
+describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own family [SBX-R18]', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+  const CANDIDATES =
+    'SELECT id, session_id AS "sessionId" FROM app.project_agent_runs';
+  const LOCK = 'SELECT id, org_id AS "organizationId"';
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
+
+  it('wakes the oldest parked run of the ended worker’s family only', async () => {
+    const member = memberSessionIdForProjectAgent(AGENT, 'user-mia');
+    const { sql, calls } = fakeSql((text) => {
+      if (text.startsWith(CANDIDATES)) {
+        // Oldest first: a run of Mia's family, then the agent's own.
+        return [
+          { id: 'run-4', sessionId: member },
+          { id: 'run-5', sessionId: standingWorkerSessionId(AGENT, 1) },
+        ];
+      }
+      return text.startsWith(LOCK)
+        ? [
+            {
+              id: 'run-5',
+              organizationId: 'org-1',
+              execId: 'exec-5',
+              taskId: 'task-5',
+              agentId: AGENT,
+              sessionId: standingWorkerSessionId(AGENT, 1),
+            },
+          ]
+        : [];
+    });
+    await expect(
+      wakeAgentParkedAgentRun(sql, {
+        organizationId: 'org-1',
+        agentId: AGENT,
+        sessionId: standingWorkerSessionId(AGENT, 2),
+      }),
+    ).resolves.toBe(1);
+    const candidates = calls.find((call) => call.text.startsWith(CANDIDATES));
+    expect(candidates?.text).toContain('ORDER BY waiting_for_capacity_at_ms');
+    // Worker 2's family is the agent's own: Mia's run is passed over.
+    const locks = calls.filter((call) => call.text.startsWith(LOCK));
+    expect(locks.map((call) => call.values[0])).toEqual(['run-5']);
+    expect(locks[0]?.text).toContain('FOR UPDATE SKIP LOCKED');
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'task.agent_turn',
+      { organizationId: 'org-1', runId: 'run-5', execId: 'exec-5' },
+    );
+  });
+
+  it('tries the family’s next parked run when another wake took the oldest', async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith(CANDIDATES)
+        ? [
+            { id: 'run-5', sessionId: standingWorkerSessionId(AGENT, 1) },
+            { id: 'run-6', sessionId: standingWorkerSessionId(AGENT, 1) },
+          ]
+        : [],
+    );
+    await expect(
+      wakeAgentParkedAgentRun(sql, {
+        organizationId: 'org-1',
+        agentId: AGENT,
+        sessionId: standingWorkerSessionId(AGENT, 1),
+      }),
+    ).resolves.toBe(0);
+    expect(
+      calls
+        .filter((call) => call.text.startsWith(LOCK))
+        .map((call) => call.values[0]),
+    ).toEqual(['run-5', 'run-6']);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('a woken run holds no worker until its claim [TASK-R25]', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+
+  it('clears a claim stamp left on the parked row and names its family’s first worker again', async () => {
+    // Scribe's run on "Press kit" was parked by an image that keeps the
+    // stamp, still naming worker 2, which "Changelog" has claimed since.
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith(CLAIM)
+        ? [
+            {
+              id: 'run-1',
+              organizationId: 'org-1',
+              execId: 'exec-1',
+              taskId: 'task-press-kit',
+              agentId: AGENT,
+              sessionId: standingWorkerSessionId(AGENT, 2),
+            },
+          ]
+        : [],
+    );
+    await expect(wakeOrganizationParkedAgentRun(sql, 'org-1')).resolves.toBe(1);
+    const restart = calls.find(
+      (call) =>
+        call.text.startsWith('UPDATE app.project_agent_runs SET') &&
+        call.text.includes('waiting_for_capacity_at_ms = NULL'),
+    );
+    expect(restart?.text).toContain('session_claimed_at_ms = NULL');
+    expect(restart?.text).toContain('session_id = ?');
+    expect(restart?.values).toContain(standingWorkerSessionId(AGENT, 1));
+    // It keeps the reason it waited for until its claim: its place in line
+    // ahead of a start that has not waited.
+    expect(restart?.text).not.toContain('waiting_reason');
   });
 });

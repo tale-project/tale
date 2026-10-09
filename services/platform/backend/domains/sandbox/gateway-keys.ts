@@ -116,9 +116,11 @@ async function revokeGatewayKeys(
  *    column downstream, unlike the token table's copy, which the run
  *    provenance ledger matches turns by and which therefore keeps its id
  *    and carries `revoked_at_ms` as the mark).
- *  - with `execId` — ONE turn of a STANDING session (a deadline-failed
- *    task-agent run): only that exec's minted key, so a sibling turn still
- *    running on the same `pa-<agentId>` session keeps its own credential.
+ *  - with `execId` — ONE turn of a project agent's worker (a
+ *    deadline-failed task-agent run): only that exec's minted key, so
+ *    another turn still running in the same worker — a steered turn's
+ *    successor, or one an older image started there during a rolling
+ *    deploy — keeps its own credential.
  *
  * A key whose remote delete did not happen hands its claim back: the token
  * row reads unrevoked again, so the next teardown pass or the settlement

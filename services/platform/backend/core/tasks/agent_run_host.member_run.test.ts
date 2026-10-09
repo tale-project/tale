@@ -285,6 +285,10 @@ describe('a run a member started', () => {
     expect(exec.instructions).not.toContain(
       'Credentials for this run are provided',
     );
+    // Its workspace is one of the member's own workers.
+    expect(exec.instructions).toContain(
+      'is kept for the runs this member starts with you; their other runs work in workspaces of their own',
+    );
   });
 
   it('names its run in its token, so the tool door can hold it to its task', async () => {
@@ -328,6 +332,10 @@ describe('a run an editor started', () => {
       'Credentials for this run are provided',
     );
     expect(exec.instructions).not.toContain('started by a member');
+    // Its workspace is its worker's own; other copies work other tasks.
+    expect(exec.instructions).toContain(
+      'belongs to this worker: other copies of you work other tasks at the same time in workspaces of their own',
+    );
   });
 });
 

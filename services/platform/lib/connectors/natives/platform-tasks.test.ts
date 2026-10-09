@@ -439,21 +439,38 @@ describe('task.start_agent', () => {
   });
 
   it('passes a start that started nothing through as data', async () => {
-    const busy = {
+    const blocked = {
       started: false,
-      reason: 'agent_busy',
-      runId: 'agent-run-2',
-      busyTaskId: 'task-2',
+      reason: 'blocked',
+      runId: null,
+      blockedBy: ['task-2'],
       taskId: 'task-1',
       agentId: 'agent-1',
     };
-    const startAgent = vi.fn().mockResolvedValue(busy);
+    const startAgent = vi.fn().mockResolvedValue(blocked);
     await expect(
       platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
         { taskId: 'task-1' },
         { organizationId: 'org-1', caller } as never,
       ),
-    ).resolves.toEqual(busy);
+    ).resolves.toEqual(blocked);
+  });
+
+  it('passes a started run that waits for a worker through as data', async () => {
+    const waiting = {
+      started: true,
+      runId: 'agent-run-3',
+      taskId: 'task-1',
+      agentId: 'agent-1',
+      waitingReason: 'org_limit',
+    };
+    const startAgent = vi.fn().mockResolvedValue(waiting);
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        { taskId: 'task-1' },
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).resolves.toEqual(waiting);
   });
 
   it.each([

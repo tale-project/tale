@@ -3,14 +3,14 @@ title: Comprendre les agents de projet
 description: Définis la responsabilité d’un agent et le rôle de son environnement, de son modèle, de ses instructions et de son équipement.
 ---
 
-Un agent de projet travaille sur les tâches d’un projet précis. Tu définis son mode d’exécution et ses accès, puis tu lui confies une tâche dont le résultat peut être vérifié. Il peut modifier des fichiers et lancer des commandes dans une sandbox. Le [relecteur configuré](/fr/platform/projects/tasks#review-default), une personne ou un agent de projet indépendant, examine le résultat avant de terminer la tâche. Les nouvelles relectures qui exigent une indépendance humaine ou des justificatifs de compétences suivent la chaîne humaine ; une relecture déjà attribuée à un agent doit être explicitement transférée à une personne autorisée.
+Un agent de projet est une configuration nommée pour les tâches d’un projet précis. Tu définis son mode d’exécution et ses accès, puis tu lui confies une tâche dont le résultat peut être vérifié. Chaque tâche sur laquelle il travaille s’exécute dans un worker, une copie de l’agent qui modifie des fichiers et lance des commandes dans sa propre sandbox. Un agent peut ainsi travailler sur plusieurs tâches à la fois. Le [relecteur configuré](/fr/platform/projects/tasks#review-default), une personne ou un agent de projet indépendant, examine le résultat avant de terminer la tâche. Les nouvelles relectures qui exigent une indépendance humaine ou des justificatifs de compétences suivent la chaîne humaine ; une relecture déjà attribuée à un agent doit être explicitement transférée à une personne autorisée.
 
 ## Choisir la forme de travail
 
 | Forme | Travail adapté | Ce que tu définis |
 | --- | --- | --- |
 | Chat | Poser une question, rechercher des connaissances ou rédiger un texte. | Le message, le modèle et, si nécessaire, le contexte du projet. |
-| Agent de projet | Examiner un dépôt, préparer des fichiers ou poursuivre une tâche sur plusieurs échanges. | Un agent réutilisable dans le projet. |
+| Agent de projet | Examiner un dépôt, préparer des fichiers ou poursuivre une tâche sur plusieurs échanges. | Une configuration d’agent réutilisable dans le projet. |
 | Automatisation | Exécuter des étapes définies, réagir à un événement ou demander une approbation entre deux actions. | Un workflow versionné et ses données d’entrée. |
 
 Un chat de projet utilise toujours l’assistant de chat intégré. Choisir un projet dans Chat ne sélectionne pas un agent du projet. Le nœud agent d’une automatisation possède sa propre configuration.
@@ -45,6 +45,6 @@ flowchart LR
 
 ## Vérifier les prérequis avant l’affectation
 
-Les identifiants du fournisseur doivent être compatibles avec l’environnement d’agent et le modèle choisis. Une sandbox doit aussi être disponible. Une réponse réussie dans Chat ne prouve aucune de ces conditions. La tâche doit préciser le résultat attendu et fournir les éléments à examiner.
+Les identifiants du fournisseur doivent être compatibles avec l’environnement d’agent et le modèle choisis. Une sandbox doit aussi être disponible : une exécution attend qu’un des [workers d’agent](/fr/platform/projects/project-agents#run-one-agent-on-several-tasks) de ton organisation se libère. Une réponse réussie dans Chat ne prouve aucune de ces conditions. La tâche doit préciser le résultat attendu et fournir les éléments à examiner.
 
 Une fois ces choix établis, [crée un agent de projet](/fr/platform/projects/project-agents). Le guide d’[automatisation des tâches](/fr/platform/projects/task-automation) explique comment démarrer, guider et examiner son travail.

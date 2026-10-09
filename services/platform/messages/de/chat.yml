@@ -47,7 +47,6 @@ createTask:
 taskTray:
   label: Aufgaben aus diesem Chat
   working: Der Agent arbeitet
-  waitingForSlot: Wartet auf einen Sandbox-Platz
   retrying: Wird erneut versucht…
   failed: Der Agent konnte sie nicht fertigstellen
   ready: Bereit zur Prüfung

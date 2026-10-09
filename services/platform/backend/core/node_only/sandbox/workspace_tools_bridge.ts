@@ -302,15 +302,20 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'or claims it is still live. A later live run of the same manager can ' +
     'replay; current grant and project authority are checked every time. ' +
     'Never fall back from a refused repair to an unguarded start. Answers ' +
-    '{started, runId, reason?}: reason stale_repair (the rejected review no ' +
+    '{started, runId, reason?, waitingReason?}. An agent working other tasks ' +
+    'is started all the same, in a worker of its own; waitingReason on a ' +
+    'started run says why it waits for room (org_limit: every agent worker ' +
+    'is in use; host: the sandbox host is full; destroy_pending: its ' +
+    'workspace is being deleted; exec_limit: its sandbox is still ending an ' +
+    'earlier process) and that it starts by itself. reason stale_repair (the rejected review no ' +
     'longer authorizes this repair; reread and retire the outdated intent), ' +
     'stale_question (that question is no ' +
     'longer open — the task was decided, a newer run or review exists, or the ' +
     'assignee changed; nothing changed), already_running (the task is being ' +
     'worked), in_review or ' +
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
-    'agent_busy (that agent is working another task — wait or work on ' +
-    'another task), blocked (an open task blocks it) or paused (three automated ' +
+    'self_start (you named yourself; hand the task to another agent), ' +
+    'blocked (an open task blocks it) or paused (three automated ' +
     'starts on this task within the hour, their automatic retries ' +
     'included) start nothing. The run answers to whoever your run ' +
     'answers to and names you as the agent that started it; an agent you ' +
