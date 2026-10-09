@@ -117,4 +117,25 @@ describe('RunStepData', () => {
       screen.getByText("This step didn't run, so there's no data."),
     ).toBeVisible();
   });
+
+  it('says whether its call to a service was made, and what a person chose', () => {
+    render(
+      <RunStepData
+        detail={detail({
+          call: {
+            kind: 'connector',
+            type: 'github.create_issue',
+            attempt: 2,
+            status: 'started',
+            startedAt: 1,
+            resolution: 'skip',
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText('github.create_issue')).toBeVisible();
+    expect(screen.getByText('May already have run')).toBeVisible();
+    expect(screen.getByText('try 2')).toBeVisible();
+    expect(screen.getByText('A person chose to skip it.')).toBeVisible();
+  });
 });

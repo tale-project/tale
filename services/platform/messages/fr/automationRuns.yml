@@ -99,6 +99,17 @@ data:
   returned: Renvoyé
   elided: Certaines valeurs étaient trop volumineuses pour être conservées en entier.
   redacted: Les secrets sont masqués.
+  call:
+    title: Appel
+    status:
+      done: Terminé
+      failed: En échec
+      started: A peut-être déjà été exécuté
+    attempt: tentative {n}
+    resolution:
+      retry: Une personne a choisi de le relancer.
+      skip: Une personne a choisi de l’ignorer.
+      fail: Une personne a choisi de faire échouer l’exécution.
   notReached: 'Cette étape ne s’est pas exécutée : il n’y a donc pas de données.'
 items:
   items: '{count, plural, one {# élément} other {# éléments}}'

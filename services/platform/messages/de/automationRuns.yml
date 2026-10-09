@@ -99,6 +99,17 @@ data:
   returned: Zurückgegeben
   elided: Manche Werte waren zu umfangreich, um sie vollständig zu speichern.
   redacted: Geheimnisse sind ausgeblendet.
+  call:
+    title: Aufruf
+    status:
+      done: Erledigt
+      failed: Fehlgeschlagen
+      started: Ist vielleicht schon gelaufen
+    attempt: Versuch {n}
+    resolution:
+      retry: Eine Person hat entschieden, ihn erneut auszuführen.
+      skip: Eine Person hat entschieden, ihn zu überspringen.
+      fail: Eine Person hat entschieden, den Lauf fehlschlagen zu lassen.
   notReached: Dieser Schritt lief nicht, deshalb gibt es keine Daten.
 items:
   items: '{count, plural, one {# Element} other {# Elemente}}'

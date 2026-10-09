@@ -99,6 +99,17 @@ data:
   returned: Returned
   elided: Some values were too large to keep in full.
   redacted: Secrets are hidden.
+  call:
+    title: Call
+    status:
+      done: Done
+      failed: Failed
+      started: May already have run
+    attempt: try {n}
+    resolution:
+      retry: A person chose to run it again.
+      skip: A person chose to skip it.
+      fail: A person chose to fail the run.
   notReached: This step didn't run, so there's no data.
 items:
   items: '{count, plural, one {# item} other {# items}}'

@@ -104,6 +104,7 @@ export function RunStepData({ detail }: { detail: NodeRunDetail }) {
   const reads = distinctReads(detail.reads);
   if (
     reads.length === 0 &&
+    detail.call === undefined &&
     detail.input === undefined &&
     detail.output === undefined
   ) {
@@ -133,6 +134,25 @@ export function RunStepData({ detail }: { detail: NodeRunDetail }) {
               );
             })}
           </ul>
+        </section>
+      )}
+      {detail.call !== undefined && (
+        <section className="flex flex-col gap-1">
+          <h4 className="text-xs font-medium">{t('data.call.title')}</h4>
+          <p className="flex flex-wrap items-center gap-x-2 text-sm">
+            <code className="font-mono text-xs">{detail.call.type}</code>
+            <span>{t(`data.call.status.${detail.call.status}`)}</span>
+            {detail.call.attempt > 1 && (
+              <Text as="span" variant="muted" className="text-xs">
+                {t('data.call.attempt', { n: detail.call.attempt })}
+              </Text>
+            )}
+          </p>
+          {detail.call.resolution !== undefined && (
+            <Text as="p" variant="muted" className="text-xs">
+              {t(`data.call.resolution.${detail.call.resolution}`)}
+            </Text>
+          )}
         </section>
       )}
       {detail.input !== undefined && (
