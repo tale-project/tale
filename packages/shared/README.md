@@ -26,6 +26,13 @@ Every subpath below is declared in `package.json` `exports`.
   projects. Platform forms/APIs and CLI validation import these same objects.
 - **`@tale/shared/schemas/configuration`** — opaque native configuration hash
   preconditions. A null hash means an absent resource.
+- **`@tale/shared/config/platform-resources`** — the native platform resource
+  model that `tale config platform`, managed deployments and the MCP settings
+  tools share: `platformResourceSchema` (one entry per declarable kind), each
+  resource's identity (`resourceId`), a declaration's cross-resource rules
+  (`platformConfigurationSchema`) and when stored state already is what was
+  asked for (`resourceConverged`). Server-only: it compares
+  `configurationHash` digests, so it sits outside the browser-safe `schemas/`.
 - **`@tale/shared/schemas/{automation-pack,automation-settings,task-contract}`**
   — automation package declarations and limits, operator settings forms and task
   bindings. Catalog reads, ZIP decoding and engine validation stay in the platform.

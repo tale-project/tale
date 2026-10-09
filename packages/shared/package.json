@@ -26,6 +26,7 @@
     "./schemas/knowledge": "./src/schemas/knowledge.ts",
     "./schemas/providers": "./src/schemas/providers.ts",
     "./schemas/configuration": "./src/schemas/configuration.ts",
+    "./config/platform-resources": "./src/config/platform-resources.ts",
     "./schemas/managed-configuration": "./src/schemas/managed-configuration.ts",
     "./schemas/connectors": "./src/schemas/connectors.ts",
     "./schemas/epoch-ms": "./src/schemas/epoch-ms.ts",

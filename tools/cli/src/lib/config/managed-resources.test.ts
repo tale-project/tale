@@ -3,6 +3,11 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import {
+  resourceId,
+  type PlatformResource,
+} from '@tale/shared/config/platform-resources';
+
 import { managedConfigurationHash } from '../../../../../services/platform/backend/core/lib/config_store/value_hash';
 import { readManagedResource } from './managed-resources';
 import {
@@ -10,11 +15,7 @@ import {
   planPlatformConfiguration,
 } from './platform-apply';
 import type { PlatformConfigurationClient } from './platform-client';
-import {
-  parsePlatformConfiguration,
-  resourceId,
-  type PlatformResource,
-} from './platform-model';
+import { parsePlatformConfiguration } from './platform-model';
 import { valueHash } from './releases/identity';
 
 const roots: string[] = [];
