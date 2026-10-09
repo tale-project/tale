@@ -1,6 +1,10 @@
 import { expect, test } from 'bun:test';
 
-import { ObservationCleanupError } from '../../lib/deployment/observation-errors';
+import {
+  ObservationCleanupError,
+  ObservationPhaseError,
+  observationPhases,
+} from '../../lib/deployment/observation-errors';
 import { CliError } from '../../utils/fail';
 import { observationBoundary, observationInput } from './observe';
 
@@ -57,4 +61,24 @@ test('an incomplete private input stream times out without exposing its bytes', 
     await new Promise(() => {});
   }
   await expect(observationInput(stalled(), 5)).rejects.toThrow('timed out');
+});
+
+test('authored phase survives the private boundary without its source failure', async () => {
+  const caught = await observationBoundary(() =>
+    observationPhases('input', async (phase) => {
+      phase('knowledge');
+      throw new CliError({
+        summary: 'synthetic-private-input',
+        cause: Error('/private/synthetic-path'),
+        next: 'synthetic-private-credential',
+      });
+    }),
+  ).catch((error: ObservationPhaseError) => error);
+  expect(caught).toBeInstanceOf(ObservationPhaseError);
+  expect(caught.phase).toBe('knowledge');
+  expect(caught.info.code).toBe(3);
+  expect(caught.info.summary).toContain('knowledge database observation');
+  expect(JSON.stringify(caught)).not.toContain('synthetic');
+  expect(caught.info.cause).toBeUndefined();
+  expect(caught.info.next).toBeUndefined();
 });

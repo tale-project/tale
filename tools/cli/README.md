@@ -210,7 +210,10 @@ It performs no provisioning, configuration apply, migration, restart, prune or
 cutover-lock acquisition. Complete reports have `ok:true` and `data.complete:true`;
 missing retained custody or owned-skill ownership preserves partial host/database
 facts with `ok:false`, `data.complete:false` and exit `3`. Identity drift and unsafe
-custody refuse. Retain partial reports for investigation; neither result is Ready
+custody refuse. Refusal summaries identify a bounded, source-authored verification
+phase without returning private input, paths, command output or native responses;
+they identify where verification stopped, not the underlying host cause. Cleanup
+refusals take precedence. Retain partial reports for investigation; neither result is Ready
 acceptance or authorization for a rollout. An external supervisor must also bound
 filesystem waits. The public CLI guide documents the full input and result contract.
 

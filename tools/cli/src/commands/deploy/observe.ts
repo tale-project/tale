@@ -4,7 +4,11 @@ import {
   observeDeployment,
   type ObserveDeploymentOptions,
 } from '../../lib/deployment/observation';
-import { ObservationCleanupError } from '../../lib/deployment/observation-errors';
+import {
+  ObservationCleanupError,
+  ObservationPhaseError,
+  observationPhases,
+} from '../../lib/deployment/observation-errors';
 import { observationFile } from '../../lib/deployment/observation-files';
 import { nativeObservationInputSchema } from '../../lib/deployment/observation-model';
 import { observeNativeDeployment } from '../../lib/deployment/observation-native';
@@ -54,7 +58,11 @@ export async function observationBoundary<T>(
   try {
     return await work();
   } catch (error) {
-    if (error instanceof ObservationCleanupError) throw error;
+    if (
+      error instanceof ObservationCleanupError ||
+      error instanceof ObservationPhaseError
+    )
+      throw error;
     throw preconditionError(
       'Deployment observation refused invalid input, unsafe custody, changed identity or incomplete verification. No deployment was performed.',
     );
@@ -104,8 +112,10 @@ export function createObserveCommand(): Command {
           throw usageError(
             'deploy observe requires --cli-ref and --deployment-ref.',
           );
-        const report = await observationBoundary(async () =>
-          observeDeployment(selected, await observationInput(process.stdin)),
+        const report = await observationBoundary(() =>
+          observationPhases('input', async () =>
+            observeDeployment(selected, await observationInput(process.stdin)),
+          ),
         );
         writeObservationResult('deploy observe', report, report.complete);
       }),
@@ -119,23 +129,25 @@ export function createNativeObserveCommand(): Command {
       action(async (_options, command: Command) => {
         assertManagedOptions(command, []);
         requireJson();
-        const report = await observationBoundary(async () => {
-          const input = nativeObservationInputSchema.parse(
-            await observationInput(process.stdin),
-          );
-          const build = (
-            await import('../../lib/deployment/build')
-          ).deploymentBuild();
-          if (
-            build.revision !== input.cliRevision ||
-            observationFile(build.binary, 256 * 1024 * 1024).sha256 !==
-              input.cliSha256
-          )
-            throw preconditionError(
-              'Native observation executable differs from its admitted source and bytes.',
+        const report = await observationBoundary(() =>
+          observationPhases('nativeInput', async () => {
+            const input = nativeObservationInputSchema.parse(
+              await observationInput(process.stdin),
             );
-          return observeNativeDeployment(input);
-        });
+            const build = (
+              await import('../../lib/deployment/build')
+            ).deploymentBuild();
+            if (
+              build.revision !== input.cliRevision ||
+              observationFile(build.binary, 256 * 1024 * 1024).sha256 !==
+                input.cliSha256
+            )
+              throw preconditionError(
+                'Native observation executable differs from its admitted source and bytes.',
+              );
+            return observeNativeDeployment(input);
+          }),
+        );
         const complete = report.status === 'observed';
         writeObservationResult('deploy observe-native', report, complete);
       }),

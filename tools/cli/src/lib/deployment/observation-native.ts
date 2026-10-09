@@ -11,7 +11,11 @@ import { loadRelease } from '../config/releases/manifest';
 import { relativePath, sha, slug } from '../config/releases/model';
 import { verifyStage } from '../config/releases/stage';
 import { configureInstance } from './identity';
-import { ObservationCleanupError } from './observation-errors';
+import {
+  ObservationCleanupError,
+  observationPhases,
+  type SetObservationPhase,
+} from './observation-errors';
 import { observationFile } from './observation-files';
 import { observationHttp } from './observation-http';
 import {
@@ -69,20 +73,32 @@ const unavailable = (
     | 'retained_owner_missing'
     | 'native_owner_unavailable',
 ) => ({ status: 'unavailable' as const, reason });
+interface NativeObservationDependencies {
+  dataDirectory?: string;
+  fetch?: NativeFetch;
+  now?: () => number;
+}
 
 /** Existing native state and GETs only. Never prepare a source capsule, validate
  * an old workflow with a new compiler, deploy a release or write a receipt. */
 export async function observeNativeDeployment(
   raw: unknown,
-  dependencies: {
-    dataDirectory?: string;
-    fetch?: NativeFetch;
-    now?: () => number;
-  } = {},
+  dependencies: NativeObservationDependencies = {},
+) {
+  return observationPhases('nativeInput', (phase) =>
+    readNativeDeployment(raw, dependencies, phase),
+  );
+}
+
+async function readNativeDeployment(
+  raw: unknown,
+  dependencies: NativeObservationDependencies,
+  phase: SetObservationPhase,
 ) {
   const input = nativeObservationInputSchema.parse(raw);
   const now = dependencies.now ?? performance.now.bind(performance);
   const started = now();
+  phase('nativeRetained');
   let state: string;
   try {
     state = nativeDeploymentStateDirectory(
@@ -154,6 +170,7 @@ export async function observeNativeDeployment(
     }
   }
   if (records.length === 0) return unavailable('retained_receipt_missing');
+  phase('nativeArtifacts');
   let stages;
   try {
     stages = directoryEntries(join(state, 'compiled'));
@@ -264,6 +281,7 @@ export async function observeNativeDeployment(
   const http = observationHttp(allowedReads, dependencies.fetch, now, budget);
   const results: unknown[] = [];
   let missingNativeOwner = false;
+  phase('nativeAuthentication');
   try {
     await configureInstance(
       {
@@ -281,6 +299,7 @@ export async function observeNativeDeployment(
         },
         fetchImpl: (url, init) => http.request(url, init),
         provision: async (context) => {
+          phase('nativeVerification');
           const cookie = context.headers().get('cookie');
           if (!cookie)
             throw preconditionError('Native observation session is missing.');
@@ -382,6 +401,7 @@ export async function observeNativeDeployment(
       'Retained native configuration verification failed; no configuration was changed.',
     );
   }
+  phase('nativeStability');
   if (http.remaining() <= 0)
     throw preconditionError('Native observation exceeded its deadline.');
   if (
