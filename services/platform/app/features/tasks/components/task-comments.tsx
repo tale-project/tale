@@ -83,6 +83,8 @@ export const TaskCommentView = withTaskActorDirectory(TaskCommentViewContent);
 
 function TaskCommentViewContent({
   comment: c,
+  taskId,
+  outputFiles,
   organizationId,
   projectId,
   canComment,
@@ -94,6 +96,8 @@ function TaskCommentViewContent({
   onRequestDelete,
 }: {
   comment: TaskCommentData;
+  taskId?: string;
+  outputFiles?: ReadonlyArray<{ fileId: string; fileName: string }>;
   organizationId: string;
   projectId: string;
   canComment: boolean;
@@ -124,6 +128,18 @@ function TaskCommentViewContent({
     ? resolveActorPreview(c.authorType, c.authorId)
     : null;
   const displayBody = pickCommentBody(c.body, c.bodyByLocale, locale);
+  const outputPathPattern =
+    taskId === undefined
+      ? undefined
+      : new RegExp(`/agent/output/${taskId}/([^\\s)]+)`);
+  const outputPath = outputPathPattern?.exec(displayBody)?.[0];
+  const outputFile = outputFiles?.find(
+    (file) => outputPath === `/agent/output/${taskId}/${file.fileName}`,
+  );
+  const outputUrl =
+    outputFile === undefined
+      ? undefined
+      : `/api/app/files/${encodeURIComponent(outputFile.fileId)}/url?orgId=${encodeURIComponent(organizationId)}&redirect=1&filename=${encodeURIComponent(outputFile.fileName)}`;
   const own =
     c.authorType === 'user' &&
     currentUserId !== undefined &&
@@ -209,6 +225,9 @@ function TaskCommentViewContent({
           organizationId={organizationId}
           projectId={projectId}
           mentions={c.mentions ?? NO_SAVED_MENTIONS}
+          {...(outputPath !== undefined && outputUrl !== undefined
+            ? { linkOverrides: { [outputPath]: outputUrl } }
+            : {})}
           className="wrap-break-word"
         />
       )}

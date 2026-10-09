@@ -129,6 +129,7 @@ export const TaskConversation = withTaskActorDirectory(TaskConversationContent);
 
 function TaskConversationContent({
   taskId,
+  outputFiles,
   organizationId,
   projectId,
   canComment,
@@ -137,6 +138,7 @@ function TaskConversationContent({
   isAdmin,
 }: {
   taskId: string;
+  outputFiles?: ReadonlyArray<{ fileId: string; fileName: string }>;
   organizationId: string;
   projectId: string;
   canComment: boolean;
@@ -307,6 +309,8 @@ function TaskConversationContent({
                       >
                         <TaskCommentView
                           comment={segment.entry.comment}
+                          taskId={taskId}
+                          outputFiles={outputFiles}
                           organizationId={organizationId}
                           projectId={projectId}
                           canComment={canComment}

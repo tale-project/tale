@@ -12,6 +12,7 @@ import { type ReactNode, useMemo } from 'react';
 import ReactMarkdown, { type Options } from 'react-markdown';
 
 import {
+  MarkdownLinkOverridesContext,
   markdownComponents,
   markdownWrapperStyles,
 } from '@/app/features/shared/markdown/markdown-renderer';
@@ -139,6 +140,7 @@ function MentionTextContent({
   organizationId,
   projectId,
   mentions: savedMentions,
+  linkOverrides,
   plainMentions = true,
   className,
 }: {
@@ -148,6 +150,8 @@ function MentionTextContent({
   /** Whom the text named when it was saved (a comment's resolved mentions):
    * a typed `@handle` shows as one of them, the one it named, or as text. */
   mentions?: ReadonlyArray<{ type: MentionKind; id: string }>;
+  /** Stable browser URLs for files the task's agent produced. */
+  linkOverrides?: Readonly<Record<string, string>>;
   /** False for a text whose `@names` are another system's people (a task
    * mirrored from GitHub or GlitchTip): typed handles stay text. */
   plainMentions?: boolean;
@@ -210,9 +214,11 @@ function MentionTextContent({
         className,
       )}
     >
-      <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
-        {text}
-      </ReactMarkdown>
+      <MarkdownLinkOverridesContext.Provider value={linkOverrides}>
+        <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
+          {text}
+        </ReactMarkdown>
+      </MarkdownLinkOverridesContext.Provider>
     </div>
   );
 }

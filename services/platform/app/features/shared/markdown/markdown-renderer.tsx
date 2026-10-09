@@ -11,7 +11,14 @@ import {
 } from '@tale/ui/table';
 import { useRouter } from '@tanstack/react-router';
 import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from 'react';
-import { Children, isValidElement, memo, useState } from 'react';
+import {
+  Children,
+  createContext,
+  isValidElement,
+  memo,
+  useContext,
+  useState,
+} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -24,6 +31,11 @@ import { useCitationsContext } from './citations-context';
 import { CodeBlock, HighlightedCode } from './code-block';
 import { ImagePreviewDialog } from './image-preview-dialog';
 import { PaginatedMarkdownTable } from './paginated-markdown-table';
+
+/** Link replacements supplied by a surface that owns stored files. */
+export const MarkdownLinkOverridesContext = createContext<
+  Readonly<Record<string, string>> | undefined
+>(undefined);
 
 export const markdownWrapperStyles = cn(
   '[&_p:not(:last-child)]:mb-2',
@@ -118,6 +130,9 @@ function MarkdownAnchor({
   ...rest
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const router = useRouter();
+  const linkOverrides = useContext(MarkdownLinkOverridesContext);
+  const resolvedHref = href === undefined ? undefined : linkOverrides?.[href];
+  href = resolvedHref ?? href;
   const classified = classifyLink(href);
 
   if (!classified) {

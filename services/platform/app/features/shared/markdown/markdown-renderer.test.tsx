@@ -5,9 +5,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render } from '@/tests/utils/render';
 
-import { MarkdownContent, markdownComponents } from './markdown-renderer';
+import {
+  MarkdownContent,
+  MarkdownLinkOverridesContext,
+  markdownComponents,
+} from './markdown-renderer';
 
 afterEach(() => vi.restoreAllMocks());
+
+const OUTPUT_LINK_OVERRIDES = {
+  '/agent/output/task-1/report.md': '/api/app/files/file-1/url',
+};
 
 describe('MarkdownContent', () => {
   it('keeps large content parsed across unrelated parent and styling updates', () => {
@@ -30,6 +38,21 @@ describe('MarkdownContent', () => {
 });
 
 describe('markdownComponents', () => {
+  it('replaces a surface-owned file link with its stored browser URL', () => {
+    const path = '/agent/output/task-1/report.md';
+    const { container } = render(
+      <MarkdownLinkOverridesContext.Provider value={OUTPUT_LINK_OVERRIDES}>
+        <ReactMarkdown components={markdownComponents}>
+          {`[report](${path})`}
+        </ReactMarkdown>
+      </MarkdownLinkOverridesContext.Provider>,
+    );
+    expect(container.querySelector('a')).toHaveAttribute(
+      'href',
+      '/api/app/files/file-1/url',
+    );
+  });
+
   it('lets lists inherit the answer’s text colour', () => {
     // The shared map draws lists in the muted docs-prose tone; in an answer
     // whose paragraphs are full contrast that read as a de-emphasised aside.

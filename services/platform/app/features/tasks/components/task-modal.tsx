@@ -2141,6 +2141,7 @@ export function EditTaskBody({
   const conversationNode = (
     <TaskConversation
       taskId={task._id}
+      outputFiles={task.outputs ?? []}
       organizationId={task.organizationId}
       projectId={task.projectId}
       canComment={canComment}
