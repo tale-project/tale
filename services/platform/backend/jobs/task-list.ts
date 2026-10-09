@@ -204,6 +204,10 @@ const driveSchema = z.object({
   // drive continuation carries it or a later kick's resume check degrades
   // to the op-recovered leg.
   sessionCreatedAt: z.number().optional(),
+  // Since when the turn's spawner has been out of reach: the continuation
+  // carries it while the spawner stays away, so the outage budget counts
+  // from its start rather than from each window.
+  spawnerOutageSince: z.number().optional(),
 });
 
 const steerSchema = z.object({
@@ -1542,6 +1546,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           providerSlug: z.string().min(1),
           gatewayModel: z.string().min(1),
           deadlineAt: z.number(),
+          // See the task lane's drive schema.
+          spawnerOutageSince: z.number().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 drive window on the ctx shim: it replays the exec's
