@@ -17,6 +17,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { matchDocsReply } from '../../lib/mocks/overrides/docs-replies';
 import { E2E_PASSWORD } from '../e2e/helpers/auth';
+import { uploadAutomationDraft } from '../e2e/helpers/automations';
 import {
   deleteThreadById,
   messageLog,
@@ -33,6 +34,7 @@ import {
   DEMO_DEPARTING_MEMBER,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
+  DEMO_FAILED_RUN,
   DEMO_INBOX,
   DEMO_INBOX_KEY_NAME,
   DEMO_INBOX_SOURCE,
@@ -1559,6 +1561,46 @@ async function ensureAutomationTestRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/**
+ * One failed test run of the demo invoice digest, so the failed-run shot
+ * shows the run page's failure focus. The digest is uploaded as a draft
+ * through the list's Create menu, then started with Test run like a reader
+ * would; it declares no input, so the run starts without a dialog.
+ * Idempotent — any run of it is enough, and an earlier upload is reused.
+ */
+async function ensureAutomationFailedRun(
+  page: Page,
+  orgId: string,
+): Promise<void> {
+  const automationRoute = `/dashboard/${orgId}/automations/${DEMO_FAILED_RUN.automation}`;
+  const runsRoute = `${automationRoute}/runs`;
+  const runRow = page.locator(`a[href*="/runs/"]`);
+  await page.goto(runsRoute);
+  if (await alreadySeeded(runRow)) return;
+
+  const versionSelect = page.getByRole('button', {
+    name: t('automations.detail.versionSelect'),
+    exact: true,
+  });
+  await page.goto(`${automationRoute}/editor`);
+  if (!(await alreadySeeded(versionSelect))) {
+    await uploadAutomationDraft(page, orgId, DEMO_FAILED_RUN.workflow);
+    await page.goto(`${automationRoute}/editor`);
+  }
+  await expect(versionSelect).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await page
+    .getByRole('button', { name: t('automations.detail.runMock'), exact: true })
+    .click();
+
+  const failed = page.getByText(t('automations.runs.status.failed'), {
+    exact: true,
+  });
+  await expect(async () => {
+    await page.goto(runsRoute);
+    await expect(failed.first()).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  }).toPass({ timeout: TIMEOUT.EXECUTION });
+}
+
 export function webdavPasswordRow(page: Page, label: string): Locator {
   return page.getByRole('row').filter({
     has: page.getByText(label, { exact: true }),
@@ -1848,6 +1890,9 @@ export async function seedDemoOrg(
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('automation test run', () => ensureAutomationTestRun(page, orgId));
+  await step('automation failed run', () =>
+    ensureAutomationFailedRun(page, orgId),
+  );
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('API keys', () => ensureApiKeys(page, orgId));

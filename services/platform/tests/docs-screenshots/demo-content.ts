@@ -520,6 +520,53 @@ export const DEMO_TEST_RUN = {
   input: { owner: 'tale-project', repo: 'tale' },
 } as const;
 
+/**
+ * The failed run the docs show (the run page's failure focus): a TEST run of
+ * a small demo automation, uploaded as a draft, that stops at Totals because
+ * one of the week's invoices carries no amount. Transforms only — no
+ * connector, model or secret — so it fails the same way on every stack.
+ * Its name stays clear of "triage", which the catalog shot searches for.
+ */
+export const DEMO_FAILED_RUN = {
+  automation: 'invoice-digest',
+  failsAt: 'totals',
+  workflow: `name: invoice-digest
+description: Sum the week's open invoices per customer and write the digest.
+nodes:
+  - id: invoices
+    type: transform
+    code: |
+      return {
+        invoices: [
+          { customer: 'Atelier Lumen', amount: 1200 },
+          { customer: 'Northwind', amount: 860 },
+          { customer: 'Globex', amount: null },
+        ],
+      };
+  - id: totals
+    type: transform
+    input:
+      invoices: '{{ nodes.invoices.output.invoices }}'
+    code: |
+      const totals = {};
+      for (const invoice of input.invoices) {
+        if (typeof invoice.amount !== 'number') {
+          throw new Error('The invoice for ' + invoice.customer + ' has no amount');
+        }
+        totals[invoice.customer] = (totals[invoice.customer] ?? 0) + invoice.amount;
+      }
+      return { totals };
+  - id: digest
+    type: transform
+    input:
+      totals: '{{ nodes.totals.output.totals }}'
+    code: |
+      const lines = Object.entries(input.totals).map(([customer, amount]) => customer + ': ' + amount);
+      return { text: lines.join('\\n') };
+output: '{{ nodes.digest.output }}'
+`,
+} as const;
+
 export const DEMO_PROVIDER_CREDENTIAL = 'Production key';
 export const MOCK_PROVIDER_DISPLAY_NAME = 'E2E Mock Gateway';
 /** The mock provider's slug — the `name` in `docs-demo/providers/e2e-mock.yml`. */
