@@ -4,9 +4,9 @@
       "type": "object",
       "properties": {
         "topic": {
-          "description": "Which reference: \"authoring\" (the default — the automation grammar and every method), \"triggers\" (what starts an automation, each kind's fields and the events), \"validation\" (how to read a validation result, and every issue code) or \"skill\" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.",
+          "description": "Which reference: \"authoring\" (the default — the automation grammar and every method), \"triggers\" (what starts an automation, each kind's fields and the events), \"validation\" (how to read a validation result, and every issue code), \"settings\" (every kind of setting with its fields, the effects of a plan and every refusal) or \"skill\" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.",
           "type": "string",
-          "enum": ["authoring", "triggers", "validation", "skill"]
+          "enum": ["authoring", "triggers", "validation", "settings", "skill"]
         }
       },
       "additionalProperties": false

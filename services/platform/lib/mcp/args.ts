@@ -187,7 +187,7 @@ export const ENGINE_TOOL_ARGS = {
       .enum(MCP_DOC_TOPICS)
       .optional()
       .describe(
-        'Which reference: "authoring" (the default — the automation grammar and every method), "triggers" (what starts an automation, each kind\'s fields and the events), "validation" (how to read a validation result, and every issue code) or "skill" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.',
+        'Which reference: "authoring" (the default — the automation grammar and every method), "triggers" (what starts an automation, each kind\'s fields and the events), "validation" (how to read a validation result, and every issue code), "settings" (every kind of setting with its fields, the effects of a plan and every refusal) or "skill" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.',
       ),
   }),
   get_catalog: z.strictObject({

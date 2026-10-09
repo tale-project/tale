@@ -538,7 +538,7 @@
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  *
- * 3.28.0 — 2026-10-09: the MCP endpoint reads, plans and changes the
+ * 3.30.0 — 2026-10-10: the MCP endpoint reads, plans and changes the
  * organization's settings, in a new `settings` group. `get_settings`
  * answers, without `kinds`, the catalog of setting kinds (what each is, its
  * `ops` and `acts`, `baseRisk`, the Settings pages it covers, whether this
@@ -555,7 +555,14 @@
  * `skipped`. It asks the person before every call and draws from a new
  * `rest:settings` budget (30 a minute, 60 at once). No argument may carry a
  * secret (`SECRET_ARGUMENT_REFUSED`); further codes `SETTINGS_KIND_UNAVAILABLE`,
- * `SETTINGS_NOT_FOUND` and `SETTINGS_DUPLICATE`. The server instructions
- * name the settings loop. No REST operation changes.
+ * `SETTINGS_NOT_FOUND` and `SETTINGS_DUPLICATE`. The kinds served are the
+ * organization's own providers and their environment credentials, its
+ * policies, embedding model and branding, the deployment's settings, and a
+ * project's instructions and its agents' instructions and tools and a
+ * task's description, each through the writer its Settings page uses.
+ * `get_docs` takes the topic `settings` (also `tale://docs/settings`): every
+ * kind with its config's fields, the effects of a plan and every refusal.
+ * The server instructions and the Tale skill name the settings loop. No
+ * REST operation changes.
  */
-export const API_CONTRACT_VERSION = '3.28.0';
+export const API_CONTRACT_VERSION = '3.30.0';

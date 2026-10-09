@@ -16,7 +16,7 @@ describe('the references get_docs serves beside the authoring one', () => {
         expect(mcpDocs(topic)?.length ?? 0, topic).toBeGreaterThan(0);
       }
     }
-    expect(mcpDocs('settings')).toBeUndefined();
+    expect(mcpDocs('billing')).toBeUndefined();
   });
 
   it('states the trigger delivery rules the backend enforces', () => {

@@ -64,6 +64,11 @@ const DOC_TITLES: Readonly<
     description:
       'How to read what validate_automation answers, and every issue code with its level and the rule it protects.',
   },
+  settings: {
+    title: 'Settings reference',
+    description:
+      "How to read, plan and change the organization's settings: every kind with its config's fields, what each effect of a plan means, and every refusal.",
+  },
   skill: {
     title: 'The Tale skill (SKILL.md)',
     description:
