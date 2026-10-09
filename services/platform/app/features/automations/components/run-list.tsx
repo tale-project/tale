@@ -12,6 +12,7 @@ import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 
 import { useRunStarterLabel } from '../hooks/use-run-starter-label';
+import { isRunFailureCode, runFailureText } from '../lib/run-failure';
 import { readRunStatus, runReasonKey } from '../lib/run-view';
 import { RunBadge } from './run-status-badge';
 
@@ -28,6 +29,8 @@ export interface AutomationRunSummary {
   /** A running run waiting for a server to take it over. */
   stalled?: boolean;
   detail?: string;
+  /** Why a failed run failed, as a stable code. */
+  failureCode?: string;
   startedAt: number;
   finishedAt?: number;
 }
@@ -55,6 +58,7 @@ export function RunList({
   headingId: string;
 }) {
   const { t } = useT('automations');
+  const { t: tRuns } = useT('automationRuns');
   const { formatDate } = useFormatDate();
   const starterLabel = useRunStarterLabel(organizationId);
 
@@ -64,9 +68,12 @@ export function RunList({
   const rowText = (run: AutomationRunSummary): string => {
     const reason = runReasonKey(run);
     if (reason === undefined) return starterLabel(run);
-    return reason.kind === 'failed'
-      ? reason.detail
-      : t(reason.key, reason.values);
+    if (reason.kind !== 'failed') return t(reason.key, reason.values);
+    // A failure the run named reads in the reader's words; an older run's
+    // only account of it is the engine's sentence.
+    return isRunFailureCode(run.failureCode)
+      ? runFailureText(run.failureCode, { t: tRuns }).title
+      : reason.detail;
   };
 
   if (runs.length === 0) {

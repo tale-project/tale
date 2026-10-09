@@ -13,6 +13,7 @@ again:
     body: '{count, plural, one {Cela envoie à nouveau # écriture vers {connectors}, comme la dernière exécution.} other {Cela envoie à nouveau # écritures vers {connectors}, comme la dernière exécution.}}'
     confirm: Relancer en réel
   refused: Impossible de lancer l’exécution. {detail}
+  comparePrevious: Comparer avec l’exécution précédente
   copyId: Copier l’ID de l’exécution
   idCopied: ID de l’exécution copié
   copyLink: Copier le lien

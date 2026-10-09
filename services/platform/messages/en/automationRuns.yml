@@ -13,6 +13,7 @@ again:
     body: '{count, plural, one {This sends # write to {connectors} again, as the last run did.} other {This sends # writes to {connectors} again, as the last run did.}}'
     confirm: Run again live
   refused: Couldn't start the run. {detail}
+  comparePrevious: Compare with the previous run
   copyId: Copy run ID
   idCopied: Run ID copied
   copyLink: Copy link

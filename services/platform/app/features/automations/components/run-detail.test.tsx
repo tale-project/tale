@@ -83,6 +83,7 @@ vi.mock('../hooks/queries', async (importOriginal) => {
       isError: false,
     }),
     useRunPendingAsk: () => ({ data: null }),
+    useAutomationRuns: () => ({ data: [] }),
     useRunRecord: () => ({ data: state.record }),
     useReplayPlan: () => ({
       data: undefined,

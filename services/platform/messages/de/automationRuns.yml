@@ -13,6 +13,7 @@ again:
     body: '{count, plural, one {Dabei wird erneut # Schreibvorgang an {connectors} gesendet, wie im letzten Lauf.} other {Dabei werden erneut # Schreibvorgänge an {connectors} gesendet, wie im letzten Lauf.}}'
     confirm: Erneut live ausführen
   refused: Der Lauf konnte nicht gestartet werden. {detail}
+  comparePrevious: Mit dem vorherigen Lauf vergleichen
   copyId: Lauf-ID kopieren
   idCopied: Lauf-ID kopiert
   copyLink: Link kopieren

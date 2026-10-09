@@ -17,7 +17,7 @@
  */
 
 import {
-  isRunFailureCode,
+  isRunFailureCode as isKnownRunCode,
   type RunFailureCode,
 } from '@/backend/core/automations/failure';
 import {
@@ -254,13 +254,20 @@ export function failureParamsForText(
   return values;
 }
 
+/** Whether `code` is a run failure code this build has words for. */
+export function isRunFailureCode(
+  code: string | null | undefined,
+): code is RunFailureCode {
+  return code !== null && code !== undefined && isKnownRunCode(code);
+}
+
 /** The title, meaning and fix of a run's failure code; generic words for no
  * code, or one this build does not know. */
 export function runFailureText(
   code: string | null | undefined,
   ctx: Pick<FailureTextContext, 't'>,
 ): FailureText {
-  if (code === null || code === undefined || !isRunFailureCode(code)) {
+  if (!isRunFailureCode(code)) {
     return {
       title: say(ctx.t, 'runFailure.unknown.title'),
       explanation: say(ctx.t, 'runFailure.unknown.explanation'),

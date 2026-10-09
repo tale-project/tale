@@ -197,3 +197,31 @@ describe('RunActions — Edit input and run', () => {
     expect(posts[0]).not.toHaveProperty('input');
   });
 });
+
+describe('RunActions — Compare', () => {
+  it('compares the run with the one before it', async () => {
+    const onComparePrevious = vi.fn();
+    const { user } = renderActions({ onComparePrevious });
+
+    await user.click(
+      screen.getByRole('button', { name: 'More ways to run again' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', {
+        name: 'Compare with the previous run',
+      }),
+    );
+    expect(onComparePrevious).toHaveBeenCalled();
+  });
+
+  it('offers no comparison for a first run', async () => {
+    const { user } = renderActions();
+    await user.click(
+      screen.getByRole('button', { name: 'More ways to run again' }),
+    );
+    await screen.findByRole('menuitem', { name: 'Copy run ID' });
+    expect(
+      screen.queryByRole('menuitem', { name: 'Compare with the previous run' }),
+    ).toBeNull();
+  });
+});

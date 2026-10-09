@@ -8,7 +8,14 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { useCopy } from '@tale/ui/use-copy';
 import { toast } from '@tale/ui/use-toast';
-import { Copy, EllipsisVertical, Link2, Pencil, RotateCw } from 'lucide-react';
+import {
+  ArrowLeftRight,
+  Copy,
+  EllipsisVertical,
+  Link2,
+  Pencil,
+  RotateCw,
+} from 'lucide-react';
 import { useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
@@ -51,6 +58,9 @@ export interface RunActionsProps {
   writes: { count: number; connectors: readonly string[] };
   /** The run's page address, for Copy link. */
   href: string;
+  /** Opens the comparison of the run before this one with this one; left
+   *  out when there is none. */
+  onComparePrevious?: () => void;
   onStarted: (started: ReplayStarted) => void;
 }
 
@@ -70,6 +80,7 @@ export function RunActions({
   canStartLive,
   writes,
   href,
+  onComparePrevious,
   onStarted,
 }: RunActionsProps) {
   const { t } = useT('automationRuns');
@@ -203,6 +214,17 @@ export function RunActions({
         ]
       : []),
   ];
+  const compareItems =
+    onComparePrevious === undefined
+      ? []
+      : [
+          {
+            type: 'item' as const,
+            label: t('again.comparePrevious'),
+            icon: ArrowLeftRight,
+            onClick: onComparePrevious,
+          },
+        ];
   const copyItems = [
     {
       type: 'item' as const,
@@ -251,7 +273,11 @@ export function RunActions({
             aria-label={t('again.menu')}
           />
         }
-        items={[items, copyItems]}
+        items={
+          compareItems.length > 0
+            ? [items, compareItems, copyItems]
+            : [items, copyItems]
+        }
       />
       {editing && (
         <RunEditInputDialog

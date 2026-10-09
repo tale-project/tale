@@ -180,7 +180,19 @@ describe('RunList reasons', () => {
     expect(screen.queryByText(/agent:/)).toBeNull();
   });
 
-  it('keeps the failure sentence of a failed run', () => {
+  it('says a named failure in the reader’s words, never the engine’s', () => {
+    renderRuns([
+      run({
+        status: 'failed',
+        detail: 'send: no usable credential for imap-smtp',
+        failureCode: 'connector_error',
+      }),
+    ]);
+    expect(screen.getByText('A service call failed')).toBeVisible();
+    expect(screen.queryByText(/no usable credential/)).toBeNull();
+  });
+
+  it('keeps the engine’s sentence for an older failed run without a code', () => {
     renderRuns([
       run({
         status: 'failed',

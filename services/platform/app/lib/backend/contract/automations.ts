@@ -458,6 +458,8 @@ export interface AutomationsContract {
       finishedAt?: number;
       startedAt: number;
       detail?: string;
+      /** Why a `failed` run failed, as a stable code (`Run.failureCode`). */
+      failureCode?: string;
       id: string;
       name: string;
       version: number;

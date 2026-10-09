@@ -31,6 +31,7 @@ import { useCancelAutomationRun } from '../hooks/mutations';
 import {
   useAutomation,
   useAutomationRun,
+  useAutomationRuns,
   useNodeTypeCatalog,
   useRunPendingAsk,
   useRunRecord,
@@ -175,6 +176,8 @@ function RunDetailBody({
   );
   // The latest version, for a retry on it.
   const latestQuery = useAutomation(organizationId, automationSlug);
+  // The Runs tab's own read: the run before this one, to compare with.
+  const runsQuery = useAutomationRuns(organizationId, automationSlug, 50);
   // The run step by step: the canvas plays it back, and a failed run's
   // card names the step it failed at.
   const recordQuery = useRunRecord(organizationId, run ? runId : undefined, {
@@ -269,6 +272,17 @@ function RunDetailBody({
     automationSlug,
     ...(run?.projectId !== undefined && { projectId: run.projectId }),
   })}/runs`;
+  const previousRunId = useMemo(() => {
+    if (run === null) return undefined;
+    let previous: { id: string; startedAt: number } | undefined;
+    for (const other of runsQuery.data ?? []) {
+      if (other.id === run.id || other.startedAt >= run.startedAt) continue;
+      if (previous === undefined || other.startedAt > previous.startedAt) {
+        previous = other;
+      }
+    }
+    return previous?.id;
+  }, [run, runsQuery.data]);
   const openRun = useCallback(
     (started: { runId: string }) => {
       void navigate({ to: `${runsPath}/${started.runId}` });
@@ -510,6 +524,14 @@ function RunDetailBody({
             canStartLive={canStartLive}
             writes={writes}
             href={`${runsPath}/${run.id}`}
+            {...(previousRunId !== undefined && {
+              onComparePrevious: () => {
+                void navigate({
+                  to: `${runsPath}/compare`,
+                  search: { a: previousRunId, b: run.id },
+                });
+              },
+            })}
             onStarted={openRun}
           />
         )}
