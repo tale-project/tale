@@ -436,7 +436,10 @@ Declare an `automation-deployment` for the same name and project, with
 serialized as compact JSON with object keys sorted recursively. Arrays retain their
 order. The CLI refuses a different digest. A schedule also requires both phases in
 the same declaration. Its `automation-schedule` configuration has `projectId`,
-`name`, `cron`, `timezone` and `enabled`. Application saves definitions, promotes their
+`name`, `cron`, `timezone` and `enabled`, and optionally `wakeOnSlotFreed: true`, which
+also fires the schedule as soon as an agent of its project frees its slot; leave it out
+to opt out. Only one enabled schedule per project may set it: a second one, or binding its
+automation to a project another schedule already wakes, is refused with 409. Application saves definitions, promotes their
 exact tested versions, then reconciles schedules. Existing runs retain their version.
 
 Equal resources are no-ops. Interrupted phases reconcile native readback before

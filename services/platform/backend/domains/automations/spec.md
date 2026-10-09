@@ -289,6 +289,73 @@ triggers count the same way and are never switched off.
   fifth run fails the same way → the schedule is switched off and marked
   `paused_after_failures`.
 
+## Waking a standing role
+
+A schedule that runs a project's standing role (the agent that hands out work) can opt in to
+`wakeOnSlotFreed` through managed configuration. When an agent of its project then finishes
+its run in one of its standing workers and that worker is free, the release is recorded on the
+project's wake, and the schedule fires once more before its next cron minute, as an ordinary
+occurrence under its own authority. Releases that arrive while one is pending add up to one
+wake.
+
+### AUTO-R29 · Only an enabled schedule wakes a project, and only one at a time
+
+The opt-in belongs to schedules: on a webhook or an event trigger it is refused, and changing
+a schedule to another kind clears it. A save that leaves it out keeps it. Saving a second
+enabled schedule that opts in for a project another enabled schedule already wakes is refused
+(`AUTOMATION_TRIGGER_INVALID`, 409), and nothing is saved. So is installing an automation whose
+schedule wakes its projects in a project another schedule already wakes, and so is the later of
+two saves or installs that race for one project; a refused install binds no project at all.
+This holds whoever writes the schedule or the installation — the previous version too, while a
+deployment rolls — and for an install that began before the schedule changed; two changes that
+would trade projects are refused whole, never left half-done. Installing and moving automations
+whose schedules wake no project adds no wait on another project’s wake claim; the definition
+audit still serializes changes in the organization. A schedule paused by its failures (`AUTO-R13`) keeps its projects until a person saves
+it; one a person switches off gives them up.
+
+- **Example**: Mia's "Dispatch" schedule wakes the Fleet project. She opts in "Nightly sweep",
+  bound to the same project, and saves it enabled → refused, naming "Dispatch".
+
+### AUTO-R30 · A slot release is recorded with its run's end, or not at all
+
+The release is written in the same transaction as the run's end. If it cannot be written, the
+run does not end either, and whatever ends it later records the release then; a release is
+never dropped while the run's end stays.
+
+- **Example**: Leo's agent finishes while the project's wake cannot be written → the run
+  stays running, and when it ends after all, exactly one release is recorded.
+
+### AUTO-R31 · Only a manager turn that launched and settled covers a release
+
+A wake occurrence's start remembers which releases it saw. Only when that manager turn
+launches and settles are those releases covered. A cancel, queued or running, a failure no
+retry follows, or a start alone covers nothing, and the wake stays pending.
+
+- **Example**: Ana cancels the manager's queued turn that a wake started → the release stays
+  pending, and the wake fires again after its first backoff step.
+
+### AUTO-R32 · A role's own runs never wake it
+
+A run the waking schedule started, its automatic retries, and any other run on the manager's
+own card never record a release, so the role cannot start itself in a loop.
+
+- **Example**: Mia's manager agent settles the turn its schedule started → no release is
+  recorded for it.
+
+### AUTO-R33 · A wake that cannot fire waits for a named reason, and never gives up
+
+A pending wake waits while the manager’s own card has a live run or an armed retry, while its
+card would refuse the start or is no longer assigned to it,
+until the task's automated-start limit allows exactly the next start (`retryAfter`), or for a
+backoff after an occurrence that did not serve: one minute, doubling, at most an hour, with no
+limit on attempts. A schedule paused by its failures (`AUTO-R13`), switched off or opted out
+is mirrored with its reason, and the pending wake fires once it is saved again. Other tasks of
+the same agent do not hold the wake; the new manager run claims its own worker or waits for
+capacity through ordinary worker admission.
+
+- **Example**: Leo's dispatch schedule fails three wake occurrences in a row → the wake waits
+  one, two, then four minutes, and fires the same pending release again after that.
+
 ## When a run ends
 
 ### AUTO-R14 · A run that ends takes its open approvals and questions with it
@@ -451,6 +518,13 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
 - **Schedules in detail**: daylight-saving changes, two scans meeting the same occurrence, a
   cron expression that became unreadable (`triggers.ts`, `backend/core/automations/cron.ts`).
 - **Triggers of an organization that no longer exists** (`triggers.ts`).
+- **The wake fire end to end**: that a pending wake fires its schedule early, at most once a
+  minute and never while an occurrence of it is live; that each scan visits the pending wakes
+  least recently visited first, so wakes that cannot fire never keep a later one from firing; the start that captures the releases;
+  the exact `retryAfter`; the lock order of a completion retried behind the audit chain
+  (`automations/wakes.ts`, `tasks/slot-wakes.ts`). Only the integration lane
+  (`checkStandingRoleWake` in `backend/integration-check.ts`) proves them, and the guard does
+  not read it.
 - **Switching a trigger off**: what it stops beyond the next start, such as a project agent a
   schedule had started (`triggers.ts`, `backend/core/automations/agent_host.ts`).
 - **Names**: the grammar of a name, the first words the platform keeps for its own pages, and

@@ -48,6 +48,7 @@ import {
   TaskError,
   type TaskRow,
 } from '../tasks/service.ts';
+import { wakeGenerationForStart } from '../tasks/slot-wakes.ts';
 
 function issueImportQueueKey(
   organizationId: string,
@@ -521,6 +522,13 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           run.projectId !== null
             ? [run.projectId]
             : await bindingProjectIds(tx, organizationId, run.name);
+        // A wake target's start captures the releases its snapshot sees: a
+        // plain read, no lock and no write (`slot-wakes.ts`).
+        const wakeAdmittedSeq = await wakeGenerationForStart(tx, {
+          organizationId,
+          taskId,
+          startedBy: run.startedBy,
+        });
         return startDelegatedAgentRun(tx, {
           organizationId,
           scopeProjectIds,
@@ -536,6 +544,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           ...(agentId !== undefined ? { agentId } : {}),
           ...(feedback !== undefined ? { feedback } : {}),
           ...(moveToInProgress !== undefined ? { moveToInProgress } : {}),
+          ...(wakeAdmittedSeq !== undefined ? { wakeAdmittedSeq } : {}),
         });
       });
       // Whether the run it started waits for a worker, read once the start

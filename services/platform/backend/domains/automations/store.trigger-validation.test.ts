@@ -154,6 +154,12 @@ describe('assertTriggerValid [AUTO-R10]', () => {
       'rotateToken',
       'webhook',
     ],
+    [{ kind: 'webhook', wakeOnSlotFreed: true }, 'wakeOnSlotFreed', 'schedule'],
+    [
+      { kind: 'event', event: 'contact.created', wakeOnSlotFreed: false },
+      'wakeOnSlotFreed',
+      'schedule',
+    ],
   ] as const)(
     'refuses %j — the key belongs to another kind',
     (trigger, key, owner) => {

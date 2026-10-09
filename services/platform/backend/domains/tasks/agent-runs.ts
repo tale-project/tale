@@ -40,12 +40,12 @@ import {
   announceAgentRunFailed,
   withdrawAgentRunFailedNotices,
 } from './run-failure-notice.ts';
-import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 import {
   assertTaskAutomationEnabled,
   lockTaskRunStart,
   readInPlaceRetryState,
 } from './run-start.ts';
+import { recordRunTerminalInTx } from './slot-wakes.ts';
 
 /**
  * The project-agent run ledger over PG — the 0.5 twin of
@@ -112,10 +112,10 @@ export interface AgentRunRow {
   trigger: string | null;
   feedback: string | null;
   waitingForCapacityAt: number | null;
-  /** Why the run waits (migration 0167) — only while it is parked; null
+  /** Why the run waits (migration 0168) — only while it is parked; null
    * otherwise, and on a park that kept no reason. */
   waitingReason: AgentRunWaitingReason | null;
-  /** When the run took its worker (migration 0167); null while it holds
+  /** When the run took its worker (migration 0168); null while it holds
    * none — before its start claimed one, and after a park gave it back. */
   sessionClaimedAt: number | null;
   agentSessionId: string | null;
@@ -267,6 +267,11 @@ export interface KickAgentRunArgs {
    * there, so the run lands where it looked. Absent, the kick chooses it
    * from the starter. */
   sessionId?: string;
+  /** The wake generation an admitted start of the project's wake target
+   * covers (`wakeGenerationForStart`, migration 0168): read from the
+   * admission's own snapshot. Only the occurrence's slot-receipt run carries
+   * it; an auto-retry never copies it. */
+  wakeAdmittedSeq?: number;
 }
 
 /**
@@ -386,7 +391,8 @@ export async function kickAgentRun(
       auto_retry_attempt, started_by, started_at_ms, deadline_at_ms,
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
       started_via_automation, started_via_agent_id, in_place,
-      in_place_retry_status, in_place_retry_activity_id, api_key_id
+      in_place_retry_status, in_place_retry_activity_id, api_key_id,
+      wake_admitted_seq
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
@@ -401,7 +407,8 @@ export async function kickAgentRun(
       ${via?.kind === 'automation' ? via.automation : null},
       ${via?.kind === 'agent' ? via.agentId : null},
       ${inPlace}, ${retryState?.status ?? null},
-      ${retryState?.activityId ?? null}, ${args.apiKeyId ?? null}
+      ${retryState?.activityId ?? null}, ${args.apiKeyId ?? null},
+      ${args.wakeAdmittedSeq ?? null}::bigint
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id
@@ -583,7 +590,7 @@ export async function settleAgentRunInTx(
     `;
   const run = rows[0];
   if (run === undefined) return false;
-  await recordTaskAgentRunLedgerEntry(tx, {
+  await recordRunTerminalInTx(tx, {
     runId: args.runId,
     organizationId: run.organizationId,
     finalStatus: 'settled',
@@ -651,7 +658,7 @@ export async function failAgentRunFromTurn(
     `;
     const run = flipped[0];
     if (run === undefined) return false;
-    await recordTaskAgentRunLedgerEntry(tx, {
+    await recordRunTerminalInTx(tx, {
       runId: args.runId,
       organizationId: run.organizationId,
       finalStatus: 'failed',
@@ -727,7 +734,7 @@ export async function failAgentRun(
     // Inside the election's transaction: the provenance entry still reads
     // the turn's token row by key id, which the revoke below leaves in
     // place (it marks `revoked_at_ms`, it does not drop the id).
-    await recordTaskAgentRunLedgerEntry(tx, {
+    await recordRunTerminalInTx(tx, {
       runId: args.runId,
       organizationId: args.organizationId,
       finalStatus: 'failed',
@@ -801,7 +808,7 @@ export async function cancelAgentRunInTx(
   `;
   const run = rows[0];
   if (run === undefined) return false;
-  await recordTaskAgentRunLedgerEntry(tx, {
+  await recordRunTerminalInTx(tx, {
     runId: args.runId,
     organizationId: args.organizationId,
     finalStatus: 'cancelled',
@@ -1259,8 +1266,8 @@ export async function getLatestAgentRunCardForTask(
  * captured decision: old writers may still fail them during a rolling
  * deployment, but the new worker cannot safely retry them.
  */
-async function failedRunRetryPending(
-  sql: Sql,
+export async function failedRunRetryPending(
+  sql: Sql | TransactionSql,
   taskId: string,
   runId: string,
 ): Promise<boolean> {

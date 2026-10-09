@@ -28,6 +28,7 @@ import {
   sweepOverdueRuns,
 } from '../domains/automations/store.ts';
 import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
+import { fireDueProjectWakes } from '../domains/automations/wakes.ts';
 import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
@@ -775,6 +776,19 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.log(
           `[automations] trigger scan fired ${result.fired}/${result.examined} (${result.pages} page${result.pages === 1 ? '' : 's'})`,
         );
+      }
+      // After the schedule walk: a project whose opted-in schedule has a
+      // pending slot release fires it early (`automations/wakes.ts`). Its
+      // failure is logged and never costs the scan its marker below.
+      try {
+        const wakes = await fireDueProjectWakes(deps.sql);
+        if (wakes.fired > 0 || wakes.failed > 0) {
+          console.log(
+            `[wakes] fired ${wakes.fired}/${wakes.examined} pending (waiting ${wakes.waiting}, busy ${wakes.busy}, failed ${wakes.failed})`,
+          );
+        }
+      } catch (error) {
+        console.error('[wakes] wake scan failed:', error);
       }
       // A missing organization table returns before examining any page.
       // That bootstrap/connection state is not proof the scanner is working.
