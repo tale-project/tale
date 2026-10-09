@@ -306,6 +306,12 @@ retry, and restore workflow actions only after a successful read. Successful
 empty reads retain the normal no-live-run state. These cases are owned by
 `app/features/tasks/components/task-subject-panel.test.tsx` (#3849).
 
+A failed pending-question read on a live workflow shows an accessible error and
+Try again instead of ordinary Working. Retry retains the recovery surface,
+cached questions and answer drafts remain visible, successful empty reads
+restore Working, and failure memory does not cross runs or tasks:
+`app/features/tasks/components/task-subject-panel.test.tsx` (#3850).
+
 Task attachment uploads overlap while their drain, read and replace steps are
 serialized, and replacements read the latest saved list rather than an
 upload-start snapshot.

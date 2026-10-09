@@ -172,6 +172,22 @@ function TaskSubjectPanelBody({
   // on, and nothing works on it meanwhile.
   const inDoubtNode =
     run?.status === 'waiting' ? inDoubtNodeFromDetail(run.detail) : undefined;
+  // Keep recovery visible through an uncached retry, but never carry a failed
+  // question read into another run. React Query retains any cached question.
+  const [failedAskRunId, setFailedAskRunId] = useState<string>();
+  const askReadError =
+    run !== null && (pendingAskQuery.isError || failedAskRunId === run.runId);
+  if (pendingAskQuery.isError && run !== null && failedAskRunId !== run.runId) {
+    setFailedAskRunId(run.runId);
+  } else if (
+    failedAskRunId !== undefined &&
+    (failedAskRunId !== run?.runId ||
+      (!pendingAskQuery.isError &&
+        !pendingAskQuery.isFetching &&
+        pendingAskQuery.data !== undefined))
+  ) {
+    setFailedAskRunId(undefined);
+  }
 
   // `hasFiles` is the server-stamped subtree fact (`getTask` and the list
   // queries share one predicate with staging) — a client-side root-only probe
@@ -453,11 +469,13 @@ function TaskSubjectPanelBody({
     state.kind === 'running'
       ? pendingAsk !== null
         ? t('run.waitingAnswer', { name: displayName })
-        : inDoubtNode !== undefined
-          ? canEdit
-            ? t('run.waitingDecision', { name: displayName })
-            : t('run.waitingDecisionOther', { name: displayName })
-          : t('run.working', { name: displayName })
+        : askReadError
+          ? t('subject.askLoadError')
+          : inDoubtNode !== undefined
+            ? canEdit
+              ? t('run.waitingDecision', { name: displayName })
+              : t('run.waitingDecisionOther', { name: displayName })
+            : t('run.working', { name: displayName })
       : state.kind === 'review'
         ? pendingReview !== undefined && pendingReview !== null
           ? t('reviewer.pendingFor', {
@@ -501,17 +519,47 @@ function TaskSubjectPanelBody({
         <Row gap={2} align="center">
           {state.kind === 'running' &&
             pendingAsk === null &&
+            !askReadError &&
             inDoubtNode === undefined && (
               <Loader2
                 className="text-muted-foreground size-4 shrink-0 animate-spin"
                 aria-hidden
               />
             )}
-          <Text as="p" className="min-w-0 flex-1 text-pretty">
+          <Text
+            as="p"
+            role={
+              state.kind === 'running' && askReadError && pendingAsk === null
+                ? 'alert'
+                : undefined
+            }
+            className="min-w-0 flex-1 text-pretty"
+          >
             {stateLine}
           </Text>
         </Row>
       </Skeletonize>
+
+      {state.kind === 'running' && askReadError && (
+        <>
+          {pendingAsk !== null && (
+            <Text as="p" role="alert" className="text-pretty">
+              {t('subject.askLoadError')}
+            </Text>
+          )}
+          <Row gap={2} wrap>
+            <Button
+              variant="secondary"
+              size="sm"
+              aria-busy={pendingAskQuery.isFetching}
+              disabled={pendingAskQuery.isFetching}
+              onClick={() => void pendingAskQuery.refetch()}
+            >
+              {tCommon('actions.tryAgain')}
+            </Button>
+          </Row>
+        </>
+      )}
 
       {state.kind === 'review' && reviewerQuery.isError && (
         <Row gap={2} align="center">
