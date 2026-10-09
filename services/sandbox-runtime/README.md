@@ -546,3 +546,14 @@ cache it can drop at once) has reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of
 `429` `{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with
 `retry-after: 5`. Nothing starts and the running execs are left alone; a
 session without a limit, or whose cgroup cannot be read, is never refused.
+
+runnerd says when the session's memory limit ended an exec. It reads the
+session cgroup's `oom_kill` count (`memory.events`, the whole subtree) as the
+exec starts and again as it ends: an exec that died of SIGKILL (exit 137) that
+neither a cancel, its deadline nor the stall watch sent, while that count
+rose, carries `oomKilled: true` on its `exit` event, which the spawner reports
+as the `OOM_KILLED` error code. Another exec's OOM kill does not make an
+ordinary failure an OOM. The exit also carries the session's memory peak
+(`memory.peak`, since the container started) where the kernel reports one,
+and `/healthz` reports the session's `memory`: in use, the limit, the peak
+and the OOM kills so far.

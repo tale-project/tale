@@ -54,6 +54,7 @@ import {
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
+  type RunnerdHealth,
   type RunnerdMemoryBusy,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
@@ -61,6 +62,8 @@ import {
   admissionMemoryPercentFromEnv,
   MEMORY_BUSY_RETRY_AFTER_SECONDS,
   memoryRefusesExec,
+  readMemoryPeak,
+  readOomKills,
   readSessionMemory,
 } from './session-memory.ts';
 let execConsumers = 0;
@@ -129,6 +132,25 @@ function tokenOk(req: IncomingMessage): boolean {
   } catch {
     return false;
   }
+}
+
+/** The session's memory for /healthz: in use, the limit, the peak and the
+ * OOM kills so far, or undefined where the cgroup cannot be read. */
+async function sessionMemoryHealth(): Promise<
+  RunnerdHealth['memory'] | undefined
+> {
+  const [memory, peak, oomKills] = await Promise.all([
+    readSessionMemory(),
+    readMemoryPeak(),
+    readOomKills(),
+  ]);
+  if (memory === null) return undefined;
+  return {
+    currentBytes: memory.currentBytes,
+    maxBytes: memory.maxBytes,
+    ...(peak === null ? {} : { peakBytes: peak }),
+    ...(oomKills === null ? {} : { oomKills }),
+  };
 }
 
 function sendJson(
@@ -443,7 +465,10 @@ async function router(
   }
 
   if (req.method === 'GET' && path === '/healthz') {
-    const docker = await innerDocker.snapshot();
+    const [docker, memory] = await Promise.all([
+      innerDocker.snapshot(),
+      sessionMemoryHealth(),
+    ]);
     const dependencies = await dependencyHealth(docker.dockerReady);
     const body: Record<string, unknown> = {
       ok: true,
@@ -453,6 +478,7 @@ async function router(
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
       ...(dependencies ? { dependencies } : {}),
+      ...(memory ? { memory } : {}),
       ...docker,
     };
     sendJson(res, 200, body);

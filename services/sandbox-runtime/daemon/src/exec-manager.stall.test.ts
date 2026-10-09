@@ -115,3 +115,86 @@ describe('ExecManager stall watch', () => {
     expect(exit?.t === 'exit' && exit.cancelled).toBe(true);
   });
 });
+
+describe('ExecManager OOM attribution', () => {
+  /** A session whose OOM-kill count reads `counts` in turn (the last one
+   * from then on) and whose memory peak is 512 MiB. */
+  function memory(counts: number[]) {
+    let read = 0;
+    return {
+      memory: {
+        oomKills: async () =>
+          counts[Math.min(read++, counts.length - 1)] ?? null,
+        peak: async () => 512 * 1_048_576,
+      },
+      ...idleWatch(0),
+    };
+  }
+
+  async function exitOf(
+    mgr: ExecManager,
+    execId: string,
+    shell: string,
+  ): Promise<Extract<RunnerdExecEvent, { t: 'exit' }> | undefined> {
+    const events: RunnerdExecEvent[] = [];
+    await mgr.run({ ...base, execId, shell }, (e) => events.push(e));
+    const exit = events.at(-1);
+    return exit?.t === 'exit' ? exit : undefined;
+  }
+
+  test('a SIGKILL while the session counted a new OOM kill is the OOM killer', async () => {
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      memory([4, 5]),
+    );
+    const exit = await exitOf(mgr, 'oom1', 'kill -9 $$');
+    expect(exit?.exitCode).toBe(137);
+    expect(exit?.oomKilled).toBe(true);
+    expect(exit?.sessionMemoryPeakBytes).toBe(512 * 1_048_576);
+  });
+
+  test('a SIGKILL with no new OOM kill is no OOM', async () => {
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      memory([4, 4]),
+    );
+    const exit = await exitOf(mgr, 'oom2', 'kill -9 $$');
+    expect(exit?.exitCode).toBe(137);
+    expect(exit?.oomKilled).toBeUndefined();
+  });
+
+  test("another process's OOM kill does not make a plain failure an OOM", async () => {
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      memory([4, 5]),
+    );
+    const exit = await exitOf(mgr, 'oom3', 'exit 1');
+    expect(exit?.exitCode).toBe(1);
+    expect(exit?.oomKilled).toBeUndefined();
+  });
+
+  test('a session whose OOM kills cannot be read judges none', async () => {
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      {
+        memory: { oomKills: async () => null, peak: async () => null },
+        ...idleWatch(0),
+      },
+    );
+    const exit = await exitOf(mgr, 'oom4', 'kill -9 $$');
+    expect(exit?.oomKilled).toBeUndefined();
+    expect(exit?.sessionMemoryPeakBytes).toBeUndefined();
+  });
+});

@@ -53,6 +53,7 @@ import {
   type RunnerdStdinWriteRequest,
   type RunnerdStdinWriteResponse,
 } from './protocol.ts';
+import { readMemoryPeak, readOomKills } from './session-memory.ts';
 import { Utf8FrameBoundary } from './utf8-frame-boundary.ts';
 
 const SIGKILL_GRACE_MS = 5_000;
@@ -224,9 +225,17 @@ export class ExecManager {
       /** The stall watch: its window (`TALE_EXEC_STALL_MS` unless set, 0
        * for none) and how it samples. */
       stall?: StallWatchOptions & { windowMs?: number };
+      /** The session's OOM-kill count and memory peak
+       * (session-memory.ts unless set). */
+      memory?: {
+        oomKills?: () => Promise<number | null>;
+        peak?: () => Promise<number | null>;
+      };
     } = {},
   ) {
     this.replayBudget = new ReplayBudget(options.replayBudgetBytes);
+    this.readOomKills = options.memory?.oomKills ?? (() => readOomKills());
+    this.readMemoryPeak = options.memory?.peak ?? (() => readMemoryPeak());
     this.execShim =
       options.execShim === undefined ? resolveExecShim() : options.execShim;
     this.stalls = new StallWatch(
@@ -239,6 +248,9 @@ export class ExecManager {
   /** Ends the execs that print nothing and use almost no CPU for its
    * window (exec-stall.ts). */
   private readonly stalls: StallWatch;
+
+  private readonly readOomKills: () => Promise<number | null>;
+  private readonly readMemoryPeak: () => Promise<number | null>;
 
   /** The subreaper shim execs run under, or null: they run directly. */
   readonly execShim: string | null;
@@ -522,6 +534,12 @@ export class ExecManager {
 
     this.onActivity();
     this.beforeSpawn();
+    // The session's OOM kills so far, read beside the spawn rather than
+    // before it: the exit compares against it (oomKilledSince).
+    const oomKillsAtStart = this.readOomKills().catch((error: unknown) => {
+      console.warn('[runnerd] reading the session OOM kills failed:', error);
+      return null;
+    });
     const startedAtMs = Date.now();
     const startedAtMonotonicMs = performance.now();
     // Under the subreaper shim, the command runs as its child in a process
@@ -848,14 +866,21 @@ export class ExecManager {
           child.stderr.destroy();
         }
         this.onActivity();
+        const durationMs = performance.now() - startedAtMonotonicMs;
+        const memory = await this.exitMemory(
+          code,
+          record,
+          await oomKillsAtStart,
+        );
         const terminal: RunnerdExecEvent = {
           t: 'exit',
           exitCode: code,
-          durationMs: performance.now() - startedAtMonotonicMs,
+          durationMs,
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
           cancelled: record.cancelRequested,
           ...(record.stalled ? { failure: 'EXEC_STALLED' as const } : {}),
+          ...memory,
         };
         // A success cannot outrun a failed spool open/write. Wait for every
         // prior record and the terminal record before publishing exit status.
@@ -1070,6 +1095,49 @@ export class ExecManager {
     if (opts.keepLeftovers === true) this.handOver(execId, rec);
     else this.endNow(rec);
     return true;
+  }
+
+  /** What an ending exec's exit says about the session's memory: the
+   * session's peak where the kernel reports one, and `oomKilled` when the
+   * exec died of a SIGKILL (exit 137) nothing of runnerd's sent — no cancel,
+   * no deadline, no stall — while the session's OOM-kill count rose. Another
+   * exec of the session killed meanwhile does not make this one's plain
+   * failure an OOM: its own exit must be the kill. */
+  private async exitMemory(
+    code: number,
+    record: LiveExec,
+    oomKillsAtStart: number | null,
+  ): Promise<{ oomKilled?: true; sessionMemoryPeakBytes?: number }> {
+    const [oomKillsNow, peak] = await Promise.all([
+      code === SIGKILL_EXIT_CODE &&
+      oomKillsAtStart !== null &&
+      !record.cancelRequested &&
+      !record.timedOut &&
+      !record.stalled
+        ? this.readOomKills().catch((error: unknown) => {
+            console.warn(
+              '[runnerd] reading the session OOM kills failed:',
+              error,
+            );
+            return null;
+          })
+        : Promise.resolve(null),
+      this.readMemoryPeak().catch((error: unknown) => {
+        console.warn(
+          '[runnerd] reading the session memory peak failed:',
+          error,
+        );
+        return null;
+      }),
+    ]);
+    return {
+      ...(oomKillsNow !== null &&
+      oomKillsAtStart !== null &&
+      oomKillsNow > oomKillsAtStart
+        ? { oomKilled: true as const }
+        : {}),
+      ...(peak === null ? {} : { sessionMemoryPeakBytes: peak }),
+    };
   }
 
   /** The stall watch found the exec quiet and idle for its whole window: end
@@ -1548,6 +1616,11 @@ const SIGNAL_NUMBERS: Record<string, number> = {
   SIGKILL: 9,
   SIGTERM: 15,
 };
+
+/** The exit an exec reports when SIGKILL ended it, with the shim (which
+ * exits 128 + the signal) and without (a shell's convention, mirrored for a
+ * direct child above). */
+const SIGKILL_EXIT_CODE = 128 + 9;
 
 function logReplayError(error: unknown): void {
   console.warn(
