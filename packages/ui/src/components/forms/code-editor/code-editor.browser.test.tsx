@@ -768,6 +768,48 @@ it('exposes a handle that focuses, selects and reports the selection', async () 
   expect(selection(box)).toEqual([2, 4]);
 });
 
+// REGRESSION: "go to" a problem selected the check's raw offsets, though
+// the reader had typed since the check settled; the next keystroke then
+// replaced the wrong characters.
+it('maps a go-to range through the edits made since the check', async () => {
+  function Checked() {
+    const ref = useRef<CodeEditorHandle>(null);
+    const [value, setValue] = useState('total + tax');
+    return (
+      <>
+        <CodeEditor
+          ref={ref}
+          aria-label="Code"
+          language="text"
+          value={value}
+          onChange={setValue}
+          diagnosticsFor="total + tax"
+          diagnostics={[]}
+        />
+        <button type="button" onClick={() => ref.current?.focus([8, 11])}>
+          Go to tax
+        </button>
+        <button type="button" onClick={() => ref.current?.focus([0, 5])}>
+          Go to total
+        </button>
+      </>
+    );
+  }
+  render(<Checked />);
+  const box = await content('Code');
+  await userEvent.click(box);
+  await userEvent.keyboard('{Home}net ');
+  // "tax" sat at 8–11 in the checked text; four characters were typed
+  // before it since.
+  await userEvent.click(screen.getByRole('button', { name: 'Go to tax' }));
+  expect(selection(box)).toEqual([12, 15]);
+  // "total" is next to the edit: the range is stale, so nothing is selected
+  // rather than the wrong characters.
+  const [before] = selection(box);
+  await userEvent.click(screen.getByRole('button', { name: 'Go to total' }));
+  expect(selection(box)).toEqual([before, before + 3]);
+});
+
 it('preloads without rendering', async () => {
   expect(() => preloadCodeEditor()).not.toThrow();
 });
