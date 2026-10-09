@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
+import { workerStreamLimit } from '../../src/mock/cluster.ts';
 import { mockEnvName, parseMockOptions } from '../../src/mock/config.ts';
 import { parseDirectives } from '../../src/mock/faults.ts';
 import { PrefixHasher, PromptCache } from '../../src/mock/prompt-cache.ts';
@@ -10,6 +11,7 @@ import {
   estimateTokens,
   truncateToTokens,
 } from '../../src/mock/tokens.ts';
+import { valueForSchema } from '../../src/mock/tool-args.ts';
 
 describe('options', () => {
   test('a flag beats the environment, which beats the default', () => {
@@ -117,14 +119,96 @@ describe('prompt cache', () => {
   });
 
   test('the least recently used prefix leaves first', () => {
-    const cache = new PromptCache(2);
-    const a = prompt(['a', 'a2', 'a3']);
-    const b = prompt(['b', 'b2', 'b3']);
+    // Two-message prompts remember both prefixes, so a capacity of 4 holds
+    // two prompts; a hit refreshes its entry.
+    const cache = new PromptCache(4);
+    const a = prompt(['a', 'a2']);
+    const b = prompt(['b', 'b2']);
+    const c = prompt(['c', 'c2']);
     cache.lookupAndRemember(a.hashes, a.tokens);
     cache.lookupAndRemember(b.hashes, b.tokens);
-    expect(cache.size).toBe(2);
-    const again = prompt(['a', 'a2', 'a3', 'a4']);
-    expect(cache.lookupAndRemember(again.hashes, again.tokens)).toBe(0);
+    // A hit on a's prefix makes b the least recently used.
+    const aAgain = prompt(['a', 'a2', 'a3']);
+    expect(cache.lookupAndRemember(aAgain.hashes, aAgain.tokens)).toBe(1152);
+    // c's two prefixes push out the two least recently used: b's.
+    cache.lookupAndRemember(c.hashes, c.tokens);
+    const aThird = prompt(['a', 'a2', 'a3', 'a4']);
+    expect(cache.lookupAndRemember(aThird.hashes, aThird.tokens)).toBe(1792);
+    const bAgain = prompt(['b', 'b2', 'b3']);
+    expect(cache.lookupAndRemember(bAgain.hashes, bAgain.tokens)).toBe(0);
+  });
+});
+
+describe('bounds on what a caller can ask for', () => {
+  test('a huge tokens directive is cut to the ceiling before it is generated', async () => {
+    const mock = await createMockServer(
+      {
+        port: 0,
+        seed: 1,
+        ttftMedianMs: 1,
+        ttftP95Ms: 1,
+        rate429: 0,
+        rate5xx: 0,
+      },
+      {},
+    );
+    try {
+      const started = performance.now();
+      const response = await fetch(`${mock.url}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          authorization: 'Bearer k',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'load-chat-fast',
+          max_tokens: 64,
+          messages: [
+            { role: 'user', content: 'Essay [[mock:tokens=999999999]]' },
+          ],
+        }),
+      });
+      const body = (await response.json()) as {
+        usage?: { completion_tokens?: number };
+      };
+      expect(response.status).toBe(200);
+      expect(body.usage?.completion_tokens).toBeLessThanOrEqual(64);
+      expect(performance.now() - started).toBeLessThan(5_000);
+    } finally {
+      await mock.close();
+    }
+  });
+
+  test('a malformed model id is a 404, not a 500', async () => {
+    const mock = await createMockServer({ port: 0, seed: 1 }, {});
+    try {
+      const response = await fetch(`${mock.url}/v1/models/%E0%A4%A`);
+      expect(response.status).toBe(404);
+    } finally {
+      await mock.close();
+    }
+  });
+
+  test('a schema demanding millions of items gets a bounded value', () => {
+    const value = valueForSchema(
+      createRandom(1),
+      {
+        type: 'array',
+        minItems: 10_000_000,
+        items: { type: 'string', minLength: 10_000_000 },
+      },
+      'items',
+      { keywords: [], locale: 'en' },
+    ) as string[];
+    expect(value.length).toBeLessThanOrEqual(50);
+    for (const item of value) expect(item.length).toBeLessThanOrEqual(4096);
+  });
+
+  test('cluster workers split the provider-wide stream limit', () => {
+    expect(workerStreamLimit(0, 4)).toBe(0);
+    expect(workerStreamLimit(500, 4)).toBe(125);
+    expect(workerStreamLimit(3, 4)).toBe(1);
+    expect(workerStreamLimit(10, 1)).toBe(10);
   });
 });
 

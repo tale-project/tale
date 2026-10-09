@@ -173,9 +173,16 @@ async function route(
       return;
     }
     if (path.startsWith('/models/')) {
-      const model = findMockModel(
-        decodeURIComponent(path.slice('/models/'.length)),
-      );
+      let id: string | null;
+      try {
+        id = decodeURIComponent(path.slice('/models/'.length));
+      } catch (error) {
+        // A malformed escape names no model a provider has: a 404, as for
+        // any unknown id, not a 500.
+        console.warn('[mock] undecodable model id:', error);
+        id = null;
+      }
+      const model = id === null ? undefined : findMockModel(id);
       if (model === undefined)
         refuse(res, 'openai', 404, 'The model does not exist.');
       else sendJson(res, 200, listingEntry(model));

@@ -117,11 +117,13 @@ export const MOCK_OPTION_DESCRIPTIONS: Readonly<Record<MockOptionKey, string>> =
     midStreamErrorRate: 'share of streams that fail after some content',
     stallRate: 'share of streams that go silent for stallMs',
     stallMs: 'length of a stall, ms',
-    maxConcurrentStreams: 'streams served at once before 429 (0: unlimited)',
+    maxConcurrentStreams:
+      'streams served at once before 429, across all processes (0: unlimited)',
     embeddingLatencyMedianMs: 'median embeddings latency, ms',
     embeddingLatencyP95Ms: '95th percentile embeddings latency, ms',
     retryAfterSeconds: 'retry-after a 429 asks for, seconds',
-    promptCacheEntries: 'conversation prefixes the prompt cache remembers',
+    promptCacheEntries:
+      'conversation prefixes the prompt cache remembers, per process',
     metricsPort: 'aggregated metrics port with processes > 1 (default port+1)',
   };
 

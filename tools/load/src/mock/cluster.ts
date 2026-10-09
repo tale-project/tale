@@ -76,6 +76,12 @@ function hostForUrl(host: string): string {
   return host.includes(':') ? `[${host}]` : host;
 }
 
+/** One worker's share of the provider-wide stream limit (0: unlimited). */
+export function workerStreamLimit(limit: number, processes: number): number {
+  if (limit === 0) return 0;
+  return Math.max(1, Math.ceil(limit / Math.max(1, processes)));
+}
+
 /**
  * Fork `options.processes` workers and serve aggregated metrics. Resolves
  * once every worker listens. Must run in the primary process.
@@ -110,6 +116,13 @@ export async function startMockCluster(
       ...options,
       port,
       processes: 1,
+      // The stream limit is the provider's: each worker admits its share.
+      // (The prompt cache stays per worker — a turn that lands on another
+      // worker than its conversation's last reads no cached prefix.)
+      maxConcurrentStreams: workerStreamLimit(
+        options.maxConcurrentStreams,
+        options.processes,
+      ),
       // Workers draw different streams from one seeded run.
       ...(baseSeed !== undefined ? { seed: baseSeed + index * 7919 } : {}),
     };

@@ -34,6 +34,10 @@ export interface ArgumentHints {
 const OPTIONAL_SHARE = 0.35;
 /** Nesting depth past which objects and arrays stay empty. */
 const MAX_DEPTH = 4;
+/** Most elements one generated array gets, whatever its minItems says. */
+const MAX_GENERATED_ITEMS = 50;
+/** Longest string padding meets a minLength to. */
+const MAX_GENERATED_STRING = 4096;
 
 const FALLBACK_TERMS = [
   'quarterly report',
@@ -131,7 +135,10 @@ function stringFor(
     value = terms(random, hints, 5);
   }
   const maxLength = numberOr(schema.maxLength, Number.POSITIVE_INFINITY);
-  const minLength = numberOr(schema.minLength, 0);
+  const minLength = Math.min(
+    numberOr(schema.minLength, 0),
+    MAX_GENERATED_STRING,
+  );
   if (value.length > maxLength) value = value.slice(0, maxLength);
   if (value.length < minLength) value = value.padEnd(minLength, 'x');
   return value;
@@ -193,7 +200,12 @@ export function valueForSchema(
       if (depth >= MAX_DEPTH) return [];
       const minItems = numberOr(schema.minItems, 1);
       const maxItems = numberOr(schema.maxItems, 3);
-      const items = clamp(randomInt(random, 1, 3), minItems, maxItems);
+      // A caller's schema decides the shape, not the mock's memory: a huge
+      // minItems is met only up to a bound.
+      const items = Math.min(
+        clamp(randomInt(random, 1, 3), minItems, maxItems),
+        MAX_GENERATED_ITEMS,
+      );
       const out: unknown[] = [];
       for (let i = 0; i < items; i++) {
         out.push(valueForSchema(random, schema.items, name, hints, depth + 1));

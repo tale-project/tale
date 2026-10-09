@@ -33,7 +33,7 @@ export interface MockDirectives {
   readonly empty?: boolean;
 }
 
-const DIRECTIVE_PATTERN = /\[\[mock:([a-z0-9-]+)(?:=(\d+))?\]\]/gi;
+const DIRECTIVE_PATTERN = /\[\[mock:([a-z0-9-]+)(?:=(\d{1,9}))?\]\]/gi;
 
 /** The directives in `text`; later directives win over earlier ones. */
 export function parseDirectives(

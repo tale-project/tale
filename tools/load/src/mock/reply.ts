@@ -265,19 +265,22 @@ export function planReply(
 
   const keywords = keywordsOf(userText, 6);
   const hints = { keywords, locale };
+  // A directive is bounded like a sampled length: the reply is generated in
+  // full before the request's ceiling cuts it, on the event loop.
   const target =
-    directives.tokens ??
-    Math.round(
-      clamp(
-        lognormalFromMedianP95(
-          random,
-          options.replyTokensMedian,
-          options.replyTokensP95,
-        ),
-        1,
-        REPLY_TOKENS_MAX,
-      ),
-    );
+    directives.tokens !== undefined
+      ? Math.max(0, Math.min(directives.tokens, cap, REPLY_TOKENS_MAX))
+      : Math.round(
+          clamp(
+            lognormalFromMedianP95(
+              random,
+              options.replyTokensMedian,
+              options.replyTokensP95,
+            ),
+            1,
+            REPLY_TOKENS_MAX,
+          ),
+        );
 
   // Reasoning first: it is spent before a word of the answer.
   let reasoning = '';
@@ -291,6 +294,7 @@ export function planReply(
     if (input.reasoningBudget !== undefined) {
       wanted = Math.min(wanted, input.reasoningBudget);
     }
+    wanted = Math.min(wanted, REPLY_TOKENS_MAX);
     if (options.reasoningTokensRatio > 0 && wanted > 0) {
       reasoning = truncateToTokens(
         generateReasoning(random, keywords.slice(0, 3).join(' '), wanted),
