@@ -19,7 +19,10 @@ import { TasksList } from './tasks-list';
 
 import '@/app/globals.css';
 
-const read = vi.hoisted(() => ({ loading: false }));
+const read = vi.hoisted(() => ({
+  loading: false,
+  update: vi.fn(async () => undefined),
+}));
 const task = {
   _id: 'task-focus',
   _creationTime: 0,
@@ -79,7 +82,10 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   },
 }));
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
-  useBackendMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useBackendMutation: (name: string) => ({
+    mutateAsync: name === 'tasks/mutations:updateTask' ? read.update : vi.fn(),
+    isPending: false,
+  }),
 }));
 vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -183,6 +189,7 @@ async function expectTrapped(dialog: HTMLElement) {
 afterEach(cleanup);
 beforeEach(() => {
   read.loading = false;
+  read.update.mockClear();
 });
 
 describe.each([
@@ -192,6 +199,35 @@ describe.each([
   beforeEach(async () => {
     await page.viewport(width, height);
   });
+
+  it.each(['Enter', 'Tab'])(
+    'cancels a dirty title without saving, then %s commits a later edit once',
+    async (commitWith) => {
+      render(<Harness />);
+      const opener = screen.getByRole('button', { name: task.title });
+      await userEvent.click(opener);
+      const field = await screen.findByRole('textbox', { name: 'Title' });
+      await userEvent.clear(field);
+      await userEvent.type(field, 'Do not save this title');
+      await userEvent.keyboard('{Escape}');
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).toBeNull();
+        expect(opener).toHaveFocus();
+      });
+      expect(read.update).not.toHaveBeenCalled();
+
+      await userEvent.keyboard('{Enter}');
+      const reopened = await screen.findByRole('textbox', { name: 'Title' });
+      expect(reopened).toHaveValue(task.title);
+      await userEvent.clear(reopened);
+      await userEvent.type(reopened, 'A later edit');
+      await userEvent.keyboard(`{${commitWith}}`);
+      expect(read.update).toHaveBeenCalledExactlyOnceWith({
+        taskId: task._id,
+        title: 'A later edit',
+      });
+    },
+  );
 
   it('enters a loaded task from its board opener and restores it on Escape', async () => {
     render(<Harness />);

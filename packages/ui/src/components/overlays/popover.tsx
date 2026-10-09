@@ -1,8 +1,9 @@
 'use client';
 
 import * as PopoverPrimitive from '@radix-ui/react-popover';
-import { type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
+import { useImeComposition } from '../../hooks/use-ime-composition';
 import { cn } from '../../lib/cn';
 
 interface PopoverProps {
@@ -55,15 +56,26 @@ export function Popover({
   'aria-labelledby': ariaLabelledby,
   'aria-label': ariaLabel,
 }: PopoverProps) {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const { isComposing, compositionProps } = useImeComposition(
+    open ?? uncontrolledOpen,
+  );
   return (
     <PopoverPrimitive.Root
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => {
+        setUncontrolledOpen(next);
+        onOpenChange?.(next);
+      }}
       modal={modal}
     >
       <PopoverPrimitive.Trigger asChild>{trigger}</PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
+          {...compositionProps}
+          onEscapeKeyDown={(event) => {
+            if (isComposing(event)) event.preventDefault();
+          }}
           align={align}
           side={side}
           sideOffset={sideOffset}
