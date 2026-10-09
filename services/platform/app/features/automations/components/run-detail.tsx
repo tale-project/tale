@@ -15,7 +15,14 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useNavigate } from '@tanstack/react-router';
 import { Ban, SearchX } from 'lucide-react';
-import { useCallback, useId, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
@@ -51,6 +58,11 @@ import {
   nodeTitle,
 } from '../lib/node-face';
 import { stepFailureText } from '../lib/run-failure';
+import {
+  type RunSearch,
+  type RunSearchChange,
+  runSearchSelection,
+} from '../lib/run-search';
 import type { RunUnitRef, TimelineWords } from '../lib/run-timeline';
 import {
   cursorNodeStatus,
@@ -69,7 +81,11 @@ import {
   AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
 import { AgentExecutionLog } from './agent-execution-log';
-import { AutomationCanvas, type CanvasRun } from './automation-canvas';
+import {
+  AutomationCanvas,
+  type CanvasRun,
+  type RunCanvasView,
+} from './automation-canvas';
 import { EffectList } from './effect-list';
 import { IssueImportContinuation } from './issue-import-continuation';
 import { IssueImportResult } from './issue-import-result';
@@ -127,12 +143,27 @@ interface RunDetailProps {
   organizationId: string;
   automationSlug: string;
   runId: string;
+  /** The route's search: the view, and the step — with one of its items or
+   *  passes — to open on load. */
+  search?: RunSearch;
+  /** The reader switched the view or picked a step or one of its items; the
+   *  route keeps it in the URL without a history entry. */
+  onSearchChange?: (change: RunSearchChange) => void;
 }
+
+/** What the page has written to its URL, to write it only on a change. */
+const searchKey = (
+  node: string | null,
+  unit: RunUnitRef | null,
+  view: RunCanvasView,
+) => JSON.stringify([node, unit?.item, unit?.pass, view]);
 
 function RunDetailBody({
   organizationId,
   automationSlug,
   runId,
+  search,
+  onSearchChange,
   onFocusLost,
 }: RunDetailProps & { onFocusLost: () => void }) {
   const { t } = useT('automations');
@@ -140,10 +171,33 @@ function RunDetailBody({
   const { formatDate } = useFormatDate();
   const inspectorId = useId();
   const effectsHeadingId = useId();
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // A link opens its step, and the item or pass it names, on load.
+  const [opened] = useState(() => runSearchSelection(search));
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
+    opened.node,
+  );
   // One of the selected step's items or passes, chosen in the Steps view
   // or in its list; any other choice of step clears it.
-  const [selectedUnit, setSelectedUnit] = useState<RunUnitRef | null>(null);
+  const [selectedUnit, setSelectedUnit] = useState<RunUnitRef | null>(
+    opened.unit,
+  );
+  const [runView, setRunView] = useState<RunCanvasView>(
+    search?.view === 'steps' ? 'steps' : 'chart',
+  );
+  // The view, the open step and its item follow into the URL, replacing
+  // the entry.
+  const writtenSearch = useRef(searchKey(opened.node, opened.unit, runView));
+  useEffect(() => {
+    const key = searchKey(selectedNodeId, selectedUnit, runView);
+    if (writtenSearch.current === key) return;
+    writtenSearch.current = key;
+    onSearchChange?.({
+      view: runView === 'steps' ? 'steps' : null,
+      node: selectedNodeId,
+      item: selectedUnit?.item ?? null,
+      pass: selectedUnit?.pass ?? null,
+    });
+  }, [selectedNodeId, selectedUnit, runView, onSearchChange]);
   const selectStep = useCallback(
     (id: string | null, unit: RunUnitRef | null = null) => {
       setSelectedNodeId(id);
@@ -762,6 +816,8 @@ function RunDetailBody({
               selectedId={selectedNodeId}
               selectedUnit={selectedUnit}
               onSelect={selectOnCanvas}
+              runView={runView}
+              onRunViewChange={setRunView}
               revealId={selectedNodeId ?? failedNode}
               inspectorId={inspectorId}
               {...(canvasRun !== null && { run: canvasRun })}

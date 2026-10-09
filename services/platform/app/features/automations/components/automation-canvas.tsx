@@ -88,6 +88,10 @@ export interface CanvasRun {
   items?: { organizationId: string; runId: string };
 }
 
+/** How a recorded run is shown: on the chart, or as its steps in time
+ *  order. */
+export type RunCanvasView = 'chart' | 'steps';
+
 /** Two runs on one chart: how each left every step, side by side. */
 export interface CanvasCompare {
   a: CanvasRun;
@@ -128,6 +132,10 @@ export interface AutomationCanvasProps {
   run?: CanvasRun;
   /** Two runs of this document side by side; wins over `run`. */
   compare?: CanvasCompare;
+  /** A recorded run as a chart or as its steps in time order; the canvas
+   *  keeps the choice itself when left out. */
+  runView?: RunCanvasView;
+  onRunViewChange?: (view: RunCanvasView) => void;
   /** Bring this box into view. */
   revealId?: string | null;
   /** Nodes another window or a coding agent changed, ringed once. */
@@ -184,6 +192,8 @@ export function AutomationCanvas({
   inspectorId,
   run,
   compare,
+  runView,
+  onRunViewChange,
   revealId,
   changed,
   framed = true,
@@ -426,6 +436,10 @@ export function AutomationCanvas({
         onSelect={onSelect}
         {...(compare === undefined &&
           run?.items !== undefined && { items: run.items })}
+        {...(runView !== undefined && { view: runView })}
+        {...(onRunViewChange !== undefined && {
+          onViewChange: onRunViewChange,
+        })}
       />
       {listProps !== null && compact && (
         <AutomationPathsSheet
@@ -477,6 +491,8 @@ function RunCanvas({
   selectedUnit,
   onSelect,
   items,
+  view: viewProp,
+  onViewChange,
 }: {
   record: RunRecordView | undefined;
   words: TimelineWords;
@@ -486,11 +502,19 @@ function RunCanvas({
   selectedUnit: RunUnitRef | null;
   onSelect: (id: string | null, unit?: RunUnitRef) => void;
   items?: { organizationId: string; runId: string };
+  /** The view the page holds; the canvas holds its own when left out. */
+  view?: RunCanvasView;
+  onViewChange?: (view: RunCanvasView) => void;
 }) {
   const { t } = useT('automationRuns');
   const { locale } = useLocale();
   const { graph } = canvasProps;
-  const [view, setView] = useState<'chart' | 'steps'>('chart');
+  const [ownView, setOwnView] = useState<RunCanvasView>('chart');
+  const view = viewProp ?? ownView;
+  const setView = (next: RunCanvasView) => {
+    setOwnView(next);
+    onViewChange?.(next);
+  };
   const timeline = useMemo(
     () =>
       record === undefined

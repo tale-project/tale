@@ -292,4 +292,37 @@ describe('AutomationCanvas playing a recorded run in Chromium', () => {
     );
     expect(chosen.at(-1)?.id).toBe('score');
   });
+
+  it('opens on the view the page holds, and tells the page when the reader switches', async () => {
+    await page.viewport(1280, 1600);
+    const views: string[] = [];
+    function ViewHarness() {
+      const [view, setView] = useState<'chart' | 'steps'>('steps');
+      return (
+        <div style={{ width: 1180, height: 1500 }}>
+          <AutomationCanvas
+            automation={TRIAGE}
+            layoutKey="triage:run-1"
+            catalog={CATALOG}
+            selectedId={null}
+            onSelect={() => undefined}
+            inspectorId="inspector"
+            run={RUN}
+            runView={view}
+            onRunViewChange={(next) => {
+              views.push(next);
+              setView(next);
+            }}
+          />
+        </div>
+      );
+    }
+    render(<ViewHarness />);
+    expect(await screen.findByRole('tree', { name: 'Steps' })).toBeVisible();
+    await userEvent.click(screen.getByRole('radio', { name: 'Chart' }));
+    expect(views).toEqual(['chart']);
+    await waitFor(() =>
+      expect(screen.queryByRole('tree', { name: 'Steps' })).toBeNull(),
+    );
+  });
 });
