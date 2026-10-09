@@ -14,8 +14,15 @@ import type { SSEStreamingApi } from 'hono/streaming';
  * client reconnects and resumes from its `Last-Event-ID`, which costs one
  * reconnect instead of the process's memory. A caller hands a whole batch
  * (a replay, a page of hints) over as ONE write, so the ceiling counts what
- * a slow client has not taken yet, never the size of one delivery: only a
- * backlog already past the ceiling refuses the next write.
+ * a slow client has not taken yet, never the size of one delivery: the
+ * biggest queued write is left out of the count, so a replay bigger than
+ * the ceiling neither refuses the frame right behind it (its `resync`) nor
+ * hides a client that stopped reading behind it.
+ *
+ * A frame that carries a whole state rather than a change (a reply's
+ * progress snapshot) is written under a key: while the newest queued write
+ * is an unsent frame of the same key, the new one replaces it in place, so
+ * a slow client holds one snapshot instead of every one it missed.
  */
 
 /** Writes a stream may have queued before it is treated as gone. */
@@ -33,8 +40,13 @@ export interface FanoutStream {
 }
 
 export interface StreamWriter {
-  /** Queue raw SSE text (already framed, ending in a blank line). */
-  write: (text: string) => void;
+  /** Queue raw SSE text (already framed, ending in a blank line). With
+   * `replaces`, the text replaces the newest queued write instead when that
+   * write is still unsent and was queued under the same key. */
+  write: (text: string, options?: { replaces?: string }) => void;
+  /** Whether the newest queued write is an unsent one queued under `key`:
+   * a `replaces` write with that key would replace it. */
+  unsent: (key: string) => boolean;
   /** Resolves once every write queued so far has been handed to the
    * stream — what a terminal event waits for before the response ends. */
   flushed: () => Promise<void>;
@@ -76,28 +88,58 @@ export function createStreamWriter(
   const maxBytes = options.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
   const now = options.now ?? Date.now;
   let tail: Promise<void> = Promise.resolve();
-  let pending = 0;
+  /** Writes queued and not yet done, oldest first: they run one at a time,
+   * in order, so the one finishing is always the first. */
+  const queue: { text: string; key: string | undefined; started: boolean }[] =
+    [];
   let pendingBytes = 0;
   let overflowed = false;
+  /** Whether the backlog already queued says the client stopped reading;
+   * the size of the write being added never decides. */
+  const behind = (): boolean => {
+    if (queue.length >= maxPending) return true;
+    if (pendingBytes <= maxBytes) return false;
+    let biggest = 0;
+    for (const queued of queue) biggest = Math.max(biggest, queued.text.length);
+    return pendingBytes - biggest > maxBytes;
+  };
+  const newestUnsent = (key: string) => {
+    const newest = queue.at(-1);
+    return newest !== undefined && !newest.started && newest.key === key
+      ? newest
+      : undefined;
+  };
   return {
-    write(text) {
+    write(text, writeOptions = {}) {
       if (target.ended || target.stream.aborted) return;
-      // The backlog already queued decides, never the size of the write
-      // being added: a big delivery is not a stalled client.
-      if (pending > 0 && (pending >= maxPending || pendingBytes > maxBytes)) {
+      const replaced =
+        writeOptions.replaces === undefined
+          ? undefined
+          : newestUnsent(writeOptions.replaces);
+      if (replaced !== undefined) {
+        pendingBytes += text.length - replaced.text.length;
+        replaced.text = text;
+        target.lastWriteAt = now();
+        return;
+      }
+      if (behind()) {
         if (!overflowed) {
           overflowed = true;
           options.onOverflow();
         }
         return;
       }
-      pending += 1;
+      const queued = { text, key: writeOptions.replaces, started: false };
+      queue.push(queued);
       pendingBytes += text.length;
       target.lastWriteAt = now();
       // The chain never rejects: a failed write is logged and the next one
       // still runs, so one broken write cannot silence the stream for good.
       tail = tail
-        .then(() => target.stream.write(text))
+        .then(() => {
+          queued.started = true;
+          return target.stream.write(queued.text);
+        })
         .then(
           () => undefined,
           (error: unknown) => {
@@ -105,12 +147,13 @@ export function createStreamWriter(
           },
         )
         .finally(() => {
-          pending -= 1;
-          pendingBytes -= text.length;
+          queue.shift();
+          pendingBytes -= queued.text.length;
         });
     },
+    unsent: (key) => newestUnsent(key) !== undefined,
     flushed: () => tail,
-    pending: () => pending,
+    pending: () => queue.length,
   };
 }
 

@@ -37,8 +37,8 @@ import {
 /** Watched threads up to which the light read names them; past it, the
  * in-flight generations are few enough to read whole and filter here. */
 const NAMED_READ_LIMIT = 500;
-/** Characters a progress lane may have queued before it is treated as gone. */
-const PROGRESS_MAX_PENDING_BYTES = 16 * 1024 * 1024;
+/** The writer key of a progress snapshot: an unsent one is replaced. */
+const PROGRESS_FRAME = 'progress';
 
 export interface GenerationWatchOptions {
   pollIntervalMs: number;
@@ -165,19 +165,26 @@ export function createGenerationWatch(
         if (generation.updatedAt <= subscriber.lastSeenUpdate) continue;
         subscriber.generating = true;
         subscriber.lastSeenUpdate = generation.updatedAt;
-        // Parts ride along only when they CHANGED for this tab: a tool
-        // result can be large (a RAG page), and text ticks four times a
-        // second.
+        // Each frame is the whole reply so far, so one a tab has not taken
+        // yet is replaced by the next instead of queued behind it: a tab
+        // that fell behind holds one snapshot, not every tick it missed.
+        // Parts ride along only when they CHANGED for this tab (a tool
+        // result can be large, a RAG page, and text ticks four times a
+        // second) — or when the frame replaces one that may have carried
+        // them.
         if (
           watch.partsJson !== null &&
-          watch.partsJson !== subscriber.lastPartsJson
+          (watch.partsJson !== subscriber.lastPartsJson ||
+            subscriber.writer.unsent(PROGRESS_FRAME))
         ) {
           subscriber.lastPartsJson = watch.partsJson;
           sharedWithParts ??= progressFrame(watch, true);
-          subscriber.writer.write(sharedWithParts);
+          subscriber.writer.write(sharedWithParts, {
+            replaces: PROGRESS_FRAME,
+          });
         } else {
           shared ??= progressFrame(watch, false);
-          subscriber.writer.write(shared);
+          subscriber.writer.write(shared, { replaces: PROGRESS_FRAME });
         }
       } else if (subscriber.generating && settledFrame !== null) {
         // The row's absence is the settle signal — ship the final row.
@@ -435,10 +442,6 @@ export function createGenerationWatch(
         };
         const writer = createStreamWriter(state, {
           maxPendingWrites: options.maxPendingWrites,
-          // Every progress frame is the whole reply so far, so a long one
-          // is a few hundred kilobytes a tick: a client a few ticks behind
-          // is still reading, not gone.
-          maxPendingBytes: PROGRESS_MAX_PENDING_BYTES,
           onOverflow: () => {
             console.warn(
               '[chat] a progress lane stopped reading; ending it so it reconnects',

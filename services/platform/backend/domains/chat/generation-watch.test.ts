@@ -245,6 +245,45 @@ describe('the shared generation watch', () => {
     await b.close();
   });
 
+  test('a tab that stops reading holds the newest snapshot, not every tick, and keeps its parts', async () => {
+    const { world, sql } = chatWorld();
+    const { app } = appFor(sql);
+    world.start('t9', 'o1', 'm9');
+    world.write('t9', 'A', [{ type: 'tool-call', toolName: 'rag_search' }]);
+    // Nobody reads the response yet: every write past the stream's small
+    // buffer waits on the client.
+    const response = await app.request('/stream/o1/t9');
+    // The tool's result lands while the tab is behind: the frame carrying
+    // it is replaced by later ticks, which must carry it on.
+    const done = [
+      { type: 'tool-call', toolName: 'rag_search' },
+      { type: 'tool-result', toolName: 'rag_search', output: 'page' },
+    ];
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    world.write('t9', 'AB', done);
+    for (const text of ['ABC', 'ABCD']) {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      world.write('t9', text);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const tab = collect(response);
+    expect(await tab.until((read) => read.includes('"text":"ABCD"'))).toBe(
+      true,
+    );
+    const progress = events(tab.text, 'progress') as {
+      text: string;
+      parts?: unknown[];
+    }[];
+    const texts = progress.map((event) => event.text);
+    // The ticks the tab missed while it read nothing were replaced, not
+    // queued, and the newest one carries the parts the replaced one had.
+    expect(texts).not.toContain('AB');
+    expect(texts).not.toContain('ABC');
+    expect(texts.at(-1)).toBe('ABCD');
+    expect(progress.at(-1)?.parts).toEqual(done);
+    await tab.close();
+  });
+
   test('a tab that arrives mid-turn is shown the turn and its parts at once', async () => {
     const { world, sql } = chatWorld();
     const { app } = appFor(sql);
