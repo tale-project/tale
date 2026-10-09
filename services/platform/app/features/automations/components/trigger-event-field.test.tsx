@@ -109,7 +109,7 @@ describe('TriggerEventField', () => {
 
   // Ada's triage automation belongs to the organization: a task created in
   // any project starts it, and so does a contact, which has no project.
-  it('says an automation of the organization hears every project’s events [AUTO-R30]', () => {
+  it('says an automation of the organization hears every project’s events [AUTO-R35]', () => {
     renderField({ value: 'task.created', installedIn: [] });
     expect(
       screen.getByText(
@@ -120,7 +120,7 @@ describe('TriggerEventField', () => {
 
   // Noah installed it in Billing and Sales only: a task in Support starts
   // nothing, a contact still does.
-  it('names the projects whose events reach an installed automation [AUTO-R30]', () => {
+  it('names the projects whose events reach an installed automation [AUTO-R35]', () => {
     renderField({ value: 'task.created', installedIn: ['Billing', 'Sales'] });
     expect(fieldButton()).toHaveAccessibleDescription(
       `A task is created on a board, through the API or by an import. Starts for matching events in Billing and Sales, and for events that belong to no project, such as contacts. ${LOOP}`,

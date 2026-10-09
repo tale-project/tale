@@ -364,6 +364,21 @@ describe('TaskCommentComposer hint', () => {
   });
 });
 
+describe('TaskCommentComposer label', () => {
+  it('names the comment box itself, not through its placeholder', () => {
+    render(
+      <TaskCommentComposer
+        taskId="task_1"
+        organizationId="org_1"
+        projectId="project_1"
+      />,
+    );
+    expect(
+      screen.getByRole('textbox', { name: 'actions.comment' }),
+    ).toHaveAttribute('placeholder', 'actions.commentPlaceholder');
+  });
+});
+
 describe('TaskCommentComposer submit loading', () => {
   it('holds the send button busy while a new comment is posting', () => {
     mutationState.addPending = true;

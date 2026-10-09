@@ -35,6 +35,7 @@ import {
   DEMO_EMPTY_DOCUMENT,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_ENTRIES,
+  DEMO_LAUNCH_TASK_DETAIL,
   DEMO_ORG_NAME,
   DEMO_OWNER,
   DEMO_PASSKEY_NAME,
@@ -642,15 +643,12 @@ export const SHOTS: readonly Shot[] = [
         .getByText(DEMO_PROJECTS[0].tasks[0].title, { exact: true })
         .click();
     },
-    // The separate activity query can settle after the task and its comments.
-    // Wait for its seeded history before capturing the populated reading column.
+    // The conversation reads the discussion and the history in separate
+    // queries. Wait for the seeded comment in the reading column.
     readyWhen: (page) =>
       page
         .getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title })
-        .getByRole('heading', {
-          name: t('tasks.detail.activity'),
-          exact: true,
-        }),
+        .getByText(DEMO_LAUNCH_TASK_DETAIL.comment, { exact: true }),
     localizedReadyWhen: (page) =>
       page
         .getByRole('dialog', {

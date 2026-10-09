@@ -158,7 +158,7 @@ describe('setTestsVerdict / recordTestVerdict — the gate’s refusal persists'
  * deployed — so the editor can offer to turn on a trigger that is off, or
  * to review one whose runs would be refused.
  */
-describe('deploy — the trigger it answers [AUTO-R31]', () => {
+describe('deploy — the trigger it answers [AUTO-R36]', () => {
   function fakeWithTrigger(trigger: Record<string, unknown> | null): Sql {
     const tx = (strings: TemplateStringsArray, ..._values: unknown[]) => {
       const text = strings.join('?').replace(/\s+/g, ' ').trim();

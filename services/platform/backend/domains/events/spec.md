@@ -21,7 +21,7 @@ together or not at all.
 The failure is written to the server log, the automation's start is undone, and the record is
 saved as if no automation had been listening. A start one automation refuses, because its
 inputs refuse the event or its project cannot take a run, is recorded on that automation's
-trigger instead, and the other automations listening still start (`AUTO-R30`).
+trigger instead, and the other automations listening still start (`AUTO-R35`).
 
 - **Example**: Mia creates a contact. An automation that runs on new contacts fails to start →
   the contact is saved, and the failed start is in the server log.

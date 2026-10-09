@@ -516,9 +516,29 @@ describe('kickAgentRun — one live run per task is the schema’s rule', () => 
     const inserts = calls.filter((call) =>
       call.text.startsWith('INSERT INTO app.project_agent_runs'),
     );
-    expect(inserts[0]?.text).toContain('api_key_id');
-    expect(inserts[0]?.values.at(-1)).toBe('key-1');
-    expect(inserts[1]?.values.at(-1)).toBeNull();
+    const apiKeyValue = (insert: (typeof inserts)[number] | undefined) => {
+      const match = insert?.text.match(
+        /INSERT INTO app\.project_agent_runs \((.*?)\) VALUES \((.*?)\) ON CONFLICT/s,
+      );
+      if (
+        insert === undefined ||
+        match?.[1] === undefined ||
+        match[2] === undefined
+      )
+        throw new Error('Expected the captured agent run INSERT');
+      const columns = match[1].split(',').map((column) => column.trim());
+      const values = match[2].split(',').map((value) => value.trim());
+      const columnIndex = columns.indexOf('api_key_id');
+      expect(columnIndex).toBeGreaterThanOrEqual(0);
+      expect(values).toHaveLength(columns.length);
+      expect(values[columnIndex]).toBe('?');
+      // Constants such as 'queued' are SQL expressions, not bound values.
+      const parameterIndex =
+        values.slice(0, columnIndex).join(',').match(/\?/g)?.length ?? 0;
+      return insert.values[parameterIndex];
+    };
+    expect(apiKeyValue(inserts[0])).toBe('key-1');
+    expect(apiKeyValue(inserts[1])).toBeNull();
   });
 
   it('queues a retry at once but holds its start until a cooling broker has an account back', async () => {

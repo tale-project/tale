@@ -1844,9 +1844,11 @@ async function ensureLaunchTaskDetail(
   const priority = dialog.getByRole('button', {
     name: labelStart(t('tasks.fields.priority')),
   });
+  // A task made on the board starts at Medium, so set the demo's priority
+  // whenever the task carries another.
   if (
-    (await priority.getAttribute('aria-label'))?.endsWith(
-      t('tasks.priority.none'),
+    !(await priority.getAttribute('aria-label'))?.endsWith(
+      t(`tasks.priority.${detail.priority}`),
     )
   ) {
     await priority.click();

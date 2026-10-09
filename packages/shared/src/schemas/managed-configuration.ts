@@ -67,11 +67,16 @@ export const managedAutomationDeploymentSchema = z.strictObject({
   definitionSha256: configurationHashSchema,
 });
 /** What a managed schedule may add beside its definition: `catchUp` only
- * when it is `skip` (the default `latest` is left out) and a fixed input only
- * when it has one, so a schedule that sets neither hashes as before. */
+ * when it is `skip` (the default `latest` is left out), a fixed input only
+ * when it has one, and the slot-wake opt-in only when it is on, so a
+ * schedule that sets none of them hashes as before. */
 const scheduleExtras = {
   catchUp: z.literal('skip').optional(),
   input: staticInputSchema.optional(),
+  // Fire this schedule early when an agent of its project frees its slot
+  // (#4540). Only `true` is declared: an absent key is the opt-out, so a
+  // readback and an equivalent declaration always hash alike.
+  wakeOnSlotFreed: z.literal(true).optional(),
 };
 
 /** A managed schedule runs on a cron expression or a repeat rule. The cron

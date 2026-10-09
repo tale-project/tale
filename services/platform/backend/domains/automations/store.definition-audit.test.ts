@@ -274,6 +274,53 @@ describe('triggers', () => {
     expect(outcome.revoked).toBeUndefined();
   });
 
+  it('audits a schedule wake claim change without changing the inherited definition audit identity [AUTO-R28]', async () => {
+    const fake = fakeSql([
+      [
+        'FOR UPDATE',
+        [
+          {
+            id: 'trg_1',
+            kind: 'schedule',
+            tokenHash: null,
+            cron: '0 9 * * 1',
+            timezone: 'UTC',
+            event: null,
+            enabled: true,
+            wakeOnSlotFreed: false,
+            lastSkipReason: null,
+          },
+        ],
+      ],
+      ['INSERT INTO app.automation_triggers', [{ tokenHash: null }]],
+    ]);
+    await setTrigger(fake.sql, {
+      organizationId: 'org_1',
+      name: 'ops/greet',
+      actor: 'user_ada',
+      trigger: {
+        kind: 'schedule',
+        cron: '0 9 * * 1',
+        timezone: 'UTC',
+        wakeOnSlotFreed: true,
+      },
+    });
+    expect(auditDefinitionWrite).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org_1',
+        actor: 'user_ada',
+        action: 'automation.trigger.set',
+        name: 'ops/greet',
+        previousState: expect.objectContaining({ wakeOnSlotFreed: false }),
+        newState: expect.objectContaining({ wakeOnSlotFreed: true }),
+      }),
+    );
+    const order = lockOrder(fake.statements, 'ops/greet');
+    expect(order.chain).toBeGreaterThanOrEqual(0);
+    expect(order.nameLock).toBeGreaterThan(order.chain);
+  });
+
   it('audits a removal with what was bound, after the chain [AUTO-R28]', async () => {
     const fake = fakeSql([
       [

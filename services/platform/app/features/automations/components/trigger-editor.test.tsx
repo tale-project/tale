@@ -740,7 +740,7 @@ describe('TriggerEditor', () => {
   describe('an event trigger', () => {
     const EVENT_ROW = row({ kind: 'event', event: 'task.created' });
 
-    it('names the projects whose events reach it, once the bindings are read [AUTO-R30]', () => {
+    it('names the projects whose events reach it, once the bindings are read [AUTO-R35]', () => {
       triggersData = [EVENT_ROW];
       boundProjectIds = ['proj-1', 'proj-2'];
       renderTrigger('gmail-triage-inbox', true, 2);
@@ -751,7 +751,7 @@ describe('TriggerEditor', () => {
       ).toBeVisible();
     });
 
-    it('says an automation of the organization hears every project [AUTO-R30]', () => {
+    it('says an automation of the organization hears every project [AUTO-R35]', () => {
       triggersData = [EVENT_ROW];
       renderTrigger('gmail-triage-inbox', true, 2);
       expect(

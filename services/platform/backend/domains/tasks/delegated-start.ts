@@ -163,12 +163,40 @@ export async function admitAutomatedStart(
     task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
     agentId: string;
   },
-): Promise<{ admitted: true } | { admitted: false; retryAfter: number }> {
+): Promise<AutomatedStartWindow> {
   await tx`
     SELECT id FROM app.tasks
     WHERE id = ${args.task.id} AND org_id = ${args.task.organizationId}
     FOR UPDATE
   `;
+  const window = await automatedStartWindow(tx, args.task);
+  if (window.admitted) return window;
+  await recordActivity(tx, {
+    task: args.task,
+    actorType: 'agent',
+    actorId: args.agentId,
+    action: 'agent_run.refused',
+    toValue: 'task_circuit_breaker',
+  });
+  return window;
+}
+
+/** Whether the task may take another automated start now — and, when not,
+ * exactly when it may. */
+type AutomatedStartWindow =
+  | { admitted: true }
+  | { admitted: false; retryAfter: number };
+
+/**
+ * The circuit's count alone ({@link admitAutomatedStart} without the task
+ * row's lock and without the refusal's timeline row): the one rule both the
+ * admission and the wake scan (`automations/wakes.ts`) read, so a wake never
+ * fires into a closed circuit and waits for its exact `retryAfter` instead.
+ */
+export async function automatedStartWindow(
+  tx: Sql | TransactionSql,
+  task: Pick<TaskRow, 'id' | 'organizationId'>,
+): Promise<AutomatedStartWindow> {
   const now = Date.now();
   const since = now - HOUR_MS;
   // The cooldown rule reads actual predecessor order. Keep human runs in
@@ -186,11 +214,11 @@ export async function admitAutomatedStart(
   >`
     WITH oldest_recent AS (
       SELECT min(seq) AS seq FROM app.project_agent_runs
-      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+      WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
         AND started_at_ms > ${since}
     ), predecessor AS (
       SELECT max(seq) AS seq FROM app.project_agent_runs
-      WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+      WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
         AND seq < (SELECT seq FROM oldest_recent)
     )
     SELECT started_at_ms::float8 AS "startedAt",
@@ -198,7 +226,7 @@ export async function admitAutomatedStart(
            agent_id AS "agentId", status, failure_code AS "failureCode",
            api_error_status AS "apiErrorStatus"
     FROM app.project_agent_runs
-    WHERE task_id = ${args.task.id} AND org_id = ${args.task.organizationId}
+    WHERE task_id = ${task.id} AND org_id = ${task.organizationId}
       AND seq >= coalesce((SELECT seq FROM predecessor),
                           (SELECT seq FROM oldest_recent))
     ORDER BY seq DESC
@@ -216,13 +244,6 @@ export async function admitAutomatedStart(
   if (recent.length < AUTOMATED_STARTS_PER_TASK_PER_HOUR) {
     return { admitted: true };
   }
-  await recordActivity(tx, {
-    task: args.task,
-    actorType: 'agent',
-    actorId: args.agentId,
-    action: 'agent_run.refused',
-    toValue: 'task_circuit_breaker',
-  });
   return {
     admitted: false,
     retryAfter:
@@ -231,6 +252,33 @@ export async function admitAutomatedStart(
         Infinity,
       ) + HOUR_MS,
   };
+}
+
+/**
+ * Why an in-place start (`moveToInProgress: false`) may not start under this
+ * card: a pending task review or a card at In review (`in_review`), or a
+ * closed card (`closed`); `null` while the card is open work. One rule for
+ * the start itself and for the wake scan (`automations/wakes.ts`), which
+ * holds a wake instead of firing an occurrence the start would refuse.
+ */
+export async function inPlaceStartRefusal(
+  tx: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    task: { id: string; status: string };
+  },
+): Promise<'in_review' | 'closed' | null> {
+  const pendingReviews = await tx<{ id: string }[]>`
+    SELECT id FROM app.approvals
+    WHERE org_id = ${args.organizationId} AND resource_type = 'task_review'
+      AND resource_id = ${args.task.id} AND status = 'pending'
+    LIMIT 1
+  `;
+  if (args.task.status === 'in_review' || pendingReviews.length > 0) {
+    return 'in_review';
+  }
+  if (TERMINAL_STATUSES.has(args.task.status)) return 'closed';
+  return null;
 }
 
 /** The agent row as a start locks it: what the kick needs to run it. */
@@ -302,6 +350,10 @@ export interface DelegatedAgentStartArgs {
    * a replayable admission without modifying the rejected decision.
    */
   resumeFrom?: TaskAgentResumeFrom;
+  /** The wake generation this start covers when its automation run answers
+   * to the project's wake target (`wakeGenerationForStart`). Written on the
+   * new run only; a reused or replayed start writes nothing. */
+  wakeAdmittedSeq?: number;
 }
 
 /** Why a resumption's question is no longer the task's open question. */
@@ -817,16 +869,14 @@ export async function startDelegatedAgentRun(
   // under open work. Checked before anything is assigned: a refused start
   // changes nothing on the task.
   if (args.moveToInProgress === false) {
-    const pendingReviews = await tx<{ id: string }[]>`
-      SELECT id FROM app.approvals
-      WHERE org_id = ${args.organizationId} AND resource_type = 'task_review'
-        AND resource_id = ${task.id} AND status = 'pending'
-      LIMIT 1
-    `;
-    if (task.status === 'in_review' || pendingReviews.length > 0) {
+    const refusal = await inPlaceStartRefusal(tx, {
+      organizationId: args.organizationId,
+      task,
+    });
+    if (refusal === 'in_review') {
       return { outcome: 'in_review', taskId: task.id, agentId: agent.id };
     }
-    if (TERMINAL_STATUSES.has(task.status)) {
+    if (refusal === 'closed') {
       return {
         outcome: 'closed',
         taskId: task.id,
@@ -893,6 +943,9 @@ export async function startDelegatedAgentRun(
     trigger,
     startedVia: args.via,
     inPlace: args.moveToInProgress === false,
+    ...(args.wakeAdmittedSeq !== undefined
+      ? { wakeAdmittedSeq: args.wakeAdmittedSeq }
+      : {}),
     ...(preparedRepair !== undefined
       ? { feedback: repairFeedback(preparedRepair, args.feedback) }
       : args.feedback !== undefined && args.feedback.trim() !== ''

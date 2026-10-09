@@ -33,7 +33,7 @@ function matches(option: SearchableSelectOption, query: string): boolean {
  * sentence of when it is raised — repeated under the field for the picked
  * one. Under it, too, which events reach the automation: those of the
  * projects it is installed in, or of every project, and those of no project
- * (AUTO-R30); and that its own runs never start it again, nor a run an
+ * (AUTO-R35); and that its own runs never start it again, nor a run an
  * event started anything at all (AUTO-R12).
  */
 export function TriggerEventField({

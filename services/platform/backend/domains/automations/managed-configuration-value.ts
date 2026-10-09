@@ -38,6 +38,8 @@ export interface ManagedScheduleSource {
   startDate: string | null;
   catchUp: 'latest' | 'skip' | null;
   input: Readonly<Record<string, unknown>> | null;
+  /** The slot-wake opt-in (#4540); absent reads as off. */
+  wakeOnSlotFreed?: boolean;
 }
 
 export function managedScheduleValue(
@@ -53,6 +55,7 @@ export function managedScheduleValue(
   const extras = {
     ...(row.catchUp === 'skip' ? { catchUp: 'skip' as const } : {}),
     ...(row.input !== null ? { input: row.input } : {}),
+    ...(row.wakeOnSlotFreed === true ? { wakeOnSlotFreed: true as const } : {}),
   };
   // A non-empty cron wins over a rule, as when the schedule runs.
   const cron = row.cron?.trim() ?? '';

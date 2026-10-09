@@ -453,3 +453,30 @@ describe('managed tool preimages', () => {
     );
   });
 });
+
+test('carries a schedule’s slot-wake opt-in through plan, apply and an unchanged re-apply (#4540)', async () => {
+  const config = declaration();
+  const schedule = config.resources.find(
+    (resource) => resource.kind === 'automation-schedule',
+  );
+  if (schedule?.kind !== 'automation-schedule')
+    throw new Error('the fixture declares no schedule');
+  schedule.config.wakeOnSlotFreed = true;
+  const api = native(config.resources);
+  const directory = await mkdtemp(join(tmpdir(), 'managed-config-'));
+  roots.push(directory);
+  const receipt = join(directory, 'receipt.json');
+  const plan = await planPlatformConfiguration(config, api.client);
+  await applyPlatformConfiguration(config, plan, api.client, receipt);
+  const written = api.writes.find(({ kind }) => kind === 'automation-schedule');
+  expect(JSON.stringify(written?.body)).toContain('"wakeOnSlotFreed":true');
+  const before = api.writes.length;
+  const again = await applyPlatformConfiguration(
+    config,
+    plan,
+    api.client,
+    receipt,
+  );
+  expect(again.unchanged).toBe(true);
+  expect(api.writes).toHaveLength(before);
+});

@@ -383,7 +383,7 @@ describe('BlankAutomationDialog webhook URL', () => {
 
   // Created from Billing's page, an event trigger hears Billing's events
   // and those of no project, and says so before the automation exists.
-  it('says which events reach an event trigger created in a project [AUTO-R30]', async () => {
+  it('says which events reach an event trigger created in a project [AUTO-R35]', async () => {
     const { user } = render(
       <BlankAutomationDialog
         organizationId="org-1"

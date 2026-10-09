@@ -152,7 +152,7 @@ function warningsOf(
   }));
 }
 
-describe('triggerInputSample and its warnings [AUTO-R31]', () => {
+describe('triggerInputSample and its warnings [AUTO-R36]', () => {
   const ownerRepo = compileSchema({
     type: 'object',
     required: ['owner', 'repo'],

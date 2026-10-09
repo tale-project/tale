@@ -149,7 +149,7 @@ const UNUSABLE_WARN_INTERVAL_MS = 60 * 60 * 1000;
 
 /** The binding started a run: the fire stamp and the run it names, in the
  * caller's transaction — the one that inserts the run. */
-async function stampFired(
+export async function stampFired(
   sql: Sql | TransactionSql,
   triggerId: string,
   at: number,
@@ -741,7 +741,7 @@ async function raisingRun(
  * event (AUTO-R12): a chain of event starts is one long, so no automation
  * loops on itself or with another. An event of a project starts only the
  * automations installed in it or in none, and their runs start in that
- * project (AUTO-R30). Each trigger starts in a savepoint of its own, so a
+ * project (AUTO-R35). Each trigger starts in a savepoint of its own, so a
  * start one refuses — its inputs, its project — is stamped `start_refused`
  * on that trigger and leaves the others' runs in place. An event of an
  * organization that no longer exists starts nothing either: its listening
@@ -830,7 +830,7 @@ export async function dispatchAutomationEvent(
   for (const trigger of triggers) {
     const bound = installs.get(trigger.name) ?? [];
     // An event of a project starts the automations installed there or
-    // nowhere (AUTO-R30); one installed only elsewhere does not hear it.
+    // nowhere (AUTO-R35); one installed only elsewhere does not hear it.
     if (eventProject !== null && bound.length > 0) {
       if (!bound.includes(eventProject)) continue;
     }

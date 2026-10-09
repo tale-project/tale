@@ -18,12 +18,12 @@ import {
  *
  * - A task a person's run creates in Billing starts the automations
  *   installed in Billing or nowhere, in Billing, never the run's own
- *   automation and never one installed only in Sales (AUTO-R12, AUTO-R30).
+ *   automation and never one installed only in Sales (AUTO-R12, AUTO-R35).
  * - A task an event-started run creates starts nothing at all (AUTO-R12).
  * - A contact, an event of no project, starts the automation that can take
  *   it, while one whose inputs refuse the event and one installed only in
  *   an archived project each record their refusal on their own trigger —
- *   every start in a savepoint of its own (AUTO-R8, AUTO-R30) — and the
+ *   every start in a savepoint of its own (AUTO-R8, AUTO-R35) — and the
  *   contact is saved (EVENT-R2). */
 import { markAutomationWriterInTx } from './writer-protocol.ts';
 
@@ -229,7 +229,7 @@ export async function checkEventScopeAndIsolation(
       runs[0]?.via === 'event' &&
       state.lastRunId === runs[0]?.id;
     record(
-      'a task a person’s run creates in a project starts the automations installed there or nowhere, in that project — never the run’s own, never one installed elsewhere [AUTO-R12] [AUTO-R30]',
+      'a task a person’s run creates in a project starts the automations installed there or nowhere, in that project — never the run’s own, never one installed elsewhere [AUTO-R12] [AUTO-R35]',
       filed.status === 'ok' &&
         raiserRuns.length === 0 &&
         untouched(raiser) &&
@@ -290,7 +290,7 @@ export async function checkEventScopeAndIsolation(
     const archivedRuns = await triggerRuns(names.archivedOnly);
     const openRuns = await triggerRuns(names.open);
     record(
-      'a contact starts the automation that can take it while one refusing its input and one installed only in an archived project each record why, and the contact is saved [AUTO-R8] [AUTO-R30]',
+      'a contact starts the automation that can take it while one refusing its input and one installed only in an archived project each record why, and the contact is saved [AUTO-R8] [AUTO-R35]',
       contact.created &&
         saved.length === 1 &&
         strictRuns.length === 0 &&

@@ -237,7 +237,7 @@ it starts receives; the trigger's own fields are set over it:
 | --- | --- | --- |
 | Schedule | its repeat rule or cron expression comes due in its time zone | `{ …input, trigger: "schedule", firedAt }` |
 | Webhook | a request reaches its address | `{ …input, trigger: "webhook", payload }` |
-| Platform event | the named event happens in the organization, in a project it is installed in when it has one (`AUTO-R30`) | `{ …input, trigger: "event", event, payload }` |
+| Platform event | the named event happens in the organization, in a project it is installed in when it has one (`AUTO-R35`) | `{ …input, trigger: "event", event, payload }` |
 
 ### AUTO-R10 · A trigger that could never start a run is refused when it is saved
 
@@ -284,7 +284,7 @@ a loop. Events a person, an import or the platform raise start every listening a
 - **Example**: An automation listens for "task created", and its run creates a task → that
   event starts no run of it.
 
-### AUTO-R30 · An event of a project starts only automations installed there or nowhere
+### AUTO-R35 · An event of a project starts only automations installed there or nowhere
 
 Task, comment and project events belong to a project; contact and conversation events belong
 to none. An event of a project starts the automations installed in that project and those
@@ -326,7 +326,7 @@ and event triggers count the same way and are never switched off.
   fifth run fails the same way → the schedule is switched off and marked
   `paused_after_failures`.
 
-### AUTO-R29 · A schedule starts each occurrence once, at the local time it names
+### AUTO-R34 · A schedule starts each occurrence once, at the local time it names
 
 A schedule keeps the time of day it names in its time zone through daylight-saving changes. A
 time the clock skips that day starts once, moved forward by the gap; a time the clock repeats
@@ -339,7 +339,7 @@ day, one whose minute or hour starts with `*` keeps its pace.
   on 29 March 2026, when the clock skips 02:30, and once, at the first 02:30, on 25 October
   2026, when the clock shows 02:30 twice.
 
-### AUTO-R32 · A schedule that missed occurrences starts one at most, and counts the rest
+### AUTO-R37 · A schedule that missed occurrences starts one at most, and counts the rest
 
 When the platform was not running at an occurrence, the schedule decides what to start when it
 is back. "Latest", the default, starts the most recent missed occurrence once, however late.
@@ -352,7 +352,7 @@ was saved, are not missed.
   10:15 → with Latest, a run starts at 10:15 for the 09:00 occurrence; with Skip, no run
   starts, and the trigger shows one missed occurrence.
 
-### AUTO-R31 · A trigger whose input the deployed version refuses is saved with a warning
+### AUTO-R36 · A trigger whose input the deployed version refuses is saved with a warning
 
 Saving a trigger, and deploying a version, checks what the trigger will hand each run against
 the inputs of the version that runs: its own fields and its fixed input, an event's payload
@@ -365,6 +365,74 @@ whether the trigger is on.
 - **Example**: Ada turns on the GitHub triage schedule, whose inputs require `owner` and
   `repo`, without a fixed input → it is saved, with a warning naming both; she adds both as
   its fixed input and saves again → no warning.
+
+
+## Waking a standing role
+
+A schedule that runs a project's standing role (the agent that hands out work) can opt in to
+`wakeOnSlotFreed` through managed configuration. When an agent of its project then finishes
+its run in one of its standing workers and that worker is free, the release is recorded on the
+project's wake, and the schedule fires once more before its next cron minute, as an ordinary
+occurrence under its own authority. Releases that arrive while one is pending add up to one
+wake.
+
+### AUTO-R29 · Only an enabled schedule wakes a project, and only one at a time
+
+The opt-in belongs to schedules: on a webhook or an event trigger it is refused, and changing
+a schedule to another kind clears it. A save that leaves it out keeps it. Saving a second
+enabled schedule that opts in for a project another enabled schedule already wakes is refused
+(`AUTOMATION_TRIGGER_INVALID`, 409), and nothing is saved. So is installing an automation whose
+schedule wakes its projects in a project another schedule already wakes, and so is the later of
+two saves or installs that race for one project; a refused install binds no project at all.
+This holds whoever writes the schedule or the installation — the previous version too, while a
+deployment rolls — and for an install that began before the schedule changed; two changes that
+would trade projects are refused whole, never left half-done. Installing and moving automations
+whose schedules wake no project adds no wait on another project’s wake claim; the definition
+audit still serializes changes in the organization. A schedule paused by its failures (`AUTO-R13`) keeps its projects until a person saves
+it; one a person switches off gives them up.
+
+- **Example**: Mia's "Dispatch" schedule wakes the Fleet project. She opts in "Nightly sweep",
+  bound to the same project, and saves it enabled → refused, naming "Dispatch".
+
+### AUTO-R30 · A slot release is recorded with its run's end, or not at all
+
+The release is written in the same transaction as the run's end. If it cannot be written, the
+run does not end either, and whatever ends it later records the release then; a release is
+never dropped while the run's end stays.
+
+- **Example**: Leo's agent finishes while the project's wake cannot be written → the run
+  stays running, and when it ends after all, exactly one release is recorded.
+
+### AUTO-R31 · Only a manager turn that launched and settled covers a release
+
+A wake occurrence's start remembers which releases it saw. Only when that manager turn
+launches and settles are those releases covered. A cancel, queued or running, a failure no
+retry follows, or a start alone covers nothing, and the wake stays pending.
+
+- **Example**: Ana cancels the manager's queued turn that a wake started → the release stays
+  pending, and the wake fires again after its first backoff step.
+
+### AUTO-R32 · A role's own runs never wake it
+
+A run the waking schedule started, its automatic retries, and any other run on the manager's
+own card never record a release, so the role cannot start itself in a loop.
+
+- **Example**: Mia's manager agent settles the turn its schedule started → no release is
+  recorded for it.
+
+### AUTO-R33 · A wake that cannot fire waits for a named reason, and never gives up
+
+A pending wake waits while the manager’s own card has a live run or an armed retry, while its
+card would refuse the start or is no longer assigned to it,
+until the task's automated-start limit allows exactly the next start (`retryAfter`), or for a
+backoff after an occurrence that did not serve: one minute, doubling, at most an hour, with no
+limit on attempts. A schedule paused by its failures (`AUTO-R13`), switched off or opted out
+is mirrored with its reason, and the pending wake fires once it is saved again. Other tasks of
+the same agent do not hold the wake; the new manager run claims its own worker or waits for
+capacity through ordinary worker admission.
+
+- **Example**: Leo's dispatch schedule fails three wake occurrences in a row → the wake waits
+  one, two, then four minutes, and fires the same pending release again after that.
 
 ## When a run ends
 
@@ -526,9 +594,16 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   across the organization's address and a project's (`triggers.ts`,
   `backend/core/automations/webhook_delivery.ts`).
 - **Schedules in detail**: two scans meeting the same occurrence, and a schedule that became
-  unreadable (`triggers.ts`, `lib/automations/schedule/occurrences.ts`); `AUTO-R29` covers
-  daylight-saving changes and `AUTO-R32` missed occurrences.
+  unreadable (`triggers.ts`, `lib/automations/schedule/occurrences.ts`); `AUTO-R34` covers
+  daylight-saving changes and `AUTO-R37` missed occurrences.
 - **Triggers of an organization that no longer exists** (`triggers.ts`).
+- **The wake fire end to end**: that a pending wake fires its schedule early, at most once a
+  minute and never while an occurrence of it is live; that each scan visits the pending wakes
+  least recently visited first, so wakes that cannot fire never keep a later one from firing; the start that captures the releases;
+  the exact `retryAfter`; the lock order of a completion retried behind the audit chain
+  (`automations/wakes.ts`, `tasks/slot-wakes.ts`). Only the integration lane
+  (`checkStandingRoleWake` in `backend/integration-check.ts`) proves them, and the guard does
+  not read it.
 - **Switching a trigger off**: what it stops beyond the next start, such as a project agent a
   schedule had started (`triggers.ts`, `backend/core/automations/agent_host.ts`).
 - **Names**: the grammar of a name, the first words the platform keeps for its own pages, and
@@ -580,13 +655,13 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   in several projects?** `AUTO-R7` refuses that start over the API and by webhook. A schedule,
   or an event that belongs to no project, starts it as a run of the organization, in no project
   (`resolveRunProject` in `store.ts`, `dispatchAutomationEvent` in `triggers.ts`). An event of a
-  project starts it in that project (`AUTO-R30`). No page of the docs says which is meant.
+  project starts it in that project (`AUTO-R35`). No page of the docs says which is meant.
 - **Undecided: can a new automation be created inside an archived project, or one its author
   cannot read?** Creating an automation with a project, and uploading a package into one,
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in
   `store.ts`). The project settings of an existing automation refuse an archived project
   (`AUTO-R8`) and answer a project the author cannot read like a missing one.
-- **A webhook's body is never checked when it is saved.** `AUTO-R31` warns about what is known
+- **A webhook's body is never checked when it is saved.** `AUTO-R36` warns about what is known
   before a request comes — a required field the fixed input lacks, a `payload` the inputs do
   not take — but a delivery whose body the inputs refuse is refused only when it comes, and the
   contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records that it

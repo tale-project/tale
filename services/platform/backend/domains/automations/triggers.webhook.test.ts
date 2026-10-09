@@ -1029,7 +1029,7 @@ describe('dispatchAutomationEvent stamps', () => {
     actorId: 'u-1',
   });
 
-  it('starts the automations installed in the event’s project or nowhere, in that project [AUTO-R30]', async () => {
+  it('starts the automations installed in the event’s project or nowhere, in that project [AUTO-R35]', async () => {
     const { tx, queries } = eventTx(
       [
         { id: 't-org', organizationId: 'org-1', name: 'ops/org-wide' },
@@ -1088,7 +1088,7 @@ describe('dispatchAutomationEvent stamps', () => {
     ).toHaveLength(0);
   });
 
-  it('names a sole installation for an event of no project, and none for several [AUTO-R30]', async () => {
+  it('names a sole installation for an event of no project, and none for several [AUTO-R35]', async () => {
     const { tx } = eventTx(
       [
         { id: 't-one', organizationId: 'org-1', name: 'crm/one' },
@@ -1164,7 +1164,7 @@ describe('dispatchAutomationEvent stamps', () => {
     expect(stamp?.values[3]).toBe('t-billing');
   });
 
-  it('keeps the other listeners’ runs when one trigger’s start is refused [AUTO-R30]', async () => {
+  it('keeps the other listeners’ runs when one trigger’s start is refused [AUTO-R35]', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { tx, queries, savepoints } = eventTx([
       { id: 't-strict', organizationId: 'org-1', name: 'crm/strict' },
