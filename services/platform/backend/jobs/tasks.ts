@@ -599,10 +599,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'tts.watchdog_chunk': { retryLimit: 1, expireInSeconds: 120 },
   'tts.cleanup': { retryLimit: 0, expireInSeconds: 300 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
-  // The checks an earlier image queued for a retry that waited for its busy
-  // agent, keyed by their failed run: `short` kept at most ONE queued per
-  // failed run. Nothing queues one any more; the queue and its policy stay
-  // so a check queued before the upgrade is delivered (and kicks).
+  // A check an earlier image queued for a retry that waited for its busy
+  // agent, keyed by its failed run (`short`: at most ONE queued per failed
+  // run). No current code path queues one; the queue stays registered with
+  // its policy so such a check is still delivered, and it kicks the retry.
   'task.agent_retry_recheck': {
     policy: 'short',
     retryLimit: 1,

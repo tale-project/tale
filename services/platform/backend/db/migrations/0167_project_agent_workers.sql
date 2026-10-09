@@ -1,7 +1,7 @@
 -- One sandbox per worker: every run of a project agent that works at the same
 -- time as another works in a workspace of its own (a "worker": `pa-<agent>`,
 -- `pa-<agent>-w2`, …, and the same per member's family), so one agent on three
--- tasks no longer piles three processes into one sandbox. The run's turn job
+-- tasks works in three sandboxes, one process in each. The run's turn job
 -- CLAIMS its worker before it starts (`domains/tasks/agent-workers.ts`): the
 -- claim writes the chosen worker into `session_id` and stamps
 -- `session_claimed_at_ms`. A run that cannot start for want of room parks and

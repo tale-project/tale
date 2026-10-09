@@ -826,7 +826,7 @@ export async function cancelAgentRun(
  * Withdraw the task's agent run when it is waiting for a worker and has
  * never launched: cancelled like a Stop, so the task can pass to someone
  * else. A run that waits has not begun any work, so nothing of it is lost,
- * and a reassignment no longer has to stop it first. The run row is locked
+ * and a reassignment withdraws it without a Stop. The run row is locked
  * before it is judged: a wake that restarted it a moment ago leaves it
  * unparked, and a run that is working (or about to) is never withdrawn —
  * the caller still refuses then. True when a run was withdrawn.

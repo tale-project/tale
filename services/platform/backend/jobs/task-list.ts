@@ -282,7 +282,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     // it starts takes a worker of its own, or waits for one like any start
     // (`domains/tasks/agent-workers.ts`). The arm (`task.agent_retry`) and a
     // check an earlier image queued on `task.agent_retry_recheck` share this
-    // handler; such a check now simply kicks.
+    // handler, so such a check simply kicks the retry.
     const outcome = await deps.sql.begin(async (tx) => {
       // Written once, at the failed run's kick.
       const startedVia = await startedViaOfRun(tx, input.expectedRunId);
