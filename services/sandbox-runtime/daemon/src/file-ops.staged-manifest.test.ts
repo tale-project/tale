@@ -39,10 +39,32 @@ const server = Bun.serve({
 const URL_ = `http://127.0.0.1:${server.port}/blob`;
 
 let restarts = 0;
+function isFileOps(module: unknown): module is FileOps {
+  return (
+    typeof module === 'object' &&
+    module !== null &&
+    'stageFiles' in module &&
+    typeof module.stageFiles === 'function'
+  );
+}
+
 /** A runnerd started afresh over the same workspace. */
 async function restart(): Promise<FileOps> {
   restarts += 1;
-  return (await import(`./file-ops.ts?restart=${restarts}`)) as FileOps;
+  const module: unknown = await import(`./file-ops.ts?restart=${restarts}`);
+  if (!isFileOps(module)) throw new Error('file-ops did not load');
+  return module;
+}
+
+/** The entries of the manifest on disk. */
+function manifestEntries(): unknown[] {
+  const manifest: unknown = JSON.parse(readFileSync(MANIFEST, 'utf8'));
+  return manifest !== null &&
+    typeof manifest === 'object' &&
+    'entries' in manifest &&
+    Array.isArray(manifest.entries)
+    ? manifest.entries
+    : [];
 }
 
 /** Counts the times a file under the workspace is read through, as hashing
@@ -132,10 +154,9 @@ describe('staged files across runnerd restarts', () => {
     const first = await restart();
     await first.stageFiles([{ path, url: URL_, sourceId: 'blob:c' }]);
     await first.stageFiles([{ path, sourceId: 'blob:c' }]);
-    const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8')) as {
-      entries: string[][];
-    };
-    const entry = manifest.entries.find(([entryPath]) => entryPath === path);
+    const entry = manifestEntries().find(
+      (candidate) => Array.isArray(candidate) && candidate[0] === path,
+    );
     // Source and digest, but no stat to trust yet.
     expect(entry).toHaveLength(3);
 

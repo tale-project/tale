@@ -71,7 +71,14 @@ describe('the staged-files manifest', () => {
       '"entries":[]',
       `"entries":${JSON.stringify([entry])}`,
     );
-    const parsed = JSON.parse(text) as { entries: unknown[] };
+    const parsed: unknown = JSON.parse(text);
+    if (
+      parsed === null ||
+      typeof parsed !== 'object' ||
+      !('entries' in parsed) ||
+      !Array.isArray(parsed.entries)
+    )
+      throw new Error('the encoded manifest has no entries');
     const mac = createHmac('sha256', 'token')
       .update(`tale-staged-sources-v1\n${JSON.stringify(parsed.entries)}`)
       .digest('hex');
