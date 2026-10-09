@@ -176,7 +176,7 @@ export async function readReport(path: string): Promise<RunReport> {
  * not its histogram, so the merged p95 is the slowest shard's: an upper
  * bound of the run's.
  */
-export function mergeStages(
+function mergeStages(
   reports: readonly RunReport[],
 ): RunReport['outcome']['stages'] {
   const depth = Math.min(...reports.map((r) => r.outcome.stages.length));
