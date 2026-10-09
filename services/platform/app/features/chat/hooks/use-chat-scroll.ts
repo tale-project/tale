@@ -602,6 +602,15 @@ export function useChatScroll({
     };
 
     const onContentChange = () => {
+      // The next scroll event is judged against the tallest content seen
+      // since the last one: content that grew on one tick and shrank on the
+      // next (a history row drawn at its real size, smaller than its stand-in)
+      // moves the view through scroll anchoring, and that is layout, not the
+      // reader scrolling away from a send that is gliding into place.
+      lastScrollHeightRef.current = Math.max(
+        lastScrollHeightRef.current,
+        container.scrollHeight,
+      );
       const hold = holdRef.current;
       const action = resolveContentTickAction({
         intent: scrollIntentRef.current,
