@@ -25,6 +25,18 @@ const knowledge = [
   corpus('private_knowledge'),
   corpus('public_web'),
 ].join('\n');
+test('corpus observations retain the complete anchored SQL pattern in both schemas', () => {
+  expect(
+    OBSERVATION_KNOWLEDGE_SQL.match(
+      /c\.relname ~ '\^chunk_vectors_\[0-9\]\+\$'/g,
+    ),
+  ).toHaveLength(2);
+  for (const schema of ['private_knowledge', 'public_web']) {
+    expect(OBSERVATION_KNOWLEDGE_SQL).toContain(
+      `c.relname ~ '^chunk_vectors_[0-9]+$'))\nFROM ${schema}.chunks;`,
+    );
+  }
+});
 test('fixed queries are bounded read-only transactions without a cutover lock', () => {
   for (const sql of [OBSERVATION_APP_SQL, OBSERVATION_KNOWLEDGE_SQL]) {
     expect(sql.startsWith('BEGIN READ ONLY;')).toBe(true);
