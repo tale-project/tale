@@ -17,9 +17,11 @@ ALTER TABLE app.project_agent_runs
 -- (`org_limit`), the sandbox host is full or short of memory or disk
 -- (`host`), an administrator is deleting the workspace it would use
 -- (`destroy_pending`), or its sandbox still runs as many processes as it may
--- (`exec_limit`). Read only while the run is parked
+-- (`exec_limit`). Shown only while the run is parked
 -- (`waiting_for_capacity_at_ms IS NOT NULL`); NULL on a park written before
--- this column and on one whose cause has no wording of its own. The inline
+-- this column and on one whose cause has no wording of its own. A wake keeps
+-- it and the run's claim clears it: a woken run that has not claimed yet
+-- keeps its place in line, ahead of a start that never waited. The inline
 -- CHECK is skipped with the column on a re-run, and every existing row is
 -- NULL, so it holds from the start.
 ALTER TABLE app.project_agent_runs

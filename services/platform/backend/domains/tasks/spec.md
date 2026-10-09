@@ -325,12 +325,16 @@ workspace it would use is being deleted, or its sandbox is still ending an earli
 It starts by itself as soon as room frees, uses no attempt for the wait, and gets its full
 working time from the moment it starts. It waits at most 12 hours from the start request.
 When several runs wait, a freed worker goes to the run of the agent with the fewest runs
-working, and among those to the one that has waited longest.
+working, and among those to the one that has waited longest. A start that has not waited never
+takes the room freed for a waiting run: it waits behind that run.
 
 - **Example**: Both of Scribe's workers are busy. Ada starts Scribe on a third task → it reads
   "Waiting for a worker". "Changelog" finishes → the third run starts by itself.
 - **Example**: Scribe was handed thirty tasks at once and every worker is busy. Ada then starts
   Lector once → the next worker that frees goes to Lector's run, ahead of Scribe's waiting runs.
+- **Example**: Lector's run waits. "Changelog" finishes and frees a worker, which goes to
+  Lector's run. A manager agent starts Scribe on "Press kit" before Lector's run has started →
+  "Press kit" waits, and Lector's run starts.
 
 Until it starts, a waiting run can be taken back: stopping it cancels it, and handing the task to
 someone else cancels it on the way. A run that has started is still stopped before the task

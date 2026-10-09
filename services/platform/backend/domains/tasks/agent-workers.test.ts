@@ -242,6 +242,7 @@ function fakeSql(answers: Array<[string, unknown[]]>): {
     begin: (work: (tx: TransactionSql) => Promise<unknown>) =>
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tag is the transaction too
       work(tag as unknown as TransactionSql),
+    unsafe: (text: string) => text,
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
   return { sql: sql as unknown as Sql, statements };
@@ -264,6 +265,7 @@ const OTHERS =
   'SELECT session_id AS "sessionId" FROM app.project_agent_runs WHERE org_id = ? AND agent_id = ?';
 const IN_FLIGHT = 'SELECT owner_type AS "ownerType"';
 const CLAIM = 'SET session_id = ?, session_claimed_at_ms = ?';
+const ROOM = 'AS pending';
 const PARK = "SET status = 'queued'";
 
 function claimSql(
@@ -273,10 +275,13 @@ function claimSql(
       status?: string;
       parked?: boolean;
       reason?: string | null;
+      woken?: boolean;
     };
     family?: Array<{ sessionId: string; status: string; pinned: boolean }>;
     others?: string[];
     inFlight?: number;
+    /** Other runs a wake restarted that have not claimed yet. */
+    woken?: number;
   } = {},
 ) {
   return fakeSql([
@@ -290,7 +295,7 @@ function claimSql(
         ownerType: 'project_agent',
       })),
     ],
-    ['SELECT count(*)::int AS count', [{ count: 0 }]],
+    [ROOM, [{ pending: 0, woken: script.woken ?? 0 }]],
     [
       PARK,
       [
@@ -427,6 +432,75 @@ describe('claiming a worker', () => {
     });
     expect(begin).toHaveBeenCalledTimes(2);
     warn.mockRestore();
+  });
+});
+
+describe('a start that has not waited and a run woken for room [TASK-R25]', () => {
+  beforeEach(() => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
+    vi.mocked(sessionIdForAgentRun).mockReset();
+    vi.mocked(sessionIdForAgentRun).mockResolvedValue(w(1));
+  });
+
+  it('waits behind a woken run rather than take the room its wake found', async () => {
+    // Scribe's worker 1 stopped when "Changelog" finished, and the wake
+    // chose Lector's waiting run for the freed slot. A manager starts
+    // Scribe on "Press kit" before Lector's run has claimed: worker 1 is
+    // free, but starting it would take Lector's slot.
+    const { sql, statements } = claimSql({
+      family: [{ sessionId: w(1), status: 'stopped', pinned: false }],
+      inFlight: 1,
+      woken: 1,
+    });
+    await expect(claimAgentWorker(sql, ARGS)).resolves.toEqual({
+      parked: 'org_limit',
+    });
+    expect(statements.some((s) => s.text.includes(CLAIM))).toBe(false);
+    // The room counts the woken runs that have not claimed yet.
+    const room = statements.find((s) => s.text.includes(ROOM));
+    expect(room?.values).toContainEqual(
+      expect.stringContaining('session_claimed_at_ms IS NULL'),
+    );
+    expect(room?.values).toContainEqual(
+      expect.stringContaining('waiting_reason IS NOT NULL'),
+    );
+  });
+
+  it('still takes a worker that is up, which needs no room [SBX-R19]', async () => {
+    const { sql } = claimSql({
+      family: [{ sessionId: w(1), status: 'active', pinned: false }],
+      inFlight: 1,
+      woken: 1,
+    });
+    await expect(claimAgentWorker(sql, ARGS)).resolves.toMatchObject({
+      sessionId: w(1),
+    });
+  });
+
+  it('lets the woken run take the room, whatever other woken runs wait', async () => {
+    const { sql } = claimSql({
+      run: { woken: true },
+      family: [{ sessionId: w(1), status: 'stopped', pinned: false }],
+      inFlight: 1,
+      woken: 1,
+    });
+    await expect(claimAgentWorker(sql, ARGS)).resolves.toEqual({
+      sessionId: w(1),
+      worker: 1,
+      moved: false,
+    });
+  });
+
+  it('tells the start it will wait [TASK-R26]', async () => {
+    const { sql } = claimSql({
+      run: { status: 'queued', parked: false, reason: null },
+      family: [{ sessionId: w(1), status: 'stopped', pinned: false }],
+      inFlight: 1,
+      woken: 1,
+    });
+    await expect(
+      predictWorkerWait(sql, { organizationId: 'org-1', runId: 'run-1' }),
+    ).resolves.toBe('org_limit');
   });
 });
 

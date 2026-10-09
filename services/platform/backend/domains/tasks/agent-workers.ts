@@ -46,6 +46,19 @@ const WORKER_TASK_HOLD_MS = 15 * 60 * 1000;
  * long it waited for a worker (`agentRunWorkDeadline`). */
 const AGENT_RUN_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * A run a wake restarted from its park and that has not claimed a worker
+ * yet, as SQL over `app.project_agent_runs`: queued, not parked, without a
+ * claim, and still carrying the reason it waited for. A park writes the
+ * reason, a wake keeps it and the claim clears it, so between its wake and
+ * its claim the reason also marks the run's place in line
+ * ({@link workerRoom}). A run parked without a reason keeps no place.
+ */
+const WOKEN_RUN_SQL = `(status = 'queued'
+  AND waiting_for_capacity_at_ms IS NULL
+  AND session_claimed_at_ms IS NULL
+  AND waiting_reason IS NOT NULL)`;
+
 /** One worker of the run's family that has a live session row. */
 export interface FamilyWorker {
   sessionId: string;
@@ -168,6 +181,9 @@ interface ClaimedRun {
   startedBy: string;
   sessionId: string;
   claimedAt: number | null;
+  /** A wake restarted the run from its park and it has not claimed since:
+   * it keeps its place in line ({@link workerRoom}). */
+  woken: boolean;
 }
 
 /**
@@ -227,7 +243,8 @@ async function claimInTx(
     SELECT agent_id AS "agentId", task_id AS "taskId",
            project_id AS "projectId", started_by AS "startedBy",
            session_id AS "sessionId",
-           session_claimed_at_ms::float8 AS "claimedAt"
+           session_claimed_at_ms::float8 AS "claimedAt",
+           ${tx.unsafe(WOKEN_RUN_SQL)} AS woken
     FROM app.project_agent_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
       AND status = 'queued' AND exec_id = ${args.execId}
@@ -293,7 +310,8 @@ export async function predictWorkerWait(
            session_id AS "sessionId",
            session_claimed_at_ms::float8 AS "claimedAt", status,
            waiting_for_capacity_at_ms IS NOT NULL AS parked,
-           waiting_reason AS reason
+           waiting_reason AS reason,
+           ${sql.unsafe(WOKEN_RUN_SQL)} AS woken
     FROM app.project_agent_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
   `;
@@ -428,7 +446,7 @@ async function readWorkerFacts(
       )
   `;
 
-  const room = await workerRoom(tx, organizationId, runId);
+  const room = await workerRoom(tx, organizationId, { id: runId, ...run });
   const previousSession = previous[0]?.sessionId;
   return {
     agentId: run.agentId,
@@ -459,30 +477,45 @@ async function readWorkerFacts(
   };
 }
 
-/** The agent-worker slots left for one claim: the budget's cap, less the
+/**
+ * The agent-worker slots left for one claim: the budget's cap, less the
  * workers holding a slot, less the runs that have claimed a worker that
  * holds none yet (each takes one at its start). A claim never opens or
  * wakes a worker the organization has no slot for, so a burst of starts
- * opens no more workspaces than can run. */
+ * opens no more workspaces than can run.
+ *
+ * A start that has not waited also leaves the room to every run a wake
+ * restarted and that has not claimed yet: the wake chose that run, in the
+ * fair order, for the room a worker freed, and the start waits behind it
+ * rather than taking that room in the moment before the woken run's claim
+ * (`TASK-R25`). Woken runs do not count one another: their claims take the
+ * room in the order their turns run, as the wakes queued them.
+ */
 async function workerRoom(
   tx: Sql | TransactionSql,
   organizationId: string,
-  runId: string,
+  run: { id: string; woken: boolean },
 ): Promise<number> {
   const { cap, inFlight } = await projectSessionRoom(tx, organizationId);
-  const pending = await tx<{ count: number }[]>`
-    SELECT count(*)::int AS count FROM app.project_agent_runs r
-    WHERE r.org_id = ${organizationId} AND r.id <> ${runId}
+  const ahead = await tx<{ pending: number; woken: number }[]>`
+    SELECT
+      count(*) FILTER (
+        WHERE r.session_claimed_at_ms IS NOT NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM app.sandbox_sessions s
+            WHERE s.org_id = r.org_id AND s.session_id = r.session_id
+              AND (s.status IN ('creating', 'active', 'degraded')
+                OR (s.status = 'stopped' AND s.pinned))
+          )
+      )::int AS pending,
+      count(*) FILTER (WHERE ${tx.unsafe(WOKEN_RUN_SQL)})::int AS woken
+    FROM app.project_agent_runs r
+    WHERE r.org_id = ${organizationId} AND r.id <> ${run.id}
       AND r.status = 'queued' AND r.waiting_for_capacity_at_ms IS NULL
-      AND r.session_claimed_at_ms IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM app.sandbox_sessions s
-        WHERE s.org_id = r.org_id AND s.session_id = r.session_id
-          AND (s.status IN ('creating', 'active', 'degraded')
-            OR (s.status = 'stopped' AND s.pinned))
-      )
   `;
-  return cap - inFlight - (pending[0]?.count ?? 0);
+  const pending = ahead[0]?.pending ?? 0;
+  const woken = run.woken ? 0 : (ahead[0]?.woken ?? 0);
+  return cap - inFlight - pending - woken;
 }
 
 /** A parked run, as its park returns it. */

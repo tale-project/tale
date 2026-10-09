@@ -147,8 +147,8 @@ export function parkedRunSql(alias: RunTableAlias = ''): string {
 }
 
 /** A run's waiting reason as every read shows it: only while the run is
- * parked ({@link parkedRunSql}). A reason left on a row a wake has since
- * restarted (an image that does not clear it) is never shown. */
+ * parked ({@link parkedRunSql}). The reason a woken run keeps until its
+ * claim (its place in line) is never shown. */
 export function parkedWaitingReasonSql(alias: RunTableAlias = ''): string {
   const column = alias === '' ? '' : `${alias}.`;
   return `CASE WHEN ${parkedRunSql(alias)} THEN ${column}waiting_reason END`;
@@ -934,14 +934,18 @@ interface ParkedRun {
  * A run an image that never clears the stamp parked may still carry one,
  * on a worker another run has claimed since; restarted with it, the row
  * would collide with that run's claim (`project_agent_runs_one_per_worker`)
- * and fail the wake. */
+ * and fail the wake. The run keeps the reason it waited for until its
+ * claim clears it: that keeps its place in line, so a start that has not
+ * waited leaves it the room the wake chose it for (`agent-workers.ts`,
+ * `workerRoom`). No read shows the kept reason
+ * ({@link parkedWaitingReasonSql}). */
 async function restartParkedRun(
   tx: TransactionSql,
   run: ParkedRun,
 ): Promise<void> {
   await tx`
     UPDATE app.project_agent_runs SET
-      waiting_for_capacity_at_ms = NULL, waiting_reason = NULL,
+      waiting_for_capacity_at_ms = NULL,
       session_id = ${workerFamilyBase(run.agentId, run.sessionId)},
       session_claimed_at_ms = NULL,
       updated_at_ms = ${Date.now()}

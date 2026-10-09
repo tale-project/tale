@@ -1510,5 +1510,8 @@ describe('a woken run holds no worker until its claim [TASK-R25]', () => {
     expect(restart?.text).toContain('session_claimed_at_ms = NULL');
     expect(restart?.text).toContain('session_id = ?');
     expect(restart?.values).toContain(standingWorkerSessionId(AGENT, 1));
+    // It keeps the reason it waited for until its claim: its place in line
+    // ahead of a start that has not waited.
+    expect(restart?.text).not.toContain('waiting_reason');
   });
 });

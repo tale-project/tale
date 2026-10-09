@@ -16,7 +16,9 @@
  *   whose starter lost the Editor role while it waited moves into the
  *   member's family; an editor's run never lands in a member's worker;
  * - a freed worker goes to the waiting run of the agent with the fewest runs
- *   working, ahead of an older run of a busier agent;
+ *   working, ahead of an older run of a busier agent, and a start that has
+ *   not waited leaves that run the slot rather than take it before the
+ *   woken run's claim;
  * - reassigning a task withdraws its run while it waits and never launched,
  *   and still refuses while a run works or was just woken;
  * - a run that has not claimed a worker holds none, though its kick or its
@@ -361,14 +363,17 @@ export async function checkAgentWorkers(
     const w2After = await sessionStatus(w(2));
     const woken = await factsOf(r3);
     const c3b = await start(r3);
+    const claimed3 = await factsOf(r3);
     record(
-      'agent workers: a run that ends gives back its own worker at once while the agent’s other worker keeps working, and the waiting run is woken and takes the freed worker — reused, no third one opened',
+      'agent workers: a run that ends gives back its own worker at once while the agent’s other worker keeps working, and the waiting run is woken — keeping its reason, its place in line, until its claim clears it — and takes the freed worker, reused, no third one opened',
       w1After === 'stopped' &&
         w2After === 'active' &&
         !woken.parked &&
-        woken.waitingReason === null &&
+        !woken.claimed &&
+        woken.waitingReason === 'org_limit' &&
         sessionOfClaim(c3b) === w(1) &&
-        (await factsOf(r3)).status === 'running' &&
+        claimed3.status === 'running' &&
+        claimed3.waitingReason === null &&
         (await sessionStatus(w(3))) === null &&
         (await inFlight()) === 2,
       `w1=${w1After} (want stopped) w2=${w2After} (want active) woken=${JSON.stringify(woken)} claim=${sessionOfClaim(c3b)} w3=${await sessionStatus(w(3))}`,
@@ -554,6 +559,59 @@ export async function checkAgentWorkers(
       await endAll();
     }
 
+    // ---- a start that has not waited leaves a woken run its room ----------
+    {
+      // Scribe works two tasks and fills the limit; Lector's run waits.
+      // "Scribe frees one" ends: its worker stops, and the wake hands the
+      // slot to Lector's run, the agent with no run working. Ada starts
+      // Scribe on "Press kit" before Lector's run claims: Scribe's stopped
+      // worker is free, but starting it would take Lector's slot, so Press
+      // kit waits behind Lector's run, which then takes the slot.
+      const freesOne = await kick(
+        await insertTask('Scribe frees one', scribe),
+        scribe,
+      );
+      await start(freesOne);
+      const keepsOne = await kick(
+        await insertTask('Scribe keeps one', scribe),
+        scribe,
+      );
+      await start(keepsOne);
+      const lectorRun = await kick(
+        await insertTask('Lector waits', lector),
+        lector,
+      );
+      const lectorParked = await start(lectorRun);
+      await end(freesOne);
+      const lectorWoken = await factsOf(lectorRun);
+      const pressKitTask = await insertTask('Press kit', scribe);
+      const pressKitRun = await kick(pressKitTask, scribe);
+      const pressKitPredicted = await predictWorkerWait(sql, {
+        organizationId: orgId,
+        runId: pressKitRun,
+      });
+      const pressKitClaim = await start(pressKitRun);
+      const lectorClaim = await start(lectorRun);
+      const pressKitAfter = await factsOf(pressKitRun);
+      record(
+        'agent workers: a start that has not waited leaves the slot a wake handed a waiting run — it waits behind the woken run (told so before its claim), which then takes the slot; no third workspace opens',
+        JSON.stringify(lectorParked) ===
+          JSON.stringify({ parked: 'org_limit' }) &&
+          !lectorWoken.parked &&
+          lectorWoken.status === 'queued' &&
+          pressKitPredicted === 'org_limit' &&
+          JSON.stringify(pressKitClaim) ===
+            JSON.stringify({ parked: 'org_limit' }) &&
+          pressKitAfter.parked &&
+          sessionOfClaim(lectorClaim) === standingWorkerSessionId(lector, 1) &&
+          (await factsOf(lectorRun)).status === 'running' &&
+          (await sessionStatus(w(1))) === 'stopped' &&
+          (await inFlight()) === 2,
+        `lector=${JSON.stringify(lectorParked)} woken=${JSON.stringify(lectorWoken)} press kit predicted=${pressKitPredicted} claim=${JSON.stringify(pressKitClaim)} then lector=${sessionOfClaim(lectorClaim)} w1=${await sessionStatus(w(1))} slots=${await inFlight()}`,
+      );
+      await endAll();
+    }
+
     // ---- a run that has not claimed a worker holds none -------------------
     {
       // Three starts kicked before any of them claims, every worker
@@ -606,19 +664,19 @@ export async function checkAgentWorkers(
       const waiting = await kick(waitingTask, scribe);
       const waitingClaim = await start(waiting);
       await end(followUp);
-      const woken = await factsOf(waiting);
+      const wokenRun = await factsOf(waiting);
       const again = await kick(burst[0] ?? '', scribe);
       const againClaim = await start(again);
       record(
         'agent workers: a task’s next run takes its own worker, still up, while a woken run that has not claimed yet names that worker',
         JSON.stringify(waitingClaim) ===
           JSON.stringify({ parked: 'org_limit' }) &&
-          !woken.parked &&
-          woken.sessionId === w(1) &&
-          !woken.claimed &&
+          !wokenRun.parked &&
+          wokenRun.sessionId === w(1) &&
+          !wokenRun.claimed &&
           sessionOfClaim(againClaim) === w(1) &&
           (await sessionStatus(w(3))) === null,
-        `waiting=${JSON.stringify(waitingClaim)} woken=${JSON.stringify(woken)} next=${sessionOfClaim(againClaim)} (want w1) w3=${await sessionStatus(w(3))}`,
+        `waiting=${JSON.stringify(waitingClaim)} woken=${JSON.stringify(wokenRun)} next=${sessionOfClaim(againClaim)} (want w1) w3=${await sessionStatus(w(3))}`,
       );
       await sql`
         UPDATE app.sandbox_sessions SET pinned = false
