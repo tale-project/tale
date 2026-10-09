@@ -200,6 +200,8 @@ function fakeChatSql(
     streamed?: { text: string; reasoning?: string };
     /** The placeholder's parts as stored before the finalize. */
     storedParts?: unknown[];
+    /** Progress writes of the text that fail, as a dropped connection does. */
+    failTextWrites?: number;
   } = {},
 ): {
   sql: Sql;
@@ -211,6 +213,7 @@ function fakeChatSql(
   const tx: Statement[] = [];
   const transactions: Array<'commit' | 'rollback'> = [];
   let messageRows = 0;
+  let textWriteFailures = options.failTextWrites ?? 0;
   const answer = (text: string): unknown[] => {
     if (text.includes('FOR UPDATE OF tm')) {
       return options.scopeChanged ? [] : [{ id: 'thread_1' }];
@@ -259,6 +262,14 @@ function fakeChatSql(
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?');
       log.push({ text, values });
+      if (
+        textWriteFailures > 0 &&
+        text.includes('UPDATE app.generations SET') &&
+        text.includes('text = ')
+      ) {
+        textWriteFailures -= 1;
+        return Promise.reject(new Error('Connection terminated unexpectedly'));
+      }
       return Promise.resolve(answer(text));
     };
     tag.json = (value: unknown) => ({ json: value });
@@ -841,6 +852,41 @@ describe('createPgTurnStore.streamProgress write gap', () => {
       await poll(`${long}!?`);
       expect(writes() - heartbeats()).toBe(5);
       expect(heartbeats()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('repairs a progress write that failed on the next poll', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000_000);
+      const f = fakeChatSql({ failTextWrites: 1 });
+      const store = createPgTurnStore(f.sql);
+      const update = (text: string, poll?: true) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          ...(poll === undefined ? {} : { poll }),
+        });
+      const textWrites = () =>
+        f.pool.filter(
+          (s) =>
+            s.text.includes('UPDATE app.generations SET') &&
+            s.text.includes('text = '),
+        ).length;
+      // The write of the newest text is lost to a dropped connection.
+      await expect(update('Hello world')).rejects.toThrow('terminated');
+      expect(textWrites()).toBe(1);
+      // The stall's poll carries the same text and writes it again.
+      vi.advanceTimersByTime(300);
+      await update('Hello world', true);
+      expect(textWrites()).toBe(2);
+      // Once stored, the next poll only touches the heartbeat.
+      vi.advanceTimersByTime(300);
+      await update('Hello world', true);
+      expect(textWrites()).toBe(2);
     } finally {
       vi.useRealTimers();
     }

@@ -446,7 +446,7 @@ function pgTurnStore(
         return { cancelRequested: lastCancelRequested };
       }
       lastStreamWriteAt = nowMs;
-      lastWritten = {
+      const writing = {
         text: update.text,
         reasoning,
         messageId: update.messageId ?? lastWritten?.messageId,
@@ -461,6 +461,9 @@ function pgTurnStore(
           AND org_id = ${update.organizationId}
         RETURNING cancel_requested AS "cancelRequested"
       `;
+      // Only a write that landed is one a poll may skip repeating: a failed
+      // one leaves the row short of this text, and the next poll repairs it.
+      lastWritten = writing;
       lastCancelRequested = rows[0]?.cancelRequested ?? false;
       return { cancelRequested: lastCancelRequested };
     },
