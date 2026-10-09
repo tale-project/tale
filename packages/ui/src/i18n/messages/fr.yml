@@ -524,6 +524,99 @@ schemaTree:
   maybeEmpty: peut être vide
   more: '{count, plural, one {# autre champ} many {# autres champs} other {# autres champs}}'
   asTypeScript: Afficher en TypeScript
+  inItems: '{count, plural, one {dans # élément sur {total}} many {dans # éléments sur {total}} other {dans # éléments sur {total}}}'
+  mark:
+    added: absent de la structure attendue
+    removed: attendu, mais absent
+    typeChanged: pas du type attendu
+    optional: pas toujours présent
+
+valueTree:
+  label: Valeur
+  name: '{key}, {value}'
+  markedName: '{mark} : {name}'
+  keyboardHelp: Les flèches permettent de se déplacer et d'ouvrir. Tape un nom de champ pour y aller.
+  summary:
+    list: '{count, plural, =0 {une liste vide} one {une liste de # élément} many {une liste de # éléments} other {une liste de # éléments}}'
+    object: '{count, plural, =0 {un objet vide} one {un objet avec # champ} many {un objet avec # champs} other {un objet avec # champs}}'
+    longText: '{count, plural, one {un texte de # caractère} many {un texte de # caractères} other {un texte de # caractères}}'
+    quote: '« {text} »'
+    'true': vrai
+    'false': faux
+    'null': vide
+    missing: absent
+    redacted: un secret masqué
+    elided: '{size} non conservés'
+  showAllText: Afficher les {count} caractères
+  showMore: Afficher {count} de plus
+  elided:
+    string: '{count, plural, one {+# caractère non conservé} many {+# caractères non conservés} other {+# caractères non conservés}}'
+    items: '{count, plural, one {+# élément non conservé} many {+# éléments non conservés} other {+# éléments non conservés}}'
+    depth: Niveaux plus profonds non conservés
+    whole: Trop volumineux pour être conservé ({size})
+  redacted: Secret masqué
+  redactedHint: Tale masque les secrets dans les valeurs enregistrées.
+  missing: '{key} : absent'
+  copyValue: Copier la valeur
+  copyPath: Copier le chemin
+  copied: Copié
+  mark:
+    added: Ajouté
+    removed: Supprimé
+    changed: 'Modifié, avant : {before}'
+    changedPlain: Modifié
+    typeChanged: 'Type modifié, avant : {before}'
+    typeChangedPlain: Type modifié
+
+dataView:
+  values: Valeurs
+  shape: Structure
+  modeLabel: Afficher en
+  copy: Copier le JSON
+  download: Télécharger le JSON
+  fullScreen: Ouvrir en plein écran
+  closeFullScreen: Fermer le plein écran
+  expected:
+    matches: Correspond à la structure attendue
+    differs: '{count, plural, one {Diffère de la structure attendue sur # champ} many {Diffère de la structure attendue sur # champs} other {Diffère de la structure attendue sur # champs}}'
+    compare: Comparer
+  empty: Rien n'a été enregistré
+  size: '{size} enregistrés'
+
+dataDiff:
+  none: Aucune modification
+  count:
+    added: '{count, plural, one {# ajouté} many {# ajoutés} other {# ajoutés}}'
+    removed: '{count, plural, one {# supprimé} many {# supprimés} other {# supprimés}}'
+    changed: '{count, plural, one {# modifié} many {# modifiés} other {# modifiés}}'
+    typeChanged: '{count, plural, one {# change de type} many {# changent de type} other {# changent de type}}'
+    reordered: '{count, plural, one {# réordonné} many {# réordonnés} other {# réordonnés}}'
+    unknown: '{count, plural, one {# non comparé} many {# non comparés} other {# non comparés}}'
+  row:
+    added: '{path} ajouté : {after}'
+    removed: '{path} supprimé (valait {before})'
+    changed: '{path} est passé de {before} à {after}'
+    typeChanged: '{path} est passé de {beforeKind} à {afterKind} : {after}'
+    reordered: '{path} : les mêmes éléments dans un autre ordre'
+    unknown: "{path} : non comparé, car une partie n'a pas été conservée"
+  shape:
+    added: '{path} est apparu ({kind})'
+    removed: '{path} a disparu'
+    typeChanged: '{path} : {beforeKind} est devenu {afterKind}'
+    optional: "{path} n'est plus toujours présent"
+    required: '{path} est désormais toujours présent'
+  layout:
+    label: Disposition
+    list: Liste
+    split: Côte à côte
+  before: Avant
+  after: Après
+  unrelated: "Leurs structures n'ont rien en commun, il n'y a donc rien à comparer champ par champ."
+  wholeValue: l'ensemble de la valeur
+  showValue: Afficher la valeur
+  hideValue: Masquer la valeur
+  unchanged: '{count, plural, one {# champ inchangé} many {# champs inchangés} other {# champs inchangés}}'
+  more: '{count, plural, one {# autre modification} many {# autres modifications} other {# autres modifications}}'
 
 flow:
   canvas:

@@ -27,11 +27,25 @@
       "description": "Summarize, shape and compare JSON values, and name a place in one with a JSON pointer — pure functions, no React."
     }
   },
+  "components/data-diff": {
+    "slug": "components/data-diff",
+    "frontmatter": {
+      "title": "Data diff",
+      "description": "Say what changed between two values in sentences, or set them side by side with every change marked, and compare their shapes."
+    }
+  },
   "components/data-table": {
     "slug": "components/data-table",
     "frontmatter": {
       "title": "Data table",
       "description": "Connect rows, search, selection, loading, and paging to one consistent list surface."
+    }
+  },
+  "components/data-view": {
+    "slug": "components/data-view",
+    "frontmatter": {
+      "title": "Data view",
+      "description": "Show one recorded value as its values or its shape, hold it against the shape it should have, and copy, download or open it full screen."
     }
   },
   "components/dialog": {
@@ -53,6 +67,13 @@
     "frontmatter": {
       "title": "Flow node issues",
       "description": "Mark the nodes of a flow canvas with their problem counts, in a way that reads without colour or sight."
+    }
+  },
+  "components/format-duration": {
+    "slug": "components/format-duration",
+    "frontmatter": {
+      "title": "Format durations",
+      "description": "Say how long something took in the reader's language, and show a duration that counts on while it runs."
     }
   },
   "components/input": {
@@ -123,6 +144,13 @@
     "frontmatter": {
       "title": "Toast",
       "description": "Show brief completion feedback, avoid duplicate viewports, and keep essential information on the page."
+    }
+  },
+  "components/value-tree": {
+    "slug": "components/value-tree",
+    "frontmatter": {
+      "title": "Value tree",
+      "description": "Show a JSON value a person can read and walk with the keyboard, with what a recorder left out as chips and highlights by JSON pointer."
     }
   },
   "components/workflow-canvas": {
