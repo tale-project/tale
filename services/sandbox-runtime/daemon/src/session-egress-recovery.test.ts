@@ -145,3 +145,122 @@ describe('the session redsocks', () => {
     }
   });
 });
+
+/** Run the session's transparent-egress setup against fake `iptables` and
+ * `iptables-restore`: `chainExists` answers the REDSOCKS probe, `restoreOk`
+ * decides whether the restore commits. Returns every call, in order. */
+function installSessionNat(scenario: {
+  chainExists: boolean;
+  restoreOk: boolean;
+}) {
+  const calls = fresh('iptables-calls');
+  const restored = fresh('restore-input');
+  const iptables = fresh('iptables');
+  writeFileSync(
+    iptables,
+    [
+      '#!/bin/sh',
+      `printf 'iptables %s\\n' "$*" >> '${calls}'`,
+      // The REDSOCKS probes (-S, -L) and every -C check answer from the
+      // scenario; additions succeed.
+      'case "$*" in',
+      `  *" -S REDSOCKS"|*" -L REDSOCKS") ${scenario.chainExists ? 'exit 0' : 'exit 1'} ;;`,
+      '  *" -C "*) exit 1 ;;',
+      'esac',
+      'exit 0',
+    ].join('\n'),
+  );
+  chmodSync(iptables, 0o755);
+  const restore = fresh('iptables-restore');
+  writeFileSync(
+    restore,
+    [
+      '#!/bin/sh',
+      `printf 'iptables-restore %s\\n' "$*" >> '${calls}'`,
+      `cat > '${restored}'`,
+      scenario.restoreOk ? 'exit 0' : 'exit 2',
+    ].join('\n'),
+  );
+  chmodSync(restore, 0o755);
+  const script = [
+    helpers,
+    `_IPTABLES='${iptables}'`,
+    `_IPTABLES_RESTORE='${restore}'`,
+    `TALE_REDSOCKS_UID=10002`,
+    // The parts of the setup outside the nat table are not under test.
+    `resolve_egress_endpoint() { TALE_EGRESS_IP=10.9.0.5; TALE_EGRESS_PORT=3128; }`,
+    `_ensure_default_route() { :; }`,
+    `_launch_session_redsocks() { :; }`,
+    `setup_session_transparent_egress`,
+  ].join('\n');
+  const r = spawnSync('sh', ['-c', script], { encoding: 'utf8' });
+  const read = (path: string) => {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch {
+      return '';
+    }
+  };
+  return {
+    status: r.status,
+    stderr: r.stderr,
+    calls: read(calls).trim().split('\n').filter(Boolean),
+    restored: read(restored),
+  };
+}
+
+describe("the session's nat rules", () => {
+  test('a fresh namespace gets them in one iptables-restore transaction', () => {
+    const r = installSessionNat({ chainExists: false, restoreOk: true });
+    expect(r.status).toBe(0);
+    expect(r.calls).toEqual([
+      'iptables -t nat -S REDSOCKS',
+      'iptables-restore --noflush',
+    ]);
+    // The per-rule path's order: the proxy's RETURN at the top of REDSOCKS,
+    // then OUTPUT's owner RETURN and its jump.
+    expect(r.restored.split('\n').filter(Boolean)).toEqual([
+      '*nat',
+      ':REDSOCKS - [0:0]',
+      '-A REDSOCKS -d 10.9.0.5 -p tcp -j RETURN',
+      '-A REDSOCKS -d 0.0.0.0/8 -j RETURN',
+      '-A REDSOCKS -d 10.0.0.0/8 -j RETURN',
+      '-A REDSOCKS -d 100.64.0.0/10 -j RETURN',
+      '-A REDSOCKS -d 127.0.0.0/8 -j RETURN',
+      '-A REDSOCKS -d 169.254.0.0/16 -j RETURN',
+      '-A REDSOCKS -d 172.16.0.0/12 -j RETURN',
+      '-A REDSOCKS -d 192.168.0.0/16 -j RETURN',
+      '-A REDSOCKS -p tcp -j REDIRECT --to-ports 12346',
+      '-A OUTPUT -p tcp -m owner --uid-owner 10002 -j RETURN',
+      '-A OUTPUT -p tcp -j REDSOCKS',
+      'COMMIT',
+    ]);
+  });
+
+  test('an existing chain is completed rule by rule, never restored over', () => {
+    const r = installSessionNat({ chainExists: true, restoreOk: true });
+    expect(r.status).toBe(0);
+    expect(r.calls.some((call) => call.startsWith('iptables-restore'))).toBe(
+      false,
+    );
+    expect(r.calls).toContain(
+      'iptables -t nat -I REDSOCKS 1 -d 10.9.0.5 -p tcp -j RETURN',
+    );
+    expect(r.calls).toContain('iptables -t nat -A OUTPUT -p tcp -j REDSOCKS');
+    expect(r.calls).not.toContain('iptables -t nat -N REDSOCKS');
+  });
+
+  test('a refused restore falls back to the per-rule path', () => {
+    const r = installSessionNat({ chainExists: false, restoreOk: false });
+    expect(r.status).toBe(0);
+    expect(r.stderr).toContain('iptables-restore refused');
+    const restoreAt = r.calls.indexOf('iptables-restore --noflush');
+    expect(restoreAt).toBeGreaterThan(-1);
+    const after = r.calls.slice(restoreAt + 1);
+    expect(after).toContain('iptables -t nat -N REDSOCKS');
+    expect(after).toContain(
+      'iptables -t nat -A REDSOCKS -p tcp -j REDIRECT --to-ports 12346',
+    );
+    expect(after).toContain('iptables -t nat -A OUTPUT -p tcp -j REDSOCKS');
+  });
+});
