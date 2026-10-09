@@ -29,6 +29,22 @@ function Pane({
   );
 }
 
+function DialogPane({
+  show,
+  onFocusLost,
+}: {
+  show: boolean;
+  onFocusLost: () => void;
+}) {
+  return (
+    <div role="dialog" tabIndex={-1}>
+      <section aria-label="Recovered list" tabIndex={-1} />
+      <button type="button">Elsewhere</button>
+      {show && <Failure onFocusLost={onFocusLost} />}
+    </div>
+  );
+}
+
 describe('useFocusHandoff frame-time ownership', () => {
   let frames: FrameRequestCallback[];
   beforeEach(() => {
@@ -97,6 +113,36 @@ describe('useFocusHandoff frame-time ownership', () => {
       expect(target).toHaveFocus();
     },
   );
+
+  it('hands off when a dialog focus trap parks focus on its root', () => {
+    const handoff = vi.fn();
+    const view = render(<DialogPane show onFocusLost={handoff} />);
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+    view.rerender(<DialogPane show={false} onFocusLost={handoff} />);
+    expect(frames).toHaveLength(1);
+
+    const dialog = screen.getByRole('dialog');
+    dialog.focus();
+    runFrame();
+
+    expect(handoff).toHaveBeenCalledTimes(1);
+  });
+
+  it('preserves focus when the reader chooses another dialog control', () => {
+    const handoff = vi.fn();
+    const view = render(<DialogPane show onFocusLost={handoff} />);
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    retry.focus();
+    view.rerender(<DialogPane show={false} onFocusLost={handoff} />);
+    const destination = screen.getByRole('button', { name: 'Elsewhere' });
+    destination.focus();
+
+    runFrame();
+
+    expect(handoff).not.toHaveBeenCalled();
+    expect(destination).toHaveFocus();
+  });
 
   it('does not queue a handoff when the member left before removal', () => {
     const handoff = vi.fn();

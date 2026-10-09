@@ -28,17 +28,21 @@ export function useFocusHandoff<T extends HTMLElement>(
     if (node === null) return undefined;
     return () => {
       const handoff = onFocusLostRef.current;
+      const focusScope = node.closest('[role="dialog"], [role="alertdialog"]');
       if (handoff !== undefined && node.contains(document.activeElement)) {
         requestAnimationFrame(() => {
           // Removing the owned control normally strands focus on the page.
-          // Another control or a focus trap may take it before this frame;
-          // that connected destination keeps focus instead of being replaced.
+          // Another control may take it before this frame; that connected
+          // destination keeps focus instead of being replaced. Radix parks a
+          // trapped dialog's focus on its root, though, and that fallback must
+          // still hand focus to the stable target that replaced the control.
           const doc = node.ownerDocument;
           const active = doc.activeElement;
           if (
             active === null ||
             active === doc.body ||
-            active === doc.documentElement
+            active === doc.documentElement ||
+            active === focusScope
           ) {
             handoff();
           }
