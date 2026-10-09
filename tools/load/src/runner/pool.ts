@@ -18,12 +18,14 @@ import type {
   RunVirtualUser,
   ScenarioOptions,
 } from '../scenario/contract.ts';
+import { PERSONA_NAMES } from '../scenario/contract.ts';
 import {
   benchmarkAddress,
   mulberry32,
   personaFor,
   userSeed,
 } from './assign.ts';
+import type { PersonaAssignment } from './profiles.ts';
 
 export interface PoolOptions {
   plan: LoadPlan;
@@ -36,6 +38,7 @@ export interface PoolOptions {
   metrics: MetricsRegistry;
   authSecret: string | null;
   personas: PersonaWeights;
+  personaAssignment: PersonaAssignment;
   scenario: ScenarioOptions;
   /** Send a per-user benchmark address as X-Forwarded-For. */
   forwardedFor: boolean;
@@ -58,6 +61,8 @@ export class UserPool {
   readonly #live = new Set<ActiveUser>();
   /** Indexes whose user has not finished winding down. */
   readonly #running = new Set<number>();
+  /** Every started user's completion, until it has wound down. */
+  readonly #winding = new Map<number, Promise<void>>();
   #cursor: number;
   #target = 0;
 
@@ -88,18 +93,28 @@ export class UserPool {
     return this.#target;
   }
 
-  /** Follow a new target: start or stop users until the count matches. */
+  /**
+   * Follow a new target: start or stop users until the count matches. A
+   * user still winding down keeps its index, so a pool asked to grow right
+   * after shrinking may have no index free: it starts what it can now and
+   * the rest on a later call.
+   */
   setTarget(target: number): void {
     this.#target = Math.max(0, Math.min(Math.floor(target), this.capacity));
-    while (this.#live.size < this.#target) this.#start();
+    while (this.#live.size < this.#target) {
+      if (!this.#start()) break;
+    }
     while (this.#live.size > this.#target) this.#stopNewest();
   }
 
-  /** Stop every user and wait (at most `timeoutMs`) for them to wind down. */
+  /**
+   * Stop every user and wait (at most `timeoutMs`) for all of them to wind
+   * down — those just stopped and those a falling target stopped earlier.
+   */
   async stopAll(timeoutMs = 30_000): Promise<number> {
     this.#target = 0;
-    const done = [...this.#live].map((user) => user.done);
     while (this.#live.size > 0) this.#stopNewest();
+    const done = [...this.#winding.values()];
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timedOut = await Promise.race([
       Promise.allSettled(done).then(() => false),
@@ -111,19 +126,22 @@ export class UserPool {
     return timedOut ? this.#running.size : 0;
   }
 
-  #nextIndex(): number {
+  /** A free index of the range, or null while every one is still running. */
+  #nextIndex(): number | null {
     const { start, end } = this.#options.range;
     for (let tries = 0; tries < end - start; tries += 1) {
       const index = this.#cursor;
       this.#cursor = this.#cursor + 1 >= end ? start : this.#cursor + 1;
       if (!this.#running.has(index)) return index;
     }
-    throw new Error('every user of the range is already running');
+    return null;
   }
 
-  #start(): void {
+  /** Start one user; false when no index is free. */
+  #start(): boolean {
     const options = this.#options;
     const index = this.#nextIndex();
+    if (index === null) return false;
     const controller = new AbortController();
     const baseUrl =
       options.baseUrls[index % options.baseUrls.length] ??
@@ -147,7 +165,10 @@ export class UserPool {
         agent,
         metrics: options.metrics,
         authSecret: options.authSecret,
-        persona: personaFor(options.personas, options.seed, index),
+        persona:
+          options.personaAssignment === 'round-robin'
+            ? (PERSONA_NAMES[index % PERSONA_NAMES.length] ?? 'browser')
+            : personaFor(options.personas, options.seed, index),
         random: mulberry32(userSeed(options.seed, index)),
         options: options.scenario,
         signal: controller.signal,
@@ -161,11 +182,14 @@ export class UserPool {
       })
       .finally(() => {
         this.#running.delete(index);
+        this.#winding.delete(index);
         this.#live.delete(user);
         options.metrics.gauge('users.active', -1);
       });
+    this.#winding.set(index, user.done);
     this.#stack.push(user);
     this.#live.add(user);
+    return true;
   }
 
   #stopNewest(): void {

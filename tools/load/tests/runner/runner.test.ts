@@ -30,6 +30,7 @@ import {
 } from '../../src/runner/report.ts';
 import {
   DEFAULT_PERSONA_WEIGHTS,
+  PERSONA_NAMES,
   scenarioOptionsSchema,
   type VirtualUserContext,
 } from '../../src/scenario/contract.ts';
@@ -154,6 +155,28 @@ describe('splitTarget', () => {
     const shares = splitTarget(1001, [400, 300, 301]);
     expect(shares.reduce((a, b) => a + b, 0)).toBe(1001);
   });
+
+  test('only ever raises a share as the target rises', () => {
+    for (const capacities of [
+      [3, 3, 2, 2],
+      [2, 2, 1, 1, 1],
+      [5],
+      [7, 0, 4],
+      [125, 125, 124, 124, 124, 124, 124, 124],
+    ]) {
+      const total = capacities.reduce((a, b) => a + b, 0);
+      let previous = splitTarget(0, capacities);
+      for (let target = 1; target <= total + 2; target += 1) {
+        const shares = splitTarget(target, capacities);
+        expect(shares.reduce((a, b) => a + b, 0)).toBe(Math.min(target, total));
+        shares.forEach((share, i) => {
+          expect(share).toBeGreaterThanOrEqual(previous[i] ?? 0);
+          expect(share).toBeLessThanOrEqual(capacities[i] ?? 0);
+        });
+        previous = shares;
+      }
+    }
+  });
 });
 
 describe('UserPool', () => {
@@ -169,6 +192,7 @@ describe('UserPool', () => {
       metrics,
       authSecret: null,
       personas: DEFAULT_PERSONA_WEIGHTS,
+      personaAssignment: 'weighted',
       scenario: scenarioOptionsSchema.parse({}),
       forwardedFor: true,
       seed: 1,
@@ -201,6 +225,71 @@ describe('UserPool', () => {
     expect(users.active).toBe(0);
   });
 
+  test('regrowing right after a shrink starts what it can, never throws', async () => {
+    const { users, started } = pool({ start: 0, end: 3 });
+    users.setTarget(3);
+    // Stopped users are still winding down: their indexes are taken.
+    users.setTarget(1);
+    expect(() => users.setTarget(3)).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+    users.setTarget(3);
+    expect(users.active).toBe(3);
+    expect(started.length).toBeGreaterThanOrEqual(3);
+    await users.stopAll(1_000);
+  });
+
+  test('stopAll waits for users a falling target stopped earlier too', async () => {
+    const metrics = new MetricsRegistry();
+    const finish: Array<() => void> = [];
+    const users = new UserPool({
+      plan: PLAN,
+      range: { start: 0, end: 2 },
+      baseUrls: ['http://a'],
+      agents: [{} as never],
+      metrics,
+      authSecret: null,
+      personas: DEFAULT_PERSONA_WEIGHTS,
+      personaAssignment: 'weighted',
+      scenario: scenarioOptionsSchema.parse({}),
+      forwardedFor: false,
+      seed: 1,
+      // A user that winds down only when the test lets it.
+      runUser: () =>
+        new Promise<void>((resolve) => {
+          finish.push(resolve);
+        }),
+    });
+    users.setTarget(2);
+    users.setTarget(0);
+    expect(users.active).toBe(0);
+    expect(await users.stopAll(50)).toBe(2);
+    for (const done of finish) done();
+  });
+
+  test('round-robin personas cover every persona among a few users', () => {
+    const personas: string[] = [];
+    const users = new UserPool({
+      plan: PLAN,
+      range: { start: 0, end: 14 },
+      baseUrls: ['http://a'],
+      agents: [{} as never],
+      metrics: new MetricsRegistry(),
+      authSecret: null,
+      personas: DEFAULT_PERSONA_WEIGHTS,
+      personaAssignment: 'round-robin',
+      scenario: scenarioOptionsSchema.parse({}),
+      forwardedFor: false,
+      seed: 1,
+      runUser: (ctx: VirtualUserContext) => {
+        personas.push(ctx.persona);
+        return Promise.resolve();
+      },
+    });
+    users.setTarget(PERSONA_NAMES.length);
+    expect(new Set(personas)).toEqual(new Set(PERSONA_NAMES));
+  });
+
   test('a crashing user is counted, not hidden', async () => {
     const metrics = new MetricsRegistry();
     const users = new UserPool({
@@ -211,6 +300,7 @@ describe('UserPool', () => {
       metrics,
       authSecret: null,
       personas: DEFAULT_PERSONA_WEIGHTS,
+      personaAssignment: 'weighted',
       scenario: scenarioOptionsSchema.parse({}),
       forwardedFor: false,
       seed: 1,

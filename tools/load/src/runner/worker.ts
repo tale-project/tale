@@ -21,6 +21,7 @@ import type {
   ScenarioOptions,
 } from '../scenario/contract.ts';
 import { UserPool } from './pool.ts';
+import type { PersonaAssignment } from './profiles.ts';
 
 export interface WorkerConfig {
   plan: LoadPlan;
@@ -28,6 +29,7 @@ export interface WorkerConfig {
   baseUrls: string[];
   authSecret: string | null;
   personas: PersonaWeights;
+  personaAssignment: PersonaAssignment;
   scenario: ScenarioOptions;
   forwardedFor: boolean;
   seed: number;
@@ -120,6 +122,7 @@ async function main(): Promise<void> {
       metrics,
       authSecret: config.authSecret,
       personas: config.personas,
+      personaAssignment: config.personaAssignment,
       scenario: config.scenario,
       forwardedFor: config.forwardedFor,
       seed: config.seed,

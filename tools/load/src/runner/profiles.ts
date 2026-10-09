@@ -25,6 +25,8 @@ import {
   type ScenarioOptions,
 } from '../scenario/contract.ts';
 
+export type PersonaAssignment = 'weighted' | 'round-robin';
+
 export const PROFILE_NAMES = [
   'smoke',
   'load',
@@ -53,6 +55,13 @@ export interface Profile {
   scenario: Partial<ScenarioOptions>;
   /** Persona mix this profile uses unless the run overrides it. */
   personas: PersonaWeights | null;
+  /**
+   * How users get their persona when the run names no mix: `weighted` draws
+   * each from the mix by its index (a fair share over many users),
+   * `round-robin` deals them out in order, so a handful of users still
+   * covers every persona.
+   */
+  personaAssignment: PersonaAssignment;
   /**
    * Stop at the end of the first stage whose window fails a threshold, and
    * report the last stage that held as the breaking point (stress only).
@@ -97,6 +106,7 @@ export function buildProfile(raw: ProfileInput): Profile {
         ],
         scenario: { thinkTimeScale: 0.1, sessionSeconds: 0 },
         personas: EVERY_PERSONA_ONCE,
+        personaAssignment: 'round-robin',
         stopOnThresholdFailure: false,
       };
     }
@@ -109,6 +119,7 @@ export function buildProfile(raw: ProfileInput): Profile {
         ],
         scenario: {},
         personas: null,
+        personaAssignment: 'weighted',
         stopOnThresholdFailure: false,
       };
     }
@@ -126,6 +137,7 @@ export function buildProfile(raw: ProfileInput): Profile {
         stages,
         scenario: {},
         personas: null,
+        personaAssignment: 'weighted',
         stopOnThresholdFailure: true,
       };
     }
@@ -144,6 +156,7 @@ export function buildProfile(raw: ProfileInput): Profile {
         ],
         scenario: {},
         personas: null,
+        personaAssignment: 'weighted',
         stopOnThresholdFailure: false,
       };
     }
@@ -155,6 +168,7 @@ export function buildProfile(raw: ProfileInput): Profile {
         ],
         scenario: {},
         personas: null,
+        personaAssignment: 'weighted',
         stopOnThresholdFailure: false,
       };
     }
@@ -172,6 +186,7 @@ export function buildProfile(raw: ProfileInput): Profile {
           sessionSeconds: 0,
         },
         personas: { browser: 1 },
+        personaAssignment: 'weighted',
         stopOnThresholdFailure: false,
       };
     }
@@ -189,6 +204,7 @@ export function buildProfile(raw: ProfileInput): Profile {
           sessionSeconds: 0,
         },
         personas: { browser: 1 },
+        personaAssignment: 'weighted',
         stopOnThresholdFailure: false,
       };
     }

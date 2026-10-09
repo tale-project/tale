@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { Command, InvalidArgumentError, Option } from 'commander';
 
 import { thresholdsSchema } from '../metrics/index.ts';
-import { loadPlanSchema } from '../plan.ts';
+import { loadPlanSchema, shardRange } from '../plan.ts';
 import {
   DEFAULT_PERSONA_WEIGHTS,
   PERSONA_NAMES,
@@ -140,11 +140,16 @@ async function runCommand(flags: RunFlags): Promise<number> {
   const plan = loadPlanSchema.parse(
     JSON.parse(await readFile(flags.plan, 'utf8')),
   );
-  const shardUsers = Math.ceil(plan.users.count / flags.shard.count);
-  const peakUsers = Math.min(flags.users ?? shardUsers, shardUsers);
+  const range = shardRange(
+    plan.users.count,
+    flags.shard.index,
+    flags.shard.count,
+  );
+  const shardUsers = range.end - range.start;
+  const requestedUsers = Math.min(flags.users ?? shardUsers, shardUsers);
   const profile = buildProfile({
     profile: flags.profile,
-    users: peakUsers,
+    users: requestedUsers,
     rampSeconds: flags.ramp,
     holdSeconds: flags.hold,
     steps: flags.steps,
@@ -190,8 +195,16 @@ async function runCommand(flags: RunFlags): Promise<number> {
     );
   }
   const targets = flags.target.length > 0 ? flags.target : [plan.target];
+  // What the profile actually runs at its peak (smoke caps its users).
+  const peakUsers = Math.max(0, ...profile.stages.map((stage) => stage.users));
+  // Dealt-out personas need one contiguous run of indexes: one process.
+  const personaAssignment =
+    flags.personas === undefined ? profile.personaAssignment : 'weighted';
   const processes =
-    flags.processes ?? Math.max(1, Math.min(availableParallelism() - 1, 8));
+    personaAssignment === 'round-robin'
+      ? 1
+      : (flags.processes ??
+        Math.max(1, Math.min(availableParallelism() - 1, 8)));
   const metricsBearer =
     flags.metricsBearer ?? process.env.TALE_LOAD_METRICS_BEARER ?? undefined;
   const dbUrl = flags.dbUrl ?? process.env.TALE_LOAD_STATS_DB_URL ?? undefined;
@@ -205,6 +218,7 @@ async function runCommand(flags: RunFlags): Promise<number> {
     baseUrls: targets,
     authSecret,
     personas: flags.personas ?? profile.personas ?? DEFAULT_PERSONA_WEIGHTS,
+    personaAssignment,
     scenario,
     forwardedFor: flags.forwardedFor,
     seed: flags.seed,

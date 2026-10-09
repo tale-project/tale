@@ -28,7 +28,12 @@ import {
   scrapeMetrics,
   snapshotDatabase,
 } from './probes.ts';
-import { type Profile, profileSeconds, targetAt } from './profiles.ts';
+import {
+  type PersonaAssignment,
+  type Profile,
+  profileSeconds,
+  targetAt,
+} from './profiles.ts';
 import type { FromWorker, ToWorker, WorkerConfig } from './worker.ts';
 
 export interface RunConfig {
@@ -37,6 +42,7 @@ export interface RunConfig {
   baseUrls: string[];
   authSecret: string | null;
   personas: PersonaWeights;
+  personaAssignment: PersonaAssignment;
   scenario: ScenarioOptions;
   forwardedFor: boolean;
   seed: number;
@@ -100,24 +106,41 @@ function sendTo(worker: WorkerState, message: ToWorker): void {
   if (worker.child.connected) worker.child.send(message);
 }
 
-/** Split `target` users over workers in proportion to their capacity. */
+/**
+ * Each worker's share of `target` users, dealt round-robin over the workers
+ * that still have room: user k of the shard always goes to the same worker,
+ * so raising the target only ever raises a share (a proportional split with
+ * remainders can lower one, stopping a live user while another worker
+ * starts its replacement). Shares stay within one of each other while every
+ * worker has room.
+ */
 export function splitTarget(
   target: number,
   capacities: readonly number[],
 ): number[] {
   const total = capacities.reduce((sum, c) => sum + c, 0);
-  if (total === 0) return capacities.map(() => 0);
-  const clamped = Math.min(target, total);
-  const shares = capacities.map((c) => Math.floor((clamped * c) / total));
-  let left = clamped - shares.reduce((sum, s) => sum + s, 0);
-  for (let i = 0; left > 0 && i < shares.length; i += 1) {
-    const share = shares[i] ?? 0;
-    if (share < (capacities[i] ?? 0)) {
-      shares[i] = share + 1;
-      left -= 1;
-    }
+  const clamped = Math.max(0, Math.min(Math.floor(target), total));
+  // Slots in rounds [0, rounds): each worker fills one slot per round while
+  // it has capacity.
+  const slots = (rounds: number): number =>
+    capacities.reduce((sum, c) => sum + Math.min(c, rounds), 0);
+  let low = 0;
+  let high = Math.max(0, ...capacities);
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (slots(middle) <= clamped) low = middle;
+    else high = middle - 1;
   }
-  return shares;
+  const rounds = low;
+  let extra = clamped - slots(rounds);
+  return capacities.map((capacity) => {
+    const share = Math.min(capacity, rounds);
+    if (extra > 0 && capacity > rounds) {
+      extra -= 1;
+      return share + 1;
+    }
+    return share;
+  });
 }
 
 /** The workers' latest snapshots with their full series, folded into one. */
@@ -237,6 +260,7 @@ export async function runLoad(config: RunConfig): Promise<RunOutcome> {
       baseUrls: config.baseUrls,
       authSecret: config.authSecret,
       personas: config.personas,
+      personaAssignment: config.personaAssignment,
       scenario: config.scenario,
       forwardedFor: config.forwardedFor,
       seed: config.seed,
