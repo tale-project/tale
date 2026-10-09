@@ -2,6 +2,7 @@ import { useCallback, type RefCallback } from 'react';
 
 import {
   RESTORE_FOCUS_LOST_EVENT,
+  RESTORE_FOCUS_RETURNED_EVENT,
   ancestorsOf,
   focusNearestRegion,
 } from '../../hooks/use-restore-focus';
@@ -119,9 +120,10 @@ export function useRowFocusRescue<T extends HTMLElement>(): RefCallback<T> {
       );
     };
 
-    const onFocusIn = (event: FocusEvent) => {
+    const onFocusIn = (event: Event) => {
       const target = event.target;
-      if (!(target instanceof HTMLElement)) return;
+      if (!(target instanceof HTMLElement) || doc.activeElement !== target)
+        return;
       const rows = dataRows(root);
       const row = rows.findIndex((candidate) => candidate.contains(target));
       const cells = row === -1 ? [] : [...(rows[row]?.cells ?? [])];
@@ -152,12 +154,14 @@ export function useRowFocusRescue<T extends HTMLElement>(): RefCallback<T> {
     };
 
     root.addEventListener('focusin', onFocusIn);
+    root.addEventListener(RESTORE_FOCUS_RETURNED_EVENT, onFocusIn);
     root.addEventListener('focusout', onFocusOut);
     root.addEventListener(RESTORE_FOCUS_LOST_EVENT, onRestoreFocusLost);
     observer.observe(root, { childList: true, subtree: true });
     return () => {
       observer.disconnect();
       root.removeEventListener('focusin', onFocusIn);
+      root.removeEventListener(RESTORE_FOCUS_RETURNED_EVENT, onFocusIn);
       root.removeEventListener('focusout', onFocusOut);
       root.removeEventListener(RESTORE_FOCUS_LOST_EVENT, onRestoreFocusLost);
     };
