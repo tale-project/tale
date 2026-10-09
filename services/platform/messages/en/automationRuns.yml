@@ -110,6 +110,14 @@ items:
   pass: Pass {index}
   more: Show more
   label: Items and passes of {step}
+attempts:
+  title: Attempts
+  row: Attempt {n}
+  outcome:
+    ok: Done
+    failed: Failed
+    retried: Retried
+    interrupted: Interrupted by a restart
 values:
   items: '{count, plural, one {# item} other {# items}}'
   fields: '{count, plural, one {# field} other {# fields}}'

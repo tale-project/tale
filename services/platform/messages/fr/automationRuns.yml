@@ -110,6 +110,14 @@ items:
   pass: Passage {index}
   more: Afficher plus
   label: Éléments et passages de l’étape {step}
+attempts:
+  title: Tentatives
+  row: Tentative {n}
+  outcome:
+    ok: Terminée
+    failed: En échec
+    retried: Relancée
+    interrupted: Interrompue par un redémarrage
 values:
   items: '{count, plural, one {# élément} other {# éléments}}'
   fields: '{count, plural, one {# champ} other {# champs}}'

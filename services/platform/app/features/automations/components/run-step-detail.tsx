@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 import type { NodeRunView } from '../lib/run-view';
 import { EffectList } from './effect-list';
 import { RunStatusBadge } from './run-status-badge';
+import { RunStepAttempts } from './run-step-attempts';
 import { RunStepConditions } from './run-step-conditions';
 import { RunStepData } from './run-step-data';
 import { RunStepItems } from './run-step-items';
@@ -78,6 +79,7 @@ export function RunStepDetail({
         <Alert variant="destructive" description={runView.error} />
       )}
       {record?.step !== undefined && <RunStepConditions step={record.step} />}
+      {record?.step !== undefined && <RunStepAttempts step={record.step} />}
       {record?.step?.counts !== undefined && (
         <RunStepItems
           organizationId={record.organizationId}

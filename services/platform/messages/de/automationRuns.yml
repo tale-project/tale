@@ -110,6 +110,14 @@ items:
   pass: Durchgang {index}
   more: Mehr anzeigen
   label: Elemente und Durchgänge von {step}
+attempts:
+  title: Versuche
+  row: Versuch {n}
+  outcome:
+    ok: Erledigt
+    failed: Fehlgeschlagen
+    retried: Erneut versucht
+    interrupted: Durch einen Neustart unterbrochen
 values:
   items: '{count, plural, one {# Element} other {# Elemente}}'
   fields: '{count, plural, one {# Feld} other {# Felder}}'
