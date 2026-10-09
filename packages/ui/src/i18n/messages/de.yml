@@ -620,6 +620,31 @@ dataDiff:
   unchanged: '{count, plural, one {# unverändertes Feld} other {# unveränderte Felder}}'
   more: '{count, plural, one {# weitere Änderung} other {# weitere Änderungen}}'
 
+codeDiff:
+  added: Hinzugefügt
+  removed: Entfernt
+  unchanged: Unverändert
+  lineIn: Zeile in {label}
+  change: Änderung
+  text: Text
+  showUnchanged: '{count, plural, one {# unveränderte Zeile anzeigen} other {# unveränderte Zeilen anzeigen}}'
+  hideUnchanged: '{count, plural, one {# unveränderte Zeile ausblenden} other {# unveränderte Zeilen ausblenden}}'
+  hunk: '{count, plural, one {Zeile {from} in {label}} other {Zeilen {from}–{to} in {label}}}'
+  next: Nächste Änderung
+  previous: Vorherige Änderung
+  position: Änderung {index} von {count}
+  changes: '{count, plural, one {# Änderung} other {# Änderungen}}'
+  layout:
+    label: Darstellung
+    unified: Untereinander
+    split: Nebeneinander
+  copyPatch: Patch kopieren
+  copied: Kopiert
+  identical: Keine Unterschiede
+  loading: Vergleich wird geladen…
+  loadFailed: Der Vergleich konnte nicht geladen werden.
+  showRemaining: '{count, plural, one {Restliche Änderung anzeigen} other {Restliche # Änderungen anzeigen}}'
+
 flow:
   canvas:
     roleDescription: Ablaufdiagramm

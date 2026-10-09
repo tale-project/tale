@@ -620,6 +620,31 @@ dataDiff:
   unchanged: '{count, plural, one {# champ inchangé} many {# champs inchangés} other {# champs inchangés}}'
   more: '{count, plural, one {# autre modification} many {# autres modifications} other {# autres modifications}}'
 
+codeDiff:
+  added: Ajout
+  removed: Suppression
+  unchanged: Inchangé
+  lineIn: Ligne dans {label}
+  change: Modification
+  text: Texte
+  showUnchanged: '{count, plural, one {Afficher # ligne inchangée} many {Afficher # lignes inchangées} other {Afficher # lignes inchangées}}'
+  hideUnchanged: '{count, plural, one {Masquer # ligne inchangée} many {Masquer # lignes inchangées} other {Masquer # lignes inchangées}}'
+  hunk: '{count, plural, one {Ligne {from} dans {label}} many {Lignes {from} à {to} dans {label}} other {Lignes {from} à {to} dans {label}}}'
+  next: Modification suivante
+  previous: Modification précédente
+  position: Modification {index} sur {count}
+  changes: '{count, plural, one {# modification} many {# modifications} other {# modifications}}'
+  layout:
+    label: Disposition
+    unified: Unifiée
+    split: Côte à côte
+  copyPatch: Copier le correctif
+  copied: Copié
+  identical: Aucune différence
+  loading: Chargement de la comparaison…
+  loadFailed: La comparaison n'a pas pu être chargée.
+  showRemaining: '{count, plural, one {Afficher la modification restante} many {Afficher les # modifications restantes} other {Afficher les # modifications restantes}}'
+
 flow:
   canvas:
     roleDescription: diagramme de flux

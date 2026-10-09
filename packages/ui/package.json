@@ -49,6 +49,7 @@
     "./checkbox-group": "./src/components/forms/checkbox-group.tsx",
     "./cn": "./src/lib/cn.ts",
     "./code-block": "./src/components/data-display/code-block.tsx",
+    "./code-diff": "./src/components/data-display/code-diff/code-diff.tsx",
     "./code-diff/compute": "./src/components/data-display/code-diff/compute.ts",
     "./code-editor": "./src/components/forms/code-editor/code-editor.tsx",
     "./code-editor/locate": "./src/components/forms/code-editor/locate.ts",

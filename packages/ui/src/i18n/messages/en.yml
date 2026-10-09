@@ -620,6 +620,31 @@ dataDiff:
   unchanged: '{count, plural, one {# unchanged field} other {# unchanged fields}}'
   more: '{count, plural, one {# more change} other {# more changes}}'
 
+codeDiff:
+  added: Added
+  removed: Removed
+  unchanged: Unchanged
+  lineIn: Line in {label}
+  change: Change
+  text: Text
+  showUnchanged: '{count, plural, one {Show # unchanged line} other {Show # unchanged lines}}'
+  hideUnchanged: '{count, plural, one {Hide # unchanged line} other {Hide # unchanged lines}}'
+  hunk: '{count, plural, one {Line {from} in {label}} other {Lines {from}–{to} in {label}}}'
+  next: Next change
+  previous: Previous change
+  position: Change {index} of {count}
+  changes: '{count, plural, one {# change} other {# changes}}'
+  layout:
+    label: Layout
+    unified: Unified
+    split: Side by side
+  copyPatch: Copy patch
+  copied: Copied
+  identical: No differences
+  loading: Loading the comparison…
+  loadFailed: The comparison didn't load.
+  showRemaining: '{count, plural, one {Show the remaining change} other {Show the remaining # changes}}'
+
 flow:
   canvas:
     roleDescription: flow chart
