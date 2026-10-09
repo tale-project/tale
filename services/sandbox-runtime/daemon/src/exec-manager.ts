@@ -44,6 +44,7 @@ import {
 import {
   ID_ALPHABET_RE,
   isRunnerdExecEvent,
+  RUNNERD_ENV_DENY_PREFIXES,
   RUNNERD_MAX_REQUEST_BODY_BYTES,
   RUNNERD_STDIN_MAX_BYTES,
   WORKSPACE_ROOT,
@@ -55,6 +56,33 @@ import {
 } from './protocol.ts';
 import { readMemoryPeak, readOomKills } from './session-memory.ts';
 import { Utf8FrameBoundary } from './utf8-frame-boundary.ts';
+
+/** The raw seed runnerd builds its env store from; execs get the resolved
+ * entries, never the blob. */
+const SESSION_ENV_SEED = 'TALE_SESSION_ENV';
+
+/**
+ * The environment an exec starts from: runnerd's own, less what is runnerd's
+ * alone — its auth token and incarnation (`TALE_RUNNERD_*`, names no env
+ * patch may set either) and the raw env seed. A harness that prints its
+ * environment would otherwise carry the token into the agent's transcript,
+ * which the platform stores and the model's provider reads.
+ */
+export function execBaseEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const base: NodeJS.ProcessEnv = {};
+  for (const [name, value] of Object.entries(env)) {
+    const upper = name.toUpperCase();
+    if (
+      upper === SESSION_ENV_SEED ||
+      RUNNERD_ENV_DENY_PREFIXES.some((prefix) => upper.startsWith(prefix))
+    )
+      continue;
+    base[name] = value;
+  }
+  return base;
+}
 
 const SIGKILL_GRACE_MS = 5_000;
 /** After the child's 'exit' fires, how long to wait for stdio 'close' (all
@@ -524,7 +552,7 @@ export class ExecManager {
     }
 
     const env: NodeJS.ProcessEnv = {
-      ...process.env,
+      ...execBaseEnv(),
       ...this.envStore.resolve(req.env),
       [EXEC_TAG_ENV]: execId,
     };

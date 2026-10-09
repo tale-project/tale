@@ -528,6 +528,12 @@ and refuses with `409 incarnation_mismatch` an activity request whose
 changes. A malformed stamp is never named; without one, answers name none and
 requests are not checked.
 
+An exec starts from runnerd's own environment without what is runnerd's alone:
+its auth token and incarnation (`TALE_RUNNERD_*`, which no env patch may set
+either) and the raw `TALE_SESSION_ENV` seed, whose entries reach the exec
+through the env store. A harness that prints its environment no longer puts
+the token into the agent's transcript.
+
 runnerd ends an exec that has stalled: no output for `TALE_EXEC_STALL_MS`
 (45 minutes unless the spawner sets it, `0` turns the watch off) and, over that
 same window, under 1% of one CPU used by the exec's processes — its subreaper
