@@ -13,6 +13,7 @@ import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import { folderNameSchema } from '@/lib/shared/utils/folder-name';
 
 import { useCreateFolder } from '../hooks/mutations';
 
@@ -48,13 +49,14 @@ export function CreateFolderDialog({
   const { teams } = useOrgTeams();
 
   const nameRequiredError = tDocuments('folder.nameRequired');
+  const invalidNameError = tDocuments('folder.invalidName');
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().trim().min(1, nameRequiredError),
+        name: folderNameSchema(nameRequiredError, invalidNameError),
         teamId: z.string(),
       }),
-    [nameRequiredError],
+    [nameRequiredError, invalidNameError],
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,7 +66,7 @@ export function CreateFolderDialog({
     defaultValues: { name: '', teamId: ORG_WIDE_VALUE },
   });
 
-  const { handleSubmit, register, reset, formState } = form;
+  const { handleSubmit, register, reset, setError, formState } = form;
 
   const onSubmit = async (data: FolderFormData) => {
     setIsSubmitting(true);
@@ -87,6 +89,10 @@ export function CreateFolderDialog({
       onOpenChange(false);
       onSuccess?.();
     } catch (error) {
+      if (extractErrorCode(error) === 'FOLDER_NAME_INVALID') {
+        setError('name', { message: invalidNameError });
+        return;
+      }
       console.error('Failed to create folder:', error);
       const isDuplicate = extractErrorCode(error) === 'FOLDER_NAME_TAKEN';
       toast({

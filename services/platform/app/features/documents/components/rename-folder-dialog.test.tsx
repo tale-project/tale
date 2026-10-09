@@ -83,15 +83,70 @@ describe('RenameFolderDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it('refuses a slash before asking the backend', async () => {
-    renderDialog();
-
-    await submitName('Contracts/2026');
+  it.each([
+    'Reports/2026',
+    'Reports\\2026',
+    '.',
+    '..',
+    'x'.repeat(129),
+    'Reports\u007f2026',
+  ])('explains invalid name %j inline without sending it', async (name) => {
+    const onOpenChange = renderDialog();
+    await submitName(name);
 
     expect(mockRenameFolder).not.toHaveBeenCalled();
     expect(
       await screen.findByText('documents.folder.invalidName'),
     ).toBeInTheDocument();
+    expect(screen.getByLabelText(/documents\.folder\.folderName/)).toHaveValue(
+      name,
+    );
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it.each(['Reports 2026', 'x'.repeat(128)])(
+    'renames to valid name %j',
+    async (name) => {
+      mockRenameFolder.mockResolvedValue(null);
+      renderDialog();
+      await submitName(name);
+      expect(mockRenameFolder).toHaveBeenCalledWith({
+        folderId: 'folder-1',
+        name,
+      });
+    },
+  );
+
+  it('keeps a server-refused name editable and lets the corrected draft succeed', async () => {
+    mockRenameFolder
+      .mockRejectedValueOnce(
+        new AppError({
+          code: 'FOLDER_NAME_INVALID',
+          message: 'FOLDER_NAME_INVALID',
+        }),
+      )
+      .mockResolvedValue(null);
+    const onOpenChange = renderDialog();
+    await submitName('Reports 2026');
+
+    expect(
+      await screen.findByText('documents.folder.invalidName'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/documents\.folder\.folderName/)).toHaveValue(
+      'Reports 2026',
+    );
+    expect(
+      screen.getByLabelText(/documents\.folder\.folderName/),
+    ).not.toBeDisabled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+
+    await submitName('Reports 2027');
+    expect(mockRenameFolder).toHaveBeenLastCalledWith({
+      folderId: 'folder-1',
+      name: 'Reports 2027',
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('names a folder the sync keeps the name of on the field', async () => {

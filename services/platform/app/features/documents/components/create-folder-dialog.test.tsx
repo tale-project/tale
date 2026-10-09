@@ -138,6 +138,63 @@ describe('CreateFolderDialog', () => {
     });
   });
 
+  it.each([
+    'Reports/2026',
+    'Reports\\2026',
+    '.',
+    '..',
+    'x'.repeat(129),
+    'Reports\u007f2026',
+  ])('explains invalid name %j inline without sending it', async (name) => {
+    render(<CreateFolderDialog {...defaultProps} />);
+    await fillAndSubmit(name);
+
+    expect(
+      await screen.findByText('documents.folder.invalidName'),
+    ).toBeInTheDocument();
+    expect(mockCreateFolder).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+    expect(getNameInput()).toHaveValue(name);
+    expect(getNameInput()).not.toBeDisabled();
+    expect(defaultProps.onOpenChange).not.toHaveBeenCalled();
+  });
+
+  it.each(['Reports 2026', 'x'.repeat(128)])(
+    'creates valid name %j',
+    async (name) => {
+      render(<CreateFolderDialog {...defaultProps} />);
+      await fillAndSubmit(name);
+      expect(mockCreateFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ name }),
+      );
+    },
+  );
+
+  it('keeps a server-refused name editable and lets the corrected draft succeed', async () => {
+    mockCreateFolder.mockRejectedValueOnce(
+      new AppError({
+        code: 'FOLDER_NAME_INVALID',
+        message: 'FOLDER_NAME_INVALID',
+      }),
+    );
+    render(<CreateFolderDialog {...defaultProps} />);
+    await fillAndSubmit('Reports 2026');
+
+    expect(
+      await screen.findByText('documents.folder.invalidName'),
+    ).toBeInTheDocument();
+    expect(getNameInput()).toHaveValue('Reports 2026');
+    expect(getNameInput()).not.toBeDisabled();
+    expect(defaultProps.onOpenChange).not.toHaveBeenCalled();
+    expect(mockToast).not.toHaveBeenCalled();
+
+    await fillAndSubmit('Reports 2027');
+    expect(mockCreateFolder).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'Reports 2027' }),
+    );
+    expect(defaultProps.onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   // Regression for #2005: in prod Convex redacts raw Error messages to
   // "Server Error", so the old `error.message.includes('already exists')`
   // check was dead and the duplicate toast never appeared. The dialog reads
