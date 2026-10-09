@@ -55,6 +55,8 @@ TALE_DIND_INNER_BIP=""
 # drops (keeps sbin tools off the agent PATH); call them by absolute path.
 _IPTABLES=/usr/sbin/iptables
 _IPTABLES_RESTORE=/usr/sbin/iptables-restore
+# The resolver the session's DNS DNAT is gated on (Docker's embedded one).
+_RESOLV_CONF=/etc/resolv.conf
 _REDSOCKS=/usr/sbin/redsocks
 _IP6TABLES=/usr/sbin/ip6tables
 # iproute2 `ip`, used by the SESSION transparent-egress path to add a default
@@ -527,7 +529,7 @@ _ensure_default_route() {
 # being the resolver — on k8s (kube-dns) external DNS already works and DNAT'ing
 # it would break resolution, so this is a no-op there.
 _install_session_dns_dnat() {
-  grep -q 'nameserver 127.0.0.11' /etc/resolv.conf 2>/dev/null || return 0
+  grep -q 'nameserver 127.0.0.11' "$_RESOLV_CONF" 2>/dev/null || return 0
   for _proto in udp tcp; do
     "$_IPTABLES" -t nat -C OUTPUT -p "$_proto" --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination "${TALE_EGRESS_IP}:53" 2>/dev/null \
       || "$_IPTABLES" -t nat -A OUTPUT -p "$_proto" --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination "${TALE_EGRESS_IP}:53" \
@@ -549,7 +551,7 @@ _session_nat_rules() {
   echo '-A REDSOCKS -p tcp -j REDIRECT --to-ports 12346'
   echo "-A OUTPUT -p tcp -m owner --uid-owner ${TALE_REDSOCKS_UID} -j RETURN"
   echo '-A OUTPUT -p tcp -j REDSOCKS'
-  if grep -q 'nameserver 127.0.0.11' /etc/resolv.conf 2>/dev/null; then
+  if grep -q 'nameserver 127.0.0.11' "$_RESOLV_CONF" 2>/dev/null; then
     for _proto in udp tcp; do
       echo "-A OUTPUT -p ${_proto} --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination ${TALE_EGRESS_IP}:53"
     done

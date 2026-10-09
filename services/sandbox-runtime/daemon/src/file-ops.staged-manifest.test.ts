@@ -18,6 +18,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import * as fsPromises from 'node:fs/promises';
@@ -170,6 +171,29 @@ describe('staged files across runnerd restarts', () => {
     } finally {
       counted.restore();
     }
+  });
+
+  test('a file dated before 1970 is hashed, never trusted by a stat the manifest cannot keep', async () => {
+    const path = 'inputs/task-5/e.txt';
+    const first = await restart();
+    fetched = 0;
+    await first.stageFiles([{ path, url: URL_, sourceId: 'blob:e' }]);
+    const old = new Date('1960-01-01T00:00:00Z');
+    utimesSync(join(ROOT, path), old, old);
+    setSystemTime(new Date(Date.now() + 10_000));
+    expect(
+      (await first.stageFiles([{ path, sourceId: 'blob:e' }])).staged,
+    ).toEqual([{ path, bytes: 7 }]);
+    const entry = manifestEntries().find(
+      (candidate) => Array.isArray(candidate) && candidate[0] === path,
+    );
+    expect(entry).toHaveLength(3);
+    // The manifest still loads whole after a restart.
+    const second = await restart();
+    expect(
+      (await second.stageFiles([{ path, sourceId: 'blob:e' }])).staged,
+    ).toEqual([{ path, bytes: 7 }]);
+    expect(fetched).toBe(1);
   });
 
   test('a manifest that does not verify is ignored, and staging fetches as before', async () => {

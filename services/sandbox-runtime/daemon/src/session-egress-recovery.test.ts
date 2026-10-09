@@ -152,7 +152,17 @@ describe('the session redsocks', () => {
 function installSessionNat(scenario: {
   chainExists: boolean;
   restoreOk: boolean;
+  /** The session resolves through Docker's embedded resolver (127.0.0.11),
+   * which the DNS DNAT is gated on. */
+  embeddedResolver?: boolean;
 }) {
+  const resolver = fresh('resolv.conf');
+  writeFileSync(
+    resolver,
+    scenario.embeddedResolver === true
+      ? 'nameserver 127.0.0.11\noptions ndots:0\n'
+      : 'nameserver 10.0.0.2\n',
+  );
   const calls = fresh('iptables-calls');
   const restored = fresh('restore-input');
   const iptables = fresh('iptables');
@@ -186,6 +196,7 @@ function installSessionNat(scenario: {
     helpers,
     `_IPTABLES='${iptables}'`,
     `_IPTABLES_RESTORE='${restore}'`,
+    `_RESOLV_CONF='${resolver}'`,
     `TALE_REDSOCKS_UID=10002`,
     // The parts of the setup outside the nat table are not under test.
     `resolve_egress_endpoint() { TALE_EGRESS_IP=10.9.0.5; TALE_EGRESS_PORT=3128; }`,
@@ -233,6 +244,25 @@ describe("the session's nat rules", () => {
       '-A REDSOCKS -p tcp -j REDIRECT --to-ports 12346',
       '-A OUTPUT -p tcp -m owner --uid-owner 10002 -j RETURN',
       '-A OUTPUT -p tcp -j REDSOCKS',
+      'COMMIT',
+    ]);
+  });
+
+  test("behind Docker's embedded resolver, the transaction also sends external DNS to the egress proxy", () => {
+    const r = installSessionNat({
+      chainExists: false,
+      restoreOk: true,
+      embeddedResolver: true,
+    });
+    expect(r.calls).toEqual([
+      'iptables -t nat -S REDSOCKS',
+      'iptables-restore --noflush',
+    ]);
+    // The per-rule path's order: the DNAT pair after OUTPUT's jump.
+    expect(r.restored.split('\n').filter(Boolean).slice(-4)).toEqual([
+      '-A OUTPUT -p tcp -j REDSOCKS',
+      '-A OUTPUT -p udp --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination 10.9.0.5:53',
+      '-A OUTPUT -p tcp --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination 10.9.0.5:53',
       'COMMIT',
     ]);
   });

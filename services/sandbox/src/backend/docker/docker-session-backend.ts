@@ -388,25 +388,6 @@ export class DockerSessionBackend implements SessionBackend {
     // (inner-docker volume, shared buildkitd, cache-volume skip) keys off this,
     // not the raw cfg flag, so a `default`-profile session never gets them.
     const dind = sessionDindEnabled(this.cfg, spec.profile, spec.docker);
-    // The egress proxy address this session will pin, read beside the
-    // workspace and volume setup below so it adds no wait of its own. A read
-    // that fails leaves the session without the label: its drift then goes
-    // unnoticed, as for a session an older spawner created.
-    const egressAddress: Promise<string | undefined> = sessionPinsEgressAddress(
-      this.cfg,
-      dind,
-    )
-      ? egressProxyAddress(this.cfg).then(
-          (address) => address ?? undefined,
-          (error: unknown) => {
-            console.warn(
-              `[sandbox.session] egress proxy address unreadable for ${spec.sessionId}; a later move of the proxy goes unnoticed for it:`,
-              error instanceof Error ? error.message : error,
-            );
-            return undefined;
-          },
-        )
-      : Promise.resolve(undefined);
     // uid/gid for the workspace chown. The agent profile carries validated
     // numerics (config.ts userEnv); the default profile is the fixed nobody
     // (65534). Both are real integers >= 1, so the chown can never silently
@@ -503,7 +484,27 @@ export class DockerSessionBackend implements SessionBackend {
       }
     }
 
-    const pinnedEgress = await egressAddress;
+    // A create whose budget is spent starts no read it could not wait for.
+    signal.throwIfAborted();
+    // The egress proxy address this session will pin, read afresh right
+    // before its `docker run` (one inspect): an address read at the start of
+    // the create, or joined from an earlier read, could name a proxy a
+    // deploy recreated meanwhile, and the sweep would then recycle a session
+    // whose egress works. A read that fails leaves the session without the
+    // label: its drift then goes unnoticed, as for a session an older
+    // spawner created.
+    const pinnedEgress = sessionPinsEgressAddress(this.cfg, dind)
+      ? await egressProxyAddress(this.cfg, { fresh: true }).then(
+          (address) => address ?? undefined,
+          (error: unknown) => {
+            console.warn(
+              `[sandbox.session] egress proxy address unreadable for ${spec.sessionId}; a later move of the proxy goes unnoticed for it:`,
+              error instanceof Error ? error.message : error,
+            );
+            return undefined;
+          },
+        )
+      : undefined;
     signal.throwIfAborted();
     const token = this.tokenFor(spec.sessionId);
     const argv = buildDockerSessionRunArgs(this.cfg, {

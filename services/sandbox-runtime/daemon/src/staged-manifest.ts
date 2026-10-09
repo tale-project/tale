@@ -19,7 +19,10 @@
 // The file is the agent's to write like the rest of the workspace, so it is
 // signed with runnerd's token (HMAC-SHA256): one that does not verify — edited,
 // truncated, from another session or an older format — is not used, and the
-// stage falls back to fetching and hashing as before.
+// stage falls back to fetching and hashing as before. The token no longer
+// reaches an exec's environment; a process of the session's uid that reads it
+// from runnerd's own /proc environ could still sign a manifest, and then only
+// fool the session about its own staged inputs.
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
@@ -49,7 +52,8 @@ export const STAGED_MANIFEST_MAX_BYTES = 4 * 1024 * 1024;
 
 const DIGEST_RE = /^[0-9a-f]{64}$/;
 const DECIMAL_RE = /^\d{1,40}$/;
-const SOURCE_ID_MAX = 1024;
+/** As long as a source id the spawner and runnerd accept. */
+const SOURCE_ID_MAX = 2048;
 
 type Entry =
   | [string, string, string]
@@ -98,9 +102,10 @@ function isStringArray(value: unknown): value is string[] {
 
 /**
  * The manifest `text` holds, keyed by workspace-relative path, or null when
- * it is not one this runnerd wrote: not JSON, another format, a signature
- * that does not verify under `key`, or an entry out of shape. `accept` says
- * whether a path may be staged at all; an entry it refuses is dropped.
+ * it is not one this runnerd wrote: not JSON, another format, or a signature
+ * that does not verify under `key`. An entry out of shape is dropped alone —
+ * the signature already vouches for the file, so one odd entry must not cost
+ * every other — as is one whose path `accept` says may not be staged.
  */
 export function decodeStagedManifest(
   text: string,
@@ -132,7 +137,7 @@ export function decodeStagedManifest(
   const sources = new Map<string, StagedSource>();
   for (const entry of entries) {
     if (!isStringArray(entry) || (entry.length !== 3 && entry.length !== 8))
-      return null;
+      continue;
     const [path, sourceId, digest, dev, ino, size, mtimeNs, ctimeNs] = entry;
     if (
       path === undefined ||
@@ -142,7 +147,7 @@ export function decodeStagedManifest(
       sourceId.length > SOURCE_ID_MAX ||
       !DIGEST_RE.test(digest)
     )
-      return null;
+      continue;
     const stat =
       dev !== undefined &&
       ino !== undefined &&
@@ -155,7 +160,7 @@ export function decodeStagedManifest(
       stat !== undefined &&
       !Object.values(stat).every((value) => DECIMAL_RE.test(value))
     )
-      return null;
+      continue;
     if (!accept(path)) continue;
     sources.set(path, {
       sourceId,

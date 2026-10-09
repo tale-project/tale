@@ -233,6 +233,15 @@ interface RoomWaiter {
   workingSetBytes: number;
   /** A warm activation already holds a runtime slot; only creates need one. */
   needsSlot: boolean;
+  /** Its last refusal was for the host's CPU: only such waiters hold a start
+   * under CPU pressure back. One waiting for a slot or memory that will not
+   * free must not stop a start it would never take anyway. */
+  waitsForCpu: boolean;
+}
+
+/** How many of `ahead` wait for the host's CPU (RoomWaiter.waitsForCpu). */
+function cpuWaiters(ahead: readonly RoomWaiter[]): number {
+  return ahead.filter((waiter) => waiter.waitsForCpu).length;
 }
 
 /** A sweep's idle decision, checked again atomically by runnerd before it
@@ -803,7 +812,7 @@ export class SessionRoutes {
     }
     if (occupied >= this.cfg.session.maxSessions) return 'full';
     if (this.memoryShort(workingSetBytes)) return 'short';
-    if (this.cpuPressured() && !this.takePressuredStart(ahead.length))
+    if (this.cpuPressured() && !this.takePressuredStart(cpuWaiters(ahead)))
       return 'cpu';
     this.waiters.delete(sessionId);
     this.creating.set(sessionId, organizationId);
@@ -845,13 +854,14 @@ export class SessionRoutes {
     return pressure !== null && pressure >= threshold;
   }
 
-  /** Under CPU pressure, let one start in: the front of the line (no waiter
-   * ahead), once {@link CPU_PRESSURED_START_SPACING_MS} has passed since the
-   * last start let in under pressure. */
-  private takePressuredStart(waitersAhead: number): boolean {
+  /** Under CPU pressure, let one start in: the front of the CPU line (no
+   * waiter ahead that waits for the CPU), once
+   * {@link CPU_PRESSURED_START_SPACING_MS} has passed since the last start let
+   * in under pressure. */
+  private takePressuredStart(cpuWaitersAhead: number): boolean {
     const now = Date.now();
     if (
-      waitersAhead > 0 ||
+      cpuWaitersAhead > 0 ||
       now - this.pressuredStartAtMs < CPU_PRESSURED_START_SPACING_MS
     )
       return false;
@@ -1078,7 +1088,13 @@ export class SessionRoutes {
       decision === 'disk' ||
       decision === 'cpu'
     ) {
-      const place = this.waitInLine(sessionId, workingSet, Date.now());
+      const place = this.waitInLine(
+        sessionId,
+        workingSet,
+        Date.now(),
+        true,
+        decision === 'cpu',
+      );
       const retryAfter = String(Math.ceil(place.hintMs / 1000));
       const queue = { position: place.position, waiting: place.waiting };
       if (decision === 'cpu') {
@@ -1160,6 +1176,7 @@ export class SessionRoutes {
     workingSetBytes: number,
     now: number,
     needsSlot = true,
+    waitsForCpu = false,
   ): { position: number; waiting: number; hintMs: number } {
     const position = this.waitersAhead(sessionId, now).length;
     const hintMs = Math.min(
@@ -1172,6 +1189,7 @@ export class SessionRoutes {
       known.hintMs = hintMs;
       known.workingSetBytes = workingSetBytes;
       known.needsSlot = needsSlot;
+      known.waitsForCpu = waitsForCpu;
     } else {
       if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
       this.waiters.set(sessionId, {
@@ -1179,6 +1197,7 @@ export class SessionRoutes {
         hintMs,
         workingSetBytes,
         needsSlot,
+        waitsForCpu,
       });
     }
     return { position, waiting: this.waiters.size, hintMs };
@@ -2972,7 +2991,7 @@ export class SessionRoutes {
       if (this.memoryShort(workingSet + held, sessionId)) return false;
       if (
         this.cpuPressured() &&
-        !this.takePressuredStart(this.waitersAhead(sessionId, now).length)
+        !this.takePressuredStart(cpuWaiters(this.waitersAhead(sessionId, now)))
       )
         return 'cpu';
       this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
@@ -2988,7 +3007,13 @@ export class SessionRoutes {
     if (admitted === 'replaced')
       return jsonResponse({ error: 'not_found' }, 404);
     if (admitted === true) return null;
-    const place = this.waitInLine(sessionId, workingSet, Date.now(), false);
+    const place = this.waitInLine(
+      sessionId,
+      workingSet,
+      Date.now(),
+      false,
+      admitted === 'cpu',
+    );
     if (admitted === 'cpu') {
       return jsonResponse(
         {
@@ -3531,7 +3556,7 @@ export class SessionRoutes {
             truncated: { stdout: false, stderr: false },
             errorCode: outOfMemory ? 'SESSION_OOM' : 'SESSION_LOST',
             errorMessage: outOfMemory
-              ? "the session ran out of memory: the kernel's OOM killer ended processes in its container, which stopped"
+              ? SESSION_OOM_MESSAGE
               : 'runnerd stream ended without a terminal event',
           } satisfies SessionExecResponse);
         }
@@ -3738,22 +3763,36 @@ export class SessionRoutes {
     req.signal.addEventListener('abort', onAbort, { once: true });
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send, signal }) => {
+      // Whether the exec's end came through: a stream that stops short of it
+      // lost its container, and the eviction's check says whether the OOM
+      // killer took it — as handleExec says for the first window.
+      let ended = false;
+      const outOfMemory = async (): Promise<boolean> => {
+        if (ended || req.signal.aborted || signal.aborted) return false;
+        await this.evictIfBackendGone(sessionId);
+        if (!this.lostToOutOfMemory.has(session)) return false;
+        await send('result', sessionOutOfMemoryResult());
+        return true;
+      };
       try {
         const found = await runnerdAttach(
           { baseUrl: session.endpoint, token },
           execId,
-          (e) =>
-            forwardExecEvent(
+          (e) => {
+            if (e.t === 'exit' || e.t === 'fail') ended = true;
+            return forwardExecEvent(
               e,
               send,
               req.headers.get('accept')?.includes('tale-output=base64') ===
                 true,
-            ),
+            );
+          },
           AbortSignal.any([ac.signal, signal]),
           sinceSeq,
         );
         if (!found)
           await send('error', { message: `exec ${execId} not found` });
+        else await outOfMemory();
       } catch (err) {
         // The caller hung up: see handleExec.
         if (req.signal.aborted || signal.aborted) return;
@@ -3761,20 +3800,19 @@ export class SessionRoutes {
           await send('error', { code: 'ATTACH_BUSY', message: err.message });
           return;
         }
+        const code =
+          err instanceof RunnerdProtocolError ||
+          err instanceof RunnerdOutputGapError
+            ? err.code
+            : undefined;
+        // See handleExec: a dead backend object must surface as 404 on the
+        // next reconnect, not as an endless transport error — or, when the
+        // OOM killer took it, as the exec's end.
+        if (code === undefined && (await outOfMemory())) return;
         await send('error', {
           message: err instanceof Error ? err.message : String(err),
-          ...(err instanceof RunnerdProtocolError ||
-          err instanceof RunnerdOutputGapError
-            ? { code: err.code }
-            : {}),
+          ...(code !== undefined ? { code } : {}),
         });
-        // See handleExec: a dead backend object must surface as 404 on the
-        // next reconnect, not as an endless transport error.
-        if (
-          !(err instanceof RunnerdProtocolError) &&
-          !(err instanceof RunnerdOutputGapError)
-        )
-          await this.evictIfBackendGone(sessionId);
       } finally {
         req.signal.removeEventListener('abort', onAbort);
       }
@@ -4123,6 +4161,28 @@ function execFailErrorCode(
   return code === 'INVALID_CWD' || code === 'EXEC_LIMIT'
     ? code
     : 'RUNTIME_ERROR';
+}
+
+/** Why an exec whose container the OOM killer took ended. */
+const SESSION_OOM_MESSAGE =
+  "the session ran out of memory: the kernel's OOM killer ended processes in its container, which stopped";
+
+/** The result of an exec whose container died after the OOM killer hit it,
+ * for an attach that never saw the exec's end: its output already went to
+ * the stream, and no measurement survived the container. */
+function sessionOutOfMemoryResult(): SessionExecResponse {
+  return {
+    status: 'failed',
+    exitCode: null,
+    // Sentinel: the terminal `exit` line was lost with the container
+    // (wire.ts contract).
+    durationMs: 0,
+    stdoutBase64: '',
+    stderrBase64: '',
+    truncated: { stdout: false, stderr: false },
+    errorCode: 'SESSION_OOM',
+    errorMessage: SESSION_OOM_MESSAGE,
+  };
 }
 
 /** The error of an exec runnerd itself ended, for its result: one that
