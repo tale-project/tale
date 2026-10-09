@@ -1043,6 +1043,23 @@ export async function checkProjectBudgets(
       }),
     );
 
+    // Work holds only while a cap binds it, and the lane above left none:
+    // a cap on the project again, far above anything spent here, so the
+    // holds below are taken and nothing is refused.
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules: []',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        '    maxCostCents: 1000000',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+
     // The other holds, on the real schema: a direct call past its deadline
     // stops holding, and is still booked when it ends; a reply's later round
     // raises its hold.
@@ -1086,10 +1103,10 @@ export async function checkProjectBudgets(
 
     await sql`
       INSERT INTO app.generations (
-        thread_id, org_id, user_id, reserved_cost_cents, reserved_tokens,
-        started_at_ms, heartbeat_at_ms, updated_at_ms
-      ) VALUES (${projectThread}, ${orgId}, ${userId}, 0, 0, ${now}, ${now},
-                ${now})
+        thread_id, org_id, user_id, project_ids, reserved_cost_cents,
+        reserved_tokens, started_at_ms, heartbeat_at_ms, updated_at_ms
+      ) VALUES (${projectThread}, ${orgId}, ${userId}, ${[projectId]}, 0, 0,
+                ${now}, ${now}, ${now})
     `;
     const beforeRound = await heldInProject();
     await createPgTurnStore(sql).holdNextRound?.({

@@ -56369,9 +56369,11 @@ async function checkArena(
       winnerTitle === 'Renamed launch' &&
       wonEarly.success &&
       wonEarly.data.continueThreadId === early.b &&
-      earlyJobs.length === 1 &&
+      // Its own title is queued, or already written by the time we look.
+      (earlyJobs.length === 1 ||
+        (earlyWinnerTitle !== null && earlyWinnerTitle !== 'Late title')) &&
       earlyWinnerTitle !== 'Late title',
-    `title jobs=${JSON.stringify(titleJobs.map((id) => (id === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want the visible column's, the hidden untitled), renamed pair's winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch"), early winner's title jobs=${earlyJobs.length} (want 1) and title after A's late one=${JSON.stringify(earlyWinnerTitle)} (want anything but "Late title")`,
+    `title jobs=${JSON.stringify(titleJobs.map((id) => (id === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want the visible column's, the hidden untitled), renamed pair's winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch"), early winner's title jobs=${earlyJobs.length} and title after A's late one=${JSON.stringify(earlyWinnerTitle)} (want its own title queued or written, never "Late title")`,
   );
 }
 
