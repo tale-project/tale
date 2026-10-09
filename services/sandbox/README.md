@@ -151,6 +151,15 @@ before it starts. `POST /v1/sessions/:id/exec` then answers `429`
 `retry-after`, before any stream: the spawner starts the exec before it answers,
 so a refused exec never shows up as a failed one. Running execs are untouched.
 
+An exec the kernel's OOM killer ended reads `failed` with the error code
+`OOM_KILLED` (runnerd saw its SIGKILL while the session counted a new OOM
+kill), and an exec whose session container died with it reads `SESSION_OOM`
+instead of `SESSION_LOST` when Docker recorded that the OOM killer hit the
+container (`State.OOMKilled`, read by the inspect that evicts the dead
+session). The platform settles such a run as `resource_exhausted` and retries
+it after 2, 10, then 30 minutes rather than at once. Kubernetes restarts an
+OOM-killed runner inside its Pod, so a session there ends as `SESSION_LOST`.
+
 Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
 CPU for the `default` profile) and a CPU weight below the control plane's:
 agent sessions and their organization's build helpers run at `--cpu-shares`

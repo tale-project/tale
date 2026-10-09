@@ -382,6 +382,34 @@ beforeAll(() => {
             { status: 429, headers: { 'retry-after': '5' } },
           );
         }
+        if (text.includes('__oom__')) {
+          // The kernel's OOM killer ended the exec (exec-manager.ts
+          // exitMemory): a SIGKILL while the session counted a new kill.
+          return new Response(
+            ndjson([
+              { t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 },
+              {
+                t: 'exit',
+                exitCode: 137,
+                durationMs: 1_000,
+                truncated: { stdout: false, stderr: false },
+                timedOut: false,
+                cancelled: false,
+                oomKilled: true,
+                sessionMemoryPeakBytes: 4 * 1024 ** 3,
+                seq: 2,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (text.includes('__container_died__')) {
+          // The container died mid-exec: the stream ends with no exit.
+          return new Response(
+            ndjson([{ t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 }]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         if (text.includes('__stalled__')) {
           // runnerd's stall watch ended the exec (exec-stall.ts); the
           // command caught the SIGTERM and exited 0.
@@ -1497,6 +1525,66 @@ describe('SessionRoutes (fake runnerd)', () => {
       errorCode: 'EXEC_STALLED',
     });
   });
+
+  test("an exec the kernel's OOM killer ended reads OOM_KILLED, with the session's peak", async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_oom', organizationId: 'org_f' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_oom/exec', { method: 'POST' }),
+      'sess_oom',
+      JSON.stringify({ execId: 'e7', command: ['echo', '__oom__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(payload).toMatchObject({
+      status: 'failed',
+      exitCode: 137,
+      errorCode: 'OOM_KILLED',
+    });
+    expect(String(payload.errorMessage)).toContain('4096 MiB');
+  });
+
+  test.each([
+    ['the OOM killer took', true, 'SESSION_OOM'],
+    ['something else ended', false, 'SESSION_LOST'],
+  ])(
+    'a container %s mid-exec ends the exec as %s',
+    async (_, outOfMemory, errorCode) => {
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          sessionExists: async () => false,
+          takeOutOfMemory: () => outOfMemory,
+        });
+        await routes.handleCreate(
+          JSON.stringify({ sessionId: 'sess_died', organizationId: 'org_f' }),
+        );
+        const execRes = await routes.handleExec(
+          new Request('http://x/v1/sessions/sess_died/exec', {
+            method: 'POST',
+          }),
+          'sess_died',
+          JSON.stringify({
+            execId: 'e8',
+            command: ['echo', '__container_died__'],
+          }),
+        );
+        const { events } = await readSse(execRes);
+        expect(events.find((e) => e.event === 'result')?.data).toMatchObject({
+          status: 'failed',
+          exitCode: null,
+          errorCode,
+        });
+        // Evicted before the result: the next call gets the 404.
+        expect((await routes.handleGet('sess_died')).status).toBe(404);
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
 
   test('any other pre-spawn refusal still reads as a runtime error', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);

@@ -444,6 +444,9 @@ export class SessionRoutes {
   // The registry object is the fence: a recreate of the same id never joins
   // an old probe, even when both creations share a millisecond timestamp.
   // No settled liveness verdict is cached.
+  // Incarnations whose container died after the OOM killer hit it, as the
+  // eviction's check read it: the exec it took down says so.
+  private readonly lostToOutOfMemory = new WeakSet<RegistrySession>();
   private readonly checkingLiveness = new Map<
     RegistrySession,
     Promise<boolean>
@@ -2226,7 +2229,16 @@ export class SessionRoutes {
       );
       return false;
     }
-    return !alive && this.evictStale(session, 'backend object gone');
+    if (alive) return false;
+    const outOfMemory =
+      this.backend.takeOutOfMemory?.(sessionId, session.createdAtMs) === true;
+    if (outOfMemory) this.lostToOutOfMemory.add(session);
+    return this.evictStale(
+      session,
+      outOfMemory
+        ? "backend object gone: the kernel's OOM killer ended processes in it"
+        : 'backend object gone',
+    );
   }
 
   /** Drop a registry entry whose incarnation is confirmed gone, keeping its
@@ -3502,6 +3514,12 @@ export class SessionRoutes {
           await send('result', result);
         } else {
           // Stream ended without a terminal event — runnerd/ container died.
+          // Evict the zombie first, so the platform's reconnect/next turn
+          // gets the definitive 404 instead of retrying a dead address — and
+          // so the result can say when the OOM killer took the container
+          // (read by the same check).
+          await this.evictIfBackendGone(sessionId);
+          const outOfMemory = this.lostToOutOfMemory.has(session);
           await send('result', {
             status: 'failed',
             exitCode: null,
@@ -3511,13 +3529,11 @@ export class SessionRoutes {
             stdoutBase64: concatBase64(stdoutChunks),
             stderrBase64: concatBase64(stderrChunks),
             truncated: { stdout: false, stderr: false },
-            errorCode: 'SESSION_LOST',
-            errorMessage: 'runnerd stream ended without a terminal event',
+            errorCode: outOfMemory ? 'SESSION_OOM' : 'SESSION_LOST',
+            errorMessage: outOfMemory
+              ? "the session ran out of memory: the kernel's OOM killer ended processes in its container, which stopped"
+              : 'runnerd stream ended without a terminal event',
           } satisfies SessionExecResponse);
-          // Mid-exec container death: evict the zombie now so the platform's
-          // reconnect/next turn gets the definitive 404 instead of retrying a
-          // dead address.
-          await this.evictIfBackendGone(sessionId);
         }
       } catch (err) {
         // The caller hung up (the platform ends its stream at every drain
@@ -4116,6 +4132,11 @@ function execFailErrorCode(
 function execExitFailure(
   e: Extract<RunnerdExecEvent, { t: 'exit' }>,
 ): Pick<SessionExecResponse, 'errorCode' | 'errorMessage'> {
+  if (e.oomKilled === true)
+    return {
+      errorCode: 'OOM_KILLED',
+      errorMessage: `the session ran out of memory: the kernel's OOM killer ended the exec${e.sessionMemoryPeakBytes === undefined ? '' : ` (session peak ${Math.round(e.sessionMemoryPeakBytes / 1_048_576)} MiB)`}`,
+    };
   if (e.failure !== 'EXEC_STALLED') return {};
   return {
     errorCode: 'EXEC_STALLED',

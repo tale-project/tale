@@ -113,6 +113,8 @@ const FAKE_DOCKER = `#!/usr/bin/env bash
 #   line 7: mount inspect outcome — ok | fail
 #   line 8: creation stamp observed by the running-state probe
 #   line 9: the egress address label \`docker ps\` lists (may be empty)
+#   line 10: the running-state probe's State.Running and State.OOMKilled,
+#           as "running oomKilled" (default: "true false")
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
@@ -137,7 +139,9 @@ case "$cmd" in
     fmt="$2"; name="$3"
     if [ "$present" = "1" ]; then
       case "$fmt" in
-        *State.Running*tale.created*) printf 'true\\t%s\\n' "$(sed -n 8p "$here/mode")" ;;
+        *State.Running*tale.created*)
+          read -r running oom <<< "$(sed -n 10p "$here/mode")"
+          printf '%s\\t%s\\t%s\\n' "\${running:-true}" "$(sed -n 8p "$here/mode")" "\${oom:-false}" ;;
         *tale.created*) printf 'abcdef123456\\t1700000000000\\n' ;;
         *State.Running*) echo "true" ;;
         *State.Status*) echo "running" ;;
@@ -206,10 +210,12 @@ async function fakeDocker(scenario: {
   mountRead?: 'ok' | 'fail';
   createdStamp?: string;
   egress?: string;
+  /** The container is stopped, and whether the OOM killer hit it. */
+  exited?: { oomKilled: boolean };
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n${scenario.createdStamp ?? '1700000000000'}\n${scenario.egress ?? ''}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n${scenario.createdStamp ?? '1700000000000'}\n${scenario.egress ?? ''}\n${scenario.exited ? `false ${scenario.exited.oomKilled}` : 'true false'}\n`,
   );
 }
 
@@ -285,6 +291,27 @@ describe('Docker session observation incarnation', () => {
         await rejection(backend.resolveEndpoint('unknown', 0)),
       ).toBeInstanceOf(Error);
       expect(await backend.sessionExists('unknown')).toBe(true);
+    },
+  );
+
+  test.each([true, false])(
+    'a stopped container the OOM killer hit (%p) is said so once, from the same inspect',
+    async (oomKilled) => {
+      await fakeDocker({ present: true, rm: 'busy', exited: { oomKilled } });
+      await writeFile(join(fakeRoot, 'inspect-calls'), '');
+      const backend = new DockerSessionBackend(backendConfig());
+      expect(await backend.sessionExists('died', 1_700_000_000_000)).toBe(
+        false,
+      );
+      // Another incarnation's question gets no answer meant for this one.
+      expect(backend.takeOutOfMemory('died', 1_700_000_000_001)).toBe(false);
+      await backend.sessionExists('died', 1_700_000_000_000);
+      expect(backend.takeOutOfMemory('died', 1_700_000_000_000)).toBe(
+        oomKilled,
+      );
+      expect(backend.takeOutOfMemory('died', 1_700_000_000_000)).toBe(false);
+      const calls = await readFile(join(fakeRoot, 'inspect-calls'), 'utf8');
+      expect(calls.match(/--format/g)).toHaveLength(2);
     },
   );
 

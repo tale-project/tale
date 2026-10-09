@@ -262,6 +262,15 @@ export interface SessionBackend {
     sessionId: string,
     expectedCreatedAtMs?: number,
   ): Promise<boolean>;
+  /**
+   * Whether the kernel's OOM killer ended processes of this incarnation,
+   * as the last {@link sessionExists} that found it dead read it (Docker's
+   * `State.OOMKilled`, from the same inspect: no call of its own). Asked
+   * once per dead incarnation; false when the check saw no such kill or
+   * never ran. Absent on Kubernetes, which restarts an OOM-killed runner
+   * in its Pod instead of ending the session.
+   */
+  takeOutOfMemory?(sessionId: string, createdAtMs: number): boolean;
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
    * (host dir / PVC). The ONLY data-deleting verb — reached through the
    * DELETE route (the explicit Destroy, and the platform's workspace cleanup)
