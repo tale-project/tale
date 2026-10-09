@@ -106,6 +106,14 @@ export function flowSpanStateAt(
       null,
     );
   const itemSpans = spans.filter((span) => span.item !== undefined);
+  // The node's own stretch (neither an item nor a pass), once it is over.
+  const ownEnded = started.find(
+    (span) =>
+      span.item === undefined &&
+      span.pass === undefined &&
+      span.end !== undefined &&
+      span.end <= t,
+  );
   const failedItem = started.some(
     (span) =>
       span.item !== undefined &&
@@ -122,7 +130,10 @@ export function flowSpanStateAt(
   else if (more)
     // Between two stretches of work: still at it (or still waiting).
     state = lastEnded?.outcome === 'waiting' ? 'waiting' : 'running';
-  else if (itemSpans.length > 0 && failedItem) state = 'failed';
+  else if (itemSpans.length > 0 && failedItem)
+    // An item failed, and the node with it — unless its own stretch, over
+    // by now, says it carried on past the item.
+    state = ownEnded?.outcome ?? 'failed';
   else state = lastEnded?.outcome ?? 'succeeded';
 
   const info: FlowNodeRunInfo = { state };

@@ -225,6 +225,22 @@ describe('what a span says, and when', () => {
     ).toEqual({ done: 4, total: 12, failed: 1 });
   });
 
+  it('lets a node that carried on past a failed item end as it did', () => {
+    const spans = [
+      { nodeId: 'score', start: 0, end: 30, outcome: 'succeeded', total: 2 },
+      { nodeId: 'score', start: 0, end: 10, outcome: 'failed', item: 0 },
+      { nodeId: 'score', start: 10, end: 30, outcome: 'succeeded', item: 1 },
+    ] as const;
+    // Between the items it is still at work; once over, its own stretch
+    // says it succeeded, with the failed item counted.
+    expect(flowSpanStateAt(spans, 20, false)?.state).toBe('running');
+    const end = flowSpanStateAt(spans, 30, false);
+    expect(end?.state).toBe('succeeded');
+    expect(end?.items).toEqual({ done: 2, total: 2, failed: 1 });
+    // Without a stretch of its own, the failed item fails it.
+    expect(flowSpanStateAt(spans.slice(1), 30, false)?.state).toBe('failed');
+  });
+
   it('passes an overlay’s explanation through', () => {
     const frame = flowStateFromOverlay(triageFlowGraph(), {
       finished: true,
