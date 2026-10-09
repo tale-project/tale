@@ -6717,6 +6717,36 @@ describe('memory-aware admission', () => {
     expect((await create(routes, 'unknown-mem')).status).toBe(201);
   });
 
+  test('the inventory names what admission counts, from memory alone', async () => {
+    const gate = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        if (spec.sessionId === 'inv-slow') await gate.promise;
+        return fakeBackend.createSession(spec);
+      },
+    });
+    expect((await create(routes, 'inv-ready')).status).toBe(201);
+    const slow = create(routes, 'inv-slow');
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'inv-other-org',
+        organizationId: 'org_elsewhere',
+        profile: 'agent',
+      }),
+    );
+    expect(routes.inventory('org_memory')).toEqual([
+      { sessionId: 'inv-ready', state: 'running' },
+      { sessionId: 'inv-slow', state: 'starting' },
+    ]);
+    gate.resolve();
+    expect((await slow).status).toBe(201);
+    await routes.handleDestroy('inv-ready');
+    expect(routes.inventory('org_memory')).toEqual([
+      { sessionId: 'inv-slow', state: 'running' },
+    ]);
+  });
+
   describe('CPU pressure', () => {
     /** A roomy host whose CPU pressure reads as `pressure()` percent. */
     const pressured = (pressure: () => number | null) => ({

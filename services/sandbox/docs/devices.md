@@ -154,7 +154,7 @@ HTTP exchanges multiplexed over one WebSocket (binary frames,
 | ------ | ------------ | ------------ | ----------------------------------------------------------------------- |
 | `0x01` | `HELLO`      | device → hub | protocol, release, slots, platform, held sessions, update state         |
 | `0x02` | `WELCOME`    | hub → device | protocol, hub release, ids, `statusIntervalMs`                          |
-| `0x03` | `STATUS`     | device → hub | slots, running/starting, sessions, resources, update state (every 15 s) |
+| `0x03` | `STATUS`     | device → hub | slots, running/starting, sessions, resources, update state (every 15 s, and when its sessions change) |
 | `0x04` | `RENEW`      | device → hub | `{ticket}`                                                              |
 | `0x06` | `STATUS_ACK` | hub → device | `{}` — keeps the device's silence watchdog fed                          |
 | `0x10` | `OPEN`       | initiator    | request head (JSON: method, path, headers, relay)                       |
@@ -220,9 +220,17 @@ jittered backoff (1 s → 60 s); an upgrade nobody answers within 30 s is given
 up on and dialled again. A 401 answer carrying `DEVICE_REVOKED` (the
 organization removed the device) closes the tunnel and leaves only an hourly
 re-check; any other failure is retried (a missing credential is
-`DEVICE_CREDENTIAL_MISSING`, not a removal). When Docker does not answer an
-observation, the device reports the last one that worked rather than
-falling silent, so a busy daemon never costs the tunnel.
+`DEVICE_CREDENTIAL_MISSING`, not a removal). What a STATUS reports comes from
+the spawner's own memory — its registered sessions as running, creates in
+flight as starting, and objects the last sweep found but has not adopted as
+running or starting by what the object does — and
+the host's totals and `/proc` usage where `/proc` describes the Docker host,
+so a report forks no `docker` command on the user's machine (the daemon's
+totals are asked at most every ten minutes). The sessions' fingerprint is
+compared every second, and a change is reported at once rather than at the
+next 15 s heartbeat; reports never overlap. When an observation fails, the
+device reports the last one that worked rather than falling silent, so a
+busy daemon never costs the tunnel.
 
 The stack (`src/devices/apply.ts`, run as `device-apply <config> --version
 <release>` from the image, by the CLI and by the updater alike):

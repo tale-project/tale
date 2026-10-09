@@ -822,17 +822,23 @@ async function main(): Promise<void> {
       dispatch: async (req, url, body) =>
         (await handleSessionRoutes(req, url, body)) ??
         jsonResponse({ error: 'not_found' }, 404),
+      // What the device runs comes from the spawner's own memory and /proc,
+      // never a `docker ps` on the user's machine every few seconds.
       observe: async () => {
-        const snapshot = await capacity.forOrganization(
+        const sessions = getSessionRoutes().inventory(
           deviceConfig.organizationId,
         );
         return {
-          running: snapshot.sessions.organizationRunning,
-          starting: snapshot.sessions.organizationStarting,
-          sessions: snapshot.runtimeSessions,
-          resources: snapshot.resources,
+          running: sessions.filter((s) => s.state === 'running').length,
+          starting: sessions.filter((s) => s.state === 'starting').length,
+          sessions,
+          resources: await capacity.hostResources(),
         };
       },
+      inventoryKey: () =>
+        JSON.stringify(
+          getSessionRoutes().inventory(deviceConfig.organizationId),
+        ),
       selfUpdate: (version) =>
         launchSelfUpdate(deviceConfig, configPath, version),
     });

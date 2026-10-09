@@ -506,6 +506,37 @@ export class SessionRoutes {
     return new Map(this.creating);
   }
 
+  /** What this spawner holds for an organization, from memory alone (no
+   * backend call): creates in flight and objects the last sweep found but
+   * has not adopted yet as starting (or running, where the object runs),
+   * registered sessions as running once ready —
+   * the same sessions admission counts as occupying a slot. A connected
+   * device reports it every few seconds. */
+  inventory(
+    organizationId: string,
+  ): Array<{ sessionId: string; state: 'running' | 'starting' }> {
+    const states = new Map<string, 'running' | 'starting'>();
+    for (const [sessionId, session] of this.unregistered) {
+      if (session.organizationId !== organizationId) continue;
+      states.set(
+        sessionId,
+        session.state === 'degraded' ? 'starting' : 'running',
+      );
+    }
+    for (const session of this.registry.list(organizationId)) {
+      states.set(
+        session.sessionId,
+        session.state === 'ready' ? 'running' : 'starting',
+      );
+    }
+    for (const [sessionId, org] of this.creating) {
+      if (org === organizationId) states.set(sessionId, 'starting');
+    }
+    return [...states]
+      .map(([sessionId, state]) => ({ sessionId, state }))
+      .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+  }
+
   /** Does this spawner hold the session right now (live, or mid-create)? */
   holds(sessionId: string): boolean {
     return this.registry.has(sessionId) || this.creating.has(sessionId);
