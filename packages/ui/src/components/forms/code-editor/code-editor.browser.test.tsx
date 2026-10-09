@@ -28,6 +28,7 @@ import {
   type CodeEditorHandle,
   type CodeEditorProps,
 } from './code-editor';
+import { PROSE_X_HEIGHT } from './extensions/theme';
 import type { CodeEditorProviders } from './providers';
 
 import '../../../globals.css';
@@ -562,6 +563,35 @@ describe('CodeEditor templates', () => {
     expect(chips.map((chip) => chip.textContent)).toEqual([
       '{{ input.email }}',
     ]);
+  });
+
+  it('stands a chip’s code as tall as the prose round it', async () => {
+    render(
+      <CodeEditor
+        aria-label="Code"
+        language="markdown"
+        font="prose"
+        templates
+        value="Summarize {{ nodes.issues.output.title }} for the team."
+      />,
+    );
+    const box = await content('Code');
+    const chip = box.querySelector<HTMLElement>('.cm-template');
+    if (chip === null) throw new Error('no chip');
+    const prose = getComputedStyle(box);
+    const code = getComputedStyle(chip);
+    await document.fonts.load(`400 ${prose.fontSize} Inter`);
+    // Inter's own x-height, as the page draws it.
+    const canvas = document.createElement('canvas').getContext('2d');
+    if (canvas === null) throw new Error('no 2D canvas');
+    canvas.font = `400 100px Inter`;
+    const inter = canvas.measureText('x').actualBoundingBoxAscent / 100;
+    expect(inter).toBeCloseTo(PROSE_X_HEIGHT, 2);
+    // The chip keeps the prose's size and holds whatever monospace font
+    // the system supplies to that x-height.
+    expect(code.fontFamily).toContain('monospace');
+    expect(code.fontSize).toBe(prose.fontSize);
+    expect(Number(code.fontSizeAdjust)).toBeCloseTo(PROSE_X_HEIGHT, 3);
   });
 });
 

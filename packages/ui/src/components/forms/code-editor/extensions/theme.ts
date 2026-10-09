@@ -1,5 +1,13 @@
 import { EditorView } from '@codemirror/view';
 
+/** Inter's x-height as a share of its size (1118 of 2048 units). */
+export const PROSE_X_HEIGHT = 0.546;
+
+/** `shadow-md` under a `ring-1 ring-border`: the app's popover, as one
+ *  `box-shadow` (CodeMirror's tooltips take no utility classes). */
+const POPOVER_SHADOW =
+  '0 0 0 1px hsl(var(--border)), 0 4px 6px -1px var(--tw-shadow-color, rgb(0 0 0 / 0.1)), 0 2px 4px -2px var(--tw-shadow-color, rgb(0 0 0 / 0.1))';
+
 /**
  * The editor's chrome, all through CSS variables (`--code-*` and the app's
  * tokens), so one theme serves light and dark. Sizes come from the frame:
@@ -94,7 +102,9 @@ export const codeEditorTheme = EditorView.theme({
   },
   '.cm-selectionMatch': { backgroundColor: 'var(--code-match)' },
   // A `{{ … }}` template reads as one chip; in prose it keeps the code font,
-  // a little smaller so it sits on the text's x-height.
+  // scaled so its lowercase letters stand exactly as tall as the prose's:
+  // `font-size-adjust` holds any monospace font to Inter's x-height (0.546
+  // of its size), whichever one the reader's system supplies.
   '.cm-template': {
     backgroundColor: 'var(--code-template-tint)',
     borderRadius: '3px',
@@ -103,7 +113,7 @@ export const codeEditorTheme = EditorView.theme({
   },
   '&.cm-prose .cm-template': {
     fontFamily: 'var(--font-mono)',
-    fontSize: '0.92em',
+    fontSizeAdjust: String(PROSE_X_HEIGHT),
   },
   '.cm-tale-object': { color: 'var(--code-token-constant)' },
   // Problems: the underline's style says the severity (wavy for an error or
@@ -141,13 +151,15 @@ export const codeEditorTheme = EditorView.theme({
     width: '1.25rem',
     paddingLeft: '0.25rem',
   },
-  // Tooltips and the completion list look like the app's popovers.
+  // Tooltips and the completion list look like the app's popovers: a 1 px
+  // ring in the border colour over `shadow-md`, whose layers the dark theme
+  // recolours through `--tw-shadow-color` (globals.css).
   '.cm-tooltip': {
     backgroundColor: 'hsl(var(--popover))',
     color: 'hsl(var(--popover-foreground))',
-    border: '1px solid hsl(var(--border))',
+    border: 'none',
     borderRadius: '0.5rem',
-    boxShadow: 'var(--shadow-overlay)',
+    boxShadow: POPOVER_SHADOW,
     fontFamily: 'var(--font-sans)',
     fontSize: '0.75rem',
     lineHeight: '1.4',
