@@ -3978,7 +3978,10 @@ export function buildSpec(): Json {
         'Setup-folder binding a folder-driven automation reads off its task input — ' +
         'on the create and again on every repeat. It cannot be sent beside ' +
         '`externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project ' +
-        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.',
+        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created. ' +
+        'While who can be mentioned in the project cannot be read, a ' +
+        'description with a mention answers 503 ' +
+        '`MENTION_DIRECTORY_UNAVAILABLE`, nothing created; send it again.',
       operationId: 'createTask',
       security: sec,
       parameters: taskCollectionParameters,
@@ -4357,7 +4360,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Comment on a project task as the key holder',
       description:
-        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior: a plain `@handle` that names someone who can be mentioned on the task (an agent handle, a member’s email name, an automation store name, an id, or an older name form) notifies them and is stored as a mention link, `[@Ada Lovelace](mention:user/<userId>)`, which every later read returns; a mention link naming nobody who can be mentioned there is stored as plain text. Mentions in code, math or a link’s text are text. A later plain-text edit clears the old translations.',
+        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior: a plain `@handle` that names someone who can be mentioned on the task (an agent handle, a member’s email name, an automation store name, an id, or an older name form) notifies them and is stored as a mention link, `[@Ada Lovelace](mention:user/<userId>)`, which every later read returns; a mention link naming nobody who can be mentioned there is stored as plain text. Mentions in code, math or a link’s text are text. A later plain-text edit clears the old translations. While who can be mentioned on the task cannot be read, a body with a mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` and nothing is posted; send it again.',
       operationId: 'addTaskComment',
       security: sec,
       parameters: taskParameters,

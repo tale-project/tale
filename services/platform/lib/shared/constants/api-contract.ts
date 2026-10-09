@@ -427,6 +427,9 @@
  * GitHub or GlitchTip keeps its `@names` as written. Comment reads carry
  * `bodyText` and task reads `descriptionText`, the same text with each
  * mention read as `@` and the current name, and so do the comment events
- * (`comment.bodyText`). Additive.
+ * (`comment.bodyText`). A comment or a new task's description with a
+ * mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` while who can be
+ * mentioned cannot be read, where it answered 500 `INTERNAL_ERROR`.
+ * Additive.
  */
 export const API_CONTRACT_VERSION = '3.24.0';
