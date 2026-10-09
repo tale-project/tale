@@ -25,7 +25,10 @@ import { backendRefusalReason } from '@/lib/utils/backend-error';
 
 import { useUpdateProduct } from '../hooks/mutations';
 import { productImageUrlSchema } from '../utils/product-image-url-schema';
-import { productNumberSchema } from '../utils/product-number-schema';
+import {
+  parseProductNumber,
+  productNumberSchema,
+} from '../utils/product-number-schema';
 import { ProductImageField } from './product-image-field';
 
 interface EditProductDialogProps {
@@ -216,8 +219,8 @@ export function ProductEditDialog({
       name: data.name.trim(),
       description: data.description.trim() || blank('description'),
       imageUrl: data.imageUrl.trim() || null,
-      stock: data.stock ? parseInt(data.stock) : blank('stock'),
-      price: data.price ? parseFloat(data.price) : blank('price'),
+      stock: data.stock ? parseProductNumber(data.stock) : blank('stock'),
+      price: data.price ? parseProductNumber(data.price) : blank('price'),
       currency: data.currency || blank('currency'),
       category: data.category.trim() || blank('category'),
       status: data.status,
