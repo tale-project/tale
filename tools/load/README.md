@@ -68,7 +68,7 @@ node tools/load/src/cli.ts run --plan plan.json --profile load --users 5000 \
 node tools/load/src/cli.ts stack down
 ```
 
-`run` exits 0 when every threshold held, 1 when one failed and 2 when the harness itself failed.
+`run` and `merge` exit 0 when every threshold held, 1 when one failed and 2 when the harness itself failed (a generator crashed, failed or had to be killed).
 
 ## Profiles
 

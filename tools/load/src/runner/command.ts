@@ -26,11 +26,12 @@ import {
 import { runLoad } from './orchestrator.ts';
 import { PROFILE_NAMES, type ProfileName, buildProfile } from './profiles.ts';
 import {
-  DEFAULT_THRESHOLDS,
   buildReport,
+  DEFAULT_THRESHOLDS,
   mergeReports,
   readReport,
   renderMarkdown,
+  type RunReport,
   writeAtomically,
 } from './report.ts';
 
@@ -248,6 +249,16 @@ async function runCommand(flags: RunFlags): Promise<number> {
   await writeAtomically(path.replace(/\.json$/, '') + '.md', markdown);
   console.log(markdown);
   console.log(`[load] report written to ${path}`);
+  return exitCodeOf(report);
+}
+
+/**
+ * 0 when every threshold held, 1 when one failed, 2 when the harness itself
+ * did not run as asked (a worker crashed, failed or had to be killed) — a
+ * verdict on generators that did not run is not a verdict on the target.
+ */
+export function exitCodeOf(report: RunReport): 0 | 1 | 2 {
+  if (report.outcome.workerFailures.length > 0) return 2;
   return report.passed ? 0 : 1;
 }
 
@@ -427,7 +438,7 @@ export function createMergeCommand(): Command {
             markdown,
           );
           console.log(markdown);
-          process.exitCode = merged.passed ? 0 : 1;
+          process.exitCode = exitCodeOf(merged);
         } catch (error) {
           console.error('[load] merge failed:', error);
           process.exitCode = 2;

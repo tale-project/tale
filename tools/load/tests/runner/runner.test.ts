@@ -8,6 +8,7 @@ import {
   personaFor,
   userSeed,
 } from '../../src/runner/assign.ts';
+import { exitCodeOf } from '../../src/runner/command.ts';
 import { splitTarget } from '../../src/runner/orchestrator.ts';
 import { UserPool } from '../../src/runner/pool.ts';
 import {
@@ -22,7 +23,11 @@ import {
   profileSeconds,
   targetAt,
 } from '../../src/runner/profiles.ts';
-import { mergeReports, type RunReport } from '../../src/runner/report.ts';
+import {
+  mergeReports,
+  renderMarkdown,
+  type RunReport,
+} from '../../src/runner/report.ts';
 import {
   DEFAULT_PERSONA_WEIGHTS,
   scenarioOptionsSchema,
@@ -363,5 +368,56 @@ describe('mergeReports', () => {
     expect(merged.shard.count).toBe(2);
     expect(merged.thresholds.every((t) => t.ok)).toBe(true);
     expect(merged.passed).toBe(true);
+  });
+
+  test('sums every shard into each stage and breaks at the earliest shard', () => {
+    const stage = (
+      index: number,
+      users: number,
+      requests: number,
+      errors: number,
+      p95Ms: number,
+      held: boolean,
+    ) => ({
+      stage: index,
+      users,
+      requests,
+      errors,
+      errorRate: errors / requests,
+      p95Ms,
+      held,
+    });
+    const a = report(10, 300);
+    a.outcome.stages = [
+      stage(0, 100, 1000, 0, 200, true),
+      stage(1, 200, 2000, 10, 400, true),
+      stage(2, 300, 3000, 600, 2500, false),
+    ];
+    a.outcome.breakingPoint = { stage: 1, users: 200 };
+    const b = report(10, 200);
+    b.outcome.stages = [
+      stage(0, 100, 1000, 10, 300, true),
+      stage(1, 200, 2000, 400, 1900, false),
+    ];
+    b.outcome.breakingPoint = { stage: 0, users: 100 };
+    const merged = mergeReports([a, b]);
+    expect(merged.outcome.stages).toEqual([
+      stage(0, 200, 2000, 10, 300, true),
+      stage(1, 400, 4000, 410, 1900, false),
+    ]);
+    expect(merged.outcome.breakingPoint).toEqual({ stage: 0, users: 200 });
+    expect(renderMarkdown(merged)).toContain(
+      'held through 200 users (stage 1)',
+    );
+  });
+
+  test('a harness failure exits 2, a threshold failure 1', () => {
+    const failed = report(10, 1);
+    failed.outcome.workerFailures = ['worker 0 exited with code 1'];
+    expect(exitCodeOf(mergeReports([failed, report(10, 1)]))).toBe(2);
+    const slow = report(10, 1);
+    slow.passed = false;
+    expect(exitCodeOf(slow)).toBe(1);
+    expect(exitCodeOf(report(10, 1))).toBe(0);
   });
 });

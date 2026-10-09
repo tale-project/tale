@@ -166,12 +166,59 @@ export async function readReport(path: string): Promise<RunReport> {
  * probes are taken from the first report that has them: every generator
  * read the same deployment, so they must not be added up.
  */
+/**
+ * The shards' stages as stages of the whole run: the load summed, held only
+ * where every shard held. A stage some shard never reached is left out — the
+ * run never stood at its merged load. Each shard keeps a stage's p95 only,
+ * not its histogram, so the merged p95 is the slowest shard's: an upper
+ * bound of the run's.
+ */
+export function mergeStages(
+  reports: readonly RunReport[],
+): RunReport['outcome']['stages'] {
+  const depth = Math.min(...reports.map((r) => r.outcome.stages.length));
+  const stages: RunReport['outcome']['stages'] = [];
+  for (let index = 0; index < depth; index += 1) {
+    const parts = reports.map((r) => r.outcome.stages[index]);
+    const requests = parts.reduce((sum, s) => sum + (s?.requests ?? 0), 0);
+    const errors = parts.reduce((sum, s) => sum + (s?.errors ?? 0), 0);
+    stages.push({
+      stage: index,
+      users: parts.reduce((sum, s) => sum + (s?.users ?? 0), 0),
+      requests,
+      errors,
+      errorRate: requests > 0 ? errors / requests : 0,
+      p95Ms: Math.max(...parts.map((s) => s?.p95Ms ?? 0)),
+      held: parts.every((s) => s?.held === true),
+    });
+  }
+  return stages;
+}
+
+/**
+ * The run held through a stage only if every shard did: the earliest
+ * breaking point wins, at the merged stage's load. A profile without
+ * breakpoints (every shard null) has none.
+ */
+function mergeBreakingPoint(
+  reports: readonly RunReport[],
+  stages: RunReport['outcome']['stages'],
+): RunReport['outcome']['breakingPoint'] {
+  const points = reports.map((r) => r.outcome.breakingPoint);
+  if (points.every((p) => p === null)) return null;
+  if (points.some((p) => p === null)) return null;
+  const stage = Math.min(...points.map((p) => p?.stage ?? 0));
+  const merged = stages[stage];
+  return merged === undefined ? null : { stage, users: merged.users };
+}
+
 export function mergeReports(
   reports: readonly RunReport[],
   thresholdSpec?: Record<string, string | string[]>,
 ): RunReport {
   const first = reports[0];
   if (first === undefined) throw new Error('merge needs at least one report');
+  const stages = mergeStages(reports);
   const snapshot = mergeSnapshots(reports.map((r) => r.snapshot));
   const summary = summarize(snapshot);
   const spec = thresholdSpec ?? first.thresholdSpec;
@@ -191,8 +238,8 @@ export function mergeReports(
         .at(-1) ?? first.endedAt,
     outcome: {
       stoppedEarly: reports.some((r) => r.outcome.stoppedEarly),
-      breakingPoint: first.outcome.breakingPoint,
-      stages: first.outcome.stages,
+      breakingPoint: mergeBreakingPoint(reports, stages),
+      stages,
       workerFailures: failures,
       stragglers: reports.reduce((sum, r) => sum + r.outcome.stragglers, 0),
     },
@@ -255,6 +302,12 @@ export function renderMarkdown(report: RunReport): string {
     lines.push('');
     lines.push('## Stages');
     lines.push('');
+    if (report.shard.count > 1) {
+      lines.push(
+        `Merged from ${report.shard.count} shards: load summed, p95 the slowest shard's (an upper bound), held only where every shard held.`,
+      );
+      lines.push('');
+    }
     lines.push('| stage | users | requests | p95 | errors | held |');
     lines.push('| --- | --- | --- | --- | --- | --- |');
     for (const s of report.outcome.stages) {
