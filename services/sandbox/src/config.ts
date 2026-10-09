@@ -132,6 +132,23 @@ function k8sSizeEnv(name: string): string | undefined {
   return value;
 }
 
+/** A Kubernetes-only setting: refused at boot on the Kubernetes backend when
+ * it cannot be read. Any other backend ignores it, so there an unreadable
+ * value only warns, and a stray one in a shared env file never stops a
+ * Docker spawner from starting. */
+function k8sOnlyEnv<T>(name: string, read: () => T): T | undefined {
+  try {
+    return read();
+  } catch (err) {
+    if ((process.env.SANDBOX_BACKEND ?? 'docker') === 'kubernetes') throw err;
+    console.warn(
+      `[sandbox.config] ignoring ${name}, which only the Kubernetes backend reads:`,
+      err instanceof Error ? err.message : err,
+    );
+    return undefined;
+  }
+}
+
 const LABEL_NAME_RE = /^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$/;
 const DNS_SUBDOMAIN_RE =
   /^(?=.{1,253}$)[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
@@ -239,7 +256,9 @@ function tolerationAt(at: string, entry: unknown): K8sToleration {
     }
     toleration.key = key;
   }
-  if (operator !== undefined) {
+  // The apiserver reads an empty operator as Equal and an empty effect as
+  // every effect, so both count as omitted here too.
+  if (operator !== undefined && operator !== '') {
     if (operator !== 'Equal' && operator !== 'Exists') {
       throw new Error(
         `${at}.operator must be Equal or Exists; got: ${JSON.stringify(operator)}`,
@@ -255,7 +274,7 @@ function tolerationAt(at: string, entry: unknown): K8sToleration {
     }
     toleration.value = value;
   }
-  if (effect !== undefined) {
+  if (effect !== undefined && effect !== '') {
     if (!isTolerationEffect(effect)) {
       throw new Error(
         `${at}.effect must be ${TOLERATION_EFFECTS.join(', ')}; got: ${JSON.stringify(effect)}`,
@@ -499,20 +518,34 @@ export function loadConfig(): SpawnerConfig {
   // A render's workspace emptyDir counts toward its Pod's ephemeral-storage
   // limit, so the size must be one the pod spec can add up.
   const k8sWorkspaceSizeLimit =
-    k8sSizeEnv('SANDBOX_K8S_WORKSPACE_SIZE_LIMIT') ?? '4Gi';
-  const k8sEphemeralStorageRequest = k8sQuantityEnv(
+    k8sOnlyEnv('SANDBOX_K8S_WORKSPACE_SIZE_LIMIT', () =>
+      k8sSizeEnv('SANDBOX_K8S_WORKSPACE_SIZE_LIMIT'),
+    ) ?? '4Gi';
+  const k8sEphemeralStorageRequest = k8sOnlyEnv(
     'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
-    MEMORY_QUANTITY_RE,
+    () =>
+      k8sQuantityEnv(
+        'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+        MEMORY_QUANTITY_RE,
+      ),
   );
-  const k8sEphemeralStorageLimit = k8sSizeEnv(
+  const k8sEphemeralStorageLimit = k8sOnlyEnv(
     'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+    () => k8sSizeEnv('SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT'),
   );
-  const k8sDockerStorageSizeLimit = k8sSizeEnv(
+  const k8sDockerStorageSizeLimit = k8sOnlyEnv(
     'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
+    () => k8sSizeEnv('SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT'),
   );
-  const k8sNodeSelector = nodeSelectorEnv();
-  const k8sTolerations = tolerationsEnv();
-  const k8sPriorityClassName = priorityClassEnv();
+  const k8sNodeSelector = k8sOnlyEnv(
+    'SANDBOX_K8S_NODE_SELECTOR',
+    nodeSelectorEnv,
+  );
+  const k8sTolerations = k8sOnlyEnv('SANDBOX_K8S_TOLERATIONS', tolerationsEnv);
+  const k8sPriorityClassName = k8sOnlyEnv(
+    'SANDBOX_K8S_PRIORITY_CLASS',
+    priorityClassEnv,
+  );
   const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
   const minFreeDiskBytes = sizeEnv('SANDBOX_MIN_FREE_DISK');
   const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');

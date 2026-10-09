@@ -116,7 +116,8 @@ function memoryBytes(quantity: string): number {
 /** What a session's runner asks of the node's disk (`ephemeral-storage`), and
  * what it may write there outside its sized volumes: the writable root
  * filesystem (an inner dockerd's under DinD) and the container logs, which
- * the kubelet rotates at 50 MiB by default. Without them a session can fill
+ * the kubelet rotates at 10 MiB, keeping five files, by default. Without
+ * them a session can fill
  * a node until DiskPressure evicts the platform's Pods beside it; with them
  * the kubelet evicts the session alone, and under node disk pressure it
  * evicts Pods using more than they request first, by priority, then by how

@@ -119,6 +119,8 @@ test('session Pod disk bounds: pod-spec defaults unless set, refused when malfor
     ephemeralStorageLimit: '3Gi',
     dockerStorageSizeLimit: '40Gi',
   });
+  // Refused at boot by the backend that reads them.
+  process.env.SANDBOX_BACKEND = 'kubernetes';
   for (const name of [
     'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
     'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
@@ -217,6 +219,14 @@ test('session Pod placement: absent by default, read from JSON, refused with a c
     ],
     priorityClassName: 'tale-sandbox-session',
   });
+  // An empty operator reads as Equal and an empty effect as every effect,
+  // the apiserver's own reading, so manifests that spell them out still boot.
+  process.env.SANDBOX_K8S_TOLERATIONS = JSON.stringify([
+    { key: 'pool', operator: '', value: 'sandbox', effect: '' },
+  ]);
+  expect(loadConfig().k8s.tolerations).toEqual([
+    { key: 'pool', value: 'sandbox' },
+  ]);
   // An empty object or array places nothing.
   process.env.SANDBOX_K8S_NODE_SELECTOR = '{}';
   process.env.SANDBOX_K8S_TOLERATIONS = '[]';
@@ -265,6 +275,7 @@ test('session Pod placement: absent by default, read from JSON, refused with a c
     ],
     ['SANDBOX_K8S_PRIORITY_CLASS', 'Tale_Sessions', /not a PriorityClass name/],
   ];
+  process.env.SANDBOX_BACKEND = 'kubernetes';
   for (const [name, value, error] of refused) {
     const kept = process.env[name];
     process.env[name] = value;
@@ -668,4 +679,22 @@ test('Docker workloads inherit by default and validate an explicit allowlist', (
   expect(loadConfig().dockerWorkloads).toEqual(['workflow', 'project']);
   process.env.SANDBOX_DOCKER_WORKLOADS = 'browser';
   expect(() => loadConfig()).toThrow(/SANDBOX_DOCKER_WORKLOADS/);
+});
+
+test('an unreadable Kubernetes-only setting stops only a Kubernetes spawner', () => {
+  const warn = spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT = '4g';
+    process.env.SANDBOX_K8S_TOLERATIONS = '{"key":"pool"}';
+    // The Docker backend ignores both, so a stray value in a shared env file
+    // warns instead of refusing the boot.
+    expect(loadConfig().k8s.workspaceSizeLimit).toBe('4Gi');
+    expect(warn.mock.calls.map(String).join('\n')).toContain(
+      'ignoring SANDBOX_K8S_TOLERATIONS',
+    );
+    process.env.SANDBOX_BACKEND = 'kubernetes';
+    expect(() => loadConfig()).toThrow('SANDBOX_K8S_WORKSPACE_SIZE_LIMIT');
+  } finally {
+    warn.mockRestore();
+  }
 });
