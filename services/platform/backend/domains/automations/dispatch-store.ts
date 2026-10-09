@@ -13,7 +13,6 @@ import type {
   VersionSummary,
   VersionView,
 } from '../../../lib/engine/api/dispatch.ts';
-import type { Automation } from '../../../lib/engine/core/types.ts';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { runStarterUserId } from '../../../lib/shared/run-starter.ts';
 import {
