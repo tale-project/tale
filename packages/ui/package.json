@@ -159,6 +159,7 @@
     "./filters/filter-panel": "./src/components/filters/filter-panel.tsx",
     "./filters/filter-section": "./src/components/filters/filter-section.tsx",
     "./flow/compare": "./src/components/flow/compare/compare.ts",
+    "./flow/diff": "./src/components/flow/diff/diff.ts",
     "./flow/edge-palette": "./src/components/flow/edge-palette.ts",
     "./flow/flow-canvas": "./src/components/flow/flow-canvas.tsx",
     "./flow/flow-legend": "./src/components/flow/flow-legend.tsx",

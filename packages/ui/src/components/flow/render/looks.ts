@@ -1,4 +1,5 @@
 import type { FlowTranslate } from '../describe';
+import type { FlowDiffOverlay } from '../diff/diff';
 import type { FlowHighlight } from '../paths/highlight';
 import type { FlowCompareOverlay, FlowFrameState } from '../playback/types';
 import type { FlowGraph } from '../types';
@@ -13,7 +14,9 @@ import type { FlowEdgeLook, FlowNodeLook } from './flow-render-context';
  *    condition a pointer rests on, or a failed run's way to its failure.
  *    Inside it, boxes are lifted and ringed (unless `ringPrimary` is off,
  *    as for a failure, whose boxes already wear their run frames) and lines
- *    stand out; outside it, boxes step back and lines thin.
+ *    stand out; outside it, boxes step back and lines thin. A host's
+ *    highlight that quiets nothing (`quietRest: false`, what changed
+ *    between two versions) lifts and rings its boxes all the same.
  *  - `incident` only brings a node's own lines forward (a pointer or the
  *    keyboard on it) and quiets nothing.
  *  - In a run, a line the run took is drawn in the emphasis colour (red
@@ -22,11 +25,15 @@ import type { FlowEdgeLook, FlowNodeLook } from './flow-render-context';
  *    differ is ringed, one a run's version lacks is dashed; a line both
  *    took stands out, one neither took steps back, one only one took stays
  *    plain (its words say which).
+ *  - Two versions compared (`diff`, in place of a run): every box, line
+ *    and frame says what became of it — added, removed, changed, renamed —
+ *    and every line it does not mark is `unchanged`.
  */
 export function flowLooks({
   graph,
   run,
   compare = null,
+  diff = null,
   primary,
   incident,
   ringPrimary = true,
@@ -34,12 +41,15 @@ export function flowLooks({
   graph: FlowGraph;
   run: FlowFrameState | null;
   compare?: FlowCompareOverlay | null;
+  diff?: FlowDiffOverlay | null;
   primary: FlowHighlight | null;
   incident: FlowHighlight | null;
   ringPrimary?: boolean;
 }): {
   nodes: Map<string, FlowNodeLook>;
   edges: Map<string, FlowEdgeLook>;
+  /** Two versions compared: a frame only one of them draws. */
+  frames: Map<string, 'added' | 'removed'>;
 } {
   const quietRest = primary !== null && primary.quietRest !== false;
   const nodes = new Map<string, FlowNodeLook>();
@@ -50,7 +60,7 @@ export function flowLooks({
       state: info?.state ?? 'idle',
       quiet: quietRest && !inside,
       highlighted:
-        quietRest && inside && ringPrimary
+        inside && ringPrimary
           ? primary?.tone === 'error'
             ? 'error'
             : 'default'
@@ -60,12 +70,15 @@ export function flowLooks({
     const compared = compare?.nodes[node.id];
     if (compared?.absentIn !== undefined) look.absent = true;
     else if (compared?.differs === true) look.differs = true;
+    const changed = diff?.nodes[node.id];
+    if (changed !== undefined) look.diff = changed.kind;
     if (
       look.state !== 'idle' ||
       look.quiet ||
       look.highlighted !== 'none' ||
       look.differs === true ||
-      look.absent === true
+      look.absent === true ||
+      look.diff !== undefined
     )
       nodes.set(node.id, look);
   }
@@ -97,10 +110,22 @@ export function flowLooks({
       !branch || state === undefined || state === 'idle'
         ? undefined
         : state !== 'not-taken';
-    if (look !== 'base' || went !== undefined)
-      edges.set(edge.id, went === undefined ? { look } : { look, taken: went });
+    const changed =
+      diff === null ? undefined : (diff.edges[edge.id] ?? 'unchanged');
+    if (look !== 'base' || went !== undefined || changed !== undefined)
+      edges.set(edge.id, {
+        look,
+        ...(went === undefined ? {} : { taken: went }),
+        ...(changed === undefined ? {} : { diff: changed }),
+      });
   }
-  return { nodes, edges };
+
+  const frames = new Map<string, 'added' | 'removed'>();
+  for (const group of graph.groups ?? []) {
+    const changed = diff?.groups?.[group.id];
+    if (changed !== undefined) frames.set(group.id, changed);
+  }
+  return { nodes, edges, frames };
 }
 
 /** The counter on each frame's header in a run: items or passes done. */

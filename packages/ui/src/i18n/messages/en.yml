@@ -758,6 +758,15 @@ flow:
     legend:
       differs: 'Ring: differs between the runs'
       onlyOne: 'Label on a line: only one run went this way'
+  diff:
+    nodeState: '{kind, select, added {Added} removed {Removed} renamed {Renamed} other {Changed}}'
+    wasNamed: Was {from}
+    edgeAdded: New connection
+    edgeRemoved: Removed connection
+    legend:
+      added: Added in the newer version
+      removed: Removed in the newer version
+      changed: Changed or renamed
 mentions:
   listboxLabel: Mention someone
   empty: No matches

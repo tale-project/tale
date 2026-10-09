@@ -758,6 +758,15 @@ flow:
     legend:
       differs: 'Anneau : diffère entre les exécutions'
       onlyOne: 'Étiquette sur un trait : une seule exécution est passée par là'
+  diff:
+    nodeState: '{kind, select, added {Ajouté} removed {Supprimé} renamed {Renommé} other {Modifié}}'
+    wasNamed: 'Avant : {from}'
+    edgeAdded: Nouvelle connexion
+    edgeRemoved: Connexion supprimée
+    legend:
+      added: Ajouté dans la version la plus récente
+      removed: Supprimé dans la version la plus récente
+      changed: Modifié ou renommé
 mentions:
   listboxLabel: Mentionner quelqu’un
   empty: Aucun résultat

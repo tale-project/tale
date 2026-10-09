@@ -14,7 +14,11 @@ import {
   flowEdgeTone,
   type FlowEdgeTone,
 } from '../edge-palette';
-import { roundedOrthogonalPath, trimEnd } from '../layout/geometry';
+import {
+  pointAlongRoute,
+  roundedOrthogonalPath,
+  trimEnd,
+} from '../layout/geometry';
 import { FLOW_MOTION_CLASS } from '../motion/flow-motion';
 import type { FlowEdge, FlowPoint, FlowRect } from '../types';
 import { flowArrowId } from './edge-markers';
@@ -63,24 +67,38 @@ const HIT_WIDTH = 12;
 
 const PLAIN: FlowEdgeLook = { look: 'base' };
 
-/** The colour and width of a line in a look. A Yes or No line keeps its
- *  hue when it stands out, so the branch stays readable. */
+/** A line's own colour: its kind's, or, two versions compared, its
+ *  change's — every line the change leaves alone in the plain line colour,
+ *  a Yes or No too, so no hue reads as a change it is not. */
+function toneOf(edge: FlowEdge, diff: FlowEdgeLook['diff']): FlowEdgeTone {
+  if (diff === 'added' || diff === 'removed') return diff;
+  if (diff === 'unchanged') return 'flow';
+  return flowEdgeTone(edge.kind);
+}
+
+/** The colour and width of a line in a look. A line whose colour means
+ *  something (a Yes or No, a change) keeps it when it stands out, so the
+ *  meaning stays readable. */
 function strokeOf(
   edge: FlowEdge,
   look: FlowEdgeLook['look'],
+  diff: FlowEdgeLook['diff'],
 ): { tone: FlowEdgeTone; width: number } {
-  const own = flowEdgeTone(edge.kind);
-  const branch = own === 'positive' || own === 'negative';
+  const own = toneOf(edge, diff);
+  const meaningful = own !== 'flow';
   switch (look) {
     case 'quiet':
       return { tone: own, width: FLOW_EDGE_STROKE.quiet };
     case 'emphasis':
       return {
-        tone: branch ? own : 'emphasis',
+        tone: meaningful ? own : 'emphasis',
         width: FLOW_EDGE_STROKE.emphasis,
       };
     case 'travelled':
-      return { tone: branch ? own : 'emphasis', width: FLOW_EDGE_STROKE.base };
+      return {
+        tone: meaningful ? own : 'emphasis',
+        width: FLOW_EDGE_STROKE.base,
+      };
     case 'error':
       return { tone: 'error', width: FLOW_EDGE_STROKE.base };
     default:
@@ -90,6 +108,45 @@ function strokeOf(
 
 const FADE =
   'transition-opacity duration-[var(--duration-short)] ease-[var(--ease-out-quint)]';
+
+/** The sign on a line two versions compared added or removed: a 14 px
+ *  pill at the middle of the route, a plus or a minus in the change's
+ *  colour. A Yes or No line carries the sign in its own pill instead. */
+function FlowEdgeSign({
+  edge,
+  diff,
+  points,
+}: {
+  edge: FlowEdge;
+  diff: 'added' | 'removed';
+  points: readonly FlowPoint[];
+}) {
+  const middle = pointAlongRoute(points, 0.5);
+  if (middle === null) return null;
+  const color = FLOW_EDGE_COLORS[diff];
+  return (
+    <g
+      aria-hidden="true"
+      data-flow-edge-sign={edge.id}
+      data-diff={diff}
+      transform={`translate(${middle.x} ${middle.y})`}
+    >
+      {/* 14 px across, its 1.5 px ring included. */}
+      <circle
+        r={6.25}
+        strokeWidth={1.5}
+        style={{ fill: 'var(--color-background)', stroke: color }}
+      />
+      <path
+        d={diff === 'added' ? 'M-3 0 H3 M0 -3 V3' : 'M-3 0 H3'}
+        fill="none"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        style={{ stroke: color }}
+      />
+    </g>
+  );
+}
 
 /**
  * An edge drawn along the route the layout gave it — orthogonal, corners
@@ -104,8 +161,10 @@ const FADE =
  * stacked lines (colour and width never animate). Two runs compared stand
  * out on a line both took, step back from one neither took, and a line only
  * one took says "Only in A" — on its Yes or No pill, else when a pointer
- * rests on it. Hidden from assistive technology: the nodes say what the
- * lines mean.
+ * rests on it. Two versions compared draw a line only one of them has in
+ * its change's colour with a plus or a minus, every other line plain, and
+ * a pointer resting on a changed line reads what became of it. Hidden from
+ * assistive technology: the nodes say what the lines mean.
  */
 export const FlowRoutedEdgeView = memo(function FlowRoutedEdgeView({
   data,
@@ -113,11 +172,12 @@ export const FlowRoutedEdgeView = memo(function FlowRoutedEdgeView({
   const { edge, points, label, baseId, phase } = data;
   const context = useFlowRender();
   const leaving = phase === 'exit';
-  const { look, taken } = leaving
+  const { look, taken, diff } = leaving
     ? PLAIN
     : (context.edgeLooks.get(edge.id) ?? PLAIN);
-  const rest = strokeOf(edge, 'base');
-  const now = strokeOf(edge, look === 'base' ? 'quiet' : look);
+  const rest = strokeOf(edge, 'base', diff);
+  const now = strokeOf(edge, look === 'base' ? 'quiet' : look, diff);
+  const changed = diff === 'added' || diff === 'removed' ? diff : undefined;
   const dash = flowEdgeDash(edge.kind);
   const cap = edge.kind === 'completion' ? 'round' : 'butt';
   const { full, stroke } = flowEdgePaths(points);
@@ -145,6 +205,7 @@ export const FlowRoutedEdgeView = memo(function FlowRoutedEdgeView({
         data-flow-edge={leaving ? undefined : edge.id}
         data-kind={edge.kind}
         data-look={look}
+        data-diff={diff}
         className={cn('react-flow__edge-path', FADE)}
         strokeWidth={rest.width}
         strokeDasharray={dash}
@@ -181,6 +242,9 @@ export const FlowRoutedEdgeView = memo(function FlowRoutedEdgeView({
         >
           <title>{hover}</title>
         </path>
+      )}
+      {changed !== undefined && label === undefined && (
+        <FlowEdgeSign edge={edge} diff={changed} points={points} />
       )}
       {label && (
         <EdgeLabelRenderer>

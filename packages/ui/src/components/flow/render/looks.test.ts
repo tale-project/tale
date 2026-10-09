@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { flowCompareFromOverlays } from '../compare/compare';
 import type { FlowTranslate } from '../describe';
 import { flowRunText } from '../describe';
+import { diffHighlight, mergeFlowGraphs } from '../diff/diff';
 import { highlightForIncident, highlightForNodes } from '../paths/highlight';
 import { flowStateFromOverlay } from '../playback/derive-state';
 import {
@@ -11,6 +12,7 @@ import {
   branchRunOverlayB,
   triageFlowGraph,
 } from '../testing/flow-fixtures';
+import type { FlowGraph } from '../types';
 import { flowFrameCounters, flowLooks, looksSignature } from './looks';
 
 /** Echoes the key and its values, so the test reads what was asked for. */
@@ -131,6 +133,98 @@ describe('flowLooks', () => {
     });
     expect(nodes.get('merge')?.highlighted).toBe('none');
     expect(nodes.get('urgent')?.quiet).toBe(true);
+  });
+});
+
+/** Triage, then a version that drops Score's frame and sends Report on to
+ *  a new Notify step. */
+function triageVersions(): { before: FlowGraph; after: FlowGraph } {
+  const before = triageFlowGraph();
+  const after = triageFlowGraph();
+  const end = after.nodes.at(-1);
+  if (end === undefined) throw new Error('no End');
+  return {
+    before,
+    after: {
+      nodes: [
+        ...after.nodes.slice(0, -1),
+        { id: 'notify', kind: 'step', label: 'Notify' },
+        end,
+      ],
+      edges: [
+        ...after.edges.filter((edge) => edge.id !== 'report>__end'),
+        {
+          id: 'report>notify',
+          source: 'report',
+          target: 'notify',
+          kind: 'data',
+        },
+        { id: 'notify>__end', source: 'notify', target: '__end', kind: 'exit' },
+      ],
+      groups: [],
+    },
+  };
+}
+
+describe('flowLooks comparing two versions', () => {
+  const { before, after } = triageVersions();
+  const { graph, diff } = mergeFlowGraphs(before, after, (id) =>
+    id === 'score' ? { kind: 'changed', summary: 'Model changed' } : undefined,
+  );
+
+  it('says what became of every box, line and frame, every other line unchanged', () => {
+    const { nodes, edges, frames } = flowLooks({
+      graph,
+      run: null,
+      diff,
+      primary: null,
+      incident: null,
+    });
+    expect(nodes.get('notify')).toEqual({
+      state: 'idle',
+      quiet: false,
+      highlighted: 'none',
+      diff: 'added',
+    });
+    expect(nodes.get('score')?.diff).toBe('changed');
+    expect(nodes.has('issues')).toBe(false);
+    expect(edges.get('report>notify')).toEqual({ look: 'base', diff: 'added' });
+    expect(edges.get('report>__end')).toEqual({
+      look: 'base',
+      diff: 'removed',
+    });
+    expect(edges.get('issues>open_issues')).toEqual({
+      look: 'base',
+      diff: 'unchanged',
+    });
+    expect([...frames]).toEqual([['each:score', 'removed']]);
+    // Without two versions, nothing of it.
+    const plain = flowLooks({
+      graph,
+      run: null,
+      primary: null,
+      incident: null,
+    });
+    expect(plain.edges.size).toBe(0);
+    expect(plain.frames.size).toBe(0);
+  });
+
+  it('rings what changed on a version’s own graph without quieting the rest', () => {
+    const { nodes, edges } = flowLooks({
+      graph: after,
+      run: null,
+      primary: diffHighlight(after, diff),
+      incident: null,
+    });
+    expect(nodes.get('notify')).toEqual({
+      state: 'idle',
+      quiet: false,
+      highlighted: 'default',
+    });
+    expect(nodes.get('score')?.highlighted).toBe('default');
+    expect(nodes.has('issues')).toBe(false);
+    expect(edges.get('report>notify')).toEqual({ look: 'emphasis' });
+    expect(edges.has('issues>open_issues')).toBe(false);
   });
 });
 

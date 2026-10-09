@@ -5,10 +5,12 @@ import { RefreshCw, Repeat } from 'lucide-react';
 import { memo } from 'react';
 
 import { cn } from '../../../lib/cn';
+import { ChangeKindBadge } from '../../data-display/change-list';
 import { FLOW_EDGE_COLORS, FLOW_EDGE_DASH } from '../edge-palette';
 import { roundedOrthogonalPath } from '../layout/geometry';
 import { FLOW_MOTION_CLASS } from '../motion/flow-motion';
 import type { FlowGroup, FlowRect } from '../types';
+import { FLOW_DIFF_BADGE_MOTION } from './chrome';
 import { useFlowRender, type FlowPhase } from './flow-render-context';
 
 export interface FlowFrameData extends Record<string, unknown> {
@@ -34,22 +36,28 @@ const ARC_OFFSET = 20;
  * takes a pointer. A repeat draws its loop as a dashed arc in its right
  * gutter, from the node's foot back to its head. In a run, a counter in
  * its top-right corner says how far it got ("12 of 50 items", "Pass 3 of
- * 5"); the member's strip says the same.
+ * 5"); the member's strip says the same. Two versions compared draw a
+ * frame only one of them has in its change's colour, its badge in the
+ * counter's corner.
  */
 export const FlowGroupFrameView = memo(function FlowGroupFrameView({
   data,
 }: NodeProps & { data: FlowFrameData }) {
   const { group, header, members, phase } = data;
-  const { frameCounters } = useFlowRender();
+  const { frameCounters, frameDiffs } = useFlowRender();
   const counter = phase === 'exit' ? undefined : frameCounters.get(group.id);
+  const changed = phase === 'exit' ? undefined : frameDiffs.get(group.id);
   const Icon = group.kind === 'repeat' ? RefreshCw : Repeat;
   const member = members[0];
   return (
     <div
       aria-hidden="true"
       data-flow-frame={phase === 'exit' ? undefined : group.id}
+      data-flow-diff={changed}
       className={cn(
         'border-border bg-muted/30 pointer-events-none relative size-full rounded-xl border border-dashed',
+        changed === 'added' && 'border-diff-added border-2',
+        changed === 'removed' && 'border-diff-removed border-2',
         phase === 'enter' && FLOW_MOTION_CLASS.fadeIn,
         phase === 'exit' && FLOW_MOTION_CLASS.fadeOut,
       )}
@@ -69,6 +77,12 @@ export const FlowGroupFrameView = memo(function FlowGroupFrameView({
           <Icon className="size-3.5 shrink-0" />
           <span className="truncate">{group.label}</span>
         </div>
+        {changed !== undefined && (
+          <ChangeKindBadge
+            kind={changed}
+            className={cn('bg-background ml-auto', FLOW_DIFF_BADGE_MOTION)}
+          />
+        )}
         {counter && (
           <span
             data-slot="flow-frame-counter"

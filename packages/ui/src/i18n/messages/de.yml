@@ -758,6 +758,15 @@ flow:
     legend:
       differs: 'Ring: unterscheidet sich zwischen den Läufen'
       onlyOne: 'Etikett auf einer Linie: nur ein Lauf nahm diesen Weg'
+  diff:
+    nodeState: '{kind, select, added {Neu} removed {Entfernt} renamed {Umbenannt} other {Geändert}}'
+    wasNamed: Vorher {from}
+    edgeAdded: Neue Verbindung
+    edgeRemoved: Entfernte Verbindung
+    legend:
+      added: In der neueren Version hinzugefügt
+      removed: In der neueren Version entfernt
+      changed: Geändert oder umbenannt
 mentions:
   listboxLabel: Jemanden erwähnen
   empty: Keine Treffer
