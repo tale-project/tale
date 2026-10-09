@@ -1,7 +1,7 @@
 // Kubernetes lifecycle ownership and workspace preservation are exercised
 // through a stub CoreV1Api, without requiring a cluster.
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 
 import type {
   CoreV1Api,
@@ -1081,6 +1081,66 @@ describe('KubernetesSessionBackend.createSession — an orphaned Secret or a Pod
     // It went on to the readiness wait instead of reporting a conflict.
     expect(err).not.toBeNull();
     expect(err?.message).not.toMatch(/already exists/);
+  });
+});
+
+describe('KubernetesSessionBackend.createSession — a Pod the scheduler cannot place', () => {
+  const quick = {
+    ...cfg,
+    session: { ...cfg.session, createHealthTimeoutMs: 200 },
+  };
+  const reason =
+    "0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector.";
+
+  test("the create's error carries the scheduler's reason, logged once", async () => {
+    const { client } = stub(
+      () => Promise.resolve({}),
+      () => Promise.resolve({}),
+      {
+        pod: {
+          status: {
+            phase: 'Pending',
+            conditions: [
+              {
+                type: 'PodScheduled',
+                status: 'False',
+                reason: 'Unschedulable',
+                message: reason,
+              },
+            ],
+          },
+        },
+      },
+    );
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const err = await rejection(
+        new KubernetesSessionBackend(quick, client).createSession(spec),
+      );
+      expect(err?.message).toBe(
+        `session sess_c4 pod never got an IP: pod unschedulable: ${reason}`,
+      );
+      const logged = warn.mock.calls.filter((call) =>
+        String(call[0]).includes('pod unschedulable'),
+      );
+      expect(logged).toHaveLength(1);
+      expect(String(logged[0]?.[0])).toContain(reason);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('a Pod merely pending says nothing about the scheduler', async () => {
+    const { client } = stub(
+      () => Promise.resolve({}),
+      () => Promise.resolve({}),
+      { pod: { status: { phase: 'Pending' } } },
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(quick, client).createSession(spec),
+    );
+    expect(err).not.toBeNull();
+    expect(err?.message).not.toMatch(/unschedulable/);
   });
 });
 

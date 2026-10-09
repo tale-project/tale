@@ -643,13 +643,112 @@ spec:
 | `SANDBOX_K8S_NAMESPACE` | The namespace the session Pods, Secrets, and workspace claims are created in; the spawner's own namespace in this layout. Defaults to `tale-sandbox`. |
 | `SANDBOX_RUNTIME_IMAGE` | The matching Tale sandbox runtime image, available to every node. |
 | `NODE_EXTRA_CA_CERTS` | The cluster CA file, normally `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` inside the spawner. It is the only CA-trust mechanism the spawner honors; keep TLS verification on. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | The size of each agent session's `/agent` workspace claim, default `4Gi`; also bounds a crawler render's temporary workspace, which needs no claim because it is never resumed, and the inner Docker temporary store when that is enabled. |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` | The size of each agent session's `/agent` workspace claim, default `4Gi`; also bounds a crawler render's temporary workspace, which needs no claim because it is never resumed. |
+| `SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT` | The size of the inner Docker temporary store of an agent session that runs Docker inside its sandbox, default `20Gi`. A session that outgrows it is evicted, so size it for the largest images your agents pull and build. Releases before this setting sized the store with `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`: if you lowered that to keep the store small, set this variable as well when you upgrade, or the store grows to `20Gi`. The spawner warns at start when `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT` is set without it. |
+| `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` / `SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` | How much of the node's disk a session Pod requests, default `256Mi`, and how much it may write there outside its temporary workspace and Docker store, default `2Gi`. A Pod's limit adds those stores: `2Gi` for an agent, `6Gi` for a crawler render, `22Gi` with Docker inside the sandbox. An agent session past its limit is evicted on its own and the next task resumes it with its workspace intact, instead of filling the node until Kubernetes evicts the platform's Pods. On nodes that report no ephemeral-storage capacity, as on some rootless clusters, set the request to `0`. |
 | `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST` | What every session Pod requests from the scheduler, as Kubernetes quantities. Unset, an agent Pod requests `250m` and `512Mi` (`1Gi` with Docker inside the sandbox) and a crawler render `250m` and `512Mi`; a request never exceeds the Pod's limit. Raise them when agents on your nodes run heavier builds than this, so the scheduler does not place more sessions than a node can hold. |
+| `SANDBOX_K8S_NODE_SELECTOR` / `SANDBOX_K8S_TOLERATIONS` | Optional. The node labels every session Pod must match, as a JSON object, and the taints it tolerates, as a JSON array of Pod tolerations. Unset, sessions can run on any node; see below. |
+| `SANDBOX_K8S_PRIORITY_CLASS` | Optional. The PriorityClass of every session Pod. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS` | The StorageClass for workspace claims; unset uses the cluster default. |
 | `SANDBOX_RUNTIME` / `SANDBOX_RUNTIME_CLASS` | A supported runtime tier and, when needed, the installed RuntimeClass name. |
 | `SANDBOX_EGRESS_PROXY` | The egress Service the sessions use, default `http://sandbox-egress:3128`. |
 
 The spawner scales horizontally. Any replica resolves a session it did not create by its deterministic Pod name and adopts it, so exec, stop, and destroy work through whichever replica the Service picks. `SANDBOX_MAX_SESSIONS` counts the namespace, but simultaneous admissions on several replicas can exceed it briefly; use a ResourceQuota for a hard bound. The [sandbox Kubernetes contract](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/kubernetes.md) documents the Pod shape and runtime details.
+
+### Keep sessions off the platform's nodes
+
+Session Pods run the code your agents write, and with Docker inside the sandbox on the `runc` tier they run privileged. Without placement settings, the scheduler puts them on any node, next to Postgres and the application roles, where a busy session competes for the same CPU, memory, and disk. To give sessions nodes of their own, label and taint those nodes:
+
+```bash
+kubectl label node <node> tale.dev/sandbox=true
+kubectl taint node <node> tale.dev/sandbox=true:NoSchedule
+```
+
+Then add the matching settings to the spawner's `env` in `40-sandbox.yaml`:
+
+```yaml
+            - { name: SANDBOX_K8S_NODE_SELECTOR, value: '{"tale.dev/sandbox":"true"}' }
+            - { name: SANDBOX_K8S_TOLERATIONS, value: '[{"key":"tale.dev/sandbox","operator":"Exists","effect":"NoSchedule"}]' }
+            - { name: SANDBOX_K8S_PRIORITY_CLASS, value: tale-sandbox-session }
+```
+
+The taint keeps other Pods off those nodes, and the selector keeps sessions on them. The PriorityClass ranks sessions below the platform: the scheduler may preempt a session to place a platform Pod, and when a node runs short of memory or disk, the kubelet takes priority into account and evicts sessions sooner. With `preemptionPolicy: Never`, a session never preempts another Pod itself. A cluster administrator creates the class once; the spawner needs no extra permission:
+
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata: { name: tale-sandbox-session }
+value: -10
+preemptionPolicy: Never
+globalDefault: false
+description: Tale sandbox sessions yield to the platform.
+```
+
+The settings apply to every session Pod, crawler renders included, for the sessions the spawner creates after its restart; running sessions keep their placement. A malformed value stops the spawner at start. A valid selector that no node matches, or a taint the tolerations miss, leaves a session Pod pending: the spawner logs the scheduler's reason, and the create fails with that reason once its startup budget runs out. With node-local storage, a stopped session's workspace claim stays on its node, so keep that node inside the selector or the session cannot resume.
+
+### Pre-pull the sandbox images
+
+The spawner does not pull images on Kubernetes; the kubelet does, per Pod. The first session on a node therefore pulls the runtime image, a download of about 2 GB, inside its startup budget (`SANDBOX_SESSION_CREATE_TIMEOUT_MS`, 180 seconds by default), and the kubelet's image garbage collection can remove the image again once no Pod uses it. This optional DaemonSet pulls the sandbox images onto every node before the first session and keeps them there: each init container starts one image and exits at once, the pause container keeps the Pod alive, and while the Pod exists the kubelet counts those images as in use. Each container requests 1m of CPU and 4 MiB of memory.
+
+```yaml
+# 45-sandbox-prepull.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: { name: sandbox-image-prepull, namespace: tale }
+spec:
+  selector: { matchLabels: { app: sandbox-image-prepull } }
+  updateStrategy: { rollingUpdate: { maxUnavailable: 25% } }
+  template:
+    metadata: { labels: { app: sandbox-image-prepull } }
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 0
+      # Match SANDBOX_K8S_NODE_SELECTOR and SANDBOX_K8S_TOLERATIONS when you set them:
+      # nodeSelector: { tale.dev/sandbox: 'true' }
+      # tolerations: [{ key: tale.dev/sandbox, operator: Exists, effect: NoSchedule }]
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile: { type: RuntimeDefault }
+      initContainers:
+        - name: runtime
+          image: ghcr.io/tale-project/tale/tale-sandbox-runtime:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+        - name: egress
+          image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+        - name: gateway
+          image: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:${VERSION}
+          command: [sh, -c, 'exit 0']
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 32Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.10
+          resources: { requests: { cpu: 1m, memory: 4Mi }, limits: { memory: 16Mi } }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+```
+
+The runtime image is the one that matters: every session Pod and its egress sidecar start from it. The egress and gateway images spare a pull when those Deployments move to another node; remove their init containers when sessions run on dedicated nodes those Deployments never use. If you set `SANDBOX_K8S_NODE_SELECTOR` and `SANDBOX_K8S_TOLERATIONS`, give the DaemonSet the same values so it runs on exactly the session nodes.
+
+The image tags follow `${VERSION}` like every other file. Apply this file on its own, before the loop, and wait until every node has pulled the images; on an upgrade, the new runtime image is then in place before the spawner rolls to it and creates sessions from it. The first command creates the namespace on a first install and changes nothing on an upgrade:
+
+```bash
+envsubst '${VERSION}' < 00-namespace.yaml | kubectl apply -f -
+envsubst '${VERSION}' < 45-sandbox-prepull.yaml | kubectl apply -f -
+kubectl -n tale rollout status ds/sandbox-image-prepull --timeout=15m
+for f in 00-namespace.yaml 10-stores.yaml 20-application.yaml 30-proxy.yaml 40-sandbox.yaml; do
+  envsubst '${VERSION}' < "$f" | kubectl apply -f -
+done
+```
+
+Run the same commands for every upgrade, with the new `VERSION` exported. A copy applied without `envsubst`, or left out of an upgrade, keeps its old tags: it holds old images on the nodes, and the first session on each node pulls the new one again.
 
 ### What the spawner enforces
 
@@ -703,4 +802,4 @@ The CLI's snapshots, blue-green flips, and rollback checks do not run on Kuberne
 
 ## Verified scope
 
-These five files were applied unchanged, apart from the Secret values, to a fresh single-node kind cluster with Kubernetes 1.36, kube-network-policies, the local-path StorageClass, and Tale 0.5.31: boot and migrations, the public edge, the first-owner setup and the Sandboxes card, an agent task with a deliverable, the session lifecycle including idle stop, resume, and cross-replica access, the fence probes above, and a rolling restart of the API with two replicas. Multi-node scheduling with `ReadWriteMany` configuration storage, Docker inside sessions on a sysbox or kata RuntimeClass, an Ingress with `TLS_MODE=external`, and highly available stores were not part of that run.
+These five files were applied unchanged, apart from the Secret values, to a fresh single-node kind cluster with Kubernetes 1.36, kube-network-policies, the local-path StorageClass, and Tale 0.5.31: boot and migrations, the public edge, the first-owner setup and the Sandboxes card, an agent task with a deliverable, the session lifecycle including idle stop, resume, and cross-replica access, the fence probes above, and a rolling restart of the API with two replicas. Multi-node scheduling with `ReadWriteMany` configuration storage, Docker inside sessions on a sysbox or kata RuntimeClass, an Ingress with `TLS_MODE=external`, and highly available stores were not part of that run. The node-disk limits and placement settings of session Pods and the optional pre-pull DaemonSet came later and were not part of it either.

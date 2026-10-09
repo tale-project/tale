@@ -6,6 +6,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 
 import { parse as parseYaml } from 'yaml';
 
+import { DOCKER_STORAGE_SIZE_LIMIT } from './backend/kubernetes/k8s-session-pod-spec.ts';
 import { parseDindInnerPool } from './network-address.ts';
 import {
   dindDefaultEnabled,
@@ -18,7 +19,7 @@ import {
   type RuntimeTier,
 } from './runtime-tier.ts';
 import { RUNNERD_MAX_REQUEST_BODY_BYTES } from './session/runnerd-protocol.ts';
-import type { HubConfig, SpawnerConfig } from './types.ts';
+import type { HubConfig, K8sToleration, SpawnerConfig } from './types.ts';
 
 // Parse a boolean env, returning undefined when UNSET/empty so a caller can
 // distinguish "operator didn't set it" (apply a default) from an explicit
@@ -115,6 +116,223 @@ function k8sQuantityEnv(name: string, re: RegExp): string | undefined {
   if (!re.test(value)) {
     throw new Error(
       `Env var ${name} is not a Kubernetes quantity: ${JSON.stringify(value)}`,
+    );
+  }
+  return value;
+}
+
+/** A storage size from the environment that must hold something: a zero
+ * sizeLimit or ephemeral-storage limit gets a Pod evicted on its first
+ * write. */
+function k8sSizeEnv(name: string): string | undefined {
+  const value = k8sQuantityEnv(name, MEMORY_QUANTITY_RE);
+  if (value !== undefined && Number.parseFloat(value) <= 0) {
+    throw new Error(`Env var ${name} must be above zero; got: ${value}`);
+  }
+  return value;
+}
+
+/** A Kubernetes-only setting: refused at boot on the Kubernetes backend when
+ * it cannot be read. Any other backend ignores it, so there an unreadable
+ * value only warns, and a stray one in a shared env file never stops a
+ * Docker spawner from starting. */
+function k8sOnlyEnv<T>(name: string, read: () => T): T | undefined {
+  try {
+    return read();
+  } catch (err) {
+    if ((process.env.SANDBOX_BACKEND ?? 'docker') === 'kubernetes') throw err;
+    console.warn(
+      `[sandbox.config] ignoring ${name}, which only the Kubernetes backend reads:`,
+      err instanceof Error ? err.message : err,
+    );
+    return undefined;
+  }
+}
+
+const LABEL_NAME_RE = /^[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$/;
+const DNS_SUBDOMAIN_RE =
+  /^(?=.{1,253}$)[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$/;
+
+/** A Kubernetes label key: a name of at most 63 characters, optionally behind
+ * a DNS-subdomain prefix (`tale.dev/sandbox`). Toleration keys share it. */
+function isLabelKey(key: string): boolean {
+  const parts = key.split('/');
+  const name = parts.at(-1) ?? '';
+  if (parts.length > 2 || !LABEL_NAME_RE.test(name)) return false;
+  return parts.length === 1 || DNS_SUBDOMAIN_RE.test(parts[0] ?? '');
+}
+
+function isLabelValue(value: string): boolean {
+  return value === '' || LABEL_NAME_RE.test(value);
+}
+
+/** A JSON value from the environment: undefined when unset, refused at boot
+ * when it does not parse. */
+function jsonEnv(name: string): unknown {
+  const raw = process.env[name]?.trim();
+  if (raw === undefined || raw === '') return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch (err) {
+    throw new Error(
+      `Env var ${name} is not valid JSON: ${JSON.stringify(raw)}`,
+      {
+        cause: err,
+      },
+    );
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** The node labels a session Pod must land on (SANDBOX_K8S_NODE_SELECTOR, a
+ * JSON object), checked here so a malformed label fails the boot instead of
+ * every create at the apiserver. */
+function nodeSelectorEnv(): Record<string, string> | undefined {
+  const name = 'SANDBOX_K8S_NODE_SELECTOR';
+  const parsed = jsonEnv(name);
+  if (parsed === undefined) return undefined;
+  if (!isPlainObject(parsed)) {
+    throw new Error(
+      `Env var ${name} must be a JSON object of node labels, such as {"tale.dev/sandbox":"true"}`,
+    );
+  }
+  const selector: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (!isLabelKey(key)) {
+      throw new Error(
+        `Env var ${name} has a key that is no Kubernetes label key: ${JSON.stringify(key)}`,
+      );
+    }
+    if (typeof value !== 'string' || !isLabelValue(value)) {
+      throw new Error(
+        `Env var ${name} has a value for ${key} that is no Kubernetes label value: ${JSON.stringify(value)}`,
+      );
+    }
+    selector[key] = value;
+  }
+  return Object.keys(selector).length > 0 ? selector : undefined;
+}
+
+const TOLERATION_FIELDS = [
+  'key',
+  'operator',
+  'value',
+  'effect',
+  'tolerationSeconds',
+] as const;
+const TOLERATION_EFFECTS = [
+  'NoSchedule',
+  'PreferNoSchedule',
+  'NoExecute',
+] as const;
+
+function isTolerationEffect(
+  value: unknown,
+): value is (typeof TOLERATION_EFFECTS)[number] {
+  return TOLERATION_EFFECTS.some((effect) => effect === value);
+}
+
+/** One entry of SANDBOX_K8S_TOLERATIONS, held to the apiserver's rules. */
+function tolerationAt(at: string, entry: unknown): K8sToleration {
+  if (!isPlainObject(entry)) throw new Error(`${at} must be a JSON object`);
+  const unknown = Object.keys(entry).filter(
+    (field) => !TOLERATION_FIELDS.some((known) => known === field),
+  );
+  if (unknown.length > 0) {
+    throw new Error(
+      `${at} has unknown field ${unknown.join(', ')}; a toleration takes ${TOLERATION_FIELDS.join(', ')}`,
+    );
+  }
+  const { key, operator, value, effect, tolerationSeconds } = entry;
+  const toleration: K8sToleration = {};
+  if (key !== undefined) {
+    if (typeof key !== 'string' || (key !== '' && !isLabelKey(key))) {
+      throw new Error(
+        `${at}.key is no Kubernetes label key: ${JSON.stringify(key)}`,
+      );
+    }
+    toleration.key = key;
+  }
+  // The apiserver reads an empty operator as Equal and an empty effect as
+  // every effect, so both count as omitted here too.
+  if (operator !== undefined && operator !== '') {
+    if (operator !== 'Equal' && operator !== 'Exists') {
+      throw new Error(
+        `${at}.operator must be Equal or Exists; got: ${JSON.stringify(operator)}`,
+      );
+    }
+    toleration.operator = operator;
+  }
+  if (value !== undefined) {
+    if (typeof value !== 'string' || !isLabelValue(value)) {
+      throw new Error(
+        `${at}.value is no Kubernetes label value: ${JSON.stringify(value)}`,
+      );
+    }
+    toleration.value = value;
+  }
+  if (effect !== undefined && effect !== '') {
+    if (!isTolerationEffect(effect)) {
+      throw new Error(
+        `${at}.effect must be ${TOLERATION_EFFECTS.join(', ')}; got: ${JSON.stringify(effect)}`,
+      );
+    }
+    toleration.effect = effect;
+  }
+  if (tolerationSeconds !== undefined) {
+    if (
+      typeof tolerationSeconds !== 'number' ||
+      !Number.isSafeInteger(tolerationSeconds)
+    ) {
+      throw new Error(
+        `${at}.tolerationSeconds must be a whole number of seconds`,
+      );
+    }
+    toleration.tolerationSeconds = tolerationSeconds;
+  }
+  if (toleration.operator === 'Exists' && toleration.value) {
+    throw new Error(`${at} uses operator Exists, which takes no value`);
+  }
+  if (!toleration.key && toleration.operator !== 'Exists') {
+    throw new Error(`${at} has no key, which needs operator Exists`);
+  }
+  if (
+    toleration.tolerationSeconds !== undefined &&
+    toleration.effect !== 'NoExecute'
+  ) {
+    throw new Error(`${at}.tolerationSeconds applies only to effect NoExecute`);
+  }
+  return toleration;
+}
+
+/** The taints a session Pod tolerates (SANDBOX_K8S_TOLERATIONS, a JSON array
+ * in the Pod spec's own shape). */
+function tolerationsEnv(): K8sToleration[] | undefined {
+  const name = 'SANDBOX_K8S_TOLERATIONS';
+  const parsed = jsonEnv(name);
+  if (parsed === undefined) return undefined;
+  if (!Array.isArray(parsed)) {
+    throw new Error(
+      `Env var ${name} must be a JSON array of tolerations, such as [{"key":"tale.dev/sandbox","operator":"Exists","effect":"NoSchedule"}]`,
+    );
+  }
+  const tolerations = parsed.map((entry: unknown, index) =>
+    tolerationAt(`Env var ${name}[${index}]`, entry),
+  );
+  return tolerations.length > 0 ? tolerations : undefined;
+}
+
+/** The PriorityClass of session Pods (SANDBOX_K8S_PRIORITY_CLASS). */
+function priorityClassEnv(): string | undefined {
+  const name = 'SANDBOX_K8S_PRIORITY_CLASS';
+  const value = process.env[name]?.trim();
+  if (value === undefined || value === '') return undefined;
+  if (!DNS_SUBDOMAIN_RE.test(value)) {
+    throw new Error(
+      `Env var ${name} is not a PriorityClass name (lowercase letters, digits, '-' and '.'): ${JSON.stringify(value)}`,
     );
   }
   return value;
@@ -297,6 +515,37 @@ export function loadConfig(): SpawnerConfig {
     'SANDBOX_K8S_MEMORY_REQUEST',
     MEMORY_QUANTITY_RE,
   );
+  // A render's workspace emptyDir counts toward its Pod's ephemeral-storage
+  // limit, so the size must be one the pod spec can add up.
+  const k8sWorkspaceSizeLimit =
+    k8sOnlyEnv('SANDBOX_K8S_WORKSPACE_SIZE_LIMIT', () =>
+      k8sSizeEnv('SANDBOX_K8S_WORKSPACE_SIZE_LIMIT'),
+    ) ?? '4Gi';
+  const k8sEphemeralStorageRequest = k8sOnlyEnv(
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+    () =>
+      k8sQuantityEnv(
+        'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+        MEMORY_QUANTITY_RE,
+      ),
+  );
+  const k8sEphemeralStorageLimit = k8sOnlyEnv(
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+    () => k8sSizeEnv('SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT'),
+  );
+  const k8sDockerStorageSizeLimit = k8sOnlyEnv(
+    'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
+    () => k8sSizeEnv('SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT'),
+  );
+  const k8sNodeSelector = k8sOnlyEnv(
+    'SANDBOX_K8S_NODE_SELECTOR',
+    nodeSelectorEnv,
+  );
+  const k8sTolerations = k8sOnlyEnv('SANDBOX_K8S_TOLERATIONS', tolerationsEnv);
+  const k8sPriorityClassName = k8sOnlyEnv(
+    'SANDBOX_K8S_PRIORITY_CLASS',
+    priorityClassEnv,
+  );
   const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
   const minFreeDiskBytes = sizeEnv('SANDBOX_MIN_FREE_DISK');
   const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');
@@ -404,6 +653,12 @@ export function loadConfig(): SpawnerConfig {
   const K8S_ONLY_ENVS = [
     'SANDBOX_K8S_NAMESPACE',
     'SANDBOX_K8S_WORKSPACE_SIZE_LIMIT',
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST',
+    'SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT',
+    'SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT',
+    'SANDBOX_K8S_NODE_SELECTOR',
+    'SANDBOX_K8S_TOLERATIONS',
+    'SANDBOX_K8S_PRIORITY_CLASS',
     'SANDBOX_K8S_CACHE_STORAGECLASS',
     'SANDBOX_K8S_SERVER',
     'SANDBOX_K8S_TOKEN',
@@ -428,6 +683,25 @@ export function loadConfig(): SpawnerConfig {
         `[sandbox.config] ${name} is set but has no effect with SANDBOX_BACKEND=${backend}`,
       );
     }
+  }
+  // SANDBOX_K8S_WORKSPACE_SIZE_LIMIT does not size the inner Docker store of
+  // a session with Docker inside. An operator who set it to keep that store
+  // small on small node disks, without the store's own setting, gets the
+  // store's larger default and a Pod limit that grows with it, so the boot
+  // log names the variable that sizes the store.
+  if (
+    backend === 'kubernetes' &&
+    dockerInContainer &&
+    dockerWorkloads?.length !== 0 &&
+    (process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT?.trim() ?? '') !== '' &&
+    k8sDockerStorageSizeLimit === undefined
+  ) {
+    console.warn(
+      `[sandbox.config] SANDBOX_K8S_WORKSPACE_SIZE_LIMIT no longer sizes the inner Docker store of a ` +
+        `session with Docker inside: SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT does (default ` +
+        `${DOCKER_STORAGE_SIZE_LIMIT}), and the session Pod's ephemeral-storage limit grows with it. ` +
+        `Set SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT to bound the store on small node disks.`,
+    );
   }
   // Body cap on every spawner route. /v1/sessions/:id/files/stage takes
   // INLINE base64 content (bound org skills, useSkills subtrees, steer control
@@ -513,10 +787,26 @@ export function loadConfig(): SpawnerConfig {
           ? null
           : (process.env.SANDBOX_RUNTIME_CLASS ??
             k8sRuntimeClassFor(runtimeTier)),
-      workspaceSizeLimit: process.env.SANDBOX_K8S_WORKSPACE_SIZE_LIMIT ?? '4Gi',
+      workspaceSizeLimit: k8sWorkspaceSizeLimit,
       ...(k8sCpuRequest !== undefined ? { cpuRequest: k8sCpuRequest } : {}),
       ...(k8sMemoryRequest !== undefined
         ? { memoryRequest: k8sMemoryRequest }
+        : {}),
+      ...(k8sEphemeralStorageRequest !== undefined
+        ? { ephemeralStorageRequest: k8sEphemeralStorageRequest }
+        : {}),
+      ...(k8sEphemeralStorageLimit !== undefined
+        ? { ephemeralStorageLimit: k8sEphemeralStorageLimit }
+        : {}),
+      ...(k8sDockerStorageSizeLimit !== undefined
+        ? { dockerStorageSizeLimit: k8sDockerStorageSizeLimit }
+        : {}),
+      ...(k8sNodeSelector !== undefined
+        ? { nodeSelector: k8sNodeSelector }
+        : {}),
+      ...(k8sTolerations !== undefined ? { tolerations: k8sTolerations } : {}),
+      ...(k8sPriorityClassName !== undefined
+        ? { priorityClassName: k8sPriorityClassName }
         : {}),
     },
     port: numEnv('SANDBOX_PORT', 8003, { min: 1, max: 65535 }),

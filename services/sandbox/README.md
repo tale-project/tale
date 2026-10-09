@@ -316,6 +316,24 @@ forwarding protection, including when adopting an older runtime image. Generated
 Docker containers explicitly disable IPv6 so IPv4-only deployments do not rely
 on host IPv6 firewall support. See the [operator environment reference](../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
 
+## Kubernetes session Pods
+
+Each session Pod's runner requests 256 MiB of node disk (`ephemeral-storage`)
+and may write 2 GiB outside its sized volumes (root filesystem, logs). Its
+limit adds the disk-backed `emptyDir` volumes it mounts: a crawler render's
+workspace (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, 4 GiB) and a DinD agent's inner
+Docker store (`SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`, 20 GiB). A session past
+its limit is evicted on its own instead of filling the node until the kubelet
+evicts platform Pods; `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` and
+`SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` override the request and that headroom.
+
+Unset, session Pods schedule on any node. `SANDBOX_K8S_NODE_SELECTOR` (a JSON
+object of node labels), `SANDBOX_K8S_TOLERATIONS` (a JSON array of Pod
+tolerations) and `SANDBOX_K8S_PRIORITY_CLASS` place every session Pod,
+crawler renders included, on dedicated nodes and below the platform's
+priority; the spawner refuses to start on a value the apiserver would reject.
+See the [Kubernetes deployment contract](docs/kubernetes.md).
+
 ## Inner Docker networking
 
 An enabled agent session starts its inner engine on the first ordinary Docker

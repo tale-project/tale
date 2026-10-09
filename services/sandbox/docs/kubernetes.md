@@ -80,17 +80,72 @@ Pod `250m` / `512Mi` (`1Gi` under DinD), a crawler render `250m` / `512Mi`,
 overridable for every Pod by `SANDBOX_K8S_CPU_REQUEST` /
 `SANDBOX_K8S_MEMORY_REQUEST` and never above the limit (an idle session uses
 ~60 MB; the old flat `500m` / `1Gi` capped a node's sessions by CPU they
-never used). The transparent-egress sidecar requests `10m` / `16Mi` (limit
-`250m` / `64Mi`), so a namespace ResourceQuota admits the Pod. The workspace
+never used). The transparent-egress sidecar requests `10m` / `16Mi` / `16Mi`
+of ephemeral storage (limit `250m` / `64Mi` / `128Mi`), so a namespace
+ResourceQuota admits the Pod; a zero runner `ephemeral-storage` request zeroes
+the sidecar's too. The workspace
 PVC of an agent session is sized by `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`
-(default `4Gi`), which under DinD also bounds the inner-docker `emptyDir`; a
-crawler render, never resumed, gets a sized `emptyDir` instead of a PVC.
+(default `4Gi`); a crawler render, never resumed, gets an `emptyDir` of that
+size instead of a PVC. Under DinD the inner Docker store is an `emptyDir`
+sized by `SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT` (default `20Gi`): one pull of
+a large build image unpacks to several GiB, and an `emptyDir` past its
+`sizeLimit` evicts the whole session.
 `fsGroupChangePolicy: OnRootMismatch` keeps the kubelet from re-chowning a
 whole workspace on every resume.
 `SANDBOX_RUNTIME` selects the RuntimeClass per tier (gVisor / sysbox / kata;
 runc omits the field). DinD is an agent-profile capability:
 a `default`-profile Pod (run_code, crawler renders) stays fully
 hardened whatever the deployment flags say.
+
+**Node disk:** the runner requests `256Mi` of `ephemeral-storage`
+(`SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST`) and is limited to a headroom of
+`2Gi` (`SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT`) for its writable root
+filesystem and logs, plus every disk-backed `emptyDir` it mounts: the kubelet
+evicts a Pod whose writable layers, logs and `emptyDir` volumes together
+exceed the sum of its containers' limits. An agent Pod is limited to `2Gi`
+(its workspace is a PVC, which does not count), a crawler render to `6Gi`, a
+DinD agent to `22Gi`; the request never exceeds the limit. A session past its
+limit is evicted on its own instead of filling the node until DiskPressure
+evicts the platform's Pods beside it. Under node disk pressure the kubelet
+evicts Pods using more than they request first, by priority, then by how far
+their use exceeds their request. The memory-backed `/tmp` and `/dev/shm` count against memory
+instead. An evicted agent session's Pod stays `Failed` until its next resume
+removes it and recreates the session on the intact workspace PVC.
+
+**Placement:** `SANDBOX_K8S_NODE_SELECTOR` (a JSON object of node labels),
+`SANDBOX_K8S_TOLERATIONS` (a JSON array of Pod tolerations) and
+`SANDBOX_K8S_PRIORITY_CLASS` set `nodeSelector`, `tolerations` and
+`priorityClassName` on every session Pod, crawler renders included. Unset,
+the fields are omitted, and sessions (privileged under runc DinD) can
+schedule beside the database and platform Pods and starve them. Label and
+taint dedicated nodes, select and tolerate them here, and give sessions a
+PriorityClass below the platform's with `preemptionPolicy: Never`: the
+scheduler may then preempt a session to place a platform Pod, never the
+reverse, and among Pods over their requests the kubelet evicts sessions
+first. The values are
+held to the apiserver's rules at boot (label keys and values, a toleration's
+operator, effect and `tolerationSeconds`, a DNS-subdomain class name), so a
+typo stops the spawner instead of failing every create. A valid selector no
+node matches, a missing toleration or a disk request on a node with no
+capacity leaves the Pod `Unschedulable`; the create keeps waiting, since an
+autoscaler can still add a node, logs the scheduler's message once and,
+when its budget runs out, fails with that message. The spawner needs no
+extra RBAC; a cluster administrator creates the PriorityClass once. A
+changed selector reaches new Pods only, and with node-local storage a
+stopped session resumes only on the node that holds its workspace PVC.
+
+**Image pre-pull:** `warmImage` is a no-op on this backend; the kubelet
+pulls the runtime image per Pod. The first session on a node pulls it
+(about 2 GB compressed) inside its create budget, and kubelet image garbage
+collection can remove it again once no Pod uses it. The
+[Kubernetes install guide](../../../docs/en/self-hosted/install/kubernetes.md)
+ships an optional DaemonSet, `45-sandbox-prepull.yaml`: no-op init
+containers of the runtime, egress and gateway images behind a pause
+container (`1m` / `4Mi` requests), on the same `${VERSION}` tags as the
+rest of the manifests and with the session placement as a commented-out
+selector and toleration. The guide applies it and waits for its rollout
+before the other manifests, so an upgrade's runtime image is on every node
+before the spawner rolls to it.
 
 ## RBAC (namespaced Role — no cluster scope, no `pods/exec`)
 
@@ -147,7 +202,11 @@ stream. Keep it out so a stray exec call fails closed.
 | `SANDBOX_RUNTIME`                                                 | optional   | Runtime tier (`runc` default, `gvisor`/`runsc`, `sysbox`, `kata`); sets the Pod `runtimeClassName`, overridable via `SANDBOX_RUNTIME_CLASS` for a non-runc tier.                            |
 | `SANDBOX_DIND_INNER_POOL` | optional | Canonical RFC1918 IPv4 `/16` for the agent's inner Docker daemon. Unset selects automatically; configure a range outside the cluster's Pod, Service and VPC CIDRs. Known overlap remains an error. See [Inner Docker networking](#inner-docker-networking). |
 | `SANDBOX_K8S_CPU_REQUEST` / `SANDBOX_K8S_MEMORY_REQUEST`          | optional   | What every session Pod requests (K8s quantities), overriding the per-profile defaults; clamped to the Pod's limit. A malformed value fails the spawner at boot. |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | Size of the per-session `/agent` workspace PVC (default `4Gi`) and, under DinD, the `sizeLimit` of the inner-docker `emptyDir`. Bounds deps + temp + outputs.                                |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | Size of the per-session `/agent` workspace PVC (default `4Gi`) and of a crawler render's workspace `emptyDir`. Bounds deps + temp + outputs. A malformed or zero value fails the spawner at boot. |
+| `SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`                           | optional   | `sizeLimit` of a DinD agent's inner Docker store `emptyDir` (default `20Gi`); also added to that Pod's ephemeral-storage limit. A malformed or zero value fails the spawner at boot. Releases before it sized the store with `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`; when sessions can run DinD and that is set without this one, the spawner warns at boot that the store now takes this default. |
+| `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` / `SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` | optional | The runner's `ephemeral-storage` request (default `256Mi`, clamped to the limit) and its headroom for the writable root filesystem and logs (default `2Gi`); the Pod's limit is the headroom plus its disk-backed `emptyDir` sizes. A malformed value, or a zero limit, fails the spawner at boot. Set the request to `0` on nodes that report no `ephemeral-storage` capacity (a kubelet with `localStorageCapacityIsolation: false`, as on some rootless clusters), where any request leaves the Pod unschedulable. |
+| `SANDBOX_K8S_NODE_SELECTOR` / `SANDBOX_K8S_TOLERATIONS`           | optional   | JSON: an object of node labels every session Pod must match (`{"tale.dev/sandbox":"true"}`) and an array of Pod tolerations (`[{"key":"tale.dev/sandbox","operator":"Exists","effect":"NoSchedule"}]`). Unset ⇒ omitted. Malformed JSON, label or toleration fails the spawner at boot. See **Placement** above. |
+| `SANDBOX_K8S_PRIORITY_CLASS`                                      | optional   | `priorityClassName` of every session Pod. Unset ⇒ omitted (the namespace default priority). An invalid name fails the spawner at boot. |
 | `SANDBOX_K8S_CACHE_STORAGECLASS`                                  | optional   | StorageClass for the workspace PVCs (`ReadWriteOnce`). Unset ⇒ the cluster default. On a multi-node cluster use a class whose volumes can re-bind where a resume Pod schedules.               |
 | `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` (default `http://sandbox-egress:3128`); also what the transparent-egress sidecar tunnels to.                                                         |
 | `SANDBOX_K8S_SERVER` / `SANDBOX_K8S_TOKEN` / `SANDBOX_K8S_CAFILE` | dev only   | Explicit bearer-token kubeconfig for local Bun dev (kind's client-cert kubeconfig auths as `system:anonymous` under Bun). In-cluster uses the projected SA token automatically.             |
