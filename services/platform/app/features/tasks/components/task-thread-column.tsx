@@ -49,6 +49,28 @@ export function TaskThreadColumn({
           'scrollbar-thin flex min-h-0 flex-1 flex-col-reverse overflow-y-auto',
           scrollerClassName,
         )}
+        onWheel={(event) => {
+          const scroller = event.currentTarget;
+          if (
+            event.deltaY === 0 ||
+            scroller.scrollHeight <= scroller.clientHeight
+          ) {
+            return;
+          }
+          // In a column-reverse scrollport the newest end is scrollTop 0 and
+          // the history lives at negative offsets. Chromium can interpret
+          // that 0 boundary as the top of the scrollport and swallow the
+          // first upward wheel gesture. Apply the wheel delta in the reverse
+          // coordinate system so the reader can always leave the newest end.
+          const minimum = scroller.clientHeight - scroller.scrollHeight;
+          const next = Math.max(
+            minimum,
+            Math.min(0, scroller.scrollTop + event.deltaY),
+          );
+          if (next === scroller.scrollTop) return;
+          event.preventDefault();
+          scroller.scrollTop = next;
+        }}
       >
         {/* mb-auto: a short thread starts at the top instead of sinking to the
             foot of an otherwise empty column. */}
@@ -58,10 +80,10 @@ export function TaskThreadColumn({
             contentClassName,
           )}
         >
-          <div className="border-border bg-card flex flex-col gap-5 rounded-2xl border p-5 shadow-xs">
+          <section className="flex flex-col gap-5">
             <h2 className="sr-only">{t('detail.overview')}</h2>
             {brief}
-          </div>
+          </section>
           <section>
             <h2 className="sr-only">{t('detail.conversation')}</h2>
             {conversation}

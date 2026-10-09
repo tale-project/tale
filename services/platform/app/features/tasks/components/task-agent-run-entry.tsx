@@ -20,15 +20,10 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
-import {
-  ResponsiveDialog,
-  ResponsiveDialogContent,
-  ResponsiveDialogTitle,
-} from '@tale/ui/responsive-dialog';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
 import { useRetryFocus } from '@tale/ui/use-retry-focus';
-import { Loader2, Play, RotateCcw, XCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, Play, RotateCcw, XCircle } from 'lucide-react';
 import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
@@ -77,7 +72,6 @@ function TaskAgentRunDetailsDialog({
   live,
   failure,
   open,
-  onOpenChange,
 }: {
   organizationId: string;
   runId: string;
@@ -90,7 +84,6 @@ function TaskAgentRunDetailsDialog({
   /** Set for a failed run: its classification and the raw reason it kept. */
   failure?: { failureCode?: string; error?: string };
   open: boolean;
-  onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tAutomations } = useT('automations');
@@ -123,81 +116,82 @@ function TaskAgentRunDetailsDialog({
       (text) => text?.trim() === reported,
     );
 
+  if (!open) return null;
+  const title = live
+    ? t('run.detailsTitleLive', { name })
+    : t('run.detailsTitle', { name });
   return (
-    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
-        {/* `pr-8` keeps a long title clear of the corner Close. */}
-        <ResponsiveDialogTitle className="flex items-center gap-2 pr-8 text-base font-semibold">
-          {live
-            ? t('run.detailsTitleLive', { name })
-            : t('run.detailsTitle', { name })}
-          {live && (
-            <Loader2
-              className="text-muted-foreground size-4 shrink-0 animate-spin"
-              aria-hidden
-            />
-          )}
-        </ResponsiveDialogTitle>
-        {failure !== undefined && (
-          <Stack gap={2}>
-            <Text as="p">
-              {t(
-                `agentRun.failure.${taskRunFailureClass(failure.failureCode)}`,
-              )}
-            </Text>
-            {failure.error !== undefined && !reportedInLog && (
-              <Stack gap={1}>
-                <Text as="h3" variant="label">
-                  {t('agentRun.reported')}
-                </Text>
-                <Text
-                  as="p"
-                  variant="muted"
-                  className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
-                >
-                  {failure.error}
-                </Text>
-              </Stack>
-            )}
-          </Stack>
+    <div
+      role="region"
+      aria-label={title}
+      className="bg-muted/20 mt-2 rounded-lg border p-3"
+    >
+      <div className="text-foreground flex items-center gap-2 pb-3 text-sm font-semibold">
+        {title}
+        {live && (
+          <Loader2
+            className="text-muted-foreground size-4 shrink-0 animate-spin"
+            aria-hidden
+          />
         )}
-        {op !== null ? (
-          <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
-        ) : readStatus === 'failed' ? (
-          <div ref={retryFocus.ref}>
-            <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  retryFocus.arm();
-                  void opQuery.refetch();
-                }}
+      </div>
+      {failure !== undefined && (
+        <Stack gap={2}>
+          <Text as="p">
+            {t(`agentRun.failure.${taskRunFailureClass(failure.failureCode)}`)}
+          </Text>
+          {failure.error !== undefined && !reportedInLog && (
+            <Stack gap={1}>
+              <Text as="h3" variant="label">
+                {t('agentRun.reported')}
+              </Text>
+              <Text
+                as="p"
+                variant="muted"
+                className="bg-muted/50 rounded-md px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap"
               >
-                {tCommon('actions.tryAgain')}
-              </Button>
-            </Alert>
-          </div>
-        ) : readStatus === 'ready' ? (
-          // A failed run said why above; "no log" would only repeat that it
-          // never got to work.
-          failure === undefined && (
-            <Text as="p" variant="muted">
-              {tAutomations('runs.agentLog.empty')}
-            </Text>
-          )
-        ) : (
-          <Row gap={2} role="status">
-            <Loader2
-              className="text-muted-foreground size-4 animate-spin"
-              aria-hidden
-            />
-            <Text variant="muted">{tCommon('actions.loading')}</Text>
-          </Row>
-        )}
-      </ResponsiveDialogContent>
-    </ResponsiveDialog>
+                {failure.error}
+              </Text>
+            </Stack>
+          )}
+        </Stack>
+      )}
+      {op !== null ? (
+        <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
+      ) : readStatus === 'failed' ? (
+        <div ref={retryFocus.ref}>
+          <Alert variant="destructive" title={t('agentRun.logReadFailed')}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                retryFocus.arm();
+                void opQuery.refetch();
+              }}
+            >
+              {tCommon('actions.tryAgain')}
+            </Button>
+          </Alert>
+        </div>
+      ) : readStatus === 'ready' ? (
+        // A failed run said why above; "no log" would only repeat that it
+        // never got to work.
+        failure === undefined && (
+          <Text as="p" variant="muted">
+            {tAutomations('runs.agentLog.empty')}
+          </Text>
+        )
+      ) : (
+        <Row gap={2} role="status">
+          <Loader2
+            className="text-muted-foreground size-4 animate-spin"
+            aria-hidden
+          />
+          <Text variant="muted">{tCommon('actions.loading')}</Text>
+        </Row>
+      )}
+    </div>
   );
 }
 
@@ -302,11 +296,16 @@ export function TaskAgentRunEntry({
         <button
           type="button"
           className="focus-visible:ring-ring inline-flex min-w-0 items-center gap-2 rounded-md text-left focus-visible:ring-1 focus-visible:outline-none"
-          onClick={() => setDetailsOpen(true)}
+          onClick={() => setDetailsOpen((open) => !open)}
           aria-label={statusLabel}
+          aria-expanded={detailsOpen}
         >
           {run.status === 'failed' ? (
             <Badge variant="destructive" icon={XCircle}>
+              {statusLabel}
+            </Badge>
+          ) : run.status === 'settled' ? (
+            <Badge variant="green" icon={CheckCircle2}>
               {statusLabel}
             </Badge>
           ) : (
@@ -412,7 +411,6 @@ export function TaskAgentRunEntry({
             }
           : {})}
         open={detailsOpen}
-        onOpenChange={setDetailsOpen}
       />
     </Stack>
   );

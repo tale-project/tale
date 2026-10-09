@@ -10,6 +10,7 @@ vi.mock('@tale/ui/i18n/client', () => ({
       if (key === 'agentRuns.status.running') return 'Running';
       if (key === 'agentRuns.status.failed') return 'Failed';
       if (key === 'agentRuns.status.queued') return 'Queued';
+      if (key === 'agentRuns.status.settled') return 'Finished';
       if (key === 'agentRun.waiting.org_limit') return 'Waiting for a worker';
       if (key === 'agentRun.waiting.host') return 'Waiting for room';
       if (key === 'agentRuns.detail.openAria') {
@@ -20,6 +21,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
       }
       if (key === 'agentRuns.detail.failedTitle') {
         return `${String(values?.agent)} — run failed`;
+      }
+      if (key === 'agentRuns.detail.completedTitle') {
+        return `${String(values?.agent)} — run details`;
       }
       if (key === 'agentRuns.detail.noLiveDetail') {
         return 'No live transcript is available for this run.';
@@ -148,6 +152,33 @@ describe('TaskAgentRunStatusBadge', () => {
     ).toBeInTheDocument();
     // No code stamped: the failure reads as the unknown class.
     expect(screen.getByText('agentRun.failure.unknown')).toBeInTheDocument();
+  });
+
+  it('treats a settled run as a finished, expandable outcome', async () => {
+    const user = userEvent.setup();
+    render(
+      <TaskAgentRunStatusBadge
+        agentName="PR Creator"
+        run={{
+          runId: 'run_settled' as string,
+          agentSlug: 'agent-1',
+          trigger: 'manual',
+          status: 'settled',
+          startedAt: Date.now(),
+          costCents: 0,
+        }}
+      />,
+    );
+
+    expect(screen.getByText('Finished')).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Open Finished details for PR Creator',
+      }),
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'PR Creator — run details' }),
+    ).toBeInTheDocument();
   });
 
   it('leads a failed run with what its failure means, above what it reported', async () => {

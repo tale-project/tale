@@ -181,6 +181,7 @@ attachments:
   dropHint: Bilder oder Dokumente hierher ziehen, einfügen oder zum Auswählen klicken
 outputs:
   label: Ergebnisdateien
+  empty: Noch keine Ergebnisdateien.
 title: Aufgaben
 status:
   backlog: Backlog

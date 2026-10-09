@@ -183,6 +183,7 @@ attachments:
   dropHint: Dépose ou colle des images ou des documents, ou clique pour parcourir
 outputs:
   label: Fichiers produits
+  empty: Aucun fichier produit pour le moment.
 title: Tâches
 status:
   backlog: Backlog

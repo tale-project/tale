@@ -28,6 +28,7 @@ import {
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Switch } from '@tale/ui/switch';
+import { Tabs } from '@tale/ui/tabs';
 import { Text } from '@tale/ui/text';
 import { useCopy } from '@tale/ui/use-copy';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -354,7 +355,7 @@ function ModalLayout({
           mid-gutter. The negative-margin + padding pair on the left widens
           the scrollport slightly so focus rings on full-width fields aren't
           clipped at the column edge. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-0">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 md:h-full md:flex-row md:gap-0 md:overflow-hidden">
         {thread !== undefined ? (
           // On a phone the drawer scrolls the whole dialog as one column, so
           // the thread hands its scrolling up and its composer follows it.
@@ -378,7 +379,7 @@ function ModalLayout({
         <PropertyList
           as="aside"
           aria-label={t('detail.details')}
-          className="shrink-0 md:-mr-2 md:min-h-0 md:w-[17rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
+          className="md:scrollbar-thin min-w-0 shrink-0 md:-mr-2 md:h-full md:max-h-full md:min-h-0 md:w-[17rem] md:overflow-y-auto md:overscroll-y-contain md:border-l md:py-0.5 md:pr-2 md:pl-6"
         >
           {/* The panel's own headings sit under it, not under the thread's. */}
           <h2 className="sr-only">{t('detail.details')}</h2>
@@ -1479,6 +1480,7 @@ export function EditTaskBody({
   // The owning automation's operator settings, opened from the task itself.
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
+  const [briefTab, setBriefTab] = useState('details');
   const settingsFolder =
     ownedBy?.settings == null
       ? null
@@ -1971,191 +1973,229 @@ export function EditTaskBody({
                 what it is, what to do next — and keeps the description as the
                 optional note it is, below the files (see the tail of this
                 column). */}
-      <TaskExternalIssueCard
-        externalSystem={task.externalSystem}
-        externalId={task.externalId}
-        externalUrl={task.externalUrl}
-        externalIssue={task.externalIssue}
+      <Tabs
+        variant="underline"
+        value={briefTab}
+        onValueChange={setBriefTab}
+        listAriaLabel={t('detail.details')}
+        items={[
+          {
+            value: 'details',
+            label: t('detail.details'),
+            content: (
+              <Stack gap={4}>
+                <TaskExternalIssueCard
+                  externalSystem={task.externalSystem}
+                  externalId={task.externalId}
+                  externalUrl={task.externalUrl}
+                  externalIssue={task.externalIssue}
+                />
+                <TaskExternalStatusCard
+                  organizationId={task.organizationId}
+                  taskId={task._id}
+                  externalSystem={task.externalSystem}
+                  canWork={canWork && project?.archivedAt == null}
+                />
+                {ownedBy === null && descriptionSection}
+                {ownedBy !== null && (
+                  <TaskSubjectPanel
+                    organizationId={task.organizationId}
+                    task={task}
+                    ownedBy={ownedBy}
+                    canEdit={canMutate}
+                  />
+                )}
+                {ownedBy !== null && boundFolderId !== null ? (
+                  <TaskInputFilesCard
+                    organizationId={task.organizationId}
+                    projectId={task.projectId}
+                    folderId={boundFolderId}
+                    contract={ownedBy.contract}
+                    automationName={ownedBy.displayName}
+                    canEdit={canEditProject}
+                    canRemove={
+                      canEditProject &&
+                      task.status !== 'in_review' &&
+                      task.status !== 'done' &&
+                      task.status !== 'cancelled' &&
+                      liveRunQuery.data === null
+                    }
+                  />
+                ) : (
+                  <TaskAttachments
+                    attachments={task.attachments ?? []}
+                    uploadingFiles={uploadingFiles}
+                    canEdit={canMutate}
+                    organizationId={task.organizationId}
+                    onUpload={onUploadAttachments}
+                    onRemove={onRemoveAttachment}
+                  />
+                )}
+                {ownedBy !== null && descriptionSection}
+              </Stack>
+            ),
+          },
+          {
+            value: 'deliverables',
+            label: (
+              <span className="inline-flex items-center gap-1.5">
+                {t('outputs.label')}
+                <span className="bg-muted text-muted-foreground inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] leading-none font-medium tabular-nums">
+                  {task.outputs?.length ?? 0}
+                </span>
+              </span>
+            ),
+            content: (
+              <Stack gap={2}>
+                {ownedBy !== null && boundFolderId !== null && (
+                  <TaskOutcomeFilesCard
+                    organizationId={task.organizationId}
+                    projectId={task.projectId}
+                    folderId={boundFolderId}
+                    contract={ownedBy.contract}
+                  />
+                )}
+                {(task.outputs?.length ?? 0) > 0 ? (
+                  <TaskAttachments
+                    attachments={task.outputs ?? []}
+                    uploadingFiles={[]}
+                    canEdit={false}
+                    organizationId={task.organizationId}
+                    label={t('outputs.label')}
+                  />
+                ) : ownedBy === null || boundFolderId === null ? (
+                  <Text as="p" variant="muted">
+                    {t('outputs.empty')}
+                  </Text>
+                ) : null}
+              </Stack>
+            ),
+          },
+          {
+            value: 'subtasks',
+            label: (
+              <span className="inline-flex items-center gap-1.5">
+                {t('detail.subtasks')}
+                <span className="bg-muted text-muted-foreground inline-flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] leading-none font-medium tabular-nums">
+                  {subtasks.length}
+                </span>
+              </span>
+            ),
+            content: (
+              <Stack as="section" gap={2}>
+                <Row gap={2}>
+                  <Text as="h3" variant="label">
+                    {t('detail.subtasks')}
+                  </Text>
+                  {subtasksTotal > 0 && (
+                    <SubtaskProgress
+                      done={subtasksDone}
+                      total={subtasksTotal}
+                    />
+                  )}
+                </Row>
+                {subtasks.length > 0 && (
+                  <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+                    {subtasks.map((sub) => {
+                      const subIdentifier = formatTaskIdentifier(
+                        projectKey,
+                        sub.number,
+                      );
+                      const subAssignee =
+                        sub.assigneeType && sub.assigneeId
+                          ? resolveActor(sub.assigneeType, sub.assigneeId)
+                          : null;
+                      return (
+                        <li key={sub._id}>
+                          <button
+                            type="button"
+                            onClick={() => onOpenTask?.(sub._id)}
+                            disabled={!onOpenTask}
+                            className={cn(
+                              'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+                              !onOpenTask &&
+                                'cursor-default hover:bg-transparent',
+                            )}
+                          >
+                            <TaskStatusBadge status={sub.status} />
+                            {subIdentifier && (
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className="shrink-0 font-mono text-[11px] tracking-wide"
+                              >
+                                {subIdentifier}
+                              </Text>
+                            )}
+                            <span
+                              className={cn(
+                                'flex-1 truncate',
+                                sub.status === 'done' &&
+                                  'text-muted-foreground line-through',
+                              )}
+                            >
+                              {sub.title}
+                            </span>
+                            {subAssignee && (
+                              <AssigneeAvatar
+                                assigneeType={subAssignee.type}
+                                assigneeId={subAssignee.id}
+                                name={subAssignee.name}
+                                isCurrentUser={
+                                  subAssignee.type === 'user' &&
+                                  subAssignee.id === me?.userId
+                                }
+                              />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {canMutate && (
+                  <SubtaskComposer
+                    organizationId={task.organizationId}
+                    projectId={task.projectId}
+                    parentTaskId={task._id}
+                    onError={onMutationError}
+                  />
+                )}
+              </Stack>
+            ),
+          },
+        ]}
       />
-      <TaskExternalStatusCard
-        organizationId={task.organizationId}
-        taskId={task._id}
-        externalSystem={task.externalSystem}
-        canWork={canWork && project?.archivedAt == null}
-      />
-      {ownedBy === null && descriptionSection}
-
-      {ownedBy !== null && (
-        <TaskSubjectPanel
-          organizationId={task.organizationId}
-          task={task}
-          ownedBy={ownedBy}
-          canEdit={canMutate}
-        />
-      )}
-
-      {ownedBy !== null && boundFolderId !== null ? (
-        <>
-          <TaskInputFilesCard
-            organizationId={task.organizationId}
-            projectId={task.projectId}
-            folderId={boundFolderId}
-            contract={ownedBy.contract}
-            automationName={ownedBy.displayName}
-            // The bound folder's files are project documents — the project
-            // editors' to add and remove, whoever works the task.
-            canEdit={canEditProject}
-            // Removal ends at review: from In review on, the folder is
-            // the delivered evidence base — reviewers decide on what
-            // the run actually read. It also pauses while a run is
-            // LIVE (remove = permanent project-document delete, and a
-            // mid-run delete yanks inputs out from under the agent);
-            // an unresolved live-run fact locks rather than allows.
-            canRemove={
-              canEditProject &&
-              task.status !== 'in_review' &&
-              task.status !== 'done' &&
-              task.status !== 'cancelled' &&
-              liveRunQuery.data === null
-            }
-          />
-          <TaskOutcomeFilesCard
-            organizationId={task.organizationId}
-            projectId={task.projectId}
-            folderId={boundFolderId}
-            contract={ownedBy.contract}
-          />
-        </>
-      ) : (
-        <TaskAttachments
-          attachments={task.attachments ?? []}
-          uploadingFiles={uploadingFiles}
-          canEdit={canMutate}
-          organizationId={task.organizationId}
-          onUpload={onUploadAttachments}
-          onRemove={onRemoveAttachment}
-        />
-      )}
-
-      {/* Agent-run deliverables (harvested /agent/output) — read-only;
-                the settle merges by fileName, so a rerun's same-named file
-                replaces its row instead of stacking a copy. */}
-      {(task.outputs?.length ?? 0) > 0 && (
-        <TaskAttachments
-          attachments={task.outputs ?? []}
-          uploadingFiles={[]}
-          canEdit={false}
-          organizationId={task.organizationId}
-          label={t('outputs.label')}
-        />
-      )}
-
-      {ownedBy !== null && descriptionSection}
-
-      <Stack as="section" gap={2}>
-        <Row gap={2}>
-          <Text as="h3" variant="label">
-            {t('detail.subtasks')}
-          </Text>
-          {subtasksTotal > 0 && (
-            <SubtaskProgress done={subtasksDone} total={subtasksTotal} />
-          )}
-        </Row>
-        {subtasks.length > 0 && (
-          <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-            {subtasks.map((sub) => {
-              const subIdentifier = formatTaskIdentifier(
-                projectKey,
-                sub.number,
-              );
-              const subAssignee =
-                sub.assigneeType && sub.assigneeId
-                  ? resolveActor(sub.assigneeType, sub.assigneeId)
-                  : null;
-              return (
-                <li key={sub._id}>
-                  <button
-                    type="button"
-                    onClick={() => onOpenTask?.(sub._id)}
-                    disabled={!onOpenTask}
-                    className={cn(
-                      'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
-                      !onOpenTask && 'cursor-default hover:bg-transparent',
-                    )}
-                  >
-                    <TaskStatusBadge status={sub.status} />
-                    {subIdentifier && (
-                      <Text
-                        as="span"
-                        variant="caption"
-                        className="shrink-0 font-mono text-[11px] tracking-wide"
-                      >
-                        {subIdentifier}
-                      </Text>
-                    )}
-                    <span
-                      className={cn(
-                        'flex-1 truncate',
-                        sub.status === 'done' &&
-                          'text-muted-foreground line-through',
-                      )}
-                    >
-                      {sub.title}
-                    </span>
-                    {subAssignee && (
-                      <AssigneeAvatar
-                        assigneeType={subAssignee.type}
-                        assigneeId={subAssignee.id}
-                        name={subAssignee.name}
-                        isCurrentUser={
-                          subAssignee.type === 'user' &&
-                          subAssignee.id === me?.userId
-                        }
-                      />
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {canMutate && (
-          <SubtaskComposer
-            organizationId={task.organizationId}
-            projectId={task.projectId}
-            parentTaskId={task._id}
-            onError={onMutationError}
-          />
-        )}
-      </Stack>
     </>
   );
 
   // The discussion as the task page reads it: one conversation, oldest first,
   // with the composer at its foot.
-  const conversationNode = (
-    <TaskConversation
-      taskId={task._id}
-      outputFiles={task.outputs ?? []}
-      organizationId={task.organizationId}
-      projectId={task.projectId}
-      canComment={canComment}
-      canWork={canWork}
-      {...(me?.userId !== undefined ? { currentUserId: me.userId } : {})}
-      {...(me?.isAdmin !== undefined ? { isAdmin: me.isAdmin } : {})}
-    />
-  );
+  const conversationNode =
+    briefTab === 'details' ? (
+      <TaskConversation
+        taskId={task._id}
+        outputFiles={task.outputs ?? []}
+        organizationId={task.organizationId}
+        projectId={task.projectId}
+        canComment={canComment}
+        canWork={canWork}
+        {...(me?.userId !== undefined ? { currentUserId: me.userId } : {})}
+        {...(me?.isAdmin !== undefined ? { isAdmin: me.isAdmin } : {})}
+      />
+    ) : null;
 
-  const composerNode = canComment ? (
-    <TaskCommentComposer
-      taskId={task._id}
-      organizationId={task.organizationId}
-      projectId={task.projectId}
-      {...(task.assigneeType === 'agent' && task.assigneeId
-        ? { hint: t('actions.commentAgentHint') }
-        : {})}
-    />
-  ) : null;
+  const composerNode =
+    canComment && briefTab === 'details' ? (
+      <TaskCommentComposer
+        taskId={task._id}
+        organizationId={task.organizationId}
+        projectId={task.projectId}
+        {...(task.assigneeType === 'agent' && task.assigneeId
+          ? { hint: t('actions.commentAgentHint') }
+          : {})}
+      />
+    ) : null;
 
   const panelNode = (
     <>

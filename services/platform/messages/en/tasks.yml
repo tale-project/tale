@@ -182,6 +182,7 @@ attachments:
   dropHint: Drop or paste images or documents, or click to browse
 outputs:
   label: Deliverables
+  empty: No deliverables yet.
 title: Tasks
 status:
   backlog: Backlog
