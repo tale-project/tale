@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ReplayPlan } from '@/app/lib/backend/contract/automations';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 import {
@@ -165,6 +166,12 @@ describe('RunReplayDialog — the plan', () => {
       version: 'same',
       mode: 'live',
     });
+  });
+
+  it('passes an axe audit', async () => {
+    const { baseElement } = renderDialog();
+    await screen.findByRole('heading', { name: 'Reused (1)' });
+    await checkAccessibility(baseElement);
   });
 
   it('explains a refusal, and offers nothing to start', async () => {

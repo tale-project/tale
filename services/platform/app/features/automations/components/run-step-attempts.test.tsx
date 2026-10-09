@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RecordedStep } from '@/app/lib/backend/contract/automations';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 import { RunStepAttempts } from './run-step-attempts';
@@ -43,6 +44,18 @@ describe('RunStepAttempts', () => {
     expect(screen.getByText('Interrupted by a restart')).toBeVisible();
     expect(screen.getByText('The service asked to slow down')).toBeVisible();
     expect(screen.getByText('Done')).toBeVisible();
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = render(
+      <RunStepAttempts
+        step={step([
+          { n: 1, startedAt: 1, endedAt: 2, outcome: 'interrupted' },
+          { n: 2, startedAt: 3, endedAt: 4, outcome: 'ok' },
+        ])}
+      />,
+    );
+    await checkAccessibility(container);
   });
 
   it('says nothing for a step that ran once', () => {

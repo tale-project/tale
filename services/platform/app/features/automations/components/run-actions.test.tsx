@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
 import { RunActions, type RunActionsProps } from './run-actions';
@@ -72,6 +73,11 @@ function renderActions(props: Partial<RunActionsProps> = {}) {
 }
 
 describe('RunActions — Run again', () => {
+  it('passes an axe audit', async () => {
+    const { container } = renderActions();
+    await checkAccessibility(container);
+  });
+
   it('runs a test run again as it ran, at once', async () => {
     const { user, onStarted } = renderActions();
 

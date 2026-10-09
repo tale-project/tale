@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { RecordedStep } from '@/app/lib/backend/contract/automations';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { RunStepConditions } from './run-step-conditions';
@@ -148,6 +149,11 @@ describe('RunStepConditions', () => {
       within(card).getByText('This condition is written as code.'),
     ).toBeVisible();
     expect(within(card).getByText(raw)).toBeVisible();
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = render(<RunStepConditions step={SKIPPED} />);
+    await checkAccessibility(container);
   });
 
   it('says nothing for a step nothing decided', () => {

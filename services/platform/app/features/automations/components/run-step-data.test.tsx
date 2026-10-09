@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { NodeRunDetail } from '@/app/lib/backend/contract/automations';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
 import { RunStepData } from './run-step-data';
@@ -109,6 +110,25 @@ describe('RunStepData', () => {
     expect(screen.getByText('Returned')).toBeVisible();
     // Too large to keep: the summary in words stands in for the value.
     expect(screen.getByText('400 items')).toBeVisible();
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = render(
+      <RunStepData
+        detail={detail({
+          reads: [
+            read(
+              { kind: 'input' },
+              ['amount'],
+              { kind: 'number', text: '250' },
+              20,
+            ),
+          ],
+          readsTotal: 1,
+        })}
+      />,
+    );
+    await checkAccessibility(container);
   });
 
   it('says a step that did not run has no data', () => {

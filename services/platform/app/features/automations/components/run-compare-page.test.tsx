@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RunDiff } from '@/app/lib/backend/contract/automations';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import { RunComparePage } from './run-compare-page';
@@ -155,6 +156,12 @@ describe('RunComparePage', () => {
     expect(screen.getByRole('link', { name: 'Run runa1' })).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Swap A and B' }));
     expect(onSwap).toHaveBeenCalled();
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = renderPage();
+    await screen.findByText('Input: 1 field differs.');
+    await checkAccessibility(container);
   });
 
   it('asks for two different runs', () => {

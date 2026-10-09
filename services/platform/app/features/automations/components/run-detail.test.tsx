@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { i18n } from '../../../../lib/i18n/i18n';
@@ -769,7 +770,7 @@ describe('RunDetail starter and reason', () => {
     expect(screen.getByText(/no usable credential/)).not.toBeVisible();
   });
 
-  it('names the step a run failed at from its record, and offers the ways on', () => {
+  it('names the step a run failed at from its record, and offers the ways on', async () => {
     state.status = 'failed';
     state.finishedAt = 1789363170729;
     state.detail = 'send: no usable credential for imap-smtp';
@@ -822,6 +823,7 @@ describe('RunDetail starter and reason', () => {
       screen.getByRole('button', { name: 'Retry from this step' }),
     ).toBeEnabled();
     expect(screen.getByRole('link', { name: 'Show in editor' })).toBeVisible();
+    await checkAccessibility(card);
   });
 
   it('names the run a replay ran again, and how, with the way back to it', () => {

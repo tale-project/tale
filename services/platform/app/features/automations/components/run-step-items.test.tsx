@@ -7,6 +7,7 @@ import type {
   NodeRunPage,
   RecordedStep,
 } from '@/app/lib/backend/contract/automations';
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import { RunStepItems } from './run-step-items';
@@ -134,6 +135,12 @@ describe('RunStepItems', () => {
     const second = await within(list).findByRole('button', { name: /Item 2/ });
     expect(second).toHaveTextContent("The service couldn't be reached");
     expect(within(list).getAllByRole('button')).toHaveLength(3);
+  });
+
+  it('passes an axe audit', async () => {
+    const { container } = renderItems();
+    await screen.findByRole('button', { name: /Item 2/ });
+    await checkAccessibility(container);
   });
 
   it('shows failed items alone on request, and reads a picked one whole', async () => {
