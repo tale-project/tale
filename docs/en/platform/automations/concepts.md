@@ -145,7 +145,7 @@ A live run needs a deployed version. You can still test a saved draft with **Tes
 
 ## What starts a run
 
-Start a saved version manually in test mode, or run the deployed version live. For automatic starts, configure one of three trigger kinds: a schedule with a cron expression and IANA timezone, a webhook URL protected by a token, or a named platform event.
+Start a saved version manually in test mode, or run the deployed version live. For automatic starts, configure one of three trigger kinds: a schedule that repeats at times of day or at an interval in its time zone, a webhook URL protected by a token, or a named platform event. Any of them can add a fixed input that every run receives.
 
 The trigger belongs to the automation’s name. Deploying another version keeps its trigger configuration and webhook URL while changing the version used by subsequent starts. Disable the trigger when you need to pause automatic runs. [Workflow triggers](/platform/automations/triggers) explains timing, authentication, and the input each kind supplies.
 

@@ -118,7 +118,7 @@ Suis cet ordre : lire la grammaire et le catalogue, valider le document, l'exéc
 | `list_versions`  | L'historique de versions immuable d'une automatisation ; chaque ligne dit si elle est la version `deployed`, et `deployedVersion` la nomme à côté de la liste (`null` tant que rien n’est déployé).                                                        |
 | `list_triggers` | Lire les déclencheurs sans révéler le secret du webhook. |
 | `delete_trigger` | Supprimer le déclencheur ; conserver les versions et l'historique des exécutions. |
-| `set_trigger` | Configurer un déclencheur planifié, webhook ou événement. Le `token` d’un webhook est répondu une fois, ici, et plus jamais — conserve-le ; `deployed` dit si les livraisons tourneront : un déclencheur lié à une automatisation sans version déployée est enregistré et ne déclenche rien tant qu’une version n’est pas déployée. |
+| `set_trigger` | Définir ce qui démarre l’automatisation : une planification (une règle de répétition ou une expression cron, dans un fuseau horaire), un webhook ou un événement de la plateforme, chacun avec une entrée fixe `input` facultative. L’appel remplace tout le déclencheur : renvoie donc le `startDate` et l’`input` que lit `list_triggers` pour les conserver. Le `token` d’un webhook est répondu une fois, ici, et plus jamais — conserve-le ; `deployed` dit si les livraisons tourneront : un déclencheur lié à une automatisation sans version déployée est enregistré et ne déclenche rien tant qu’une version n’est pas déployée. `warnings` indique ce que la version déployée ferait de l’entrée du déclencheur. |
 
 | Outil | Quand le choisir |
 | --- | --- |

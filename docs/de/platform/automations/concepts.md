@@ -145,7 +145,7 @@ Ein Live-Lauf braucht eine bereitgestellte Version. Einen gespeicherten Entwurf 
 
 ## Was einen Lauf startet
 
-Eine gespeicherte Version kannst du manuell testen; die bereitgestellte Version lässt sich live ausführen. Für automatische Starts richtest du eine von drei Trigger-Arten ein: einen Zeitplan mit Cron-Ausdruck und IANA-Zeitzone, eine durch ein Token geschützte Webhook-URL oder ein benanntes Plattformereignis.
+Eine gespeicherte Version kannst du manuell testen; die bereitgestellte Version lässt sich live ausführen. Für automatische Starts richtest du eine von drei Trigger-Arten ein: einen Zeitplan, der sich zu festen Uhrzeiten oder in einem Intervall in seiner Zeitzone wiederholt, eine durch ein Token geschützte Webhook-URL oder ein benanntes Plattformereignis. Jeder davon kann eine feste Eingabe mitgeben, die jeder Lauf erhält.
 
 Der Trigger gehört zum Namen der Automatisierung. Bei einer neuen Bereitstellung bleiben Konfiguration und Webhook-URL erhalten; nachfolgende Starts verwenden die neu bereitgestellte Version. Deaktiviere den Trigger, um automatische Starts zu pausieren. [Workflow-Trigger](/de/platform/automations/triggers) erklärt Zeitsteuerung, Anmeldung und die Eingabe jeder Trigger-Art.
 

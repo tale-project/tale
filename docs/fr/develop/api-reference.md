@@ -648,7 +648,7 @@ Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la f
 - `projectIds` indique les projets où l’automatisation est installée.
 - `description` décrit son rôle.
 - `inputs` contient le schéma d’entrée de la version déployée ou, à défaut, de la dernière version enregistrée.
-- `trigger` contient le type de déclencheur, son activation et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
+- `trigger` contient le type de déclencheur, son activation, `nextRunAt` et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
 
 `GET /api/v1/automations/{name}` lit par défaut la dernière version enregistrée (`?version=latest` explicite ce défaut), qui peut être un brouillon. Utilise `?version=deployed` pour lire celle qu’une exécution réelle utilisera, ou un numéro pour lire une version précise. Une version absente, y compris `deployed` si rien n’est déployé, donne **404**, `AUTOMATION_VERSION_UNKNOWN`. Une automatisation inconnue donne `AUTOMATION_NOT_FOUND`.
 
@@ -681,15 +681,36 @@ curl -sS --compressed -X PUT "https://your-host.example.com/api/v1/automations/b
 
 Choisis `kind` selon le mode de démarrage :
 
-- `schedule` exige un `cron` à cinq champs et accepte un `timezone` IANA facultatif.
+- `schedule` s’exécute selon une règle de répétition (`repeat`) ou une expression cron (`cron`), jamais les deux (contrat 3.24.0).
 - `webhook` renvoie une seule fois le `token` utilisé dans l’URL. Voir [Webhooks](/fr/develop/webhooks).
 - `event` exige le nom d’un événement émis par la plateforme.
 
-Une configuration impossible à déclencher donne **400**, `AUTOMATION_TRIGGER_INVALID`, avec une explication : expression cron sans occurrence, comme `0 0 30 2 *`, fuseau non IANA ou événement non pris en charge.
+`repeat` est une `ScheduleRule`, la règle qu’écrit aussi le sélecteur de planification de l’application. Une règle `daily`, `weekly`, `monthly` ou `yearly` s’exécute à une à douze heures locales dans `times`, écrites `HH:MM` ; une règle `minutely` ou `hourly` démarre toutes les quelques minutes ou heures, à la minute `minute` après l’heure pile pour `hourly`, éventuellement certains jours de la semaine seulement et entre deux heures (`window`). Elle exige un `timezone`. `startDate`, un jour `YYYY-MM-DD` dans ce fuseau, est le premier jour où elle peut s’exécuter et le jour à partir duquel « toutes les 2 semaines » se compte ; s’il manque, c’est aujourd’hui : renvoie donc celui que lit `GET .../triggers` pour garder une règle en phase. `cron` est une expression à cinq champs, lue dans `timezone`, ou en UTC sans fuseau.
 
-Chaque type accepte uniquement ses propres champs : `cron` et `timezone` pour `schedule`, `event` pour `event`, `rotateToken` pour `webhook`. Un champ d’un autre type donne **400**, `INVALID_BODY`, et figure dans `data.issues`. Un webhook ne peut donc pas conserver implicitement une planification.
+```json
+{
+  "kind": "schedule",
+  "repeat": {
+    "frequency": "weekly",
+    "interval": 1,
+    "weekdays": [1, 2, 3, 4, 5],
+    "times": ["09:00", "17:30"]
+  },
+  "timezone": "Europe/Zurich",
+  "catchUp": "latest",
+  "input": { "region": "emea" }
+}
+```
 
-Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trigger": "event", "event": "<name>", "payload": <les données de l'événement> }`. Les événements disponibles sont :
+Les jours de la semaine comptent à partir de 0 pour dimanche. Une heure locale que l’horloge saute démarre une fois, décalée de la durée du saut, et une heure qu’elle répète démarre une fois, à sa première occurrence ; une règle `minutely` ou `hourly`, comme une expression cron dont la minute ou l’heure commence par `*`, garde en revanche son intervalle réel. `catchUp` décide de ce que fait une planification des occurrences manquées pendant que la plateforme ne tournait pas : `latest`, la valeur par défaut, lance la plus récente une fois, quel que soit le retard ; `skip` ne la lance que si elle a au plus dix minutes de retard. Dans les deux cas, les autres sont comptées, pas rattrapées.
+
+Chaque type accepte aussi `enabled` (absent, il vaut `true`) et `input`, une entrée fixe : un objet JSON d’au plus 16 KiB que reçoit chaque exécution lancée par le déclencheur, ses propres champs `trigger`, `firedAt`, `event` et `payload` étant placés par-dessus — elle ne peut pas les nommer. Ce sont de simples données ; un modèle qu’elle contient arrive sous forme de texte. Le `PUT` remplace tout le déclencheur : un champ omis est réinitialisé.
+
+Un déclencheur qui enfreint une règle ou ne pourrait jamais se déclencher donne **400**, `AUTOMATION_TRIGGER_INVALID`, chaque problème figurant dans `data.issues` sous la forme `{ "path", "code", "message" }` : ni `repeat` ni `cron`, ou les deux (`schedule.cron_or_repeat`) ; une expression cron sans occurrence, y compris un jour qu’aucun mois nommé n’a (`0 0 30 2 *`) ; une heure qui n’est pas écrite `HH:MM`, plus de douze heures, un intervalle que la règle ne propose pas, un jour que le mois n’a jamais, ou une plage où aucun démarrage ne tombe ; un fuseau vide ou non IANA ; une entrée fixe qui n’est pas un objet, nomme l’un des champs propres au déclencheur ou dépasse 16 KiB ; un événement que la plateforme n’émet pas.
+
+Chaque type accepte uniquement ses propres champs : `cron`, `repeat`, `startDate`, `timezone` et `catchUp` pour `schedule`, `event` pour `event`, `rotateToken` pour `webhook`, ainsi que `enabled` et `input` pour tous. Un champ d’un autre type donne **400**, `INVALID_BODY`, et figure dans `data.issues`. Un webhook ne peut donc pas conserver implicitement une planification.
+
+Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trigger": "event", "event": "<name>", "payload": <les données de l'événement> }`, à côté d’une éventuelle entrée fixe. Les événements disponibles sont :
 
 | Événement                                               | Émis quand                                                                                                                                                       |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -704,12 +725,12 @@ Pour un déclencheur d’événement, l’entrée de l’exécution est `{ "trig
 
 ### Vérifier le déclencheur et le suspendre
 
-`GET .../triggers` renvoie `triggers`, une liste contenant au maximum un élément. Les horodatages distinguent les exécutions réellement lancées des occurrences ignorées :
+`GET .../triggers` renvoie `triggers`, une liste contenant au maximum un élément, avec ce qui a été enregistré (`repeat` et `startDate` ou `cron`, `timezone`, `catchUp`, `input`) et le prochain démarrage (`nextRunAt`, `null` tant que le déclencheur est désactivé, ainsi que pour un webhook ou un événement). Les horodatages distinguent les exécutions réellement lancées des occurrences ignorées :
 
 - `lastFiredAt` et `lastRunId` correspondent à la dernière exécution lancée. Ils restent `null` tant qu’aucune exécution n’a démarré.
 - `lastSkippedAt` et `lastSkipReason` décrivent la dernière occurrence qui n’a rien lancé. Une livraison de webhook que le schéma `inputs` de la version déployée refuse est un autre cas : l’expéditeur reçoit **400** `AUTOMATION_INPUT_INVALID`, rien ne démarre et aucun de ces horodatages ne bouge — la liaison n’était pas due, un webhook dont chaque livraison est refusée se lit donc comme un webhook jamais appelé. Vérifie les livraisons côté expéditeur.
 
-Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si l’expression ou le fuseau ne peut pas être interprété, `start_refused` si le schéma `inputs` déployé refuse l’entrée, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification.
+Les motifs d’occurrence ignorée sont `not_deployed` si aucune version n’est déployée, `unusable_cron` si la planification ou son fuseau ne peut pas être interprété, `start_refused` si le démarrage a été refusé — le schéma `inputs` déployé refuse l’entrée, ou le projet de l’exécution ne peut pas la recevoir, comme un projet archivé pour un événement ; `lastSkipDetail.code` précise lequel —, `missed_occurrences` si des occurrences étaient dues pendant que la plateforme ne tournait pas, comme le décrit `catchUp`, et `paused_after_failures` si une planification s’est mise en pause d’elle-même après des échecs répétés (voir ci-dessous). Dans le cas `unusable_cron`, le planificateur cesse de traiter ce déclencheur jusqu’à sa modification. `lastSkipDetail` contient les faits derrière le motif : l’occurrence concernée (`occurrence`), le `code` d’un refus, la `version` qui a refusé, son `message` et ses `issues`, et `missed` — `count` (jusqu’à 1 000, `capped` au-delà), `firstAt`, `lastAt` et la `policy` — quand des occurrences ont été manquées. Une pause après des échecs n’a pas de détail ; ses faits sont les champs d’échec ci-dessous.
 
 Compare `lastFiredAt` à la cadence attendue. Si `lastSkippedAt` est plus récent, consulte la raison avant de relancer. Changer le type de déclencheur réinitialise ces horodatages.
 
@@ -721,7 +742,7 @@ Une planification dont les exécutions échouent sans cesse se met en pause d’
 
 Quand le compteur d’une planification atteint cinq, la plateforme passe `enabled: false` et `lastSkipReason: "paused_after_failures"`, écrit une ligne d’audit `automation.trigger.paused` et prévient les Propriétaires et Admins de l’organisation. Corrige l’automatisation, puis envoie un `PUT` du déclencheur avec `enabled: true`. Chaque `PUT` remet le compteur à zéro et efface ce motif ; un `PUT` sans `enabled` réactive le déclencheur, car `enabled` vaut `true` par défaut. Les liaisons webhook et événement continuent de compter, mais ne sont jamais mises en pause (contrat 3.1.0).
 
-La réponse `PUT` indique aussi `deployed`. Il est possible de configurer le déclencheur avant le déploiement, mais ses occurrences sont ignorées avec `not_deployed` jusqu’à ce qu’une version soit déployée. Le champ `trigger` de `GET /api/v1/automations` permet de constater cet état.
+La réponse `PUT` indique aussi `deployed`. Il est possible de configurer le déclencheur avant le déploiement, mais ses occurrences sont ignorées avec `not_deployed` jusqu’à ce qu’une version soit déployée. Le champ `trigger` de `GET /api/v1/automations` permet de constater cet état. Pour une planification, la réponse ajoute `nextRunAt`. Quand une version est déployée, elle ajoute `warnings`, ce que cette version ferait de l’entrée du déclencheur ; le déclencheur est enregistré dans tous les cas. `TRIGGER_INPUT_MISMATCH` signifie que son schéma `inputs` refuse ce que le déclencheur transmet à une exécution et nomme les champs obligatoires manquants dans `params.missing` (le corps d’un webhook n’est pas jugé) ; `TRIGGER_INPUT_NOT_TEMPLATED` signifie que l’entrée fixe contient un modèle, qui arrive sous forme de texte.
 
 ## Démarrer une exécution, puis la suivre
 

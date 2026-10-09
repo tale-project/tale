@@ -118,7 +118,7 @@ Arbeite in dieser Reihenfolge: Grammatik und Katalog lesen, Dokument validieren,
 | `list_versions`  | Die unveränderliche Versionshistorie einer Automatisierung; jede Zeile sagt, ob sie die `deployed` ist, und `deployedVersion` nennt sie neben der Liste (`null`, solange nichts deployt ist).                                                             |
 | `list_triggers` | Triggerbindungen lesen, ohne das Webhook-Geheimnis auszugeben. |
 | `delete_trigger` | Einen Trigger entfernen; Versionen und Laufhistorie bleiben erhalten. |
-| `set_trigger` | Einen Zeitplan-, Webhook- oder Event-Trigger einrichten. Das `token` eines Webhooks wird einmal beantwortet, hier, und nie wieder — bewahr es auf; `deployed` sagt, ob Zustellungen laufen werden: Ein Trigger an einer Automatisierung ohne deployte Version wird gespeichert und löst nichts aus, bis eine deployt ist. |
+| `set_trigger` | Festlegen, was die Automatisierung startet: einen Zeitplan (eine Wiederholungsregel oder einen Cron-Ausdruck, in einer Zeitzone), einen Webhook oder ein Plattform-Ereignis, jeweils mit optionaler fester Eingabe `input`. Der Aufruf ersetzt den ganzen Trigger; sende also `startDate` und `input` zurück, die `list_triggers` liest, um sie zu behalten. Das `token` eines Webhooks wird einmal beantwortet, hier, und nie wieder — bewahr es auf; `deployed` sagt, ob Zustellungen laufen werden: Ein Trigger an einer Automatisierung ohne deployte Version wird gespeichert und löst nichts aus, bis eine deployt ist. `warnings` sagt, was die deployte Version mit der Eingabe des Triggers anfangen würde. |
 
 | Tool | Geeignet für |
 | --- | --- |

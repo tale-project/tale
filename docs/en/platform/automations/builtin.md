@@ -87,7 +87,7 @@ Both workflows require `owner` and `repo`. In **Test run**, supply **Run input (
 
 <Note>
 
-The shipped GitHub schedules need `owner` and `repo`, but a schedule sends only `trigger` and `firedAt`. After you deploy a version, the editor therefore offers **Review the trigger** instead of turning the schedule on. On the **General** tab, open **Add fixed input**, choose **Add the 2 missing fields**, replace the placeholders with your repository’s owner and name, turn on **Enabled** and save. Every scheduled run then receives those values. A start the workflow still refuses appears as `start_refused` on the [trigger](/platform/automations/triggers).
+The shipped GitHub schedules need `owner` and `repo`, but a schedule sends only `trigger` and `firedAt`. After you deploy a version, the editor therefore offers **Review the trigger** instead of turning the schedule on. On the **General** tab, open **Add fixed input**, choose **Add the 2 missing fields**, replace the placeholders with your repository’s owner and name, turn on **Enabled** and save. Every scheduled run then receives those values. A start the workflow still refuses appears on the [trigger](/platform/automations/triggers#diagnose-a-missing-start) as **Skipped: the run’s input was refused**.
 
 </Note>
 

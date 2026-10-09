@@ -87,7 +87,7 @@ Beide Workflows benötigen `owner` und `repo`. Gib beim **Testlauf** unter **Ein
 
 <Note>
 
-Die mitgelieferten GitHub-Zeitpläne brauchen `owner` und `repo`, ein Zeitplan sendet aber nur `trigger` und `firedAt`. Nachdem du eine Version live geschaltet hast, bietet der Editor deshalb **Trigger prüfen** an, statt den Zeitplan einzuschalten. Öffne im Tab **Allgemein** den Bereich **Feste Eingabe hinzufügen**, wähle **Die 2 fehlenden Felder ergänzen**, ersetze die Platzhalter durch Inhaber und Namen deines Repositorys, schalte **Aktiv** ein und speichere. Jeder geplante Lauf erhält dann diese Werte. Lehnt der Workflow einen Start trotzdem ab, erscheint das am [Trigger](/de/platform/automations/triggers) als `start_refused`.
+Die mitgelieferten GitHub-Zeitpläne brauchen `owner` und `repo`, ein Zeitplan sendet aber nur `trigger` und `firedAt`. Nachdem du eine Version live geschaltet hast, bietet der Editor deshalb **Trigger prüfen** an, statt den Zeitplan einzuschalten. Öffne im Tab **Allgemein** den Bereich **Feste Eingabe hinzufügen**, wähle **Die 2 fehlenden Felder ergänzen**, ersetze die Platzhalter durch Inhaber und Namen deines Repositorys, schalte **Aktiv** ein und speichere. Jeder geplante Lauf erhält dann diese Werte. Lehnt der Workflow einen Start trotzdem ab, erscheint das am [Trigger](/de/platform/automations/triggers#einen-ausgebliebenen-start-untersuchen) als **Ausgelassen: Die Eingabe des Laufs wurde abgelehnt**.
 
 </Note>
 
