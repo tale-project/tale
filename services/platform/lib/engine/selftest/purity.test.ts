@@ -29,6 +29,7 @@ const PURE_SHARED_HELPERS = [
     '../../../../packages/shared/src/automation-name.ts',
   ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/secret-scan.ts'),
   path.resolve(
     ENGINE_ROOT,
     '../../../../packages/shared/src/utils/stable-stringify.ts',
@@ -82,9 +83,9 @@ describe('engine purity', () => {
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
     // periscopic scopes, the zimmerframe walker, is-reference), the shared
-    // safe YAML loader, type guards, name grammar and stable serializer are
-    // runtime-neutral; everything else outside the engine tree is a layering
-    // violation.
+    // safe YAML loader, type guards, name grammar, stable serializer and
+    // credential detector are runtime-neutral; everything else outside the
+    // engine tree is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
@@ -99,6 +100,7 @@ describe('engine purity', () => {
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
+      path.join('lib', 'shared', 'secret-scan'),
     ];
     const offenders: string[] = [];
     for (const f of files) {

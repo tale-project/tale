@@ -11,6 +11,7 @@
 
 import type { ValidateFunction } from 'ajv';
 
+import { findSecrets } from '../../../shared/secret-scan';
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
 import { ptr } from '../syntax/pointer';
@@ -28,22 +29,6 @@ const TOP_FIELDS = [
   'tests',
   'ui',
 ];
-
-const SECRET_PATTERNS: ReadonlyArray<readonly [RegExp, string]> = [
-  [/\bsk-[A-Za-z0-9_-]{16,}/, 'API key (sk-…)'],
-  [/\bAKIA[0-9A-Z]{12,}/, 'AWS access key'],
-  [/\bxox[bap]-[A-Za-z0-9-]{10,}/, 'Slack token'],
-  [/\bghp_[A-Za-z0-9]{20,}/, 'GitHub token'],
-  [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'private key material'],
-  [/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/, 'bearer token'],
-];
-
-/** Key names that mark their value as a credential when it looks opaque. */
-const CREDENTIAL_KEY_RE =
-  /^(?:api[_-]?key|apikey|secret|token|access[_-]?key|password|passwd|authorization|auth[_-]?token)$/i;
-
-/** A long single opaque word — no spaces, no template braces. */
-const OPAQUE_VALUE_RE = /^[A-Za-z0-9+/=_.-]{16,}$/;
 
 export function validateDocument(
   doc: Record<string, unknown>,
@@ -244,54 +229,7 @@ function checkTestInput(
 }
 
 function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
-  const hits: Array<{ path: string; pointer: string; label: string }> = [];
-
-  const scanString = (
-    value: string,
-    path: string,
-    pointer: string,
-    key?: string,
-  ): void => {
-    for (const [re, label] of SECRET_PATTERNS) {
-      if (re.test(value)) {
-        hits.push({ path, pointer, label });
-        return;
-      }
-    }
-    if (
-      key !== undefined &&
-      CREDENTIAL_KEY_RE.test(key) &&
-      OPAQUE_VALUE_RE.test(value)
-    ) {
-      hits.push({
-        path,
-        pointer,
-        label: `credential-looking value under "${key}"`,
-      });
-    }
-  };
-
-  const walk = (
-    value: unknown,
-    path: string,
-    pointer: string,
-    key?: string,
-  ): void => {
-    if (typeof value === 'string') {
-      scanString(value, path, pointer, key);
-    } else if (Array.isArray(value)) {
-      for (const [i, item] of value.entries()) {
-        walk(item, `${path}[${i}]`, pointer + ptr(i));
-      }
-    } else if (isRecord(value)) {
-      for (const [k, item] of Object.entries(value)) {
-        walk(item, path === '' ? k : `${path}.${k}`, pointer + ptr(k), k);
-      }
-    }
-  };
-  walk(doc, '', '');
-
-  for (const { path, pointer, label } of hits.slice(0, 5)) {
+  for (const { path, pointer, label } of findSecrets(doc).slice(0, 5)) {
     issues.push(
       err(
         'SECRET_IN_DOCUMENT',
