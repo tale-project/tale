@@ -29,7 +29,20 @@ export function useFocusHandoff<T extends HTMLElement>(
     return () => {
       const handoff = onFocusLostRef.current;
       if (handoff !== undefined && node.contains(document.activeElement)) {
-        requestAnimationFrame(handoff);
+        requestAnimationFrame(() => {
+          // Removing the owned control normally strands focus on the page.
+          // Another control or a focus trap may take it before this frame;
+          // that connected destination keeps focus instead of being replaced.
+          const doc = node.ownerDocument;
+          const active = doc.activeElement;
+          if (
+            active === null ||
+            active === doc.body ||
+            active === doc.documentElement
+          ) {
+            handoff();
+          }
+        });
       }
     };
   }, [node]);
