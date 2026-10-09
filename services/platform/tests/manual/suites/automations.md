@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 148 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 150 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1005,6 +1005,16 @@ output:
       sentence is translated; German conditions put the verb last ("…
       nicht größer als 1.000 ist"); Swiss German shows «Für jedes» and
       "grösser"; French puts a no-break space before `:`.
+- [ ] `AUTO-F114` · **Select a step of a finished run** → **Last run** lists
+      `automationRuns.data.reads` in words with each value read ("issues of
+      Open issues: 12 items"), then `automationRuns.data.received` and
+      `automationRuns.data.returned`; a value with a secret says
+      `automationRuns.data.redacted` and never shows it.
+- [ ] `AUTO-F115` · **Select a step that ran once per item, with a failed
+      item** → its items list says `automationRuns.items.failedCount`; each
+      row shows how it ended and a failed one why;
+      `automationRuns.items.failedOnly` keeps the failed ones; picking a row
+      shows that item's data below.
 
 ## Boundary & error tests
 
