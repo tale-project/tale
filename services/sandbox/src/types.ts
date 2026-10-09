@@ -188,6 +188,12 @@ export interface SessionConfig {
 
 export interface SessionAgentProfileConfig {
   cpus: number;
+  /** Relative CPU weight under contention (`--cpu-shares`; cgroup v2
+   * cpu.weight is derived from it). Below the 1024 every control-plane
+   * container runs at, so busy sessions yield the CPU to the database and
+   * backend instead of starving them; an idle host still gives a session its
+   * full `cpus` quota. */
+  cpuShares: number;
   /** Docker quantity string, e.g. '4g' (memory-swap is pinned to the same
    * value — no swap headroom, matching the one-shot containers). */
   memory: string;

@@ -9,6 +9,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   chown,
+  lstat,
   mkdir,
   readdir,
   readFile,
@@ -69,6 +70,7 @@ import {
 import {
   dockerRm,
   dockerRmSucceeded,
+  isDockerMissingImage,
   isDockerNoSuchObject,
   runDocker,
 } from '../../spawn-util.ts';
@@ -114,6 +116,21 @@ export function isReapableContainerStatus(status: string): boolean {
   return s === 'exited' || s === 'dead';
 }
 
+/** States a session container is left in when its start never finished: a
+ * spawner killed between the daemon's create and start leaves `created`, and
+ * a timed-out run whose cleanup also timed out can leave any of these. The
+ * spawner never pauses a session and gives it no restart policy, so none of
+ * them is a session at work. */
+const STUCK_CONTAINER_STATES: ReadonlySet<string> = new Set([
+  'created',
+  'paused',
+  'restarting',
+]);
+
+/** Past a create's whole budget, how long its container may still sit in a
+ * {@link STUCK_CONTAINER_STATES} state before it counts as abandoned. */
+const STUCK_CONTAINER_SLACK_MS = 60_000;
+
 export class DockerSessionBackend implements SessionBackend {
   readonly kind = 'docker' as const;
 
@@ -125,6 +142,12 @@ export class DockerSessionBackend implements SessionBackend {
       cfg.hostSessionRoot,
     ),
   ) {}
+
+  private runtimeImageMissing: ((detail: string) => void) | null = null;
+
+  onRuntimeImageMissing(listener: (detail: string) => void): void {
+    this.runtimeImageMissing = listener;
+  }
 
   /** runnerd token: derived from SANDBOX_TOKEN (always set — loadConfig fails
    * closed without it). Matches SessionRoutes.tokenFor. */
@@ -377,10 +400,20 @@ export class DockerSessionBackend implements SessionBackend {
     // keeps deterministic workspace/volume state that a peer may already use.
     if (!dind) {
       const caches = await Promise.allSettled(
-        [pip, npm, bun].map((name) => ensureCacheVolume(name)),
+        [pip, npm, bun].map((name) =>
+          ensureCacheVolume(name, this.cfg.runtimeImage),
+        ),
       );
       const failed = caches.find((result) => result.status === 'rejected');
-      if (failed?.status === 'rejected') throw failed.reason;
+      if (failed?.status === 'rejected') {
+        // A new volume's mode is set with the runtime image: its absence
+        // shows here first, before the session's own run.
+        const reason: unknown = failed.reason;
+        const message =
+          reason instanceof Error ? reason.message : String(reason);
+        if (isDockerMissingImage(message)) this.runtimeImageMissing?.(message);
+        throw reason;
+      }
     }
     // A fresh inner store avoids resuming a SIGKILLed dockerd's dirty overlay.
     const dockerStorageVolume = dind
@@ -501,6 +534,9 @@ export class DockerSessionBackend implements SessionBackend {
       if (!nameConflict) {
         await this.cleanupCreateAttempt(spec.sessionId, createAttemptId);
       }
+      // The run never pulls (`--pull=never`): a missing image fails at once,
+      // and the spawner's warmup pulls it outside any create's budget.
+      if (isDockerMissingImage(stderr)) this.runtimeImageMissing?.(stderr);
       throw new Error(
         `docker run (session) failed: ${stderr || run.stdout.trim()}`,
       );
@@ -1008,7 +1044,116 @@ export class DockerSessionBackend implements SessionBackend {
     // The pin belongs to the container that just went away; the resume's
     // create starts unpinned and the platform re-pushes.
     await this.clearPinMarker(sessionId);
+    await this.retireExecTemp(sessionId);
     return existed;
+  }
+
+  /**
+   * A stopped session's exec temp (`/agent/.runtime/tmp`: exec scratch, pip
+   * and npm staging, runnerd's replay spool of up to 256 MiB) is garbage once
+   * its container is gone. Left in place, the next start deleted it before
+   * runnerd came up, delaying the resume by however long that took, and a
+   * session that never resumed kept it for the workspace's whole life. It is
+   * renamed into the trash instead, which deletes it in the background.
+   *
+   * Runs inside the stop, after the container is confirmed gone, so nothing
+   * in the workspace moves meanwhile and the routes' serialization of stop
+   * and resume covers it. The workspace is the agent's to write: a `.runtime`
+   * or `tmp` that is not a plain directory — a planted symbolic link above
+   * all — is left alone. Best effort: it never fails the stop.
+   */
+  private async retireExecTemp(sessionId: string): Promise<void> {
+    const workspace = this.workspaceDir(sessionId);
+    const runtime = join(workspace, '.runtime');
+    const tmp = join(runtime, 'tmp');
+    for (const path of [workspace, runtime, tmp]) {
+      let entry;
+      try {
+        entry = await lstat(path);
+      } catch (err) {
+        if (!(err instanceof Error && 'code' in err && err.code === 'ENOENT')) {
+          console.warn(
+            `[sandbox.session] cannot check ${path}; ${sessionId}'s exec temp stays:`,
+            err,
+          );
+        }
+        return;
+      }
+      if (!entry.isDirectory()) {
+        if (entry.isSymbolicLink()) {
+          console.warn(
+            `[sandbox.session] ${path} is a symbolic link; ${sessionId}'s exec temp stays`,
+          );
+        }
+        return;
+      }
+    }
+    await this.trash.moveIn(tmp, `${sessionWorkspaceDirName(sessionId)}.tmp`);
+  }
+
+  /** A container that never got going — `created`, `paused` or `restarting`
+   * past its create's whole budget — is removed like a stop removes one, its
+   * workspace kept. Left alone it held a capacity slot for ever, answered
+   * every create of the id busy, pinned an old runtime image and outlived
+   * spawner restarts. Fenced to the incarnation the caller listed (its
+   * `tale.created` stamp) and to the immutable container id read with its
+   * state; Docker's own creation time keeps a container created just now
+   * safe whatever stamp it carries. False when it is not provably abandoned. */
+  async reapStaleSession(
+    sessionId: string,
+    expectedCreatedAtMs: number,
+  ): Promise<boolean> {
+    const containerName = sessionContainerName(sessionId);
+    const observed = await runDocker(
+      [
+        'inspect',
+        '--format',
+        '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.Status}}\t{{.Created}}\t{{with index .Config.Labels "tale.docker"}}{{.}}{{end}}\t{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}',
+        containerName,
+      ],
+      { timeoutMs: 5_000, priority: true },
+    );
+    if (observed.exitCode !== 0) {
+      if (isDockerNoSuchObject(observed.stderr)) return true;
+      throw new Error(
+        `cannot identify session ${sessionId} for lifecycle transition`,
+      );
+    }
+    const [containerId, created, status, dockerCreated, capability, mounted] =
+      observed.stdout.replace(/\r?\n$/, '').split('\t');
+    const stamp = Number(created);
+    const createdAtMs = Date.parse(dockerCreated ?? '');
+    if (
+      !containerId ||
+      !/^[a-f0-9]{12,64}$/.test(containerId) ||
+      status === undefined ||
+      !STUCK_CONTAINER_STATES.has(status) ||
+      !Number.isSafeInteger(stamp) ||
+      stamp <= 0 ||
+      stamp !== expectedCreatedAtMs ||
+      !Number.isFinite(createdAtMs) ||
+      Date.now() <=
+        Math.max(createdAtMs, stamp) +
+          this.cfg.session.createHealthTimeoutMs +
+          STUCK_CONTAINER_SLACK_MS
+    )
+      return false;
+    const removal = await dockerRm(containerId);
+    if (!dockerRmSucceeded(removal)) {
+      throw new Error(
+        `docker rm ${containerName} failed (exit ${removal.exitCode}): ${removal.stderr.trim() || removal.stdout.trim() || 'no output'}`,
+      );
+    }
+    const docker =
+      capability === 'true' ||
+      (capability !== 'false' &&
+        (mounted === 'true' || this.cfg.dockerInContainer));
+    if (docker) await this.removeDindVolume(sessionId);
+    await this.clearPinMarker(sessionId);
+    console.warn(
+      `[sandbox.session] removed ${sessionId}'s container, stuck ${status} since ${new Date(createdAtMs).toISOString()}`,
+    );
+    return true;
   }
 
   // --- the durable "always-on" pin -----------------------------------------

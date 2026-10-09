@@ -1,11 +1,140 @@
-import { afterEach, expect, mock, test } from 'bun:test';
+// The Docker host backend: the boot live-restore check, and the periodic
+// sweep's hourly legacy half. Without the daemon's live restore a dockerd
+// restart stops every session container and the spawner; the spawner never
+// changes the host's daemon configuration, so it warns once at boot instead.
+
+import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 
 import {
   type dockerSweepOrphans,
   LEGACY_SWEEP_INTERVAL_MS,
 } from '../../cleanup.ts';
 import { loadConfig } from '../../config.ts';
-import { DockerBackend } from './docker-backend.ts';
+import type { RunDockerResult, runDocker } from '../../spawn-util.ts';
+import {
+  checkLiveRestore,
+  DockerBackend,
+  LIVE_RESTORE_DOCS_URL,
+  parseLiveRestore,
+} from './docker-backend.ts';
+
+function answer(stdout: string, exitCode = 0, stderr = ''): RunDockerResult {
+  return {
+    exitCode,
+    stdout,
+    stderr,
+    stdoutTruncated: false,
+    stderrTruncated: false,
+  };
+}
+
+/** A `runDocker` that records its argv and answers `result`. */
+function fakeRun(result: RunDockerResult): {
+  run: typeof runDocker;
+  calls: string[][];
+} {
+  const calls: string[][] = [];
+  const run: typeof runDocker = (args) => {
+    calls.push(args);
+    return Promise.resolve(result);
+  };
+  return { run, calls };
+}
+
+let warn: { mockRestore(): void } | null = null;
+
+function captureWarnings(): string[] {
+  const lines: string[] = [];
+  warn = spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+    lines.push(args.map(String).join(' '));
+  });
+  return lines;
+}
+
+afterEach(() => {
+  warn?.mockRestore();
+  warn = null;
+});
+
+describe('parseLiveRestore', () => {
+  test('reads the setting and whether the node is in Swarm mode', () => {
+    expect(
+      parseLiveRestore(answer('{"liveRestore":true,"swarm":"inactive"}\n')),
+    ).toEqual({ enabled: true, swarm: false });
+    expect(
+      parseLiveRestore(answer('{"liveRestore":false,"swarm":"active"}')),
+    ).toEqual({ enabled: false, swarm: true });
+    expect(
+      parseLiveRestore(answer('{"liveRestore":false,"swarm":"locked"}')),
+    ).toEqual({ enabled: false, swarm: true });
+    expect(
+      parseLiveRestore(answer('{"liveRestore":false,"swarm":""}')),
+    ).toEqual({ enabled: false, swarm: false });
+  });
+
+  test('a failed call or an answer without the setting says nothing', () => {
+    captureWarnings();
+    expect(parseLiveRestore(answer('', 1, 'Cannot connect'))).toBeNull();
+    expect(parseLiveRestore(answer('<no value>'))).toBeNull();
+    expect(parseLiveRestore(answer('{"swarm":"inactive"}'))).toBeNull();
+    expect(parseLiveRestore(answer('{"liveRestore":"false"}'))).toBeNull();
+    expect(parseLiveRestore(answer('null'))).toBeNull();
+  });
+});
+
+describe('checkLiveRestore', () => {
+  test('asks the daemon once, with a bounded call', async () => {
+    const lines = captureWarnings();
+    const { run, calls } = fakeRun(
+      answer('{"liveRestore":true,"swarm":"inactive"}'),
+    );
+    expect(await checkLiveRestore(run)).toEqual({
+      enabled: true,
+      swarm: false,
+    });
+    expect(calls).toEqual([
+      [
+        'info',
+        '--format',
+        '{"liveRestore":{{json .LiveRestoreEnabled}},"swarm":{{json .Swarm.LocalNodeState}}}',
+      ],
+    ]);
+    // Live restore on: nothing to say.
+    expect(lines).toEqual([]);
+  });
+
+  test('warns once, pointing to the docs, when live restore is off', async () => {
+    const lines = captureWarnings();
+    const { run } = fakeRun(answer('{"liveRestore":false,"swarm":"inactive"}'));
+    expect(await checkLiveRestore(run)).toEqual({
+      enabled: false,
+      swarm: false,
+    });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('live restore is off');
+    expect(lines[0]).toContain('"live-restore": true');
+    expect(lines[0]).toContain(LIVE_RESTORE_DOCS_URL);
+  });
+
+  test('never tells a Swarm node to turn on what Swarm refuses', async () => {
+    const lines = captureWarnings();
+    const { run } = fakeRun(answer('{"liveRestore":false,"swarm":"active"}'));
+    await checkLiveRestore(run);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('Swarm node');
+    expect(lines[0]).not.toContain('"live-restore": true');
+    expect(lines[0]).toContain(LIVE_RESTORE_DOCS_URL);
+  });
+
+  test('a daemon that cannot say is logged and never fails the boot', async () => {
+    const lines = captureWarnings();
+    const { run } = fakeRun(answer('', 124, 'docker info timed out'));
+    expect(await checkLiveRestore(run)).toBeNull();
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('could not read');
+    expect(lines[0]).toContain('docker info timed out');
+  });
+});
 
 const oldToken = process.env.SANDBOX_TOKEN;
 afterEach(() => {

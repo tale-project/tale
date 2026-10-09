@@ -57,7 +57,8 @@ export interface HostBackend {
 
   /** Liveness probe backing GET /health. */
   health(): Promise<HealthResult>;
-  /** Best-effort warm of the runtime image (no-op where the platform pulls). */
+  /** Make the runtime image present (no-op where the platform pulls).
+   * Throws while it stays absent, so the caller tries again later. */
   warmImage(): Promise<void>;
 
   /**
@@ -263,6 +264,10 @@ export interface SessionBackend {
     sessionId: string,
     expectedCreatedAtMs: number,
   ): Promise<boolean>;
+  /** Hear that a create found the runtime image missing on this host (an
+   * `image prune` on an idle Docker host removes it once no session uses
+   * it): the spawner pulls it again and holds creates until it is back. */
+  onRuntimeImageMissing?(listener: (detail: string) => void): void;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
    * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":

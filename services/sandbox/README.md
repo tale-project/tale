@@ -42,7 +42,14 @@ gaps fail with `OUTPUT_GAP`. A failing output consumer also ends that attachment
 
 Cold runtime-image warming runs in the background. New local sessions wait
 with `429 runtime_image` and `Retry-After: 5`, while control, health and existing
-sessions remain available. Session lookups whose backend inventory or endpoint
+sessions remain available. Session containers start with `--pull=never`, so a
+host that lost the image (an `image prune` while no session ran) fails a create
+at once; that create restarts the warmup and answers the same `429
+runtime_image`. A pull that fails is retried after 30 s, 1, 2, 5 and then every
+10 minutes, and creates wait meanwhile (`Retry-After` follows the next pull,
+5–60 s). `GET /health` reports `runtimeImage: { state, lastError,
+nextAttemptAtMs }` with `state` one of `unchecked`, `pulling`, `ready` or
+`missing`; a missing image never makes the spawner unhealthy. Session lookups whose backend inventory or endpoint
 cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.
@@ -111,6 +118,15 @@ There is no independently configured organization runtime ceiling. With
 `?organizationId=` the answer adds `deviceSessions`, the slots that
 organization's connected devices offer; the platform's ceiling for that
 organization is `maxSessions + deviceSessions`.
+
+Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
+CPU for the `default` profile) and a CPU weight below the control plane's:
+agent sessions and their organization's build helpers run at `--cpu-shares`
+256 (`SANDBOX_AGENT_CPU_SHARES`), `default` sessions at 128, against the
+default 1024 the database, backend and spawner keep (cgroup v2 weights of
+about 10 and 5 against 100). The weight matters only while the host's CPUs are
+saturated: busy sessions then yield to the control plane instead of stalling
+it, and on a host with spare CPU a session still uses its full quota.
 
 Size the ceiling against measured task peaks and the host resources remaining
 after platform services and safety headroom. See the
@@ -307,6 +323,13 @@ operator responsibilities and the egress IPv6 prerequisite.
 session root exists) `exec`s `entrypoint.sh` (the bun server launch) so signals
 reach the server directly. See the script headers for the split rationale.
 
+At start the Docker backend reads the daemon's live-restore setting and logs
+one warning when it is off: a daemon restart (an upgrade, a `daemon.json`
+change) then stops every session container and the spawner. The spawner never
+changes the host's daemon configuration; the
+[self-hosted docs](../../docs/en/self-hosted/operate/container-architecture.md#keep-sessions-running-through-a-docker-restart)
+describe turning it on, and why a Swarm node cannot.
+
 ```bash
 # from repo root
 docker build -f services/sandbox/Dockerfile .
@@ -314,6 +337,13 @@ docker build -f services/sandbox/Dockerfile .
 
 The `agent-light` profile keeps the agent user, coding tools and persistent
 workspace without inner Docker or BuildKit.
+
+The spawner pulls no helper image for sessions: an organization's new package
+cache volumes (pip, npm, bun) are made writable for every session uid (mode
+1777) by a short `--network none` run of `SANDBOX_RUNTIME_IMAGE` itself, with
+`/bin/chmod` as its entrypoint, so an air-gapped host needs nothing beyond the
+runtime image. A volume whose mode could not be set is removed again, and the
+next create makes it afresh.
 
 Reactivating a released session reserves its expected memory growth and checks
 disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.

@@ -16,6 +16,7 @@ export const TEST_SESSION_CONFIG: SessionConfig = {
   createHealthTimeoutMs: 180_000,
   agentProfile: {
     cpus: 2,
+    cpuShares: 256,
     memory: '4g',
     pidsLimit: 512,
     nofileSoft: 4096,

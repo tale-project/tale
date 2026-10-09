@@ -181,8 +181,17 @@ always verifies; there is no unsigned mode.
 Image warming runs beside control startup and session adoption. While a cold
 runtime image is being pulled, new local creates return `429 runtime_image`
 with `Retry-After: 5`; health, limits and existing-session operations remain
-available. A failed warmup ends that wait, and subsequent creates report their
-own backend result. Device-placed creates follow the target device's readiness.
+available. A failed pull does not end that wait: while the image is absent
+every create would fail, so creates keep answering `429 runtime_image` (with a
+`Retry-After` of 5–60 s that follows the next attempt) and the pull is retried
+after 30 s, 1, 2, 5 and then every 10 minutes. Session containers run with
+`--pull=never`: an implicit pull of the multi-gigabyte image could never finish
+inside the run's 30 s budget. A create that finds the image gone (an
+`image prune` on an idle host removes it, since stopped sessions keep no
+container) restarts the warmup and answers `429 runtime_image` instead of
+`502`. `GET /health` reports the image's state (`unchecked`, `pulling`, `ready`
+or `missing`, with the last error) without turning unhealthy over it.
+Device-placed creates follow the target device's readiness.
 
 Docker create failures remove only a container bearing that attempt's private
 ownership label, using its immutable container ID. A concurrent replacement
@@ -250,7 +259,18 @@ still running is joined, never stacked) **stops**:
   (the inner image volume, the pin marker) and would otherwise remove what
   the new container uses. The removal
   belongs to the ended incarnation: it never holds up an acquire of a
-  session registered under the id, nor counts as that session's stop.
+  session registered under the id, nor counts as that session's stop;
+- compute that never got going: a Kubernetes Pod still Pending past its
+  creator's startup deadline, or a Docker container still `created`, `paused`
+  or `restarting` (a spawner killed between the daemon's create and start, or
+  a timed-out run whose cleanup also timed out) once its create's whole
+  budget (`SANDBOX_SESSION_CREATE_TIMEOUT_MS`) and a minute's slack have
+  passed since both its `tale.created` stamp and Docker's own creation time.
+  Such a container used to hold a capacity slot for ever, answer every create
+  of the id busy, pin an old runtime image and outlive spawner restarts. It is
+  removed by the container id read with its state, with its inner image
+  volume; the workspace stays. One whose stamp names another incarnation than
+  the one listed is left alone.
 
 Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a
@@ -765,9 +785,16 @@ in-place container restart — this _is_ the session-persistence mechanism.
 `TMPDIR=/agent/.runtime/tmp` also lives on the workspace (disk-backed), not the
 `/tmp` tmpfs: pip stages a whole target install set in `$TMPDIR`, and the tmpfs
 is small and memory-backed (charged to the container's memory cgroup), so any
-install past the tmpfs size would die with ENOSPC. The entrypoint wipes the dir
-at container (re)start — no exec is live then — preserving the old /tmp
-lifecycle. `/tmp` remains for small control files such as redsocks.conf.
+install past the tmpfs size would die with ENOSPC. The dir dies with its
+container, preserving the old /tmp lifecycle: a Docker stop renames it into
+the session root's trash once the container is gone (the workspace being the
+agent's, a `.runtime` or `tmp` that is not a plain directory, such as a
+planted symbolic link, is left alone), and the background pass deletes it. At
+every container (re)start — no exec is live then — the entrypoint renames
+whatever is left aside as the profile uid and deletes it in the background at
+idle priority, so a large leftover (the replay spool, a pip staging tree)
+never delays runnerd's readiness. `/tmp` remains for small control files such
+as redsocks.conf.
 
 ## Kubernetes specifics
 

@@ -82,7 +82,11 @@ if (command === 'run') {
   }
   if (a.includes('--rm')) {
     const cache = mounts.find((mount) => mount.dst === '/cache');
-    if (cache === undefined || a.slice(-3).join(' ') !== 'chmod 1777 /cache') {
+    if (
+      cache === undefined ||
+      values('--entrypoint')[0] !== '/bin/chmod' ||
+      a.slice(-2).join(' ') !== '1777 /cache'
+    ) {
       fail('Unhandled one-shot run: ' + JSON.stringify(a));
     }
     s.volumes[cache.src].mode = '1777';
