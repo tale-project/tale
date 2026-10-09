@@ -29,6 +29,7 @@ export const AGENT_TOOL_CATALOG = [
   { name: 'document_find', effect: 'read', module: 'documents' },
   { name: 'document_create', effect: 'write', module: 'documents' },
   { name: 'knowledge_entry_find', effect: 'read', module: 'knowledge' },
+  { name: 'knowledge_entry_write', effect: 'write', module: 'knowledge' },
   { name: 'contact_find', effect: 'read', module: 'contacts' },
   { name: 'product_find', effect: 'read', module: 'products' },
   { name: 'website_find', effect: 'read', module: 'websites' },

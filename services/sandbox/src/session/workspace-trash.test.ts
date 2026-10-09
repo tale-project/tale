@@ -206,3 +206,60 @@ describe('WorkspaceTrash', () => {
     expect(workspaceTrash(root).dir).toBe(join(root, '.trash'));
   });
 });
+
+describe('moving a tree in without deleting it in place', () => {
+  test('a tree goes in under its name for the pass to delete, and counts toward that name', async () => {
+    const gate = Promise.withResolvers<void>();
+    const trash = new WorkspaceTrash(root, async (path) => {
+      await gate.promise;
+      await rm(path, { recursive: true, force: true });
+    });
+    const tmp = join(root, 'ses-a', '.runtime', 'tmp');
+    await mkdir(join(tmp, 'pip-staging'), { recursive: true });
+    await writeFile(join(tmp, 'pip-staging', 'wheel'), 'bytes');
+
+    expect(await trash.moveIn(tmp, 'ses-a.tmp')).toBe(true);
+    expect(await readdir(join(root, 'ses-a', '.runtime'))).toEqual([]);
+    const [entry, ...others] = await readdir(trash.dir);
+    expect(others).toEqual([]);
+    expect(entry).toMatch(/^ses-a\.tmp\.[0-9a-f-]{36}$/);
+    // The session's data, so an erasure of the workspace waits for it too.
+    expect(await trash.deletion(join(root, 'ses-a'))).toBe('pending');
+    gate.resolve();
+    await trash.empty();
+    expect(await trash.deletion(join(root, 'ses-a'))).toBe('done');
+  });
+
+  test('nothing there is nothing to do; a rename that fails leaves the tree and deletes nothing', async () => {
+    const removed: string[] = [];
+    const trash = new WorkspaceTrash(root, async (path) => {
+      removed.push(path);
+      await rm(path, { recursive: true, force: true });
+    });
+    expect(await trash.moveIn(join(root, 'absent'), 'absent.tmp')).toBe(false);
+    // A root whose trash dir is a file: no rename into it can land.
+    const blocked = join(root, 'blocked');
+    await mkdir(blocked);
+    await writeFile(join(blocked, '.trash'), '');
+    const blockedTrash = new WorkspaceTrash(blocked, async (path) => {
+      removed.push(path);
+      await rm(path, { recursive: true, force: true });
+    });
+    const tmp = join(blocked, 'ses-b', '.runtime', 'tmp');
+    await mkdir(tmp, { recursive: true });
+    await writeFile(join(tmp, 'spool'), 'replay');
+    const warn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      expect(await blockedTrash.moveIn(tmp, 'ses-b.tmp')).toBe(false);
+    } finally {
+      console.warn = warn;
+    }
+    expect(warnings).toHaveLength(1);
+    expect(await readFile(join(tmp, 'spool'), 'utf8')).toBe('replay');
+    expect(removed).toEqual([]);
+  });
+});

@@ -199,6 +199,12 @@ export interface ProjectsContract {
       skills: string[];
       organizationId: string;
       name: string;
+      /** What a person types after `@` to mention the agent, made from its
+       * current name; absent from an older backend. */
+      handle?: string;
+      /** What it answered to before agents had handles, so older text that
+       * named it that way still shows it; absent from an older backend. */
+      legacyHandles?: string[];
       projectId: string;
       createdBy: string;
       createdAt: number;

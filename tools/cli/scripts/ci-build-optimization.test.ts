@@ -502,10 +502,10 @@ test.skipIf(process.platform === 'win32')(
     expect(file.jobs.build?.strategy?.['max-parallel']).toBe(6);
     expect(
       step(file, 'build', 'Build and push').with?.['cache-from'],
-    ).toContain("matrix.arch.name == 'amd64'");
+    ).toContain('-buildcache:${{ matrix.arch.name }}');
     expect(
       step(file, 'build', 'Build and push').with?.['cache-from'],
-    ).toContain("format('type=gha,scope={0}', matrix.service.name)");
+    ).not.toContain('type=gha');
     expect(step(file, 'build', 'Build and push').with?.['cache-to']).toContain(
       '-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
     );
@@ -1528,7 +1528,7 @@ test('native release builds reuse isolated architecture caches without adding ru
   expect(image.with!['cache-from']).toContain(
     'ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}',
   );
-  expect(image.with!['cache-from']).toContain("matrix.arch.name == 'amd64'");
+  expect(image.with!['cache-from']).not.toContain('type=gha');
   expect(image.with!['cache-to']).toBe(
     'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
   );

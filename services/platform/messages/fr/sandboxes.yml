@@ -1,9 +1,10 @@
 title: Sandboxes
 sessionsTitle: Espaces de travail
 description: >-
-  Les agents de projet réutilisent leur espace entre les tâches. Les étapes
-  d'un workflow partagent le même espace. L'espace d'un agent de projet est
-  conservé jusqu'au retrait de son agent, de son projet ou du membre concerné,
+  Un agent de projet traite chaque tâche sur laquelle il travaille en même
+  temps dans un worker distinct, une sandbox avec son propre espace de travail
+  que les tâches suivantes réutilisent. Les étapes d'un workflow partagent le
+  même espace. L'espace d'un worker est conservé jusqu'au retrait de son agent, de son projet ou du membre concerné,
   ou jusqu'à ce que le nettoyage des espaces de travail le supprime faute
   d'utilisation. L'état d'exécution et l'allocation
   du quota sont distincts : un conteneur peut rester actif après la libération
@@ -17,6 +18,8 @@ limits:
     du déploiement.
   usage: 'Allouées : {used} / {limit}'
   usageUnavailable: Allocation indisponible
+  # Sous la limite des workers d'agent : les exécutions qu'une limite plus haute démarrerait tout de suite.
+  waitingForWorkers: '{count, plural, one {# exécution d’agent attend un worker libre.} other {# exécutions d’agent attendent un worker libre.}}'
   invalidSessions: Saisis un nombre entier entre 1 et 500.
   total: Total des sessions de ton organisation
   totalValue: '{total} / {maxSessions}'
@@ -29,11 +32,11 @@ limits:
   saveFailed: Impossible d'enregistrer les limites des sandboxes
 quota:
   budgets:
-    project: Sessions d'agent de projet
+    project: Workers d’agent
     workflow: Sessions de workflow
     render: Sessions de rendu
   budgetHints:
-    project: Les agents de projet réutilisent une sandbox entre leurs tâches.
+    project: Chaque tâche sur laquelle un agent travaille en même temps s’exécute dans sa propre sandbox.
     workflow: Les étapes agent et script partagent une sandbox par exécution de workflow.
     render: Des sandboxes temporaires rendent les pages pendant l'exploration des sites.
 cleanup:
@@ -112,7 +115,7 @@ actions:
   destroy: Supprimer
 destroyConfirm:
   title: Supprimer la sandbox ?
-  description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Une fois la sandbox supprimée, le prochain lancement de l'agent en crée une nouvelle.
+  description: Cela supprime la sandbox et son espace de travail et annule les tâches en cours. Le prochain lancement de l'agent prend un autre worker libre ou, une fois cette sandbox supprimée, en crée une nouvelle.
   confirm: Supprimer
 toast:
   stopped: Tâche arrêtée
@@ -124,13 +127,19 @@ toast:
 empty:
   title: Aucun espace de travail pour le moment
   description:
-    L'espace de travail d'un agent de projet apparaît après sa première tâche. Il
-    est conservé jusqu'au retrait de son agent, de son projet ou du membre
+    Le worker d'un agent de projet apparaît avec sa première tâche, un par tâche
+    sur laquelle l'agent travaille en même temps. Son espace de travail est
+    conservé jusqu'au retrait de son agent, de son projet ou du membre
     concerné, ou jusqu'à ce que le nettoyage des espaces de travail le supprime
     faute d'utilisation. L'espace d'une exécution de workflow est récupéré à la
     fin de l'exécution. Les chiffres de capacité ci-dessus incluent les sessions
     temporaires d'exploration.
 accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
+# Quel worker de son agent est un espace de travail : un worker de l'agent
+# lui-même, ou un worker qui exécute l'agent pour un membre.
+worker:
+  agent: Worker {number}
+  member: Worker de membre {number}
 deletedAgent: Agent supprimé
 devices:
   title: Appareils

@@ -1,27 +1,42 @@
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
 
+import {
+  agentLegacyHandleVariants,
+  agentMentionEntry,
+  automationMentionEntry,
+  emailHandle,
+  MENTION_HANDLE_TIER,
+  type MentionActorEntry,
+  type MentionKind,
+  memberMentionEntry,
+} from '@/lib/shared/mention-handles';
+
 import { useAssignableActors } from '../hooks/use-actor-directory';
 import {
   useTaskContractAutomations,
   taskSubjectEntries,
 } from '../hooks/use-task-subject-contract';
-import {
-  agentInsertHandle,
-  automationInsertHandle,
-  memberInsertHandle,
-} from './mention-handles';
-
-const MAX_MENTION_OPTIONS = 8;
 
 export interface MentionActorOption {
-  type: 'user' | 'agent' | 'automation';
+  type: MentionKind;
   id: string;
   name: string;
   email?: string;
-  /** The `@token` inserted into the text — picked to match a handle the
-   *  server directory resolves (`backend/domains/collab/mention-directory.ts::memberHandles`). */
-  handle: string;
+  /** What the picker shows after `@` and finds it by: an agent's handle, a
+   * person's email name, an automation's store name. */
+  handle?: string;
+  /** Other handles it answers to (a person's name with dots), which find it
+   * too. */
+  keywords?: readonly string[];
+}
+
+/** The handles of an entry a person may type to find it: every one but its
+ * id, which nobody types. */
+function typedHandles(entry: MentionActorEntry): string[] {
+  return entry.handles
+    .filter(({ tier }) => tier !== MENTION_HANDLE_TIER.id)
+    .map(({ handle }) => handle);
 }
 
 /**
@@ -32,8 +47,8 @@ export interface MentionActorOption {
  * subject-contract ones the assignee picker offers — @-ing a task's OWNING
  * automation puts it to work, exactly like @-ing an agent instance.
  *
- * Used by the Tasks `MentionTextarea` as its `@`-mention source, aligned
- * with the server's actor resolution.
+ * A picked mention is stored as whom it names, so anyone can be offered,
+ * whatever their name: the handle is how the picker finds and shows them.
  */
 export function useMentionActorOptions(
   organizationId: string,
@@ -49,65 +64,50 @@ export function useMentionActorOptions(
     for (const member of assignableMembers) {
       // You never need to @mention yourself — leave the current user out.
       if (member.id === currentUserId) continue;
-      const handle = memberInsertHandle(member);
-      if (handle) {
-        options.push({
-          type: 'user',
-          id: member.id,
-          name: member.name,
-          email: member.email,
-          handle,
-        });
-      }
+      const entry = memberMentionEntry({
+        id: member.id,
+        name: member.name,
+        email: member.email,
+      });
+      const handle = emailHandle(member.email);
+      options.push({
+        type: 'user',
+        id: member.id,
+        name: member.name,
+        ...(member.email !== undefined ? { email: member.email } : {}),
+        ...(handle !== null ? { handle } : {}),
+        keywords: typedHandles(entry),
+      });
     }
     for (const agent of assignableAgents) {
-      // Insert the readable name form — the raw instance id resolves too
-      // (server keeps it as a fallback handle) but is noise in prose.
-      const handle = agentInsertHandle(agent) ?? agent.id.toLowerCase();
+      const entry = agentMentionEntry({
+        id: agent.id,
+        name: agent.name,
+        handle: agent.handle ?? null,
+        legacyHandles:
+          agent.legacyHandles ?? agentLegacyHandleVariants(agent.name),
+      });
       options.push({
         type: 'agent',
         id: agent.id,
         name: agent.name,
-        handle,
+        ...(agent.handle !== undefined ? { handle: agent.handle } : {}),
+        keywords: typedHandles(entry),
       });
     }
-    for (const entry of taskSubjectEntries(automations, locale)) {
-      // Insert the store name — stable addressing the server always resolves,
-      // identical for every reader whatever their locale.
-      const handle = automationInsertHandle({
-        slug: entry.automationSlug,
-        name: entry.displayName,
+    for (const automation of taskSubjectEntries(automations, locale)) {
+      const entry = automationMentionEntry({
+        slug: automation.automationSlug,
+        name: automation.displayName,
       });
-      if (handle) {
-        options.push({
-          type: 'automation',
-          id: entry.automationSlug,
-          name: entry.displayName,
-          handle,
-        });
-      }
+      options.push({
+        type: 'automation',
+        id: automation.automationSlug,
+        name: automation.displayName,
+        handle: automation.automationSlug,
+        keywords: typedHandles(entry),
+      });
     }
     return options;
   }, [assignableMembers, assignableAgents, automations, currentUserId, locale]);
-}
-
-export function filterMentionActorOptions(
-  options: readonly MentionActorOption[],
-  query: string,
-): MentionActorOption[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return options.slice(0, MAX_MENTION_OPTIONS);
-  const matches = options.filter(
-    (o) =>
-      o.name.toLowerCase().includes(q) ||
-      o.handle.includes(q) ||
-      o.email?.toLowerCase().includes(q),
-  );
-  // Prefix matches (on the handle or name) read as "what I'm typing" — float
-  // them above mere substring hits.
-  const score = (o: MentionActorOption) =>
-    o.handle.startsWith(q) || o.name.toLowerCase().startsWith(q) ? 0 : 1;
-  return matches
-    .sort((a, b) => score(a) - score(b))
-    .slice(0, MAX_MENTION_OPTIONS);
 }

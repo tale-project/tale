@@ -470,6 +470,8 @@ export async function checkReviewRepair(f: Fixture): Promise<void> {
       isDeepStrictEqual(blockedBefore, await snapshot(blocked.taskId)),
     JSON.stringify(blockedResult),
   );
+  // An implementer at work on another task is started all the same: the
+  // repair run works in a worker of its own, or waits for one.
   const busy = await reject('Busy implementation workspace');
   const busyTask = await fx.insertTask({
     projectId,
@@ -477,15 +479,19 @@ export async function checkReviewRepair(f: Fixture): Promise<void> {
     agentId: f.implementerId,
   });
   const occupied = await f.addRun(busyTask, f.implementerId, 'running');
-  const busyBefore = await snapshot(busy.taskId);
+  const busyRunsBefore = await runsOf(sql, busy.taskId);
   const busyResult = await start(busy);
+  const busyRunsAfter = await runsOf(sql, busy.taskId);
+  const busyRepairRun = busyRunsAfter.at(-1);
   report(
-    'agent occupancy is retained for guarded repair',
-    output(busyResult).reason === 'agent_busy' &&
-      isDeepStrictEqual(busyBefore, await snapshot(busy.taskId)),
+    'a guarded repair starts an implementer busy on another task, in a run of its own',
+    output(busyResult).started === true &&
+      typeof output(busyResult).runId === 'string' &&
+      busyRunsAfter.length === busyRunsBefore.length + 1 &&
+      busyRepairRun?.id === output(busyResult).runId,
     JSON.stringify(busyResult),
   );
-  await sql`UPDATE app.project_agent_runs SET status = 'settled', settled_at_ms = ${Date.now()} WHERE id = ${occupied.id}`;
+  await sql`UPDATE app.project_agent_runs SET status = 'settled', settled_at_ms = ${Date.now()} WHERE id IN (${occupied.id}, ${busyRepairRun?.id ?? occupied.id}) AND status IN ('queued', 'running')`;
 
   const pausedTask = await fx.insertTask({
     projectId,

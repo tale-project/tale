@@ -23,11 +23,18 @@ to a stable HOME path so `--resume <id>` (Pi `--session <id>`) finds prior
 turns. Global skills keep working because Pi also loads ~/.agents/skills, a
 homedir path independent of the config-dir override.
 
-The prompt itself rides the child's stdin — Pi's native headless prompt
+The prompt itself rides the CLI's stdin — Pi's native headless prompt
 source — never argv (process lists leak argv, and a leading-dash prompt would
 parse as a flag). `--approve` trusts the workspace's project-local files for
 the run: the container is the safety boundary (parity with Claude Code
 bypassPermissions / Gemini yolo).
+
+The wrapper then becomes the CLI (exec, same pid) instead of waiting for it,
+so no Python process stays resident for the turn: the CLI's exit status and
+signals are the exec's own. Nothing is left to remove the per-exec config dir
+when the CLI exits. It sits in $TMPDIR, which the runtime empties at every
+container start, and its name carries the exec's pid, so the next wrapper to
+start also removes every config dir whose pid no longer runs.
 """
 
 from __future__ import annotations
@@ -35,11 +42,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
-import subprocess
 import sys
 import tempfile
+from typing import NoReturn
+
+# tale-pi-<pid of the exec that staged it>-<mkdtemp suffix>
+STAGE_DIR = re.compile(r"tale-pi-(?P<pid>[1-9][0-9]{0,6})-[A-Za-z0-9_]+")
 
 
 def emit(event: dict) -> None:
@@ -65,6 +76,71 @@ def read_stdin_payload() -> dict | None:
     if not isinstance(prompt, str) or not prompt.strip():
         return None
     return payload
+
+
+def pid_running(pid: int) -> bool:
+    """Whether a process with this pid runs in this container. One owned by
+    another user counts as running."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def remove_ended_stage_dirs(tmp: str) -> None:
+    """Remove the config dirs of execs that have ended. A dir whose pid runs
+    stays: it is a live exec's, or a pid reused since the last container
+    start, which only keeps the dir until that process ends. Best effort: a
+    failure is logged and never stops this exec."""
+    try:
+        names = os.listdir(tmp)
+    except OSError as exc:
+        print(f"[tale-pi-run] config cleanup failed: {exc}", file=sys.stderr)
+        return
+    for name in names:
+        match = STAGE_DIR.fullmatch(name)
+        if match is None or pid_running(int(match["pid"])):
+            continue
+        path = os.path.join(tmp, name)
+        if os.path.islink(path) or not os.path.isdir(path):
+            continue
+        try:
+            shutil.rmtree(path)
+        except FileNotFoundError:
+            # Another wrapper starting at the same time got there first.
+            continue
+        except OSError as exc:
+            print(f"[tale-pi-run] config cleanup failed: {exc}", file=sys.stderr)
+
+
+def stdin_from(prompt: str) -> None:
+    """Make the prompt this process's stdin, for the CLI to read to its end.
+    An anonymous temporary file holds it: nothing named is left to remove,
+    and unlike a pipe nobody reads yet it takes a prompt of any size."""
+    with tempfile.TemporaryFile() as staged:
+        staged.write(prompt.encode("utf-8"))
+        staged.flush()
+        staged.seek(0)
+        os.dup2(staged.fileno(), 0)
+
+
+def become(cmd: list[str], workdir: str, env: dict) -> NoReturn:
+    """Replace this process with the CLI. Raises when the CLI cannot be
+    started; never returns."""
+    os.chdir(workdir)
+    # Python ignores SIGPIPE and SIGXFSZ for itself, and an ignored signal
+    # stays ignored across exec; the CLI gets their defaults, as a
+    # subprocess child would.
+    for name in ("SIGPIPE", "SIGXFSZ"):
+        if hasattr(signal, name):
+            signal.signal(getattr(signal, name), signal.SIG_DFL)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # nosemgrep: tools.opengrep.rules.python.lang.security.audit.dangerous-os-exec-tainted-env-args.dangerous-os-exec-tainted-env-args -- fixed pi argv plus adapter-provided flags, list-form exec (no shell); launching the agent CLI inside the sandbox is this runner's purpose, same trust model as the sibling tale-*-run launchers
+    os.execvpe(cmd[0], cmd, env)
 
 
 def main() -> int:
@@ -95,7 +171,9 @@ def main() -> int:
     home = os.environ.get("HOME") or os.path.expanduser("~")
     stage_dir = None
     try:
-        stage_dir = tempfile.mkdtemp(prefix="tale-pi-")
+        remove_ended_stage_dirs(tempfile.gettempdir())
+        # The pid is this exec's for as long as it runs: the CLI takes it over.
+        stage_dir = tempfile.mkdtemp(prefix=f"tale-pi-{os.getpid()}-")
         agent_dir = os.path.join(stage_dir, "agent")
         os.makedirs(agent_dir, exist_ok=True)
         with open(os.path.join(agent_dir, "settings.json"), "w", encoding="utf-8") as f:
@@ -133,36 +211,30 @@ def main() -> int:
         if args.resume:
             cmd += ["--session", args.resume]
 
-        proc = subprocess.Popen(
-            # nosemgrep: tools.opengrep.rules.python.lang.security.audit.dangerous-subprocess-use-tainted-env-args.dangerous-subprocess-use-tainted-env-args -- fixed pi argv plus adapter-provided flags, list-form exec (no shell); launching the agent CLI inside the sandbox is this runner's purpose, same trust model as the sibling tale-*-run launchers
-            cmd,
-            cwd=args.workdir,
-            env=env,
-            stdin=subprocess.PIPE,
-            # stdout/stderr inherit: the CLI's JSON event stream goes straight
-            # to the platform's stdout reader; human noise stays on stderr.
-        )
-        try:
-            proc.stdin.write(prompt.encode("utf-8"))
-            proc.stdin.close()
-        except BrokenPipeError:
-            print("[tale-pi-run] pi exited before reading stdin", file=sys.stderr)
-        return proc.wait()
+        # stdout/stderr stay as they are: the CLI's JSON event stream goes
+        # straight to the platform's stdout reader; human noise stays on
+        # stderr. Once `become` succeeds the CLI runs in this process, and
+        # nothing below happens.
+        stdin_from(prompt)
+        become(cmd, args.workdir, env)
     except FileNotFoundError as exc:
         return fail(f"pi not installed or file missing: {exc}")
     except Exception as exc:  # noqa: BLE001 — surface anything as a run error
         return fail(f"wrapper failure: {exc}")
     finally:
+        # Reached only when the CLI never started: once it runs, the dir is
+        # its until it ends.
         if stage_dir is not None:
             shutil.rmtree(stage_dir, ignore_errors=True)
 
 
 class Cancelled(BaseException):
-    """Raised when runnerd ends the exec (a process-group SIGTERM on cancel,
-    at the exec's deadline or when it exits). Python's default SIGTERM
-    disposition runs no `finally`, which left the staged settings and the
-    per-exec context file behind; a BaseException unwinds through them and
-    past the generic `except Exception` in main()."""
+    """Raised when runnerd ends the exec (a process-group SIGTERM on cancel
+    or at the exec's deadline) before the CLI has replaced the wrapper.
+    Python's default SIGTERM disposition runs no `finally`, which would leave
+    the staged config behind; a BaseException unwinds through its cleanup and
+    past the generic `except Exception` in main(). The exec resets these
+    handlers, so once the CLI runs the signal is its own."""
 
     def __init__(self, signum: int) -> None:
         super().__init__(signum)

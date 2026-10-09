@@ -64,6 +64,37 @@ export const CI_JOBS = {
   ],
 } as const;
 
+/** Scope filters whose validation runs only in the merge queue (and on
+ * candidates, `main` and schedules). Their workflows pass `queue-only: 'true'`
+ * to the scope action, so a pull request's scope reports them not applicable
+ * without discovery and its run spends one small job instead of the full
+ * graph; the queue's merge group still runs everything at full scope before a
+ * change lands. */
+export const MERGE_QUEUE_ONLY_SCOPES = [
+  'build',
+  'cli',
+  'e2e',
+  'integration',
+] as const;
+
+/** Checks jobs that run only in the merge queue: the heavy suites a pull
+ * request skips. The fast lanes (format, lint, types, knip, unit) stay on it. */
+export const CHECKS_MERGE_QUEUE_ONLY = [
+  'build',
+  'test-ui',
+  'test-ui-shards',
+  'performance',
+  'test-browser',
+] as const;
+
+/** True when the scope action's `queue-only` input holds this event back for
+ * the merge queue: only a pull request is ever skipped. */
+export function mergeQueueOnly(queueOnly: string, event: string): boolean {
+  if (queueOnly !== 'true' && queueOnly !== 'false')
+    throw new Error('queue-only must explicitly be true or false');
+  return queueOnly === 'true' && event === 'pull_request';
+}
+
 export const CI_CONTEXTS = {
   checks: 'CI ready (Checks)',
   commitlint: 'CI ready (Commitlint)',
@@ -355,6 +386,9 @@ export function evaluateReadiness(input: {
       if (full && !run)
         throw new Error('Merge group must run backend integration');
       requireResult('backend-integration', run ? 'success' : 'skipped');
+      for (const id of CHECKS_MERGE_QUEUE_ONLY)
+        if (input.event === 'pull_request')
+          requireResult(id, 'skipped', 'merge queue only');
     }
     if (workflow === 'e2e' && applicable) {
       requireResult('scope', 'success', 'validated E2E service scope');

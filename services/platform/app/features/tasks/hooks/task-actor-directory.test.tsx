@@ -66,6 +66,7 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
 vi.mock('./use-task-subject-contract', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./use-task-subject-contract')>()),
   useTaskContractAutomations: () => data.automations,
+  useTaskContractAutomationsPending: () => false,
 }));
 vi.mock('@tale/ui/i18n/client', () => ({ useT: () => ({ t: data.t }) }));
 vi.mock('@tale/ui/i18n/locale-provider', () => ({

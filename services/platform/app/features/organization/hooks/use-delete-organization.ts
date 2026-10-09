@@ -96,12 +96,14 @@ export function useDeleteOrganization() {
         const description =
           code === 'LEGAL_HOLD_ACTIVE'
             ? tSettings('organization.deleteBlockedByLegalHold')
-            : code === 'ORG_CONFIRM_NAME_MISMATCH'
-              ? tSettings('organization.deleteConfirmNameMismatch')
-              : backendErrorMessage(
-                  err,
-                  err instanceof Error ? err.message : '',
-                );
+            : code === 'ORG_LEGACY_AUTOMATION_HELD'
+              ? tSettings('organization.deleteBlockedByLegacyAutomation')
+              : code === 'ORG_CONFIRM_NAME_MISMATCH'
+                ? tSettings('organization.deleteConfirmNameMismatch')
+                : backendErrorMessage(
+                    err,
+                    err instanceof Error ? err.message : '',
+                  );
         toast({
           title: tSettings('organization.deleteFailed'),
           ...(description !== '' ? { description } : {}),

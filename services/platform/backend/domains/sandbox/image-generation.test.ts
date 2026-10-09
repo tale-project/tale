@@ -24,7 +24,8 @@ const mocks = vi.hoisted(() => ({
   setVirtualKeyBudget: vi.fn(),
 }));
 
-vi.mock('./op-attribution.ts', () => ({
+vi.mock('./op-attribution.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./op-attribution.ts')>()),
   resolveSessionOpAttribution: mocks.attribution,
 }));
 vi.mock('../governance/budget-gate.ts', () => ({
@@ -134,6 +135,31 @@ beforeEach(() => {
 });
 
 describe('resolveImageTurnContext', () => {
+  it('keeps admitted projects while retaining live-run authorization [GOV-R14]', async () => {
+    const { sql } = scriptedSql([
+      { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
+      {
+        match: 'FROM app.sandbox_session_ops',
+        rows: [{ projectIds: ['original-project'] }],
+      },
+    ]);
+    mocks.attribution.mockResolvedValue({
+      userId: 'user_starter',
+      projectIds: ['new-project'],
+    });
+    await expect(
+      resolveImageTurnContext(sql, {
+        organizationId: 'org_1',
+        sessionId: 'pa-alice',
+        kind: 'task-agent',
+        execId: 'exec_1',
+      }),
+    ).resolves.toMatchObject({
+      status: 'live',
+      subject: { projectIds: ['original-project'] },
+    });
+  });
+
   it('delivers a live task run into its task’s own box, for its starter', async () => {
     const { sql, statements } = scriptedSql([
       { match: 'FROM app.project_agent_runs', rows: [{ taskId: 'task_1' }] },
@@ -242,6 +268,29 @@ describe('resolveImageTurnContext', () => {
 });
 
 describe('admitImageGeneration', () => {
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    'checks the projects held by the op even with stale image context: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      const { sql, statements } = opSql({ projectIds });
+      const result = await admitImageGeneration(
+        sql,
+        {
+          ...ADMIT,
+          subject: { ...ADMIT.subject, projectIds: ['new-project'] },
+        },
+        deps,
+      );
+      expect(result.admitted).toBe(true);
+      expect(mocks.findBudgetViolation).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectIds }),
+        expect.anything(),
+      );
+      expect(holdWrite(statements)?.values).toContainEqual(projectIds);
+      expect(holdWrite(statements)?.values).not.toContainEqual(['new-project']);
+    },
+  );
+
   it('admits under every bound, holding the estimate on the op row', async () => {
     const { sql, statements } = opSql();
     await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toEqual({
@@ -283,15 +332,7 @@ describe('admitImageGeneration', () => {
     expect(write?.text).toContain('images_admitted = images_admitted + ?');
     expect(write?.text).toContain('user_id = coalesce(user_id, ?)');
     // A turn outside any project holds its images in none.
-    expect(write?.values).toEqual([
-      NOW,
-      75,
-      3,
-      3,
-      'user_starter',
-      null,
-      'op_1',
-    ]);
+    expect(write?.values).toEqual([NOW, 75, 3, 3, 'user_starter', [], 'op_1']);
   });
 
   it('measures the images against what the allowance has left after the model’s live spend', async () => {
@@ -543,6 +584,28 @@ describe('admitImageGeneration', () => {
 });
 
 describe('settleImageGeneration', () => {
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    'books the admitted projects after bindings changed during provider work: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      const { sql } = opSql({ projectIds });
+      await settleImageGeneration(sql, {
+        organizationId: 'org_1',
+        sessionId: 'pa-alice',
+        execId: 'exec_1',
+        callStartedAt: NOW,
+        subject: { ...ADMIT.subject, projectIds: ['new-project'] },
+        provider: 'provider',
+        model: 'model',
+        charges: [5],
+        timestamp: NOW,
+      });
+      expect(mocks.incrementUsageLedger).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectIds, costEstimateCents: 5 }),
+      );
+    },
+  );
+
   const SETTLE = {
     organizationId: 'org_1',
     sessionId: 'pa-alice',

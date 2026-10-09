@@ -1,48 +1,59 @@
 import { isSerializationFailure } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
+import { deriveAgentHandles } from '../../../lib/shared/agent-handle.ts';
+import {
+  agentLegacyHandleVariants,
+  agentMentionEntry,
+  automationMentionEntry,
+  buildMentionHandleIndex,
+  type MentionActorEntry,
+  type MentionHandleIndex,
+  memberMentionEntry,
+  organizationReservedHandles,
+} from '../../../lib/shared/mention-handles.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { hasProjectAccess } from '../../core/projects/access.ts';
 import {
   addedMentions,
-  extractMentions,
-  findUnresolvedMentionTokens,
-  type MentionDirectoryEntry,
+  findTaskMentions,
+  mentionedRefs,
+  type MentionTextMode,
+  type MentionTextResult,
+  normalizeMentionText,
+  previousPlainHandles,
+  previousTokenRefs,
   type ResolvedMention,
 } from '../../core/tasks/mentions.ts';
 import { listAutomations } from '../automations/store.ts';
 
 /**
  * The mention DIRECTORY on Postgres — who `@handle` can name on a task
- * surface, and the resolution that turns a comment's or a task
- * description's text into mentions.
+ * surface, and the preparation that gives a comment's or a task
+ * description's text its stored form and its mentions.
  *
- * The 0.4 rules, kept exactly:
+ * The rules:
  *
  *  - only members who can ACCESS the project are mentionable (the assignee
  *    picker's scoping — mentioning someone who cannot open the task is a
  *    notification they can do nothing with);
- *  - handle precedence is insertion ORDER: members, then deployed
- *    automations, then the project's own agent INSTANCES last, so an
- *    instance handle wins a clash and the mention reaches the live lane;
+ *  - entries are listed members, then deployed automations, then the
+ *    project's own agents, and a handle two of them answer to goes by the
+ *    tiers of `lib/shared/mention-handles.ts`;
  *  - a token nobody claims is a miss reported back to the author, never a
  *    guessed agent: every agent a mention can reach is one of the project's
- *    instances, all of them listed here;
+ *    agents, all of them listed here;
  *  - a leg that cannot be listed FAILS the build (`MentionDirectoryError`,
- *    503, retryable) — 0.4 logged and skipped it, but a partial directory
- *    turns `@teammate` into plain text: no bell, no steer, no owning-
- *    automation run, and nothing tells the author. The "quiet refusal"
- *    contract covers PERMISSION misses (an outsider is not mentionable),
- *    never infrastructure failures; the surface fails loudly and the comment
- *    (or the task) is saved again.
- *
- * The scanning itself (`extractMentions`, `findUnresolvedMentionTokens`,
- * `parseMentionTokens`) is REUSED from the 0.4 pure module: one grammar for
- * `@handle`, one place it can drift.
+ *    503, retryable): a partial directory turns `@teammate` into plain text
+ *    with no bell, no steer, no owning-automation run, and nothing tells the
+ *    author. The "quiet refusal" contract covers PERMISSION misses (an
+ *    outsider is not mentionable), never infrastructure failures; the
+ *    surface fails loudly and the comment (or the task) is saved again.
  */
 
 export interface MentionDirectory {
-  entries: MentionDirectoryEntry[];
+  entries: MentionActorEntry[];
+  index: MentionHandleIndex;
 }
 
 export type MentionDirectoryLeg = 'members' | 'automations' | 'agents';
@@ -74,51 +85,17 @@ function directoryUnavailable(leg: MentionDirectoryLeg, cause: unknown): Error {
   return new MentionDirectoryError(leg, cause);
 }
 
-function memberHandles(member: {
-  userId: string;
-  email: string | null;
-  displayName: string | null;
-}): string[] {
-  const handles = new Set<string>([member.userId.toLowerCase()]);
-  if (member.email !== null) {
-    const local = member.email.split('@')[0];
-    if (local) handles.add(local.toLowerCase());
-  }
-  if (member.displayName !== null) {
-    const name = member.displayName.trim().toLowerCase();
-    if (name !== '') {
-      handles.add(name.replaceAll(/\s+/g, ''));
-      handles.add(name.replaceAll(/\s+/g, '.'));
-    }
-  }
-  return [...handles];
-}
-
-function automationHandles(name: string, displayName?: string): string[] {
-  const handles = new Set<string>([name.toLowerCase()]);
-  const normalized = (displayName ?? '').trim().toLowerCase();
-  if (normalized !== '') {
-    handles.add(normalized.replaceAll(/\s+/g, '.'));
-    handles.add(normalized.replaceAll(/\s+/g, ''));
-  }
-  return [...handles];
-}
-
-/** A project agent instance answers to its display name AND its id, so two
- * same-named instances keep a collision-proof form. */
-function agentInstanceHandles(name: string, instanceId: string): string[] {
-  const normalized = name.trim().toLowerCase();
-  const variants =
-    normalized === ''
-      ? []
-      : [normalized.replaceAll(/\s+/g, '.'), normalized.replaceAll(/\s+/g, '')];
-  return [...new Set([...variants, instanceId.toLowerCase()])];
+/** The members who can be mentioned on a surface, and every member of the
+ * organization (by id and email), whose handles an agent handle may not be. */
+interface ListedMembers {
+  mentionable: MentionActorEntry[];
+  organization: { id: string; email: string | null }[];
 }
 
 async function accessibleMembers(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string | null },
-): Promise<MentionDirectoryEntry[]> {
+): Promise<ListedMembers> {
   const rows = await sql<
     {
       userId: string;
@@ -132,12 +109,19 @@ async function accessibleMembers(
     WHERE m."organizationId" = ${args.organizationId}
       AND lower(m."role") <> 'disabled'
   `;
-  const toEntry = (row: (typeof rows)[number]): MentionDirectoryEntry => ({
-    type: 'user',
+  const toEntry = (row: (typeof rows)[number]): MentionActorEntry =>
+    memberMentionEntry({
+      id: row.userId,
+      name: row.displayName,
+      email: row.email,
+    });
+  const organization = rows.map((row) => ({
     id: row.userId,
-    handles: memberHandles(row),
-  });
-  if (args.projectId === null) return rows.map(toEntry);
+    email: row.email,
+  }));
+  if (args.projectId === null) {
+    return { mentionable: rows.map(toEntry), organization };
+  }
 
   // Project scoping through the SHARED access rule: an org-wide project
   // admits everyone, a team-scoped one admits its teams' members, and admins
@@ -151,7 +135,7 @@ async function accessibleMembers(
     LIMIT 1
   `;
   const project = projects[0];
-  if (project === undefined) return [];
+  if (project === undefined) return { mentionable: [], organization };
   const accessInput = { teamIds: project.teamIds ?? [] };
   // Memberships IN THIS ORGANIZATION only — a team another tenant granted
   // must never make a member mentionable on a project here.
@@ -168,75 +152,105 @@ async function accessibleMembers(
     if (list) list.push(row.teamId);
     else teamsByUser.set(row.userId, [row.teamId]);
   }
-  return rows
-    .filter((row) =>
-      hasProjectAccess(
-        accessInput,
-        teamsByUser.get(row.userId) ?? [],
-        row.role,
-      ),
-    )
-    .map(toEntry);
+  return {
+    mentionable: rows
+      .filter((row) =>
+        hasProjectAccess(
+          accessInput,
+          teamsByUser.get(row.userId) ?? [],
+          row.role,
+        ),
+      )
+      .map(toEntry),
+    organization,
+  };
 }
 
 export async function buildMentionDirectory(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string | null },
 ): Promise<MentionDirectory> {
-  const entries: MentionDirectoryEntry[] = [];
+  const entries: MentionActorEntry[] = [];
+  let members: ListedMembers;
   try {
-    entries.push(...(await accessibleMembers(sql, args)));
+    members = await accessibleMembers(sql, args);
   } catch (error) {
     throw directoryUnavailable('members', error);
   }
+  entries.push(...members.mentionable);
   if (args.projectId === null) {
     // Org-wide surfaces (private agent chat) mention people only — agent
     // routing there is a different lane.
-    return { entries };
+    return { entries, index: buildMentionHandleIndex(entries) };
   }
 
   // Deployed automations VISIBLE from this project (bound to it, or
   // org-level). Mentioning a task's owning automation is the comment-side
   // run trigger; elsewhere the mention is presentational.
+  const automationSlugs: string[] = [];
   try {
     const automations = await listAutomations(sql, args.organizationId);
     for (const automation of automations) {
+      automationSlugs.push(automation.name);
       // Only DEPLOYED automations are mentionable — a draft has no run to
       // trigger and no presence on the board.
       if (automation.deployedVersion === null) continue;
       const bindings = automation.projectIds;
       if (bindings.length > 0 && !bindings.includes(args.projectId)) continue;
-      entries.push({
-        type: 'automation',
-        id: automation.name,
-        handles: automationHandles(
-          automation.name,
-          presentationName(automation.presentation),
-        ),
-      });
+      entries.push(
+        automationMentionEntry({
+          slug: automation.name,
+          name: presentationName(automation.presentation) ?? null,
+        }),
+      );
     }
   } catch (error) {
     throw directoryUnavailable('automations', error);
   }
 
-  // The project's agent INSTANCES go LAST so their handles win a clash and
-  // a mention reaches the instance lane.
+  // The project's agents go LAST, so within a tier their handles win a
+  // clash and a mention reaches the agent lane.
   try {
-    const instances = await sql<{ id: string; name: string }[]>`
-      SELECT id, name FROM app.project_agents
+    const agents = await sql<
+      {
+        id: string;
+        name: string;
+        handle: string | null;
+        legacyHandles: string[] | null;
+        createdAt: number;
+      }[]
+    >`
+      SELECT id, name, handle, legacy_handles AS "legacyHandles",
+             created_at_ms::float8 AS "createdAt"
+      FROM app.project_agents
       WHERE project_id = ${args.projectId} AND org_id = ${args.organizationId}
+      ORDER BY created_at_ms, id
     `;
-    for (const instance of instances) {
-      const handles = agentInstanceHandles(instance.name, instance.id);
-      if (handles.length > 0) {
-        entries.push({ type: 'agent', id: instance.id, handles });
-      }
+    // An agent the previous release added during a deploy has no handle
+    // yet, and one whose handle a person or an automation has come to
+    // answer to since has lost it: each answers to the one its project's
+    // next save will store [PROJ-R19] (the agent reads derive it alike),
+    // and to its name's older forms.
+    const derived = deriveAgentHandles(
+      agents,
+      organizationReservedHandles(members.organization, automationSlugs),
+    );
+    for (const agent of agents) {
+      entries.push(
+        agentMentionEntry({
+          id: agent.id,
+          name: agent.name,
+          handle: derived.get(agent.id) ?? agent.handle ?? null,
+          legacyHandles:
+            agent.legacyHandles ?? agentLegacyHandleVariants(agent.name),
+        }),
+      );
     }
   } catch (error) {
     throw directoryUnavailable('agents', error);
   }
 
-  return { entries };
+  return { entries, index: buildMentionHandleIndex(entries) };
 }
 
 /** The base (English) display name out of an automation version's untyped
@@ -250,47 +264,173 @@ function presentationName(presentation: unknown): string | undefined {
   return typeof name === 'string' ? name : undefined;
 }
 
-export interface SurfaceMentionResolution {
-  mentions: ResolvedMention[];
-  /** The mentions the body makes that `previousBody` did not — all of
+export interface PreparedSurfaceText extends MentionTextResult {
+  /** The mentions the text makes that `previousBody` did not — all of
    * `mentions` when no previous text was given. */
   added: ResolvedMention[];
-  unresolvedMentionTokens: string[];
+  /** The same text per language, each given its stored form. */
+  bodyByLocale?: Record<string, string>;
 }
 
-/** Scan one surface's body against its directory — the 0.4
- * `resolveSurfaceMentions`. An EDIT passes the text it replaces as
- * `previousBody`: both texts are read against this one directory, so
- * `added` holds only who the edit newly names. Rewording prose around an
- * existing `@handle` must not fire it again, and a handle that resolves
- * today in both texts is not new just because it did not resolve when the
- * old text was saved. */
-export async function resolveSurfaceMentions(
+/**
+ * Give one surface's text its stored form and say whom it names
+ * (`normalizeMentionText` for the `mode`s). An EDIT passes the text it
+ * replaces as `previousBody`: tokens already there are kept even when whoever
+ * they name can no longer be mentioned, the plain handles already there stay
+ * as typed, and `added` holds only who the edit newly names — both texts read
+ * against this one directory, so rewording prose around an existing mention
+ * does not fire it again. `prefer` (who a comment was saved naming) settles a
+ * handle two people answer to.
+ *
+ * A text that mentions nobody is answered without building the directory,
+ * and so is one in a mode that only checks tokens when it holds none.
+ */
+export async function prepareSurfaceText(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;
-    body: string;
     projectId?: string;
+    body: string;
+    cap: number;
+    mode: MentionTextMode;
     previousBody?: string;
+    prefer?: ReadonlySet<string>;
+    bodyByLocale?: Record<string, string>;
   },
-): Promise<SurfaceMentionResolution> {
+): Promise<PreparedSurfaceText> {
+  const texts = [args.body, ...Object.values(args.bodyByLocale ?? {})];
+  const occurrences = texts.flatMap((text) => findTaskMentions(text));
+  const needsDirectory =
+    args.mode === 'full'
+      ? occurrences.length > 0
+      : occurrences.some((occurrence) => occurrence.type === 'token');
+  if (!needsDirectory) {
+    return {
+      text: args.body,
+      mentions: [],
+      added: [],
+      unresolvedMentionTokens: [],
+      invalidTokens: [],
+      ...(args.bodyByLocale !== undefined
+        ? { bodyByLocale: args.bodyByLocale }
+        : {}),
+    };
+  }
   const directory = await buildMentionDirectory(sql, {
     organizationId: args.organizationId,
     projectId: args.projectId ?? null,
   });
-  const mentions = extractMentions(args.body, directory.entries);
+  const edit =
+    args.previousBody === undefined
+      ? {}
+      : {
+          keepRefs: previousTokenRefs(args.previousBody),
+          previousPlain: previousPlainHandles(args.previousBody),
+        };
+  const prepared = normalizeMentionText({
+    body: args.body,
+    index: directory.index,
+    cap: args.cap,
+    mode: args.mode,
+    ...edit,
+    ...(args.prefer !== undefined ? { prefer: args.prefer } : {}),
+  });
+  const added =
+    args.previousBody === undefined
+      ? prepared.mentions
+      : addedMentions(
+          normalizeMentionText({
+            body: args.previousBody,
+            index: directory.index,
+            cap: args.cap,
+            mode: 'verbatim',
+            keepRefs: edit.keepRefs,
+            ...(args.prefer !== undefined ? { prefer: args.prefer } : {}),
+          }).mentions,
+          prepared.mentions,
+        );
+  const bodyByLocale =
+    args.bodyByLocale === undefined
+      ? undefined
+      : Object.fromEntries(
+          Object.entries(args.bodyByLocale).map(([locale, text]) => [
+            locale,
+            normalizeMentionText({
+              body: text,
+              index: directory.index,
+              cap: args.cap,
+              mode: args.mode,
+            }).text,
+          ]),
+        );
   return {
-    mentions,
-    added:
-      args.previousBody === undefined
-        ? mentions
-        : addedMentions(
-            extractMentions(args.previousBody, directory.entries),
-            mentions,
-          ),
-    unresolvedMentionTokens: findUnresolvedMentionTokens(
-      args.body,
-      directory.entries,
-    ),
+    ...prepared,
+    added,
+    ...(bodyByLocale !== undefined ? { bodyByLocale } : {}),
   };
+}
+
+/**
+ * The CURRENT names of whoever the tokens of `texts` name, keyed `kind:id`,
+ * in one read per kind: what a plain-text reader (a search snippet, an
+ * activity line) and an agent read instead of the name a token was saved
+ * with. Someone no longer in the organization is left out, and their token's
+ * own label is read instead.
+ */
+export async function currentMentionNames(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  texts: readonly string[],
+): Promise<Map<string, string>> {
+  const refs = mentionedRefs(texts);
+  const names = new Map<string, string>();
+  if (refs.user.size > 0) {
+    const users = await sql<
+      { id: string; name: string | null; email: string | null }[]
+    >`
+      SELECT u."id", u."name", u."email"
+      FROM "user" u
+      JOIN "member" m ON m."userId" = u."id"
+        AND m."organizationId" = ${organizationId}
+      WHERE u."id" = ANY(${[...refs.user]})
+    `;
+    for (const user of users) {
+      names.set(
+        `user:${user.id}`,
+        memberMentionEntry({ id: user.id, name: user.name, email: user.email })
+          .name,
+      );
+    }
+  }
+  if (refs.agent.size > 0) {
+    const agents = await sql<{ id: string; name: string }[]>`
+      SELECT id, name FROM app.project_agents
+      WHERE org_id = ${organizationId} AND id = ANY(${[...refs.agent]})
+    `;
+    for (const agent of agents) names.set(`agent:${agent.id}`, agent.name);
+  }
+  if (refs.automation.size > 0) {
+    // The newest presentation any version carries, as the automation list
+    // reads it (`listAutomations`).
+    const automations = await sql<{ name: string; presentation: unknown }[]>`
+      SELECT name,
+             (array_agg(presentation ORDER BY version DESC)
+                FILTER (WHERE presentation IS NOT NULL
+                          AND jsonb_typeof(presentation) <> 'null'))[1]
+               AS presentation
+      FROM app.automations
+      WHERE org_id = ${organizationId} AND name = ANY(${[...refs.automation]})
+      GROUP BY name
+    `;
+    for (const automation of automations) {
+      names.set(
+        `automation:${automation.name}`,
+        automationMentionEntry({
+          slug: automation.name,
+          name: presentationName(automation.presentation) ?? null,
+        }).name,
+      );
+    }
+  }
+  return names;
 }

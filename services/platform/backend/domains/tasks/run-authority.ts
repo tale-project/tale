@@ -37,8 +37,11 @@ import {
  * confines the chain's runs at their next tool call, as a member's lost
  * Editor role does.
  *
- * The workspace is chosen when the run is kicked, by the starter's rights
- * then, and is fixed for the run's life: a run in a member's workspace stays
+ * The workspace family is chosen when the run is kicked, by the starter's
+ * rights then, and checked again whenever the run starts: its turn job
+ * claims a worker of the family (`agent-workers.ts`) and moves a run whose
+ * starter lost the Editor role while it waited into the member's own
+ * family, never the other way round. A run in a member's workspace stays
  * confined whoever steers it later. Everything else is judged against the
  * starter's rights at the moment it is asked (each tool call, each start or
  * restart), so a member who loses the Editor role mid-run stops acting as one.
@@ -102,10 +105,10 @@ export async function runStarterMayEditProject(
     .canEdit;
 }
 
-/** The session a new run of the agent works in, by who starts it: the
- * agent's standing workspace for a project editor (or a schedule that may
- * act in the project), the member's own workspace with this agent for
- * anyone else. */
+/** The workspace family a run of the agent works in, by who starts it — as
+ * its first worker, the session a kick names: the agent's standing family
+ * for a project editor (or a schedule that may act in the project), the
+ * member's own family with this agent for anyone else. */
 export async function sessionIdForAgentRun(
   sql: Sql | TransactionSql,
   args: {

@@ -17,11 +17,15 @@ import {
   type SandboxWorkspaceInventory,
   type WorkspaceDestroyAnswer,
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
-import { revokeVirtualKey } from '../../core/node_only/sandbox/llm_gateway_admin.ts';
+import {
+  removeOrganizationFromGateway,
+  revokeVirtualKey,
+} from '../../core/node_only/sandbox/llm_gateway_admin.ts';
 import {
   isProjectAgentSession,
   isStandingProjectAgentSession,
   memberSessionIdForProjectAgent,
+  projectAgentWorker,
 } from '../../core/sandbox/session_naming.ts';
 import type { TaskPayloads } from '../../jobs/tasks.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
@@ -194,6 +198,9 @@ export interface WorkspaceSpawner {
   teardownOrganization: (organizationId: string) => Promise<unknown>;
   disconnectDevice: (deviceId: string) => Promise<unknown>;
   revokeKey: (keyId: string) => Promise<void>;
+  /** Remove a deleted organization's provider keys and its own provider
+   * records from the gateway; throws until all of them are gone. */
+  removeOrganizationFromGateway: (organizationId: string) => Promise<unknown>;
   /** Drop the spawner's own pin, so a container a refused destroy leaves
    * behind is reaped like any other. */
   unpin: (sessionId: string) => Promise<unknown>;
@@ -209,6 +216,7 @@ const DEFAULT_SPAWNER: WorkspaceSpawner = {
   teardownOrganization: sandboxOrganizationTeardown,
   disconnectDevice: sandboxDeviceDisconnect,
   revokeKey: revokeVirtualKey,
+  removeOrganizationFromGateway,
   unpin: (sessionId) => sessionSetPinned(sessionId, false),
 };
 
@@ -651,7 +659,7 @@ class OrganizationContext {
       policy: SandboxWorkspacesConfig;
       unusedRuleSince: number;
       holds: ActiveHolds;
-      heldSessions: Set<string>;
+      heldSessions: HeldMemberWorkspaces;
     }>
   >();
 
@@ -741,23 +749,41 @@ async function readWorkspacesPolicy(
   }
 }
 
-/** The workspaces a custodian hold keeps: every held member's workspace with
- * every agent that has one in the organization. The member is not recorded
- * on the session row — the id is derived from agent and member — so it is
- * derived the same way here. */
+/** Whether a workspace is one a custodian hold keeps. */
+interface HeldMemberWorkspaces {
+  has(sessionId: string): boolean;
+}
+
+/** The workspaces a custodian hold keeps: every worker of every held
+ * member's workspace family with every agent that has one in the
+ * organization. The member is not recorded on the session row — the id is
+ * derived from agent and member — so it is derived the same way here, and a
+ * worker is matched by the family it belongs to (`projectAgentWorker`). */
 async function heldMemberSessions(
   sql: Sql | TransactionSql,
   organizationId: string,
   heldUserIds: ReadonlySet<string>,
-): Promise<Set<string>> {
-  const held = new Set<string>();
-  if (heldUserIds.size === 0) return held;
-  for (const agentId of await agentsWithWorkspaces(sql, organizationId)) {
-    for (const userId of heldUserIds) {
-      held.add(memberSessionIdForProjectAgent(agentId, userId));
+): Promise<HeldMemberWorkspaces> {
+  const bases = new Map<string, Set<string>>();
+  if (heldUserIds.size > 0) {
+    for (const agentId of await agentsWithWorkspaces(sql, organizationId)) {
+      bases.set(
+        agentId,
+        new Set(
+          [...heldUserIds].map((userId) =>
+            memberSessionIdForProjectAgent(agentId, userId),
+          ),
+        ),
+      );
     }
   }
-  return held;
+  return {
+    has: (sessionId) =>
+      [...bases].some(([agentId, held]) => {
+        const worker = projectAgentWorker(agentId, sessionId);
+        return worker?.scope === 'member' && held.has(worker.base);
+      }),
+  };
 }
 
 async function agentsWithWorkspaces(
@@ -773,7 +799,7 @@ async function agentsWithWorkspaces(
 
 /** Held: the organization is on hold, or the workspace is a held member's. */
 function heldBack(
-  context: { holds: ActiveHolds; heldSessions: Set<string> },
+  context: { holds: ActiveHolds; heldSessions: HeldMemberWorkspaces },
   sessionId: string,
 ): boolean {
   return context.holds.orgHeld || context.heldSessions.has(sessionId);
@@ -1308,9 +1334,10 @@ export async function retireOwnerWorkspaces(
   return { retired, kept };
 }
 
-/** A member's workspaces with the organization's agents. By default only
- * the ones a row may still hold a workspace for; `settled: true` adds the
- * ones whose rows all read destroyed, for an erasure that must also reach a
+/** A member's workspaces with the organization's agents: every worker of
+ * each family the member's runs with an agent work in. By default only the
+ * ones a row may still hold a workspace for; `settled: true` adds the ones
+ * whose rows all read destroyed, for an erasure that must also reach a
  * directory a healed row left behind. */
 async function memberWorkspaces(
   sql: Sql | TransactionSql,
@@ -1318,18 +1345,22 @@ async function memberWorkspaces(
   userId: string,
   options: { settled?: boolean } = {},
 ): Promise<string[]> {
-  const candidates = (await agentsWithWorkspaces(sql, organizationId)).map(
-    (agentId) => memberSessionIdForProjectAgent(agentId, userId),
-  );
-  if (candidates.length === 0) return [];
-  const rows = await sql<{ sessionId: string }[]>`
-    SELECT session_id AS "sessionId" FROM app.sandbox_sessions
+  const rows = await sql<{ sessionId: string; agentId: string }[]>`
+    SELECT session_id AS "sessionId", min(owner_id) AS "agentId"
+    FROM app.sandbox_sessions
     WHERE org_id = ${organizationId} AND owner_type = 'project_agent'
-      AND session_id = ANY(${candidates})
     GROUP BY session_id
     HAVING ${options.settled === true} OR bool_or(status <> 'destroyed')
   `;
-  return rows.map((row) => row.sessionId);
+  return rows
+    .filter((row) => {
+      const worker = projectAgentWorker(row.agentId, row.sessionId);
+      return (
+        worker?.scope === 'member' &&
+        worker.base === memberSessionIdForProjectAgent(row.agentId, userId)
+      );
+    })
+    .map((row) => row.sessionId);
 }
 
 async function isMember(
@@ -1372,9 +1403,9 @@ async function heldAgain(
 }
 
 /** A hold that keeps a deleted agent's workspace, as the sweep's would: on
- * the organization, or on the member whose own workspace with the agent it
- * is. The member is not on the row — the id is derived from agent and member,
- * so it is matched the same way. */
+ * the organization, or on the member whose own workspace family with the
+ * agent it belongs to. The member is not on the row — the id is derived from
+ * agent and member, so it is matched the same way. */
 async function agentWorkspaceHeld(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -1383,8 +1414,10 @@ async function agentWorkspaceHeld(
 ): Promise<boolean> {
   const holds = await loadActiveHolds(sql, organizationId);
   if (holds.orgHeld) return true;
+  const worker = projectAgentWorker(agentId, sessionId);
+  if (worker?.scope !== 'member') return false;
   for (const userId of holds.userMembershipIds) {
-    if (memberSessionIdForProjectAgent(agentId, userId) === sessionId) {
+    if (memberSessionIdForProjectAgent(agentId, userId) === worker.base) {
       return true;
     }
   }
@@ -1442,15 +1475,17 @@ export type RetireOrganizationPayload =
  * The `sandbox.retire_organization` job, in the order that keeps every step
  * reachable: the gateway keys minted for the organization's sessions are
  * revoked first (a key has no TTL of its own, and spends against providers
- * nobody answers for any more); then its workspaces are destroyed, whatever
- * runs in them — the organization is gone. An organization with a long
- * history is split over several jobs, and the last one alone lets the hub go
- * of its devices and removes what the spawner still holds for it — once its
- * own workspaces and every other slice's are gone, since a device's
- * workspaces are reachable only while the hub still knows where they live.
- * Every step is idempotent; the job THROWS until all of them have succeeded,
- * so the queue's backoff retries, and the hourly sweep's inventory is the
- * backstop past its last retry.
+ * nobody answers for any more), and the last slice removes the provider keys
+ * and provider records the organization gave the gateway; then its
+ * workspaces are destroyed, whatever runs in them — the organization is
+ * gone. An organization with a long history is split over several jobs, and
+ * the last one alone lets the hub go of its devices and removes what the
+ * spawner still holds for it — once its own workspaces and every other
+ * slice's are gone, since a device's workspaces are reachable only while the
+ * hub still knows where they live. Every step is idempotent; the job THROWS
+ * until all of them have succeeded, so the queue's backoff retries, and the
+ * hourly sweep's inventory is the backstop past its last retry (for the
+ * spawner; the gateway has none).
  */
 export async function retireOrganizationSandboxes(
   payload: RetireOrganizationPayload,
@@ -1471,6 +1506,22 @@ export async function retireOrganizationSandboxes(
         error,
       );
       failures.push(`key ${keyId}`);
+    }
+  }
+  // Revoked virtual keys leave the credentials they spent through in the
+  // gateway's store. The last slice removes them, not held back for the other
+  // slices or the devices: a virtual key whose provider key is gone reaches
+  // nothing, the slice that revokes it still does, and an offline device must
+  // not keep an organization's credentials in the gateway.
+  if (payload.teardown) {
+    try {
+      await spawner.removeOrganizationFromGateway(payload.organizationId);
+    } catch (error) {
+      console.error(
+        `[sandbox.cleanup] removing deleted organization ${payload.organizationId} from the gateway failed:`,
+        error,
+      );
+      failures.push('gateway provider keys');
     }
   }
   for (const sessionId of payload.sessionIds) {

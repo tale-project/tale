@@ -531,7 +531,7 @@ const LIST_READ_SUBJECTS: Record<RagSearchKind, AgentReadSubject> = {
   // its conversation is, so the role that gates the inbox gates its files.
   'mail-attachment': 'conversations',
   'web-page': 'websites',
-  'knowledge-entry': 'documents',
+  'knowledge-entry': 'knowledge_entries',
   contact: 'contacts',
   product: 'products',
   website: 'websites',
@@ -1042,6 +1042,7 @@ export function createChatToolExecutor(
 
     const [
       documentsAllowed,
+      knowledgeEntriesAllowed,
       contactsAllowed,
       productsAllowed,
       websitesAllowed,
@@ -1050,6 +1051,7 @@ export function createChatToolExecutor(
       conversationsAllowed,
     ] = await Promise.all([
       readAllowed('documents'),
+      readAllowed('knowledge_entries'),
       readAllowed('contacts'),
       readAllowed('products'),
       readAllowed('websites'),
@@ -1271,9 +1273,9 @@ export function createChatToolExecutor(
     // concatenated list, which would let document hits starve an exact
     // contact or product match out of the results entirely.
 
-    // Leg 2 — knowledge entries (Convex rows; lexical topic match).
+    // Leg 2 — organization-wide knowledge entries (lexical topic match).
     if (runLeg('knowledge-entry')) {
-      if (documentsAllowed) {
+      if (knowledgeEntriesAllowed) {
         const entries = await ctx.runQuery(
           internal.knowledge_entries.internal_queries.listEntriesForAgent,
           {

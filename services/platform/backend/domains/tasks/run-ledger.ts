@@ -156,8 +156,9 @@ export async function recordTaskAgentRunLedgerEntry(
 
   // The read-set: distinct knowledge refs from this session's tool calls.
   // Attribution prefers the row's exec pin — a row pinned to a DIFFERENT
-  // exec is a sibling turn's read on the same standing session and is
-  // excluded even inside the time window, because false provenance is worse
+  // exec is another turn's read in the same worker (a steered turn's
+  // predecessor or successor, or an earlier task's) and is excluded even
+  // inside the time window, because false provenance is worse
   // than omission (the full trail stays queryable on the tool-call table).
   const calls = await tx<
     { knowledgeRefs: string[] | null; mintedKeyId: string | null }[]

@@ -143,6 +143,16 @@ test('tag admission binds source and digest and all backend roles consume that d
   };
   const deps: RuntimeDependencies = { exec: async () => ok([metadata]) };
   expect(await admitTagAutomationImage(config, 2, deps)).toBe(reference);
+  await expect(
+    admitTagAutomationImage(config, 1, {
+      exec: async (_c, args) => (args[0] === 'ps' ? ok(db.Id) : ok([metadata])),
+    }),
+  ).rejects.toThrow('cutover barrier');
+  expect(
+    await admitTagAutomationImage(config, 1, {
+      exec: async (_c, args) => (args[0] === 'ps' ? ok('') : ok([metadata])),
+    }),
+  ).toBe(reference);
   const compose = parse(
     generateColorCompose({ ...config, platformImage: reference }, 'green'),
   );
@@ -404,6 +414,64 @@ test('tag floor never substitutes the bundled ledger for a current or removed ex
       if (previous[key] === undefined) delete process.env[key];
       else process.env[key] = previous[key];
   }
+});
+
+test('managed apply cannot start protocol two over an unsupported legacy writer', async () => {
+  const fixture = runtimeFixture();
+  fixtures.push(fixture);
+  const docker = new RuntimeDockerFixture(fixture);
+  const prepare = () =>
+    prepareRuntime(
+      {
+        repoRoot: fixture.repoRoot,
+        revision: fixture.revision,
+        output: fixture.options.bundleDirectory,
+        platform: 'linux/amd64',
+      },
+      docker.dependencies(),
+    );
+  await prepare();
+  installLegacy(fixture, docker);
+  writeFileSync(
+    join(fixture.repoRoot, AUTOMATION_PROTOCOL_SOURCE),
+    'export const ENGINE_PROTOCOL = 2;\n',
+  );
+  writeFileSync(
+    join(
+      fixture.repoRoot,
+      'services/platform/backend/db/migrations/0163_automation_legacy_protocol.sql',
+    ),
+    'SELECT 1;\n',
+  );
+  fixture.git('add', '.');
+  fixture.git('commit', '-qm', 'new protocol target');
+  fixture.revision = fixture.git('rev-parse', 'HEAD');
+  fixture.options.bundleDirectory = join(fixture.directory, 'protocol-two');
+  await prepare();
+  docker.calls = [];
+  await expect(
+    applyRuntime(fixture.options, {
+      ...docker.dependencies(),
+      exec: async (command, args, options) => {
+        if (
+          args[0] === 'ps' &&
+          args.some(
+            (arg) =>
+              arg === 'label=com.docker.compose.project=tale-blue' ||
+              arg === 'label=com.docker.compose.project=tale-green',
+          )
+        )
+          return ok('');
+        return docker.execute(command, args, options);
+      },
+    }),
+  ).rejects.toThrow('verified b493');
+  expect(
+    docker.calls.some(
+      (call) => call.args[0] === 'compose' && call.args.includes('up'),
+    ),
+  ).toBe(false);
+  expect(docker.calls.some((call) => call.args[0] === 'stop')).toBe(false);
 });
 
 test('managed source protocol requires its migration and rechecks the immutable image before mutation', async () => {

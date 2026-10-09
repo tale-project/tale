@@ -11,15 +11,18 @@ import {
   TASK_RESOURCE_TYPE,
 } from '../../core/tasks/audit_actions.ts';
 import {
+  TASK_DESCRIPTION_MAX,
   taskWorkflowSubjectInput,
   truncateImportedDescription,
   truncateImportedTitle,
 } from '../../core/tasks/helpers.ts';
+import { descriptionMentionMode } from '../../core/tasks/mentions.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { describeLegacyQuarantine } from '../automations/legacy-quarantine.ts';
 import { beginRunInTx } from '../automations/store.ts';
+import { prepareSurfaceText } from '../collab/mention-directory.ts';
 import { emitEvent } from '../events/emit.ts';
 import { endRepeatForAutomationOwner } from './repeat.ts';
 import {
@@ -249,6 +252,33 @@ export interface UpsertTaskByExternalRefResult {
    * alone (a source-snapshot reconcile, an archived task). With no task,
    * the title a create would have stored. */
   title: string;
+}
+
+/**
+ * The description an intake stores. Text a caller writes (a script, a
+ * workflow) stores its mentions as whom they name, as the app does; an issue
+ * mirrored from GitHub or GlitchTip keeps its `@people` as written, since
+ * they are that tracker's. Either way a mention token must name someone who
+ * can be mentioned on the task, or it is stored as plain text. An intake
+ * notifies nobody it names, as before.
+ */
+async function storedIntakeDescription(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    projectId: string;
+    externalSystem: string;
+    description: string;
+  },
+): Promise<string> {
+  const prepared = await prepareSurfaceText(tx, {
+    organizationId: args.organizationId,
+    projectId: args.projectId,
+    body: args.description,
+    cap: TASK_DESCRIPTION_MAX,
+    mode: descriptionMentionMode(args.externalSystem),
+  });
+  return prepared.text;
 }
 
 /**
@@ -516,10 +546,20 @@ export async function upsertTaskByExternalRef(
       });
     }
 
+    const storedDescription = preserveDescription
+      ? existing.description
+      : description === undefined
+        ? null
+        : await storedIntakeDescription(tx, {
+            organizationId: args.organizationId,
+            projectId: existing.projectId,
+            externalSystem,
+            description,
+          });
     await tx`
       UPDATE app.tasks SET
         title = ${title},
-        description = ${preserveDescription ? existing.description : (description ?? null)},
+        description = ${storedDescription},
         label_ids = ${labelIds},
         external_url = ${args.externalUrl ?? existing.externalUrl},
         assignee_type = ${assigneePatch?.assigneeType ?? existing.assigneeType},
@@ -657,6 +697,15 @@ export async function upsertTaskByExternalRef(
       createdBy: args.actorId,
       createIfMissing: args.mintLabels ?? true,
     })) ?? [];
+  const storedDescription =
+    description === undefined
+      ? null
+      : await storedIntakeDescription(tx, {
+          organizationId: args.organizationId,
+          projectId,
+          externalSystem,
+          description,
+        });
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.tasks (
       org_id, project_id, title, description, status, priority, label_ids,
@@ -665,7 +714,7 @@ export async function upsertTaskByExternalRef(
       completed_at_ms, external_closed_at_ms, created_by,
       created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms
     ) VALUES (
-      ${args.organizationId}, ${projectId}, ${title}, ${description ?? null},
+      ${args.organizationId}, ${projectId}, ${title}, ${storedDescription},
       ${status}, ${args.priority ?? null}, ${labelIds},
       ${ownerAutomation !== null ? 'app' : null}, ${ownerAutomation},
       ${rank}, ${number}, ${externalSystem}, ${externalId},

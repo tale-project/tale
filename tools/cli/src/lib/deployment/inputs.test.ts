@@ -510,7 +510,9 @@ test('failed private source checkout scrubs errors and removes its ephemeral key
         throw new Error('must not reach source consumer');
       },
     ),
-  ).rejects.toThrow('read-only checkout key');
+  ).rejects.toThrow(
+    'configuration deployment source during fetch (exit 1; failure hint: unknown)',
+  );
   expect(keySeen).toBe(true);
   expect(() => readFileSync(keyFile)).toThrow();
 });

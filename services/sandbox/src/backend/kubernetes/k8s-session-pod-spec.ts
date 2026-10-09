@@ -113,6 +113,45 @@ function memoryBytes(quantity: string): number {
   return Number(m[1]) * (MEMORY_UNITS[m[2] ?? ''] ?? Number.NaN);
 }
 
+/** What a session's runner asks of the node's disk (`ephemeral-storage`), and
+ * what it may write there outside its sized volumes: the writable root
+ * filesystem (an inner dockerd's under DinD) and the container logs, which
+ * the kubelet rotates at 10 MiB, keeping five files, by default. Without
+ * them a session can fill
+ * a node until DiskPressure evicts the platform's Pods beside it; with them
+ * the kubelet evicts the session alone, and under node disk pressure it
+ * evicts Pods using more than they request first, by priority, then by how
+ * far their use exceeds their request. */
+const EPHEMERAL_STORAGE = { request: '256Mi', headroom: '2Gi' } as const;
+
+/** sizeLimit of a DinD session's inner Docker store (`/var/lib/docker`). A
+ * single pull of a large build image unpacks to several GiB, and an emptyDir
+ * past its sizeLimit gets the whole session evicted, so the store is sized on
+ * its own rather than like the workspace. */
+export const DOCKER_STORAGE_SIZE_LIMIT = '20Gi';
+
+const BINARY_UNITS = [
+  ['Ti', 2 ** 40],
+  ['Gi', 2 ** 30],
+  ['Mi', 2 ** 20],
+  ['Ki', 2 ** 10],
+] as const;
+
+/** The sum of storage quantities, in the largest binary unit that holds it
+ * exactly ('2Gi' + '20Gi' → '22Gi'). */
+function sumStorage(quantities: readonly string[]): string {
+  const bytes = Math.ceil(
+    quantities.reduce((total, quantity) => total + memoryBytes(quantity), 0),
+  );
+  if (!Number.isFinite(bytes)) {
+    throw new Error(
+      `k8s-session-pod-spec: unreadable storage quantity in ${JSON.stringify(quantities)}`,
+    );
+  }
+  const unit = BINARY_UNITS.find(([, size]) => bytes % size === 0);
+  return unit ? `${bytes / unit[1]}${unit[0]}` : String(bytes);
+}
+
 /** The request, unless it would exceed the limit (the apiserver refuses a
  * request above its limit, which failed every create). */
 function notAbove(
@@ -199,6 +238,21 @@ export function buildSessionPod(
   // a provisioned volume (a CSI create/attach/delete per batch). Agent
   // sessions keep their PVC across stop and resume.
   const durableWorkspace = isAgentSessionProfile(inp.profile);
+  const dockerStorageSizeLimit =
+    cfg.k8s.dockerStorageSizeLimit ?? DOCKER_STORAGE_SIZE_LIMIT;
+  // The kubelet evicts a Pod whose disk use (writable layers, logs and
+  // disk-backed emptyDirs) exceeds the sum of its containers' limits, so the
+  // runner's limit is its headroom plus every sized scratch volume it mounts.
+  const ephemeralLimit = sumStorage([
+    cfg.k8s.ephemeralStorageLimit ?? EPHEMERAL_STORAGE.headroom,
+    ...(durableWorkspace ? [] : [cfg.k8s.workspaceSizeLimit]),
+    ...(dind ? [dockerStorageSizeLimit] : []),
+  ]);
+  const ephemeralRequest = notAbove(
+    cfg.k8s.ephemeralStorageRequest ?? EPHEMERAL_STORAGE.request,
+    ephemeralLimit,
+    memoryBytes,
+  );
 
   // Transparent egress (non-DinD, supported tier). A native sidecar (an init
   // container with restartPolicy: Always — K8s 1.28+) holds NET_ADMIN, installs
@@ -217,6 +271,12 @@ export function buildSessionPod(
   // REDIRECT inline (signalled via TALE_TRANSPARENT_EGRESS in the runner env
   // below), exactly like the docker DinD path.
   const transparentEgressSidecar = transparentEgress && !dind;
+  // On a node that reports no ephemeral-storage capacity any request at all
+  // leaves the Pod unschedulable, so a zero runner request zeroes the
+  // sidecar's too. It stays explicit: a container with a limit and no
+  // request is given its limit as the request.
+  const egressEphemeralRequest =
+    memoryBytes(ephemeralRequest) === 0 ? '0' : '16Mi';
   const egressSidecars = transparentEgressSidecar
     ? [
         {
@@ -228,12 +288,20 @@ export function buildSessionPod(
           args: ['egress-sidecar'],
           // Native sidecar: started (and kept running) before the runner.
           restartPolicy: 'Always',
-          // redsocks idles at ~2 MB. Explicit resources also let the Pod
-          // through a namespace ResourceQuota, which refuses any container
-          // without them.
+          // redsocks idles at ~2 MB and logs only errors. Explicit resources
+          // also let the Pod through a namespace ResourceQuota, which refuses
+          // any container without them.
           resources: {
-            requests: { cpu: '10m', memory: '16Mi' },
-            limits: { cpu: '250m', memory: '64Mi' },
+            requests: {
+              cpu: '10m',
+              memory: '16Mi',
+              'ephemeral-storage': egressEphemeralRequest,
+            },
+            limits: {
+              cpu: '250m',
+              memory: '64Mi',
+              'ephemeral-storage': '128Mi',
+            },
           },
           env: [
             // redsocks resolves the egress proxy endpoint from these.
@@ -309,6 +377,21 @@ export function buildSessionPod(
       ...(cfg.k8s.runtimeClassName !== null && {
         runtimeClassName: cfg.k8s.runtimeClassName,
       }),
+      // Operator placement, for every profile: untrusted (under runc DinD,
+      // privileged) sessions kept to their own nodes, and ranked below the
+      // platform when the scheduler preempts or the kubelet evicts. Unset,
+      // the fields are omitted and the scheduler places sessions anywhere.
+      ...(cfg.k8s.nodeSelector !== undefined && {
+        nodeSelector: { ...cfg.k8s.nodeSelector },
+      }),
+      ...(cfg.k8s.tolerations !== undefined && {
+        tolerations: cfg.k8s.tolerations.map((toleration) => ({
+          ...toleration,
+        })),
+      }),
+      ...(cfg.k8s.priorityClassName !== undefined && {
+        priorityClassName: cfg.k8s.priorityClassName,
+      }),
       securityContext: {
         fsGroup: gid,
         // Without it the kubelet re-chowns the whole workspace (repositories,
@@ -339,7 +422,7 @@ export function buildSessionPod(
           ? [
               {
                 name: 'docker-storage',
-                emptyDir: { sizeLimit: cfg.k8s.workspaceSizeLimit },
+                emptyDir: { sizeLimit: dockerStorageSizeLimit },
               },
             ]
           : []),
@@ -352,6 +435,10 @@ export function buildSessionPod(
           name: 'runner',
           image: cfg.runtimeImage,
           imagePullPolicy: 'IfNotPresent',
+          // A runner that exits during start (the entrypoint's FATAL line)
+          // reports its last log lines as the termination message, which a
+          // create that fails fast names as the reason.
+          terminationMessagePolicy: 'FallbackToLogsOnError',
           // `daemon` entrypoint dispatch → tini (PID 1, reaps orphans) + runnerd.
           args: ['daemon'],
           envFrom,
@@ -412,8 +499,12 @@ export function buildSessionPod(
             failureThreshold: 6,
           },
           resources: {
-            requests,
-            limits: { cpu: cpuLimit, memory: memLimit },
+            requests: { ...requests, 'ephemeral-storage': ephemeralRequest },
+            limits: {
+              cpu: cpuLimit,
+              memory: memLimit,
+              'ephemeral-storage': ephemeralLimit,
+            },
           },
           securityContext: runnerSecurityContext,
           volumeMounts: [

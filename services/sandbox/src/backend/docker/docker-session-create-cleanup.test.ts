@@ -9,8 +9,12 @@ async function failedCreate(options: {
   removalFails?: boolean;
   discardFails?: boolean;
   destroyAfterFailure?: boolean;
+  /** `docker run` loses the name to a container in this state, labelled
+   * with this instance (the default instance when absent). */
+  conflict?: { status: string; instance?: string };
 }): Promise<{
   error: string | null;
+  errorName: string | null;
   destroyError: string | null;
   warnings: string[];
   workspace: boolean;
@@ -40,11 +44,15 @@ mock.module(spawnPath, () => ({...realSpawn,
   runDocker: async (args) => {
     if (args[0] === 'run') {
       createAttempt = args.find(value => value.startsWith('tale.create-attempt='))?.split('=')[1] ?? '';
+      if (options.conflict) return {...success,exitCode:125,stderr:'docker: Error response from daemon: Conflict. The container name "/tale-sbx-ses-failed" is already in use by container "'+containerId+'".'};
       return {...success,exitCode:1,stderr:'runtime startup failed'};
     }
     if (args[0] === 'inspect') {
       if (containerGone) return {...success,exitCode:1,stderr:'No such container'};
       const format = args[2];
+      if (options.conflict && format.includes('State.Status')) {
+        return {...success,stdout:format.includes('.Id') ? containerId+'\t'+options.conflict.status : options.conflict.status+'\t'+(options.conflict.instance ?? '')};
+      }
       if (format.includes('tale.create-attempt')) return {...success,stdout:containerId+'\\t0\\t'+createAttempt};
       if (format.includes('tale.docker')) return {...success,stdout:containerId+'\\tfalse\\t'};
       return {...success,stdout:format.includes('Mounts') ? '' : 'true'};
@@ -87,17 +95,18 @@ const cfg = {
  session:{...TEST_SESSION_CONFIG,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
 };
 let error = null;
+let errorName = null;
 let destroyError = null;
 const backend = new DockerSessionBackend(cfg,trash);
 try {
   await backend.createSession({sessionId:'failed',organizationId:'org-failed',profile:'agent',env:{},createdAtMs:0,ttlMs:1000,idleTimeoutMs:1000});
-} catch (e) { error = e.message; }
+} catch (e) { error = e.message; errorName = e.name; }
 if (options.destroyAfterFailure) {
   try { await backend.destroySession('failed'); }
   catch (e) { destroyError = e.message; }
 }
 const exists = async (path) => stat(path).then(() => true, () => false);
-const result = {error,destroyError,warnings,workspace:await exists(workspace),owner:await exists(owner),trashEntries:(await readdir(trash.dir).catch(() => [])).length,discarded,containerGone,removalTargets};
+const result = {error,errorName,destroyError,warnings,workspace:await exists(workspace),owner:await exists(owner),trashEntries:(await readdir(trash.dir).catch(() => [])).length,discarded,containerGone,removalTargets};
 gate.resolve();
 await trash.empty();
 await rm(root,{recursive:true,force:true});
@@ -167,5 +176,32 @@ describe('Docker session failed-create cleanup', () => {
     expect(result.owner).toBe(false);
     expect(result.discarded).toBe(1);
     expect(result.trashEntries).toBe(1);
+  });
+
+  // A running container of this spawner's instance under the name is a live
+  // session the registry lost: answered as a duplicate, so the platform
+  // adopts it instead of cleaning up after a failed create.
+  test('a name taken by a running session is a live duplicate, and nothing is removed', async () => {
+    const result = await failedCreate({ conflict: { status: 'running' } });
+    expect(result.errorName).toBe('SessionExistsError');
+    expect(result.error).toContain('already exists');
+    expect(result.removalTargets).toEqual([]);
+    expect(result.containerGone).toBe(false);
+    expect(result.workspace).toBe(true);
+    expect(result.owner).toBe(true);
+  });
+
+  test('a name taken by a container that is not running stays a failed create, and nothing is removed', async () => {
+    for (const conflict of [
+      { status: 'created' },
+      { status: 'removing' },
+      { status: 'running', instance: 'device' },
+    ]) {
+      const result = await failedCreate({ conflict });
+      expect(result.errorName).toBe('Error');
+      expect(result.error).toContain('is already in use');
+      expect(result.removalTargets).toEqual([]);
+      expect(result.workspace).toBe(true);
+    }
   });
 });

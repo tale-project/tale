@@ -10,6 +10,55 @@ combining both. Each entry records before/after behavior, changed paths, source 
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
 
+## Recovering a canceled workflow tail
+
+A required `CI ready` job uses `always()` so it can explicitly reject canceled or
+missing evidence. Under runner pressure, a canceled workflow can keep that final job
+queued while a newer duplicate waits on the workflow concurrency lock. Keep the final
+check enforced: a skipped required job can count as passing.
+
+The CLI workspace owns a bounded recovery command for one explicitly selected pair:
+
+```sh
+bun tools/cli/scripts/ci-retire-tail.ts --pr 123 --older-run 1000 --replacement-run 1001
+```
+
+Its default is a read-only manifest. Both runs must belong to the same open, non-draft
+Tale PR, current head and base, branch, event and native workflow. The replacement
+must be newer and pending with no jobs. The predecessor must have exactly one
+unallocated, queued final check; every other job must be terminal with at least one
+cancellation and no failure. GitHub reports an unassigned runner as either `0` or
+`null`; a missing runner field or a positive runner ID is refused. Complete,
+attempt-bound job inventories are paged with
+fixed limits. A changed, stale, incomplete, foreign or unreadable observation preserves
+both runs. Actual work that is still queued or running is never eligible.
+
+After reviewing an eligible manifest, add `--apply --receipt /absolute/private/path.jsonl`
+to cancel that predecessor. The command repeats the complete observation, refuses a
+changed graph, exclusively creates an owner-only receipt, flushes its file and parent directory, and
+sends at most one
+cancellation request using existing `gh` authentication. It creates no credential or
+permission grant. Without existing Actions write access, keep the read-only manifest
+for an authorized operator. Metadata reads and writes share a 60-second, 40-request
+budget; each read includes at most five pages of 100 jobs.
+
+The receipt distinguishes confirmed cancellation, accepted but still pending readback,
+and an unknown outcome after dispatch. A lost response is never retried automatically:
+inspect the exact run before another decision and retain the receipt. Reusing its path
+is refused. GitHub does not offer a compare-and-cancel operation, so re-observation
+bounds the race but cannot make the read and cancellation atomic. A later run attempt,
+new head, a different PR containing the same code, workflow aggregates still queued,
+or all-success predecessors need separate source review; this command does not infer
+that they are disposable. It changes no required check or merge rule and is not an
+org-wide cancellation scheduler. Applying requires a POSIX filesystem that supports
+file and directory synchronization; Windows retains read-only operation. Any receipt
+or directory-flush failure preserves the runs before dispatch.
+
+The caller owns credential selection. A managed worker supplies its existing,
+authorized credential as `GH_TOKEN` for this command's process, following its
+provisioned instructions; an operator may use their existing `gh` authentication.
+The shared command does not look up agent secrets or change global authentication.
+
 ## Current execution graph
 
 - **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run
@@ -808,12 +857,44 @@ scope policy and passed, failed and incomplete readiness evidence.
 
 Source alone does not activate branch protection. Before requiring these contexts, observe
 their exact live names and GitHub Actions application identity (15368), positive and negative
-PR cases, and failed/latest rerun behavior. If a merge queue is configured, also observe
-positive and negative `merge_group` runs. Otherwise record live queue proof as not applicable,
-retain the source guards for that event and its full scope, and require live queue proof before
-enabling a queue. Bind the seven contexts to that app; generic candidate or skipped execution
+PR cases, and failed/latest rerun behavior. The merge queue is configured (see
+[Merge queue](#merge-queue)); observe positive and negative `merge_group` runs and record them
+here. Retain the source guards for that event and its full scope. Bind the seven contexts to that app; generic candidate or skipped execution
 jobs cannot substitute for them. Keep the coordinator's
 exact-head checks and independent review until enforcement is active and observed. Independent
 review remains a separate obligation; a CI readiness result does not certify it.
+
+### Merge queue
+
+`main` lands through a GitHub merge queue (ruleset **Tale required CI**, since 2026-10-09):
+squash merges, groups of up to five PRs, up to five PRs building at once, all-green grouping
+(a group merges only when every PR in it passes) and a 360-minute check timeout. The build cap
+and timeout follow from the runner budget: the public repository's free plan runs about 20 jobs at
+once across every PR and queue run, a full merge-group run needs dozens, so speculative builds
+beyond one group only starve PR runs, and a queued run can wait hours for a runner. Build's full
+merge-group run takes up to about 90 minutes. The ruleset no longer requires a branch to be up to
+date before merging; the queue checks the result that will actually land. With about 75 merges a
+day, "up to date" forced every other open PR to rebase and re-run CI after each merge.
+Each queued PR still gets its own squash commit on `main`, so the release gate's
+one-PR-per-merge-commit rule holds.
+
+**Most validation runs only in the queue.** A pull request's run is the fast tier: Commitlint,
+SAST, Security (path-scoped) and the Checks lanes Format, Lint, Type check, Knip and Unit. E2E,
+Build, CLI and Backend integration pass `queue-only: 'true'` to the scope action, so on a pull
+request their scope reports not applicable and every job skips; the Checks suites in
+`CHECKS_MERGE_QUEUE_ONLY` (`tools/cli/scripts/ci-ready.ts`: Build, UI and its shards, Performance,
+Browser) carry `github.event_name != 'pull_request'` and readiness requires them skipped there.
+Each workflow still reports its `CI ready (…)` context on the PR, so the PR can enter the queue,
+and the merge group runs everything at full scope before it lands. Run the heavy suites a change
+touches locally before queueing it; a red there ejects the PR from the queue. To bring a suite
+back to pull requests, drop the scope's `queue-only` input or the job from
+`CHECKS_MERGE_QUEUE_ONLY`; `ci-ready-workflows.test.ts` pins both lists to the YAML.
+
+The seven `CI ready (…)` contexts are what the queue waits for. Every workflow listens for
+`merge_group` and runs full scope there, and each concurrency group keys on the ref; a
+merge-group ref (`gh-readonly-queue/main/pr-<n>-<sha>`) is unique, so queued runs never cancel
+each other or a PR run. A PR that fails in its group leaves the queue, and the PRs behind it are
+rebuilt without it. Live proof is recorded under
+[Activation and observation](#activation-and-observation) as it is observed.
 
 The complete [release-candidate gate](RELEASING.md) remains required before tagging a release.

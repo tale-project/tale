@@ -12,6 +12,7 @@
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-cutover-sql.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]
@@ -51,6 +52,7 @@
         "$TURBO_ROOT$/services/sandbox/src/config.ts",
         "$TURBO_ROOT$/.github/ci-scope.yml",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-cutover-sql.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]
@@ -199,6 +201,7 @@
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-cutover-sql.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]

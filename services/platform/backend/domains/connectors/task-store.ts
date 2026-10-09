@@ -13,12 +13,14 @@ import type {
 } from '../../../lib/connectors/natives/index.ts';
 import type { WorkflowIssueInput } from '../../../lib/connectors/natives/platform-tasks.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import { taskMentionPlainText } from '../../core/tasks/mentions.ts';
 import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import {
   bindingProjectIds,
   getRun,
   resolveRunProject,
 } from '../automations/store.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import {
   getProjectAuthContext,
   loadProjectOrThrow,
@@ -33,6 +35,7 @@ import {
 import {
   type DelegatedAgentStart,
   startDelegatedAgentRun,
+  withStartWait,
 } from '../tasks/delegated-start.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
 import { readImportCursor, saveImportCursor } from '../tasks/import-cursors.ts';
@@ -107,6 +110,9 @@ function workflowAgentStartOf(
         taskId: outcome.taskId,
         agentId: outcome.agentId,
         ...(outcome.replayed === true ? { replayed: true } : {}),
+        ...(outcome.waiting !== undefined
+          ? { waitingReason: outcome.waiting.reason }
+          : {}),
       };
     case 'already_running':
       return {
@@ -139,15 +145,9 @@ function workflowAgentStartOf(
         taskId: outcome.taskId,
         agentId: outcome.agentId,
       };
-    case 'agent_busy':
-      return {
-        started: false,
-        reason: 'agent_busy',
-        runId: outcome.runId,
-        busyTaskId: outcome.busyTaskId,
-        taskId: outcome.taskId,
-        agentId: outcome.agentId,
-      };
+    case 'self_start':
+      // Only an agent starts itself; a step names another agent.
+      throw new Error('an automation step does not start itself');
     case 'blocked':
       return {
         started: false,
@@ -434,7 +434,19 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         taskId: task.id,
         title: task.title,
         status: task.status,
-        ...(task.description !== null ? { description: task.description } : {}),
+        // The description as stored (each mention a mention link), and read
+        // as text, each mention as `@` and the current name.
+        ...(task.description !== null
+          ? {
+              description: task.description,
+              descriptionText: taskMentionPlainText(
+                task.description,
+                await currentMentionNames(sql, organizationId, [
+                  task.description,
+                ]),
+              ),
+            }
+          : {}),
         projectId: task.projectId,
         ...(task.externalSystem != null
           ? { externalSystem: task.externalSystem }
@@ -481,7 +493,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           403,
         );
       }
-      return transactSerializable(sql, async (tx) => {
+      const outcome = await transactSerializable(sql, async (tx) => {
         const run = await getRun(tx, organizationId, caller.runId);
         if (run === null) {
           throw new TaskError(
@@ -509,7 +521,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           run.projectId !== null
             ? [run.projectId]
             : await bindingProjectIds(tx, organizationId, run.name);
-        const outcome = await startDelegatedAgentRun(tx, {
+        return startDelegatedAgentRun(tx, {
           organizationId,
           scopeProjectIds,
           taskId,
@@ -525,8 +537,12 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           ...(feedback !== undefined ? { feedback } : {}),
           ...(moveToInProgress !== undefined ? { moveToInProgress } : {}),
         });
-        return workflowAgentStartOf(outcome);
       });
+      // Whether the run it started waits for a worker, read once the start
+      // has committed.
+      return workflowAgentStartOf(
+        await withStartWait(sql, organizationId, outcome),
+      );
     },
     async getImportCursor({ organizationId, caller, ...key }) {
       if (caller.kind !== 'workflow') {
@@ -568,6 +584,13 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       const page = await listTaskComments(sql, auth, taskId, {
         limit: TASK_COMMENT_PAGE_MAX,
       });
+      // `body` as stored, each mention a mention link; `bodyText` the same
+      // text with each mention as `@` and the current name.
+      const names = await currentMentionNames(
+        sql,
+        organizationId,
+        page.comments.map((comment) => comment.body),
+      );
       return {
         comments: page.comments.map((comment) => ({
           authorType:
@@ -576,6 +599,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
               : ('agent' as const),
           authorId: comment.authorId,
           body: comment.body,
+          bodyText: taskMentionPlainText(comment.body, names),
           ...(comment.bodyByLocale != null
             ? { bodyByLocale: comment.bodyByLocale }
             : {}),
