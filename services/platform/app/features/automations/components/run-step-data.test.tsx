@@ -112,6 +112,48 @@ describe('RunStepData', () => {
     expect(screen.getByText('400 items')).toBeVisible();
   });
 
+  it('shows what a step changed, where its input and output compare', () => {
+    const stored = (
+      value: Record<string, string | number>,
+    ): NonNullable<NodeRunDetail['input']> => ({
+      value,
+      summary: { kind: 'object', keys: Object.keys(value).length },
+      shape: { type: 'object' },
+      bytes: JSON.stringify(value).length,
+      hash: null,
+    });
+    render(
+      <RunStepData
+        detail={detail({
+          type: 'transform',
+          input: stored({ total: 100, currency: 'CHF' }),
+          output: stored({ total: 120, currency: 'CHF', tax: 20 }),
+          change: {
+            equal: false,
+            changes: [],
+            counts: {
+              added: 1,
+              removed: 0,
+              changed: 1,
+              'type-changed': 0,
+              reordered: 0,
+              unknown: 0,
+              unchanged: 1,
+            },
+            total: 2,
+            truncated: false,
+            basis: 'value',
+          },
+        })}
+      />,
+    );
+    const changes = screen
+      .getByRole('heading', { name: 'What it changed' })
+      .closest('section');
+    expect(changes).toHaveTextContent(/total/);
+    expect(changes).toHaveTextContent(/tax/);
+  });
+
   it('passes an axe audit', async () => {
     const { container } = render(
       <RunStepData

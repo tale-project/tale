@@ -1,8 +1,10 @@
 'use client';
 
+import { DataDiff } from '@tale/ui/data-diff';
+import { DataView, type DataViewMode } from '@tale/ui/data-view';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { JsonViewer } from '@tale/ui/json-viewer';
 import { Text } from '@tale/ui/text';
+import { useState } from 'react';
 
 import type { NodeRunDetail } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
@@ -55,14 +57,25 @@ function distinctReads(reads: readonly Read[]): Read[] {
 
 /** One stored value: the value itself, or its summary in words when the
  *  run kept no more of it, with whether parts of it were cut or hidden. */
+/** Values above this size download rather than only copy. */
+const DOWNLOAD_BYTES = 8 * 1024;
+
 function StoredValue({
   label,
   value,
   ctx,
+  mode,
+  onModeChange,
+  showModeSwitch,
+  fileName,
 }: {
   label: string;
   value: NonNullable<NodeRunDetail['input']>;
   ctx: ConditionTextContext;
+  mode: DataViewMode;
+  onModeChange: (mode: DataViewMode) => void;
+  showModeSwitch: boolean;
+  fileName: string;
 }) {
   const { t } = useT('automationRuns');
   const cut = (value.elided?.length ?? 0) > 0 || (value.elidedTotal ?? 0) > 0;
@@ -71,13 +84,30 @@ function StoredValue({
   return (
     <section className="flex flex-col gap-1">
       <h4 className="text-xs font-medium">{label}</h4>
-      {value.value === undefined ? (
-        <Text as="p" className="text-sm">
-          {valueWords(value.summary, ctx)}
-        </Text>
-      ) : (
-        <JsonViewer data={value.value} collapsed={1} />
-      )}
+      <DataView
+        value={value.value}
+        recorded={{
+          elided: value.elided ?? [],
+          redacted: (value.redacted ?? []).map((entry) => entry.pointer),
+          bytes: value.bytes,
+        }}
+        aria-label={label}
+        mode={mode}
+        onModeChange={onModeChange}
+        showModeSwitch={showModeSwitch}
+        toolbar={{
+          copy: true,
+          download: value.bytes > DOWNLOAD_BYTES ? { fileName } : false,
+          fullScreen: { title: label },
+        }}
+        // Past the run's budget for values only the summary was kept.
+        empty={
+          <Text as="p" className="text-sm">
+            {valueWords(value.summary, ctx)}
+          </Text>
+        }
+        density="compact"
+      />
       {cut && (
         <Text as="p" variant="muted" className="text-xs">
           {t('data.elided')}
@@ -97,8 +127,18 @@ function StoredValue({
  * read from the run input and from other steps, each in words with the
  * value it read; the input it received; and what it returned.
  */
-export function RunStepData({ detail }: { detail: NodeRunDetail }) {
+export function RunStepData({
+  detail,
+  fileStem = 'step',
+}: {
+  detail: NodeRunDetail;
+  /** What a downloaded value's file is named after: the automation, the
+   * run and the step. */
+  fileStem?: string;
+}) {
   const { t } = useT('automationRuns');
+  // One Values / Shape switch for every value the step shows.
+  const [mode, setMode] = useState<DataViewMode>('values');
   const { t: tAutomations } = useT('automations');
   const { locale } = useLocale();
   const ctx: ConditionTextContext = {
@@ -167,6 +207,10 @@ export function RunStepData({ detail }: { detail: NodeRunDetail }) {
           label={t('data.received')}
           value={detail.input}
           ctx={ctx}
+          mode={mode}
+          onModeChange={setMode}
+          showModeSwitch
+          fileName={`${fileStem}-input.json`}
         />
       )}
       {detail.output !== undefined && (
@@ -174,8 +218,31 @@ export function RunStepData({ detail }: { detail: NodeRunDetail }) {
           label={t('data.returned')}
           value={detail.output}
           ctx={ctx}
+          mode={mode}
+          onModeChange={setMode}
+          showModeSwitch={detail.input === undefined}
+          fileName={`${fileStem}-output.json`}
         />
       )}
+      {/* What the step changed: shown where the record says its input and
+          output compare (both objects, or both lists). */}
+      {detail.change !== undefined &&
+        detail.input?.value !== undefined &&
+        detail.output?.value !== undefined && (
+          <section className="flex flex-col gap-1">
+            <h4 className="text-xs font-medium">{t('data.changes')}</h4>
+            <DataDiff
+              before={detail.input.value}
+              after={detail.output.value}
+              mode={mode}
+              labels={{
+                before: t('data.received'),
+                after: t('data.returned'),
+              }}
+              aria-label={t('data.changes')}
+            />
+          </section>
+        )}
     </div>
   );
 }

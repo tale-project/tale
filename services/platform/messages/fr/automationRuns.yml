@@ -97,6 +97,7 @@ data:
   readValue: '{operand} : {value}'
   received: Reçu
   returned: Renvoyé
+  changes: 'Ce qu’elle a changé'
   elided: Certaines valeurs étaient trop volumineuses pour être conservées en entier.
   redacted: Les secrets sont masqués.
   call:
