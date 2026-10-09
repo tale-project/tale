@@ -12,8 +12,9 @@ import { PLATFORM_TOOL_ARGS } from '../../../../lib/mcp/args.ts';
 import type { McpCaller } from '../caller.ts';
 import { applySettings } from './apply.ts';
 import { getSettings } from './get.ts';
+import { SETTINGS_HANDLERS } from './handlers.ts';
 import { planSettings } from './plan.ts';
-import { SETTINGS_HANDLERS, type SettingsRegistry } from './registry.ts';
+import type { SettingsRegistry } from './registry.ts';
 
 /** One settings tool, acting as the caller in the caller's organization. */
 export async function dispatchSettingsTool(

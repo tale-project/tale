@@ -90,7 +90,7 @@ function fake(): Fake {
     };
     return {
       kind,
-      access: (caller) => ({
+      access: async ({ caller }) => ({
         read: true,
         write: caller.role === 'admin' || caller.role === 'owner',
       }),

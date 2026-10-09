@@ -43,13 +43,13 @@ export async function getSettings(
   query: SettingsQuery,
 ): Promise<Record<string, unknown>> {
   if (query.kinds === undefined) {
-    return {
-      kinds: SETTINGS_KINDS.map((descriptor) => {
+    const kinds = await Promise.all(
+      SETTINGS_KINDS.map(async (descriptor) => {
         const handler = registry[descriptor.kind];
-        const access = handler?.access(ctx.caller) ?? {
-          read: false,
-          write: false,
-        };
+        const access =
+          handler === undefined
+            ? { read: false, write: false }
+            : await handler.access(ctx);
         return {
           kind: descriptor.kind,
           scope: descriptor.scope,
@@ -63,6 +63,9 @@ export async function getSettings(
           write: access.write,
         };
       }),
+    );
+    return {
+      kinds,
       resources: [],
       refused: [],
       nextCursor: null,

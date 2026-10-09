@@ -79,7 +79,10 @@ export interface SettingsPage {
 
 export interface SettingsKindHandler {
   readonly kind: SettingsKind;
-  access(caller: McpCaller): SettingsAccess;
+  /** What the caller may do with the kind, read through the same gates
+   * the kind's writers apply — some need the database (who is an admin
+   * anywhere, the caller's address for an allowlist). */
+  access(ctx: SettingsContext): Promise<SettingsAccess>;
   /** The id a change names — its `id`, or the one its config carries; null
    * for a kind with a single resource. Throws a coded refusal when the
    * change names none. */
@@ -113,16 +116,12 @@ export interface SettingsKindHandler {
   ): Promise<{ readonly hash: string | null }>;
 }
 
+/** The kinds a deployment serves over MCP, by kind (`handlers.ts`). A kind
+ * the shared descriptors name without a handler here is answered as not
+ * available on the deployment. */
 export type SettingsRegistry = Readonly<
   Partial<Record<SettingsKind, SettingsKindHandler>>
 >;
-
-/**
- * The kinds this deployment serves over MCP, each handler registered beside
- * its native writer. A kind the shared descriptors name without a handler
- * here is answered as not available on this deployment.
- */
-export const SETTINGS_HANDLERS: SettingsRegistry = {};
 
 /** A resource's address in a call — the key `expected` names it by: its
  * kind, then its id when it has one, the form a declaration's resource id
