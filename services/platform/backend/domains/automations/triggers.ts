@@ -124,7 +124,7 @@ const UNUSABLE_WARN_INTERVAL_MS = 60 * 60 * 1000;
 
 /** The binding started a run: the fire stamp and the run it names, in the
  * caller's transaction — the one that inserts the run. */
-async function stampFired(
+export async function stampFired(
   sql: Sql | TransactionSql,
   triggerId: string,
   at: number,

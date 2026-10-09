@@ -166,6 +166,8 @@ import { checkTaskRetryProjectEligibility } from './domains/tasks/retry-eligibil
 import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
+import { checkStandingRoleWakeScenarios } from './domains/tasks/standing-role-wake-scenarios.integration.ts';
+import { checkStandingRoleWake } from './domains/tasks/standing-role-wake.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
 import { checkTtsBudgetReservations } from './domains/tts/budget.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
@@ -64309,6 +64311,14 @@ async function main(): Promise<void> {
       [
         'checkScheduledAgentStarts',
         () => checkScheduledAgentStarts(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkStandingRoleWake',
+        () => checkStandingRoleWake(sql, authCtx, record),
+      ],
+      [
+        'checkStandingRoleWakeScenarios',
+        () => checkStandingRoleWakeScenarios(sql, authCtx, record),
       ],
       [
         'checkDelegatedAgentStartTool',

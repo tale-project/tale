@@ -501,9 +501,10 @@ export async function saveVersion(
       },
     });
     if (version === 1 && args.projectId !== undefined) {
+      const projectId = args.projectId;
       const owned = await tx<{ id: string }[]>`
         SELECT id FROM app.projects
-        WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+        WHERE org_id = ${args.organizationId} AND id = ${projectId}
         LIMIT 1
       `;
       if (owned.length === 0) {
@@ -513,22 +514,25 @@ export async function saveVersion(
           404,
         );
       }
-      const bound = await tx`
-        INSERT INTO app.automation_project_bindings (
-          org_id, automation_name, project_id, bound_at_ms, bound_by
-        ) VALUES (
-          ${args.organizationId}, ${name}, ${args.projectId}, ${Date.now()},
-          ${args.actor}
-        )
-        ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-      `;
+      // The database derives the binding's claim and refuses a second wake.
+      const bound = await claimingWake(
+        () => tx`
+          INSERT INTO app.automation_project_bindings (
+            org_id, automation_name, project_id, bound_at_ms, bound_by
+          ) VALUES (
+            ${args.organizationId}, ${name}, ${projectId}, ${Date.now()},
+            ${args.actor}
+          )
+          ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+        `,
+      );
       if (bound.count > 0) {
         await auditDefinitionWrite(tx, {
           organizationId: args.organizationId,
           actor: args.actor,
           action: 'automation.project.bound',
           name,
-          newState: { projectId: args.projectId },
+          newState: { projectId },
         });
       }
     }
@@ -1166,8 +1170,9 @@ export async function setAutomationProjects(
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
-    // The audit chain first, as every definition writer takes it (`audit.ts`).
+    // Every definition writer takes the audit chain before its name lock.
     await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
     let projectIds = args.projectIds;
     if (args.visibleProjectIds !== undefined) {
       const visible = new Set(args.visibleProjectIds);
@@ -1207,6 +1212,8 @@ export async function setAutomationProjects(
         403,
       );
     }
+    // Lock every existing/requested claim key before the first binding write.
+    await lockWakeClaimKeys(tx, args.organizationId, args.name, projectIds);
     const unbound = await tx<{ projectId: string }[]>`
       DELETE FROM app.automation_project_bindings
       WHERE org_id = ${args.organizationId}
@@ -1222,16 +1229,19 @@ export async function setAutomationProjects(
     for (const { projectId } of unbound) {
       await auditProjectBinding(tx, args, projectId, 'unbound');
     }
-    for (const projectId of new Set(projectIds)) {
-      const bound = await tx`
-        INSERT INTO app.automation_project_bindings (
-          org_id, automation_name, project_id, bound_at_ms, bound_by
-        ) VALUES (
-          ${args.organizationId}, ${args.name}, ${projectId}, ${Date.now()},
-          ${args.actor}
-        )
-        ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-      `;
+    // Ordered, deduplicated inserts retain upstream no-op audit semantics.
+    for (const projectId of [...new Set(projectIds)].sort()) {
+      const bound = await claimingWake(
+        () => tx`
+          INSERT INTO app.automation_project_bindings (
+            org_id, automation_name, project_id, bound_at_ms, bound_by
+          ) VALUES (
+            ${args.organizationId}, ${args.name}, ${projectId}, ${Date.now()},
+            ${args.actor}
+          )
+          ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+        `,
+      );
       if (bound.count > 0) {
         await auditProjectBinding(tx, args, projectId, 'bound');
       }
@@ -1284,6 +1294,7 @@ export async function bindProjectInTx(
     actor: string;
   },
 ): Promise<{ bound: boolean }> {
+  await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
   const owned = await tx<{ id: string }[]>`
     SELECT id FROM app.projects
     WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
@@ -1295,10 +1306,9 @@ export async function bindProjectInTx(
       404,
     );
   }
-  // The audit chain before the binding row, as every definition writer
-  // takes it (`audit.ts`).
-  await lockAuditChain(tx, args.organizationId);
-  const inserted = await tx`
+  // The binding trigger retains the SERIALIZABLE snapshot fence.
+  const inserted = await claimingWake(
+    () => tx`
       INSERT INTO app.automation_project_bindings (
         org_id, automation_name, project_id, bound_at_ms, bound_by
       ) VALUES (
@@ -1306,7 +1316,8 @@ export async function bindProjectInTx(
         ${args.actor}
       )
       ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-    `;
+    `,
+  );
   const bound = inserted.count > 0;
   // An idempotent re-add changed nothing — no screen needs a refetch, and
   // nothing is audited.
@@ -1330,8 +1341,7 @@ export async function unbindProjectInTx(
     actor: string;
   },
 ): Promise<{ unbound: boolean }> {
-  // The audit chain before the binding row (`audit.ts`).
-  await lockAuditChain(tx, args.organizationId);
+  await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
   const removed = await tx`
     DELETE FROM app.automation_project_bindings
     WHERE org_id = ${args.organizationId}
@@ -1366,6 +1376,10 @@ export interface TriggerInput {
   event?: string;
   enabled?: boolean;
   rotateToken?: boolean;
+  /** A schedule only: fire early when an agent of its project frees its
+   * slot (#4540, `automations/wakes.ts`). Only the managed door sets it; a
+   * save that omits it keeps it, and a kind change clears it. */
+  wakeOnSlotFreed?: boolean;
 }
 
 /** Which kind each optional key belongs to. A key of another kind used to be
@@ -1375,7 +1389,7 @@ export interface TriggerInput {
  * the guard the MCP twin and every other caller converge on. */
 const TRIGGER_KEY_KINDS: ReadonlyArray<
   [
-    key: 'cron' | 'timezone' | 'event' | 'rotateToken',
+    key: 'cron' | 'timezone' | 'event' | 'rotateToken' | 'wakeOnSlotFreed',
     kind: TriggerInput['kind'],
   ]
 > = [
@@ -1383,6 +1397,7 @@ const TRIGGER_KEY_KINDS: ReadonlyArray<
   ['timezone', 'schedule'],
   ['event', 'event'],
   ['rotateToken', 'webhook'],
+  ['wakeOnSlotFreed', 'schedule'],
 ];
 
 function assertTriggerKeysMatchKind(trigger: TriggerInput): void {
@@ -1515,11 +1530,10 @@ export async function setTrigger(
   const rotate = args.trigger.rotateToken === true;
   const enabled = args.trigger.enabled ?? true;
   const { rows, revoked } = await sql.begin(async (tx) => {
-    // The audit chain before the trigger row (`trigger-failures.ts`): a run
-    // of this trigger landing meanwhile takes them in the same order.
+    // The audit chain precedes the name and trigger row for every writer.
     await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
     if (args.managed) {
-      await lockAutomationName(tx, args.organizationId, args.name);
       await assertManagedProject(
         tx,
         args.organizationId,
@@ -1562,10 +1576,12 @@ export async function setTrigger(
         timezone: string | null;
         event: string | null;
         enabled: boolean;
+        wakeOnSlotFreed: boolean;
       }[]
     >`
       SELECT id, kind, token_hash AS "tokenHash", cron, timezone, event,
-             enabled, last_skip_reason AS "lastSkipReason"
+             enabled, last_skip_reason AS "lastSkipReason",
+             wake_on_slot_freed AS "wakeOnSlotFreed"
       FROM app.automation_triggers
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
       FOR UPDATE
@@ -1588,6 +1604,7 @@ export async function setTrigger(
         cron: args.trigger.cron ?? null,
         timezone: args.trigger.timezone ?? null,
         enabled,
+        wakeOnSlotFreed: args.trigger.wakeOnSlotFreed === true,
       });
       assertManagedHash(
         managedConfigurationHash(current),
@@ -1607,15 +1624,40 @@ export async function setTrigger(
           409,
         );
     }
-    const upserted = await tx<{ tokenHash: string | null }[]>`
+    // The opt-in this save leaves: what it says, else what the schedule
+    // already had — a kind change clears it.
+    const prior = existing[0];
+    const wakes =
+      args.trigger.kind === 'schedule' &&
+      (args.trigger.wakeOnSlotFreed ??
+        // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- preserve only an explicit database opt-in
+        (prior?.kind === 'schedule' && prior.wakeOnSlotFreed === true));
+    // The schedule's claim on its projects' wake before and after this save
+    // (`app.automation_wake_claims`, migration 0168): a pause by failures
+    // keeps it; a save ends any pause, so after it the claim is the opt-in of
+    // an enabled schedule. Only the friendly pre-check reads it here.
+    const claimedBefore =
+      prior !== undefined &&
+      prior.kind === 'schedule' &&
+      // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- claiming requires an explicit database opt-in
+      prior.wakeOnSlotFreed === true &&
+      (prior.enabled || prior.lastSkipReason === 'paused_after_failures');
+    const claims = wakes && enabled;
+    if (claims && !claimedBefore) {
+      await assertSingleWakeTarget(tx, args.organizationId, args.name);
+    }
+    // The database rewrites the bindings' claim when the schedule's changes
+    // (migration 0168's trigger), and refuses a second claim on a project.
+    const upserted = await claimingWake(
+      () => tx<{ tokenHash: string | null }[]>`
       INSERT INTO app.automation_triggers AS t (
         org_id, name, kind, cron, timezone, event, token_hash, enabled,
-        created_by, created_at_ms, updated_at_ms
+        created_by, created_at_ms, updated_at_ms, wake_on_slot_freed
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${args.trigger.kind},
         ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
         ${args.trigger.event?.trim() ?? null}, ${mintedHash}, ${enabled},
-        ${args.actor}, ${now}, ${now}
+        ${args.actor}, ${now}, ${now}, ${wakes}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
         kind = EXCLUDED.kind,
@@ -1663,10 +1705,17 @@ export async function setTrigger(
           ELSE NULL
         END,
         enabled = EXCLUDED.enabled,
+        wake_on_slot_freed = CASE
+          WHEN EXCLUDED.kind <> 'schedule' THEN false
+          WHEN ${args.trigger.wakeOnSlotFreed ?? null}::boolean IS NULL
+            THEN t.kind = 'schedule' AND t.wake_on_slot_freed
+          ELSE ${args.trigger.wakeOnSlotFreed ?? null}::boolean
+        END,
         updated_at_ms = CASE WHEN ${args.managed !== undefined} THEN t.updated_at_ms ELSE EXCLUDED.updated_at_ms END
       WHERE ${args.managed?.expectedHash !== null}
       RETURNING token_hash AS "tokenHash"
-    `;
+    `,
+    );
     if (args.managed && upserted.length !== 1)
       throw new AutomationError(
         'AUTOMATION_VERSION_STALE',
@@ -1700,6 +1749,7 @@ export async function setTrigger(
         timezone: args.trigger.timezone ?? null,
         event: args.trigger.event?.trim() ?? null,
         enabled,
+        wakeOnSlotFreed: wakes,
       }),
       metadata: {
         ...(rotate && args.trigger.kind === 'webhook' ? { rotated: true } : {}),
@@ -1726,6 +1776,7 @@ function triggerAuditState(trigger: {
   timezone: string | null;
   event: string | null;
   enabled: boolean;
+  wakeOnSlotFreed?: boolean;
 }): Record<string, unknown> {
   return {
     kind: trigger.kind,
@@ -1733,7 +1784,123 @@ function triggerAuditState(trigger: {
     ...(trigger.timezone === null ? {} : { timezone: trigger.timezone }),
     ...(trigger.event === null ? {} : { event: trigger.event }),
     enabled: trigger.enabled,
+    ...(trigger.kind === 'schedule' && trigger.wakeOnSlotFreed !== undefined
+      ? { wakeOnSlotFreed: trigger.wakeOnSlotFreed }
+      : {}),
   };
+}
+
+/** The partial unique index that keeps one wake target per project
+ * (migration 0168, AUTO-R29). */
+const ONE_WAKE_INDEX = 'automation_project_bindings_one_wake';
+
+/** A write that may claim a project's wake: a second claim, refused by the
+ * one-wake index — also when two saves race past every check — answers 409
+ * and the whole transaction rolls back. */
+async function claimingWake<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === '23505' &&
+      'constraint_name' in error &&
+      error.constraint_name === ONE_WAKE_INDEX
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        'Another schedule already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.',
+        409,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Take every claim key a binding change can touch before it touches any
+ * (R4-F3), in one database call (`app.lock_automation_wake_keys`, migration
+ * 0168): the automation's fence, then — only when its schedule claims, read
+ * under that fence — each project it is bound to now or is asked for, in
+ * the order the database's own claim writes use. Two claiming saves that
+ * swap projects queue behind each other instead of deadlocking on each
+ * other's deletions; a save whose schedule does not claim takes no project
+ * key, so it never waits on another writer's (R5-F1).
+ */
+async function lockWakeClaimKeys(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+  projectIds: readonly string[],
+): Promise<void> {
+  await tx`
+    SELECT app.lock_automation_wake_keys(
+      ${organizationId}, ${name}, ${[...projectIds]}::text[]
+    )
+  `;
+}
+
+/** Preclaim a complete binding edit before its first write. A batch caller
+ * supplies every added/removed project after authorization; individual doors
+ * re-enter these transaction locks without changing their order. */
+export async function lockAutomationProjectBindingsInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; name: string },
+  projectIds: readonly string[],
+): Promise<void> {
+  await lockAuditChain(tx, args.organizationId);
+  await lockAutomationName(tx, args.organizationId, args.name);
+  await lockWakeClaimKeys(tx, args.organizationId, args.name, projectIds);
+}
+
+/**
+ * The friendly half of AUTO-R29: before a schedule starts claiming, name the
+ * schedule that already wakes one of its projects. The one-wake index is the
+ * rule itself (`claimingWake`); this only words the common refusal.
+ */
+async function assertSingleWakeTarget(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  const others = await tx<{ name: string }[]>`
+    SELECT theirs.automation_name AS name
+    FROM app.automation_project_bindings theirs
+    JOIN app.automation_project_bindings ours
+      ON ours.org_id = theirs.org_id AND ours.project_id = theirs.project_id
+     AND ours.automation_name = ${name}
+    WHERE theirs.org_id = ${organizationId}
+      AND theirs.automation_name <> ${name} AND theirs.wakes
+    ORDER BY theirs.automation_name
+    LIMIT 1
+  `;
+  const other = others[0];
+  if (other !== undefined) {
+    throw new AutomationError(
+      'AUTOMATION_TRIGGER_INVALID',
+      `"${other.name}" already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.`,
+      409,
+    );
+  }
+}
+
+/** Whether the named trigger is a schedule opted in to slot wakes — the
+ * managed readback's half of `wakeOnSlotFreed` (the trigger listing itself
+ * does not carry it). */
+export async function triggerWakesOnSlotFreed(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<boolean> {
+  const rows = await sql<{ wakes: boolean }[]>`
+    SELECT kind = 'schedule' AND wake_on_slot_freed AS wakes
+    FROM app.automation_triggers
+    WHERE org_id = ${organizationId} AND name = ${name}
+  `;
+  // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- absence or a malformed projection never opts in
+  return rows[0]?.wakes === true;
 }
 
 export async function deleteTrigger(
@@ -1746,6 +1913,7 @@ export async function deleteTrigger(
   return sql.begin(async (tx) => {
     // The audit chain before the trigger row (`trigger-failures.ts`).
     await lockAuditChain(tx, organizationId);
+    await lockAutomationName(tx, organizationId, name);
     const rows = await tx<
       {
         id: string;
@@ -1755,12 +1923,13 @@ export async function deleteTrigger(
         timezone: string | null;
         event: string | null;
         enabled: boolean;
+        wakeOnSlotFreed: boolean;
       }[]
     >`
       DELETE FROM app.automation_triggers
       WHERE org_id = ${organizationId} AND name = ${name}
       RETURNING id, last_skip_reason AS "lastSkipReason", kind, cron,
-                timezone, event, enabled
+                timezone, event, enabled, wake_on_slot_freed AS "wakeOnSlotFreed"
     `;
     const removed = rows[0];
     if (removed === undefined) return false;

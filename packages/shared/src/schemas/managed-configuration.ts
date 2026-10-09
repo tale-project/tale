@@ -70,6 +70,10 @@ export const managedAutomationScheduleSchema = z.strictObject({
   cron: z.string().min(1).max(200),
   timezone: z.string().min(1).max(100),
   enabled: z.boolean(),
+  // Fire this schedule early when an agent of its project frees its slot
+  // (#4540). Only `true` is declared: an absent key is the opt-out, so a
+  // readback and an equivalent declaration always hash alike.
+  wakeOnSlotFreed: z.literal(true).optional(),
 });
 
 export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
