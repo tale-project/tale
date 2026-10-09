@@ -10,7 +10,7 @@ import { z } from 'zod';
 
 import { flowGraphTarget } from './flow-ids';
 
-export const RUN_INSPECTOR_TABS = [
+const RUN_INSPECTOR_TABS = [
   'error',
   'data',
   'conditions',
@@ -19,8 +19,6 @@ export const RUN_INSPECTOR_TABS = [
   'attempts',
   'agent',
 ] as const;
-
-export type RunInspectorTab = (typeof RUN_INSPECTOR_TABS)[number];
 
 export const runSearchSchema = z.object({
   view: z.enum(['canvas', 'steps']).optional().catch(undefined),
