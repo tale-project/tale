@@ -597,6 +597,70 @@ describe('processErasure', () => {
     expect(settle?.values[2]).toMatchObject({ modelApiRequests: 3 });
   });
 
+  /**
+   * A call the platform made straight to a provider for the subject is an
+   * op row the settlement books from. A booked or cancelled one goes; one
+   * still running keeps its row under the pseudonym, so its late booking
+   * never lands under the subject after the ledger was cleared.
+   */
+  it('deletes the subject’s finished direct-call rows and pseudonymises the ones still running, before the ledger pass [ERASE-R5]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('DELETE FROM app.sandbox_session_ops'))
+        return [{ id: 'op-booked' }];
+      if (text.startsWith('UPDATE app.sandbox_session_ops'))
+        return [{ id: 'op-running' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const ofKind = (prefix: string) =>
+      fake.statements.findIndex(
+        (s) => s.text.startsWith(prefix) && s.values.includes('direct-call'),
+      );
+    const removed =
+      fake.statements[ofKind('DELETE FROM app.sandbox_session_ops')];
+    expect(removed?.text).toBe(
+      "DELETE FROM app.sandbox_session_ops WHERE org_id = ? AND kind = ? AND user_id = ? AND (spent_cents IS NOT NULL OR status = 'cancelled') RETURNING id",
+    );
+    expect(removed?.values).toEqual(['org_1', 'direct-call', 'subject']);
+    const pseudonymised =
+      fake.statements[ofKind('UPDATE app.sandbox_session_ops')];
+    expect(pseudonymised?.values).toEqual([
+      'erased-user',
+      'org_1',
+      'direct-call',
+      'subject',
+    ]);
+    const ledger = fake.statements.findIndex((s) =>
+      s.text.startsWith('DELETE FROM app.usage_ledger'),
+    );
+    expect(ofKind('UPDATE app.sandbox_session_ops')).toBeGreaterThan(
+      ofKind('DELETE FROM app.sandbox_session_ops'),
+    );
+    expect(ledger).toBeGreaterThan(ofKind('UPDATE app.sandbox_session_ops'));
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ directCalls: 2 });
+  });
+
   it.each(['automationRuns', 'modelApiRequests'] as const)(
     'keeps dependent identity and ledger passes retryable after %s fails [ERASE-R5]',
     async (failedPass) => {

@@ -19,6 +19,7 @@ import {
   assertChatTurnBudget,
   ChatBudgetExceededError,
 } from '../chat/budget-admission.ts';
+import { createPgTurnStore } from '../chat/store.ts';
 import {
   loadProjectSharedThread,
   projectChatAccess,
@@ -31,6 +32,11 @@ import {
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
+import {
+  openDirectCall,
+  releaseStaleDirectCalls,
+  settleDirectCall,
+} from './direct-calls.ts';
 import { incrementUsageLedger } from './service.ts';
 
 const createdSchema = z.object({ id: z.string() });
@@ -167,6 +173,66 @@ export async function checkProjectBudgets(
   };
 
   try {
+    // Before any budget binds the organization: a direct call is recorded
+    // on a row that holds nothing, and booked from that row exactly once.
+    const unheldSlug = `itest-unheld-${suffix}`;
+    const memberHolds = async (): Promise<number> =>
+      (
+        await readInFlightReservations(sql, {
+          organizationId: orgId,
+          userId,
+          userTeamIds: [],
+        })
+      ).user?.requests ?? 0;
+    const holdsBefore = await memberHolds();
+    const unheld = await openDirectCall(sql, {
+      organizationId: orgId,
+      lane: 'itest',
+      // No project: its booking stays out of the project buckets below.
+      subject: { userId, agentSlug: unheldSlug },
+      worstCase: { cents: 5, tokens: 10 },
+      maxDurationMs: 60_000,
+    });
+    const unheldRows = unheld.allowed
+      ? await sql<{ budgetCents: number | null; userId: string | null }[]>`
+          SELECT budget_cents AS "budgetCents", user_id AS "userId"
+          FROM app.sandbox_session_ops
+          WHERE org_id = ${orgId} AND session_id = ${unheld.lease.sessionId}
+            AND exec_id = ${unheld.lease.execId}
+        `
+      : [];
+    const holdsWhileUnheld = await memberHolds();
+    const unheldSpend = {
+      provider: 'itest',
+      model: `itest-model-${suffix}`,
+      inputTokens: 4,
+      outputTokens: 2,
+      costCents: 0.5,
+    };
+    const unheldSettles = unheld.allowed
+      ? [
+          await settleDirectCall(sql, unheld.lease, unheldSpend),
+          await settleDirectCall(sql, unheld.lease, unheldSpend),
+        ]
+      : [];
+    const unheldBooked = await sql<{ cost: number }[]>`
+      SELECT cost_estimate_cents::float8 AS cost FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${unheldSlug}
+        AND granularity = 'monthly'
+    `;
+    record(
+      'project budgets: with no budget bound, a direct call is recorded without a hold and booked from its row once',
+      unheld.allowed &&
+        unheldRows.length === 1 &&
+        unheldRows[0]?.budgetCents === null &&
+        unheldRows[0].userId === userId &&
+        holdsWhileUnheld === holdsBefore &&
+        unheldSettles.join() === 'settled,already_settled' &&
+        unheldBooked.length === 1 &&
+        unheldBooked[0]?.cost === 0.5,
+      `admitted=${unheld.allowed} row=${JSON.stringify(unheldRows)} (want one, no budget_cents, the member) member's holds ${holdsBefore} then ${holdsWhileUnheld} (want unchanged) settles=${unheldSettles.join()} (want settled,already_settled) booked=${JSON.stringify(unheldBooked)} (want 0.5 cents, once)`,
+    );
+
     await mkdir(governanceDir, { recursive: true });
     await writeFile(
       budgetsFile,
@@ -856,6 +922,74 @@ export async function checkProjectBudgets(
         afterLateSettlement,
       }),
     );
+
+    // The other holds, on the real schema: a direct call past its deadline
+    // stops holding, and is still booked when it ends; a reply's later round
+    // raises its hold.
+    const inProject = {
+      organizationId: orgId,
+      userId,
+      userTeamIds: [],
+      projectIds: [projectId],
+    };
+    const heldInProject = async (): Promise<number> =>
+      (await readInFlightReservations(sql, inProject)).projects?.[projectId]
+        ?.costCents ?? 0;
+    const baseline = await heldInProject();
+
+    const directSlug = `itest-direct-${suffix}`;
+    const lost = await openDirectCall(sql, {
+      organizationId: orgId,
+      lane: 'itest',
+      subject: { userId, agentSlug: directSlug, projectIds: [projectId] },
+      worstCase: { cents: 5, tokens: 10 },
+      // Already past its deadline: its process "died" at once.
+      maxDurationMs: -1_000,
+    });
+    const whileDirect = await heldInProject();
+    const released = await releaseStaleDirectCalls(sql);
+    const afterRelease = await heldInProject();
+    if (lost.allowed) {
+      await settleDirectCall(sql, lost.lease, {
+        provider: 'itest',
+        model: `itest-model-${suffix}`,
+        inputTokens: 4,
+        outputTokens: 2,
+        costCents: 1.5,
+      });
+    }
+    const lateBooking = await sql<{ cost: number }[]>`
+      SELECT cost_estimate_cents::float8 AS cost FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${directSlug}
+        AND granularity = 'monthly'
+    `;
+
+    await sql`
+      INSERT INTO app.generations (
+        thread_id, org_id, user_id, reserved_cost_cents, reserved_tokens,
+        started_at_ms, heartbeat_at_ms, updated_at_ms
+      ) VALUES (${projectThread}, ${orgId}, ${userId}, 0, 0, ${now}, ${now},
+                ${now})
+    `;
+    const beforeRound = await heldInProject();
+    await createPgTurnStore(sql).holdNextRound?.({
+      organizationId: orgId,
+      threadId: projectThread,
+      tokens: 100,
+      costCents: 4,
+    });
+    const afterRound = await heldInProject();
+    await sql`DELETE FROM app.generations WHERE thread_id = ${projectThread}`;
+    record(
+      'project budgets: a direct call and a reply’s later round hold in the project, and a lost direct call stops holding',
+      lost.allowed &&
+        whileDirect - baseline === 5 &&
+        released >= 1 &&
+        afterRelease === baseline &&
+        lateBooking[0]?.cost === 1.5 &&
+        afterRound - beforeRound === 4,
+      `direct call held ${whileDirect - baseline} (want 5), released=${released} then ${afterRelease - baseline} (want ≥1 then 0), late booking=${JSON.stringify(lateBooking)} (want 1.5 cents), next round raised the reply's hold by ${afterRound - beforeRound} (want 4)`,
+    );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {
       console.warn('[itest] project budgets: budgets file not removed', error);
@@ -864,6 +998,10 @@ export async function checkProjectBudgets(
     await sql`
       DELETE FROM app.sandbox_session_ops
       WHERE org_id = ${orgId} AND session_id = ANY(${[opSession, runSession, llmSession, erasureSession]})
+    `;
+    await sql`
+      DELETE FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId} AND session_id = 'direct-call:itest'
     `;
     await sql`
       DELETE FROM app.sandbox_sessions
@@ -885,7 +1023,7 @@ export async function checkProjectBudgets(
     `;
     await sql`
       DELETE FROM app.usage_ledger
-      WHERE org_id = ${orgId} AND agent_slug = ANY(${[agentSlug, automationName, erasureAutomation]})
+      WHERE org_id = ${orgId} AND agent_slug = ANY(${[agentSlug, automationName, erasureAutomation, `itest-direct-${suffix}`, `itest-unheld-${suffix}`]})
     `;
     await sql`
       DELETE FROM app.project_usage

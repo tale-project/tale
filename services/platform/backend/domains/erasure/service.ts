@@ -27,6 +27,7 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
+import { DIRECT_CALL_OP_KIND } from '../governance/direct-call-kind.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
@@ -890,6 +891,7 @@ export async function processErasure(
   let legacyHeldAutomationRuns = 0;
   let automationRunsRetired = false;
   let modelRequestsDeidentified = false;
+  let directCallsDeidentified = false;
   const pass = async (
     name: string,
     run: () => Promise<number>,
@@ -1117,6 +1119,34 @@ export async function processErasure(
     return removed.length + pseudonymised.length;
   });
 
+  // Calls the platform made straight to a provider for the subject — a
+  // chat title, Improve: one op row each (kind `direct-call`), the
+  // settlement's record of whose call it is. A row whose
+  // call was booked, or closed having spent nothing, has done its work and
+  // is deleted. A call still running — or past its deadline, which a late
+  // end still books — keeps its row and loses the identity, so it books
+  // under the pseudonym. After the requests above, and before the ledger
+  // pass: a hold or a failure that stopped them stops this pass too.
+  await pass('directCalls', async () => {
+    if (!modelRequestsDeidentified)
+      throw new Error('Model request de-identification did not complete');
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.sandbox_session_ops
+      WHERE org_id = ${organizationId} AND kind = ${DIRECT_CALL_OP_KIND}
+        AND user_id = ${targetUserId}
+        AND (spent_cents IS NOT NULL OR status = 'cancelled')
+      RETURNING id
+    `;
+    const pseudonymised = await sql<{ id: string }[]>`
+      UPDATE app.sandbox_session_ops SET user_id = ${ERASED_SUBJECT}
+      WHERE org_id = ${organizationId} AND kind = ${DIRECT_CALL_OP_KIND}
+        AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    directCallsDeidentified = true;
+    return removed.length + pseudonymised.length;
+  });
+
   // The ledger names its subject by bare user id (`governance/README.md`);
   // rows the workflow lane booked before it derived the person from the
   // run's starter carry the door forms (`user:<id>`, `api-key:<id>`) and are
@@ -1124,6 +1154,8 @@ export async function processErasure(
   await pass('usageLedger', async () => {
     if (!modelRequestsDeidentified)
       throw new Error('Model request de-identification did not complete');
+    if (!directCallsDeidentified)
+      throw new Error('Direct call de-identification did not complete');
     const removed = await sql<{ orgId: string }[]>`
       DELETE FROM app.usage_ledger
       WHERE org_id = ${organizationId}

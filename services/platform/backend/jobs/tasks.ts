@@ -168,6 +168,11 @@ export interface TaskPayloads {
     threadId: string;
     userId: string;
     firstMessage: string;
+    /** The API key that sent the message, when one did. */
+    apiKeyId?: string;
+    /** A guardrail refused the message: name the thread from its words,
+     * never by a model call. */
+    nameWithoutModel?: boolean;
   };
   /** One readiness-poll step of a parked send — self-chaining until the
    * media settle and the thread idles, then claims and runs the turn. */

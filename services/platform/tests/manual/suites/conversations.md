@@ -247,7 +247,10 @@ subject.
   direct model) — check Usage books it under the `inbox-improve` agent. With
   no AI provider connected, the toast reads
   `conversations.editor.improveFailed` with
-  `conversations.editor.improveUnavailable`; any other failure toasts
+  `conversations.editor.improveUnavailable`; with providers connected but a
+  **Model access** rule that blocks every model they serve for you, it
+  reads `conversations.editor.improveNoModelAccess` instead — never the
+  advice to connect a provider; any other failure toasts
   `conversations.editor.improveFailed` with the door's reason.
 - [ ] `CONV-F9` · **Status transition (single)** — Open a conversation →
   **More actions** (`conversations.header.moreActions`) → **Close

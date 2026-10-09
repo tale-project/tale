@@ -45,8 +45,16 @@ export async function reserveTurnBudget(
     execId: string;
     /** `model-api`: one request through the model endpoints for API keys
      * (`domains/model_api`), which has no run behind it and names its
-     * subject itself. */
-    kind: 'task-agent' | 'workflow-agent' | 'model-api' | 'automation-llm';
+     * subject itself. `automation-llm`: one effect attempt of an
+     * automation's `llm` step, whose live attempt names its subject.
+     * `direct-call`: one call the platform makes straight to a provider
+     * (`domains/governance/direct-calls.ts`), which names its subject too. */
+    kind:
+      | 'task-agent'
+      | 'workflow-agent'
+      | 'model-api'
+      | 'automation-llm'
+      | 'direct-call';
     defaultBudgetCents: number;
     modelRef?: string;
     /** The harness this turn runs on — the op row's own record, which the
@@ -71,6 +79,9 @@ export async function reserveTurnBudget(
      * API key — may be running in the organization at once; one more is
      * refused before anything is held. */
     concurrencyLimit?: number;
+    /** When the hold lapses if nothing settles it — a direct call's process
+     * may die mid-call, and the watchdog releases its hold past this. */
+    deadlineAtMs?: number;
   },
 ): Promise<TurnAllowance> {
   if (args.kind === 'automation-llm') {
@@ -90,7 +101,9 @@ export async function reserveTurnBudget(
   }
   const defaultCents = Math.max(1, Math.floor(args.defaultBudgetCents));
   return sql.begin(async (tx) => {
-    if (args.kind !== 'model-api' && args.kind !== 'automation-llm') {
+    // Only a managed turn admits a sandbox; a request with no run behind
+    // it takes the budget-admission lock alone.
+    if (args.kind === 'task-agent' || args.kind === 'workflow-agent') {
       await lockOrgAdmission(tx, args.organizationId);
     }
     // Read after the shared lock: a prior admission of this op may have
@@ -156,7 +169,7 @@ export async function reserveTurnBudget(
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
         api_key_id, project_ids, model_ref, harness, budget_cents,
-        reserved_tokens, heartbeat_at_ms, started_at_ms
+        reserved_tokens, deadline_ms, heartbeat_at_ms, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
@@ -165,7 +178,7 @@ export async function reserveTurnBudget(
         ${[...(subject.projectIds ?? [])]},
         ${args.modelRef ?? null}, ${args.harness ?? null},
         ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
-        ${now}, ${now}
+        ${args.deadlineAtMs ?? null}, ${now}, ${now}
       )
       ON CONFLICT (session_id, exec_id) DO UPDATE SET
         budget_cents = EXCLUDED.budget_cents,
