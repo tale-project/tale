@@ -431,5 +431,15 @@
  * mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` while who can be
  * mentioned cannot be read, where it answered 500 `INTERNAL_ERROR`.
  * Additive.
+ *
+ * 3.25.0 — 2026-10-09: an agent working other tasks is started all the
+ * same, each run in an agent worker of its own. Native task_start_agent and
+ * the automation step task.start_agent no longer answer `agent_busy` or
+ * `busyTaskId`: such a start answers `started: true`, and a run that waits
+ * for a free worker carries `waitingReason` (`org_limit`, `host`,
+ * `destroy_pending` or `exec_limit`) and starts by itself. An agent that
+ * names itself for another task is refused with `self_start`. Native
+ * task_get agentRuns carry `waitingReason` while a run waits. No REST
+ * operation changes.
  */
-export const API_CONTRACT_VERSION = '3.24.0';
+export const API_CONTRACT_VERSION = '3.25.0';
