@@ -1412,17 +1412,17 @@ export class DockerSessionBackend implements SessionBackend {
     return out;
   }
 
-  /** Every workspace dir under the host session root, joined with the
-   * session containers beside them; the organization is the container's
-   * label, or else the workspace's own marker. `listSessions` THROWS on a
-   * failed `docker ps`, so a container that merely could not be listed never
-   * reads as inactive. */
   /** One bounded, lowest-priority `du` over every workspace dir under the
    * session root (workspace-usage.ts). */
   largestWorkspaces(limit: number): Promise<LargestWorkspaces> {
     return largestWorkspaces(this.cfg.hostSessionRoot, { limit });
   }
 
+  /** Every workspace dir under the host session root, joined with the
+   * session containers beside them; the organization is the container's
+   * label, or else the workspace's own marker. `listSessions` THROWS on a
+   * failed `docker ps`, so a container that merely could not be listed never
+   * reads as inactive. */
   async listWorkspaces(): Promise<BackendWorkspace[]> {
     const dirs = await listWorkspaceDirs(this.cfg.hostSessionRoot);
     const containers = new Map(

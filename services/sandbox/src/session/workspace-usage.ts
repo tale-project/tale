@@ -3,10 +3,11 @@
 // thing to know, and nothing else on the host says it.
 //
 // One `du` measures every workspace dir under the session root, at the
-// lowest CPU priority — which also gives it the lowest best-effort I/O
-// priority, the kernel's default for a niced process — and only for so long:
-// a disk this full is usually a busy one, and a workspace can hold millions
-// of files. Whatever it measured by the deadline is reported, marked as
+// lowest CPU priority, and only for so long: a disk this full is usually a
+// busy one, and a workspace can hold millions of files. Its I/O priority is
+// the ordinary one under the mq-deadline and none schedulers most NVMe disks
+// use (only CFQ and BFQ derive it from the nice value), which the deadline
+// bounds. Whatever it measured by the deadline is reported, marked as
 // incomplete.
 
 import { listWorkspacePaths } from './workspace-inventory.ts';
