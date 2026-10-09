@@ -22,6 +22,8 @@
  * - a run that has not claimed a worker holds none, though its kick or its
  *   wake names worker 1: a burst of starts opens no worker beside a stopped
  *   one, and a task's next run still goes back to its own worker;
+ * - a wake restarts a run without a claim stamp an older image's park left
+ *   on it, so it never collides with the run that holds that worker now;
  * - migration 0167's columns, CHECK and unique index are in place.
  *
  * The lane drives the turn job's own steps — the claim, the slot reserve or
@@ -49,7 +51,11 @@ import {
   resumeSessionSlot,
   setSessionStatus,
 } from '../sandbox/sessions.ts';
-import { launchAgentRun, settleAgentRun } from './agent-runs.ts';
+import {
+  launchAgentRun,
+  settleAgentRun,
+  wakeOrganizationParkedAgentRun,
+} from './agent-runs.ts';
 import {
   claimAgentWorker,
   predictWorkerWait,
@@ -620,6 +626,49 @@ export async function checkAgentWorkers(
         UPDATE app.sandbox_sessions SET pinned = false
         WHERE org_id = ${orgId} AND session_id = ${w(1)}
       `;
+      await endAll();
+    }
+
+    // ---- a wake restarts a run without the claim an older park left -------
+    {
+      const first = await kick(
+        await insertTask('Works worker 1', scribe),
+        scribe,
+      );
+      await start(first);
+      const second = await kick(
+        await insertTask('Works worker 2', scribe),
+        scribe,
+      );
+      const secondClaim = await start(second);
+      // Parked by an image that keeps the claim stamp: still naming worker
+      // 2, which "Works worker 2" has claimed since.
+      const stale = await kick(
+        await insertTask('Parked long ago', scribe),
+        scribe,
+      );
+      await sql`
+        UPDATE app.project_agent_runs SET
+          session_id = ${w(2)}, session_claimed_at_ms = ${Date.now()},
+          waiting_for_capacity_at_ms = ${Date.now()}
+        WHERE id = ${stale}
+      `;
+      let wake = 'woke nothing';
+      try {
+        wake = `woke ${await wakeOrganizationParkedAgentRun(sql, orgId)}`;
+      } catch (error) {
+        wake = codeOf(error);
+      }
+      const restarted = await factsOf(stale);
+      record(
+        'agent workers: a wake restarts a run an older image parked with its claim stamp on a worker another run holds — without the stamp, naming its family’s first worker, and with no unique-index refusal',
+        sessionOfClaim(secondClaim) === w(2) &&
+          wake === 'woke 1' &&
+          !restarted.parked &&
+          !restarted.claimed &&
+          restarted.sessionId === w(1),
+        `wake=${wake} run=${JSON.stringify(restarted)}`,
+      );
       await endAll();
     }
 

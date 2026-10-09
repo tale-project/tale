@@ -12,6 +12,7 @@ import {
 } from '../../core/sandbox/session_constants.ts';
 import {
   projectAgentWorker,
+  workerFamilyBase,
   workerSessionId,
 } from '../../core/sandbox/session_naming.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
@@ -301,8 +302,7 @@ export async function predictWorkerWait(
   if (run.parked) {
     return isAgentRunWaitingReason(run.reason) ? run.reason : null;
   }
-  const base =
-    projectAgentWorker(run.agentId, run.sessionId)?.base ?? run.sessionId;
+  const base = workerFamilyBase(run.agentId, run.sessionId);
   const choice = chooseWorker(
     await readWorkerFacts(sql, {
       organizationId: args.organizationId,
@@ -538,8 +538,8 @@ export async function parkAgentRunInTx(
   `;
   const row = rows[0];
   if (row === undefined) return undefined;
-  const base = projectAgentWorker(row.agentId, row.sessionId)?.base;
-  if (base !== undefined && base !== row.sessionId) {
+  const base = workerFamilyBase(row.agentId, row.sessionId);
+  if (base !== row.sessionId) {
     await tx`
       UPDATE app.project_agent_runs SET session_id = ${base}
       WHERE id = ${args.runId}

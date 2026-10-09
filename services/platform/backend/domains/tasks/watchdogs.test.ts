@@ -97,6 +97,34 @@ describe('runTaskAgentWatchdog (parked runs)', () => {
     expect(remaining.get('org-busy')).toBe(2);
     expect(remaining.get('org-quiet')).toBe(0);
   });
+
+  it('goes on to the next organization when one organization’s wake fails [TASK-R25]', async () => {
+    vi.mocked(listOverdueAgentRuns).mockResolvedValue([]);
+    vi.mocked(listParkedAgentRunOrganizations).mockResolvedValue([
+      { organizationId: 'org-broken' },
+      { organizationId: 'org-next' },
+    ]);
+    let nextWoken = false;
+    vi.mocked(wakeOrganizationParkedAgentRun).mockImplementation(
+      async (_sql, org) => {
+        if (org === 'org-broken') {
+          throw Object.assign(new Error('duplicate key'), { code: '23505' });
+        }
+        if (nextWoken) return 0;
+        nextWoken = true;
+        return 1;
+      },
+    );
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await runTaskAgentWatchdog(fakeSql([]));
+
+    expect(result.woken).toBe(1);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('org-broken'),
+      expect.any(Error),
+    );
+  });
 });
 
 describe('runTaskAgentWatchdog (deadline lane)', () => {

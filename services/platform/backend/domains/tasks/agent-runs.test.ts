@@ -1,7 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { standingWorkerSessionId } from '../../core/sandbox/session_naming.ts';
+import {
+  memberSessionIdForProjectAgent,
+  standingWorkerSessionId,
+} from '../../core/sandbox/session_naming.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
@@ -67,7 +70,7 @@ const KEYS = { organizationId: 'org-1', runId: 'run-1', taskId: 'task-1' };
 
 /** The parked-run wake's claim, as its statement opens. */
 const CLAIM =
-  'SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId", r.task_id AS "taskId" FROM app.project_agent_runs r';
+  'SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId", r.task_id AS "taskId", r.agent_id AS "agentId", r.session_id AS "sessionId" FROM app.project_agent_runs r';
 
 describe('cancelAgentRunInTx — the run must belong to the authorized task', () => {
   beforeEach(() => {
@@ -684,7 +687,15 @@ describe('wakeParkedAgentRuns — the deadline lane owns a parked run past its d
   it('un-parks the claimed run and re-enqueues its turn in the same transaction', async () => {
     const { sql, statements } = fakeSql((text) =>
       text.startsWith(CLAIM)
-        ? [{ id: 'run-1', organizationId: 'org-1', execId: 'exec-1' }]
+        ? [
+            {
+              id: 'run-1',
+              organizationId: 'org-1',
+              execId: 'exec-1',
+              agentId: 'agent-1',
+              sessionId: 'pa-agent-1',
+            },
+          ]
         : [],
     );
     const woken = await wakeOrganizationParkedAgentRun(sql, 'org-1');
@@ -1372,20 +1383,37 @@ describe('the worker a run reads as working in [TASK-R24]', () => {
 
 describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own family [SBX-R18]', () => {
   const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+  const CANDIDATES =
+    'SELECT id, session_id AS "sessionId" FROM app.project_agent_runs';
+  const LOCK = 'SELECT id, org_id AS "organizationId"';
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+  });
 
   it('wakes the oldest parked run of the ended worker’s family only', async () => {
-    const { sql, calls } = fakeSql((text) =>
-      text.startsWith('SELECT id, org_id AS "organizationId"')
+    const member = memberSessionIdForProjectAgent(AGENT, 'user-mia');
+    const { sql, calls } = fakeSql((text) => {
+      if (text.startsWith(CANDIDATES)) {
+        // Oldest first: a run of Mia's family, then the agent's own.
+        return [
+          { id: 'run-4', sessionId: member },
+          { id: 'run-5', sessionId: standingWorkerSessionId(AGENT, 1) },
+        ];
+      }
+      return text.startsWith(LOCK)
         ? [
             {
               id: 'run-5',
               organizationId: 'org-1',
               execId: 'exec-5',
               taskId: 'task-5',
+              agentId: AGENT,
+              sessionId: standingWorkerSessionId(AGENT, 1),
             },
           ]
-        : [],
-    );
+        : [];
+    });
     await expect(
       wakeAgentParkedAgentRun(sql, {
         organizationId: 'org-1',
@@ -1393,19 +1421,72 @@ describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own famil
         sessionId: standingWorkerSessionId(AGENT, 2),
       }),
     ).resolves.toBe(1);
-    const claim = calls.find((call) =>
-      call.text.startsWith('SELECT id, org_id AS "organizationId"'),
-    );
-    expect(claim?.text).toContain(
-      "regexp_replace(session_id, '-w[1-9][0-9]*$', '') = ?",
-    );
-    // Worker 2's family is the agent's own: its first worker's id.
-    expect(claim?.values).toContain(standingWorkerSessionId(AGENT, 1));
-    expect(claim?.text).toContain('ORDER BY waiting_for_capacity_at_ms');
+    const candidates = calls.find((call) => call.text.startsWith(CANDIDATES));
+    expect(candidates?.text).toContain('ORDER BY waiting_for_capacity_at_ms');
+    // Worker 2's family is the agent's own: Mia's run is passed over.
+    const locks = calls.filter((call) => call.text.startsWith(LOCK));
+    expect(locks.map((call) => call.values[0])).toEqual(['run-5']);
+    expect(locks[0]?.text).toContain('FOR UPDATE SKIP LOCKED');
     expect(addJobInTx).toHaveBeenCalledWith(
       expect.anything(),
       'task.agent_turn',
       { organizationId: 'org-1', runId: 'run-5', execId: 'exec-5' },
     );
+  });
+
+  it('tries the family’s next parked run when another wake took the oldest', async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith(CANDIDATES)
+        ? [
+            { id: 'run-5', sessionId: standingWorkerSessionId(AGENT, 1) },
+            { id: 'run-6', sessionId: standingWorkerSessionId(AGENT, 1) },
+          ]
+        : [],
+    );
+    await expect(
+      wakeAgentParkedAgentRun(sql, {
+        organizationId: 'org-1',
+        agentId: AGENT,
+        sessionId: standingWorkerSessionId(AGENT, 1),
+      }),
+    ).resolves.toBe(0);
+    expect(
+      calls
+        .filter((call) => call.text.startsWith(LOCK))
+        .map((call) => call.values[0]),
+    ).toEqual(['run-5', 'run-6']);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+});
+
+describe('a woken run holds no worker until its claim [TASK-R25]', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+
+  it('clears a claim stamp left on the parked row and names its family’s first worker again', async () => {
+    // Scribe's run on "Press kit" was parked by an image that keeps the
+    // stamp, still naming worker 2, which "Changelog" has claimed since.
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith(CLAIM)
+        ? [
+            {
+              id: 'run-1',
+              organizationId: 'org-1',
+              execId: 'exec-1',
+              taskId: 'task-press-kit',
+              agentId: AGENT,
+              sessionId: standingWorkerSessionId(AGENT, 2),
+            },
+          ]
+        : [],
+    );
+    await expect(wakeOrganizationParkedAgentRun(sql, 'org-1')).resolves.toBe(1);
+    const restart = calls.find(
+      (call) =>
+        call.text.startsWith('UPDATE app.project_agent_runs SET') &&
+        call.text.includes('waiting_for_capacity_at_ms = NULL'),
+    );
+    expect(restart?.text).toContain('session_claimed_at_ms = NULL');
+    expect(restart?.text).toContain('session_id = ?');
+    expect(restart?.values).toContain(standingWorkerSessionId(AGENT, 1));
   });
 });

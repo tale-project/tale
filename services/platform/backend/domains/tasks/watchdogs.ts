@@ -136,12 +136,21 @@ export async function runTaskAgentWatchdog(sql: Sql): Promise<{
   // another organization's sessions end. So each tick wakes a few parked
   // runs of every organization that has one, not one run; a start that
   // still finds no room parks again at no cost beyond the refused create.
+  // One organization's failed wake is logged and the tick goes on to the
+  // next: it must never leave every later organization's runs waiting.
   let woken = 0;
   for (const { organizationId } of await listParkedAgentRunOrganizations(sql)) {
-    for (let wake = 0; wake < PARKED_WAKES_PER_TICK; wake += 1) {
-      const one = await wakeOrganizationParkedAgentRun(sql, organizationId);
-      if (one === 0) break;
-      woken += one;
+    try {
+      for (let wake = 0; wake < PARKED_WAKES_PER_TICK; wake += 1) {
+        const one = await wakeOrganizationParkedAgentRun(sql, organizationId);
+        if (one === 0) break;
+        woken += one;
+      }
+    } catch (error) {
+      console.error(
+        `[task-agent] watchdog: waking parked runs of ${organizationId} failed:`,
+        error,
+      );
     }
   }
   return { failed, released, woken };

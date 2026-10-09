@@ -10,6 +10,7 @@ import {
   sessionIdForWorkflowExecution,
   standingSessionIdForProjectAgent,
   standingWorkerSessionId,
+  workerFamilyBase,
   workerSessionId,
   workflowExecutionOwnerId,
 } from './session_naming';
@@ -163,5 +164,25 @@ describe('agent worker sessions', () => {
     expect(standing).toMatch(ID_ALPHABET_RE);
     expect(standing).not.toContain(long);
     expect(projectAgentWorker(long, standing)?.scope).toBe('agent');
+  });
+
+  it('finds the family of every worker, folded ids included', () => {
+    const standing = standingSessionIdForProjectAgent(AGENT);
+    const member = memberSessionIdForProjectAgent(AGENT, 'user-1');
+    expect(workerFamilyBase(AGENT, standingWorkerSessionId(AGENT, 7))).toBe(
+      standing,
+    );
+    expect(workerFamilyBase(AGENT, standing)).toBe(standing);
+    expect(
+      workerFamilyBase(AGENT, memberWorkerSessionId(AGENT, 'user-1', 2)),
+    ).toBe(member);
+    const agentId = 'a'.repeat(42);
+    expect(
+      workerFamilyBase(agentId, memberWorkerSessionId(agentId, 'user-1', 2)),
+    ).toBe(memberSessionIdForProjectAgent(agentId, 'user-1'));
+    // An id that is none of the agent's workers is its own family.
+    expect(workerFamilyBase(AGENT, 'pa-someone-else-w2')).toBe(
+      'pa-someone-else-w2',
+    );
   });
 });

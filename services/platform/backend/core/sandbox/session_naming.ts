@@ -172,6 +172,13 @@ export function projectAgentWorker(
     : null;
 }
 
+/** The first worker of the workspace family a session id belongs to — the
+ * id a run names while it holds no worker (a kick, a park, a wake) — or the
+ * id itself when it is none of the agent's workers. */
+export function workerFamilyBase(agentId: string, sessionId: string): string {
+  return projectAgentWorker(agentId, sessionId)?.base ?? sessionId;
+}
+
 /** Whether a project agent's run works in one of its standing workers,
  * rather than in a workspace of runs a member started. */
 export function isStandingProjectAgentSession(

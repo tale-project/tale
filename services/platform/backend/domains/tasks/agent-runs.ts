@@ -9,7 +9,10 @@ import {
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
-import { projectAgentWorker } from '../../core/sandbox/session_naming.ts';
+import {
+  projectAgentWorker,
+  workerFamilyBase,
+} from '../../core/sandbox/session_naming.ts';
 import {
   dropPartialTaskMention,
   type MentionSource,
@@ -875,7 +878,8 @@ async function wakeOldestParkedAgentRun(
   return sql.begin(async (tx) => {
     const parked = await tx<ParkedRun[]>`
       SELECT r.id, r.org_id AS "organizationId", r.exec_id AS "execId",
-             r.task_id AS "taskId"
+             r.task_id AS "taskId", r.agent_id AS "agentId",
+             r.session_id AS "sessionId"
       FROM app.project_agent_runs r
       WHERE CASE WHEN ${inside} THEN r.org_id = ${organizationId}
               ELSE r.org_id <> ${organizationId} END
@@ -905,10 +909,17 @@ interface ParkedRun {
   organizationId: string;
   execId: string;
   taskId: string;
+  agentId: string;
+  sessionId: string;
 }
 
-/** Un-park a claimed run and re-enqueue its turn, in the claim's
- * transaction. */
+/** Un-park the run a wake chose and re-enqueue its turn, in the wake's
+ * transaction. The run holds no worker until its claim: it names its
+ * family's first worker and carries no claim stamp, as a park leaves it.
+ * A run an image that never clears the stamp parked may still carry one,
+ * on a worker another run has claimed since; restarted with it, the row
+ * would collide with that run's claim (`project_agent_runs_one_per_worker`)
+ * and fail the wake. */
 async function restartParkedRun(
   tx: TransactionSql,
   run: ParkedRun,
@@ -916,6 +927,8 @@ async function restartParkedRun(
   await tx`
     UPDATE app.project_agent_runs SET
       waiting_for_capacity_at_ms = NULL, waiting_reason = NULL,
+      session_id = ${workerFamilyBase(run.agentId, run.sessionId)},
+      session_claimed_at_ms = NULL,
       updated_at_ms = ${Date.now()}
     WHERE id = ${run.id}
   `;
@@ -942,7 +955,8 @@ export async function wakeParkedAgentRun(
   return sql.begin(async (tx) => {
     const parked = await tx<ParkedRun[]>`
       SELECT id, org_id AS "organizationId", exec_id AS "execId",
-             task_id AS "taskId"
+             task_id AS "taskId", agent_id AS "agentId",
+             session_id AS "sessionId"
       FROM app.project_agent_runs
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND exec_id = ${args.execId}
@@ -967,36 +981,52 @@ export async function wakeParkedAgentRun(
  * again, so a parked run is found by its agent and family, not by the
  * worker it last held; a run of another family (a member's, or the
  * agent's own for a member's worker) could not work in the freed worker
- * and is left parked. One claim, single-winner like every wake: a run that
- * still finds no room parks again, and the watchdog's sweep stays the
- * backstop. */
+ * and is left parked. The family is told by the session naming's own
+ * inverse ({@link workerFamilyBase}), never by a copy of it in SQL: the
+ * agent's parked runs are read oldest first, and the first of the family
+ * still parked when its row is locked is restarted. One claim,
+ * single-winner like every wake: a run that still finds no room parks
+ * again, and the watchdog's sweep stays the backstop. */
 export async function wakeAgentParkedAgentRun(
   sql: Sql,
   args: { organizationId: string; agentId: string; sessionId: string },
 ): Promise<number> {
-  const family =
-    projectAgentWorker(args.agentId, args.sessionId)?.base ??
-    args.sessionId.replace(/-w[1-9][0-9]*$/, '');
-  return sql.begin(async (tx) => {
-    const parked = await tx<ParkedRun[]>`
-      SELECT id, org_id AS "organizationId", exec_id AS "execId",
-             task_id AS "taskId"
-      FROM app.project_agent_runs
-      WHERE org_id = ${args.organizationId}
-        AND agent_id = ${args.agentId}
-        AND regexp_replace(session_id, '-w[1-9][0-9]*$', '') = ${family}
-        AND status = 'queued'
-        AND waiting_for_capacity_at_ms IS NOT NULL
-        AND deadline_at_ms > ${Date.now()}
-      ORDER BY waiting_for_capacity_at_ms
-      LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    `;
-    const run = parked[0];
-    if (!run) return 0;
-    await restartParkedRun(tx, run);
-    return 1;
-  });
+  const family = workerFamilyBase(args.agentId, args.sessionId);
+  const now = Date.now();
+  const candidates = await sql<{ id: string; sessionId: string }[]>`
+    SELECT id, session_id AS "sessionId"
+    FROM app.project_agent_runs
+    WHERE org_id = ${args.organizationId}
+      AND agent_id = ${args.agentId}
+      AND status = 'queued'
+      AND waiting_for_capacity_at_ms IS NOT NULL
+      AND deadline_at_ms > ${now}
+    ORDER BY waiting_for_capacity_at_ms
+  `;
+  for (const candidate of candidates) {
+    if (workerFamilyBase(args.agentId, candidate.sessionId) !== family) {
+      continue;
+    }
+    const woken = await sql.begin(async (tx) => {
+      const parked = await tx<ParkedRun[]>`
+        SELECT id, org_id AS "organizationId", exec_id AS "execId",
+               task_id AS "taskId", agent_id AS "agentId",
+               session_id AS "sessionId"
+        FROM app.project_agent_runs
+        WHERE id = ${candidate.id} AND org_id = ${args.organizationId}
+          AND status = 'queued'
+          AND waiting_for_capacity_at_ms IS NOT NULL
+          AND deadline_at_ms > ${Date.now()}
+        FOR UPDATE SKIP LOCKED
+      `;
+      const run = parked[0];
+      if (!run) return 0;
+      await restartParkedRun(tx, run);
+      return 1;
+    });
+    if (woken === 1) return 1;
+  }
+  return 0;
 }
 
 /** Claim one organization's next parked run and re-enqueue its turn — the
