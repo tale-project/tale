@@ -1560,27 +1560,44 @@ async function sweepAuditLogs(
   // Refuse to delete the very table that records why the hold exists.
   if (holds.orgHeld) return;
   await destroyInTx(sql, trail, async (tx) => {
-    const candidates = await tx<
-      {
-        id: string;
-        actorId: string | null;
-        resourceType: string;
-        resourceId: string | null;
-        ts: number;
-        integrityHash: string;
-      }[]
-    >`
+    type Candidate = {
+      id: string;
+      actorId: string | null;
+      resourceType: string;
+      resourceId: string | null;
+      ts: number;
+      integrityHash: string;
+    };
+    // The prefix is taken in the CHAIN's order: the rows sealed before chain
+    // positions existed come first, in their (ts, id) order, then the
+    // sealer's order (`chain_seq`), which a late-committing row puts out of
+    // `ts` order. A row not sealed yet is never part of it.
+    const legacy = await tx<Candidate[]>`
       SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
              resource_id AS "resourceId", ts::float8 AS ts,
              integrity_hash AS "integrityHash"
       FROM app.audit_logs
-      WHERE org_id = ${org.organizationId} AND ts < ${cutoff}
+      WHERE org_id = ${org.organizationId} AND chain_seq IS NULL
+        AND integrity_hash IS NOT NULL
       ORDER BY ts ASC, id ASC
       LIMIT ${BATCH_LIMIT}
     `;
+    const candidates =
+      legacy.length > 0
+        ? legacy
+        : await tx<Candidate[]>`
+            SELECT id, actor_id AS "actorId", resource_type AS "resourceType",
+                   resource_id AS "resourceId", ts::float8 AS ts,
+                   integrity_hash AS "integrityHash"
+            FROM app.audit_logs
+            WHERE org_id = ${org.organizationId} AND chain_seq IS NOT NULL
+            ORDER BY chain_seq ASC
+            LIMIT ${BATCH_LIMIT}
+          `;
     const prefix: string[] = [];
     let lastDeletedHash: string | null = null;
     for (const row of candidates) {
+      if (row.ts >= cutoff) break; // the window starts here — the prefix ends
       const heldActor =
         row.actorId !== null && holds.userMembershipIds.has(row.actorId);
       const heldSubject =

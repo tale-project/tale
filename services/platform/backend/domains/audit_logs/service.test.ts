@@ -8,19 +8,19 @@
  * org's most privileged one, and titles and e-mails are member-authored.
  */
 
-import {
-  RETRY_QUEUE_LOCK_CLASS,
-  retryQueueKeyOf,
-} from '@tale/shared/db/serializable';
+import { RETRY_QUEUE_LOCK_CLASS } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
+import { computeAuditHash } from '../../core/lib/helpers/audit_hash.ts';
 import { runInRequestChannel } from '../../lib/request-channel.ts';
+import { rowToHashInput } from './hash-input.ts';
 import {
   auditChainQueueKey,
   buildAuditExport,
   createAuditLog,
   listAuditLogs,
+  sealAuditChain,
 } from './service.ts';
 import type { AuditLogRow } from './types.ts';
 
@@ -88,12 +88,6 @@ function fakeTx(respond: (statement: Statement) => unknown[]): {
   return { tx: tag as unknown as TransactionSql, statements };
 }
 
-function sqlstateError(code: string): Error {
-  const error: Error & { code?: string } = new Error(`sqlstate ${code}`);
-  error.code = code;
-  return error;
-}
-
 function limitOf(statements: Statement[]): unknown {
   const query = statements.find((s) => s.text.includes('FROM app.audit_logs'));
   return query?.values.at(-1);
@@ -150,6 +144,7 @@ describe('buildAuditExport — CSV', () => {
     metadata: null,
     integrityHash: 'h',
     previousHash: null,
+    chainSeq: '1',
     piiScrubbed: null,
     ...overrides,
   });
@@ -180,7 +175,7 @@ describe('buildAuditExport — CSV', () => {
   });
 });
 
-describe('createAuditLog — chain-head lock', () => {
+describe('createAuditLog — written unsealed [AUDIT-R7]', () => {
   const args = {
     organizationId: 'org_1',
     actorId: 'u1',
@@ -191,57 +186,154 @@ describe('createAuditLog — chain-head lock', () => {
     resourceId: 'd1',
     status: 'success' as const,
   };
-  const headResponder =
-    (atHeadLock: () => unknown[]) =>
-    (statement: Statement): unknown[] => {
-      if (statement.text.includes('FOR UPDATE')) {
-        return atHeadLock();
+
+  it('inserts the row and nothing else: no chain lock, no chain head, no hash', async () => {
+    const fake = fakeTx((statement) =>
+      statement.text.includes('INSERT INTO app.audit_logs')
+        ? [{ id: 'a1' }]
+        : [],
+    );
+    Object.assign(fake.tx, { json: (value: unknown) => ({ json: value }) });
+    await expect(createAuditLog(fake.tx, args)).resolves.toBe('a1');
+    expect(fake.statements).toHaveLength(1);
+    const insert = fake.statements[0]?.text ?? '';
+    expect(insert).toContain('INSERT INTO app.audit_logs');
+    expect(insert).not.toContain('integrity_hash');
+    expect(insert).not.toContain('chain_seq');
+  });
+});
+
+/** A row as the sealer reads it back: written, not sealed yet. */
+function unsealedRow(id: string, ts: number): AuditLogRow {
+  return {
+    id,
+    organizationId: 'org_1',
+    actorId: 'u1',
+    actorEmail: null,
+    actorEmailHash: null,
+    actorRole: null,
+    actorType: 'user',
+    action: 'document.rename',
+    category: 'data',
+    resourceType: 'document',
+    resourceId: id,
+    resourceName: null,
+    previousState: null,
+    newState: null,
+    changedFields: null,
+    sessionId: null,
+    ipAddress: null,
+    actorIpHash: null,
+    userAgent: null,
+    requestId: null,
+    timestamp: ts,
+    status: 'success',
+    errorMessage: null,
+    metadata: null,
+    integrityHash: null,
+    previousHash: null,
+    chainSeq: null,
+    piiScrubbed: null,
+  };
+}
+
+/** A pool whose `begin` runs the callback on a recording transaction. */
+function fakePool(respond: (statement: Statement) => unknown[]): {
+  sql: Sql;
+  statements: Statement[];
+} {
+  const fake = fakeTx(respond);
+  const sql = Object.assign(
+    (strings: TemplateStringsArray, ...values: unknown[]) =>
+      (
+        fake.tx as unknown as (
+          s: TemplateStringsArray,
+          ...v: unknown[]
+        ) => unknown
+      )(strings, ...values),
+    {
+      unsafe: (text: string) => ({ unsafeText: text }),
+      begin: (callback: (tx: TransactionSql) => Promise<unknown>) =>
+        callback(fake.tx),
+    },
+  );
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the sealer touches only the tag and begin
+  return { sql: sql as unknown as Sql, statements: fake.statements };
+}
+
+describe('sealAuditChain — the sealer [AUDIT-R7]', () => {
+  it('hashes each waiting row onto the one before it and gives it the next position', async () => {
+    const first = unsealedRow('a1', 1_000);
+    const second = unsealedRow('a2', 2_000);
+    const pool = fakePool((statement) => {
+      if (statement.text.includes('pg_try_advisory_xact_lock')) {
+        return [{ locked: true }];
       }
-      if (statement.text.includes('INSERT INTO app.audit_logs')) {
-        return [{ id: 'a1' }];
+      if (statement.text.includes('integrity_hash IS NULL')) {
+        return [first, second];
+      }
+      if (statement.text.includes('FROM app.audit_chain_heads')) {
+        return [{ lastHash: 'h0', lastTs: 500, lastSeq: '7' }];
       }
       return [];
-    };
-
-  it("takes the org's queue lock before it touches the head row", async () => {
-    const fake = fakeTx(headResponder(() => [{ lastHash: '', lastTs: 0 }]));
-    await expect(createAuditLog(fake.tx, args)).resolves.toBe('a1');
-    expect(fake.statements[0]).toEqual({
-      text: 'SELECT pg_advisory_xact_lock(?, hashtext(?))',
-      values: [RETRY_QUEUE_LOCK_CLASS, auditChainQueueKey('org_1')],
     });
-    expect(fake.statements[1]?.text).toContain(
-      'INSERT INTO app.audit_chain_heads',
+    await expect(sealAuditChain(pool.sql, 'org_1')).resolves.toBe(2);
+
+    const firstHash = await computeAuditHash('h0', rowToHashInput(first));
+    const secondHash = await computeAuditHash(
+      firstHash,
+      rowToHashInput(second),
     );
-    expect(fake.statements[2]?.text).toContain('FOR UPDATE');
+    const sealed = pool.statements.find((s) =>
+      s.text.includes('UPDATE app.audit_logs'),
+    );
+    expect(sealed?.values).toEqual([
+      ['a1', 'a2'],
+      ['h0', firstHash],
+      [firstHash, secondHash],
+      ['8', '9'],
+    ]);
+    const head = pool.statements.find((s) =>
+      s.text.includes('UPDATE app.audit_chain_heads'),
+    );
+    expect(head?.values).toEqual([secondHash, 2_000, '9', 'org_1']);
+    // The key is tried before any row is touched.
+    expect(pool.statements[0]?.text).toContain('pg_try_advisory_xact_lock');
+    expect(pool.statements[0]?.values).toEqual([
+      RETRY_QUEUE_LOCK_CLASS,
+      auditChainQueueKey('org_1'),
+    ]);
   });
 
-  it("marks a serialization failure at the head with the org's queue key", async () => {
-    const fake = fakeTx(
-      headResponder(() => {
-        throw sqlstateError('40001');
-      }),
+  it('starts a new chain with no previous hash', async () => {
+    const pool = fakePool((statement) => {
+      if (statement.text.includes('pg_try_advisory_xact_lock')) {
+        return [{ locked: true }];
+      }
+      if (statement.text.includes('integrity_hash IS NULL')) {
+        return [unsealedRow('a1', 1_000)];
+      }
+      if (statement.text.includes('FROM app.audit_chain_heads')) {
+        return [{ lastHash: '', lastTs: 0, lastSeq: '0' }];
+      }
+      return [];
+    });
+    await sealAuditChain(pool.sql, 'org_1');
+    const sealed = pool.statements.find((s) =>
+      s.text.includes('UPDATE app.audit_logs'),
     );
-    const failure = await createAuditLog(fake.tx, args).catch(
-      (error: unknown) => error,
-    );
-    expect(retryQueueKeyOf(failure)).toBe(auditChainQueueKey('org_1'));
-    expect(fake.statements.some((s) => s.text.includes('audit_logs'))).toBe(
-      false,
-    );
+    expect(sealed?.values[1]).toEqual([null]);
+    expect(sealed?.values[3]).toEqual(['1']);
   });
 
-  it('leaves other failures unmarked', async () => {
-    const fake = fakeTx(
-      headResponder(() => {
-        throw sqlstateError('23505');
-      }),
+  it('leaves the rows to the next pass while another holder has the chain', async () => {
+    const pool = fakePool((statement) =>
+      statement.text.includes('pg_try_advisory_xact_lock')
+        ? [{ locked: false }]
+        : [unsealedRow('a1', 1_000)],
     );
-    const failure = await createAuditLog(fake.tx, args).catch(
-      (error: unknown) => error,
-    );
-    expect(failure).toBeInstanceOf(Error);
-    expect(retryQueueKeyOf(failure)).toBeUndefined();
+    await expect(sealAuditChain(pool.sql, 'org_1')).resolves.toBe(0);
+    expect(pool.statements).toHaveLength(1);
   });
 });
 
@@ -270,19 +362,15 @@ describe('createAuditLog — the request channel', () => {
     clientName: 'Claude Code',
   };
 
-  /** The INSERT's metadata, request id and integrity hash. */
+  /** The INSERT's metadata, request id and every stored value. */
   async function insertOf(
     run: (tx: TransactionSql) => Promise<string>,
-  ): Promise<{ metadata: unknown; requestId: unknown; hash: unknown }> {
-    const fake = fakeTx((statement) => {
-      if (statement.text.includes('FOR UPDATE')) {
-        return [{ lastHash: 'h0', lastTs: 0 }];
-      }
-      if (statement.text.includes('INSERT INTO app.audit_logs')) {
-        return [{ id: 'a1' }];
-      }
-      return [];
-    });
+  ): Promise<{ metadata: unknown; requestId: unknown; values: unknown[] }> {
+    const fake = fakeTx((statement) =>
+      statement.text.includes('INSERT INTO app.audit_logs')
+        ? [{ id: 'a1' }]
+        : [],
+    );
     Object.assign(fake.tx, { json: (value: unknown) => ({ json: value }) });
     await run(fake.tx);
     const insert = fake.statements.find((s) =>
@@ -296,7 +384,7 @@ describe('createAuditLog — the request channel', () => {
           ? metadata.json
           : metadata,
       requestId: values[18],
-      hash: values[23],
+      values,
     };
   }
 
@@ -339,7 +427,7 @@ describe('createAuditLog — the request channel', () => {
     expect(own.requestId).toBe('req-own');
   });
 
-  it('hashes the stamped row, so it verifies like a row the writer stamped itself', async () => {
+  it('stores the stamped row exactly as a row the writer stamped itself, so the sealer hashes them alike', async () => {
     vi.useFakeTimers();
     try {
       vi.setSystemTime(1_760_000_000_000);
@@ -358,8 +446,7 @@ describe('createAuditLog — the request channel', () => {
           },
         }),
       );
-      expect(typeof inChannel.hash).toBe('string');
-      expect(inChannel.hash).toBe(explicit.hash);
+      expect(inChannel.values).toEqual(explicit.values);
     } finally {
       vi.useRealTimers();
     }

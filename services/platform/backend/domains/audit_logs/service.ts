@@ -11,7 +11,6 @@ import {
   currentRequestChannel,
 } from '../../lib/request-channel.ts';
 import {
-  buildAuditRecordHashInput,
   computeChangedFields,
   redactSensitiveFields,
   rowToHashInput,
@@ -26,19 +25,20 @@ import type {
 } from './types.ts';
 
 /**
- * Audit chain writer + readers.
+ * Audit chain writer, sealer and readers.
  *
- * `createAuditLog` MUST run inside the caller's transaction: it locks the
- * per-org chain head (`FOR UPDATE`), so concurrent appends serialize and the
- * chain cannot fork; the audit row commits or rolls back atomically with the
- * change it describes. Every audited write of an org bumps that one head
- * row, so under SERIALIZABLE a concurrent appender that commits between the
- * caller's snapshot and the lock is a 40001 — see `lockChainHead` for how
- * the retry is made to queue instead of losing again. Hash algorithm and
- * canonical record layout are the
- * 0.4 ones, so chains imported at cutover keep verifying. The hash covers
- * the record in its STORED form (`toStoredAuditRecord`) — what a later read
- * rebuilds — never the caller's in-memory strings.
+ * `createAuditLog` MUST run inside the caller's transaction, so the audit
+ * row commits or rolls back atomically with the change it describes. It
+ * writes the row UNSEALED — no hash, no lock, no chain head — so an
+ * organization's audited writes no longer queue behind one another.
+ * `sealAuditChain` (the worker's sealer, `startAuditSealer`) seals each
+ * organization's unsealed rows in batches under the chain key: it hashes
+ * each row onto the one before it and gives it the next `chain_seq`, the
+ * chain's order (`ts` stays the moment the event happened; a transaction
+ * that commits late is sealed after rows with a later `ts`). Hash algorithm
+ * and canonical record layout are the 0.4 ones, so chains imported at
+ * cutover keep verifying; the sealer hashes the row as stored
+ * (`rowToHashInput`) — exactly what the verifier rebuilds.
  */
 
 const ROW_COLUMNS = `
@@ -53,25 +53,25 @@ const ROW_COLUMNS = `
   user_agent AS "userAgent", request_id AS "requestId",
   ts::float8 AS "timestamp", status, error_message AS "errorMessage", metadata,
   integrity_hash AS "integrityHash", previous_hash AS "previousHash",
-  pii_scrubbed AS "piiScrubbed"
+  chain_seq::text AS "chainSeq", pii_scrubbed AS "piiScrubbed"
 `;
 
 interface ChainHead {
   lastHash: string;
   lastTs: number;
+  lastSeq: string;
 }
 
-/** Retry-queue key of an org's audit chain (see `lockChainHead`). */
+/** Retry-queue key of an org's audit chain: the key the sealer seals under. */
 export function auditChainQueueKey(organizationId: string): string {
   return `audit-chain:${organizationId}`;
 }
 
 /**
- * Take the org's audit chain without appending to it: the
- * transaction-level advisory lock on the chain's queue key, which every
- * append takes first (`lockChainHead`) and holds until commit — so whoever
- * holds it has the chain to themselves, and an append later in the same
- * transaction re-enters it.
+ * Take the org's audit chain: the transaction-level advisory lock on the
+ * chain's queue key, held until commit. The sealer seals under it (and an
+ * image from before sealing moved off the write path appended under it), so
+ * whoever holds it has the chain to themselves.
  *
  * For a writer that must hold the chain AHEAD of another lock: an event
  * dispatch about to stamp a trigger row, or a run removal whose delete
@@ -115,76 +115,53 @@ export async function tryLockAuditChain(
 }
 
 /**
- * Lock the org's chain head and read it.
- *
- * The head row is the hottest row in the database: every audited write of
- * the org updates it. Inside a SERIALIZABLE transaction the row lock alone
- * cannot serialize appenders — the snapshot is fixed at the transaction's
- * first statement, so an appender whose head was bumped in the meantime
- * aborts with 40001 at the lock, and a plain retry loses again whenever
- * another appender commits first (the storm: a burst of audited writes
- * exhausts the retry budget and the route answers 500).
- *
- * Two pieces make a retry deterministic instead:
- * - the transaction-level advisory lock on the org's queue key
- *   ({@link lockAuditChain}), taken here BEFORE the row lock, queues this
- *   transaction behind a retry that holds the same key as a session lock
- *   from before its BEGIN (see `transactSerializable`), so nobody bumps the
- *   head between that retry's snapshot and its lock;
- * - a 40001/40P01 raised by the head statements is marked with the queue
- *   key, which is what makes the caller's next attempt take that session
- *   lock first.
- * Under contention an appender therefore wastes at most one attempt.
+ * Read the org's chain head for a sealing pass, locked: the sealer holds the
+ * chain key already, and the row lock keeps an image from before sealing
+ * moved off the write path — which appends under the same head — in order.
  */
-async function lockChainHead(
+async function readChainHead(
   tx: TransactionSql,
   organizationId: string,
 ): Promise<ChainHead> {
-  const queueKey = auditChainQueueKey(organizationId);
-  try {
-    await lockAuditChain(tx, organizationId);
-    // Ensure-then-lock: the INSERT is a no-op after the org's first audit
-    // write; the SELECT takes the row lock that serializes this org's chain.
-    await tx`
-      INSERT INTO app.audit_chain_heads (org_id) VALUES (${organizationId})
-      ON CONFLICT (org_id) DO NOTHING
-    `;
-    const rows = await tx<{ lastHash: string; lastTs: number }[]>`
-      SELECT last_hash AS "lastHash", last_ts::float8 AS "lastTs"
-      FROM app.audit_chain_heads
-      WHERE org_id = ${organizationId}
-      FOR UPDATE
-    `;
-    const head = rows[0];
-    if (!head) {
-      throw new Error(`audit chain head vanished for org ${organizationId}`);
-    }
-    return head;
-  } catch (error) {
-    throw markRetryQueueKey(error, queueKey);
+  // Ensure-then-lock: the INSERT is a no-op after the org's first seal.
+  await tx`
+    INSERT INTO app.audit_chain_heads (org_id) VALUES (${organizationId})
+    ON CONFLICT (org_id) DO NOTHING
+  `;
+  const rows = await tx<ChainHead[]>`
+    SELECT last_hash AS "lastHash", last_ts::float8 AS "lastTs",
+           last_seq::text AS "lastSeq"
+    FROM app.audit_chain_heads
+    WHERE org_id = ${organizationId}
+    FOR UPDATE
+  `;
+  const head = rows[0];
+  if (!head) {
+    throw new Error(`audit chain head vanished for org ${organizationId}`);
   }
+  return head;
 }
 
 /**
- * Inline self-check: recompute the prior head row's hash and compare. The
- * only automated tamper detection on the hot path — MUST never abort the
- * legitimate write (log and continue). Rows written by 0.4's frozen v1
- * algorithm only exist in imported data; the cutover importer re-anchors
- * those chains, so no v1 fallback here.
+ * Self-check before a pass extends the chain: recompute the newest sealed
+ * row's hash and compare it with the head the pass chains onto. Tamper
+ * detection proper is the scheduled walk (`verify.ts`); this MUST never stop
+ * the seal (log and continue). Rows written by 0.4's frozen v1 algorithm
+ * only exist in imported data; the cutover importer re-anchors those chains,
+ * so no v1 fallback here.
  */
-async function selfCheckPriorRow(
+async function selfCheckChainHead(
   tx: TransactionSql,
   organizationId: string,
-  expectedHash: string,
+  head: ChainHead,
 ): Promise<void> {
-  if (expectedHash === '') {
+  if (head.lastHash === '') {
     return;
   }
   try {
     const rows = await tx<AuditLogRow[]>`
       SELECT ${tx.unsafe(ROW_COLUMNS)} FROM app.audit_logs
-      WHERE org_id = ${organizationId}
-      ORDER BY ts DESC
+      WHERE org_id = ${organizationId} AND integrity_hash = ${head.lastHash}
       LIMIT 1
     `;
     const lastEntry = rows[0];
@@ -243,32 +220,27 @@ function withRequestChannel(args: CreateAuditLogArgs): CreateAuditLogArgs {
   };
 }
 
-/** Append one audit row to the org's chain inside the caller's transaction. */
+/**
+ * Write one audit row inside the caller's transaction, unsealed: the sealer
+ * chains it within seconds (`sealAuditChain`).
+ */
 export async function createAuditLog(
   tx: TransactionSql,
   callerArgs: CreateAuditLogArgs,
 ): Promise<string> {
   const args = attributeApiKeyAudit(withRequestChannel(callerArgs));
-  const head = await lockChainHead(tx, args.organizationId);
-  await selfCheckPriorRow(tx, args.organizationId, head.lastHash);
-
   const redactedPreviousState = redactSensitiveFields(args.previousState);
   const redactedNewState = redactSensitiveFields(args.newState);
   const changedFields =
     args.changedFields ??
     computeChangedFields(args.previousState, args.newState);
+  const timestamp = Date.now();
 
-  // Monotonic clamp: the chain is ordered by `ts` for both head-pick and
-  // verify walk, so a backwards wall-clock step must not sort a new row
-  // before the head it chains off (see the 0.4 writer's tradeoff note).
-  const timestamp = Math.max(Date.now(), head.lastTs + 1);
-
-  // Hash the STORED form and insert exactly that: every text field and jsonb
-  // payload shaped the way Postgres hands it back (lone surrogates and NUL
-  // → U+FFFD, jsonb through one JSON round-trip). The verifier rebuilds the
-  // record from the row, so anything the caller held that storage would
-  // alter must be altered here first — or an untouched row reads as
-  // tampered, or the INSERT fails and takes the user's transaction with it.
+  // Insert the STORED form: every text field and jsonb payload shaped the
+  // way Postgres hands it back (lone surrogates and NUL → U+FFFD, jsonb
+  // through one JSON round-trip). The sealer hashes the row as read back,
+  // and anything storage would refuse must not take the user's transaction
+  // with it.
   const stored = toStoredAuditRecord({
     ...args,
     previousState: redactedPreviousState,
@@ -276,8 +248,6 @@ export async function createAuditLog(
     changedFields,
     timestamp,
   });
-  const recordForHash = buildAuditRecordHashInput(stored);
-  const integrityHash = await computeAuditHash(head.lastHash, recordForHash);
 
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.audit_logs (
@@ -285,7 +255,7 @@ export async function createAuditLog(
       actor_type, action, category, resource_type, resource_id,
       resource_name, previous_state, new_state, changed_fields, session_id,
       ip_address, actor_ip_hash, user_agent, request_id, ts, status,
-      error_message, metadata, integrity_hash, previous_hash
+      error_message, metadata
     ) VALUES (
       ${stored.organizationId}, ${stored.actorId}, ${stored.actorEmail ?? null},
       ${stored.actorEmailHash ?? null}, ${stored.actorRole ?? null},
@@ -299,8 +269,7 @@ export async function createAuditLog(
       ${stored.actorIpHash ?? null}, ${stored.userAgent ?? null},
       ${stored.requestId ?? null}, ${timestamp}, ${stored.status},
       ${stored.errorMessage ?? null},
-      ${stored.metadata === undefined ? null : tx.json(toJson(stored.metadata))},
-      ${integrityHash}, ${head.lastHash === '' ? null : head.lastHash}
+      ${stored.metadata === undefined ? null : tx.json(toJson(stored.metadata))}
     )
     RETURNING id
   `;
@@ -308,13 +277,98 @@ export async function createAuditLog(
   if (!row) {
     throw new Error('audit insert returned no row');
   }
-
-  await tx`
-    UPDATE app.audit_chain_heads
-    SET last_hash = ${integrityHash}, last_ts = ${timestamp}
-    WHERE org_id = ${args.organizationId}
-  `;
   return row.id;
+}
+
+/** Rows one sealing pass chains at most, per organization. */
+const SEAL_BATCH = 500;
+
+/**
+ * Seal one batch of the org's unsealed rows, oldest `ts` first: each row is
+ * hashed onto the one before it and takes the next `chain_seq`; the head
+ * moves once per batch. Returns how many rows were sealed — 0 when nothing
+ * waited, or when another holder has the chain (another worker's sealer, an
+ * image from before this change appending, a writer coordinating under the
+ * chain key): the next pass picks the rows up.
+ */
+export async function sealAuditChain(
+  sql: Sql,
+  organizationId: string,
+  options: { batch?: number } = {},
+): Promise<number> {
+  const batch = options.batch ?? SEAL_BATCH;
+  return sql.begin(async (tx) => {
+    if (!(await tryLockAuditChain(tx, organizationId))) return 0;
+    const pending = await tx<AuditLogRow[]>`
+      SELECT ${tx.unsafe(ROW_COLUMNS)} FROM app.audit_logs
+      WHERE org_id = ${organizationId} AND integrity_hash IS NULL
+      ORDER BY ts ASC, id ASC
+      LIMIT ${batch}
+      FOR UPDATE
+    `;
+    if (pending.length === 0) return 0;
+    const head = await readChainHead(tx, organizationId);
+    await selfCheckChainHead(tx, organizationId, head);
+
+    let previous = head.lastHash;
+    let seq = BigInt(head.lastSeq);
+    let lastTs = head.lastTs;
+    const ids: string[] = [];
+    const previousHashes: (string | null)[] = [];
+    const hashes: string[] = [];
+    const seqs: string[] = [];
+    for (const row of pending) {
+      const hash = await computeAuditHash(previous, rowToHashInput(row));
+      seq += 1n;
+      ids.push(row.id);
+      previousHashes.push(previous === '' ? null : previous);
+      hashes.push(hash);
+      seqs.push(seq.toString());
+      previous = hash;
+      lastTs = Math.max(lastTs, row.timestamp);
+    }
+    await tx`
+      UPDATE app.audit_logs AS a
+      SET integrity_hash = s.hash, previous_hash = s.previous,
+          chain_seq = s.seq::bigint
+      FROM unnest(
+        ${ids}::text[], ${previousHashes}::text[], ${hashes}::text[],
+        ${seqs}::text[]
+      ) AS s(id, previous, hash, seq)
+      WHERE a.id = s.id
+    `;
+    await tx`
+      UPDATE app.audit_chain_heads
+      SET last_hash = ${previous}, last_ts = ${lastTs},
+          last_seq = ${seq.toString()}::bigint
+      WHERE org_id = ${organizationId}
+    `;
+    return pending.length;
+  });
+}
+
+/** Seal everything the org has waiting — for a reader that wants the whole
+ * chain (the on-demand check, an export) rather than the sealer's cadence.
+ * Stops early when another holder has the chain. */
+export async function sealAuditChainNow(
+  sql: Sql,
+  organizationId: string,
+): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const sealed = await sealAuditChain(sql, organizationId);
+    total += sealed;
+    if (sealed < SEAL_BATCH) return total;
+  }
+}
+
+/** Every org with a row waiting to be sealed. */
+export async function listUnsealedOrgIds(sql: Sql): Promise<string[]> {
+  const rows = await sql<{ orgId: string }[]>`
+    SELECT DISTINCT org_id AS "orgId" FROM app.audit_logs
+    WHERE integrity_hash IS NULL
+  `;
+  return rows.map((row) => row.orgId);
 }
 
 function auditCtxFields(auditCtx: AuditContext) {

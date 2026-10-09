@@ -54,7 +54,7 @@ export const SCHEDULES: CronSchedule[] = [
   // 04:00 sweeps. Packing all three into one half-hour window reintroduces
   // exactly the overlap the 0.4 comments were written to avoid.
   { name: 'governance.effect_hold_releases', cron: '0 1 * * *' },
-  { name: 'audit.integrity_check', cron: '0 2 * * *' },
+  { name: 'audit.chain_check', cron: '0 2 * * *' },
   { name: 'governance.retention_cleanup', cron: '0 4 * * *' },
   // Corpus↔app reconcile: de-index refs nothing references any more — the
   // backstop for release jobs that exhausted retries, and the lazy backfill
@@ -131,8 +131,15 @@ export const SCHEDULES: CronSchedule[] = [
  *   deletion became atomic (every door retires the scopes in the
  *   transaction that deletes the team) and every scope write validates its
  *   team ids (0109).
+ * - `audit.integrity_check` — the nightly chain walk, renamed
+ *   `audit.chain_check` when sealing moved off the write path (0182): a
+ *   worker on an older image walks in timestamp order and would read the
+ *   sealer's order as a break, so the name it listens on stops firing.
  */
-const RETIRED_SCHEDULES: readonly string[] = ['teams.repair_scopes'];
+const RETIRED_SCHEDULES: readonly string[] = [
+  'teams.repair_scopes',
+  'audit.integrity_check',
+];
 
 export async function registerSchedules(boss: PgBoss): Promise<void> {
   for (const schedule of SCHEDULES) {

@@ -46,13 +46,16 @@ function fakeDb(answer: (text: string, values: unknown[]) => Row[]): {
 
 const ORG = 'org-1';
 
-/** A genuine chain of `count` rows, one second apart, hash-linked. */
+/** A genuine chain of `count` rows, one second apart, hash-linked; with
+ * `firstSeq` the rows carry the sealer's positions from there, and
+ * `previous` chains the first row onto an earlier one. */
 async function buildChain(
   count: number,
   startTs: number,
+  options: { firstSeq?: number; previous?: string } = {},
 ): Promise<AuditLogRow[]> {
   const rows: AuditLogRow[] = [];
-  let previous = '';
+  let previous = options.previous ?? '';
   for (let index = 0; index < count; index += 1) {
     const row: AuditLogRow = {
       id: `row-${index + 1}`,
@@ -81,6 +84,10 @@ async function buildChain(
       metadata: null,
       integrityHash: '',
       previousHash: previous === '' ? null : previous,
+      chainSeq:
+        options.firstSeq === undefined
+          ? null
+          : String(options.firstSeq + index),
       piiScrubbed: null,
     };
     row.integrityHash = await computeAuditHash(previous, rowToHashInput(row));
@@ -92,6 +99,12 @@ async function buildChain(
 
 const isRowPage = (text: string): boolean =>
   text.startsWith('SELECT ? FROM app.audit_logs');
+/** The page of rows sealed before chain positions existed. */
+const isLegacyPage = (text: string): boolean =>
+  isRowPage(text) && text.includes('chain_seq IS NULL');
+/** The page of rows in the sealer's order. */
+const isPositionedPage = (text: string): boolean =>
+  isRowPage(text) && text.includes('chain_seq IS NOT NULL');
 
 describe('verifyAuditChain — a resume anchor the retention sweep reaped', () => {
   const START = 1_700_000_000_000;
@@ -100,11 +113,13 @@ describe('verifyAuditChain — a resume anchor the retention sweep reaped', () =
     const chain = await buildChain(5, START);
     const [, r2, r3, r4, r5] = chain;
     if (!r2 || !r3 || !r4 || !r5) throw new Error('chain');
-    const { db } = fakeDb((text) => (isRowPage(text) ? [r2, r3, r4, r5] : []));
+    const { db } = fakeDb((text) =>
+      isLegacyPage(text) ? [r2, r3, r4, r5] : [],
+    );
     const result = await verifyAuditChain(db, ORG, {
       fromTimestamp: r2.timestamp,
       afterId: r2.id,
-      previousExpectedHash: r2.integrityHash,
+      previousExpectedHash: r2.integrityHash ?? '',
       reapedBefore: START - 1,
     });
     expect(result.valid).toBe(true);
@@ -119,11 +134,11 @@ describe('verifyAuditChain — a resume anchor the retention sweep reaped', () =
     if (!r2 || !r3 || !r4 || !r5) throw new Error('chain');
     // The sweep took row-2 and row-3: the first survivor links to the reaped
     // row-3, not to the resume hash (row-2). Retention, not tampering.
-    const { db } = fakeDb((text) => (isRowPage(text) ? [r4, r5] : []));
+    const { db } = fakeDb((text) => (isLegacyPage(text) ? [r4, r5] : []));
     const result = await verifyAuditChain(db, ORG, {
       fromTimestamp: r2.timestamp,
       afterId: r2.id,
-      previousExpectedHash: r2.integrityHash,
+      previousExpectedHash: r2.integrityHash ?? '',
       reapedBefore: r3.timestamp + 1,
     });
     expect(result.valid).toBe(true);
@@ -137,11 +152,11 @@ describe('verifyAuditChain — a resume anchor the retention sweep reaped', () =
     const chain = await buildChain(5, START);
     const [, r2, r3, r4, r5] = chain;
     if (!r2 || !r3 || !r4 || !r5) throw new Error('chain');
-    const { db } = fakeDb((text) => (isRowPage(text) ? [r4, r5] : []));
+    const { db } = fakeDb((text) => (isLegacyPage(text) ? [r4, r5] : []));
     const result = await verifyAuditChain(db, ORG, {
       fromTimestamp: r2.timestamp,
       afterId: r2.id,
-      previousExpectedHash: r2.integrityHash,
+      previousExpectedHash: r2.integrityHash ?? '',
       // The cutoff is OLDER than the anchor: nothing legitimately deleted it.
       reapedBefore: r2.timestamp - 1,
     });
@@ -158,11 +173,11 @@ describe('verifyAuditChain — a resume anchor the retention sweep reaped', () =
     const chain = await buildChain(5, START);
     const [, r2, , r4, r5] = chain;
     if (!r2 || !r4 || !r5) throw new Error('chain');
-    const { db } = fakeDb((text) => (isRowPage(text) ? [r4, r5] : []));
+    const { db } = fakeDb((text) => (isLegacyPage(text) ? [r4, r5] : []));
     const result = await verifyAuditChain(db, ORG, {
       fromTimestamp: r2.timestamp,
       afterId: r2.id,
-      previousExpectedHash: r2.integrityHash,
+      previousExpectedHash: r2.integrityHash ?? '',
     });
     expect(result.valid).toBe(false);
     expect(result.firstBrokenAt?.logId).toBe(r4.id);
@@ -199,7 +214,7 @@ describe('runScheduledIntegrityCheck — the tamper bell survives a failed write
     stampedFingerprint: string | null,
   ) {
     return fakeDb((text) => {
-      if (isRowPage(text)) return rows;
+      if (isLegacyPage(text)) return rows;
       if (text.startsWith('SELECT last_verified_ts')) {
         return [
           {
@@ -258,8 +273,115 @@ describe('runScheduledIntegrityCheck — the tamper bell survives a failed write
       ORG,
     );
     vi.mocked(auditLogRetentionCutoff).mockClear();
-    const fresh = fakeDb((text) => (isRowPage(text) ? rows.slice(0, 1) : []));
+    const fresh = fakeDb((text) =>
+      isLegacyPage(text) ? rows.slice(0, 1) : [],
+    );
     await runScheduledIntegrityCheck(fresh.db, ORG);
     expect(auditLogRetentionCutoff).not.toHaveBeenCalled();
+  });
+});
+
+describe('verifyAuditChain — the order the sealer gives [AUDIT-R7]', () => {
+  const START = 1_710_000_000_000;
+
+  it('walks on from the rows sealed before positions into the sealer’s order', async () => {
+    const legacy = await buildChain(2, START);
+    const positioned = await buildChain(2, START + 10_000, {
+      firstSeq: 1,
+      previous: legacy[1]?.integrityHash ?? '',
+    });
+    const { db } = fakeDb((text) => {
+      if (isLegacyPage(text)) return legacy;
+      if (isPositionedPage(text)) return positioned;
+      return [];
+    });
+    const result = await verifyAuditChain(db, ORG);
+    expect(result.valid).toBe(true);
+    expect(result.verifiedCount).toBe(4);
+    expect(result.lastVerifiedSeq).toBe('2');
+  });
+
+  it('chains by position, not by timestamp: a late commit sealed after a later row verifies', async () => {
+    // The sealer chained the row written first (ts later) before a row
+    // whose transaction committed late (ts earlier).
+    const first = await buildChain(1, START + 5_000, { firstSeq: 1 });
+    const late = await buildChain(1, START, {
+      firstSeq: 2,
+      previous: first[0]?.integrityHash ?? '',
+    });
+    const chain = [...first, ...late];
+    const { db } = fakeDb((text) => (isPositionedPage(text) ? chain : []));
+    const result = await verifyAuditChain(db, ORG);
+    expect(result.valid).toBe(true);
+    expect(result.verifiedCount).toBe(2);
+  });
+
+  it('resumes after a position that is still there', async () => {
+    const chain = await buildChain(4, START, { firstSeq: 1 });
+    const [, p2, p3, p4] = chain;
+    if (!p2 || !p3 || !p4) throw new Error('chain');
+    const { db, statements } = fakeDb((text) =>
+      isPositionedPage(text) ? [p2, p3, p4] : [],
+    );
+    const result = await verifyAuditChain(db, ORG, {
+      fromTimestamp: p2.timestamp,
+      afterId: p2.id,
+      afterSeq: '2',
+      previousExpectedHash: p2.integrityHash ?? '',
+    });
+    expect(result.valid).toBe(true);
+    expect(result.verifiedCount).toBe(2);
+    expect(result.lastVerifiedSeq).toBe('4');
+    // A resume by position never reads the rows sealed before positions.
+    expect(statements.some((s) => isLegacyPage(s.text))).toBe(false);
+  });
+
+  it('reports a break when a position anchor vanished inside the retention window [AUDIT-R1]', async () => {
+    const chain = await buildChain(4, START, { firstSeq: 1 });
+    const [, p2, p3, p4] = chain;
+    if (!p2 || !p3 || !p4) throw new Error('chain');
+    const { db } = fakeDb((text) => (isPositionedPage(text) ? [p3, p4] : []));
+    const result = await verifyAuditChain(db, ORG, {
+      fromTimestamp: p2.timestamp,
+      afterId: p2.id,
+      afterSeq: '2',
+      previousExpectedHash: 'hash-of-the-vanished-row',
+      reapedBefore: START - 1,
+    });
+    expect(result.valid).toBe(false);
+    expect(result.firstBrokenAt?.logId).toBe(p3.id);
+  });
+
+  it('re-anchors when retention reaped the position anchor [AUDIT-R2]', async () => {
+    const chain = await buildChain(4, START, { firstSeq: 1 });
+    const [, p2, p3, p4] = chain;
+    if (!p2 || !p3 || !p4) throw new Error('chain');
+    const { db } = fakeDb((text) => (isPositionedPage(text) ? [p3, p4] : []));
+    const result = await verifyAuditChain(db, ORG, {
+      fromTimestamp: p2.timestamp,
+      afterId: p2.id,
+      afterSeq: '2',
+      previousExpectedHash: 'hash-of-the-reaped-row',
+      reapedBefore: p2.timestamp + 1,
+    });
+    expect(result.valid).toBe(true);
+    expect(result.reanchored).toBe(true);
+  });
+
+  it('counts rows waiting for their seal instead of reporting them as a break', async () => {
+    const chain = await buildChain(2, START, { firstSeq: 1 });
+    const { db } = fakeDb((text) => {
+      if (isPositionedPage(text)) return chain;
+      if (text.includes('integrity_hash IS NULL')) {
+        return [{ count: 3, oldest: START + 60_000 }];
+      }
+      return [];
+    });
+    const result = await verifyAuditChain(db, ORG);
+    expect(result.valid).toBe(true);
+    expect(result.awaitingSeal).toEqual({
+      count: 3,
+      oldestTimestamp: START + 60_000,
+    });
   });
 });
