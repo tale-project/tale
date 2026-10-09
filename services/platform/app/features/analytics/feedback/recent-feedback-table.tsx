@@ -1,6 +1,8 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { Stack } from '@tale/ui/layout';
 import { MetricsSection } from '@tale/ui/metrics/metrics-section';
@@ -11,6 +13,7 @@ import { MessageSquare, ThumbsDown, ThumbsUp } from 'lucide-react';
 import { type ReactNode, useCallback, useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import type { ArenaVerdict, RecentFeedbackItem } from './types';
@@ -61,6 +64,9 @@ interface RecentFeedbackTableProps {
   hasMore: boolean;
   isLoadingMore: boolean;
   onLoadMore: () => void;
+  error?: Error | null;
+  retry?: () => void;
+  isRetrying?: boolean;
   /** Right-aligned controls in the section header — kind/comments-only filters scoped to this table only. */
   headerActions?: ReactNode;
 }
@@ -71,6 +77,9 @@ export function RecentFeedbackTable({
   hasMore,
   isLoadingMore,
   onLoadMore,
+  error = null,
+  retry,
+  isRetrying = false,
   headerActions,
 }: RecentFeedbackTableProps) {
   const { t: tAnalytics } = useT('analytics');
@@ -236,6 +245,19 @@ export function RecentFeedbackTable({
       title={tAnalytics('feedback.recent.title')}
       actions={headerActions}
     >
+      {error ? (
+        <Alert
+          variant="destructive"
+          title={tAnalytics('feedback.recent.loadFailed')}
+          description={failureDetail(error)}
+        >
+          {retry ? (
+            <Button variant="secondary" onClick={retry} disabled={isRetrying}>
+              {tAnalytics('feedback.recent.retry')}
+            </Button>
+          ) : null}
+        </Alert>
+      ) : null}
       <DataTable
         columns={columns}
         data={rows}
@@ -254,11 +276,15 @@ export function RecentFeedbackTable({
             other: tAnalytics('feedback.recent.entityLabel'),
           },
         }}
-        emptyState={{
-          icon: MessageSquare,
-          title: tAnalytics('feedback.recent.emptyTitle'),
-          description: tAnalytics('feedback.recent.emptyDescription'),
-        }}
+        emptyState={
+          error
+            ? undefined
+            : {
+                icon: MessageSquare,
+                title: tAnalytics('feedback.recent.emptyTitle'),
+                description: tAnalytics('feedback.recent.emptyDescription'),
+              }
+        }
       />
     </MetricsSection>
   );

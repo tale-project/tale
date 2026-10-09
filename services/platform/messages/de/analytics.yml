@@ -235,6 +235,8 @@ feedback:
     noComment: (kein Kommentar)
     loadingComment: Vollständiger Kommentar wird geladen …
     commentLoadFailed: Der vollständige Kommentar konnte nicht geladen werden.
+    loadFailed: Aktuelles Feedback konnte nicht geladen werden.
+    retry: Erneut versuchen
     helpfulAria: Hilfreich
     notHelpfulAria: Nicht hilfreich
     types:
