@@ -32,7 +32,11 @@ import {
   useActorDirectory,
 } from '../hooks/use-actor-directory';
 import { useTaskAccess } from '../hooks/use-task-access';
-import { BOARD_TASK_STATUSES, TASK_PRIORITY_ORDER } from '../lib/display';
+import {
+  BOARD_TASK_STATUSES,
+  TASK_PRIORITY_ORDER,
+  type TaskStatus,
+} from '../lib/display';
 import {
   ALL_ASSIGNEE_FILTER,
   ALL_PRIORITY_FILTER,
@@ -45,6 +49,7 @@ import {
 import { readFailed, readRetrying } from '../lib/read-state';
 import { isTaskView, type TaskView } from '../lib/view';
 import { KanbanBoard } from './kanban-board';
+import type { LaneQuickAddConfig } from './lane-quick-add';
 import { TaskBoardProvider } from './task-board-context';
 import type { TaskRow } from './task-card';
 import { TaskModal } from './task-modal';
@@ -208,6 +213,45 @@ export function TasksWorkspace({
       project.archivedAt === undefined);
 
   const [createOpen, setCreateOpen] = useState(false);
+  // The status a create opens in: the toolbar's To do, or the lane whose "+"
+  // was pressed.
+  const [createStatus, setCreateStatus] = useState<TaskStatus>('todo');
+  const openCreateIn = useCallback((status: TaskStatus) => {
+    setCreateStatus(status);
+    setCreateOpen(true);
+  }, []);
+  // Where a lane's "Add task" row creates, for whoever may create here: the
+  // project, and the one priority or assignee the board is filtered to, so a
+  // task added to a filtered board stays on it.
+  const laneCreate = useMemo((): LaneQuickAddConfig | undefined => {
+    if (!controlsCanCreate || allProjects) return undefined;
+    const isAgent =
+      assigneeQueryFilter !== undefined &&
+      agents.some((agent) => agent.id === assigneeQueryFilter);
+    return {
+      organizationId,
+      projectId: typedProjectId,
+      ...(priorityFilter !== ALL_PRIORITY_FILTER && priorityFilter !== 'none'
+        ? { priority: priorityFilter }
+        : {}),
+      ...(assigneeQueryFilter !== undefined
+        ? {
+            assignee: {
+              type: isAgent ? ('agent' as const) : ('user' as const),
+              id: assigneeQueryFilter,
+            },
+          }
+        : {}),
+    };
+  }, [
+    controlsCanCreate,
+    allProjects,
+    assigneeQueryFilter,
+    agents,
+    organizationId,
+    typedProjectId,
+    priorityFilter,
+  ]);
   const [openTaskId, setOpenTaskIdState] = useState(
     openTaskParam ? asTaskId(openTaskParam) : null,
   );
@@ -411,7 +455,7 @@ export function TasksWorkspace({
               <DataTableActionMenu
                 label={t('actions.create')}
                 icon={Plus}
-                onClick={() => setCreateOpen(true)}
+                onClick={() => openCreateIn('todo')}
               />
             </Skeletonize>
           ) : null
@@ -545,6 +589,9 @@ export function TasksWorkspace({
                     onOpenTask={handleOpenTask}
                     projectKey={projectKey}
                     canWorkTask={access.canWorkTask}
+                    {...(laneCreate !== undefined
+                      ? { onAddTask: openCreateIn, quickAdd: laneCreate }
+                      : {})}
                   />
                 ) : (
                   <TasksList
@@ -566,7 +613,7 @@ export function TasksWorkspace({
           projectId={typedProjectId}
           open={createOpen}
           onOpenChange={setCreateOpen}
-          defaultStatus="todo"
+          defaultStatus={createStatus}
           // A template create lands the user inside the new task, where the
           // subject panel names the next step (upload input files / Start).
           onOpenTask={(id) => setOpenTaskId(id, typedProjectId)}

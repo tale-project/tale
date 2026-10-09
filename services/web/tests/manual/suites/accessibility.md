@@ -29,10 +29,10 @@ their own `vitest-axe` coverage.
 > **Agent note**: assert structure against the live DOM (`page.evaluate` DOM
 > scans), not screenshots. The site animates on scroll (framer-motion) — for
 > A11Y-A7 set `prefers-reduced-motion: reduce` in the browser context
-> **before** loading. The product visuals are DOM/SVG demo scenes exposed as
-> single illustrations: `role="img"` + aria-label (the labels under
-> `home.demos.*`) — there are **zero `<img>` elements** on the marketing
-> pages.
+> **before** loading. Homepage and platform heroes use real product captures:
+> `<img>` elements with localized alt text and links to the complete capture.
+> Supporting DOM/SVG demos remain single illustrations: `role="img"` +
+> aria-label (the labels under `home.demos.*` or the page's demo namespace).
 
 ## Functional / structural tests
 
@@ -42,10 +42,9 @@ their own `vitest-axe` coverage.
   Enter moves focus into `<main id="main">`
 - [ ] `A11Y-A2` · **Landmarks** — Query `main, header, footer, nav` on each
   surface → Exactly one `<main>`, one `<header>`, one `<footer>`; every
-  `<nav>` exposes an accessible name. Verified 2026-08: the **footer's five
-  column navs are labelled** by their headings, but the **header primary
-  nav**, the **mobile drawer nav**, and the linkless **address-column nav**
-  fail this — see Issues #1/#2.
+  `<nav>` exposes an accessible name, including the header primary nav,
+  mobile drawer nav and footer's **four column navs**, labelled by their
+  headings. The company address is an `<address>` in the footer's bottom bar.
 - [ ] `A11Y-A3` · **Heading order** — Walk headings top→bottom on `/`,
   `/platform`, and `/pricing` → One `<h1>` per page (the hero / page title);
   levels never skip (no `h1`→`h3`). `/platform` + `/pricing` are automated by
@@ -70,13 +69,13 @@ their own `vitest-axe` coverage.
   its **complete end state** (no typing/streaming loops — the state
   `home-demos.spec.ts` asserts); the hash scroll jumps instantly; nothing
   keeps moving.
-- [ ] `A11Y-A8` · **Demo names + icon controls** — On `/`, query
-  `[role="img"]` and icon-only controls → Every demo scene exposes a
-  descriptive aria-label (`home.demos.tasks.label`, `home.demos.connect.label`,
-  …) that names what the animation shows; decorative icons inside are hidden
-  from AT; icon-only buttons/links (GitHub, hamburger) expose labels
-  (`footer.githubAriaLabel`, `nav.openMenu`). There are no `<img>` elements to
-  alt-check.
+- [ ] `A11Y-A8` · **Product images + demo names + icon controls** — On `/`
+  and a platform module, query `img`, `[role="img"]` and icon-only controls →
+  Each real capture has localized, descriptive alt text (`demo.pages.*.label`)
+  and a keyboard-reachable, labelled full-resolution link. Supporting demo
+  scenes expose descriptive aria-labels from their scenario namespace;
+  decorative icons inside are hidden from AT. Icon-only buttons/links
+  (GitHub, hamburger) expose labels (`footer.githubAriaLabel`, `nav.openMenu`).
 
 ## Boundary & error tests
 

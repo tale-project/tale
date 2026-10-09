@@ -9,10 +9,6 @@ import { useMemo } from 'react';
 import {
   HubHeroDemo,
   HubTourAgentsDemo,
-  HubTourArenaDemo,
-  HubTourAutomationsDemo,
-  HubTourGovernDemo,
-  HubTourKnowledgeDemo,
   HubTourProjectsDemo,
 } from '@/app/components/blocks/demos/content';
 import {
@@ -73,26 +69,6 @@ export function PlatformHubPage() {
       moduleTo: '/platform/agents',
       moduleNavKey: 'agents',
     },
-    knowledge: {
-      demo: <HubTourKnowledgeDemo />,
-      moduleTo: '/platform/knowledge',
-      moduleNavKey: 'knowledge',
-    },
-    automations: {
-      demo: <HubTourAutomationsDemo />,
-      moduleTo: '/platform/automations',
-      moduleNavKey: 'automations',
-    },
-    govern: {
-      demo: <HubTourGovernDemo />,
-      moduleTo: '/platform/governance',
-      moduleNavKey: 'governance',
-    },
-    arena: {
-      demo: <HubTourArenaDemo />,
-      moduleTo: '/platform/chat',
-      moduleNavKey: 'chat',
-    },
     projects: {
       demo: <HubTourProjectsDemo />,
       moduleTo: '/platform/projects',
@@ -101,28 +77,30 @@ export function PlatformHubPage() {
   };
 
   const tourStages = Array.isArray(tourStagesRaw)
-    ? tourStagesRaw.flatMap((stage, index) => {
-        const entry = stageById[stage.id];
-        if (!entry) return [];
-        return [
-          {
-            id: stage.id,
-            eyebrow: `${String(index + 1).padStart(2, '0')} ${stage.eyebrow}`,
-            title: stage.title,
-            description: stage.description,
-            link:
-              entry.moduleTo && entry.moduleNavKey
-                ? {
-                    label: tHome('tour.explore', {
-                      module: tNav(`product.${entry.moduleNavKey}.label`),
-                    }),
-                    to: entry.moduleTo,
-                  }
-                : undefined,
-            demo: entry.demo,
-          },
-        ];
-      })
+    ? tourStagesRaw
+        .filter((stage) => stage.id === 'projects' || stage.id === 'agents')
+        .flatMap((stage, index) => {
+          const entry = stageById[stage.id];
+          if (!entry) return [];
+          return [
+            {
+              id: stage.id,
+              eyebrow: `${String(index + 1).padStart(2, '0')} ${stage.eyebrow}`,
+              title: stage.title,
+              description: stage.description,
+              link:
+                entry.moduleTo && entry.moduleNavKey
+                  ? {
+                      label: tHome('tour.explore', {
+                        module: tNav(`product.${entry.moduleNavKey}.label`),
+                      }),
+                      to: entry.moduleTo,
+                    }
+                  : undefined,
+              demo: entry.demo,
+            },
+          ];
+        })
     : [];
 
   const jsonLd = useMemo(
@@ -154,6 +132,7 @@ export function PlatformHubPage() {
         title={t('title')}
         description={t('description')}
         visual={<HubHeroDemo />}
+        visualTreatment="plain"
       />
       <DemoTourSection
         heading={t('tour.heading')}

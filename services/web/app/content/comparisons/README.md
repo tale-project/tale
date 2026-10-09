@@ -1,9 +1,21 @@
 # Competitor comparison content
 
-The 49 competitor guides and comparison hub share the marketing reading surface with the
-use-case pages. `app/pages/marketing-content-page.tsx` composes the existing marketing primitives,
-Markdown treatment, outline, related links, and metadata adapter; `lib/content/` owns validation
-and publication. Resources navigation and the footer link to the published hub.
+The 49 competitor guides share the marketing reading surface with the use-case pages.
+`app/pages/marketing-content-page.tsx` composes the existing marketing primitives, Markdown
+treatment, outline, related links, and metadata adapter; `lib/content/` owns validation and
+publication. Site navigation and the footer link to the published comparison hub.
+
+The hub uses `app/components/blocks/comparison-hub.tsx`: an alphabetical, full-width directory
+with product/topic search and filters for the existing relationship metadata. It reads the
+metadata-only manifest, never loads every article body, and server-renders every published guide
+as a localized link. Keep directory entries in article frontmatter rather than copying a second
+product list into hub Markdown. Hub Markdown carries evaluation and research guidance; search,
+filter, count, and empty-state copy belongs to `contentPages.comparisons` in EN/DE/FR catalogs.
+
+Each article has a compact decision illustration naming the competitor and relationship, with
+the evaluation dimensions taken from its own comparison table through the existing Markdown
+parser. The symbols explain evaluation paths rather than feature scores or benchmark results.
+Keep factual qualifications and evidence in the article and its table.
 
 ## Product message
 
@@ -54,7 +66,8 @@ compose prose, comparison tables, and calls to action with the existing primitiv
 Every competitor article includes one three-column GFM comparison table after its introduction:
 localized criterion, Tale, and the competitor's name. Include at least three substantive rows
 grounded in the article's linked sources, preserve qualifications and genuine overlaps, and keep
-the dimensions equivalent across locales. The hub remains an index rather than a comparison.
+the dimensions equivalent across locales. The hub remains a discovery directory rather than a
+comparison.
 The shared Markdown renderer supplies column headers, a localized caption and a keyboard-accessible
 horizontal scroll region, keeping the columns readable on narrow screens without widening the page.
 

@@ -15,6 +15,8 @@ interface MarketingSectionProps {
   variant?: Variant;
   /** Slot for control toggles rendered between the header and the body. */
   controls?: ReactNode;
+  /** Optional page-specific illustration alongside the lead copy. */
+  visual?: ReactNode;
   /** Trailing note rendered below the body. */
   footer?: ReactNode;
   children: ReactNode;
@@ -31,6 +33,7 @@ export function MarketingSection({
   description,
   variant = 'lead',
   controls,
+  visual,
   footer,
   children,
 }: MarketingSectionProps) {
@@ -43,20 +46,41 @@ export function MarketingSection({
       className={isLead ? 'relative overflow-hidden' : 'relative'}
     >
       {isLead ? (
-        <MarketingStack max="lg" gap="lg" className="relative">
-          <SectionHeading
-            size="display"
-            as="h1"
-            title={title}
-            description={description}
-            descriptionClassName="max-w-2xl"
-          />
-          {controls ? (
-            <div className="flex flex-col items-center gap-3 md:flex-row md:flex-wrap md:justify-center md:gap-3">
-              {controls}
-            </div>
-          ) : null}
-        </MarketingStack>
+        <div
+          className={
+            visual
+              ? 'grid min-w-0 items-center gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-16'
+              : undefined
+          }
+        >
+          <MarketingStack
+            max={visual ? 'full' : 'lg'}
+            gap="lg"
+            align={visual ? 'start' : 'center'}
+            className="relative"
+          >
+            <SectionHeading
+              size="display"
+              as="h1"
+              title={title}
+              description={description}
+              descriptionClassName="max-w-2xl"
+              align={visual ? 'start' : 'center'}
+            />
+            {controls ? (
+              <div
+                className={
+                  visual
+                    ? 'flex flex-wrap items-center gap-3'
+                    : 'flex flex-col items-center gap-3 md:flex-row md:flex-wrap md:justify-center md:gap-3'
+                }
+              >
+                {controls}
+              </div>
+            ) : null}
+          </MarketingStack>
+          {visual ? <div className="min-w-0">{visual}</div> : null}
+        </div>
       ) : (
         <>
           <SectionHeading
