@@ -237,6 +237,11 @@ views:
   board: Tableau
   list: Liste
 board:
+  agentWorking: '{name} y travaille'
+  addTask: Ajouter une tâche
+  addToLane: 'Ajouter une tâche dans {status}'
+  quickAddLabel: Titre de la nouvelle tâche
+  quickAdded: '« {title} » ajoutée'
   noTasks: Aucune tâche
 list:
   showArchived: Afficher les archivées

@@ -21,6 +21,8 @@ Une tâche regroupe le but d’un travail, son responsable, son statut, ses fich
 
 Pour créer plusieurs tâches à la suite, active **En créer une autre** en bas à gauche de la boîte de dialogue avant de créer. La boîte reste alors ouverte : le titre, la description et les pièces jointes sont vidés pour la tâche suivante, tandis que le statut, la priorité, l’assignation, les dates, la répétition et les libellés restent tels que tu les as définis. Tale mémorise ce réglage dans ce navigateur.
 
+Sur le **Tableau**, chaque colonne crée dans son propre statut : le **+** à côté du nom de la colonne ouvre la même boîte de dialogue avec ce statut, et **Ajouter une tâche** en bas de la colonne ne demande qu’un titre. Saisis-le et appuie sur **Entrée** pour ajouter la tâche à cette colonne, avec la priorité **Moyenne**, aujourd’hui comme date de début, et la priorité ou l’assignation selon lesquelles le tableau est filtré ; le champ reste ouvert pour la suivante, et **Échap** le ferme.
+
 Un titre compte jusqu’à 200 caractères et une description jusqu’à 20 000 ; la plupart des emojis comptent double. Une description plus longue, collée ou laissée sur une tâche par un import antérieur, n’est pas coupée : le champ indique la limite et compte la longueur, et **Créer une tâche** ou **Enregistrer** reste indisponible tant que tu ne l’as pas raccourcie.
 
 Tale attribue un identifiant à partir de la clé du projet, par exemple `WEB-1`. Utilise-le pour désigner le travail sans confondre des tâches aux titres proches.
