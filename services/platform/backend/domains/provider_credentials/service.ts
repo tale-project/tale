@@ -215,7 +215,13 @@ export function credentialShimHandlers(
         return bySlug;
       });
       // A failed read is not remembered: the next ask tries again.
-      loaded.catch(() => defaults.delete(organizationId));
+      const pending = loaded;
+      pending.catch(() => {
+        // An invalidation may already have installed a newer generation.
+        if (defaults.get(organizationId) === pending) {
+          defaults.delete(organizationId);
+        }
+      });
       defaults.set(organizationId, loaded);
     }
     return loaded;
