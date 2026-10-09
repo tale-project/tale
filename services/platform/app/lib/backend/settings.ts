@@ -590,10 +590,7 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
       queryFn: () =>
         backendFetch<{ usage: QuotaUsageResult }>('/sandbox/quota-usage', {
           orgId,
-        }).then(
-          (body) => body.usage,
-          () => null,
-        ),
+        }).then((body) => body?.usage ?? null),
       refetchInterval: 15_000,
     };
   },
