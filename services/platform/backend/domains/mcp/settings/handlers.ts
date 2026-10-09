@@ -9,11 +9,13 @@ import { brandingSettings } from '../../branding/settings-resource.ts';
 import { deploymentSettings } from '../../deployment/settings-resource.ts';
 import { governanceSettings } from '../../governance/settings-resource.ts';
 import { knowledgeEmbeddingSettings } from '../../knowledge/settings-resource.ts';
+import { providerCredentialSettings } from '../../provider_credentials/settings-resource.ts';
 import { providerSettings } from '../../providers/settings-resource.ts';
 import type { SettingsRegistry } from './registry.ts';
 
 export const SETTINGS_HANDLERS: SettingsRegistry = {
   provider: providerSettings,
+  'provider-credential': providerCredentialSettings,
   governance: governanceSettings,
   'knowledge-embedding': knowledgeEmbeddingSettings,
   branding: brandingSettings,

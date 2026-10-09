@@ -342,7 +342,7 @@ function credentialHash(row: Omit<CredentialListItem, 'hash'>): string {
 }
 
 export async function listCredentials(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   scope: CredentialScope,
   providerSlug?: string,
 ): Promise<CredentialListItem[]> {
