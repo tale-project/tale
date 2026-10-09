@@ -37,6 +37,7 @@ run:
   openFull: Vollständigen Lauf öffnen
 subject:
   runLoadError: "Der Workflow-Status konnte nicht geladen werden. Versuch es erneut, um die verfügbaren Aktionen zu sehen."
+  askLoadError: "Es konnte nicht geprüft werden, ob eine Frage offen ist. Versuch es erneut, um zu sehen, ob eine Antwort nötig ist."
   ready: 'Bereit zum Start — {name} übernimmt ab hier.'
   start: Starten
   startAgain: Erneut starten

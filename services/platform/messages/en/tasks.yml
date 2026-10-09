@@ -39,6 +39,7 @@ run:
   openFull: Open the full run
 subject:
   runLoadError: "Couldn't load the workflow state. Try again to see the available actions."
+  askLoadError: "Couldn't check for a pending question. Try again to see whether an answer is needed."
   ready: 'Ready to start — {name} takes it from here.'
   start: Start
   startAgain: Start again
