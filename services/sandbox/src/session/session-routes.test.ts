@@ -6716,6 +6716,133 @@ describe('memory-aware admission', () => {
     });
     expect((await create(routes, 'unknown-mem')).status).toBe(201);
   });
+
+  describe('CPU pressure', () => {
+    /** A roomy host whose CPU pressure reads as `pressure()` percent. */
+    const pressured = (pressure: () => number | null) => ({
+      ...host(() => 12),
+      cpuPressure: pressure,
+    });
+
+    test('under pressure, sessions start one at a time and the rest wait in line', async () => {
+      const startMs = Date.now();
+      try {
+        const routes = new SessionRoutes(
+          cfg,
+          fakeBackend,
+          undefined,
+          pressured(() => 80),
+        );
+        expect((await create(routes, 'cpu-1')).status).toBe(201);
+        const refused = await create(routes, 'cpu-2');
+        expect(refused.status).toBe(429);
+        expect(refused.headers.get('retry-after')).toBe('5');
+        expect(await refused.json()).toMatchObject({
+          error: 'host_cpu',
+          queue: { position: 0, waiting: 1 },
+        });
+        expect(created.has('cpu-2')).toBe(false);
+        // A newcomer queues behind it, even once the next start is due.
+        setSystemTime(new Date(startMs + 5_000));
+        expect(await (await create(routes, 'cpu-3')).json()).toMatchObject({
+          error: 'host_cpu',
+          queue: { position: 1, waiting: 2 },
+        });
+        setSystemTime(new Date(startMs + 11_000));
+        expect((await create(routes, 'cpu-3')).status).toBe(429);
+        expect((await create(routes, 'cpu-2')).status).toBe(201);
+        expect((await create(routes, 'cpu-3')).status).toBe(429);
+        setSystemTime(new Date(startMs + 22_000));
+        expect((await create(routes, 'cpu-3')).status).toBe(201);
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test('once the pressure eases, the line drains without spacing', async () => {
+      let pressure = 90;
+      const routes = new SessionRoutes(
+        cfg,
+        fakeBackend,
+        undefined,
+        pressured(() => pressure),
+      );
+      expect((await create(routes, 'eased-1')).status).toBe(201);
+      expect((await create(routes, 'eased-2')).status).toBe(429);
+      pressure = 20;
+      expect((await create(routes, 'eased-2')).status).toBe(201);
+      expect((await create(routes, 'eased-3')).status).toBe(201);
+    });
+
+    test.each([
+      ['below the threshold', () => 59.9, undefined],
+      ['switched off', () => 100, 0],
+      ['unknown', () => null, undefined],
+      [
+        'unreadable',
+        () => {
+          throw new Error('pressure unreadable');
+        },
+        undefined,
+      ],
+    ])(
+      '%s, CPU pressure refuses no create',
+      async (_, pressure, cpuPressurePercent) => {
+        const warn = spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+          const routes = new SessionRoutes(
+            {
+              ...cfg,
+              session: {
+                ...cfg.session,
+                ...(cpuPressurePercent === undefined
+                  ? {}
+                  : { cpuPressurePercent }),
+              },
+            },
+            fakeBackend,
+            undefined,
+            pressured(pressure),
+          );
+          for (const id of ['free-1', 'free-2', 'free-3']) {
+            expect((await create(routes, id)).status).toBe(201);
+          }
+        } finally {
+          warn.mockRestore();
+        }
+      },
+    );
+
+    test('a released session that would start work under pressure waits its turn', async () => {
+      const startMs = Date.now();
+      let pressure = 0;
+      try {
+        const routes = new SessionRoutes(
+          cfg,
+          fakeBackend,
+          undefined,
+          pressured(() => pressure),
+        );
+        expect((await create(routes, 'cpu-warm')).status).toBe(201);
+        await releaseWarm(routes, 'cpu-warm');
+        pressure = 75;
+        expect((await create(routes, 'cpu-other')).status).toBe(201);
+        const refused = await routes.handleActivity('cpu-warm', 'acquire');
+        expect(refused.status).toBe(429);
+        expect(await refused.json()).toMatchObject({
+          error: 'host_cpu',
+          queue: { position: 0 },
+        });
+        expect(stopped.has('cpu-warm')).toBe(false);
+        setSystemTime(new Date(startMs + 11_000));
+        expect(
+          (await routes.handleActivity('cpu-warm', 'acquire')).status,
+        ).toBe(200);
+      } finally {
+        setSystemTime();
+      }
+    });
+  });
 });
 
 describe('disk-aware admission', () => {

@@ -45,6 +45,7 @@ const KEYS = [
   'SANDBOX_PACKAGE_CACHE_RETENTION',
   'SANDBOX_MIN_FREE_DISK',
   'SANDBOX_CRITICAL_FREE_DISK',
+  'SANDBOX_CPU_PRESSURE_PERCENT',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -356,6 +357,18 @@ test('the free space kept on the session disk is optional and validated', () => 
   expect(loadConfig().session.minFreeDiskBytes).toBe(0);
   process.env.SANDBOX_MIN_FREE_DISK = 'plenty';
   expect(() => loadConfig()).toThrow(/SANDBOX_MIN_FREE_DISK/);
+});
+
+test('the CPU pressure admission waits from is 60 % unless set, and 0 turns it off', () => {
+  expect(loadConfig().session.cpuPressurePercent).toBe(60);
+  process.env.SANDBOX_CPU_PRESSURE_PERCENT = '35.5';
+  expect(loadConfig().session.cpuPressurePercent).toBe(35.5);
+  process.env.SANDBOX_CPU_PRESSURE_PERCENT = '0';
+  expect(loadConfig().session.cpuPressurePercent).toBe(0);
+  for (const refused of ['101', '-1', 'busy']) {
+    process.env.SANDBOX_CPU_PRESSURE_PERCENT = refused;
+    expect(() => loadConfig()).toThrow(/SANDBOX_CPU_PRESSURE_PERCENT/);
+  }
 });
 
 test('the critical tier of the session disk is optional and validated', () => {

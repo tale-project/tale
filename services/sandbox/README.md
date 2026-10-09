@@ -91,13 +91,19 @@ returns the configured `maxSessions` without requiring a Docker or Kubernetes
 inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
 organizations; unset, a Docker spawner that can read its host's memory sizes
 it from that memory (one session per 768 MiB beyond the reserve, or per
-1.5 GiB where agent sessions run Docker inside, at least 8, at most 256; at
-boot, or at the first sweep that can read it), and 8 applies elsewhere. On
+1.5 GiB where agent sessions run Docker inside, at most two per CPU the
+daemon reports, at least 8, at most 256; at boot, or at the first sweep that
+can read it), and 8 applies elsewhere. On
 such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
 the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
-session or answers 429 `host_memory`. Admission also keeps
+session or answers 429 `host_memory`. While the host's CPU pressure (PSI
+`some avg10` of `/proc/pressure/cpu`) is at or above
+`SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns it off), creates and warm
+acquisitions start one at a time, one every ten seconds from the front of
+the line, and the rest answer 429 `host_cpu`; a kernel without PSI leaves CPU
+out, logged once. Admission also keeps
 `SANDBOX_MIN_FREE_DISK` free on the workspace filesystem and, where the
 spawner's Docker hostname bind can be verified, Docker's metadata filesystem
 (a twentieth of each, at least 2 GiB, at most 20 GiB; `0` turns it off). This
@@ -427,7 +433,8 @@ runtime image. A volume whose mode could not be set is removed again, and the
 next create makes it afresh.
 
 Reactivating a released session reserves its expected memory growth and checks
-disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.
+disk headroom and CPU pressure. Both create and acquire can return 429
+`host_memory`, `host_cpu` or `host_disk`.
 Docker's metadata filesystem is observed through its existing `/etc/hostname`
 bind when that mount can be verified against the selected daemon. Otherwise,
 workspace admission remains active and Docker disk pressure is unavailable.
