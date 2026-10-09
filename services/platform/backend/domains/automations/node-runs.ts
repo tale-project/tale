@@ -277,3 +277,26 @@ export async function readOpenNodeRuns(
   `;
   return rows.map(nodeRunFromRow);
 }
+
+/** Every row of a run, with when each was last written: what the run's
+ * record is read from (`run-record.ts`). */
+export async function readNodeRunsSince(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  runId: string,
+): Promise<Array<{ record: NodeRunRecord; updatedAt: number }>> {
+  const rows = await sql<Array<NodeRunRow & { updated_at_ms: number }>>`
+    SELECT path, item_index, pass, node_id, node_type, status,
+           started_at_ms::float8 AS started_at_ms,
+           ended_at_ms::float8 AS ended_at_ms, active_ms, attempt,
+           skip_reason, failure_code, input, output, record,
+           updated_at_ms::float8 AS updated_at_ms
+    FROM app.automation_node_runs
+    WHERE run_id = ${runId} AND org_id = ${organizationId}
+    ORDER BY started_at_ms NULLS LAST, path, item_index, pass
+  `;
+  return rows.map((row) => ({
+    record: nodeRunFromRow(row),
+    updatedAt: row.updated_at_ms,
+  }));
+}

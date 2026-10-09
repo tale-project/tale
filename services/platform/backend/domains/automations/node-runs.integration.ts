@@ -4,17 +4,21 @@
  * transaction, and a write the fence refuses records nothing; a late write
  * of an older walker never replaces a newer walker's row; a long step's
  * start write is fenced by the run row itself; the next turn reads back only
- * the units still open; and the rows leave with their run. */
+ * the units still open; the record reads back whole, with only the events a
+ * reader may see, then by what changed since its cursor; and the rows leave
+ * with their run. */
 import type { Sql } from 'postgres';
 
 import { createRecorder } from '../../../lib/engine/core/record/recorder.ts';
 import type { NodeRunRecord } from '../../../lib/engine/core/record/types.ts';
 import { recordBudget } from '../../../lib/engine/core/record/value.ts';
+import { jsonParam } from '../../db/sql.ts';
 import {
   readOpenNodeRuns,
   recordNodeRunsStarted,
   writeNodeRunsInTx,
 } from './node-runs.ts';
+import { readRunRecord } from './run-record.ts';
 import { beginRun, deploy, recordProgress, saveVersion } from './store.ts';
 import { markAutomationWriterInTx } from './writer-protocol.ts';
 
@@ -173,6 +177,46 @@ export async function checkAutomationNodeRuns(
       open[0]?.key.path === 'one' &&
       open[0].status === 'running',
     `stale=${startedStale.written} live=${startedLive.written} open=${JSON.stringify(open.map((r) => `${r.key.path}:${r.status}`))}`,
+  );
+
+  // ---- the record reads back whole, then by what changed since.
+  const firstRead = await readRunRecord(sql, { organizationId: orgId, runId });
+  const at = Math.max(Date.now(), (firstRead?.cursor ?? 0) + 1);
+  const seenBy = 'host:1:v1:blue';
+  await sql`
+    INSERT INTO app.automation_run_events
+      (run_id, org_id, at_ms, kind, instance, detail)
+    VALUES
+      (${runId}, ${orgId}, ${at}, 'node_interrupted', ${seenBy},
+       ${jsonParam(sql, { path: 'one', reason: 'lease_expired', instance: seenBy })}::jsonb),
+      (${runId}, ${orgId}, ${at}, 'legacy_quarantined', ${seenBy}, NULL)
+  `;
+  const whole = await readRunRecord(sql, { organizationId: orgId, runId });
+  const quiet = await readRunRecord(sql, {
+    organizationId: orgId,
+    runId,
+    since: (whole?.cursor ?? 0) + 1,
+  });
+  const foreign = await readRunRecord(sql, {
+    organizationId: `${orgId}-elsewhere`,
+    runId,
+  });
+  const event = whole?.events[0];
+  record(
+    'the record reads back with its steps, the events a reader may see and a cursor; nothing is new past the cursor',
+    whole?.source === 'record' &&
+      whole.nodes.some((n) => n.path === 'one' && n.status === 'running') &&
+      whole.events.length === 1 &&
+      whole.eventsTotal === 1 &&
+      event?.kind === 'node_interrupted' &&
+      event.nodeId === 'one' &&
+      event.reason === 'lease_expired' &&
+      !JSON.stringify(whole).includes(seenBy) &&
+      whole.cursor === at &&
+      quiet?.nodes.length === 0 &&
+      quiet.events.length === 0 &&
+      foreign === null,
+    `source=${whole?.source} nodes=${JSON.stringify(whole?.nodes.map((n) => `${n.path}:${n.status}`))} events=${JSON.stringify(whole?.events)} total=${whole?.eventsTotal} cursor=${whole?.cursor}/${at} quiet=${quiet?.nodes.length}/${quiet?.events.length} foreign=${foreign === null}`,
   );
 
   // ---- the rows leave with their run.
