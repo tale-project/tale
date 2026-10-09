@@ -33,15 +33,20 @@ function readWords(read: Read, ctx: ConditionTextContext): string {
   );
 }
 
+/** What a read read: its source and path. */
+function readKey(read: Read): string {
+  return JSON.stringify([
+    read.from.kind === 'node' ? read.from.nodeId : '',
+    read.refPath,
+  ]);
+}
+
 /** The reads of a step, each source and path once, in the order it read
  *  them. */
 function distinctReads(reads: readonly Read[]): Read[] {
   const seen = new Set<string>();
   return reads.filter((read) => {
-    const key = JSON.stringify([
-      read.from.kind === 'node' ? read.from.nodeId : '',
-      read.refPath,
-    ]);
+    const key = readKey(read);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -123,7 +128,9 @@ export function RunStepData({ detail }: { detail: NodeRunDetail }) {
             {reads.map((read) => {
               const operand = readWords(read, ctx);
               return (
-                <li key={`${read.to.pointer}:${read.to.range.join('-')}`}>
+                // One template reads one path per item: what it read is
+                // the row, not where it read it.
+                <li key={readKey(read)}>
                   {read.value === undefined
                     ? operand
                     : t('data.readValue', {
