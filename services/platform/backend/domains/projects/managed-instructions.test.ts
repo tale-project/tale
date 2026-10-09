@@ -406,7 +406,10 @@ describe('managed instruction adoption and preconditions', () => {
         },
         hash(config.task),
       ),
-    ).rejects.toMatchObject({ code: 'TASK_DESCRIPTION_INVALID' });
+    ).rejects.toMatchObject({
+      code: 'TASK_MENTION_INVALID',
+      data: { mentions: [{ type: 'user', id: 'outsider' }] },
+    });
     expect(db.writes()).toEqual([]);
   });
 

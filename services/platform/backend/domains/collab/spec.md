@@ -78,10 +78,11 @@ name of an automation from them. An edited comment keeps naming the people it al
 ### COLLAB-R12 · A mention of someone who cannot be mentioned is saved as plain text
 
 A mention that names someone who cannot open the task, an agent of another project, or anyone
-outside the organization is saved as plain text with its name. It notifies nobody, and the
-author is told. A mention a text already had stays as it was when the text is edited. Managed
-task instructions are stored exactly as sent, so there such a mention is refused instead
-(`TASK_DESCRIPTION_INVALID`).
+outside the organization is saved as plain text with its name, through every door. It notifies
+nobody. A person posting a comment in the app is told which mentions were saved as text; the
+other doors do not say. A mention a text already had stays as it was when the text is edited.
+Managed task instructions are stored exactly as sent, so there such a mention is refused
+instead (`TASK_MENTION_INVALID`).
 
 - **Example**: Noah pastes a mention of Ada, who cannot open the project, into a comment → it
   is saved as "@Ada Lovelace" in plain text, Ada is not notified, and Noah is told.

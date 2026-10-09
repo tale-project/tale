@@ -1689,7 +1689,7 @@ export async function updateTaskInstructionsConfiguration(
   });
   if (check.invalidTokens.length > 0) {
     throw new TaskError(
-      'TASK_DESCRIPTION_INVALID',
+      'TASK_MENTION_INVALID',
       'The description mentions someone who cannot be mentioned on this task.',
       400,
       { mentions: check.invalidTokens },
