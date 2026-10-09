@@ -6840,6 +6840,74 @@ describe('disk-aware admission', () => {
     }
   });
 
+  test('a critical tier acts on each watched filesystem for what lives there', async () => {
+    const warnings: string[] = [];
+    const warn = spyOn(console, 'warn').mockImplementation(
+      (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      },
+    );
+    let measured = 0;
+    let workspaceFree = 50;
+    let dockerFree = 50;
+    const reading = (free: number) => ({
+      totalBytes: 100 * GIB,
+      availableBytes: free * GIB,
+    });
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async largestWorkspaces() {
+          measured += 1;
+          return { largest: [], measured: 0, total: 0 };
+        },
+      },
+      undefined,
+      undefined,
+      {
+        latest: () => reading(Math.min(workspaceFree, dockerFree)),
+        read: () =>
+          Promise.resolve(reading(Math.min(workspaceFree, dockerFree))),
+        byFilesystem: () => ({
+          workspace: reading(workspaceFree),
+          dockerData: reading(dockerFree),
+        }),
+      },
+    );
+    try {
+      await releasedDockerSessions(routes);
+      // Only the workspace disk is critical: its largest workspaces are
+      // logged, and no Docker-in-sandbox session stops, since its inner
+      // image store lives on Docker's data disk.
+      workspaceFree = 1;
+      expect(await routes.sweepExpired()).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toBe(1);
+      expect(stopped.has('dind-released')).toBe(false);
+      expect(
+        warnings.some((line) =>
+          line.startsWith(
+            '[sandbox.session] the session disk has 1.0 GiB free',
+          ),
+        ),
+      ).toBe(true);
+      // Docker's data disk turns critical too: the released session stops.
+      dockerFree = 1;
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('dind-released')).toBe(true);
+      expect(
+        warnings.some((line) =>
+          line.startsWith(
+            "[sandbox.session] Docker's data disk has 1.0 GiB free",
+          ),
+        ),
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('an unknown disk, or a critical tier of 0, stops nothing for the disk', async () => {
     const off = {
       ...cfg,

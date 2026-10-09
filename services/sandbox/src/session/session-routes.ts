@@ -16,6 +16,7 @@ import {
   belowDiskCritical,
   belowDiskFloor,
   diskCriticalBytes,
+  type HostDisk,
   type HostDiskSource,
   type SessionDiskState,
 } from '../host-disk.ts';
@@ -378,7 +379,11 @@ export class SessionRoutes {
   private nothingToReclaimUntilMs = 0;
   // The session disk's critical state as the last sweep saw it, so each
   // change is logged once; and the measurement of its largest workspaces.
-  private diskWasCritical = false;
+  private diskWasCritical = {
+    both: false,
+    workspace: false,
+    dockerData: false,
+  };
   private workspaceUsageAtMs = Number.NEGATIVE_INFINITY;
   private workspaceUsage: Promise<void> | null = null;
   // Settles when the destroy of that id is done (success or failure):
@@ -732,35 +737,65 @@ export class SessionRoutes {
     }
   }
 
-  /** Is the disk the workspaces live on below its critical tier (the probe's
-   * last reading)? An unknown disk never is. Each change is logged once. */
-  private diskCritical(): boolean {
-    let disk;
+  /** Which filesystems are below their critical tier (the probe's last
+   * readings): the workspaces' own, whose largest workspaces are then
+   * logged, and Docker's data root, where a Docker-in-sandbox session keeps
+   * its inner image store, so a released one then stops. They are one disk
+   * unless Docker's data root is watched apart. An unknown disk never is
+   * critical. Each change is logged once per filesystem. */
+  private diskCritical(): { workspace: boolean; dockerData: boolean } {
+    let workspace: HostDisk | null;
+    let dockerData: HostDisk | null | undefined;
     try {
-      disk = this.hostDisk.latest();
+      const apart = this.hostDisk.byFilesystem?.();
+      workspace = apart ? apart.workspace : this.hostDisk.latest();
+      dockerData = apart?.dockerData;
     } catch (error) {
       console.warn('[sandbox.session] session disk unreadable:', error);
-      return false;
+      return { workspace: false, dockerData: false };
     }
+    if (dockerData === undefined) {
+      const both = this.criticalTransition('both', workspace);
+      return { workspace: both, dockerData: both };
+    }
+    return {
+      workspace: this.criticalTransition('workspace', workspace),
+      dockerData: this.criticalTransition('dockerData', dockerData),
+    };
+  }
+
+  private criticalTransition(
+    filesystem: 'both' | 'workspace' | 'dockerData',
+    disk: HostDisk | null,
+  ): boolean {
     const { minFreeDiskBytes, criticalFreeDiskBytes } = this.cfg.session;
     const critical = belowDiskCritical(
       disk,
       minFreeDiskBytes,
       criticalFreeDiskBytes,
     );
-    if (critical !== this.diskWasCritical && disk !== null) {
-      this.diskWasCritical = critical;
-      const free = `${(disk.availableBytes / GIB).toFixed(1)} GiB`;
-      const tier = `${(diskCriticalBytes(disk.totalBytes, minFreeDiskBytes, criticalFreeDiskBytes) / GIB).toFixed(1)} GiB`;
-      if (critical) {
-        console.warn(
-          `[sandbox.session] the session disk has ${free} free, below its critical ${tier}: running sessions are about to fail their writes; released Docker-in-sandbox sessions stop now and the largest workspaces are logged (SANDBOX_CRITICAL_FREE_DISK)`,
-        );
-      } else {
-        console.log(
-          `[sandbox.session] the session disk has ${free} free again, above its critical ${tier}`,
-        );
-      }
+    // A reading that is missing or a placeholder says nothing either way:
+    // the last verdict stands, unlogged, until a real one lands.
+    if (disk === null || disk.unavailable === true) return critical;
+    if (critical === this.diskWasCritical[filesystem]) return critical;
+    this.diskWasCritical[filesystem] = critical;
+    const name =
+      filesystem === 'dockerData' ? "Docker's data disk" : 'the session disk';
+    const actions = {
+      both: 'released Docker-in-sandbox sessions stop now and the largest workspaces are logged',
+      workspace: 'the largest workspaces are logged',
+      dockerData: 'released Docker-in-sandbox sessions stop now',
+    }[filesystem];
+    const free = `${(disk.availableBytes / GIB).toFixed(1)} GiB`;
+    const tier = `${(diskCriticalBytes(disk.totalBytes, minFreeDiskBytes, criticalFreeDiskBytes) / GIB).toFixed(1)} GiB`;
+    if (critical) {
+      console.warn(
+        `[sandbox.session] ${name} has ${free} free, below its critical ${tier}: running sessions are about to fail their writes; ${actions} (SANDBOX_CRITICAL_FREE_DISK)`,
+      );
+    } else {
+      console.log(
+        `[sandbox.session] ${name} has ${free} free again, above its critical ${tier}`,
+      );
     }
     return critical;
   }
@@ -1659,13 +1694,14 @@ export class SessionRoutes {
    */
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
-    const diskCritical = this.diskCritical();
-    if (diskCritical) this.logLargestWorkspaces();
+    const critical = this.diskCritical();
+    if (critical.workspace) this.logLargestWorkspaces();
     await forEachLimited(
       this.registry.list(),
       SWEEP_CONCURRENCY,
       async (session) => {
-        if (await this.sweepSession(session, nowMs, diskCritical)) reaped += 1;
+        if (await this.sweepSession(session, nowMs, critical.dockerData))
+          reaped += 1;
       },
     );
     // The build helpers follow the sessions just stopped, beside the sweep

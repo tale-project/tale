@@ -112,6 +112,15 @@ export interface HostDiskDeps {
 export interface HostDiskSource {
   latest(): HostDisk | null;
   read(fresh?: boolean): Promise<HostDisk | null>;
+  /** The workspace and Docker data filesystems' last readings apart, when
+   * they are watched apart: `latest` is the one with less headroom, but the
+   * critical tier acts on each for what lives there. `dockerData` is
+   * undefined when that filesystem is not watched (it is then the
+   * workspace's), null while it cannot be read. */
+  byFilesystem?(): {
+    workspace: HostDisk | null;
+    dockerData: HostDisk | null | undefined;
+  };
 }
 
 export class HostDiskProbe implements HostDiskSource {
