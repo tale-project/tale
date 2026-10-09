@@ -224,6 +224,9 @@ export interface TaskPayloads {
       contentType: string;
       size: number;
     }>;
+    /** The member who sent it — or retried it — whose connector call the
+     * delivery is. Absent on a job queued before it was recorded. */
+    sentBy?: { userId: string };
   };
   /** Crash-recovery sweep: fail outbound sends stranded 'queued' by a lost or
    * expired send job so the retry/discard surface appears. */

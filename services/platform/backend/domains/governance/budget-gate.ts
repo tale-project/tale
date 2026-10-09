@@ -77,6 +77,13 @@ export type UsageScope =
  * starter — so a cap sees the member's whole spend, whichever door it came
  * through (`governance/README.md`).
  */
+/**
+ * What a bucket used this period. Its requests are model requests: a
+ * connector call is counted on `connector_call_count` and never as a
+ * request, so a ledger row a connector names is skipped — rows booked before
+ * connector calls stopped carrying a request included. A project's buckets
+ * (`app.project_usage`) never take a connector call at all.
+ */
 async function periodUsage(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -89,7 +96,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND user_id = ANY(${usageLedgerSubjectForms(scope.userId)})
@@ -101,7 +109,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND regexp_replace(user_id, '^(user|api-key):', '') IN (
@@ -121,7 +130,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND (api_key_id = ${scope.apiKeyId}
@@ -148,7 +158,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
       `;
