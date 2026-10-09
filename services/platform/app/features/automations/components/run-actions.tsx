@@ -108,45 +108,46 @@ export function RunActions({
             })
         : undefined;
 
-  const start = (choice: AgainChoice): void => {
-    replay.mutate(
-      {
+  // The replay write stays quiet: each call reports its own refusal from
+  // its own promise, which — unlike `mutate`'s callbacks — never drops it
+  // when another call starts or the actions unmount.
+  const start = async (choice: AgainChoice): Promise<void> => {
+    let started: ReplayStarted;
+    try {
+      started = await replay.mutateAsync({
         organizationId,
         runId: run.id,
         kind: 'again',
         version: choice.version,
         mode: choice.mode,
         requestId,
-      },
-      {
-        onSuccess: (started) => {
-          setRequestId(crypto.randomUUID());
-          onStarted(started);
-        },
-        onError: (error) => {
-          setRequestId(crypto.randomUUID());
-          toast({
-            title: t('again.refused', { detail: failureDetail(error) ?? '' }),
-            variant: 'destructive',
-          });
-        },
-      },
-    );
+      });
+    } catch (error) {
+      setRequestId(crypto.randomUUID());
+      toast({
+        title: t('again.refused', { detail: failureDetail(error) ?? '' }),
+        variant: 'destructive',
+      });
+      return;
+    }
+    setRequestId(crypto.randomUUID());
+    onStarted(started);
   };
 
   /** A live run that sends writes asks first; anything else starts. */
   const choose = (choice: AgainChoice): void => {
     if (choice.mode === 'live' && writes.count > 0) setConfirming(choice);
-    else start(choice);
+    else void start(choice);
   };
 
   /** The run's input edited: a run with the changed input, or the run
    * again when nothing changed. */
-  const startEdited = (input: unknown): void => {
+  const startEdited = async (input: unknown): Promise<void> => {
     // JSON values: the same text, key order aside, is the same input.
     const unchanged = stableStringify(input) === stableStringify(run.input);
-    replay.mutate(
-      {
+    let started: ReplayStarted;
+    try {
+      started = await replay.mutateAsync({
         organizationId,
         runId: run.id,
         kind: unchanged ? 'again' : 'edited',
@@ -154,21 +155,17 @@ export function RunActions({
         mode: editMode,
         ...(!unchanged && { input }),
         requestId,
-      },
-      {
-        onSuccess: (started) => {
-          setRequestId(crypto.randomUUID());
-          setEditing(false);
-          onStarted(started);
-        },
-        onError: (error) => {
-          setRequestId(crypto.randomUUID());
-          setEditRefusal(
-            t('again.refused', { detail: failureDetail(error) ?? '' }),
-          );
-        },
-      },
-    );
+      });
+    } catch (error) {
+      setRequestId(crypto.randomUUID());
+      setEditRefusal(
+        t('again.refused', { detail: failureDetail(error) ?? '' }),
+      );
+      return;
+    }
+    setRequestId(crypto.randomUUID());
+    setEditing(false);
+    onStarted(started);
   };
   // An edited run runs as the run did, unless it cannot run live now.
   const editMode = live && sameReason === undefined ? 'live' : 'mock';
@@ -300,7 +297,7 @@ export function RunActions({
             setEditing(false);
             setEditRefusal(null);
           }}
-          onConfirm={startEdited}
+          onConfirm={(input) => void startEdited(input)}
         />
       )}
       <ConfirmDialog
@@ -321,7 +318,7 @@ export function RunActions({
         onConfirm={() => {
           const choice = confirming;
           setConfirming(null);
-          if (choice !== null) start(choice);
+          if (choice !== null) void start(choice);
         }}
       />
     </div>
