@@ -748,6 +748,26 @@ describe('createAccountService', () => {
     expect(cipher.open(stored?.accessToken ?? '')).toBe('access-2');
   });
 
+  it('does not reject a replacement generation when an older usage read answers 401', async () => {
+    const account = await connect();
+    const held = gate();
+    anthropic.gates.usage = held.wait;
+    anthropic.refusals.usage = 'rejected';
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const reading = service.list();
+    await vi.waitFor(() => expect(anthropic.usageCount).toBe(2));
+
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const handouts = service.handOutTokens();
+    await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
+    held.open();
+    await Promise.all([reading, handouts]);
+
+    const stored = await store.getAccount(account.id);
+    expect(cipher.open(stored?.accessToken ?? '')).toBe('access-2');
+    expect(stored?.status).toBe('active');
+  });
+
   it('keeps the last reading, and when it was read, through a failed read', async () => {
     await connect();
     anthropic.refusals.usage = true;
