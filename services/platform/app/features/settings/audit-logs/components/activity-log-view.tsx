@@ -5,6 +5,7 @@ import {
   type FilterConfig,
 } from '@tale/ui/data-table/data-table-filters';
 import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -46,6 +47,8 @@ function BreakdownRow({
   count: number;
   maxCount: number;
 }) {
+  const { locale } = useLocale();
+
   return (
     <HStack gap={3} className="items-center">
       <Text as="span" variant="body" truncate className="w-32 shrink-0">
@@ -64,7 +67,7 @@ function BreakdownRow({
         variant="muted"
         className="w-14 shrink-0 text-right font-mono text-xs"
       >
-        <SkeletonBox>{formatNumber(count)}</SkeletonBox>
+        <SkeletonBox>{formatNumber(count, locale)}</SkeletonBox>
       </Text>
     </HStack>
   );
@@ -119,6 +122,7 @@ function ActivityLogViewInner({
   userEmailMap,
   actions,
 }: ActivityLogViewInnerProps) {
+  const { locale } = useLocale();
   const { t } = useT('settings');
 
   const periodOptions = useMemo(
@@ -189,19 +193,19 @@ function ActivityLogViewInner({
         <StatCardGrid>
           <StatCard
             label={t('logs.activity.cards.total')}
-            value={formatNumber(summary?.totalActions ?? 0)}
+            value={formatNumber(summary?.totalActions ?? 0, locale)}
           />
           <StatCard
             label={t('logs.activity.cards.success')}
-            value={formatNumber(summary?.successCount ?? 0)}
+            value={formatNumber(summary?.successCount ?? 0, locale)}
           />
           <StatCard
             label={t('logs.activity.cards.failure')}
-            value={formatNumber(summary?.failureCount ?? 0)}
+            value={formatNumber(summary?.failureCount ?? 0, locale)}
           />
           <StatCard
             label={t('logs.activity.cards.denied')}
-            value={formatNumber(summary?.deniedCount ?? 0)}
+            value={formatNumber(summary?.deniedCount ?? 0, locale)}
           />
         </StatCardGrid>
       </Stack>
