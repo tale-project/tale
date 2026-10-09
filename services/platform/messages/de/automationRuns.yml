@@ -302,6 +302,11 @@ runtime:
       explanation: Der Lauf wurde beim Senden an einen Dienst unterbrochen, und eine Person hat entschieden, ihn fehlschlagen zu lassen.
       cause: Eine Person hat den Lauf hier fehlschlagen lassen, weil der Schreibvorgang den Dienst vielleicht schon erreicht hatte.
       fix: Prüfe im Dienst, ob der Schreibvorgang angekommen ist, und führe den Lauf erneut aus, falls er fehlt.
+    SIMULATED_FAILURE:
+      title: Der Test hat diesen Schritt fehlschlagen lassen
+      explanation: Ein Test kann einen Schritt absichtlich fehlschlagen lassen, um zu prüfen, wie die Automatisierung mit dem Fehler umgeht. Der Schritt selbst ist nicht gelaufen.
+      cause: '{messageLabel, select, none {Der Test hat ihn ohne Meldung fehlschlagen lassen.} other {Der Test hat ihn mit {messageLabel} fehlschlagen lassen.}}'
+      fix: Damit der Schritt in diesem Test wie geschrieben läuft, entferne ihn aus den simulierten Fehlern des Tests.
     UNKNOWN:
       title: Der Schritt ist fehlgeschlagen
       explanation: Tale konnte den Grund nicht bestimmen. Die technischen Details enthalten den Wortlaut der Engine.

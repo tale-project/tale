@@ -48,6 +48,7 @@ const SAMPLE: StepFailure['params'] = {
   childPath: 'send_reminder',
   max: 8,
   limit: 10_000,
+  message: 'the conversation was closed meanwhile',
 };
 
 /** The run-level code each reason's failure carries. */

@@ -86,8 +86,8 @@ codes:
   TESTS_INVALID:
     title: Test ist fehlerhaft aufgebaut
     explanation: Jeder Test hat einen Namen, eine Eingabe und optional seine Erwartung. Ein Test in einer anderen Form kann nicht laufen.
-    cause: '{test, select, none {Das Feld tests ist keine Liste von Tests.} other {{keysCount, plural, =0 {Test {testNumber} ist nicht als name, input und expect geschrieben.} other {Der Teil expect von Test {testNumber} hat unbekannte Schlüssel: {keysList}.}}}}'
-    fix: Schreibe jeden Test als name, input und optional expect mit output und effects.
+    cause: '{test, select, none {Das Feld tests ist keine Liste von Tests.} other {{part, select, description {Die Beschreibung von Test {testNumber} ist kein Text.} mocks {In Test {testNumber} gibt mocks nicht unter der ID jeder Node ihre simulierte Ausgabe an.} failures {In Test {testNumber} gibt failures nicht unter der ID jeder Node ihre Fehlermeldung an, als Text mit höchstens 2000 Zeichen.} effects {In Test {testNumber} sind die erwarteten Aktionen keine Liste.} effect {In Test {testNumber} nennt eine erwartete Aktion ihren Connector nicht.} effectInput {In Test {testNumber} gibt eine erwartete Aktion sowohl input als auch inputIncludes an.} effectAbsent {In Test {testNumber} setzt eine erwartete Aktion absent auf etwas anderes als true.} nodes {In Test {testNumber} wird von einer Node etwas anderes als ran, skipped oder failed erwartet.} failure {In Test {testNumber} ist der erwartete Fehler nicht als node und message geschrieben.} failureWithOutput {Test {testNumber} erwartet, dass der Lauf fehlschlägt, und zugleich eine Ausgabe.} other {{keysCount, plural, =0 {Test {testNumber} ist nicht als name, input und expect geschrieben.} other {Der Teil expect von Test {testNumber} hat unbekannte Schlüssel: {keysList}.}}}}}}'
+    fix: Schreibe jeden Test als name und input, bei Bedarf mit description, mocks, failures und expect.
   NODE_NOT_OBJECT:
     title: Node ist kein Objekt
     explanation: Jeder Eintrag in nodes ist ein Objekt mit mindestens einer id und einem type.
@@ -328,6 +328,56 @@ codes:
     explanation: Der Test erwartet einen Wert von einem Typ, den die Automatisierung nie zurückgibt. Er kann deshalb nicht bestehen.
     cause: Der Test „{name}“ erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
     fix: Korrigiere die Erwartung oder ändere die Ausgabe.
+  TESTS_TOO_MANY:
+    title: Zu viele Tests
+    explanation: Eine Automatisierung kann höchstens 50 Tests enthalten, damit Speichern und Live-Schalten schnell bleiben.
+    cause: Diese Automatisierung hat {count} Tests.
+    fix: Behalte einen Test pro Verhalten oder Pfad und führe fast gleiche zusammen.
+  TESTS_UNKNOWN_FIELD:
+    title: Unbekanntes Testfeld
+    explanation: Ein Test hat ein Feld, das Tale nicht kennt, deshalb wird es ignoriert.
+    cause: Der Test „{name}“ hat „{field}“.
+    fix: '{suggestion, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Meintest du „{suggestion}“?}}'
+  TESTS_NAME_DUPLICATE:
+    title: Zwei Tests mit gleichem Namen
+    explanation: Ergebnisse werden nach Namen aufgelistet, deshalb lassen sich zwei Tests mit einem Namen schwer unterscheiden.
+    cause: Test {testNumber} trägt den Namen „{name}“, wie Test {firstPosition}.
+    fix: Gib jedem Test einen eigenen Namen.
+  TESTS_MOCK_UNKNOWN_NODE:
+    title: Simuliert eine Node, die es nicht gibt
+    explanation: Ein Test simuliert Ausgabe oder Fehler einer Node, die diese Automatisierung nicht hat, deshalb kann der Test nicht laufen.
+    cause: Der Test „{name}“ simuliert „{node}“.
+    fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du „{suggestion}“?}}'
+  TESTS_MOCK_CONFLICT:
+    title: Ausgabe und Fehler für eine Node
+    explanation: Eine Node kann entweder eine simulierte Ausgabe zurückgeben oder fehlschlagen, nicht beides.
+    cause: Der Test „{name}“ macht beides für {nodeLabel}.
+    fix: Behalte die simulierte Ausgabe oder den simulierten Fehler.
+  TESTS_MOCK_NOT_LIST:
+    title: Simulierte Ausgabe braucht eine Liste
+    explanation: Diese Node läuft einmal pro Element, deshalb ist ihre simulierte Ausgabe eine Liste mit einem Eintrag pro Element.
+    cause: Der Test „{name}“ gibt {nodeLabel} {kindLabel}.
+    fix: 'Schreibe sie als Liste: die Ausgabe von Element 1, Element 2 und so weiter.'
+  TESTS_MOCK_TYPE:
+    title: Simulierte Ausgabe hat die falsche Form
+    explanation: Die simulierte Ausgabe sieht nicht aus wie das, was die Node wirklich zurückgibt, deshalb können sich die Nodes, die sie lesen, anders verhalten als in einem echten Lauf.
+    cause: '{property, select, none {Im Test „{name}“ ist die simulierte Ausgabe {actualText}, aber {nodeLabel} gibt {expectedText} zurück.} other {Im Test „{name}“ ist output.{property} {actualText}, aber {nodeLabel} gibt dort {expectedText} zurück.}}'
+    fix: Gib der simulierten Ausgabe die echte Form der Node.
+  TESTS_EXPECT_NODE_UNKNOWN:
+    title: Erwartet eine Node, die es nicht gibt
+    explanation: Ein Test nennt eine Node, die diese Automatisierung nicht hat, deshalb kann er nie bestehen.
+    cause: Der Test „{name}“ nennt „{node}“.
+    fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du „{suggestion}“?}}'
+  TESTS_EXPECT_PATH_IMPOSSIBLE:
+    title: Erwartet einen Pfad, den es nicht gibt
+    explanation: Kein Lauf dieser Automatisierung macht, was der Test von ihren Nodes erwartet, deshalb kann er nie bestehen.
+    cause: '{reason, select, neverTogether {{aLabel} und {bLabel} laufen nie im selben Lauf.} cannotFail {{nodeLabel} stoppt den Lauf, wenn sie fehlschlägt.} alwaysRuns {{nodeLabel} läuft auf jedem Pfad.} other {{nodeLabel} kann nie laufen.}}'
+    fix: Ändere, was der Test erwartet, oder die Bedingungen der Automatisierung.
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE:
+    title: Erwartet einen Fehler, der den Lauf nicht stoppt
+    explanation: Der Test erwartet, dass der Lauf bei einer Node fehlschlägt, die ihn nie stoppt.
+    cause: '{cause, select, continues {{nodeLabel} läuft bei Fehlern weiter.} other {{nodeLabel} kann nie laufen.}}'
+    fix: '{cause, select, continues {Erwarte sie unter Nodes als „Schlägt fehl, der Lauf geht weiter“.} other {Erwarte den Fehler bei einer Node, die läuft.}}'
   LLM_MODEL_UNAVAILABLE:
     title: Modell ist nicht verfügbar
     explanation: Das Modell einer llm- oder Agent-Node muss von einem der verbundenen Anbieter der Organisation bereitgestellt werden. Sonst schlägt ein Live-Lauf an dieser Node fehl.

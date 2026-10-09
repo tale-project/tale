@@ -28,7 +28,8 @@ export const CODES = {
   NODES_TOO_MANY: 'at most 40 nodes per automation',
   SECRET_IN_DOCUMENT:
     'credentials never live in documents; secrets are injected at runtime',
-  TESTS_INVALID: 'tests must be [{name, input, expect?}]',
+  TESTS_INVALID:
+    'tests must be [{name, description?, input, mocks?, failures?, expect?}]',
 
   // Node level.
   NODE_NOT_OBJECT: 'each node is an object',
@@ -105,6 +106,22 @@ export const CODES = {
     'a test expects only effects a node of the automation performs',
   TESTS_EXPECT_TYPE:
     'a test expects output values of the types the automation returns',
+  TESTS_TOO_MANY: 'an automation carries at most 50 tests',
+  TESTS_UNKNOWN_FIELD:
+    'a test has only name, description, input, mocks, failures and expect',
+  TESTS_NAME_DUPLICATE: 'every test has its own name',
+  TESTS_MOCK_UNKNOWN_NODE:
+    "a test simulates only the outputs and failures of the automation's nodes",
+  TESTS_MOCK_CONFLICT:
+    'a test simulates either an output or a failure for a node, not both',
+  TESTS_MOCK_NOT_LIST:
+    'a simulated output of a node that runs once per item is a list, one entry per item',
+  TESTS_MOCK_TYPE: 'a simulated output has the shape the node really returns',
+  TESTS_EXPECT_NODE_UNKNOWN: "a test names only the automation's nodes",
+  TESTS_EXPECT_PATH_IMPOSSIBLE:
+    'a test expects of its nodes what some run of the automation does',
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE:
+    'a test expects the run to fail only at a node whose failure stops it',
 
   // Models.
   LLM_MODEL_UNAVAILABLE:
@@ -190,7 +207,13 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     params: ['kind'],
     technical: ['kind'],
   },
-  TESTS_INVALID: { level: 'error', family: 'test', params: ['test?', 'keys?'] },
+  // `part` names what of a test is malformed (`mocks`, `effectInput`, …);
+  // absent for a test that is not written as one, or unknown expect keys.
+  TESTS_INVALID: {
+    level: 'error',
+    family: 'test',
+    params: ['test?', 'keys?', 'part?'],
+  },
   NODE_NOT_OBJECT: { level: 'error', family: 'node', params: ['index'] },
   NODE_ID_INVALID: { level: 'error', family: 'node', params: ['index', 'id?'] },
   NODE_ID_DUPLICATE: {
@@ -456,6 +479,63 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     level: 'warning',
     family: 'test',
     params: ['test', 'name', 'property', 'expected', 'actual'],
+  },
+  TESTS_TOO_MANY: {
+    level: 'error',
+    family: 'test',
+    params: ['count', 'max'],
+  },
+  TESTS_UNKNOWN_FIELD: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'field', 'suggestion?'],
+  },
+  TESTS_NAME_DUPLICATE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'firstIndex'],
+  },
+  // `field` is `mocks` or `failures`; `nodes` lists the automation's own.
+  TESTS_MOCK_UNKNOWN_NODE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'field', 'node', 'suggestion?', 'nodes'],
+  },
+  TESTS_MOCK_CONFLICT: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node'],
+  },
+  // `kind` is the kind of value the stand-in is (`object`, `string`, …).
+  TESTS_MOCK_NOT_LIST: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'kind'],
+  },
+  // `expected` is what the node returns there, `actual` what the test
+  // gives, each as a type.
+  TESTS_MOCK_TYPE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'property', 'expected', 'actual'],
+  },
+  TESTS_EXPECT_NODE_UNKNOWN: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'suggestion?'],
+  },
+  // `reason`: never-together (`a` and `b` never both run), cannot-fail,
+  // always-runs or never-runs (each about `node`).
+  TESTS_EXPECT_PATH_IMPOSSIBLE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'reason', 'node?', 'a?', 'b?'],
+  },
+  // `cause`: continues (the node has onError: continue) or unreachable.
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'cause'],
   },
   LLM_MODEL_UNAVAILABLE: {
     level: 'warning',

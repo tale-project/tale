@@ -105,3 +105,22 @@ codes:
   EVENT_UNKNOWN:
     cause: 'Der Trigger wartet auf «{event}».'
     fix: '{suggestion, select, none {Wähle ein Ereignis aus der Liste.} other {Meintest du «{suggestion}»?}}'
+  TESTS_UNKNOWN_FIELD:
+    cause: Der Test «{name}» hat «{field}».
+    fix: '{suggestion, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Meintest du «{suggestion}»?}}'
+  TESTS_NAME_DUPLICATE:
+    cause: Test {testNumber} trägt den Namen «{name}», wie Test {firstPosition}.
+  TESTS_MOCK_UNKNOWN_NODE:
+    cause: Der Test «{name}» simuliert «{node}».
+    fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du «{suggestion}»?}}'
+  TESTS_MOCK_CONFLICT:
+    cause: Der Test «{name}» macht beides für {nodeLabel}.
+  TESTS_MOCK_NOT_LIST:
+    cause: Der Test «{name}» gibt {nodeLabel} {kindLabel}.
+  TESTS_MOCK_TYPE:
+    cause: '{property, select, none {Im Test «{name}» ist die simulierte Ausgabe {actualText}, aber {nodeLabel} gibt {expectedText} zurück.} other {Im Test «{name}» ist output.{property} {actualText}, aber {nodeLabel} gibt dort {expectedText} zurück.}}'
+  TESTS_EXPECT_NODE_UNKNOWN:
+    cause: Der Test «{name}» nennt «{node}».
+    fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du «{suggestion}»?}}'
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE:
+    fix: '{cause, select, continues {Erwarte sie unter Nodes als «Schlägt fehl, der Lauf geht weiter».} other {Erwarte den Fehler bei einer Node, die läuft.}}'

@@ -147,7 +147,7 @@ tests-invalid:
     - code: TESTS_INVALID
       path: tests[1].expect
       message: 'tests[1].expect has unknown key(s): outputs'
-      hint: 'expect supports {output?, effects?: [{connector, input?}]}'
+      hint: 'expect supports {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}'
       at:
         pointer: /tests/1/expect
       params:
@@ -1260,6 +1260,225 @@ tests-expect-type:
         property: count
         expected: string
         actual: number
+tests-invalid-parts:
+  errors:
+    - code: TESTS_INVALID
+      path: tests[0]
+      message: tests[0].description must be text
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/0/description
+      params:
+        test: 0
+        part: description
+    - code: TESTS_INVALID
+      path: tests[0]
+      message: tests[0].mocks must map node ids to the output each returns in this test
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/0/mocks
+      params:
+        test: 0
+        part: mocks
+    - code: TESTS_INVALID
+      path: tests[0]
+      message: tests[0].failures must map node ids to error messages, each text of at most 2000 characters
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/0/failures/main
+      params:
+        test: 0
+        part: failures
+    - code: TESTS_INVALID
+      path: tests[1]
+      message: 'tests[1].expect.effects[0] must name its connector: {connector: string, node?: string, …}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/1/expect/effects/0
+      params:
+        test: 1
+        part: effect
+    - code: TESTS_INVALID
+      path: tests[1]
+      message: tests[1].expect.effects[1] gives both input and inputIncludes — compare its input exactly or by inclusion, not both
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/1/expect/effects/1
+      params:
+        test: 1
+        part: effectInput
+    - code: TESTS_INVALID
+      path: tests[1]
+      message: tests[1].expect.effects[2].absent must be true when it is given
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/1/expect/effects/2/absent
+      params:
+        test: 1
+        part: effectAbsent
+    - code: TESTS_INVALID
+      path: tests[1]
+      message: tests[1].expect.nodes must map node ids to ran, skipped or failed
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/1/expect/nodes/main
+      params:
+        test: 1
+        part: nodes
+    - code: TESTS_INVALID
+      path: tests[2]
+      message: 'tests[2].expect.failure must be {node?: string, message?: string}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/2/expect/failure
+      params:
+        test: 2
+        part: failure
+    - code: TESTS_INVALID
+      path: tests[2]
+      message: tests[2].expect has failure and output — a run that must fail has no output to compare
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/2/expect/failure
+      params:
+        test: 2
+        part: failureWithOutput
+  warnings: []
+tests-too-many:
+  errors:
+    - code: TESTS_TOO_MANY
+      message: the document has 51 tests; at most 50 are allowed
+      hint: keep one test per behavior or path — merge near-duplicates
+      at:
+        pointer: /tests
+      params:
+        count: 51
+        max: 50
+  warnings: []
+tests-unknown-field:
+  errors: []
+  warnings:
+    - code: TESTS_UNKNOWN_FIELD
+      message: tests[0] "stands in" has an unknown field "mock"
+      hint: did you mean "mocks"? a test has name, description, input, mocks, failures and expect
+      at:
+        pointer: /tests/0/mock
+        subject: key
+      params:
+        test: 0
+        name: stands in
+        field: mock
+        suggestion: mocks
+tests-name-duplicate:
+  errors: []
+  warnings:
+    - code: TESTS_NAME_DUPLICATE
+      message: tests[1] is named "same", like tests[0]
+      hint: give every test its own name — results are listed by name
+      at:
+        pointer: /tests/1/name
+      params:
+        test: 1
+        name: same
+        firstIndex: 0
+tests-mock-unknown-node:
+  errors: []
+  warnings:
+    - code: TESTS_MOCK_UNKNOWN_NODE
+      message: tests[0] "stands in" simulates "mainn" in mocks, which is not a node of this automation
+      hint: 'did you mean "main"? nodes: main'
+      at:
+        pointer: /tests/0/mocks/mainn
+        subject: key
+      params:
+        test: 0
+        name: stands in
+        field: mocks
+        node: mainn
+        suggestion: main
+        nodes:
+          - main
+tests-mock-conflict:
+  errors: []
+  warnings:
+    - code: TESTS_MOCK_CONFLICT
+      message: tests[0] "both" both simulates an output and a failure for "main"
+      hint: keep one of mocks.main and failures.main
+      at:
+        pointer: /tests/0/failures/main
+        subject: key
+      params:
+        test: 0
+        name: both
+        node: main
+tests-mock-not-list:
+  errors: []
+  warnings:
+    - code: TESTS_MOCK_NOT_LIST
+      message: tests[0] "one item" mocks "each" with an object, but "each" runs once per item (forEach) — the mock must be a list with one entry per item
+      hint: write mocks.each as [<item 0 output>, <item 1 output>, …]
+      at:
+        pointer: /tests/0/mocks/each
+      params:
+        test: 0
+        name: one item
+        node: each
+        kind: object
+tests-mock-type:
+  errors: []
+  warnings:
+    - code: TESTS_MOCK_TYPE
+      message: tests[0] "counts" mocks "calc" with string at output.count, but "calc" returns number there
+      hint: the nodes that read "calc" expect its real shape — give the mock that shape
+      at:
+        pointer: /tests/0/mocks/calc/count
+      params:
+        test: 0
+        name: counts
+        node: calc
+        property: count
+        expected: number
+        actual: string
+tests-expect-node-unknown:
+  errors: []
+  warnings:
+    - code: TESTS_EXPECT_NODE_UNKNOWN
+      message: tests[0] "names" names node "mian", which does not exist
+      hint: 'nodes: main'
+      at:
+        pointer: /tests/0/expect/nodes/mian
+        subject: key
+      params:
+        test: 0
+        name: names
+        node: mian
+tests-expect-path-impossible:
+  errors: []
+  warnings:
+    - code: TESTS_EXPECT_PATH_IMPOSSIBLE
+      message: tests[0] "both sizes" expects "big" and "small" to run, which no run of this automation does
+      hint: '"big" and "small" never run in the same run'
+      at:
+        pointer: /tests/0/expect/nodes
+      params:
+        test: 0
+        name: both sizes
+        reason: never-together
+        a: big
+        b: small
+tests-expect-failure-impossible:
+  errors: []
+  warnings:
+    - code: TESTS_EXPECT_FAILURE_IMPOSSIBLE
+      message: tests[0] "fails" expects the run to fail at "main", but "main" continues on error, so it never stops the run
+      hint: 'expect it under nodes instead: {main: failed}'
+      at:
+        pointer: /tests/0/expect/failure/node
+      params:
+        test: 0
+        name: fails
+        node: main
+        cause: continues
 org-state-agent-equipment:
   errors: []
   warnings:

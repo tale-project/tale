@@ -115,7 +115,15 @@ const SELECT_PARAMS: Partial<Record<IssueCode, readonly string[]>> = {
   CONDITION_CONSTANT: ['cause'],
   OUTPUT_MAYBE_EMPTY: ['rootReason'],
   UNUSED_NODE: ['reason'],
+  TESTS_EXPECT_PATH_IMPOSSIBLE: ['reason'],
 };
+
+/** Codes whose `expected` and `actual` are types, read as words. */
+const TYPE_TEXT_CODES: ReadonlySet<IssueCode> = new Set<IssueCode>([
+  'TYPE_MISMATCH',
+  'TESTS_EXPECT_TYPE',
+  'TESTS_MOCK_TYPE',
+]);
 
 /** Params derived beyond the ones a code's meta lists. */
 const EXTRA_DERIVED: Partial<Record<IssueCode, readonly string[]>> = {
@@ -123,6 +131,8 @@ const EXTRA_DERIVED: Partial<Record<IssueCode, readonly string[]>> = {
   UNCAUGHT_FAILURE: ['failingIsSource'],
   TYPE_MISMATCH: ['expectedText', 'actualText'],
   TESTS_EXPECT_TYPE: ['expectedText', 'actualText'],
+  TESTS_MOCK_TYPE: ['expectedText', 'actualText'],
+  TESTS_MOCK_NOT_LIST: ['kindLabel'],
 };
 
 function isIssueCode(code: string): code is IssueCode {
@@ -456,9 +466,12 @@ export function issueParamsForText(
   if (code === 'UNCAUGHT_FAILURE') {
     values.failingIsSource = String(params.failing === params.source);
   }
-  if (code === 'TYPE_MISMATCH' || code === 'TESTS_EXPECT_TYPE') {
+  if (TYPE_TEXT_CODES.has(code)) {
     values.expectedText = typeText(ctx, asText(params.expected));
     values.actualText = typeText(ctx, asText(params.actual));
+  }
+  if (code === 'TESTS_MOCK_NOT_LIST') {
+    values.kindLabel = kindLabel(ctx.t, asText(params.kind) ?? 'other');
   }
   return values;
 }

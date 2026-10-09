@@ -151,6 +151,14 @@ describe('engine purity', () => {
       .map((d) => path.join(ENGINE_ROOT, 'core', d))
       .filter((d) => existsSync(d))
       .flatMap((d) => sourceFiles(d));
+    // A test's bench is planned, its expectations compared and a run that
+    // was never stored read in the editor as well.
+    browserSafe.push(
+      path.join(ENGINE_ROOT, 'core', 'execute', 'bench.ts'),
+      path.join(ENGINE_ROOT, 'core', 'record', 'transient.ts'),
+      path.join(ENGINE_ROOT, 'core', 'test-limits.ts'),
+      path.join(ENGINE_ROOT, 'api', 'expect.ts'),
+    );
     expect(browserSafe.length).toBeGreaterThan(0);
     const resolveModule = (from: string, spec: string): string | null => {
       const target = path.resolve(path.dirname(from), spec);

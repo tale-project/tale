@@ -4,7 +4,7 @@
 
 The rules an automation is held to between the editor and a finished run: who can change one
 and run it live, what a saved version and a deployment guarantee, what a check for problems
-reports, what a start is refused for, what each trigger may start, what a run that ends takes
+reports, what a test replaces and when it fails, what a start is refused for, what each trigger may start, what a run that ends takes
 with it, which server steps a run, how a restart hands a run on, what a run says once it moved
 to another and what a resumed run never repeats, what a run records of each step, whose
 approval policy a run's steps ask, and what a delete leaves behind. The workflow document itself, how a run proceeds step by step,
@@ -156,6 +156,37 @@ saves.
 
 - **Example**: Mia is an ordinary member. She asks for a check of a draft → refused. Noah asks
   for a check of the same draft → he gets its problems, and no version is added.
+
+## Testing an automation
+
+A version carries its own tests. A test runs the automation against the deterministic mocks
+with an input, and can stand in for what some of its nodes answer: an output a node returns
+instead of calling, or an error it fails with. Then it checks what the run did against what the
+test expects.
+
+### AUTO-R42 · A test replaces only the calls it names; everything else runs as written
+
+A stand-in replaces a node's call, never the node. The node's condition and alternative still
+decide whether it runs, its input is still worked out and checked against what its action
+takes, and what it would send is still recorded; only the answer is made up. Every other node
+runs as written, on the simulated values. A simulated failure fails the node with the test's
+message, and the node's error handling decides what the run does next. Stand-ins apply to
+mock runs only: a live run with one is refused (`BENCH_MOCK_ONLY`).
+
+- **Example**: Mia's test simulates the output of *Fetch issues* and nothing else. She runs it
+  → the *Score* node still runs its code on that output, and *Report*'s condition still decides
+  whether it runs.
+
+### AUTO-R43 · A test that cannot run fails; it is never skipped
+
+A test that stands in for a node the automation does not have, simulates both an output and a
+failure for one node, or gives an input the inputs schema refuses cannot run: it fails, with
+the reason (`BENCH_UNKNOWN_NODE`, `BENCH_CONFLICT`, `TESTS_INPUT_INVALID`). So does a test that
+runs longer than its 10 seconds; the tests a suite's 60 seconds do not reach are named as not
+run and count as failed.
+
+- **Example**: Noah renames the node `fetch` to `list`. His test still simulates `fetch` → the
+  test fails, saying it simulates "fetch", which is not a node of the automation.
 
 ## Starting a run
 

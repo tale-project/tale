@@ -800,6 +800,131 @@ const fixtures: Record<string, unknown> = {
       { name: 'counts', input: {}, expect: { output: { count: 'one' } } },
     ],
   }),
+  // Each malformed part of a test, once: its description, its stand-ins,
+  // an expected effect, the node states and the expected failure.
+  'tests-invalid-parts': flow({
+    nodes: [
+      { id: 'main', type: 'transform', code: 'return 1;' },
+      { id: 'ask', type: 'llm', model: 'test-model', prompt: 'Hi' },
+    ],
+    tests: [
+      {
+        name: 'stand-ins',
+        input: {},
+        description: 5,
+        mocks: 'main',
+        failures: { main: 404 },
+      },
+      {
+        name: 'expectations',
+        input: {},
+        expect: {
+          effects: [
+            { input: {} },
+            { connector: 'llm', input: {}, inputIncludes: {} },
+            { connector: 'llm', absent: false },
+          ],
+          nodes: { main: 'done' },
+        },
+      },
+      {
+        name: 'fails with an output',
+        input: {},
+        expect: { failure: { node: 'main', code: 1 }, output: 1 },
+      },
+    ],
+  }),
+  'tests-too-many': flow({
+    tests: Array.from({ length: 51 }, (_, i) => ({
+      name: `case ${i + 1}`,
+      input: {},
+    })),
+  }),
+  'tests-unknown-field': flow({
+    tests: [{ name: 'stands in', input: {}, mock: { main: 2 } }],
+  }),
+  'tests-name-duplicate': flow({
+    tests: [
+      { name: 'same', input: {} },
+      { name: 'same', input: {} },
+    ],
+  }),
+  'tests-mock-unknown-node': flow({
+    tests: [{ name: 'stands in', input: {}, mocks: { mainn: 2 } }],
+  }),
+  'tests-mock-conflict': flow({
+    tests: [
+      {
+        name: 'both',
+        input: {},
+        mocks: { main: 2 },
+        failures: { main: 'the service is down' },
+      },
+    ],
+  }),
+  'tests-mock-not-list': flow({
+    inputs: {
+      type: 'object',
+      properties: { items: { type: 'array' } },
+    },
+    nodes: [
+      {
+        id: 'each',
+        type: 'transform',
+        forEach: '{{ input.items }}',
+        code: 'return { seen: true };',
+      },
+    ],
+    output: '{{ nodes.each.output }}',
+    tests: [
+      { name: 'one item', input: { items: [1] }, mocks: { each: { id: 1 } } },
+    ],
+  }),
+  'tests-mock-type': flow({
+    nodes: [{ id: 'calc', type: 'transform', code: 'return { count: 1 };' }],
+    output: '{{ nodes.calc.output.count }}',
+    tests: [{ name: 'counts', input: {}, mocks: { calc: { count: 'one' } } }],
+  }),
+  'tests-expect-node-unknown': flow({
+    tests: [{ name: 'names', input: {}, expect: { nodes: { mian: 'ran' } } }],
+  }),
+  'tests-expect-path-impossible': flow({
+    inputs: {
+      type: 'object',
+      properties: { n: { type: 'number' } },
+    },
+    nodes: [
+      {
+        id: 'big',
+        type: 'transform',
+        when: '{{ input.n > 10 }}',
+        code: 'return "big";',
+      },
+      {
+        id: 'small',
+        type: 'transform',
+        elseOf: 'big',
+        code: 'return "small";',
+      },
+    ],
+    output: '{{ nodes.big.output ?? nodes.small.output }}',
+    tests: [
+      {
+        name: 'both sizes',
+        input: { n: 1 },
+        expect: { nodes: { big: 'ran', small: 'ran' } },
+      },
+    ],
+  }),
+  'tests-expect-failure-impossible': flow({
+    nodes: [
+      { id: 'main', type: 'transform', code: 'return 1;', onError: 'continue' },
+    ],
+    output: '{{ nodes.main.output ?? 0 }}',
+    tests: [
+      { name: 'fails', input: {}, expect: { failure: { node: 'main' } } },
+    ],
+  }),
   // What the organization has: a runtime this deployment cannot run, a
   // misspelled skill, a connector name it has none by, a catalogued one
   // nobody connected, and a misspelled secret — beside the ones it has.
@@ -890,6 +1015,16 @@ const VALIDATION_CODES: IssueCode[] = [
   'TESTS_INPUT_INVALID',
   'TESTS_EFFECT_UNKNOWN',
   'TESTS_EXPECT_TYPE',
+  'TESTS_TOO_MANY',
+  'TESTS_UNKNOWN_FIELD',
+  'TESTS_NAME_DUPLICATE',
+  'TESTS_MOCK_UNKNOWN_NODE',
+  'TESTS_MOCK_CONFLICT',
+  'TESTS_MOCK_NOT_LIST',
+  'TESTS_MOCK_TYPE',
+  'TESTS_EXPECT_NODE_UNKNOWN',
+  'TESTS_EXPECT_PATH_IMPOSSIBLE',
+  'TESTS_EXPECT_FAILURE_IMPOSSIBLE',
 ];
 
 // ------------------------------------------------------------------- tests

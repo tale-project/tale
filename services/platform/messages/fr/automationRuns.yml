@@ -302,6 +302,11 @@ runtime:
       explanation: L’exécution a été interrompue pendant un envoi vers un service, et une personne a choisi de la faire échouer.
       cause: Une personne a fait échouer l’exécution ici, car l’écriture avait peut-être déjà atteint son service.
       fix: Vérifie dans le service si l’écriture est arrivée, puis relance si elle manque.
+    SIMULATED_FAILURE:
+      title: Le test a fait échouer cette étape
+      explanation: Un test peut faire échouer une étape exprès, pour vérifier comment l’automatisation gère l’échec. L’étape elle-même ne s’est pas exécutée.
+      cause: '{messageLabel, select, none {Le test l’a fait échouer sans message.} other {Le test l’a fait échouer avec {messageLabel}.}}'
+      fix: Pour que l’étape s’exécute telle qu’elle est écrite dans ce test, retire-la des échecs simulés du test.
     UNKNOWN:
       title: L’étape a échoué
       explanation: Tale n’a pas pu déterminer pourquoi. Les détails techniques donnent le message exact du moteur.

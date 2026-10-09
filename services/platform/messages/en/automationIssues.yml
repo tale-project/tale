@@ -91,8 +91,8 @@ codes:
   TESTS_INVALID:
     title: Test is malformed
     explanation: Each test has a name, an input and, optionally, what it expects. A test in any other shape can't run.
-    cause: '{test, select, none {The tests field isn''t a list of tests.} other {{keysCount, plural, =0 {Test {testNumber} isn''t written as name, input and expect.} other {The expect part of test {testNumber} has unknown keys: {keysList}.}}}}'
-    fix: Write each test as name, input and, optionally, expect with output and effects.
+    cause: '{test, select, none {The tests field isn''t a list of tests.} other {{part, select, description {The description of test {testNumber} isn''t text.} mocks {In test {testNumber}, mocks doesn''t give each node''s simulated output under its id.} failures {In test {testNumber}, failures doesn''t give each node''s error message under its id, as text of at most 2,000 characters.} effects {In test {testNumber}, the expected actions aren''t a list.} effect {In test {testNumber}, an expected action doesn''t name its connector.} effectInput {In test {testNumber}, an expected action gives both input and inputIncludes.} effectAbsent {In test {testNumber}, an expected action sets absent to something other than true.} nodes {In test {testNumber}, a node is expected to be something other than ran, skipped or failed.} failure {In test {testNumber}, the expected failure isn''t written as node and message.} failureWithOutput {Test {testNumber} expects the run to fail, and an output as well.} other {{keysCount, plural, =0 {Test {testNumber} isn''t written as name, input and expect.} other {The expect part of test {testNumber} has unknown keys: {keysList}.}}}}}}'
+    fix: Write each test as name and input, with description, mocks, failures and expect where you need them.
   NODE_NOT_OBJECT:
     title: Node isn't an object
     explanation: Each entry in nodes is an object with at least an id and a type.
@@ -333,6 +333,56 @@ codes:
     explanation: The test expects a value of a type the automation never returns, so it can't pass.
     cause: The test "{name}" expects output.{property} to be {expectedText}, but the automation returns {actualText} there.
     fix: Fix the expectation, or change the output.
+  TESTS_TOO_MANY:
+    title: Too many tests
+    explanation: An automation can carry at most 50 tests, so saving and deploying stay quick.
+    cause: This automation has {count} tests.
+    fix: Keep one test per behavior or path, and merge near-duplicates.
+  TESTS_UNKNOWN_FIELD:
+    title: Unknown test field
+    explanation: A test has a field Tale doesn't know, so it is ignored.
+    cause: The test "{name}" has "{field}".
+    fix: '{suggestion, select, none {Remove it. A test has name, description, input, mocks, failures and expect.} other {Did you mean "{suggestion}"?}}'
+  TESTS_NAME_DUPLICATE:
+    title: Two tests share a name
+    explanation: Results are listed by name, so two tests with one name are hard to tell apart.
+    cause: Test {testNumber} is named "{name}", like test {firstPosition}.
+    fix: Give every test its own name.
+  TESTS_MOCK_UNKNOWN_NODE:
+    title: Simulates a node that doesn't exist
+    explanation: A test simulates the output or failure of a node this automation doesn't have, so the test can't run.
+    cause: The test "{name}" simulates "{node}".
+    fix: '{suggestion, select, none {Use the id of one of the nodes.} other {Did you mean "{suggestion}"?}}'
+  TESTS_MOCK_CONFLICT:
+    title: Output and failure for one node
+    explanation: A node can either return a simulated output or fail, not both.
+    cause: The test "{name}" does both for {nodeLabel}.
+    fix: Keep the simulated output or the simulated failure.
+  TESTS_MOCK_NOT_LIST:
+    title: Simulated output needs a list
+    explanation: This node runs once per item, so its simulated output is a list with one entry per item.
+    cause: The test "{name}" gives {nodeLabel} {kindLabel}.
+    fix: 'Write it as a list: the output of item 1, item 2, and so on.'
+  TESTS_MOCK_TYPE:
+    title: Simulated output has the wrong shape
+    explanation: The simulated output doesn't look like what the node really returns, so the nodes that read it may behave differently than in a real run.
+    cause: '{property, select, none {In the test "{name}", the simulated output is {actualText}, but {nodeLabel} returns {expectedText}.} other {In the test "{name}", output.{property} is {actualText}, but {nodeLabel} returns {expectedText} there.}}'
+    fix: Give the simulated output the node's real shape.
+  TESTS_EXPECT_NODE_UNKNOWN:
+    title: Expects a node that doesn't exist
+    explanation: A test names a node this automation doesn't have, so it can never pass.
+    cause: The test "{name}" names "{node}".
+    fix: '{suggestion, select, none {Use the id of one of the nodes.} other {Did you mean "{suggestion}"?}}'
+  TESTS_EXPECT_PATH_IMPOSSIBLE:
+    title: Expects a path that can't happen
+    explanation: No run of this automation does what the test expects of its nodes, so the test can never pass.
+    cause: '{reason, select, neverTogether {{aLabel} and {bLabel} never run in the same run.} cannotFail {{nodeLabel} stops the run when it fails.} alwaysRuns {{nodeLabel} runs on every path.} other {{nodeLabel} can never run.}}'
+    fix: Change what the test expects, or the conditions of the automation.
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE:
+    title: Expects a failure that can't stop the run
+    explanation: The test expects the run to fail at a node that never stops it.
+    cause: '{cause, select, continues {{nodeLabel} continues on error.} other {{nodeLabel} can never run.}}'
+    fix: '{cause, select, continues {Expect it under Nodes as "Fails, the run goes on".} other {Expect the failure at a node that runs.}}'
   LLM_MODEL_UNAVAILABLE:
     title: Model isn't available
     explanation: The model of an llm or agent node must be served by one of the organization's connected providers. Otherwise, a live run fails at this node.

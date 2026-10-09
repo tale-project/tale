@@ -86,8 +86,8 @@ codes:
   TESTS_INVALID:
     title: Test mal formé
     explanation: Chaque test a un nom, une entrée et, si besoin, ce qu’il attend. Un test sous une autre forme ne peut pas s’exécuter.
-    cause: '{test, select, none {Le champ tests n’est pas une liste de tests.} other {{keysCount, plural, =0 {Le test {testNumber} n’est pas écrit sous la forme name, input et expect.} other {La partie expect du test {testNumber} contient des clés inconnues : {keysList}.}}}}'
-    fix: Écris chaque test sous la forme name, input et, si besoin, expect avec output et effects.
+    cause: '{test, select, none {Le champ tests n’est pas une liste de tests.} other {{part, select, description {La description du test {testNumber} n’est pas du texte.} mocks {Dans le test {testNumber}, mocks n’indique pas la sortie simulée de chaque nœud sous son identifiant.} failures {Dans le test {testNumber}, failures n’indique pas le message d’erreur de chaque nœud sous son identifiant, sous forme de texte d’au plus 2 000 caractères.} effects {Dans le test {testNumber}, les actions attendues ne forment pas une liste.} effect {Dans le test {testNumber}, une action attendue ne nomme pas son connector.} effectInput {Dans le test {testNumber}, une action attendue donne à la fois input et inputIncludes.} effectAbsent {Dans le test {testNumber}, une action attendue donne à absent une autre valeur que true.} nodes {Dans le test {testNumber}, un nœud est attendu dans un autre état que ran, skipped ou failed.} failure {Dans le test {testNumber}, l’échec attendu n’est pas écrit sous la forme node et message.} failureWithOutput {Le test {testNumber} attend que l’exécution échoue, et aussi une sortie.} other {{keysCount, plural, =0 {Le test {testNumber} n’est pas écrit sous la forme name, input et expect.} other {La partie expect du test {testNumber} contient des clés inconnues : {keysList}.}}}}}}'
+    fix: Écris chaque test sous la forme name et input, avec description, mocks, failures et expect si besoin.
   NODE_NOT_OBJECT:
     title: Le nœud n’est pas un objet
     explanation: Chaque entrée de nodes est un objet avec au moins un id et un type.
@@ -328,6 +328,56 @@ codes:
     explanation: Le test attend une valeur d’un type que l’automatisation ne renvoie jamais, donc il ne peut pas réussir.
     cause: Le test « {name} » attend que output.{property} soit {expectedText}, mais l’automatisation y renvoie {actualText}.
     fix: Corrige l’attente, ou modifie la sortie.
+  TESTS_TOO_MANY:
+    title: Trop de tests
+    explanation: Une automatisation peut contenir au plus 50 tests, pour que l’enregistrement et la mise en service restent rapides.
+    cause: Cette automatisation a {count} tests.
+    fix: Garde un test par comportement ou par chemin, et fusionne les quasi-doublons.
+  TESTS_UNKNOWN_FIELD:
+    title: Champ de test inconnu
+    explanation: 'Un test a un champ que Tale ne connaît pas : il est donc ignoré.'
+    cause: Le test « {name} » a « {field} ».
+    fix: '{suggestion, select, none {Supprime-le. Un test a name, description, input, mocks, failures et expect.} other {Voulais-tu dire « {suggestion} » ?}}'
+  TESTS_NAME_DUPLICATE:
+    title: Deux tests portent le même nom
+    explanation: 'Les résultats sont listés par nom : deux tests du même nom sont difficiles à distinguer.'
+    cause: Le test {testNumber} s’appelle « {name} », comme le test {firstPosition}.
+    fix: Donne à chaque test son propre nom.
+  TESTS_MOCK_UNKNOWN_NODE:
+    title: Simule un nœud qui n’existe pas
+    explanation: 'Un test simule la sortie ou l’échec d’un nœud que cette automatisation n’a pas : le test ne peut donc pas s’exécuter.'
+    cause: Le test « {name} » simule « {node} ».
+    fix: '{suggestion, select, none {Utilise l’identifiant de l’un des nœuds.} other {Voulais-tu dire « {suggestion} » ?}}'
+  TESTS_MOCK_CONFLICT:
+    title: Sortie et échec pour un même nœud
+    explanation: Un nœud peut soit renvoyer une sortie simulée, soit échouer, pas les deux.
+    cause: Le test « {name} » fait les deux pour {nodeLabel}.
+    fix: Garde la sortie simulée ou l’échec simulé.
+  TESTS_MOCK_NOT_LIST:
+    title: La sortie simulée doit être une liste
+    explanation: 'Ce nœud s’exécute une fois par élément : sa sortie simulée est donc une liste avec une entrée par élément.'
+    cause: Le test « {name} » donne {kindLabel} à {nodeLabel}.
+    fix: 'Écris-la comme une liste : la sortie de l’élément 1, de l’élément 2, et ainsi de suite.'
+  TESTS_MOCK_TYPE:
+    title: La sortie simulée n’a pas la bonne forme
+    explanation: 'La sortie simulée ne ressemble pas à ce que le nœud renvoie réellement : les nœuds qui la lisent peuvent donc se comporter autrement que dans une vraie exécution.'
+    cause: '{property, select, none {Dans le test « {name} », la sortie simulée est {actualText}, mais {nodeLabel} renvoie {expectedText}.} other {Dans le test « {name} », output.{property} vaut {actualText}, mais {nodeLabel} y renvoie {expectedText}.}}'
+    fix: Donne à la sortie simulée la vraie forme du nœud.
+  TESTS_EXPECT_NODE_UNKNOWN:
+    title: Attend un nœud qui n’existe pas
+    explanation: 'Un test nomme un nœud que cette automatisation n’a pas : il ne peut donc jamais réussir.'
+    cause: Le test « {name} » nomme « {node} ».
+    fix: '{suggestion, select, none {Utilise l’identifiant de l’un des nœuds.} other {Voulais-tu dire « {suggestion} » ?}}'
+  TESTS_EXPECT_PATH_IMPOSSIBLE:
+    title: Attend un chemin impossible
+    explanation: 'Aucune exécution de cette automatisation ne fait ce que le test attend de ses nœuds : il ne peut donc jamais réussir.'
+    cause: '{reason, select, neverTogether {{aLabel} et {bLabel} ne s’exécutent jamais dans la même exécution.} cannotFail {{nodeLabel} arrête l’exécution quand il échoue.} alwaysRuns {{nodeLabel} s’exécute sur chaque chemin.} other {{nodeLabel} ne peut jamais s’exécuter.}}'
+    fix: Modifie ce que le test attend, ou les conditions de l’automatisation.
+  TESTS_EXPECT_FAILURE_IMPOSSIBLE:
+    title: Attend un échec qui n’arrête pas l’exécution
+    explanation: Le test attend que l’exécution échoue à un nœud qui ne l’arrête jamais.
+    cause: '{cause, select, continues {{nodeLabel} continue en cas d’erreur.} other {{nodeLabel} ne peut jamais s’exécuter.}}'
+    fix: '{cause, select, continues {Attends-le sous Nœuds comme « Échoue, l’exécution continue ».} other {Attends l’échec à un nœud qui s’exécute.}}'
   LLM_MODEL_UNAVAILABLE:
     title: Le modèle n’est pas disponible
     explanation: Le modèle d’un nœud llm ou agent doit être servi par l’un des fournisseurs connectés de l’organisation. Sinon, une exécution en direct échoue à ce nœud.
