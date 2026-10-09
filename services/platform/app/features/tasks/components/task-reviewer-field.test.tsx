@@ -211,8 +211,8 @@ describe('TaskReviewerField', () => {
       render(<TaskReviewerField task={task} canEdit />);
       expect(screen.getByRole('status')).toHaveTextContent(message);
       expect(
-        screen.getByText('Current review: Review agent'),
-      ).toBeInTheDocument();
+        screen.getByRole('button', { name: 'Reviewer' }),
+      ).toHaveTextContent('Review agent');
       expect(
         screen.queryByText(
           'This agent needs the task review permission before it can decide.',
@@ -224,7 +224,9 @@ describe('TaskReviewerField', () => {
 
   it('does not describe a future agent permission as a block on the captured human review', () => {
     render(<TaskReviewerField task={task} canEdit />);
-    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
+      'Alice',
+    );
     expect(
       screen.queryByText(
         'This agent needs the task review permission before it can decide.',
@@ -233,10 +235,12 @@ describe('TaskReviewerField', () => {
   });
   it('keeps the current review distinct from the project default and transfers its exact identity', async () => {
     const { user } = render(<TaskReviewerField task={task} canEdit />);
-    expect(screen.getByText('Current review: Alice')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
+      'Alice',
+    );
     expect(
-      screen.getByText('Project default · Review agent'),
-    ).toBeInTheDocument();
+      screen.queryByText('Project default · Review agent'),
+    ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Reviewer' }));
     await user.click(screen.getByRole('option', { name: /^Review agent/ }));
     await waitFor(() =>
@@ -253,6 +257,29 @@ describe('TaskReviewerField', () => {
         },
       }),
     );
+  });
+
+  it('shows the inherited person in the clickable field and explains routing only when opened', async () => {
+    if (!mocks.data) throw new Error('Missing reviewer fixture');
+    mocks.data.projectReviewer = { kind: 'human_default' };
+    const { user } = render(<TaskReviewerField task={task} canEdit />);
+    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
+      'Alice',
+    );
+    expect(
+      screen.queryByText('Project default · person'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Current review: Alice')).not.toBeInTheDocument();
+    const hint = 'Choosing a reviewer also transfers this pending review.';
+    expect(screen.queryByText(hint)).not.toBeInTheDocument();
+    await user.click(screen.getByText('Alice'));
+    expect(
+      screen.getByRole('option', { name: 'Project default · person' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(hint)).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByText('Alice'));
+    expect(screen.getByRole('combobox')).toBeInTheDocument();
   });
 
   it('reports a stale decision once and reloads instead of retrying a handoff automatically', async () => {
