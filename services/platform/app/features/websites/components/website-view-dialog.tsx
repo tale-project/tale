@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
@@ -351,6 +352,7 @@ export function WebsiteViewDialog({
   const [pages, setPages] = useState<CrawlerPage[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
+  const [pagesError, setPagesError] = useState(false);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
@@ -391,10 +393,13 @@ export function WebsiteViewDialog({
         } else {
           return;
         }
+        setOffset(Math.max(0, shownPages.current - PAGE_SIZE));
+        setPagesError(false);
         setHasMore(data.hasMore);
         setIsFirstLoad(false);
       },
       onError: () => {
+        setPagesError(shownPages.current > 0);
         setIsFirstLoad(false);
         toast({ title: t('toast.fetchPagesError'), variant: 'destructive' });
       },
@@ -410,6 +415,7 @@ export function WebsiteViewDialog({
     if (isOpen) {
       searchRequestId.current += 1;
       shownPages.current = 0;
+      setPagesError(false);
       setPages([]);
       setOffset(0);
       setHasMore(false);
@@ -470,15 +476,15 @@ export function WebsiteViewDialog({
   }, [searchQuery, t, website._id, searchContent]);
 
   const loadMore = useCallback(() => {
-    const nextOffset = offset + PAGE_SIZE;
-    setOffset(nextOffset);
+    if (isPending) return;
+    const nextOffset = shownPages.current;
     fetchPages({
       websiteId: website._id,
       offset: nextOffset,
       limit: PAGE_SIZE,
       ...pageStateArg(pageState),
     });
-  }, [offset, pageState, website._id, fetchPages]);
+  }, [isPending, pageState, website._id, fetchPages]);
 
   // Another state: the list starts over from its first window.
   const selectPageState = useCallback(
@@ -487,6 +493,7 @@ export function WebsiteViewDialog({
       pageStateRef.current = next;
       setPageState(next);
       shownPages.current = 0;
+      setPagesError(false);
       setPages([]);
       setOffset(0);
       setHasMore(false);
@@ -859,14 +866,22 @@ export function WebsiteViewDialog({
                 </Stack>
               </Skeletonize>
 
-              {hasMore && (
+              {pagesError && (
+                <Alert
+                  variant="destructive"
+                  title={t('toast.fetchPagesError')}
+                />
+              )}
+              {(hasMore || pagesError) && (
                 <Row gap={0} justify="center" className="pt-2">
                   <Button
                     variant="secondary"
                     onClick={loadMore}
                     isLoading={isPending}
                   >
-                    {t('pagesDialog.loadMore')}
+                    {pagesError
+                      ? tCommon('actions.tryAgain')
+                      : t('pagesDialog.loadMore')}
                   </Button>
                 </Row>
               )}
