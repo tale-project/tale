@@ -119,7 +119,8 @@ export async function resolveSessionOpAttribution(
     SELECT user_id AS "userId", agent_slug AS "agentSlug",
            api_key_id AS "apiKeyId", project_ids AS "projectIds"
     FROM app.sandbox_session_ops
-    WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
+    WHERE org_id = ${args.organizationId}
+      AND session_id = ${args.sessionId} AND exec_id = ${args.execId}
     LIMIT 1
   `;
   const op = stamped[0];
@@ -130,6 +131,28 @@ export async function resolveSessionOpAttribution(
     ...(op.apiKeyId !== null ? { apiKeyId: op.apiKeyId } : {}),
     ...inProjects(op.projectIds),
   };
+}
+
+/** Billing keeps the projects admitted on the op, even after bindings move.
+ * Only legacy NULL stamps fall back to current run projects; [] explicitly
+ * means no project. Live run/member authorization stays with the caller.
+ * Take the budget admission lock before reading/writing a first stamp. */
+export async function withSessionOpBillingProjects(
+  sql: Sql | TransactionSql,
+  args: { organizationId: string; sessionId: string; execId: string },
+  attribution: SessionOpAttribution | null,
+): Promise<SessionOpAttribution | null> {
+  if (attribution === null) return null;
+  const [op] = await sql<{ projectIds: string[] | null }[]>`
+    SELECT project_ids AS "projectIds"
+    FROM app.sandbox_session_ops
+    WHERE org_id = ${args.organizationId}
+      AND session_id = ${args.sessionId} AND exec_id = ${args.execId}
+    LIMIT 1
+  `;
+  return op?.projectIds != null
+    ? { ...attribution, projectIds: op.projectIds }
+    : attribution;
 }
 
 /** What an automation run's billing subject is read from. */

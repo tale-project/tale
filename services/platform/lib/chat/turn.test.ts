@@ -396,6 +396,7 @@ describe('runTurn — the happy path', () => {
     expect(spends).toEqual([
       {
         userId: 'user_1',
+        projectIds: [],
         apiKeyId: 'key_1',
         tokens: expect.any(Number),
         costCents: expect.any(Number),

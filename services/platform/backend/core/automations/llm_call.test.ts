@@ -39,12 +39,22 @@ vi.mock('../lib/providers/org_providers', () => ({
 }));
 
 import {
-  automationLlmCall,
+  automationLlmCall as actualAutomationLlmCall,
   extractJsonValue,
   resolveServingTarget,
   schemaViolations,
   walkLlmServing,
 } from './llm_call';
+
+const ATTEMPT = { nodeId: 'model', itemIndex: 0, pass: 0, attempt: 1 };
+const PRICING = { inputCentsPerMillion: 100, outputCentsPerMillion: 200 };
+function automationLlmCall(
+  ...args: Parameters<typeof actualAutomationLlmCall>
+) {
+  const call = actualAutomationLlmCall(...args);
+  return (request: Parameters<typeof call>[0]) =>
+    call({ attempt: ATTEMPT, ...request });
+}
 
 const ORG = 'org_llm';
 const RUN = 'run_llm';
@@ -54,15 +64,15 @@ let credentials: Record<string, unknown>;
 /** What the run's budget check answers. */
 let admission: unknown;
 
-const runQuery = vi.fn((ref: unknown, args: { providerSlug: string }) =>
-  Promise.resolve(
-    functionRefName(ref) === 'automations/queries:checkLlmStepBudget'
-      ? admission
-      : (credentials[args.providerSlug] ?? null),
-  ),
+const runQuery = vi.fn((_ref: unknown, args: { providerSlug: string }) =>
+  Promise.resolve(credentials[args.providerSlug] ?? null),
 );
-const runMutation = vi.fn((_ref: unknown, _args: unknown) =>
-  Promise.resolve(null),
+const runMutation = vi.fn((ref: unknown, _args: unknown) =>
+  Promise.resolve(
+    functionRefName(ref) === 'automations/mutations:reserveLlmStepBudget'
+      ? admission
+      : null,
+  ),
 );
 const ctx = { runQuery, runMutation } as unknown as ActionCtx;
 
@@ -80,8 +90,9 @@ const DIRECT = { status: 'active', authMethod: 'api-key' };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  Reflect.deleteProperty(builderModel, 'prepare');
   credentials = {};
-  admission = { allowed: true };
+  admission = { allowed: true, sessionId: 'session', execId: 'exec' };
   resolveConnectors.mockResolvedValue([
     { name: 'first', catalog: { source: 'static' } },
     { name: 'second', catalog: { source: 'static' } },
@@ -158,7 +169,7 @@ describe('automationLlmCall', () => {
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
           connector.name === 'second'
-            ? [{ id: 'vendor/small-1', tags: ['chat'] }]
+            ? [{ id: 'vendor/small-1', tags: ['chat'], pricing: PRICING }]
             : [],
         ),
     );
@@ -197,7 +208,7 @@ describe('automationLlmCall', () => {
       second: { ...DIRECT, modelAllowlist: ['other/model'] },
     };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
 
     await expect(
@@ -216,7 +227,7 @@ describe('automationLlmCall', () => {
     ]);
     credentials = { openrouter: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'] },
+      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'], pricing: PRICING },
     ]);
 
     await automationLlmCall(
@@ -245,7 +256,7 @@ describe('automationLlmCall', () => {
     ]);
     credentials = { anthropic: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'claude-haiku-4-5', tags: ['chat'] },
+      { id: 'claude-haiku-4-5', tags: ['chat'], pricing: PRICING },
     ]);
 
     await automationLlmCall(
@@ -279,7 +290,7 @@ describe('automationLlmCall', () => {
       },
     };
     getProviderCatalog.mockResolvedValue([
-      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'] },
+      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'], pricing: PRICING },
     ]);
 
     await automationLlmCall(
@@ -318,7 +329,7 @@ describe('automationLlmCall', () => {
   it("hands the turn's signal to the model, so a stopping server cuts the request", async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
     const stop = new AbortController();
 
@@ -336,14 +347,16 @@ describe('automationLlmCall', () => {
   it('resolves each model once per door, not once per call', async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
 
     const door = automationLlmCall(ctx, ORG, RUN);
     await door({ model: 'vendor/small-1', prompt: 'one' });
+    const initialLookups = resolveConnectors.mock.calls.length;
     await door({ model: 'vendor/small-1', prompt: 'two' });
 
-    expect(resolveConnectors).toHaveBeenCalledTimes(1);
+    expect(initialLookups).toBe(2);
+    expect(resolveConnectors).toHaveBeenCalledTimes(initialLookups);
     expect(createBuilderModel).toHaveBeenCalledTimes(1);
     expect(builderModel).toHaveBeenCalledTimes(2);
   });
@@ -351,7 +364,7 @@ describe('automationLlmCall', () => {
   it('asks for the schema in the system prompt and returns the parsed data', async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
     builderModel.mockResolvedValue({ content: '```json\n{"score": 7}\n```' });
     const outputSchema = {
@@ -381,7 +394,7 @@ describe('automationLlmCall', () => {
   it('fails the call, naming the problem, when the reply defies the schema', async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
     const outputSchema = {
       type: 'object',
@@ -406,14 +419,14 @@ describe('automationLlmCall and the run’s budgets', () => {
   beforeEach(() => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
   });
 
   it('books each call’s tokens to its run, priced under the serving connector [GOV-R14]', async () => {
     builderModel.mockResolvedValue({
       content: 'a fine sentence',
-      usage: { prompt: 120, completion: 30 },
+      usage: { prompt: 120, completion: 30, reported: true },
     });
 
     await automationLlmCall(
@@ -422,18 +435,21 @@ describe('automationLlmCall and the run’s budgets', () => {
       RUN,
     )({ model: 'vendor/small-1', prompt: 'Summarize.' });
 
-    expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: ORG,
-      runId: RUN,
-    });
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: ORG,
+        runId: RUN,
+        attempt: ATTEMPT,
+        reserveTokens: expect.any(Number),
+      }),
+    );
     expect(bookings()).toEqual([
       {
         organizationId: ORG,
-        runId: RUN,
-        provider: 'first',
-        model: 'vendor/small-1',
-        inputTokens: 120,
-        outputTokens: 30,
+        sessionId: 'session',
+        execId: 'exec',
+        usage: { inputTokens: 120, outputTokens: 30, cents: 0.018 },
       },
     ]);
   });
@@ -475,7 +491,7 @@ describe('automationLlmCall and the run’s budgets', () => {
 
   it('books a reply with no text before the step fails on it', async () => {
     builderModel.mockRejectedValue(
-      new EmptyReplyError({ prompt: 40, completion: 8000 }),
+      new EmptyReplyError({ prompt: 40, completion: 8000, reported: true }),
     );
 
     await expect(
@@ -486,14 +502,16 @@ describe('automationLlmCall and the run’s budgets', () => {
       )({ model: 'vendor/small-1', prompt: 'x' }),
     ).rejects.toThrow(/no text content/);
     expect(bookings()).toEqual([
-      expect.objectContaining({ inputTokens: 40, outputTokens: 8000 }),
+      expect.objectContaining({
+        usage: expect.objectContaining({ inputTokens: 40, outputTokens: 8000 }),
+      }),
     ]);
   });
 
   it('books a reply that defies the node’s schema — the call was made', async () => {
     builderModel.mockResolvedValue({
       content: 'about a seven',
-      usage: { prompt: 10, completion: 4 },
+      usage: { prompt: 10, completion: 4, reported: true },
     });
 
     await expect(
@@ -508,30 +526,107 @@ describe('automationLlmCall and the run’s budgets', () => {
       }),
     ).rejects.toMatchObject({ code: 'llm_output_invalid' });
     expect(bookings()).toEqual([
-      expect.objectContaining({ inputTokens: 10, outputTokens: 4 }),
+      expect.objectContaining({
+        usage: expect.objectContaining({ inputTokens: 10, outputTokens: 4 }),
+      }),
     ]);
   });
 
-  it('keeps the reply when its booking fails, and says so', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('fails visibly when terminal facts cannot be persisted, preserving the server hold', async () => {
     builderModel.mockResolvedValue({
-      content: 'a fine sentence',
-      usage: { prompt: 1, completion: 1 },
+      content: 'answer',
+      usage: { prompt: 1, completion: 1, reported: true },
     });
-    runMutation.mockRejectedValueOnce(new Error('connection reset'));
-
+    runMutation
+      .mockResolvedValueOnce(admission)
+      .mockRejectedValueOnce(new Error('connection reset'));
     await expect(
       automationLlmCall(
         ctx,
         ORG,
         RUN,
       )({ model: 'vendor/small-1', prompt: 'x' }),
-    ).resolves.toEqual({ text: 'a fine sentence' });
-    expect(warn).toHaveBeenCalledWith(
-      expect.stringContaining(`run ${RUN}: booking an llm call`),
-      expect.any(Error),
-    );
-    warn.mockRestore();
+    ).rejects.toThrow('connection reset');
+    expect(builderModel).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    undefined,
+    { prompt: 0, completion: 0 },
+    { prompt: NaN, completion: 2, reported: true },
+  ])(
+    'retains unknown provider usage instead of booking zero',
+    async (usage) => {
+      builderModel.mockResolvedValue({ content: 'answer', usage });
+      await automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' });
+      expect(bookings()).toEqual([expect.objectContaining({ usage: null })]);
+    },
+  );
+
+  it('records an unknown outcome before returning a transport failure', async () => {
+    builderModel.mockRejectedValueOnce(new Error('timeout'));
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow('timeout');
+    expect(bookings()).toEqual([expect.objectContaining({ usage: null })]);
+  });
+
+  it('resolves credentials before reserving paid work', async () => {
+    Object.assign(builderModel, {
+      prepare: vi.fn().mockRejectedValue(new Error('credential absent')),
+    });
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow('credential absent');
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(builderModel).not.toHaveBeenCalled();
+  });
+
+  it('closes a proven pre-dispatch cancellation at zero without calling the provider', async () => {
+    const stop = new AbortController();
+    runMutation.mockImplementationOnce(async () => {
+      stop.abort();
+      return admission;
+    });
+    await expect(
+      automationLlmCall(ctx, ORG, RUN, { signal: stop.signal })({
+        model: 'vendor/small-1',
+        prompt: 'x',
+      }),
+    ).rejects.toThrow();
+    expect(builderModel).not.toHaveBeenCalled();
+    expect(bookings()).toEqual([
+      expect.objectContaining({
+        usage: { inputTokens: 0, outputTokens: 0, cents: 0 },
+      }),
+    ]);
+  });
+
+  it('refuses absent catalog prices before reserving or calling', async () => {
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow('catalog pricing');
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(builderModel).not.toHaveBeenCalled();
   });
 
   it('fails loudly on a budget answer it cannot read', async () => {
@@ -554,7 +649,7 @@ describe('resolveServingTarget', () => {
   it('walks connectors in order and serves from the first match', async () => {
     credentials = { first: DIRECT, second: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/shared', tags: ['chat'] },
+      { id: 'vendor/shared', tags: ['chat'], pricing: PRICING },
     ]);
 
     await expect(
@@ -569,7 +664,7 @@ describe('walkLlmServing', () => {
   it('answers the serving connector, or no target with the catalogs it could not read', async () => {
     credentials = { first: DIRECT, second: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/shared', tags: ['chat'] },
+      { id: 'vendor/shared', tags: ['chat'], pricing: PRICING },
     ]);
     await expect(
       walkLlmServing(ctx, ORG, 'vendor/shared'),

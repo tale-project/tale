@@ -245,8 +245,8 @@ sed -i "s|{[\$]DOCS_ORIGIN:[^}]*}|${DOCS_URL}|" "$CADDYFILE"
 # Everything the pg backend owns is listed here explicitly — auth, the app
 # API, the hint stream, both machine doors, SSO/SCIM/trusted-headers on BOTH
 # their 0.5-native and 0.4 `/http_api/...` paths (registered IdP redirect
-# URIs carry the old ones), the control channel the CLI drains through, the
-# cloud-import OAuth callbacks and the WebDAV protocol door.
+# URIs carry the old ones), the cloud-import OAuth callbacks and the WebDAV
+# protocol door. Deployment control stays internal to the backend container.
 #
 # BACKEND_UPSTREAM began life as the cutover's reversibility switch (unset ⇒
 # lanes fall back to Convex). The Convex runtime is gone, so an unset value
@@ -338,8 +338,14 @@ BACKEND_BLOCK=$(cat <<EOF
 		}
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
+	# The CLI calls localhost inside the selected backend container. Refuse
+	# both the root and descendants here: removing this lane would expose
+	# them again through the generic /api/* fallback in the base Caddyfile.
+	handle /api/control {
+		respond "Not found" 404
+	}
 	handle /api/control/* {
-		reverse_proxy ${BACKEND_UPSTREAM}
+		respond "Not found" 404
 	}
 	handle /api/sso/* {
 		reverse_proxy ${BACKEND_UPSTREAM}

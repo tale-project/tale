@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 
-import { foldBreakdownEntries } from './breakdown-entries.ts';
+import { foldBreakdownEntries } from './erasure_counts.ts';
 
 describe('foldBreakdownEntries', () => {
   test('reads the plain-count shape a pass records', () => {

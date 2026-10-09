@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { imageRef, type ServiceConfig } from '../compose/types';
+import { getProjectId } from '../project/project-context';
 import type { AutomationWriterProtocol } from './automation-model';
 import {
   bundledBackendIdentity,
@@ -135,6 +136,28 @@ export async function admitTagAutomationImage(
   const protocol = imageWriterProtocol(image.Config.Labels);
   requireAutomationProtocol(installed, protocol);
   if (protocol === 1) return undefined;
+  if (installed === 1) {
+    // A tag/color deployment does not own the managed cutover recovery journal.
+    // Empty-host installs are safe; an existing DB must use managed apply.
+    const databases = await protocolRead(
+      [
+        'ps',
+        '-a',
+        '--no-trunc',
+        '--filter',
+        'label=com.docker.compose.service=db',
+        '--filter',
+        `label=com.docker.compose.project=${getProjectId()}`,
+        '--format',
+        '{{.ID}}',
+      ],
+      dependencies,
+    );
+    requireRuntime(
+      databases.trim() === '',
+      'An existing protocol-1 database must upgrade through managed deployment apply and its automation cutover barrier before using tag deployments.',
+    );
+  }
   const repository = `${config.registry}/tale-platform`;
   const digests = [
     ...new Set(

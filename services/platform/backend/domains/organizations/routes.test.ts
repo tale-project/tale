@@ -228,6 +228,17 @@ describe('POST /:id/delete', () => {
     );
   });
 
+  it('maps the database legacy-hold race to a conflict without leaking SQL details [ORG-R12]', async () => {
+    deleteOrganization.mockRejectedValue(
+      Object.assign(new Error('private SQL detail'), { code: 'P7502' }),
+    );
+    const response = await remove({ confirmName: 'Acme' });
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body).toMatchObject({ error: 'ORG_LEGACY_AUTOMATION_HELD' });
+    expect(JSON.stringify(body)).not.toContain('private SQL detail');
+  });
+
   it('answers the mismatch code the service raises, and sends an absent name as empty [ORG-R5]', async () => {
     const { OrganizationError } = await import('./service.ts');
     deleteOrganization.mockRejectedValue(

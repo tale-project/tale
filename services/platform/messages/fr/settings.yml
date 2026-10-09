@@ -265,6 +265,7 @@ organization:
   deleteLoading: Suppression…
   deleteSuccess: Organisation supprimée
   deleteFailed: Échec de la suppression de l'organisation
+  deleteBlockedByLegacyAutomation: Des exécutions d'automatisation restent bloquées car leurs actions externes antérieures n'ont pas encore été vérifiées. Ton organisation a été conservée. Une demande d'arrêt ne lève pas ces blocages.
   deleteBlockedByLegalHold: Une conservation légale active préserve les données de cette organisation. Lève chaque conservation dans Gouvernance > Conservation légale, puis réessaie.
   deleteTypeNameLabel: Tape le nom de l'organisation pour confirmer
   deleteConfirmNameMismatch: La confirmation ne correspond pas au nom de l'organisation. Recharge la page et réessaie.

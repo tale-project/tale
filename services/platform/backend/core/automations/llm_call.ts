@@ -20,8 +20,13 @@
  * one wire for thread titles and llm nodes.
  */
 
-import type { HarnessGatewayWire } from '@tale/shared/schemas/providers';
+import type {
+  HarnessGatewayWire,
+  ModelCatalogEntry,
+} from '@tale/shared/schemas/providers';
 
+import { estimateCostCents } from '../../../lib/chat/turn';
+import { estimateTokens } from '../../../lib/chat/types';
 import { compileSchema } from '../../../lib/engine/core/validate/schema';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import {
@@ -37,13 +42,19 @@ import {
   walkDirectServing,
   type DirectServingWalk,
 } from '../lib/providers/agent_serving';
+import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { NodeFailure } from './failure';
+import {
+  AUTOMATION_LLM_LIFETIME_MS,
+  type LlmAttemptAddress,
+} from './llm_budget';
 
 /** What one llm node asks for — the engine seam's shape, minus nothing. */
 export interface AutomationLlmRequest {
   model: string;
   prompt: string;
+  attempt?: LlmAttemptAddress;
   system?: string;
   outputSchema?: Record<string, unknown>;
 }
@@ -203,19 +214,35 @@ function schemaInstruction(schema: Record<string, unknown>): string {
 }
 
 /** The budget check's answer, read off the untyped ctx seam. */
-type LlmStepAdmission = { allowed: true } | { allowed: false; reason: string };
+type LlmStepAdmission =
+  | { allowed: true; sessionId: string; execId: string }
+  | { allowed: false; reason: string };
 
 function readLlmStepAdmission(value: unknown): LlmStepAdmission {
   if (typeof value === 'object' && value !== null) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed field by field below
-    const record = value as { allowed?: unknown; reason?: unknown };
-    if (record.allowed === true) return { allowed: true };
+    const record = value as {
+      allowed?: unknown;
+      reason?: unknown;
+      sessionId?: unknown;
+      execId?: unknown;
+    };
+    if (
+      record.allowed === true &&
+      typeof record.sessionId === 'string' &&
+      typeof record.execId === 'string'
+    )
+      return {
+        allowed: true,
+        sessionId: record.sessionId,
+        execId: record.execId,
+      };
     if (record.allowed === false && typeof record.reason === 'string') {
       return { allowed: false, reason: record.reason };
     }
   }
   throw new Error(
-    'checkLlmStepBudget answered with an unexpected shape — the llm call cannot be admitted',
+    'reserveLlmStepBudget answered with an unexpected shape — the llm call cannot be admitted',
   );
 }
 
@@ -224,6 +251,7 @@ function readLlmStepAdmission(value: unknown): LlmStepAdmission {
 interface ServedModel {
   target: BuilderModelTarget;
   call: BuilderModel;
+  pricing: NonNullable<ModelCatalogEntry['pricing']>;
 }
 
 /**
@@ -252,57 +280,44 @@ export function automationLlmCall(
     const existing = models.get(modelId);
     if (existing) return existing;
     const created = resolveServingTarget(ctx, organizationId, modelId).then(
-      (target) => ({
-        target,
-        call: createBuilderModel(ctx, {
-          organizationId,
+      async (target) => {
+        const connector = (
+          await resolveProvidersForOrgId(ctx, organizationId)
+        ).find((entry) => entry.name === target.providerSlug);
+        const pricing =
+          connector === undefined
+            ? undefined
+            : (await getProviderCatalog(connector)).find(
+                (entry) => entry.id === target.modelId,
+              )?.pricing;
+        if (pricing === undefined)
+          throw new Error(
+            'The LLM model needs catalog pricing before its budget can be reserved',
+          );
+        return {
           target,
-          maxTokens: LLM_NODE_MAX_TOKENS,
-          ...(options.signal !== undefined && { signal: options.signal }),
-        }),
-      }),
+          pricing,
+          call: createBuilderModel(ctx, {
+            organizationId,
+            target,
+            maxTokens: LLM_NODE_MAX_TOKENS,
+            ...(options.signal !== undefined && { signal: options.signal }),
+          }),
+        };
+      },
     );
     models.set(modelId, created);
     return created;
   };
-  const book = async (
-    target: BuilderModelTarget,
-    usage: { prompt: number; completion: number },
-  ): Promise<void> => {
-    try {
-      await ctx.runMutation(internal.automations.mutations.recordLlmStepUsage, {
-        organizationId,
-        runId,
-        provider: target.providerSlug,
-        model: target.modelId,
-        inputTokens: usage.prompt,
-        outputTokens: usage.completion,
-      });
-    } catch (error) {
-      // The step has its reply, and the spend happened either way: a
-      // ledger write that failed must not fail the run.
-      console.warn(
-        `[automations] run ${runId}: booking an llm call to ${target.providerSlug}/${target.modelId} failed:`,
-        error,
-      );
-    }
-  };
-
   return async (request) => {
+    if (request.attempt === undefined)
+      throw new Error('An LLM call requires its durable effect attempt');
+    options.signal?.throwIfAborted();
     const model = await modelFor(request.model);
-    const admission = readLlmStepAdmission(
-      await ctx.runQuery(internal.automations.queries.checkLlmStepBudget, {
-        organizationId,
-        runId,
-      }),
-    );
-    if (!admission.allowed) {
-      throw new NodeFailure(
-        'budget_exceeded',
-        `the llm call was refused: ${admission.reason}`,
-        'wait until the limit resets, or ask an administrator to raise it',
-      );
-    }
+    // Missing credentials/endpoints are a proven pre-dispatch failure:
+    // resolve them before holding anything that could later be estimated.
+    await model.call.prepare?.();
+    options.signal?.throwIfAborted();
     const system = [
       ...(request.system !== undefined && request.system !== ''
         ? [request.system]
@@ -315,22 +330,85 @@ export function automationLlmCall(
       ...(system === '' ? [] : [{ role: 'system', content: system } as const]),
       { role: 'user', content: request.prompt } as const,
     ];
+    // Include schema/system instructions and framing in the same prompt estimate.
+    const inputReserve = messages.reduce(
+      (total, message) => total + estimateTokens(message.content) + 4,
+      3,
+    );
+    // Start the request clock before admission, so recovery's server-side
+    // started_at deadline never precedes this call's cancellation deadline.
+    const deadline = AbortSignal.timeout(AUTOMATION_LLM_LIFETIME_MS);
+    const admission = readLlmStepAdmission(
+      await ctx.runMutation(
+        internal.automations.mutations.reserveLlmStepBudget,
+        {
+          organizationId,
+          runId,
+          attempt: request.attempt,
+          provider: model.target.providerSlug,
+          model: model.target.modelId,
+          reserveCents: estimateCostCents(
+            inputReserve,
+            LLM_NODE_MAX_TOKENS,
+            model.pricing,
+          ),
+          reserveTokens: inputReserve + LLM_NODE_MAX_TOKENS,
+        },
+      ),
+    );
+    if (!admission.allowed)
+      throw new NodeFailure(
+        'budget_exceeded',
+        `the llm call was refused: ${admission.reason}`,
+        'wait until the limit resets, or ask an administrator to raise it',
+      );
+    const book = async (
+      usage: Awaited<ReturnType<BuilderModel>>['usage'],
+    ): Promise<void> => {
+      const reported =
+        usage?.reported === true &&
+        Number.isSafeInteger(usage.prompt) &&
+        usage.prompt >= 0 &&
+        Number.isSafeInteger(usage.completion) &&
+        usage.completion >= 0;
+      await ctx.runMutation(internal.automations.mutations.recordLlmStepUsage, {
+        organizationId,
+        sessionId: admission.sessionId,
+        execId: admission.execId,
+        usage: reported
+          ? {
+              inputTokens: usage.prompt,
+              outputTokens: usage.completion,
+              cents: estimateCostCents(
+                usage.prompt,
+                usage.completion,
+                model.pricing,
+              ),
+            }
+          : null,
+      });
+    };
+    if (options.signal?.aborted || deadline.aborted) {
+      // Local proof of no dispatch: close this hold at known zero rather
+      // than treating a cancellation before the call as unknown spend.
+      await book({ prompt: 0, completion: 0, reported: true });
+      options.signal?.throwIfAborted();
+      deadline.throwIfAborted();
+    }
     let reply: Awaited<ReturnType<BuilderModel>>;
     try {
       reply = await model.call({
         messages,
         temperature: LLM_NODE_TEMPERATURE,
         turn: 1,
+        signal: deadline,
       });
     } catch (error) {
-      // A reply with no text — a model that spent its budget reasoning —
-      // was still billed.
-      if (error instanceof EmptyReplyError) {
-        await book(model.target, error.usage);
-      }
+      await book(error instanceof EmptyReplyError ? error.usage : undefined);
       throw error;
     }
-    if (reply.usage !== undefined) await book(model.target, reply.usage);
+    // Persist before parsing/schema validation: unusable output was still paid.
+    await book(reply.usage);
     if (request.outputSchema === undefined) {
       return { text: reply.content };
     }

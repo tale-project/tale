@@ -129,42 +129,64 @@ function prepareAst(root: unknown, offset: number): boolean {
 
 /** Locate a lexical template closer within the expression budget. The caller
  * validates the complete span; returning an AST end would lose trailing
- * comments and make their braces look like template delimiters again. */
-export function expressionEnd(text: string, start: number): number | undefined {
-  const end = Math.min(text.length, start + MAX_SOURCE_SIZE + 2);
-  try {
-    // Locate the template closer lexically before budgeting: braces inside
-    // strings, comments and nested expressions are not template delimiters.
-    // Stop before plain text after the closer enters the token/depth budget.
-    let depth = 0;
-    let count = 0;
-    for (const token of tokenizer(text.slice(start, end), OPTIONS)) {
-      const label = token.type.label;
-      if (
-        label === '}' &&
-        depth === 0 &&
-        text.slice(start + token.start, start + token.start + 2) === '}}'
-      ) {
-        return start + token.start;
+ * comments and make their braces look like template delimiters again. Return
+ * the trimmed source boundary too, so validation never rescans long padding. */
+export function createExpressionEndReader(
+  text: string,
+): (start: number) => { close: number; sourceEnd: number } | undefined {
+  // Template starts advance monotonically. Reuse a whitespace island rather
+  // than rescanning its unbounded suffix after every failed legacy span.
+  // The interval belongs to this field only; no source survives its scan.
+  let whitespaceStart = -1;
+  let whitespaceEnd = -1;
+  return (start) => {
+    const end = Math.min(text.length, start + MAX_SOURCE_SIZE + 2);
+    try {
+      // Locate the template closer lexically before budgeting: braces inside
+      // strings, comments and nested expressions are not template delimiters.
+      // Stop before plain text after the closer enters the token/depth budget.
+      let depth = 0;
+      let count = 0;
+      for (const token of tokenizer(text.slice(start, end), OPTIONS)) {
+        const label = token.type.label;
+        if (
+          label === '}' &&
+          depth === 0 &&
+          text.slice(start + token.start, start + token.start + 2) === '}}'
+        ) {
+          const close = start + token.start;
+          return {
+            close,
+            sourceEnd: start + text.slice(start, close).trimEnd().length,
+          };
+        }
+        if (++count > MAX_PARSE_TOKENS) return undefined;
+        if (['(', '[', '{', '${'].includes(label)) {
+          if (++depth > MAX_PARSE_DEPTH) return undefined;
+        } else if ([')', ']', '}'].includes(label))
+          depth = Math.max(0, depth - 1);
       }
-      if (++count > MAX_PARSE_TOKENS) return undefined;
-      if (['(', '[', '{', '${'].includes(label)) {
-        if (++depth > MAX_PARSE_DEPTH) return undefined;
-      } else if ([')', ']', '}'].includes(label))
-        depth = Math.max(0, depth - 1);
+      // The size limit applies to trimmed code, not surrounding whitespace.
+      // Only whitespace may extend past the bounded tokenization window.
+      // The final full-span parse still enforces the trimmed source budget.
+      let close = end;
+      if (end >= whitespaceStart && end <= whitespaceEnd) {
+        close = whitespaceEnd;
+      } else {
+        whitespaceStart = end;
+        while (whitespaceStart > start && /\s/.test(text[whitespaceStart - 1]))
+          whitespaceStart--;
+        while (close < text.length && /\s/.test(text[close])) close++;
+        whitespaceEnd = close;
+      }
+      return depth === 0 && text.slice(close, close + 2) === '}}'
+        ? { close, sourceEnd: Math.max(start, whitespaceStart) }
+        : undefined;
+    } catch (e) {
+      if (!(e instanceof SyntaxError) && !(e instanceof RangeError)) throw e;
+      return undefined;
     }
-    // The size limit applies to trimmed code, not surrounding whitespace.
-    // Only whitespace may extend past the bounded tokenization window.
-    // The final full-span parse still enforces the trimmed source budget.
-    let close = end;
-    while (close < text.length && /\s/.test(text[close])) close++;
-    return depth === 0 && text.slice(close, close + 2) === '}}'
-      ? close
-      : undefined;
-  } catch (e) {
-    if (!(e instanceof SyntaxError) && !(e instanceof RangeError)) throw e;
-    return undefined;
-  }
+  };
 }
 
 /** acorn's nodes ARE ESTree nodes; its typings are a parallel declaration. */

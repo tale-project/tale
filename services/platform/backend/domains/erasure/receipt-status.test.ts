@@ -21,6 +21,14 @@ describe('erasureReceiptStatus', () => {
     // stopped halfway, which is the Art 19 confirmation the subject reads.
     expect(erasureReceiptStatus([], ['documents'])).toBe('partial');
   });
+
+  test('preserved legacy automation runs keep an otherwise clean receipt partial [ERASE-R9]', () => {
+    expect(erasureReceiptStatus([], [], 1)).toBe('partial');
+    expect(erasureReceiptError([], [], 1)).toBe('legacy_automation_hold');
+    expect(erasureReceiptError(['uploads'], ['documents'], 2)).toBe(
+      'failed passes: uploads; held off by a legal hold: documents; legacy_automation_hold',
+    );
+  });
 });
 
 describe('erasureReceiptError', () => {

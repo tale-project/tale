@@ -17,7 +17,7 @@
  * is listed in `unterminated` so validation can say so.
  */
 
-import { expressionEnd, parseExpressionIn } from './parse';
+import { createExpressionEndReader, parseExpressionIn } from './parse';
 
 export interface TemplateSegment {
   kind: 'text' | 'expr';
@@ -82,18 +82,20 @@ function matchTemplate(
   value: string,
   open: number,
   close: number,
+  readEnd: ReturnType<typeof createExpressionEndReader>,
 ): TemplateSegment {
   if (parsesIn(value, open + 2, close)) {
     return exprSegment(value, open, close, true);
   }
   const [start] = trimmedSpan(value, open + 2, close);
-  const later = expressionEnd(value, start);
+  const later = readEnd(start);
   if (
     later !== undefined &&
-    later > close &&
-    parsesIn(value, open + 2, later)
+    later.close > close &&
+    later.sourceEnd > start &&
+    parseExpressionIn(value, start, later.sourceEnd).ok
   ) {
-    return exprSegment(value, open, later, true);
+    return exprSegment(value, open, later.close, true);
   }
   return exprSegment(value, open, close, false);
 }
@@ -101,6 +103,7 @@ function matchTemplate(
 export function tokenizeTemplate(value: string): Tokenized {
   const segments: TemplateSegment[] = [];
   const unterminated: Array<[number, number]> = [];
+  const readEnd = createExpressionEndReader(value);
   let textStart = 0;
   const lastClose = value.lastIndexOf('}}');
   let open = value.indexOf('{{');
@@ -115,7 +118,7 @@ export function tokenizeTemplate(value: string): Tokenized {
       open = value.indexOf('{{', open + 2);
       continue;
     }
-    const segment = matchTemplate(value, open, close);
+    const segment = matchTemplate(value, open, close, readEnd);
     if (open > textStart) {
       segments.push({ kind: 'text', start: textStart, end: open });
     }

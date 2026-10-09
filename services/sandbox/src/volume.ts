@@ -41,6 +41,10 @@ export function bunCacheVolumeName(
 }
 
 const CACHE_LABEL = 'tale.sandbox-cache';
+/** Multi-architecture index: root cache setup must not execute a mutable tag.
+ * The scoped Renovate manager keeps this tag and digest together. */
+const CACHE_PERMISSION_IMAGE =
+  'busybox:1.36@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662';
 
 /** Whether a volume under a cache name is missing, the spawner's (it carries
  * the cache label), or one the spawner did not make: Docker creates a volume
@@ -274,7 +278,7 @@ async function setCacheVolumeMode(name: string): Promise<void> {
       'tale.sandbox-staging=1',
       '--mount',
       `type=volume,src=${name},dst=/cache`,
-      'busybox:1.36',
+      CACHE_PERMISSION_IMAGE,
       'chmod',
       '1777',
       '/cache',
