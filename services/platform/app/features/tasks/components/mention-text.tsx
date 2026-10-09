@@ -13,6 +13,7 @@ import ReactMarkdown, { type Options } from 'react-markdown';
 
 import {
   MarkdownLinkOverridesContext,
+  type MarkdownLinkOverride,
   markdownComponents,
   markdownWrapperStyles,
 } from '@/app/features/shared/markdown/markdown-renderer';
@@ -150,8 +151,8 @@ function MentionTextContent({
   /** Whom the text named when it was saved (a comment's resolved mentions):
    * a typed `@handle` shows as one of them, the one it named, or as text. */
   mentions?: ReadonlyArray<{ type: MentionKind; id: string }>;
-  /** Stable browser URLs for files the task's agent produced. */
-  linkOverrides?: Readonly<Record<string, string>>;
+  /** Actions or stable browser URLs for files the task's agent produced. */
+  linkOverrides?: Readonly<Record<string, MarkdownLinkOverride>>;
   /** False for a text whose `@names` are another system's people (a task
    * mirrored from GitHub or GlitchTip): typed handles stay text. */
   plainMentions?: boolean;
