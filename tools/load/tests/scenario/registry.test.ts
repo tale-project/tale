@@ -4,6 +4,8 @@ import { MetricsRegistry, summarize } from '../../src/metrics/index.ts';
 import {
   HINT_LATENCY,
   HintRegistry,
+  WRITES_UNHEARD,
+  WRITES_WATCHED,
   createHintReceiver,
 } from '../../src/scenario/registry.ts';
 
@@ -90,5 +92,26 @@ describe('HintRegistry', () => {
     registry.observeHint(metrics, 'never-written', createHintReceiver());
     expect(latencies(metrics).count).toBe(0);
     expect(registry.size.early).toBe(2);
+  });
+
+  test('a watched write nobody hears is counted unheard once its time is up', () => {
+    let now = 0;
+    const registry = new HintRegistry(() => now);
+    const metrics = new MetricsRegistry();
+    const tab = createHintReceiver();
+    registry.listening('org-a', 1);
+    registry.registerWrite(metrics, 'heard', 0, 'org-a');
+    registry.registerWrite(metrics, 'lost', 0, 'org-a');
+    // Nobody of org-b listens in this process: not watched, never unheard.
+    registry.registerWrite(metrics, 'unwatched', 0, 'org-b');
+    now = 300;
+    registry.observeHint(metrics, 'heard', tab);
+    expect(metrics.counterValue(WRITES_WATCHED)).toBe(2);
+    now = 61_500;
+    registry.registerWrite(metrics, 'later', now, 'org-a');
+    expect(metrics.counterValue(WRITES_UNHEARD)).toBe(1);
+    registry.listening('org-a', -1);
+    registry.registerWrite(metrics, 'after-close', now, 'org-a');
+    expect(metrics.counterValue(WRITES_WATCHED)).toBe(3);
   });
 });

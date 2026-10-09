@@ -203,6 +203,8 @@ export class VirtualUser implements ApiObserver {
   #backoffForServer = false;
   #serverFailures = 0;
   #events: EventStreamHandle | null = null;
+  /** The organization `#events` is open on, counted as a listener. */
+  #eventsOrg: string | null = null;
   #thread: { id: string; handle: EventStreamHandle; ready: boolean } | null =
     null;
   #threadListener: ((event: ThreadEvent) => void) | null = null;
@@ -698,8 +700,11 @@ export class VirtualUser implements ApiObserver {
 
   #openEvents(): void {
     if (!this.options.realtime || this.seat === null) return;
-    this.#events?.close();
-    this.#events = openOrgEvents(this.streamTarget, this.seat.org.id, {
+    this.#closeEvents();
+    const orgId = this.seat.org.id;
+    hintRegistry.listening(orgId, 1);
+    this.#eventsOrg = orgId;
+    this.#events = openOrgEvents(this.streamTarget, orgId, {
       onHint: (hint) => this.#onHint(hint),
       onResync: () => this.#scheduleRefetch('resync'),
     });
@@ -837,10 +842,16 @@ export class VirtualUser implements ApiObserver {
     for (const wake of waiters) wake();
   }
 
-  closeStreams(): void {
-    this.closeThread();
+  #closeEvents(): void {
     this.#events?.close();
     this.#events = null;
+    if (this.#eventsOrg !== null) hintRegistry.listening(this.#eventsOrg, -1);
+    this.#eventsOrg = null;
+  }
+
+  closeStreams(): void {
+    this.closeThread();
+    this.#closeEvents();
     for (const timer of this.#refetchTimers) clearTimeout(timer);
     this.#refetchTimers.clear();
     this.#refetchDue.clear();

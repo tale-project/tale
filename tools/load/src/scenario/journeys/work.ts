@@ -80,7 +80,8 @@ async function taskWrite<T extends { ok: boolean }>(
 ): Promise<T> {
   const clickedAt = performance.now();
   const result = await write();
-  if (result.ok) hintRegistry.registerWrite(vu.metrics, taskId, clickedAt);
+  if (result.ok)
+    hintRegistry.registerWrite(vu.metrics, taskId, clickedAt, vu.orgId);
   return result;
 }
 
@@ -113,7 +114,7 @@ export const fileTask: Journey = {
     });
     const taskId = created.body;
     if (taskId === undefined) return;
-    hintRegistry.registerWrite(vu.metrics, taskId, clickedAt);
+    hintRegistry.registerWrite(vu.metrics, taskId, clickedAt, orgId);
     vu.metrics.counter('tasks.created');
     remember(vu.memory().myTasks, taskId);
     await listProjectBoard(vu.api, orgId, projectId);

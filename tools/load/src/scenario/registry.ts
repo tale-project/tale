@@ -8,6 +8,11 @@
  * process who receives the hint records `realtime.hint_latency` — the time
  * another person's tab takes to learn of the change.
  *
+ * Completeness is counted too: a write made while its organization had an
+ * open stream in this process (`realtime.writes_watched`) that no stream of
+ * the process heard within the write's time to live counts as
+ * `realtime.writes_unheard` — a hint the platform lost, not a slow one.
+ *
  * Two things keep the number honest:
  *
  * - each tab records a write at most ONCE (its {@link HintReceiver} keeps
@@ -25,6 +30,8 @@
 import type { MetricsRegistry } from '../metrics/index.ts';
 
 export const HINT_LATENCY = 'realtime.hint_latency';
+export const WRITES_WATCHED = 'realtime.writes_watched';
+export const WRITES_UNHEARD = 'realtime.writes_unheard';
 
 /** How long a write waits for its hints. */
 const WRITE_TTL_MS = 60_000;
@@ -51,10 +58,20 @@ export function createHintReceiver(): HintReceiver {
   return new Map();
 }
 
+interface Write {
+  clickedAt: number;
+  /** Some stream of the writer's organization was open in this process. */
+  watched: boolean;
+  heard: boolean;
+  metrics: MetricsRegistry;
+}
+
 export class HintRegistry {
   readonly #now: () => number;
-  /** entityId → when its latest write was clicked. */
-  readonly #writes = new Map<string, number>();
+  /** entityId → its latest write. */
+  readonly #writes = new Map<string, Write>();
+  /** orgId → `/events` streams of this process open on it. */
+  readonly #listeners = new Map<string, number>();
   /** entityId → hints received before the write registered. */
   readonly #early = new Map<string, Parked>();
   #lastSweep = Number.NEGATIVE_INFINITY;
@@ -63,17 +80,31 @@ export class HintRegistry {
     this.#now = now;
   }
 
-  /** A user wrote `entityId`; `clickedAt` is when the request started. */
+  /** A stream of `orgId` opened (+1) or closed (-1) in this process. */
+  listening(orgId: string, delta: 1 | -1): void {
+    const count = (this.#listeners.get(orgId) ?? 0) + delta;
+    if (count > 0) this.#listeners.set(orgId, count);
+    else this.#listeners.delete(orgId);
+  }
+
+  /** A user wrote `entityId` in `orgId`; `clickedAt` is when the request
+   * started. */
   registerWrite(
     metrics: MetricsRegistry,
     entityId: string,
     clickedAt: number,
+    orgId?: string,
   ): void {
     this.#sweep();
+    const watched =
+      orgId !== undefined && (this.#listeners.get(orgId) ?? 0) > 0;
+    if (watched) metrics.counter(WRITES_WATCHED);
+    let heard = false;
     const parked = this.#early.get(entityId);
     if (parked !== undefined) {
       this.#early.delete(entityId);
       if (parked.at >= clickedAt) {
+        heard = true;
         const latency = parked.at - clickedAt;
         for (let i = 0; i < parked.count; i += 1) {
           metrics.timing(HINT_LATENCY, latency);
@@ -82,7 +113,7 @@ export class HintRegistry {
     }
     if (this.#writes.size >= MAX_ENTRIES) this.#evictOldest(this.#writes);
     this.#writes.delete(entityId);
-    this.#writes.set(entityId, clickedAt);
+    this.#writes.set(entityId, { clickedAt, watched, heard, metrics });
   }
 
   /**
@@ -96,8 +127,14 @@ export class HintRegistry {
   ): void {
     this.#sweep();
     const now = this.#now();
-    const clickedAt = this.#writes.get(entityId);
-    if (clickedAt !== undefined && now - clickedAt <= WRITE_TTL_MS) {
+    const write = this.#writes.get(entityId);
+    const clickedAt = write?.clickedAt;
+    if (
+      write !== undefined &&
+      clickedAt !== undefined &&
+      now - clickedAt <= WRITE_TTL_MS
+    ) {
+      write.heard = true;
       if (receiver.get(entityId) === clickedAt) return;
       receiver.delete(entityId);
       receiver.set(entityId, clickedAt);
@@ -130,9 +167,10 @@ export class HintRegistry {
     const now = this.#now();
     if (now - this.#lastSweep < 1_000) return;
     this.#lastSweep = now;
-    for (const [id, at] of this.#writes) {
-      if (now - at <= WRITE_TTL_MS) break;
+    for (const [id, write] of this.#writes) {
+      if (now - write.clickedAt <= WRITE_TTL_MS) break;
       this.#writes.delete(id);
+      if (write.watched && !write.heard) write.metrics.counter(WRITES_UNHEARD);
     }
     for (const [id, parked] of this.#early) {
       if (now - parked.at <= EARLY_TTL_MS) break;
