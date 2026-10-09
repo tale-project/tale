@@ -10,6 +10,7 @@ import {
   diffLines,
   diffWordsWithSpace,
   FILE_HEADERS_ONLY,
+  formatPatch,
   type Change,
 } from 'diff';
 
@@ -78,9 +79,9 @@ export interface LineDiffOptions {
    *  in its place: on. */
   words?: boolean;
   /**
-   * The most lines added and removed the diff looks for: 10 000. Two texts
-   * further apart than that read as one removed whole and one added whole,
-   * which keeps a huge rewrite from freezing the page.
+   * The most lines added and removed the diff looks for:
+   * {@link DIFF_MAX_EDITS}. Two texts further apart than that read as one
+   * removed whole and one added whole, without word marks.
    */
   maxEditLength?: number;
 }
@@ -91,7 +92,14 @@ export const DIFF_CONTEXT = 3;
 /** The longest line whose words are compared, in characters. */
 export const WORD_DIFF_MAX_CHARS = 500;
 
-const MAX_EDIT_LENGTH = 10_000;
+/**
+ * The most lines added and removed a diff looks for. The search grows with
+ * the square of this bound: two unrelated texts of 256 KB take about half
+ * a second to give up at 2 000, and ten seconds at 10 000. Past it, the
+ * view and the patch both read as one text removed and one added, so the
+ * patch a reader copies matches the diff they see.
+ */
+export const DIFF_MAX_EDITS = 2_000;
 
 /** The lines of a run of text, without their line breaks: a final line
  *  break ends the last line rather than opening another. */
@@ -231,13 +239,16 @@ export function computeLineDiff(
   options: LineDiffOptions = {},
 ): LineDiff {
   const context = Math.max(0, Math.floor(options.context ?? DIFF_CONTEXT));
-  const markWords = options.words ?? true;
-  const parts: Change[] =
+  const found =
     before === after
       ? [{ value: before, added: false, removed: false, count: 0 }]
-      : (diffLines(before, after, {
-          maxEditLength: options.maxEditLength ?? MAX_EDIT_LENGTH,
-        }) ?? wholeReplacement(before, after));
+      : diffLines(before, after, {
+          maxEditLength: options.maxEditLength ?? DIFF_MAX_EDITS,
+        });
+  const parts: Change[] = found ?? wholeReplacement(before, after);
+  // Two texts too far apart pair lines that have nothing to do with each
+  // other: no words to mark there.
+  const markWords = (options.words ?? true) && found !== undefined;
 
   const lines: DiffLine[] = [];
   let beforeLine = 0;
@@ -324,6 +335,57 @@ export interface UnifiedPatch {
   truncated: boolean;
 }
 
+/** The lines of a text as a patch holds them, each with its line break
+ *  but a last line the text does not end with (jsdiff's own split). */
+function patchLines(text: string): string[] {
+  if (text === '') return [];
+  const lines = text.split('\n').map((line) => `${line}\n`);
+  const last = lines.pop() ?? '';
+  if (!text.endsWith('\n')) lines.push(last.slice(0, -1));
+  return lines;
+}
+
+/**
+ * The patch that removes every line of `before` and adds every line of
+ * `after`, as jsdiff writes it for two texts that share no line: one hunk,
+ * no context, "\ No newline at end of file" after a last line without one.
+ */
+function wholeReplacementPatch(
+  before: string,
+  after: string,
+  from: string,
+  to: string,
+): string {
+  const removed = patchLines(before);
+  const added = patchLines(after);
+  const lines: string[] = [];
+  for (const line of [
+    ...removed.map((text) => `-${text}`),
+    ...added.map((text) => `+${text}`),
+  ]) {
+    if (line.endsWith('\n')) lines.push(line.slice(0, -1));
+    else lines.push(line, '\\ No newline at end of file');
+  }
+  return formatPatch(
+    {
+      oldFileName: from,
+      newFileName: to,
+      oldHeader: undefined,
+      newHeader: undefined,
+      hunks: [
+        {
+          oldStart: 1,
+          oldLines: removed.length,
+          newStart: 1,
+          newLines: added.length,
+          lines,
+        },
+      ],
+    },
+    FILE_HEADERS_ONLY,
+  );
+}
+
 /** The longest prefix of `text` made of whole lines that fits `maxBytes`. */
 function wholeLinesWithin(text: string, maxBytes: number): string {
   const encoder = new TextEncoder();
@@ -346,8 +408,10 @@ function wholeLinesWithin(text: string, maxBytes: number): string {
  * `createTwoFilesPatch` with file headers only, the shape `git diff` and
  * `patch` read — `--- v4` and `+++ v5`, then each hunk with `context`
  * unchanged lines around its changes. Two equal texts have no patch (`''`).
- * A patch longer than `maxBytes` (UTF-8) stops at the last whole line that
- * fits and says it was cut.
+ * Two texts more than {@link DIFF_MAX_EDITS} lines apart give one hunk that
+ * replaces the whole text, as the diff shows them. A patch longer than
+ * `maxBytes` (UTF-8) stops at the last whole line that fits and says it
+ * was cut.
  */
 export function toUnifiedPatch(
   before: string,
@@ -355,18 +419,20 @@ export function toUnifiedPatch(
   options: UnifiedPatchOptions,
 ): UnifiedPatch {
   if (before === after) return { patch: '', truncated: false };
-  const patch = createTwoFilesPatch(
-    options.from,
-    options.to,
-    before,
-    after,
-    undefined,
-    undefined,
-    {
-      context: options.context ?? DIFF_CONTEXT,
-      headerOptions: FILE_HEADERS_ONLY,
-    },
-  );
+  const patch =
+    createTwoFilesPatch(
+      options.from,
+      options.to,
+      before,
+      after,
+      undefined,
+      undefined,
+      {
+        context: options.context ?? DIFF_CONTEXT,
+        headerOptions: FILE_HEADERS_ONLY,
+        maxEditLength: DIFF_MAX_EDITS,
+      },
+    ) ?? wholeReplacementPatch(before, after, options.from, options.to);
   const maxBytes = options.maxBytes ?? MAX_PATCH_BYTES;
   if (new TextEncoder().encode(patch).length <= maxBytes) {
     return { patch, truncated: false };

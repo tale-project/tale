@@ -7,9 +7,11 @@
  * "Copy patch" writes: jsdiff's `createTwoFilesPatch` with file headers
  * only, the shape `git diff` and `patch` read — `--- v4` and `+++ v5`, then
  * each hunk with `context` unchanged lines around its changes. Two equal
- * texts have no patch (`''`). A patch longer than `maxBytes` (UTF-8) stops
- * at the last whole line that fits and says it was cut; such a patch shows
- * what changed but no longer applies.
+ * texts have no patch (`''`). Two texts more than 2 000 lines apart give
+ * one hunk replacing the whole text, which bounds the work two unrelated
+ * documents cost. A patch longer than `maxBytes` (UTF-8) stops at the last
+ * whole line that fits and says it was cut; such a patch shows what changed
+ * but no longer applies.
  */
 
 import { toUnifiedPatch, type UnifiedPatch } from '@tale/ui/code-diff/compute';

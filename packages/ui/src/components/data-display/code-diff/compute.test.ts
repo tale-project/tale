@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   computeLineDiff,
+  DIFF_MAX_EDITS,
   diffWords,
   MAX_PATCH_BYTES,
   toUnifiedPatch,
@@ -155,7 +156,19 @@ describe('computeLineDiff', () => {
       '+d',
     ]);
     expect(coarse).toMatchObject({ added: 4, removed: 4 });
+    // Lines paired only by position share nothing worth marking.
+    expect(coarse.lines.every((each) => each.words === undefined)).toBe(true);
     expect(computeLineDiff(before, after).added).toBe(2);
+  });
+
+  it('gives up past its edit bound fast, on texts of a whole document', () => {
+    const before = lines(9_000, 'a');
+    const after = lines(9_000, 'b');
+    const started = performance.now();
+    const diff = computeLineDiff(before, after);
+    // The bound keeps the search to about half a second on a fast machine.
+    expect(performance.now() - started).toBeLessThan(5_000);
+    expect(diff).toMatchObject({ added: 9_000, removed: 9_000 });
   });
 
   it('reads a last line without a line break as a line', () => {
@@ -229,6 +242,30 @@ describe('toUnifiedPatch', () => {
     );
     const { patch } = toUnifiedPatch(before, after, LABELS);
     expect(applyPatch(before, patch)).toBe(after);
+  });
+
+  it('replaces the whole text in one hunk past its edit bound, as jsdiff writes it', () => {
+    const half = DIFF_MAX_EDITS / 2 + 50;
+    const before = lines(half, 'old');
+    // The newer text has no final line break.
+    const after = lines(half, 'new').slice(0, -1);
+    const options = { ...LABELS, maxBytes: Number.POSITIVE_INFINITY };
+    const { patch } = toUnifiedPatch(before, after, options);
+    expect(patch.split('\n')[2]).toBe(`@@ -1,${half} +1,${half} @@`);
+    expect(patch).toBe(
+      createTwoFilesPatch('v4', 'v5', before, after, undefined, undefined, {
+        context: 3,
+        headerOptions: FILE_HEADERS_ONLY,
+      }),
+    );
+    expect(applyPatch(before, patch)).toBe(after);
+    // A text out of nothing.
+    const created = lines(DIFF_MAX_EDITS + 10, 'new');
+    const fromNothing = toUnifiedPatch('', created, options).patch;
+    expect(fromNothing.split('\n')[2]).toBe(
+      `@@ -0,0 +1,${DIFF_MAX_EDITS + 10} @@`,
+    );
+    expect(applyPatch('', fromNothing)).toBe(created);
   });
 
   it('has no patch for two equal texts', () => {
