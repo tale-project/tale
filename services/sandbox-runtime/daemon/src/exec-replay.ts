@@ -476,12 +476,13 @@ export class ExecReplay {
         this.checkpoint = checkpoint;
         await this.prune();
         return true;
-      } catch {
+      } catch (error) {
         // A failure after the rename has exposed the newer checkpoint (while
         // pruning the output it covers) leaves the commit uncertain. Never
         // let an older in-memory cursor authorize a stale overwrite, or prune
-        // output against it.
-        this.failure = new ReplayError('REPLAY_UNAVAILABLE');
+        // output against it. A checkpoint the disk refuses for want of space
+        // is named as such, like a refused output write.
+        this.failure = journalFailure(error);
         throw this.failure;
       } finally {
         if (!committed) {
