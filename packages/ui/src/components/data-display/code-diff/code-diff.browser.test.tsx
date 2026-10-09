@@ -236,6 +236,9 @@ describe('CodeDiff', () => {
       await screen.findByRole('radio', { name: 'Side by side' }),
     );
     expect(table()).toHaveAttribute('data-layout', 'split');
+    // The switch keeps each segment's words on one line.
+    const segment = screen.getByRole('radio', { name: 'Side by side' });
+    expect(segment.getBoundingClientRect().height).toBeLessThanOrEqual(32);
     const pair = [...container.querySelectorAll('tr[data-diff-pair]')].find(
       (row) => row.textContent?.includes('haiku'),
     );

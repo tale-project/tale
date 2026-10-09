@@ -651,6 +651,9 @@ const CodeDiffView = forwardRef<CodeDiffHandle, CodeDiffProps>(
               {wide ? (
                 <SegmentedControl
                   aria-label={t('layout.label')}
+                  // A toolbar sizes the switch to its content: its segments
+                  // keep their words on one line.
+                  className="whitespace-nowrap"
                   value={requested}
                   onValueChange={(next) =>
                     changeLayout(next === 'split' ? 'split' : 'unified')
