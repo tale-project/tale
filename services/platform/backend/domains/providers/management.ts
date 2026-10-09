@@ -1,3 +1,4 @@
+import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import type { Sql } from 'postgres';
 
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
@@ -39,30 +40,47 @@ export async function refreshProviderCatalogs(
 ): Promise<CatalogRefreshResult[]> {
   const results: CatalogRefreshResult[] = [];
   for (const provider of resolveProvidersForOrg(org.orgSlug)) {
-    if (
-      provider.catalog.source === 'static' ||
-      provider.catalog.source === 'none'
-    ) {
-      continue;
-    }
-    try {
-      const bearerToken = await resolveCatalogBearer(
-        sql,
-        org.organizationId,
-        provider,
-      );
-      const entries = await getProviderCatalog(provider, {
-        forceRefresh: true,
-        ...(bearerToken !== undefined ? { bearerToken } : {}),
-      });
-      results.push({ name: provider.name, modelCount: entries.length });
-    } catch (error) {
-      results.push({
-        name: provider.name,
-        modelCount: 0,
-        error: error instanceof Error ? error.message : String(error),
-      });
+    if (hasLiveCatalog(provider)) {
+      results.push(await refreshProviderCatalog(sql, org, provider));
     }
   }
   return results;
+}
+
+/** Whether a provider's models come from a live source a refresh reads
+ * again; a static list or none has nothing to refresh. */
+export function hasLiveCatalog(provider: ProviderDefinition): boolean {
+  return (
+    provider.catalog.source !== 'static' && provider.catalog.source !== 'none'
+  );
+}
+
+/**
+ * Fetch one provider's model catalog afresh, with the organization's
+ * listing key for it when it holds one: how many models it lists now, or
+ * why it could not be read.
+ */
+export async function refreshProviderCatalog(
+  sql: Sql,
+  org: { readonly organizationId: string },
+  provider: ProviderDefinition,
+): Promise<CatalogRefreshResult> {
+  try {
+    const bearerToken = await resolveCatalogBearer(
+      sql,
+      org.organizationId,
+      provider,
+    );
+    const entries = await getProviderCatalog(provider, {
+      forceRefresh: true,
+      ...(bearerToken !== undefined ? { bearerToken } : {}),
+    });
+    return { name: provider.name, modelCount: entries.length };
+  } catch (error) {
+    return {
+      name: provider.name,
+      modelCount: 0,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
