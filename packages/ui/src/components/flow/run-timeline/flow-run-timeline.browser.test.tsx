@@ -111,6 +111,79 @@ function manyItems(count: number): { graph: FlowGraph; run: FlowRealRun } {
   };
 }
 
+/** A run of one node over three items, recorded only as the node's own
+ *  stretch: its items are read on request, as a run page reads its
+ *  record's pages. */
+const unreadGraph = flowGraphFromDoc(
+  [{ id: 'a', reads: [], forEach: true }],
+  ['a'],
+);
+const unreadBase = buildPlaybackTimeline({
+  startedAt: 0,
+  endedAt: 3_000,
+  spans: [
+    {
+      nodeId: 'a',
+      startedAt: 0,
+      endedAt: 3_000,
+      outcome: 'succeeded',
+      total: 3,
+    },
+  ],
+  travels: [],
+});
+
+/** A host that reads a node's items when it opens — on the same clock:
+ *  the items join the timeline where they ran, nothing else moves. */
+function ReadingHost({
+  initialSelected = null,
+  reads = true,
+}: {
+  initialSelected?: string | null;
+  reads?: boolean;
+}) {
+  const [asked, setAsked] = useState<string[]>([]);
+  const [read, setRead] = useState(false);
+  const [selected, setSelected] = useState<string | null>(initialSelected);
+  const timeline: FlowPlaybackTimeline = read
+    ? {
+        ...unreadBase,
+        spans: [
+          ...unreadBase.spans,
+          ...[0, 1, 2].map((item) => ({
+            nodeId: 'a',
+            start: unreadBase.fromReal(item * 1_000),
+            end: unreadBase.fromReal((item + 1) * 1_000),
+            outcome: 'succeeded' as const,
+            item,
+          })),
+        ],
+      }
+    : unreadBase;
+  return (
+    <div style={{ width: 900, height: 400 }}>
+      <FlowRunTimeline
+        graph={unreadGraph}
+        timeline={timeline}
+        t={timeline.duration}
+        onSeek={() => undefined}
+        selectedId={selected}
+        onSelect={(row) => setSelected(row.id)}
+        {...(reads && {
+          onExpand: (row) => setAsked((ids) => [...ids, row.id]),
+        })}
+        formatTime={(at) => `${Math.round(at)} ms`}
+        aria-label="Steps of the run"
+        className="h-full border"
+      />
+      <output data-testid="asked">{asked.join(',')}</output>
+      <button type="button" onClick={() => setRead(true)}>
+        Finish reading
+      </button>
+    </div>
+  );
+}
+
 describe('FlowRunTimeline', () => {
   it('lists the run’s steps in time order, each named with its state, time and items', () => {
     const timeline = buildPlaybackTimeline(triageFailedRun());
@@ -240,6 +313,45 @@ describe('FlowRunTimeline', () => {
     expect(line('score')).toHaveAttribute('aria-expanded', 'false');
     expect(line('score#item:0')).toBeNull();
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('opens a step whose items are not read yet, asks for them, and says they load', async () => {
+    render(<ReadingHost />);
+    expect(line('a')).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(
+      line('a')?.querySelector('[data-slot="flow-timeline-toggle"]') as Element,
+    );
+    expect(screen.getByTestId('asked')).toHaveTextContent('a');
+    const loading = screen.getByRole('treeitem', { name: 'Loading items…' });
+    expect(loading).toHaveAttribute('aria-busy', 'true');
+    expect(loading).toHaveAttribute('aria-level', '2');
+    // ← from the loading line goes back to its step.
+    loading.focus();
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(document.activeElement).toBe(line('a'));
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Finish reading' }),
+    );
+    expect(line('a#loading')).toBeNull();
+    expect(line('a#item:2')).toHaveAccessibleName('Item 3 of 3 (Succeeded)');
+  });
+
+  it('keeps a step whose items no one will read closed', () => {
+    render(<ReadingHost reads={false} />);
+    expect(line('a')).not.toHaveAttribute('aria-expanded');
+  });
+
+  it('opens an item chosen before its step’s items were read, once they are', async () => {
+    render(<ReadingHost initialSelected="a#item:1" />);
+    expect(line('a#item:1')).toBeNull();
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Finish reading' }),
+    );
+    await waitFor(() =>
+      expect(line('a#item:1')).toHaveAttribute('aria-selected', 'true'),
+    );
+    expect(line('a')).toHaveAttribute('aria-expanded', 'true');
   });
 
   it('shows the first 20 items, then all of them on "Show all"', async () => {

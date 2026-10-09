@@ -42,11 +42,13 @@ import {
   FLOW_TIMELINE_CHILD_LIMIT,
   flowRowSpans,
   flowSpansByNode,
+  flowTimelineChildrenUnread,
   flowTimelineLineId,
   flowTimelineLines,
   flowTimelineParentOf,
   flowTimelineRows,
   type FlowTimelineLine,
+  type FlowTimelineNodeRow,
   type FlowTimelineRow,
 } from './rows';
 
@@ -65,6 +67,10 @@ export interface FlowRunTimelineProps {
   /** The chosen row: a node's id, or an item's `flowTimelineItemId`. */
   selectedId?: string | null;
   onSelect?: (row: FlowTimelineRow) => void;
+  /** A node was opened to its items or passes. With it, a node whose
+   *  items are not read yet (a `childrenTotal` without `children`) opens
+   *  too and says they are loading, so the host can read them now. */
+  onExpand?: (row: FlowTimelineNodeRow) => void;
   /** A moment in words, for the axis: the run's real elapsed time. */
   formatTime: (t: number) => string;
   /** A row's duration in words, from real time; no durations when left
@@ -152,7 +158,7 @@ function segmentsOf(
   duration: number,
   live: boolean,
 ): Segment[] {
-  if (line.kind === 'more') return [];
+  if (line.kind !== 'row') return [];
   const { row } = line;
   const share = (at: number) =>
     duration > 0 ? Math.min(100, Math.max(0, (at / duration) * 100)) : 0;
@@ -276,7 +282,7 @@ function viewOf(
       return pending;
     return { state, kind: null, started: true, word: stateWord(state), info };
   };
-  if (line.kind === 'more') return { ...pending, started: true, word: '' };
+  if (line.kind !== 'row') return { ...pending, started: true, word: '' };
   const { row } = line;
   if (row.start > t && row.kind !== 'entry') return pending;
   switch (row.kind) {
@@ -307,6 +313,7 @@ function viewOf(
 function titleOf(line: FlowTimelineLine, tr: FlowTranslate): string {
   if (line.kind === 'more')
     return tr('timeline.showAll', { count: line.count });
+  if (line.kind === 'loading') return tr('timeline.loadingItems');
   const { row } = line;
   switch (row.kind) {
     case 'entry':
@@ -332,7 +339,7 @@ function subtitleOf(line: FlowTimelineLine): {
   text: string;
   code: boolean;
 } | null {
-  if (line.kind === 'more') return null;
+  if (line.kind !== 'row') return null;
   const { row } = line;
   if (row.kind === 'node' && row.typeLabel)
     return { text: row.typeLabel, code: false };
@@ -353,7 +360,7 @@ function nameOf(
   siblingsInAll: number | undefined,
   tr: FlowTranslate,
 ): string {
-  if (line.kind === 'more') return titleOf(line, tr);
+  if (line.kind !== 'row') return titleOf(line, tr);
   const { row } = line;
   let label = titleOf(line, tr);
   const details: (string | undefined)[] = [];
@@ -497,7 +504,10 @@ interface LineProps {
   toggleLabel: string;
   selected: boolean;
   tabbable: boolean;
+  /** A line that is not a row: "Show all", or items still loading. */
   more: boolean;
+  /** Items still loading. */
+  busy: boolean;
   bars: BarsMode;
   segments: readonly Segment[];
   trailing: ReactNode;
@@ -530,6 +540,7 @@ const TimelineLine = memo(function TimelineLine({
   selected,
   tabbable,
   more,
+  busy,
   bars,
   segments,
   trailing,
@@ -581,6 +592,7 @@ const TimelineLine = memo(function TimelineLine({
       aria-describedby={describedBy === '' ? undefined : describedBy}
       aria-selected={more ? undefined : selected}
       aria-expanded={expandable ? expanded : undefined}
+      aria-busy={busy || undefined}
       tabIndex={tabbable ? 0 : -1}
       onFocus={() => onFocusLine(lineId)}
       onFocusCapture={onFocusCapture}
@@ -693,6 +705,7 @@ export function FlowRunTimeline({
   onSeek,
   selectedId = null,
   onSelect,
+  onExpand,
   formatTime,
   formatDuration,
   'aria-label': ariaLabel,
@@ -716,14 +729,20 @@ export function FlowRunTimeline({
 
   // Which nodes show their items, and which show all of them. An item
   // chosen elsewhere (the canvas, a failure's "Show step") opens its node,
-  // past the first items if need be; the reader may close it again.
+  // past the first items if need be — once it is read, when its node's
+  // items were not yet; the reader may close it again.
   const [open, setExpanded] = useState<ReadonlySet<string>>(() => new Set());
   const [all, setShowingAll] = useState<ReadonlySet<string>>(() => new Set());
   const [openedFor, setOpenedFor] = useState<string | null>(null);
   if (selectedId !== openedFor) {
-    setOpenedFor(selectedId);
     const owner =
       selectedId === null ? null : flowTimelineParentOf(rows, selectedId);
+    if (
+      selectedId === null ||
+      owner !== null ||
+      rows.some((row) => row.id === selectedId)
+    )
+      setOpenedFor(selectedId);
     if (owner !== null && !open.has(owner.parent.id))
       setExpanded(new Set([...open, owner.parent.id]));
     if (
@@ -869,6 +888,7 @@ export function FlowRunTimeline({
 
   const choose = useCallback(
     (line: FlowTimelineLine) => {
+      if (line.kind === 'loading') return;
       if (line.kind === 'more') {
         setShowingAll((current) => new Set([...current, line.parentId]));
         // The line takes the place of the next item, which keeps the focus.
@@ -885,16 +905,30 @@ export function FlowRunTimeline({
     },
     [onSelect, onSeek, rows],
   );
-  const toggle = useCallback((id: string, to?: boolean) => {
-    setExpanded((current) => {
-      const opened = to ?? !current.has(id);
-      if (opened === current.has(id)) return current;
-      const next = new Set(current);
-      if (opened) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
+  // A node opens to its items when it has some to show — or, for a host
+  // that reads them when asked, some to read.
+  const canOpen = useCallback(
+    (row: FlowTimelineRow) =>
+      row.kind === 'node' &&
+      ((row.children?.length ?? 0) > 0 ||
+        (onExpand !== undefined && flowTimelineChildrenUnread(row))),
+    [onExpand],
+  );
+  const toggle = useCallback(
+    (id: string, to?: boolean) => {
+      const opened = to ?? !open.has(id);
+      if (opened === open.has(id)) return;
+      setExpanded((current) => {
+        const next = new Set(current);
+        if (opened) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+      const row = opened ? rows.find((r) => r.id === id) : undefined;
+      if (row?.kind === 'node') onExpand?.(row);
+    },
+    [open, rows, onExpand],
+  );
 
   const indexOfEvent = (target: EventTarget | null): number => {
     const element =
@@ -924,16 +958,8 @@ export function FlowRunTimeline({
       const id = ids[Math.min(ids.length - 1, Math.max(0, to))];
       if (id !== undefined) focusLine(id);
     };
-    const expandable =
-      line.kind === 'row' &&
-      line.row.kind === 'node' &&
-      (line.row.children?.length ?? 0) > 0;
-    const parentId =
-      line.kind === 'more'
-        ? line.parentId
-        : line.kind === 'row'
-          ? line.parentId
-          : undefined;
+    const expandable = line.kind === 'row' && canOpen(line.row);
+    const { parentId } = line;
     switch (event.key) {
       case 'ArrowDown':
         go(index + 1);
@@ -1071,10 +1097,7 @@ export function FlowRunTimeline({
             if (line === undefined) return null;
             const id = ids[item.index] ?? '';
             const view = viewOf(line, frame, byNode, t, live, tr);
-            const expandable =
-              line.kind === 'row' &&
-              line.row.kind === 'node' &&
-              (line.row.children?.length ?? 0) > 0;
+            const expandable = line.kind === 'row' && canOpen(line.row);
             const enteredAt = entering.current.get(id);
             const subtitle = subtitleOf(line);
             return (
@@ -1082,7 +1105,7 @@ export function FlowRunTimeline({
                 <TimelineLine
                   lineId={id}
                   index={item.index}
-                  level={line.kind === 'more' ? 2 : line.level}
+                  level={line.kind === 'row' ? line.level : 2}
                   position={line.position}
                   siblings={line.siblings}
                   state={view.state}
@@ -1114,7 +1137,8 @@ export function FlowRunTimeline({
                   )}
                   selected={id === selectedId}
                   tabbable={id === tabStop}
-                  more={line.kind === 'more'}
+                  more={line.kind !== 'row'}
+                  busy={line.kind === 'loading'}
                   bars={bars}
                   segments={segments[item.index] ?? []}
                   trailing={

@@ -702,6 +702,7 @@ flow:
       duration: Duration
     showItems: Show items
     hideItems: Hide items
+    loadingItems: Loading items…
     showAll: Show all {count}
     item: Item {index}
     pass: Pass {index}

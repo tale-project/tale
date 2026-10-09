@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 154 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 155 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1044,6 +1044,14 @@ output:
       runs with the same input show neither. `automationRuns.compare.canvas`
       draws both runs on B's version: each strip reads "A … · B …", the
       step where they part is ringed.
+- [ ] `AUTO-F120` · **In `automationRuns.view.steps`, open a step that ran
+      once per item** → `flow.timeline.loadingItems` shows while its items
+      are read, then each item joins under it with how it ended and how long
+      it worked (past 20, `flow.timeline.showAll`); choosing one opens it in
+      the inspector with that item picked in its list, and moves the clock
+      to its start. The URL now carries `?view=steps`, the step and the item:
+      a reload or the same link in a new tab opens the same view, step and
+      item; `automationRuns.view.chart` takes `view` out of the URL.
 
 ## Boundary & error tests
 

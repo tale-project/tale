@@ -113,14 +113,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderItems() {
+function renderItems(props: Partial<Parameters<typeof RunStepItems>[0]> = {}) {
   return render(
     <QueryClientProvider
       client={
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <RunStepItems organizationId={ORG} runId={RUN} step={STEP} />
+      <RunStepItems organizationId={ORG} runId={RUN} step={STEP} {...props} />
     </QueryClientProvider>,
   );
 }
@@ -157,5 +157,50 @@ describe('RunStepItems', () => {
     expect(only).toHaveAttribute('aria-pressed', 'true');
     expect(await screen.findByText('Returned')).toBeVisible();
     expect(screen.getByText('"second"')).toBeVisible();
+  });
+
+  it('shows the item the page chose, and tells the page about the one picked', async () => {
+    const picked = vi.fn();
+    renderItems({ unit: { item: 1 }, onUnitChange: picked });
+    const list = screen.getByRole('list', {
+      name: 'Items and passes of Score',
+    });
+    const second = await within(list).findByRole('button', { name: /Item 2/ });
+    expect(second).toHaveAttribute('aria-pressed', 'true');
+    // The chosen item is read whole below the list.
+    expect(await screen.findByText(/second/)).toBeVisible();
+    const third = within(list).getByRole('button', { name: /Item 3/ });
+    third.click();
+    expect(picked).toHaveBeenCalledWith({ item: 2 });
+  });
+
+  it('counts a repeat’s passes from 1', async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async () =>
+      Response.json({
+        page: {
+          path: 'score',
+          units: [
+            unit(-1, 'succeeded', { pass: 0 }),
+            unit(-1, 'succeeded', { pass: 1 }),
+          ],
+          next: null,
+        },
+      }),
+    );
+    renderItems({
+      step: {
+        ...STEP,
+        status: 'succeeded',
+        counts: { items: 0, ok: 2, failed: 0, skipped: 0, passes: 2, kept: 2 },
+      },
+    });
+    const list = screen.getByRole('list', {
+      name: 'Items and passes of Score',
+    });
+    expect(
+      await within(list).findByRole('button', { name: /Pass 1/ }),
+    ).toBeVisible();
+    expect(within(list).getByRole('button', { name: /Pass 2/ })).toBeVisible();
+    expect(within(list).queryByRole('button', { name: /Pass 0/ })).toBeNull();
   });
 });

@@ -12,6 +12,7 @@ import {
 import { FlowPlaybackBar, formatFlowClock } from '@tale/ui/flow/playback-bar';
 import {
   FlowRunTimeline,
+  flowTimelineRows,
   type FlowTimelineRow,
 } from '@tale/ui/flow/run-timeline';
 import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
@@ -28,6 +29,7 @@ import { useMediaQuery } from '@tale/ui/use-media-query';
 import { AlertTriangle, Hand, Workflow } from 'lucide-react';
 import {
   type ReactNode,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -35,7 +37,10 @@ import {
   useState,
 } from 'react';
 
-import type { RunRecordView } from '@/app/lib/backend/contract/automations';
+import type {
+  NodeRunPage,
+  RunRecordView,
+} from '@/app/lib/backend/contract/automations';
 import type { Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import type {
@@ -46,7 +51,15 @@ import type {
 import { useCanvasFlow } from '../hooks/use-canvas-flow';
 import type { NodeCatalogView, ReturnsSource } from '../lib/node-face';
 import { runOverlay } from '../lib/run-overlay';
-import { realRunOf, type TimelineWords } from '../lib/run-timeline';
+import {
+  realRunOf,
+  type RunUnitRef,
+  type TimelineWords,
+  unitRefOf,
+  unitRefOfRow,
+  unitRowId,
+  withUnitSpans,
+} from '../lib/run-timeline';
 import type { NodeRunStatus, RunProjection, RunStatus } from '../lib/run-view';
 import { AUTOMATION_WORKBENCH_COMPACT_QUERY } from '../lib/workbench';
 import {
@@ -55,6 +68,7 @@ import {
   AutomationPathsPill,
   AutomationPathsSheet,
 } from './automation-paths';
+import { RunUnitsReader } from './run-units-reader';
 
 /** A run laid over the canvas. */
 export interface CanvasRun {
@@ -69,7 +83,14 @@ export interface CanvasRun {
   words?: TimelineWords;
   /** The run is still going: the playback follows its end. */
   live?: boolean;
+  /** Where the record's items and passes are read, a page at a time,
+   *  when the Steps view opens a step. */
+  items?: { organizationId: string; runId: string };
 }
+
+/** How a recorded run is shown: on the chart, or as its steps in time
+ *  order. */
+export type RunCanvasView = 'chart' | 'steps';
 
 /** Two runs on one chart: how each left every step, side by side. */
 export interface CanvasCompare {
@@ -102,13 +123,19 @@ export interface AutomationCanvasProps {
   issueCounts?: ReadonlyMap<string, IssueCounts>;
   /** The open box: a node, a condition, Start or End. */
   selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  /** The item or pass of the open box chosen in the run's Steps view. */
+  selectedUnit?: RunUnitRef | null;
+  onSelect: (id: string | null, unit?: RunUnitRef) => void;
   /** Id of the inspector region a box opens; without one, a box opens
    * nothing (a comparison's chart). */
   inspectorId?: string;
   run?: CanvasRun;
   /** Two runs of this document side by side; wins over `run`. */
   compare?: CanvasCompare;
+  /** A recorded run as a chart or as its steps in time order; the canvas
+   *  keeps the choice itself when left out. */
+  runView?: RunCanvasView;
+  onRunViewChange?: (view: RunCanvasView) => void;
   /** Bring this box into view. */
   revealId?: string | null;
   /** Nodes another window or a coding agent changed, ringed once. */
@@ -160,10 +187,13 @@ export function AutomationCanvas({
   startNotice,
   issueCounts,
   selectedId,
+  selectedUnit = null,
   onSelect,
   inspectorId,
   run,
   compare,
+  runView,
+  onRunViewChange,
   revealId,
   changed,
   framed = true,
@@ -402,7 +432,14 @@ export function AutomationCanvas({
         live={run?.live === true}
         canvasProps={canvasProps}
         selectedId={selectedId}
+        selectedUnit={selectedUnit}
         onSelect={onSelect}
+        {...(compare === undefined &&
+          run?.items !== undefined && { items: run.items })}
+        {...(runView !== undefined && { view: runView })}
+        {...(onRunViewChange !== undefined && {
+          onViewChange: onRunViewChange,
+        })}
       />
       {listProps !== null && compact && (
         <AutomationPathsSheet
@@ -427,6 +464,11 @@ const NO_TIMELINE = buildPlaybackTimeline({
   travels: [],
 });
 
+/** No step's items read yet. */
+const NO_UNITS: ReadonlyMap<string, readonly RecordedUnit[]> = new Map();
+
+type RecordedUnit = NodeRunPage['units'][number];
+
 /**
  * The chart, and once a run's record is there, the run playing on it: the
  * record as moments on this chart (`realRunOf`), compressed into a timeline
@@ -434,6 +476,11 @@ const NO_TIMELINE = buildPlaybackTimeline({
  * whole story, the run's end, with the clock on the run's real elapsed
  * time. The same chart stays mounted while the record arrives, so it never
  * lays itself out twice.
+ *
+ * The Steps view lists a step's items or passes once the reader opens it
+ * (or picks one of them): they are read from the record then, a page at a
+ * time, and join the timeline where they ran — on the same clock, so
+ * nothing else moves.
  */
 function RunCanvas({
   record,
@@ -441,19 +488,33 @@ function RunCanvas({
   live,
   canvasProps,
   selectedId,
+  selectedUnit,
   onSelect,
+  items,
+  view: viewProp,
+  onViewChange,
 }: {
   record: RunRecordView | undefined;
   words: TimelineWords;
   live: boolean;
   canvasProps: WorkflowCanvasProps;
   selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  selectedUnit: RunUnitRef | null;
+  onSelect: (id: string | null, unit?: RunUnitRef) => void;
+  items?: { organizationId: string; runId: string };
+  /** The view the page holds; the canvas holds its own when left out. */
+  view?: RunCanvasView;
+  onViewChange?: (view: RunCanvasView) => void;
 }) {
   const { t } = useT('automationRuns');
   const { locale } = useLocale();
   const { graph } = canvasProps;
-  const [view, setView] = useState<'chart' | 'steps'>('chart');
+  const [ownView, setOwnView] = useState<RunCanvasView>('chart');
+  const view = viewProp ?? ownView;
+  const setView = (next: RunCanvasView) => {
+    setOwnView(next);
+    onViewChange?.(next);
+  };
   const timeline = useMemo(
     () =>
       record === undefined
@@ -471,6 +532,63 @@ function RunCanvas({
     opened.current = true;
     if (!live) setT(timeline.duration);
   }, [record, live, timeline.duration, setT]);
+
+  // The steps whose items are read: those the reader opened, and the step
+  // of an item picked elsewhere (a link, the inspector).
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const reading = useMemo(() => {
+    const nodes = new Set(expanded);
+    if (selectedUnit !== null && selectedId !== null) nodes.add(selectedId);
+    return [...nodes];
+  }, [expanded, selectedUnit, selectedId]);
+  // Each step's pages by where they start, in the order they were read.
+  const [pages, setPages] = useState<
+    ReadonlyMap<string, ReadonlyMap<string, readonly RecordedUnit[]>>
+  >(() => new Map());
+  const onPage = useCallback(
+    (
+      node: string,
+      cursor: string | undefined,
+      units: readonly RecordedUnit[],
+    ) =>
+      setPages((current) => {
+        // A page read again with nothing new changes nothing.
+        if (current.get(node)?.get(cursor ?? '') === units) return current;
+        const forNode = new Map(current.get(node));
+        forNode.set(cursor ?? '', units);
+        return new Map(current).set(node, forNode);
+      }),
+    [],
+  );
+  const unitsByNode = useMemo(() => {
+    if (pages.size === 0) return NO_UNITS;
+    const byNode = new Map<string, readonly RecordedUnit[]>();
+    for (const node of reading) {
+      const forNode = pages.get(node);
+      if (forNode !== undefined) byNode.set(node, [...forNode.values()].flat());
+    }
+    return byNode;
+  }, [pages, reading]);
+  const stepsTimeline = useMemo(
+    () => withUnitSpans(timeline, unitsByNode),
+    [timeline, unitsByNode],
+  );
+  // A step whose items were read holds what was read — none at all, too —
+  // so it no longer says they load.
+  const rows = useMemo(() => {
+    const listed = flowTimelineRows(graph, stepsTimeline);
+    for (const row of listed)
+      if (
+        row.kind === 'node' &&
+        row.children === undefined &&
+        unitsByNode.has(row.nodeId)
+      )
+        row.children = [];
+    return listed;
+  }, [graph, stepsTimeline, unitsByNode]);
+
   if (record === undefined) return <WorkflowCanvas {...canvasProps} />;
   // A run of under a minute reads in seconds ("0.4s"), a longer one on a
   // clock face ("03:12").
@@ -481,15 +599,21 @@ function RunCanvas({
       ? formatDuration(elapsed, locale, { style: 'narrow', maxUnits: 1 })
       : formatFlowClock(elapsed);
   };
-  // How long each step worked; a step that never ran has no duration.
+  // How long each step, item and pass worked; one that never ran has no
+  // duration.
   const activeOf = new Map(
     record.nodes
       .filter((step) => step.status !== 'skipped')
       .map((step) => [step.path, step.activeMs]),
   );
+  // A pass of one item belongs to that item, and has no row of its own.
+  for (const [node, units] of unitsByNode)
+    for (const unit of units)
+      if (unit.status !== 'skipped' && !(unit.item >= 0 && unit.pass >= 0))
+        activeOf.set(unitRowId(node, unitRefOf(unit)), unit.activeMs);
   const rowDuration = (row: FlowTimelineRow): string | undefined => {
-    if (row.kind !== 'node') return undefined;
-    const active = activeOf.get(row.nodeId);
+    if (row.kind !== 'node' && row.kind !== 'item') return undefined;
+    const active = activeOf.get(row.kind === 'node' ? row.nodeId : row.id);
     return active === undefined
       ? undefined
       : formatDuration(active, locale, { style: 'narrow', maxUnits: 1 });
@@ -522,38 +646,65 @@ function RunCanvas({
       ]}
     />
   );
-  if (view === 'steps') {
-    return (
-      <div className="flex h-full min-h-0 flex-col gap-2 p-2">
-        <div className="flex flex-wrap items-center gap-2">
-          {switcher}
-          <div className="min-w-0 flex-1">{bar}</div>
-        </div>
-        <FlowRunTimeline
-          graph={graph}
-          timeline={timeline}
-          t={clock.t}
-          onSeek={setT}
-          selectedId={selectedId}
-          onSelect={(row) => onSelect(row.nodeId ?? null)}
-          formatTime={formatTime}
-          formatDuration={rowDuration}
-          live={live}
-          className="min-h-0 flex-1"
-        />
-      </div>
-    );
-  }
   return (
-    <WorkflowCanvas
-      {...canvasProps}
-      playback={{ timeline, t: clock.t }}
-      toolbar={
-        <div className="flex flex-wrap items-center gap-2">
-          {switcher}
-          {bar}
+    <>
+      {items !== undefined &&
+        reading.map((node) => (
+          <RunUnitsReader
+            key={node}
+            organizationId={items.organizationId}
+            runId={items.runId}
+            node={node}
+            onPage={onPage}
+          />
+        ))}
+      {view === 'steps' ? (
+        <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            {switcher}
+            <div className="min-w-0 flex-1">{bar}</div>
+          </div>
+          <FlowRunTimeline
+            graph={graph}
+            timeline={stepsTimeline}
+            rows={rows}
+            t={clock.t}
+            onSeek={setT}
+            selectedId={
+              selectedId !== null && selectedUnit !== null
+                ? unitRowId(selectedId, selectedUnit)
+                : selectedId
+            }
+            onSelect={(row) => {
+              if (row.kind === 'item') onSelect(row.nodeId, unitRefOfRow(row));
+              else onSelect(row.nodeId ?? null);
+            }}
+            {...(items !== undefined && {
+              onExpand: (row) =>
+                setExpanded((current) =>
+                  current.has(row.nodeId)
+                    ? current
+                    : new Set(current).add(row.nodeId),
+                ),
+            })}
+            formatTime={formatTime}
+            formatDuration={rowDuration}
+            live={live}
+            className="min-h-0 flex-1"
+          />
         </div>
-      }
-    />
+      ) : (
+        <WorkflowCanvas
+          {...canvasProps}
+          playback={{ timeline, t: clock.t }}
+          toolbar={
+            <div className="flex flex-wrap items-center gap-2">
+              {switcher}
+              {bar}
+            </div>
+          }
+        />
+      )}
+    </>
   );
 }

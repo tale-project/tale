@@ -11,6 +11,7 @@ import { usePlaybackClock } from '../playback/use-playback-clock';
 import {
   branchFlowGraph,
   branchRun,
+  flowGraphFromDoc,
   triageExplainedRun,
   triageFlowGraph,
 } from '../testing/flow-fixtures';
@@ -142,4 +143,65 @@ export const Narrow: Story = {
       />
     </div>
   ),
+};
+
+const UNREAD_GRAPH = flowGraphFromDoc(
+  [{ id: 'score', reads: [], forEach: true }],
+  ['score'],
+);
+const UNREAD = buildPlaybackTimeline({
+  startedAt: 0,
+  endedAt: 3_000,
+  spans: [
+    {
+      nodeId: 'score',
+      startedAt: 0,
+      endedAt: 3_000,
+      outcome: 'succeeded',
+      total: 3,
+    },
+  ],
+  travels: [],
+});
+
+/** A host that reads a node's items only when the reader opens it, the
+ *  way a run page reads its record a page at a time. */
+function ReadOnRequest() {
+  const [read, setRead] = useState(false);
+  const timeline = read
+    ? {
+        ...UNREAD,
+        spans: [
+          ...UNREAD.spans,
+          ...[0, 1, 2].map((item) => ({
+            nodeId: 'score',
+            start: UNREAD.fromReal(item * 1_000),
+            end: UNREAD.fromReal((item + 1) * 1_000),
+            outcome: 'succeeded' as const,
+            item,
+          })),
+        ],
+      }
+    : UNREAD;
+  return (
+    <div className="p-4" style={{ width: 720, height: 360 }}>
+      <FlowRunTimeline
+        graph={UNREAD_GRAPH}
+        timeline={timeline}
+        t={timeline.duration}
+        onSeek={() => undefined}
+        onExpand={() => {
+          window.setTimeout(() => setRead(true), 800);
+        }}
+        formatTime={formatFlowClock}
+        className="border-border h-full rounded-lg border"
+      />
+    </div>
+  );
+}
+
+/** A node's items are read when it opens; until then, the line says they
+ *  load. */
+export const ItemsReadOnRequest: Story = {
+  render: () => <ReadOnRequest />,
 };

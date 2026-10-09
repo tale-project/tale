@@ -13,6 +13,7 @@ import type {
 } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
+import type { RunUnitRef } from '../lib/run-timeline';
 import { shortRunId, type NodeRunView } from '../lib/run-view';
 import { EffectList } from './effect-list';
 import { RunStatusBadge } from './run-status-badge';
@@ -30,6 +31,10 @@ export interface RunStepRecord {
   step?: RecordedStep;
   /** What it read, received and returned. */
   detail?: NodeRunDetail;
+  /** The item or pass shown, when the page chooses it (the Steps view, a
+   *  link); its list chooses on its own when left out. */
+  unit?: RunUnitRef | null;
+  onUnitChange?: (unit: RunUnitRef | null) => void;
 }
 
 /**
@@ -92,6 +97,10 @@ export function RunStepDetail({
           organizationId={record.organizationId}
           runId={record.runId}
           step={record.step}
+          {...(record.unit !== undefined && { unit: record.unit })}
+          {...(record.onUnitChange !== undefined && {
+            onUnitChange: record.onUnitChange,
+          })}
         />
       )}
       {record?.step === undefined && runView.note !== undefined && (

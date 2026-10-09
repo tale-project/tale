@@ -168,6 +168,11 @@ vi.mock('./automation-canvas', () => ({
     layoutKey,
     revealId,
     run,
+    selectedId,
+    selectedUnit,
+    onSelect,
+    runView,
+    onRunViewChange,
   }: {
     automation: { nodes: Array<{ id: string; type: string }> };
     layoutKey: string;
@@ -177,20 +182,40 @@ vi.mock('./automation-canvas', () => ({
       status: string;
       startedBy?: string;
     };
+    selectedId?: string | null;
+    selectedUnit?: { item?: number; pass?: number } | null;
+    onSelect?: (id: string | null, unit?: { item?: number }) => void;
+    runView?: string;
+    onRunViewChange?: (view: 'chart' | 'steps') => void;
   }) => (
-    <ul
-      data-testid="canvas"
-      data-layout-key={layoutKey}
-      data-reveal-id={revealId ?? undefined}
-      data-run-status={run?.status}
-      data-started-by={run?.startedBy}
-    >
-      {automation.nodes.map((node) => (
-        <li key={node.id}>
-          {node.id} ({node.type}): {run?.statusByNode.get(node.id)}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul
+        data-testid="canvas"
+        data-layout-key={layoutKey}
+        data-reveal-id={revealId ?? undefined}
+        data-run-status={run?.status}
+        data-started-by={run?.startedBy}
+        data-selected-id={selectedId ?? undefined}
+        data-selected-unit={
+          selectedUnit === null || selectedUnit === undefined
+            ? undefined
+            : JSON.stringify(selectedUnit)
+        }
+        data-run-view={runView}
+      >
+        {automation.nodes.map((node) => (
+          <li key={node.id}>
+            {node.id} ({node.type}): {run?.statusByNode.get(node.id)}
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={() => onSelect?.('archive', { item: 2 })}>
+        Pick archive item 3
+      </button>
+      <button type="button" onClick={() => onRunViewChange?.('chart')}>
+        Show the chart
+      </button>
+    </>
   ),
 }));
 vi.mock('./node-inspector', () => ({ NodeInspector: () => null }));
@@ -1188,5 +1213,55 @@ describe('RunDetail canvas', () => {
       'data-started-by',
       expect.stringContaining('Dana K.'),
     );
+  });
+});
+
+describe('RunDetail link', () => {
+  it('opens on the view, step and item its URL names, and writes the reader’s moves back', async () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [{ node: 'send', type: 'imap-smtp.send', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [
+        { id: 'send', type: 'imap-smtp.send' },
+        { id: 'archive', type: 'transform', code: 'return 1;' },
+      ],
+    };
+    const onSearchChange = vi.fn();
+    const { user } = render(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+        search={{ view: 'steps', node: 'send', item: 1 }}
+        onSearchChange={onSearchChange}
+      />,
+    );
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas).toHaveAttribute('data-run-view', 'steps');
+    expect(canvas).toHaveAttribute('data-selected-id', 'send');
+    expect(canvas).toHaveAttribute('data-selected-unit', '{"item":1}');
+    // Opening where the link says writes nothing back.
+    expect(onSearchChange).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Pick archive item 3' }),
+    );
+    expect(onSearchChange).toHaveBeenLastCalledWith({
+      view: 'steps',
+      node: 'archive',
+      item: 2,
+      pass: null,
+    });
+    await user.click(screen.getByRole('button', { name: 'Show the chart' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({
+      view: null,
+      node: 'archive',
+      item: 2,
+      pass: null,
+    });
   });
 });

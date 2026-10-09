@@ -3,11 +3,20 @@ import type { FlowGraph } from '@tale/ui/flow/types';
 import { describe, expect, it } from 'vitest';
 
 import type {
+  NodeRunPage,
   RecordedStep,
   RunRecordView,
 } from '@/app/lib/backend/contract/automations';
 
-import { realRunOf } from './run-timeline';
+import {
+  isUnit,
+  realRunOf,
+  unitPlace,
+  unitRefOf,
+  unitRefOfRow,
+  unitRowId,
+  withUnitSpans,
+} from './run-timeline';
 
 const graph: FlowGraph = {
   nodes: [
@@ -222,5 +231,106 @@ describe('realRunOf', () => {
       graph,
     );
     expect(run.spans).toEqual([]);
+  });
+});
+
+type Unit = NodeRunPage['units'][number];
+
+function unit(
+  item: number,
+  pass: number,
+  over: Partial<RecordedStep> = {},
+): Unit {
+  return { ...step('fetch', over), item, pass };
+}
+
+describe('withUnitSpans', () => {
+  const counted = record({
+    nodes: [
+      step('__start', { startedAt: 1000, endedAt: 1000 }),
+      step('fetch', {
+        startedAt: 1010,
+        endedAt: 1200,
+        counts: { items: 3, ok: 2, failed: 1, skipped: 0, kept: 3 },
+      }),
+    ],
+    travels: [],
+  });
+
+  it('says how many items a step ran over, before any is read', () => {
+    const run = realRunOf(counted, graph);
+    expect(run.spans.find((span) => span.nodeId === 'fetch')?.total).toBe(3);
+    // A step that neither iterated nor repeated says nothing of the kind.
+    expect(
+      realRunOf(record(), graph).spans.some((span) => span.total !== undefined),
+    ).toBe(false);
+  });
+
+  it('lays the items read where they ran, on the clock the run already plays', () => {
+    const timeline = buildPlaybackTimeline(realRunOf(counted, graph));
+    const read = withUnitSpans(
+      timeline,
+      new Map([
+        [
+          'fetch',
+          [
+            unit(0, -1, { startedAt: 1010, endedAt: 1050 }),
+            unit(1, -1, { status: 'failed', startedAt: 1050, endedAt: 1100 }),
+            // A pass of one item belongs to that item.
+            unit(1, 0, { startedAt: 1050, endedAt: 1060 }),
+            // Not started: nothing to draw.
+            unit(2, -1, { status: 'pending' }),
+          ],
+        ],
+      ]),
+    );
+    expect(read.duration).toBe(timeline.duration);
+    expect(read.fromReal(1100)).toBe(timeline.fromReal(1100));
+    expect(read.spans.slice(timeline.spans.length)).toEqual([
+      {
+        nodeId: 'fetch',
+        start: timeline.fromReal(1010),
+        end: timeline.fromReal(1050),
+        outcome: 'succeeded',
+        item: 0,
+      },
+      {
+        nodeId: 'fetch',
+        start: timeline.fromReal(1050),
+        end: timeline.fromReal(1100),
+        outcome: 'failed',
+        item: 1,
+      },
+    ]);
+    // Nothing read: the very same timeline.
+    expect(withUnitSpans(timeline, new Map())).toBe(timeline);
+  });
+
+  it('counts a repeat’s passes from 1, as people do', () => {
+    expect(unitPlace({ item: -1, pass: 0 })).toEqual({ pass: 1 });
+    expect(unitPlace({ item: 4, pass: -1 })).toEqual({ item: 4 });
+    const timeline = buildPlaybackTimeline(realRunOf(counted, graph));
+    const read = withUnitSpans(
+      timeline,
+      new Map([['fetch', [unit(-1, 0, { startedAt: 1010, endedAt: 1020 })]]]),
+    );
+    expect(read.spans.at(-1)).toMatchObject({ nodeId: 'fetch', pass: 1 });
+  });
+});
+
+describe('unit references', () => {
+  it('round-trip between the record’s numbering and the Steps view’s rows', () => {
+    expect(unitRefOf({ item: 3, pass: -1 })).toEqual({ item: 3 });
+    expect(unitRefOf({ item: -1, pass: 0 })).toEqual({ pass: 0 });
+    expect(unitRefOf({ item: 2, pass: 1 })).toEqual({ item: 2, pass: 1 });
+    expect(isUnit({ item: 3 }, { item: 3, pass: -1 })).toBe(true);
+    expect(isUnit({ item: 3 }, { item: 3, pass: 0 })).toBe(false);
+    expect(unitRowId('score', { item: 3 })).toBe('score#item:3');
+    // The record's first pass is the Steps view's Pass 1.
+    expect(unitRowId('poll', { pass: 0 })).toBe('poll#pass:1');
+    expect(unitRefOfRow({ pass: 1 })).toEqual({ pass: 0 });
+    expect(unitRefOfRow({ item: 3 })).toEqual({ item: 3 });
+    // A pass of one item shows on its item's row.
+    expect(unitRowId('score', { item: 2, pass: 1 })).toBe('score#item:2');
   });
 });
