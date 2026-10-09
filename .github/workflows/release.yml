@@ -645,7 +645,10 @@ jobs:
   trigger-cli:
     if: needs.prepare.outputs.sites_only != 'true'
     name: Trigger CLI build
-    needs: [prepare, manifest]
+    # The CLI workflow resolves its source from the release tag. A dispatched
+    # release creates that tag in create-release, so do not dispatch it in
+    # parallel with the publication job.
+    needs: [prepare, manifest, create-release]
     runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
