@@ -768,6 +768,32 @@ describe('createAccountService', () => {
     expect(stored?.status).toBe('active');
   });
 
+  it('does not let a late usage rejection overwrite a terminal refresh refusal', async () => {
+    const account = await connect();
+    const usageHeld = gate();
+    anthropic.gates.usage = usageHeld.wait;
+    anthropic.refusals.usage = 'rejected';
+    now = new Date('2026-09-21T10:10:00.000Z');
+    const reading = service.list();
+    await vi.waitFor(() => expect(anthropic.usageCount).toBe(2));
+
+    const refreshHeld = gate();
+    anthropic.gates.refresh = refreshHeld.wait;
+    anthropic.refusals.refresh = 'rejected';
+    now = new Date('2026-09-21T10:56:00.000Z');
+    const handouts = service.handOutTokens();
+    await vi.waitFor(() => expect(anthropic.refreshCount).toBe(1));
+    refreshHeld.open();
+    await vi.waitFor(async () =>
+      expect((await store.getAccount(account.id))?.status).toBe('expired'),
+    );
+
+    usageHeld.open();
+    await Promise.all([reading, handouts]);
+    expect(anthropic.refreshCount).toBe(1);
+    expect((await store.getAccount(account.id))?.status).toBe('expired');
+  });
+
   it('keeps the last reading, and when it was read, through a failed read', async () => {
     await connect();
     anthropic.refusals.usage = true;
