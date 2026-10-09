@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
 import {
   chmodSync,
+  linkSync,
   mkdirSync,
   readFileSync,
+  readlinkSync,
   readdirSync,
   realpathSync,
   rmSync,
@@ -21,6 +23,7 @@ import { loadRelease } from '../config/releases/manifest';
 import { stageRelease } from '../config/releases/stage';
 import { fixture, temporary } from '../config/releases/tests/fixture';
 import { nativeServer } from '../config/releases/tests/native-fixture';
+import { withLock } from '../state/with-lock';
 import {
   nativeObservationFailure,
   ObservationPhaseError,
@@ -34,6 +37,8 @@ function snapshot(directory: string, relative = ''): Record<string, string> {
     readdirSync(join(directory, relative), { withFileTypes: true }).flatMap(
       (entry) => {
         const file = join(relative, entry.name);
+        if (entry.isSymbolicLink())
+          return [[file, `symlink:${readlinkSync(join(directory, file))}`]];
         return entry.isDirectory()
           ? Object.entries(snapshot(directory, file))
           : [[file, sha256(readFileSync(join(directory, file)))]];
@@ -45,6 +50,11 @@ async function retained() {
   const f = fixture('north-labs', ['invoice'], []);
   const dataDirectory = realpathSync(temporary());
   const stateDirectory = nativeDeploymentStateDirectory(dataDirectory, 'north');
+  await withLock(
+    stateDirectory,
+    'retained deployment fixture',
+    async () => undefined,
+  );
   const stageDirectory = join(stateDirectory, 'compiled', 'retained');
   mkdirSync(stageDirectory, { recursive: true, mode: 0o700 });
   const stage = await stageRelease({
@@ -472,5 +482,120 @@ testPosix.each([
         error: (error as ObservationPhaseError).info,
       }),
     ).toBeInstanceOf(ObservationPhaseError);
+  },
+);
+
+testPosix.each([
+  'unknown hidden directory',
+  'metadata directory symlink',
+  'metadata directory file',
+  'metadata directory writable',
+  'unknown metadata file',
+  'metadata child directory',
+  'lock file symlink',
+  'lock file hardlink',
+  'lock file writable',
+  'retained operation metadata',
+] as const)(
+  'retained lock inventory refuses %s before native HTTP',
+  async (fault) => {
+    const f = await retained();
+    const metadata = join(f.stateDirectory, '.tale');
+    const database = join(metadata, 'deployment-lock.sqlite');
+    if (fault === 'unknown hidden directory')
+      mkdirSync(join(f.stateDirectory, '.unknown'), { mode: 0o700 });
+    if (fault === 'metadata directory symlink') {
+      rmSync(metadata, { recursive: true });
+      symlinkSync(f.stageDirectory, metadata);
+    }
+    if (fault === 'metadata directory file') {
+      rmSync(metadata, { recursive: true });
+      writeFileSync(metadata, 'synthetic-private-lock', { mode: 0o600 });
+    }
+    if (fault === 'metadata directory writable') chmodSync(metadata, 0o777);
+    if (fault === 'unknown metadata file')
+      writeFileSync(join(metadata, 'unexpected'), 'synthetic-private-lock', {
+        mode: 0o600,
+      });
+    if (fault === 'metadata child directory')
+      mkdirSync(join(metadata, 'unexpected'), { mode: 0o700 });
+    if (fault === 'lock file symlink') {
+      rmSync(database);
+      symlinkSync(f.receiptFile, database);
+    }
+    if (fault === 'lock file hardlink')
+      linkSync(database, join(f.dataDirectory, 'shared-lock'));
+    if (fault === 'lock file writable') chmodSync(database, 0o666);
+    if (fault === 'retained operation metadata')
+      writeFileSync(
+        join(metadata, 'deployment-lock'),
+        'synthetic-private-lock',
+        { mode: 0o600 },
+      );
+    const before = snapshot(f.dataDirectory);
+    const error = await observeNativeDeployment(f.input, {
+      dataDirectory: f.dataDirectory,
+      fetch: f.fetcher,
+    }).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(ObservationPhaseError);
+    expect((error as ObservationPhaseError).phase).toBe('nativeInventory');
+    expect((error as ObservationPhaseError).info.code).toBe(3);
+    expect(JSON.stringify(error)).not.toContain('synthetic-private-lock');
+    expect(snapshot(f.dataDirectory)).toEqual(before);
+    expect(f.auth).toEqual([]);
+    expect(f.server.requests).toEqual([]);
+  },
+);
+
+testPosix(
+  'retained observation refuses an actual active native writer without changing its lock',
+  async () => {
+    const f = await retained();
+    await withLock(f.stateDirectory, 'active native fixture', async () => {
+      const before = snapshot(f.dataDirectory);
+      await expect(
+        observeNativeDeployment(f.input, {
+          dataDirectory: f.dataDirectory,
+          fetch: f.fetcher,
+        }),
+      ).rejects.toThrow('retained native client inventory');
+      expect(snapshot(f.dataDirectory)).toEqual(before);
+      expect(f.auth).toEqual([]);
+    });
+    expect(
+      (
+        await observeNativeDeployment(f.input, {
+          dataDirectory: f.dataDirectory,
+          fetch: f.fetcher,
+        })
+      ).status,
+    ).toBe('observed');
+  },
+);
+
+testPosix(
+  'retained lock bytes changed during native reads refuse after session cleanup',
+  async () => {
+    const f = await retained();
+    let changed = false;
+    const fetcher: NativeFetch = async (url, init) => {
+      const response = await f.fetcher(url, init);
+      if (!changed && String(url).includes('/assets/')) {
+        changed = true;
+        writeFileSync(
+          join(f.stateDirectory, '.tale', 'deployment-lock.sqlite'),
+          'changed by a separate fixture writer',
+        );
+      }
+      return response;
+    };
+    const error = await observeNativeDeployment(f.input, {
+      dataDirectory: f.dataDirectory,
+      fetch: fetcher,
+    }).catch((failure: unknown) => failure);
+    expect(changed).toBe(true);
+    expect(error).toBeInstanceOf(ObservationPhaseError);
+    expect((error as ObservationPhaseError).phase).toBe('nativeStability');
+    expect(f.auth.at(-1)).toBe('POST /api/auth/sign-out');
   },
 );
