@@ -977,10 +977,16 @@ function ChatSurfaceInner({
         voiceCapabilities.transcriptionUnavailableReason,
       onTranscriptionUnavailable: handleTranscriptionUnavailable,
       ...(threadId !== undefined ? { threadId } : {}),
+      // A project's new chat: its uploads count toward the project before
+      // the first send creates the thread.
+      ...(threadId === undefined && projectId !== undefined
+        ? { projectId }
+        : {}),
     }),
     [
       organizationId,
       threadId,
+      projectId,
       voiceCapabilities.hasTranscription,
       voiceCapabilities.transcriptionUnavailableReason,
       handleTranscriptionUnavailable,
@@ -1026,6 +1032,9 @@ function ChatSurfaceInner({
   // path below.
   const videoLinks = useChatVideoLinks({
     threadId: viewThreadId,
+    ...(viewThreadId === undefined && projectId !== undefined
+      ? { projectId }
+      : {}),
     organizationId,
     locale,
   });

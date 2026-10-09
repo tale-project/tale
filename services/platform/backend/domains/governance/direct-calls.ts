@@ -5,15 +5,21 @@ import type { Sql, TransactionSql } from 'postgres';
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import { estimateTurnCostCents } from '../chat/store.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
-import { budgetPolicyActive, type BudgetViolation } from './budget-gate.ts';
+import { loadAttributedBudgetSubject } from './attributed-subject.ts';
+import {
+  budgetPolicyActive,
+  type BudgetViolation,
+  findBudgetViolation,
+} from './budget-gate.ts';
 import { budgetRefusalMessage } from './budget-refusal.ts';
+import { readInFlightReservations } from './budget-reservations.ts';
 import { DIRECT_CALL_OP_KIND } from './direct-call-kind.ts';
 import { incrementUsageLedger } from './service.ts';
 
 /**
  * A call the platform makes straight to a provider, with no gateway key in
- * between — an automation's `llm` step, a chat title, the Inbox's Improve —
- * held against the caps that bind whoever it is for, the way a managed turn
+ * between — an automation's `llm` step, a chat title, the Inbox's Improve, a
+ * transcription — held against the caps that bind whoever it is for, the way a managed turn
  * holds its allowance:
  *
  *  1. OPEN — before the call, its worst case is measured against every cap
@@ -22,7 +28,8 @@ import { incrementUsageLedger } from './service.ts';
  *     budget-admission lock), and admitted whole or not at all: a call
  *     whose worst case no longer fits is refused with the cap's own
  *     sentence. The worst case is the call's priced ceiling — a text
- *     model's estimated prompt plus its whole output cap. An admitted call
+ *     model's estimated prompt plus its whole output cap, a transcription's
+ *     whole recording at its price per minute. An admitted call
  *     is recorded on an op row (`app.sandbox_session_ops`, `session_id`
  *     `direct-call:<lane>`), stamped with the subject, the lane's label,
  *     the API key and the projects, whose `budget_cents` is the hold every
@@ -254,6 +261,26 @@ export async function settleTokenCall(
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     costCents,
+  });
+}
+
+/**
+ * The early answer before work that would only be refused: whether a
+ * limit that binds `subject` is already reached, counting what the work in
+ * flight holds. Holds nothing — the calls the work makes hold their own.
+ */
+export async function directCallBlocked(
+  sql: Sql,
+  args: { organizationId: string; subject: DirectCallSubject },
+): Promise<BudgetViolation | null> {
+  if (!(await budgetPolicyActive(sql, args.organizationId))) return null;
+  const subject = await loadAttributedBudgetSubject(
+    sql,
+    args.organizationId,
+    args.subject,
+  );
+  return findBudgetViolation(sql, subject, {
+    reservations: await readInFlightReservations(sql, subject),
   });
 }
 

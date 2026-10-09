@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 86 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 87 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -205,6 +205,21 @@ agent.
   (`conversations.editor.improveLimitReachedDescription`) — in your
   language, German and French too, never the server's English. **Delete
   the rule after**
+- [ ] `GOV-F57` · **A transcription is held to the limits of whoever added
+  the recording** — with an OpenAI credential serving `whisper-1`, read
+  your monthly cost under **Settings → Usage**, then GOV-F4-style give
+  yourself a **User** rule with **Max cost** a cent above it. In a
+  project's new chat, add a recording longer than two minutes before the
+  first send → its chip reads **Usage limit reached**
+  (`chat.transcription.limitReached`), its tooltip saying where to see the
+  limit (`chat.transcription.limitReachedHint`), in German and French too,
+  and it never retries by itself. In a browser without built-in speech
+  recognition (Firefox), dictate into the composer → the toast reads
+  `chat.dictation.limitReached`. Paste a YouTube link → refused before any
+  download. Delete the rule, choose **Try again**
+  (`chat.transcription.retry`) on the chip → it transcribes, and **Usage
+  analytics** books **Transcription** under you at 0.6¢ a minute — and the
+  project's usage counts it too, though the chat had no thread yet
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the

@@ -15544,15 +15544,16 @@ async function checkGovernance(
     `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
   );
 
-  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
-  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // Budget scope alignment over the live 0.5 enforcer (`checkOrgBudget`,
+  // the shared gate every lane measures with): a default-tier
   // token cap is a PERSONAL cap, measured against the member's own usage;
   // a team rule is a SHARED cap, measured against the usage of the team's
   // CURRENT members with the team rule's own values — read through
   // membership, never the ledger's `team_id`, which most lanes do not book.
   // Two members whose combined tokens exceed the per-member cap must both
   // stay allowed; the team's own cost cap must still bind the aggregate.
-  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const { checkOrgBudget } =
+    await import('./domains/governance/budget-gate.ts');
   const teammate = 'itest-budget-teammate';
   await sql`
     INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
@@ -15631,9 +15632,9 @@ async function checkGovernance(
     prospectiveCostCents: 0,
     prospectiveRequests: 0,
   };
-  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  const mixedScopes = await checkOrgBudget(sql, budgetArgs);
   await seedTeamUsage(teammate, 0, 150);
-  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  const teamCapHit = await checkOrgBudget(sql, budgetArgs);
   await unlink(path.join(governanceDir, 'budgets.yml'));
   orgConfig.clearOrgConfigCaches();
   record(

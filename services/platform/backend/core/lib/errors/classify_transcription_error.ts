@@ -34,6 +34,12 @@ export function classifyTranscriptionError(
         ? data.code
         : undefined;
 
+  // A usage limit refused it: retrying in seconds meets the same limit.
+  // The person retries once there is room — the limit's sentence says
+  // when it resets.
+  if (code === 'BUDGET_EXCEEDED') {
+    return { shouldRetry: false, reason: 'budget_exceeded' };
+  }
   // No transcription model configured — permanent until an admin adds one.
   if (code === 'NO_TRANSCRIPTION_MODEL') {
     return { shouldRetry: false, reason: 'no_transcription_model' };

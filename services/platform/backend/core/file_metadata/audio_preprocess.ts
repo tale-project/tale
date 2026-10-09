@@ -125,6 +125,24 @@ async function probeDurationSec(path: string): Promise<number> {
   return Number.isFinite(val) ? val : 0;
 }
 
+/**
+ * How long a recording plays, in seconds: ffprobe over a temporary copy.
+ * 0 when the container states no duration (a stream still being written,
+ * say) — callers treat that as "unknown", never as free.
+ */
+export async function probeAudioDurationSec(
+  blob: Blob,
+  fileName: string,
+): Promise<number> {
+  const ext = fileName.split('.').pop()?.toLowerCase() ?? 'bin';
+  const path = await writeBlobToTmp(blob, `.${ext}`);
+  try {
+    return await probeDurationSec(path);
+  } finally {
+    await cleanupTmp([path]);
+  }
+}
+
 export interface CompressedAudio {
   blob: Blob;
   durationSec: number;
