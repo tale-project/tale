@@ -57,6 +57,10 @@ export interface ManualRoot {
   /** Names present under `reference/`. */
   referenceEntries: string[];
   reference: Doc[];
+  /** `reference/automation/<suite>.md` — the coverage rows for boxes a spec
+   * took over, one file per suite so parallel changes never append to the
+   * same lines. Optional; empty when the directory is absent. */
+  automationShards: Doc[];
   /** Names present under `runs/`. */
   runEntries: string[];
   /** The journal; absent when `runs/readme.md` is missing. */
