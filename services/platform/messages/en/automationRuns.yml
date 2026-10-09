@@ -1,5 +1,7 @@
 again:
   button: Run again
+  edit: Edit input and run…
+  editScope: A new run of v{version} starts with this input, taken from run {id}.
   menu: More ways to run again
   latest: Run again on v{version} as a test
   asTest: Run again as a test

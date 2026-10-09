@@ -1,5 +1,7 @@
 again:
   button: Relancer
+  edit: Modifier l’entrée et exécuter…
+  editScope: Une nouvelle exécution de la v{version} démarre avec cette entrée, reprise de l’exécution {id}.
   menu: Autres façons de relancer
   latest: Relancer sur la v{version} en essai
   asTest: Relancer en essai

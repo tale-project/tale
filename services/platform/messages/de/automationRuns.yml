@@ -1,5 +1,7 @@
 again:
   button: Erneut ausführen
+  edit: Eingabe bearbeiten und ausführen…
+  editScope: Ein neuer Lauf von v{version} startet mit dieser Eingabe aus Lauf {id}.
   menu: Weitere Möglichkeiten zum erneuten Ausführen
   latest: Erneut mit v{version} als Test ausführen
   asTest: Erneut als Test ausführen

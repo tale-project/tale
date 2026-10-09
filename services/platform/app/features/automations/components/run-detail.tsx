@@ -430,7 +430,17 @@ function RunDetailBody({
         {isRunFinished(status) && (
           <RunActions
             organizationId={organizationId}
-            run={{ id: run.id, version: run.version, mode: run.mode }}
+            automationSlug={automationSlug}
+            run={{
+              id: run.id,
+              version: run.version,
+              mode: run.mode,
+              input: run.input,
+              ...(run.projectId !== undefined && { projectId: run.projectId }),
+            }}
+            {...(automation?.inputs !== undefined && {
+              inputSchema: automation.inputs,
+            })}
             {...(latestQuery.data?.version !== undefined && {
               latestVersion: latestQuery.data.version,
             })}

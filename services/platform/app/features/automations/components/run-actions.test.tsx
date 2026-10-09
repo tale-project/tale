@@ -56,7 +56,8 @@ function renderActions(props: Partial<RunActionsProps> = {}) {
     <QueryClientProvider client={client}>
       <RunActions
         organizationId={ORG}
-        run={{ id: RUN, version: 3, mode: 'mock' }}
+        automationSlug="triage"
+        run={{ id: RUN, version: 3, mode: 'mock', input: { repo: 'app' } }}
         latestVersion={3}
         deployedVersion={3}
         canStartLive
@@ -86,7 +87,7 @@ describe('RunActions — Run again', () => {
 
   it('asks before a live run sends its writes again', async () => {
     const { user, onStarted } = renderActions({
-      run: { id: RUN, version: 3, mode: 'live' },
+      run: { id: RUN, version: 3, mode: 'live', input: { repo: 'app' } },
       writes: { count: 2, connectors: ['GitHub'] },
     });
 
@@ -106,7 +107,7 @@ describe('RunActions — Run again', () => {
 
   it('says why a live run cannot run again live, and offers the ways it can', async () => {
     const { user } = renderActions({
-      run: { id: RUN, version: 3, mode: 'live' },
+      run: { id: RUN, version: 3, mode: 'live', input: { repo: 'app' } },
       latestVersion: 6,
       deployedVersion: 5,
     });
@@ -134,7 +135,7 @@ describe('RunActions — Run again', () => {
 
   it('does not run a live run again live for a role that may not start live runs', () => {
     renderActions({
-      run: { id: RUN, version: 3, mode: 'live' },
+      run: { id: RUN, version: 3, mode: 'live', input: { repo: 'app' } },
       canStartLive: false,
     });
 
@@ -142,5 +143,57 @@ describe('RunActions — Run again', () => {
       'aria-disabled',
       'true',
     );
+  });
+});
+
+describe('RunActions — Edit input and run', () => {
+  const inputSchema = {
+    type: 'object',
+    properties: { repo: { type: 'string' } },
+  };
+
+  it('runs the run with the input the reader changed', async () => {
+    const { user, onStarted } = renderActions({ inputSchema });
+
+    await user.click(
+      screen.getByRole('button', { name: 'More ways to run again' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Edit input and run…' }),
+    );
+    const box = await screen.findByRole('textbox', {
+      name: 'Run input (JSON)',
+    });
+    expect(box).toHaveValue(JSON.stringify({ repo: 'app' }, null, 2));
+    await user.clear(box);
+    await user.click(box);
+    await user.paste('{"repo":"web"}');
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+
+    await waitFor(() => expect(onStarted).toHaveBeenCalled());
+    expect(posts).toEqual([
+      expect.objectContaining({
+        kind: 'edited',
+        version: 'same',
+        mode: 'mock',
+        input: { repo: 'web' },
+      }),
+    ]);
+  });
+
+  it('runs the run again when the input did not change', async () => {
+    const { user } = renderActions({ inputSchema });
+
+    await user.click(
+      screen.getByRole('button', { name: 'More ways to run again' }),
+    );
+    await user.click(
+      await screen.findByRole('menuitem', { name: 'Edit input and run…' }),
+    );
+    await user.click(await screen.findByRole('button', { name: 'Test run' }));
+
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({ kind: 'again' });
+    expect(posts[0]).not.toHaveProperty('input');
   });
 });

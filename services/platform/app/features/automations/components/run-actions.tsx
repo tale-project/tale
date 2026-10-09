@@ -1,20 +1,26 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { stableStringify } from '@tale/ui/data/stable-stringify';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IconButton } from '@tale/ui/icon-button';
 import { useCopy } from '@tale/ui/use-copy';
 import { toast } from '@tale/ui/use-toast';
-import { Copy, EllipsisVertical, Link2, RotateCw } from 'lucide-react';
+import { Copy, EllipsisVertical, Link2, Pencil, RotateCw } from 'lucide-react';
 import { useState } from 'react';
 
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReplayStarted } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
 import { useReplayRun } from '../hooks/mutations';
+import {
+  AutomationRunDialog,
+  type AutomationRunRequest,
+} from './automation-run-dialog';
 
 /** One way to run a run again: on which version, in which mode. */
 interface AgainChoice {
@@ -24,7 +30,16 @@ interface AgainChoice {
 
 export interface RunActionsProps {
   organizationId: string;
-  run: { id: string; version: number; mode: 'mock' | 'live' };
+  automationSlug: string;
+  run: {
+    id: string;
+    version: number;
+    mode: 'mock' | 'live';
+    input: unknown;
+    projectId?: string;
+  };
+  /** What the run's version takes as input, to edit the input against. */
+  inputSchema?: Record<string, unknown>;
   latestVersion?: number;
   /** The version that runs live now, if any. */
   deployedVersion?: number;
@@ -46,7 +61,9 @@ export interface RunActionsProps {
  */
 export function RunActions({
   organizationId,
+  automationSlug,
   run,
+  inputSchema,
   latestVersion,
   deployedVersion,
   canStartLive,
@@ -61,6 +78,8 @@ export function RunActions({
   // One nonce per choice confirmed: a repeated click starts one run.
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [confirming, setConfirming] = useState<AgainChoice | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editRefusal, setEditRefusal] = useState<string | null>(null);
 
   const live = run.mode === 'live';
   const versionLive = deployedVersion === run.version;
@@ -109,7 +128,49 @@ export function RunActions({
     else start(choice);
   };
 
+  /** The run's input edited: a run with the changed input, or the run
+   * again when nothing changed. */
+  const startEdited = (input: unknown): void => {
+    // JSON values: the same text, key order aside, is the same input.
+    const unchanged = stableStringify(input) === stableStringify(run.input);
+    replay.mutate(
+      {
+        organizationId,
+        runId: run.id,
+        kind: unchanged ? 'again' : 'edited',
+        version: 'same',
+        mode: editMode,
+        ...(!unchanged && { input }),
+        requestId,
+      },
+      {
+        onSuccess: (started) => {
+          setRequestId(crypto.randomUUID());
+          setEditing(false);
+          onStarted(started);
+        },
+        onError: (error) => {
+          setRequestId(crypto.randomUUID());
+          setEditRefusal(
+            t('again.refused', { detail: failureDetail(error) ?? '' }),
+          );
+        },
+      },
+    );
+  };
+  // An edited run runs as the run did, unless it cannot run live now.
+  const editMode = live && sameReason === undefined ? 'live' : 'mock';
+
   const items = [
+    {
+      type: 'item' as const,
+      label: t('again.edit'),
+      icon: Pencil,
+      onClick: () => {
+        setEditRefusal(null);
+        setEditing(true);
+      },
+    },
     ...(latestVersion !== undefined && latestVersion !== run.version
       ? [
           {
@@ -189,8 +250,32 @@ export function RunActions({
             aria-label={t('again.menu')}
           />
         }
-        items={items.length > 0 ? [items, copyItems] : [copyItems]}
+        items={[items, copyItems]}
       />
+      {editing && (
+        <RunEditInputDialog
+          organizationId={organizationId}
+          request={{
+            automationSlug,
+            mode: editMode,
+            version: run.version,
+            ...(inputSchema !== undefined && { schema: inputSchema }),
+            ...(run.projectId !== undefined && { projectId: run.projectId }),
+            ...(isRecord(run.input) && { initialInput: run.input }),
+            scopeText: t('again.editScope', {
+              version: String(run.version),
+              id: shortRunId(run.id),
+            }),
+          }}
+          pending={replay.isPending}
+          error={editRefusal}
+          onClose={() => {
+            setEditing(false);
+            setEditRefusal(null);
+          }}
+          onConfirm={startEdited}
+        />
+      )}
       <ConfirmDialog
         open={confirming !== null}
         onOpenChange={(open) => {
@@ -214,4 +299,30 @@ export function RunActions({
       />
     </div>
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** The first characters of a run id, the way the run page names a run. */
+function shortRunId(runId: string): string {
+  return runId.replaceAll('-', '').slice(0, 6);
+}
+
+/** The run dialog, with the projects an issue import picks from — read
+ * only once the dialog opens. */
+function RunEditInputDialog({
+  organizationId,
+  ...props
+}: {
+  organizationId: string;
+  request: AutomationRunRequest;
+  pending: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (input: unknown) => void;
+}) {
+  const { projects } = useProjects(organizationId);
+  return <AutomationRunDialog {...props} projects={projects} />;
 }
