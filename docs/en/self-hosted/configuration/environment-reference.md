@@ -246,6 +246,15 @@ Leave it unset to keep the default session lifetime. When set, an idle session e
 
 Set it to your own help desk so people who hit an error reach the team that runs your deployment. Where the error screen knows the organization, the link adds `organizationId=<id>` to the query string, after any query the URL already carries, and replaces an `organizationId` the URL already has. Any other value, such as `mailto:` or a URL without a scheme, is ignored with a warning in the `platform` service's log, and the link keeps the default.
 
+## MCP endpoint
+
+| Name | Default | Description |
+| --- | --- | --- |
+| `TALE_MCP_ALLOWED_ORIGINS` | unset | **Optional, read by `backend-api` and the `all` role.** Browser origins, besides `SITE_URL` and `ADDITIONAL_SITE_URLS`, from which the [MCP endpoint](/develop/mcp-endpoint) accepts a request that carries an `Origin` header. Comma- or space-separated, each `scheme://host[:port]` without a path, such as a desktop editor's own `vscode-file://vscode-app`. A malformed entry prevents backend startup. |
+| `TALE_MCP_ORIGIN_ENFORCE` | `false` | **Optional, read by `backend-api` and the `all` role.** `true` refuses a request from any other origin with `403` and `ORIGIN_FORBIDDEN`; `false` only logs it. |
+
+Coding agents in a terminal and server-side clients send no `Origin`, so the check never applies to them. A browser page on another site does send one, and an API key in such a page is how that site would reach the endpoint. While enforcement is off, each request from an origin outside the list is logged as `[mcp] origin-mismatch` with the origin, the organization and the person. Read those lines to see which of your clients send an origin before you set `TALE_MCP_ORIGIN_ENFORCE=true`, and add their origins to `TALE_MCP_ALLOWED_ORIGINS`.
+
 ## Sandbox infrastructure
 
 The sandbox spawner reads the settings below. Pass them into its environment and recreate that service after a change. `SANDBOX_MAX_SESSIONS` sets the capacity shared by all organizations; an organization's three workload limits add up automatically and cannot be saved above that capacity. Manage those limits in [Sandboxes](/platform/admin/sandboxes), where actual runtime counts and host measurements appear separately from workload allocations.

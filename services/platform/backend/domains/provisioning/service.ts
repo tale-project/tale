@@ -132,6 +132,7 @@ export async function seedDefaultAutomationPacks(
       name,
       document,
       actor: 'system:provisioning',
+      origin: { via: 'system' },
       message: 'Shipped default pack',
       ...(contract !== undefined ? { taskContract: contract } : {}),
       ...(settings !== undefined ? { settings } : {}),

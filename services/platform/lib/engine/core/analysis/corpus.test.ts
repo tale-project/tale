@@ -34,6 +34,7 @@ import { parse, parseDocument, stringify } from 'yaml';
 
 import { blankAutomationDocument } from '../../../automations/blank-document';
 import { loadConnectors } from '../../../connectors/registry';
+import { EMITTED_EVENT_TYPES } from '../../../shared/event-types';
 import { isRecord } from '../../../utils/type-utils';
 import type { TriggerSpec } from '../../api/dispatch';
 import { DOC_EXAMPLE } from '../../api/docs';
@@ -176,12 +177,59 @@ function corpus(): Array<[string, Automation]> {
   return out;
 }
 
-const store = memoryStore();
+/** The agent runtimes the managed lane runs: each harness whose
+ * declaration says `credentialPolicy.managed: true`. */
+function managedHarnesses(): Set<string> {
+  const root = path.join(REPO, 'configs/platform/system/harnesses');
+  return new Set(
+    dirs(root).filter((slug) => {
+      const def: unknown = parse(
+        readFileSync(path.join(root, slug, 'harness.yml'), 'utf8'),
+      );
+      return (
+        isRecord(def) &&
+        isRecord(def.credentialPolicy) &&
+        def.credentialPolicy.managed === true
+      );
+    }),
+  );
+}
+
 const documents = corpus();
+const { connectors } = loadConnectors(
+  path.join(REPO, 'configs/platform/system'),
+);
+
+/**
+ * The organization the shipped documents are checked against: the shipped
+ * skills (plus the ones the wizard fixture is equipped with — the wizard
+ * offers only skills that exist), every shipped connector connected, the
+ * managed agent runtimes and the events the platform raises. Secret names
+ * are an organization's own, so the store cannot tell — a shipped document
+ * never warns about one.
+ */
+const store = memoryStore({
+  orgFacts: {
+    skills: new Set([
+      ...dirs(path.join(REPO, 'configs/platform/custom/skills')),
+      'reply-style',
+    ]),
+    connectors: {
+      catalogued: new Set(connectors.map((c) => c.name)),
+      connected: new Set(connectors.map((c) => c.name)),
+      needsCredential: new Set(
+        connectors
+          .filter((c) => !c.auth.some((m) => m.method === 'platform'))
+          .map((c) => c.name),
+      ),
+    },
+    harnesses: managedHarnesses(),
+    raisedEvents: EMITTED_EVENT_TYPES,
+  },
+});
 
 beforeAll(async () => {
   setCodeRunner(nodeVmRunner());
-  loadConnectors(path.join(REPO, 'configs/platform/system'));
   for (const [, doc] of documents) store.save(doc.name, doc);
   for (const [name, triggers] of packTriggers) {
     for (const trigger of triggers) await store.setTrigger(name, trigger);

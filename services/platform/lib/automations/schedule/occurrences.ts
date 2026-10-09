@@ -70,6 +70,10 @@ const MIDNIGHT: ClockTime = { hour: 0, minute: 0 };
  * only start on time (`catchUp: 'skip'`): enough for a redeploy. */
 export const SCHEDULE_ON_TIME_GRACE_MS = 10 * MINUTE_MS;
 
+/** The zone a cron expression reads its clock in when its trigger names
+ * none (a repeat rule always names one). */
+export const CRON_DEFAULT_ZONE = 'UTC';
+
 /** The most missed occurrences one decision counts; past it the count is
  * reported as capped. */
 export const MISSED_COUNT_CAP = 1000;
@@ -909,7 +913,8 @@ export function scheduleOfTrigger(
   const cron = source.cron?.trim() ?? '';
   const zoneText = source.timezone?.trim() ?? '';
   if (cron !== '') {
-    const zone = zoneText === '' ? 'UTC' : canonicalTimeZone(zoneText);
+    const zone =
+      zoneText === '' ? CRON_DEFAULT_ZONE : canonicalTimeZone(zoneText);
     if (zone === null) return { issue: `unknown time zone "${zoneText}"` };
     let parsed: CronSchedule;
     try {

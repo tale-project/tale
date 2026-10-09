@@ -1,0 +1,1871 @@
+{
+  "get_docs": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "topic": {
+          "description": "Which reference: \"authoring\" (the default — the automation grammar and every method), \"triggers\" (what starts an automation, each kind's fields and the events), \"validation\" (how to read a validation result, and every issue code) or \"skill\" (the Tale skill, SKILL.md). Each is also the resource tale://docs/<topic>.",
+          "type": "string",
+          "enum": ["authoring", "triggers", "validation", "skill"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "docs": {
+          "type": "string"
+        }
+      },
+      "required": ["docs"],
+      "additionalProperties": {}
+    }
+  },
+  "get_catalog": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "description": "Only node types of this kind.",
+          "type": "string",
+          "enum": ["transform", "llm", "agent", "subautomation", "connector"]
+        },
+        "compact": {
+          "description": "Names and descriptions only — no input schemas. The full catalog is large (over 100 KB); prefer search_catalog or compact for discovery.",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "node_types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": ["type", "kind"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["node_types"],
+      "additionalProperties": {}
+    }
+  },
+  "search_catalog": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Capability keywords — verbs and objects, e.g. \"send email\"."
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              }
+            },
+            "required": ["type"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["matches"],
+      "additionalProperties": {}
+    }
+  },
+  "validate_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
+        },
+        "detail": {
+          "description": "What to answer beside the errors and warnings: \"analysis\" (which nodes run on which ways a run can go) and \"types\" (the shape of every value). Left out, both; [] answers the issues alone — the types of a large document run to tens of KB.",
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["analysis", "types"]
+          }
+        }
+      },
+      "required": ["automation"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "valid": {
+          "type": "boolean"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": {}
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": ["code", "message"],
+            "additionalProperties": {}
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        },
+        "types": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        }
+      },
+      "required": ["valid", "errors", "warnings"],
+      "additionalProperties": {}
+    }
+  },
+  "run_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
+        },
+        "input": {
+          "description": "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it."
+        },
+        "mode": {
+          "description": "Always \"mock\" here: the document runs against deterministic mocks, and nothing leaves Tale. To run it for real, save and deploy it, then run_deployed or start_run.",
+          "type": "string",
+          "enum": ["mock"]
+        }
+      },
+      "required": ["automation"],
+      "additionalProperties": false
+    }
+  },
+  "test_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "description": "A draft to test — the automation document with its tests: block. Leave it out to test a saved version (name).",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "A saved automation to test instead of a draft; its verdict is recorded on the version."
+        },
+        "version": {
+          "description": "Which saved version of name to test — the latest when omitted, \"deployed\" for the live one.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "const": "deployed"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "save_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {},
+          "description": "The automation document — name, inputs, nodes, output, tests. get_docs is the grammar; the engine validates it and answers with the problems."
+        },
+        "message": {
+          "description": "Why this version — shown in the version history.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "\\S"
+        },
+        "baseVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The version your edit started from (get_automation answers it). If another version was saved since, the save is refused with the latest version number instead of overwriting it. Always pass it."
+        },
+        "create": {
+          "description": "true: refuse the save when an automation of that name already exists (a new automation, never a new version of someone else’s).",
+          "type": "boolean"
+        },
+        "projectId": {
+          "description": "Install a NEW automation in this project with its first version; you need edit access to it. Ignored for an automation that exists.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "settings": {
+          "description": "The settings form the task screen shows. Leave it out to keep the latest version’s; null stores none.",
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "taskContract": {
+          "description": "The task contract (how tasks start and review this automation). Leave it out to keep the latest version’s; null stores none.",
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "presentation": {
+          "description": "The display name, description and icon on the automations list. Leave it out to keep the latest version’s; null stores none on this version, and the list keeps showing the newest earlier one.",
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["automation"],
+      "additionalProperties": false
+    }
+  },
+  "get_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "version": {
+          "description": "Read this saved version instead of the latest one; \"deployed\" reads the version that actually runs (list_automations shows deployedVersion).",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "string",
+              "const": "deployed"
+            }
+          ]
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "meta": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "number"
+            }
+          },
+          "required": ["version"],
+          "additionalProperties": {}
+        },
+        "automation": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": {}
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "number"
+        },
+        "latestVersion": {
+          "type": "number"
+        },
+        "deployedVersion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdVia": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientName": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "projectIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["meta", "automation"],
+      "additionalProperties": {}
+    }
+  },
+  "list_automations": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "automations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["name"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["automations"],
+      "additionalProperties": {}
+    }
+  },
+  "deploy_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The saved version to promote — list_versions shows them. An older version rolls back."
+        },
+        "expectedDeployedVersion": {
+          "description": "The version you read as live (list_versions answers deployedVersion; null while nothing is deployed). If another one is live now, the deploy is refused and nothing changes.",
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    }
+  },
+  "delete_automation": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "expectedLatestVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The latest version you read (get_automation answers latestVersion). If a version was saved since, the delete is refused and nothing is removed."
+        }
+      },
+      "required": ["name", "expectedLatestVersion"],
+      "additionalProperties": false
+    }
+  },
+  "set_trigger": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "trigger": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "schedule"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether it starts runs. Omitted reads as true."
+                },
+                "input": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
+                },
+                "cron": {
+                  "description": "A five-field cron expression — the advanced form; give it or `repeat`, not both.",
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "repeat": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "minutely"
+                        },
+                        "interval": {
+                          "type": "number",
+                          "enum": [1, 2, 3, 4, 5, 6, 10, 12, 15, 20, 30],
+                          "description": "Every how many minutes; divides 60."
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "weekdays": {
+                              "minItems": 1,
+                              "maxItems": 7,
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 6
+                              },
+                              "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                            },
+                            "hours": {
+                              "description": "Run only from `from` until before `to`, local time. A `to` earlier than `from` runs overnight into the next day; \"00:00\" runs until midnight. Omit to run all day.",
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                },
+                                "to": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                }
+                              },
+                              "required": ["from", "to"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["weekdays"],
+                          "additionalProperties": false,
+                          "description": "The weekdays and hours a grid schedule runs in."
+                        }
+                      },
+                      "required": ["frequency", "interval"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "hourly"
+                        },
+                        "interval": {
+                          "type": "number",
+                          "enum": [1, 2, 3, 4, 6, 8, 12],
+                          "description": "Every how many hours; divides 24."
+                        },
+                        "minute": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 59,
+                          "description": "The minute past the hour it starts at."
+                        },
+                        "window": {
+                          "type": "object",
+                          "properties": {
+                            "weekdays": {
+                              "minItems": 1,
+                              "maxItems": 7,
+                              "type": "array",
+                              "items": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 6
+                              },
+                              "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                            },
+                            "hours": {
+                              "description": "Run only from `from` until before `to`, local time. A `to` earlier than `from` runs overnight into the next day; \"00:00\" runs until midnight. Omit to run all day.",
+                              "type": "object",
+                              "properties": {
+                                "from": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                },
+                                "to": {
+                                  "type": "string",
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                                }
+                              },
+                              "required": ["from", "to"],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["weekdays"],
+                          "additionalProperties": false,
+                          "description": "The weekdays and hours a grid schedule runs in."
+                        }
+                      },
+                      "required": ["frequency", "interval", "minute"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "daily"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": ["frequency", "interval", "times"],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "weekly"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "weekdays": {
+                          "minItems": 1,
+                          "maxItems": 7,
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 6
+                          },
+                          "description": "Days of the week, 0 (Sunday) to 6 (Saturday)."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": [
+                        "frequency",
+                        "interval",
+                        "weekdays",
+                        "times"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "monthly"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "monthDay": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31,
+                          "description": "The day of the month, 1 to 31; a shorter month's last day stands in for a day it lacks."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": [
+                        "frequency",
+                        "interval",
+                        "monthDay",
+                        "times"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "frequency": {
+                          "type": "string",
+                          "const": "yearly"
+                        },
+                        "interval": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 99,
+                          "description": "Every how many days, weeks, months or years."
+                        },
+                        "month": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 12,
+                          "description": "The month, 1 (January) to 12."
+                        },
+                        "monthDay": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 31,
+                          "description": "The day of the month, 1 to 31; a shorter month's last day stands in for a day it lacks."
+                        },
+                        "times": {
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "description": "A time of day, \"HH:MM\" on a 24-hour clock."
+                          },
+                          "description": "The times of day it starts at, 1 to 12."
+                        }
+                      },
+                      "required": [
+                        "frequency",
+                        "interval",
+                        "month",
+                        "monthDay",
+                        "times"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ],
+                  "description": "When a schedule starts: every N minutes or hours (optionally only on some weekdays and hours), or at times of day on a daily, weekly, monthly or yearly rule."
+                },
+                "startDate": {
+                  "description": "The day a repeat rule starts on, in its time zone: no start comes before it, and \"every 2 weeks\" counts from it. Omitted means today. Send back the one you read to keep the rule in step.",
+                  "type": "string"
+                },
+                "timezone": {
+                  "description": "The time zone the schedule reads in. Required with `repeat`; a cron expression without one reads in UTC.",
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "catchUp": {
+                  "type": "string",
+                  "enum": ["latest", "skip"],
+                  "description": "Missed occurrences: \"latest\" (the default) starts the most recent one once, however late; \"skip\" starts it only when it is at most 10 minutes late. Either way the others are counted, not run."
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "webhook"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether it starts runs. Omitted reads as true."
+                },
+                "input": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
+                },
+                "rotateToken": {
+                  "description": "Mint a new address; the one it replaces stops working at once.",
+                  "type": "boolean"
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "const": "event"
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "description": "Whether it starts runs. Omitted reads as true."
+                },
+                "input": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "boolean"
+                      },
+                      {
+                        "type": "null"
+                      },
+                      {
+                        "type": "array",
+                        "items": {}
+                      },
+                      {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {}
+                      }
+                    ]
+                  },
+                  "description": "Values the trigger adds to every run's input, as a JSON object of at most 16 KiB. The trigger's own fields (trigger, firedAt, event, payload) are set over it, so it cannot name them; a template in it is plain text, never evaluated. Omit it to clear it: saving a trigger replaces it whole."
+                },
+                "event": {
+                  "description": "The platform event that starts a run.",
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "required": ["kind"],
+              "additionalProperties": false
+            }
+          ],
+          "description": "The trigger — {kind: \"schedule\" | \"webhook\" | \"event\", …}, one shape per kind (a key of another kind is refused by name); get_docs with topic \"triggers\" describes each kind. A schedule takes a repeat rule (repeat, startDate, timezone) or a cron expression; any kind may carry a fixed input. A webhook trigger answers its token ONCE, in this call — list_triggers never returns it; rotateToken: true mints a new one."
+        }
+      },
+      "required": ["name", "trigger"],
+      "additionalProperties": false
+    }
+  },
+  "run_deployed": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "input": {
+          "description": "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it."
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+          "description": "Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "start_run": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "input": {
+          "description": "The run's input — any JSON value the automation's own inputs schema accepts; the engine validates it."
+        },
+        "mode": {
+          "description": "live (default): the deployed version, with real effects — needs the owner, admin or developer role. mock: any saved version against the deterministic mocks, recorded in the run history; any member may start one. Use mock while testing.",
+          "type": "string",
+          "enum": ["live", "mock"]
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991,
+          "description": "The saved version to run. A live run takes only the deployed one (the default); a mock run takes any, the latest saved when omitted."
+        },
+        "projectId": {
+          "description": "The project the run operates in — its task and document tools act there. The caller must have edit access to this active project. Omit only for an organization-wide automation or when the host already pins a project. A bound automation requires an explicit allowed project.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+          "description": "Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "list_runs": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Only this automation's runs. Omit for every run the caller can read in the current scope."
+        },
+        "limit": {
+          "description": "How many runs to return (default 50).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "mode": {
+          "description": "Only live runs, or only mock runs.",
+          "type": "string",
+          "enum": ["live", "mock"]
+        },
+        "statuses": {
+          "description": "Only runs in one of these statuses.",
+          "minItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "quarantined",
+              "success",
+              "failed",
+              "cancelled"
+            ]
+          }
+        },
+        "cursor": {
+          "description": "The nextCursor the previous page answered — the next older page. Pass it unchanged, with the same filters.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": ["runId", "status"],
+            "additionalProperties": {}
+          }
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["runs", "nextCursor"],
+      "additionalProperties": {}
+    }
+  },
+  "get_run": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The run handle start_run and list_runs return."
+        },
+        "detail": {
+          "description": "What to answer beside the status: \"input\", \"output\", \"trace\", \"effects\". Left out, all of them; [] the status alone (and the question a waiting run asks) — poll a run with [], then read it whole once it finished.",
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["input", "output", "trace", "effects"]
+          }
+        }
+      },
+      "required": ["runId"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "object",
+          "properties": {
+            "runId": {
+              "type": "string"
+            },
+            "status": {
+              "type": "string"
+            },
+            "ask": {
+              "type": "object",
+              "properties": {
+                "askId": {
+                  "type": "string"
+                },
+                "question": {
+                  "type": "string"
+                }
+              },
+              "required": ["askId", "question"],
+              "additionalProperties": {}
+            }
+          },
+          "required": ["runId", "status"],
+          "additionalProperties": {}
+        }
+      },
+      "required": ["run"],
+      "additionalProperties": {}
+    }
+  },
+  "cancel_run": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The run handle start_run and list_runs return."
+        }
+      },
+      "required": ["runId"],
+      "additionalProperties": false
+    }
+  },
+  "answer_run_ask": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The run handle start_run and list_runs return."
+        },
+        "askId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The question to answer — get_run answers it as run.ask.askId while the run waits on one (waitingFor: \"ask\")."
+        },
+        "answer": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "\\S",
+          "description": "Your answer, in words — the run resumes on it as the person’s answer."
+        }
+      },
+      "required": ["runId", "askId", "answer"],
+      "additionalProperties": false
+    }
+  },
+  "list_versions": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "deployedVersion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number"
+              }
+            },
+            "required": ["version"],
+            "additionalProperties": {}
+          }
+        },
+        "deployments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number"
+              },
+              "previousVersion": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "deployedAt": {
+                "type": "number"
+              }
+            },
+            "required": ["version", "previousVersion", "deployedAt"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["deployedVersion", "versions"],
+      "additionalProperties": {}
+    }
+  },
+  "set_automation_projects": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        },
+        "add": {
+          "description": "Install it in these projects (you need edit access to each).",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "remove": {
+          "description": "Remove it from these projects (you need edit access to each).",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "list_triggers": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Only this automation's trigger. Omit for every trigger in the organization."
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "triggers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "kind"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["triggers"],
+      "additionalProperties": {}
+    }
+  },
+  "delete_trigger": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The automation name — a \"/\"-separated path, e.g. \"billing/dunning-reminder\"."
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    }
+  },
+  "get_automation_metrics": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "periodDays": {
+          "description": "The window, in days (default 7); compared with the window before it.",
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 7
+            },
+            {
+              "type": "number",
+              "const": 30
+            },
+            {
+              "type": "number",
+              "const": 90
+            }
+          ]
+        },
+        "mode": {
+          "description": "Which runs to count: live (the default) or mock.",
+          "type": "string",
+          "enum": ["live", "mock"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "summary": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "number"
+            },
+            "successRate": {
+              "type": "number"
+            }
+          },
+          "required": ["total", "successRate"],
+          "additionalProperties": {}
+        },
+        "previousSummary": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "number"
+            }
+          },
+          "required": ["total"],
+          "additionalProperties": {}
+        },
+        "series": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "dateKey": {
+                "type": "string"
+              }
+            },
+            "required": ["dateKey"],
+            "additionalProperties": {}
+          }
+        },
+        "topAutomations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["name"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["summary", "previousSummary", "series", "topAutomations"],
+      "additionalProperties": {}
+    }
+  },
+  "list_models": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "nodeType": {
+          "description": "Only the models a step of this type can use: an llm step takes a model a provider serves directly, an agent step a model offered to its runtime.",
+          "type": "string",
+          "enum": ["llm", "agent"]
+        },
+        "harness": {
+          "description": "Only the models offered to this agent runtime — the harness slug list_harnesses names.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "\\S"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "providerSlug": {
+                "type": "string"
+              },
+              "lane": {
+                "type": "string"
+              },
+              "nodeTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["id", "providerSlug", "lane", "nodeTypes"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["models", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "list_harnesses": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "harnesses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "default": {
+                "type": "boolean"
+              }
+            },
+            "required": ["slug", "label", "default"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["harnesses", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "list_skills": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "projectId": {
+          "description": "Also the team skills of this project — the ones a run in it can use. You need read access to it; list_projects shows the ids. Left out, the organization's own skills.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              }
+            },
+            "required": ["slug"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["skills", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "list_connectors": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "Only connectors whose slug, name or description contains this text.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "connectors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "slug": {
+                "type": "string"
+              },
+              "connected": {
+                "type": "boolean"
+              }
+            },
+            "required": ["slug", "connected"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["connectors", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "list_agent_secrets": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["name"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["secrets", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "list_projects": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "description": "Only projects whose name contains this text.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        },
+        "includeArchived": {
+          "description": "Also archived projects (default false).",
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "projects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "archived": {
+                "type": "boolean"
+              },
+              "writable": {
+                "type": "boolean"
+              }
+            },
+            "required": ["id", "name", "archived", "writable"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["projects", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "list_events": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "description"],
+            "additionalProperties": {}
+          }
+        },
+        "hint": {
+          "type": "string"
+        }
+      },
+      "required": ["events", "hint"],
+      "additionalProperties": {}
+    }
+  },
+  "search_capabilities": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S",
+          "description": "What you want to do, in the words a person would use."
+        },
+        "limit": {
+          "description": "How many matches to return (default 8).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              }
+            },
+            "required": ["id"],
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["capabilities"],
+      "additionalProperties": {}
+    }
+  },
+  "invoke_capability": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The capability id from search_capabilities, e.g. \"automation.billing/dunning-reminder\"."
+        },
+        "input": {
+          "description": "Arguments — any JSON value the capability's own input schema accepts; the surface validates them."
+        },
+        "credential": {
+          "description": "Which stored credential to act as. Omit to use the organization's default.",
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^[\\x20-\\x7e]*[\\x21-\\x7e][\\x20-\\x7e]*$",
+          "description": "Names this start so a retry of a timed-out call answers the run it already started (`duplicate: true`) instead of starting another — the same ledger as the REST `Idempotency-Key`: one key, one run, for a day; a repeat with a different input is refused (`IDEMPOTENCY_KEY_REUSED`). Printable ASCII, 1–255 characters."
+        }
+      },
+      "required": ["id"],
+      "additionalProperties": false
+    }
+  },
+  "get_knowledge": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S",
+          "description": "What to look for, in the words a person would use (at most 2,000 characters — the REST search’s cap)."
+        },
+        "limit": {
+          "description": "How many passages to return (default 10).",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50
+        },
+        "corpus": {
+          "description": "Which knowledge to search: the organization's own documents ('private' — the REST search spells it 'documents'), its crawled web pages ('public-web' — REST: 'web'), or both ('all', the default). Either spelling is taken.",
+          "type": "string",
+          "enum": ["private", "public-web", "all", "documents", "web"]
+        }
+      },
+      "required": ["query"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "const": "ok"
+        },
+        "passages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {}
+          }
+        }
+      },
+      "required": ["status", "passages"],
+      "additionalProperties": {}
+    }
+  }
+}

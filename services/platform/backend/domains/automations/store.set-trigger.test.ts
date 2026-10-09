@@ -15,6 +15,13 @@
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+// The definition writes' audit rows are their own concern (`audit.ts`,
+// `audit.test.ts`); this double answers no audit-chain query.
+vi.mock('./audit.ts', () => ({
+  auditDefinitionWrite: vi.fn(async () => undefined),
+  listDeployments: vi.fn(async () => []),
+}));
+
 import { hashWebhookToken } from '../../core/automations/webhook_token.ts';
 import { AutomationError, setTrigger, type TriggerInput } from './store.ts';
 
@@ -67,15 +74,21 @@ function fakeUpsert(
   statements: Statement[];
   /** The realtime hints emitted alongside. */
   hints: Statement[];
+  /** Every statement in order, the advisory locks included. */
+  sequence: Statement[];
 } {
   const statements: Statement[] = [];
   const hints: Statement[] = [];
+  const sequence: Statement[] = [];
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
+    sequence.push({ text, values });
     if (text.includes('INSERT INTO app_realtime.outbox')) {
       hints.push({ text, values });
       return Promise.resolve([]);
     }
+    // The audit chain's lock (`lockAuditChain`) — taken, not a trigger write.
+    if (text.includes('pg_advisory_xact_lock')) return Promise.resolve([]);
     statements.push({ text, values });
     if (text.includes('FOR UPDATE')) {
       return Promise.resolve(
@@ -125,7 +138,7 @@ function fakeUpsert(
   fn.begin = (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
     callback(fn);
   fn.json = (value: unknown): unknown => value;
-  return { sql: fn as unknown as Sql, statements, hints };
+  return { sql: fn as unknown as Sql, statements, hints, sequence };
 }
 
 /** The upsert — the one write of the bind. */
@@ -146,9 +159,16 @@ describe('setTrigger', () => {
     const fake = fakeUpsert('fresh');
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
 
-    // The locked read of the row being replaced, then the ONE write — never
-    // a SELECT-then-INSERT that decides existence in JavaScript. After the
-    // bind, only the read of the version that runs, for the warnings.
+    // The organization's audit chain first — the order every transaction
+    // holding the chain and a trigger row takes them in
+    // (`trigger-failures.ts`) — then the locked read of the row being
+    // replaced, then the ONE write — never a SELECT-then-INSERT that decides
+    // existence in JavaScript. After the bind, only the read of the version
+    // that runs, for the warnings.
+    expect(fake.sequence[0]?.values).toEqual([
+      expect.any(Number),
+      'audit-chain:org_1',
+    ]);
     expect(fake.statements).toHaveLength(3);
     const [read, statement, deployedRead] = fake.statements;
     expect(deployedRead?.text).toContain('FROM app.automation_deployments');
@@ -511,7 +531,7 @@ describe('setTrigger — the next start of a schedule', () => {
  * warning that names what is missing; a fixed input that has it saves
  * clean, and is stored as the run input it adds.
  */
-describe('setTrigger — warnings about what the trigger sends [AUTO-R29]', () => {
+describe('setTrigger — warnings about what the trigger sends [AUTO-R31]', () => {
   const ownerRepo = {
     type: 'object',
     required: ['owner', 'repo'],

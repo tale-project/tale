@@ -78,6 +78,11 @@ mcpEndpoint:
       description: Piloter ce qui est déployé — lancer et suivre les
         exécutions, parcourir les versions, poser et retirer les
         déclencheurs.
+    discovery:
+      title: Découverte
+      description: Consulter ce qu'une automatisation peut nommer — modèles,
+        environnements d'agent, skills, connectors, noms de secrets, projets
+        et événements.
     capability:
       title: Capacités & connaissances
       description: La surface propre à l'organisation — chercher ce qu'elle
@@ -1249,6 +1254,10 @@ logs:
       Les journaux d'audit apparaîtront ici à mesure que des actions
       sont effectuées dans ton organisation.
     detailTitle: Détails du journal d'audit
+    viaLabel: Source
+    viaLabels:
+      mcp: Agent de code
+    clientLabel: Client
     columns:
       timestamp: Horodatage
       action: Action
@@ -1441,6 +1450,13 @@ logs:
       automation.run.cancelled: Exécution d'automatisation arrêtée
       automation.run.deleted: Exécution d'automatisation supprimée
       automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
+      automation.version.saved: Version d’automatisation enregistrée
+      automation.deployed: Automatisation mise en service
+      automation.deleted: Automatisation supprimée
+      automation.trigger.set: Déclencheur d’automatisation modifié
+      automation.trigger.deleted: Déclencheur d’automatisation supprimé
+      automation.project.bound: Automatisation installée dans un projet
+      automation.project.unbound: Automatisation retirée d’un projet
       create_connector: Connector créée
       delete_connector: Connector supprimée
       update_credential: Identifiants mis à jour
@@ -1552,6 +1568,7 @@ logs:
       workflow: Automatisation
       workflow_run: Exécution d'automatisation
       automation_trigger: Déclencheur d'automatisation
+      automation: Automatisation
       workflow_creation: Création d'automatisation
       workflow_update: Mise à jour d'automatisation
       customer: Contact

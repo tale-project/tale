@@ -95,6 +95,7 @@ const APP_ROUTE_DOMAINS: ReadonlySet<string> = new Set([
   'knowledge',
   'knowledge-entries',
   'legal-holds',
+  'mcp',
   'members',
   'notifications',
   'object-storage',

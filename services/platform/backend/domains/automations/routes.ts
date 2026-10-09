@@ -797,6 +797,7 @@ export function createAutomationRoutes(deps: {
                 ...scope,
                 name: nameFrom(c, 'save'),
                 document: automation,
+                origin: { via: 'app' },
                 ...(message !== undefined ? { message } : {}),
                 ...(options?.testsPassed !== undefined
                   ? { testsPassed: options.testsPassed }
@@ -946,6 +947,7 @@ export function createAutomationRoutes(deps: {
         deps.sql,
         c.get('orgId'),
         nameFrom(c, 'trigger'),
+        c.get('sessionBundle').user.id,
       ),
     });
   });

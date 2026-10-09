@@ -36,13 +36,14 @@ import {
   useProjects,
 } from '@/app/features/projects/hooks/queries';
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
-import {
-  findSelectedModel,
-  toModelOptions,
-} from '@/app/features/projects/lib/model-options';
 import { blankAutomationDocument } from '@/lib/automations/blank-document';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
+import {
+  DEFAULT_HARNESS,
+  findSelectedModel,
+  toModelOptions,
+} from '@/lib/shared/harness-offer';
 import { localTimeZone } from '@/lib/shared/zoned-time';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
@@ -57,7 +58,6 @@ import {
   triggerDraftIssue,
 } from '../lib/trigger-draft';
 import { triggerIssueText } from '../lib/trigger-issue-text';
-import { DEFAULT_HARNESS } from './agent-node-fields';
 import { TriggerForm } from './trigger-form';
 import { TriggerInputPreview } from './trigger-input-preview';
 import { webhookBase } from './trigger-webhook-panel';

@@ -426,7 +426,7 @@ export async function checkTriggerPauseAfterFailures(
     );
   } finally {
     // Leave nothing armed for the lanes after this one.
-    await deleteTrigger(sql, orgId, name);
+    await deleteTrigger(sql, orgId, name, 'itest');
     await waitFor(async () => {
       const live = await sql<{ count: string }[]>`
         SELECT count(*)::text AS count FROM app.automation_runs

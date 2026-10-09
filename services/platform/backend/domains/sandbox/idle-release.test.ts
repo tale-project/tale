@@ -149,7 +149,7 @@ describe('idle release worker', () => {
     );
   });
 
-  it('lets only a live run that names the stopped worker keep it [SBX-R18]', async () => {
+  it('lets only a live run that names the stopped worker keep it [SBX-R19]', async () => {
     const texts: string[] = [];
     const query = (strings: TemplateStringsArray) => {
       texts.push(strings.join('?').replaceAll(/\s+/g, ' '));

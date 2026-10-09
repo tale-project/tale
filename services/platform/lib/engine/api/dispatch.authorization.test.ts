@@ -40,7 +40,12 @@ describe('in-process deployed run authorization', () => {
     'refuses %s execution before any node or run record',
     async (mode) => {
       const { store, authorizeRun, recordRun } = authorizedStore();
-      authorizeRun.mockRejectedValueOnce(new Error('Project not found.'));
+      authorizeRun.mockRejectedValueOnce(
+        Object.assign(new Error('Project not found.'), {
+          name: 'ActorAuthError',
+          code: 'PROJECT_NOT_FOUND',
+        }),
+      );
       const response = await dispatch(
         'run_deployed',
         { name: 'order-report', input: {} },
@@ -56,7 +61,10 @@ describe('in-process deployed run authorization', () => {
             : {}),
         },
       );
-      expect(response).toEqual({ error: 'Project not found.' });
+      expect(response).toMatchObject({
+        error: 'Project not found.',
+        code: 'PROJECT_NOT_FOUND',
+      });
       expect(authorizeRun).toHaveBeenCalledWith('order-report', mode);
       expect(execute).not.toHaveBeenCalled();
       expect(recordRun).not.toHaveBeenCalled();

@@ -68,8 +68,11 @@ import { notifyTriggerPaused } from '../collab/service.ts';
  *   across a delete of up to a thousand runs would queue every audit writer
  *   of the organization behind it. Erasure removes only runs a person or a
  *   key started, which no trigger names;
- * - the schedule scan, the webhook door and saving or removing a trigger
- *   write the row and take no chain in that transaction.
+ * - saving or removing a trigger, and deleting its automation, audit the
+ *   change: each takes the chain first, then (a managed schedule, a delete)
+ *   the automation's name, then the trigger row (`automations/audit.ts`);
+ * - the schedule scan and the webhook door write the row and take no chain
+ *   in that transaction.
  *
  * A landing run and a producer stamping the same event trigger, or a
  * removal of the run the trigger names, therefore queue on the chain

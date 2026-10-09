@@ -312,7 +312,7 @@ export async function checkEventScopeAndIsolation(
     );
   } finally {
     for (const name of Object.values(names)) {
-      await deleteTrigger(sql, orgId, name);
+      await deleteTrigger(sql, orgId, name, 'itest');
     }
     if (raisingRunId !== null) {
       const runId = raisingRunId;

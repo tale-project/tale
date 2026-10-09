@@ -2,11 +2,12 @@
 
 import { useMemo } from 'react';
 
+import { toModelOptions } from '@/lib/shared/harness-offer';
+
 import {
   useProjectCapabilityCatalog,
   useProjectHarnesses,
 } from '../hooks/queries';
-import { toModelOptions } from '../lib/model-options';
 import { ProjectAgentDialog } from './project-agent-dialog';
 
 /**

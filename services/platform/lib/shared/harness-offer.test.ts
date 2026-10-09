@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { offeredToHarness, toModelOptions } from './model-options';
+import { offeredToHarness, toModelOptions } from './harness-offer';
 
 /**
  * The agent pickers offer a model only where it can run: a subscription's

@@ -42,8 +42,14 @@ import type { Automation, Issue, RunResult } from '../core/types';
 import { connectorOutputShape } from '../core/typing/signature';
 import { validate, type ValidateOptions } from '../core/validate';
 import { searchCatalog } from './catalog-search';
-import { authoringReference } from './docs';
+import {
+  authoringReference,
+  CORE_NODE_KIND_REFERENCE,
+  type CoreNodeKind,
+} from './docs';
 import { METHODS } from './methods';
+import { isCodedRefusal, structuredRefusal } from './refusal';
+import { ACTIVE_RUN_STATUSES } from './run-statuses';
 import { runAutomationTests } from './tests';
 
 export { METHODS, type Method } from './methods';
@@ -115,6 +121,22 @@ export interface RunSummary {
   finishedAt?: number;
 }
 
+/** The question a run waits on a person to answer (`waitingFor: "ask"`):
+ * what `answer_run_ask` answers, by `askId`. */
+export interface RunAsk {
+  askId: string;
+  /** The node that asked. */
+  nodeId: string;
+  question: string;
+  /** The structured questions, when the step asked several at once. */
+  questions?: unknown;
+  createdAt: number;
+  /** When the run goes on without an answer, epoch ms. */
+  expiresAt: number;
+  /** The task the question is mirrored on, when there is one. */
+  taskId?: string;
+}
+
 /** One run in full — what `get_run` answers with once the host has recorded
  * the outcome. The trace and effects are the engine's own result fields, so a
  * polled run reads exactly like a synchronous one. */
@@ -123,6 +145,9 @@ export interface RunDetail extends RunSummary {
   output?: unknown;
   trace?: unknown;
   effects?: unknown;
+  /** The question the run waits on, while it waits on one: the one place an
+   * agent learns the `askId` and what to answer. */
+  ask?: RunAsk;
 }
 
 /** One entry of an automation's immutable version history. */
@@ -139,6 +164,79 @@ export interface VersionSummary {
   testsCheckedAt?: number;
   createdBy: string;
   createdAt: number;
+  /** The door the version was saved through (`app`, `upload`, `mcp`,
+   * `rest`, `managed`, `system`); null for a version saved before the host
+   * recorded it. A host that keeps no door leaves it out. */
+  createdVia?: string | null;
+  /** The name the saving agent's client gave itself; null when none. */
+  clientName?: string | null;
+}
+
+/** One version in full — what `get_automation` answers on a host that keeps
+ * the version's metadata: the document, the fields the editor saves beside
+ * it, who saved it through which door, and where it stands. */
+export interface VersionView {
+  name: string;
+  version: number;
+  latestVersion: number;
+  deployedVersion: number | null;
+  document: unknown;
+  settings: unknown;
+  taskContract: unknown;
+  presentation: unknown;
+  message: string | null;
+  testsPassed: boolean | null;
+  testsCheckedAt: number | null;
+  createdBy: string;
+  createdAt: number;
+  createdVia: string | null;
+  clientName: string | null;
+  /** The projects it is installed in that the caller can see. */
+  projectIds: string[];
+  trigger: TriggerView | null;
+}
+
+/** One time a version was put live — the history `list_versions` answers
+ * beside the versions, newest first. */
+export interface DeploymentEntry {
+  version: number;
+  /** What was live before it; null for the first deploy. */
+  previousVersion: number | null;
+  deployedAt: number;
+  /** The person who deployed it. */
+  deployedBy: string;
+  /** The door, when the host recorded it (`mcp`); null otherwise. */
+  via: string | null;
+}
+
+/** The version fields a save sends beside the document. On a host that
+ * keeps them, a field the caller left out keeps the latest version's value,
+ * `null` stores none, and a value stores itself. */
+export interface VersionMetadata {
+  settings?: unknown;
+  taskContract?: unknown;
+  presentation?: unknown;
+}
+
+/** What a save asks for beyond the document and its message. */
+export interface SaveOptions {
+  /** The save's own tests verdict, when the document carries tests. */
+  testsPassed?: boolean;
+  /** The version the edit started from: another version saved since
+   * refuses the save (`AUTOMATION_VERSION_STALE`). */
+  baseVersion?: number;
+  /** Refuse (`AUTOMATION_NAME_TAKEN`) when the name already has versions. */
+  create?: boolean;
+  /** The project a NEW automation is installed in (its first version). */
+  projectId?: string;
+  metadata?: VersionMetadata;
+}
+
+/** One page of a run listing, newest first, and where the next one starts. */
+export interface RunPage {
+  runs: RunSummary[];
+  /** Pass it back as `cursor` for the next page; null on the last one. */
+  nextCursor: string | null;
 }
 
 /** A trigger as a caller may see it — never the secret that verifies it. */
@@ -217,16 +315,33 @@ export interface DispatchStore extends StoreAdapter {
   save(
     automation: Automation,
     message?: string,
-    options?: { testsPassed?: boolean },
-  ): Promise<{ name: string; version: number }>;
+    options?: SaveOptions,
+  ): Promise<{
+    name: string;
+    version: number;
+    /** Which of `metadata`'s fields the host kept from the latest version
+     * because the caller left them out. */
+    carried?: string[];
+  }>;
   /** Promote a saved version. `options.testsPassed` is set when the deploy
    * gate just ran the version's tests and they passed — a host that keeps a
-   * per-version verdict stamps it, so the version reads as tested. */
+   * per-version verdict stamps it, so the version reads as tested.
+   * `options.expectedDeployedVersion` is compare-and-set on the live version
+   * (`null`: nothing live): another one live refuses the deploy
+   * (`AUTOMATION_DEPLOYMENT_STALE`). */
   deploy(
     name: string,
     version: number,
-    options?: { testsPassed?: boolean },
-  ): Promise<{ name: string; version: number }>;
+    options?: {
+      testsPassed?: boolean;
+      expectedDeployedVersion?: number | null;
+    },
+  ): Promise<{
+    name: string;
+    version: number;
+    /** What was live before; null when nothing was. */
+    previousVersion?: number | null;
+  }>;
   /** Record the deploy gate's verdict on a saved version WITHOUT deploying
    * it — the refusal's `false`, so the version reads as failing rather than
    * as never tested; the latest verdict wins. A host without a per-version
@@ -279,17 +394,52 @@ export interface DispatchStore extends StoreAdapter {
     duplicate?: boolean;
   } | null>;
   listRuns?(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
+  /** One page of runs, newest first. `cursor` is a `nextCursor` this host
+   * answered; null when it is not one (forged, from another listing). */
+  listRunsPage?(options: {
+    name?: string;
+    limit?: number;
+    mode?: 'mock' | 'live';
+    statuses?: string[];
+    cursor?: string;
+  }): Promise<RunPage | null>;
   getRun?(runId: string): Promise<RunDetail | null>;
   /** Stop a run. `cancelled: false` with a terminal `status` is a run that
    * had already finished; `cancelled: false` with NO `status` is a run that
    * does not exist (answered RUN_NOT_FOUND, like `get_run` and REST). */
   cancelRun?(runId: string): Promise<{ cancelled: boolean; status?: string }>;
   listVersions?(name: string): Promise<VersionSummary[]>;
+  /** The times a version of the automation was put live, newest first. */
+  listDeployments?(name: string): Promise<DeploymentEntry[]>;
   listTriggers?(name?: string): Promise<TriggerView[]>;
   /** Unbind the automation's trigger. `deleted` says whether one was bound —
    * an unbind that found nothing is not a change, and the caller must be
    * able to tell. */
   deleteTrigger?(name: string): Promise<{ deleted: boolean }>;
+  /** One version in full (the latest when `version` is omitted), or null
+   * when the automation or the version does not exist for this caller. */
+  getVersionView?(name: string, version?: number): Promise<VersionView | null>;
+  /** Remove the automation — every version, its trigger, its
+   * installations; its runs stay. `expectedLatestVersion` is
+   * compare-and-set: a version saved since refuses the delete
+   * (`AUTOMATION_VERSION_STALE`). */
+  deleteAutomation?(
+    name: string,
+    expectedLatestVersion: number,
+  ): Promise<{ versions: number }>;
+  /** Install the automation in projects and remove it from others, in one
+   * transaction; a project it is not installed in refuses the removal
+   * (`AUTOMATION_NOT_INSTALLED`). */
+  setAutomationProjects?(
+    name: string,
+    change: { add: string[]; remove: string[] },
+  ): Promise<{ added: string[]; removed: string[]; unchanged: string[] }>;
+  /** Answer the question a run asked a person; the run resumes on it. */
+  answerAsk?(
+    runId: string,
+    askId: string,
+    answer: string,
+  ): Promise<{ runId: string; askId: string; taskId: string | null }>;
 }
 
 /**
@@ -310,6 +460,10 @@ function coreKindHint(word: string): string | undefined {
   return coreKind === undefined
     ? undefined
     : `"${coreKind.type}" is a core node kind, not a catalog capability — get_docs describes it`;
+}
+
+function isCoreNodeKind(kind: string): kind is CoreNodeKind {
+  return Object.hasOwn(CORE_NODE_KIND_REFERENCE, kind);
 }
 
 async function missingAutomation(
@@ -352,11 +506,51 @@ export const DISPATCH_REFUSAL_CODES = [
   'AUTOMATION_VERSION_UNKNOWN',
   'AUTOMATION_NOT_DEPLOYED',
   'RUN_NOT_FOUND',
+  /** A `cursor` that is not a `nextCursor` this listing answered. */
+  'INVALID_CURSOR',
+  /** An answer to a run's question with nothing in it. */
+  'EMPTY_ANSWER',
 ] as const;
 
 const LIST_AUTOMATIONS_HINT = 'list_automations shows the saved ones';
 const RUN_ID_HINT =
   'start_run returns the runId; list_runs lists the recent ones';
+
+/**
+ * What to do about a refusal the HOST raises (its own `AutomationError`
+ * codes) that carries no hint of its own — a calling model reads the code
+ * and this sentence and corrects itself. A host hint, when it sends one,
+ * wins.
+ */
+const HOST_REFUSAL_HINTS: Readonly<Record<string, string>> = {
+  AUTOMATION_NAME_TAKEN:
+    'the name is in use, perhaps by an automation you cannot see: pick another name. To change one get_automation reads, save without create and with its version as baseVersion',
+  AUTOMATION_NAME_RESERVED:
+    'start the name with another segment, for example "ops/<name>"',
+  AUTOMATION_DEPLOYMENT_STALE:
+    'list_versions shows what is live (deployedVersion); deploy again with expectedDeployedVersion set to it if you still mean to replace it',
+  AUTOMATION_HAS_ACTIVE_RUNS: `cancel_run the runs still going (list_runs with statuses [${ACTIVE_RUN_STATUSES.map((status) => `"${status}"`).join(', ')}] shows them), or let them finish, then delete again`,
+  AUTOMATION_NOT_INSTALLED:
+    'list_automations shows the projects each automation is installed in (projectIds)',
+  AUTOMATION_PROJECT_UNKNOWN:
+    'list_automations shows the projects an automation is installed in; the project must exist in this organization',
+  HUMAN_ASK_NOT_FOUND:
+    'get_run {runId} answers the question the run waits on as run.ask (its askId and the question); no run.ask means it waits on none',
+  HUMAN_ASK_NOT_PENDING:
+    'the question was answered or closed already — get_run {runId} shows where the run stands',
+  HUMAN_ASK_EXPIRED:
+    'the run went on without the answer — get_run {runId} shows where it stands',
+  // The project gates every write that names a project goes through
+  // (set_automation_projects, a save's projectId, answering a project
+  // run's question): `ActorAuthError` / `ProjectError` carry no hint.
+  PROJECT_NOT_FOUND:
+    'list_projects shows the projects you can see; use one of their ids',
+  PROJECT_ARCHIVED:
+    'the project is archived — list_projects shows the active ones; ask the person to restore it in Tale if it is the one they mean',
+  RBAC_FORBIDDEN:
+    'the person cannot edit that project — list_projects marks the ones they can edit; tell them, or ask a project editor',
+  RUN_NOT_FOUND: RUN_ID_HINT,
+};
 const LIST_VERSIONS_HINT =
   'list_versions shows the saved versions of an automation';
 
@@ -379,24 +573,42 @@ function notSupported(what: string): {
  * error classes carry (`AutomationError`, `ActorAuthError`) so a client
  * can branch on it, and — where the host attached them — the `hint` that
  * says what to do and the structured `data` (the schema problems of a
- * refused run input). The catch sites used to keep only the sentence. A
- * thrown value without a code stays a bare message.
+ * refused run input). A structured refusal (the platform's `AppError`)
+ * is lifted from its payload, never from its `message`, which serializes
+ * the whole payload.
+ *
+ * Anything that is not a refusal (`refusal.ts`) is a FAULT and is thrown
+ * on: a store whose database is unreachable must not answer the socket's
+ * sentence as a refusal. The host answers a fault its own way — the MCP
+ * endpoint as `INTERNAL_ERROR` with the request id, logged and reported;
+ * the app's routes as their 500.
  */
 function refusalFrom(error: unknown): {
   error: string;
-  code?: string;
+  code: string;
   hint?: string;
   data?: Record<string, unknown>;
 } {
-  const message = error instanceof Error ? error.message : String(error);
-  if (error === null || typeof error !== 'object') return { error: message };
-  const code: unknown = Reflect.get(error, 'code');
-  const hint: unknown = Reflect.get(error, 'hint');
+  const structured = structuredRefusal(error);
+  if (structured !== null) {
+    const hint = HOST_REFUSAL_HINTS[structured.code];
+    return {
+      error: structured.message,
+      code: structured.code,
+      ...(hint !== undefined && { hint }),
+      ...(structured.data !== undefined && { data: structured.data }),
+    };
+  }
+  if (!isCodedRefusal(error)) throw error;
+  const { code } = error;
+  const own: unknown = Reflect.get(error, 'hint');
+  const hint =
+    typeof own === 'string' && own !== '' ? own : HOST_REFUSAL_HINTS[code];
   const data: unknown = Reflect.get(error, 'data');
   return {
-    error: message,
-    ...(typeof code === 'string' && code !== '' && { code }),
-    ...(typeof hint === 'string' && hint !== '' && { hint }),
+    error: error.message,
+    code,
+    ...(hint !== undefined && { hint }),
     ...(data !== null &&
       typeof data === 'object' &&
       !Array.isArray(data) && {
@@ -422,6 +634,13 @@ export interface DispatchContext {
    * with the run handle instead of the result. Hosts keep the defaults;
    * tests shorten them. */
   liveRunWait?: { timeoutMs?: number; pollMs?: number };
+  /**
+   * The host's further references `get_docs {topic}` serves beside the
+   * engine's own authoring reference (the MCP endpoint's triggers,
+   * validation and skill texts): the text of a topic, or undefined for one
+   * the host does not serve. Absent, only the authoring reference is served.
+   */
+  docs?: (topic: string) => string | undefined;
 }
 
 /** The default patience of a one-piece live run: long enough for the quick
@@ -493,7 +712,7 @@ async function runDeployedDurably(
       mode: 'live',
       status: run?.status ?? 'queued',
       ...duplicate,
-      note: `the run is still going after ${Math.round(timeoutMs / 1000)}s — poll get_run {runId} for its status, output, trace and effects`,
+      note: `the run is still going after ${Math.round(timeoutMs / 1000)}s — poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects`,
     };
   }
   return {
@@ -566,11 +785,199 @@ function detailParam(
   };
 }
 
+/** What `get_run` can answer beside the run's status, each the size of the
+ * run's own data. */
+const RUN_DETAIL = ['input', 'output', 'trace', 'effects'] as const;
+
+/**
+ * Read `params.detail` of get_run: which of the run's own data to answer.
+ * Omitted, all of it; `[]` the status alone — what a caller polling a long
+ * run reads, instead of its whole trace on every poll.
+ */
+function runDetailParam(
+  v: unknown,
+):
+  | { value: ReadonlySet<string> }
+  | { error: string; code: 'INVALID_PARAMS'; hint: string } {
+  if (v === undefined) return { value: new Set(RUN_DETAIL) };
+  const known = new Set<unknown>(RUN_DETAIL);
+  if (Array.isArray(v) && v.every((d) => known.has(d))) {
+    return { value: new Set(v.map(String)) };
+  }
+  return {
+    error: `params.detail must list some of ${RUN_DETAIL.map((d) => `"${d}"`).join(', ')} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'omit detail to get them all, or pass detail: [] for the status alone',
+  };
+}
+
 function paramsObject(params: unknown): Record<string, unknown> {
   return params !== null && typeof params === 'object' && !Array.isArray(params)
     ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- narrowed by the object check above
       (params as Record<string, unknown>)
     : {};
+}
+
+/** The version fields a save sent beside the document — each only when
+ * the caller named it, so a host that carries can tell "left out" from
+ * "cleared" (`null`). */
+function versionMetadata(p: Record<string, unknown>): VersionMetadata {
+  return {
+    ...('settings' in p &&
+      p.settings !== undefined && { settings: p.settings }),
+    ...('taskContract' in p &&
+      p.taskContract !== undefined && { taskContract: p.taskContract }),
+    ...('presentation' in p &&
+      p.presentation !== undefined && { presentation: p.presentation }),
+  };
+}
+
+/** A list of non-blank strings, or undefined when `v` is not one. */
+function stringList(v: unknown): string[] | undefined {
+  if (v === undefined) return [];
+  if (!Array.isArray(v)) return undefined;
+  const items = v.map(asString);
+  return items.every((item) => item.trim() !== '') ? items : undefined;
+}
+
+/** The saved version a `version` param names on a stored-version call:
+ * omitted = the latest saved one, `"deployed"` = the live one. A refusal
+ * when it names none. */
+async function storedVersion(
+  store: DispatchStore,
+  name: string,
+  version: unknown,
+): Promise<
+  | { version: number; automation: Automation }
+  | { error: string; code: string; hint: string }
+> {
+  let wanted: number | undefined;
+  if (version === 'deployed') {
+    const live = await store.deployedVersion(name);
+    if (live === null) {
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
+      return {
+        error: `"${name}" has no deployed version`,
+        code: 'AUTOMATION_VERSION_UNKNOWN',
+        hint: 'omit version to use the latest saved one — list_versions shows them',
+      };
+    }
+    wanted = live;
+  } else if (version !== undefined) {
+    const parsed = versionParam(version, 'omit it to use the latest saved one');
+    if ('error' in parsed) return parsed;
+    wanted = parsed.value;
+  }
+  const found = await store.get(name, wanted);
+  if (found === null) {
+    const missing = await missingAutomation(store, name);
+    if (missing) return missing;
+    return {
+      error: `no saved automation "${name}@${String(wanted)}"`,
+      code: 'AUTOMATION_VERSION_UNKNOWN',
+      hint: LIST_VERSIONS_HINT,
+    };
+  }
+  return {
+    version: found.meta.version,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
+    automation: found.automation as Automation,
+  };
+}
+
+/** A save refused because another version landed after the edit began, in
+ * the words an agent acts on: which version to read and merge into. The
+ * host's sentence is the editor's ("Reload to see it"). */
+function staleSave(
+  name: string,
+  refusal: ReturnType<typeof refusalFrom>,
+): Record<string, unknown> {
+  const latest: unknown = refusal.data?.latestVersion;
+  const base: unknown = refusal.data?.baseVersion;
+  if (typeof latest !== 'number') {
+    return {
+      ...refusal,
+      error: `"${name}" has no version any more — your edit started from v${String(base)}`,
+      hint: 'save it without baseVersion to recreate the automation from your document, or under a new name',
+    };
+  }
+  return {
+    ...refusal,
+    error: `v${latest} of "${name}" was saved after your edit started from v${String(base)}`,
+    hint: `get_automation {name: "${name}"} reads v${latest}; merge your change into it and save again with baseVersion: ${latest}`,
+  };
+}
+
+/** A delete refused because a version was saved after the one the agent
+ * read, in the words an agent acts on: it must not delete what it has not
+ * seen, so it reads the newer version and asks again — a save's "merge and
+ * save again" does not apply. */
+function staleDelete(
+  name: string,
+  refusal: ReturnType<typeof refusalFrom>,
+): Record<string, unknown> {
+  const latest: unknown = refusal.data?.latestVersion;
+  if (typeof latest !== 'number') {
+    return {
+      ...refusal,
+      error: `"${name}" has no version any more — it was deleted meanwhile`,
+      hint: 'nothing is left to delete; list_automations shows what exists',
+    };
+  }
+  return {
+    ...refusal,
+    hint: `get_automation {name: "${name}"} reads v${latest}, saved after the version you read; tell the person what changed, then delete again with expectedLatestVersion: ${latest} if they still want it gone`,
+  };
+}
+
+/** `get_automation` on a host that keeps a version's metadata: the
+ * document under the keys every client already reads (`meta`,
+ * `automation`), and beside them what the editor saves with it, who saved
+ * it through which door, and where it stands. */
+async function versionView(
+  store: DispatchStore,
+  name: string,
+  p: Record<string, unknown>,
+): Promise<unknown> {
+  let wanted: number | undefined;
+  if (p.version === 'deployed') {
+    const live = await store.deployedVersion(name);
+    if (live === null) {
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
+      return {
+        error: `"${name}" has no deployed version`,
+        code: 'AUTOMATION_VERSION_UNKNOWN',
+        hint: 'deploy_automation a saved version first — list_versions shows them',
+      };
+    }
+    wanted = live;
+  } else if (p.version !== undefined) {
+    const parsed = versionParam(
+      p.version,
+      'omit it to read the latest saved version',
+    );
+    if ('error' in parsed) return parsed;
+    wanted = parsed.value;
+  }
+  const view = (await store.getVersionView?.(name, wanted)) ?? null;
+  if (view === null) {
+    const missing = await missingAutomation(store, name);
+    if (missing) return missing;
+    return {
+      error: `no saved automation "${name}@${String(wanted)}"`,
+      code: 'AUTOMATION_VERSION_UNKNOWN',
+      hint: LIST_VERSIONS_HINT,
+    };
+  }
+  const { document, ...rest } = view;
+  return {
+    meta: { version: view.version },
+    automation: document,
+    ...rest,
+    deployed: view.deployedVersion === view.version,
+  };
 }
 
 export async function dispatch(
@@ -582,10 +989,19 @@ export async function dispatch(
   const { store } = ctx;
 
   switch (method) {
-    case 'get_docs':
+    case 'get_docs': {
       // The authoring reference serves MCP clients in the endpoint's own
       // dialect; it does not impose a host's system prompt or persona.
-      return { docs: authoringReference() };
+      const topic = asString(p.topic) || 'authoring';
+      if (topic === 'authoring') return { docs: authoringReference() };
+      const docs = ctx.docs?.(topic);
+      if (docs !== undefined) return { docs };
+      return {
+        error: `no reference on "${topic}" here`,
+        code: 'INVALID_PARAMS',
+        hint: 'omit topic for the authoring reference — the topics this host serves are listed in the tool schema',
+      };
+    }
 
     case 'get_catalog': {
       // The whole catalog with every input schema runs past 100 KB;
@@ -599,7 +1015,18 @@ export async function dispatch(
       // why (2026-09-19 evaluation, K8-4) — now the same hint search_catalog
       // gives.
       const core = kind === '' ? undefined : coreKindHint(kind);
-      if (core !== undefined) return { node_types: [], hint: core };
+      if (core !== undefined) {
+        // The kind's own section of the reference rides along, so a
+        // narrowed read (and the `tale://catalog/<kind>` resource built on
+        // it) answers what the kind is, not only where to look.
+        return {
+          node_types: [],
+          hint: core,
+          ...(isCoreNodeKind(kind)
+            ? { reference: CORE_NODE_KIND_REFERENCE[kind] }
+            : {}),
+        };
+      }
       const node_types = [];
       for (const t of nodeTypes().values()) {
         if (kind !== '' && t.kind !== kind) continue;
@@ -731,12 +1158,48 @@ export async function dispatch(
     }
 
     case 'test_automation': {
-      if (!p.automation) {
+      const name = asString(p.name);
+      if (p.automation === undefined && name === '') {
         return {
           error: 'missing params.automation',
           code: 'INVALID_PARAMS',
-          hint: 'test_automation takes {automation: <the automation document, with its tests: block>}',
+          hint: 'test_automation takes {automation: <the automation document, with its tests: block>} or {name, version?} of a saved one',
         };
+      }
+      if (p.automation !== undefined && name !== '') {
+        return {
+          error: 'params.automation and params.name both given',
+          code: 'INVALID_PARAMS',
+          hint: 'send the document to test a draft, or name a saved version — not both',
+        };
+      }
+      if (p.automation === undefined) {
+        // A saved version: its verdict is recorded on it, so the version
+        // history reads as tested — the deploy gate's own write.
+        const stored = await storedVersion(store, name, p.version);
+        if ('error' in stored) return stored;
+        const { errors, warnings } = await validate(stored.automation, {
+          store,
+        });
+        if (errors.length > 0) {
+          return {
+            status: 'invalid',
+            name,
+            version: stored.version,
+            errors,
+            warnings,
+          };
+        }
+        const report = await runAutomationTests(stored.automation, { store });
+        const tested = (stored.automation.tests?.length ?? 0) > 0;
+        if (tested && 'failed' in report) {
+          await store.recordTestVerdict?.(
+            name,
+            stored.version,
+            report.failed === 0,
+          );
+        }
+        return { name, version: stored.version, ...report };
       }
       const { errors, warnings } = await validate(p.automation, { store });
       if (errors.length > 0) return { status: 'invalid', errors, warnings };
@@ -776,27 +1239,51 @@ export async function dispatch(
         const report = await runAutomationTests(automation, { store });
         testsPassed = 'failed' in report && report.failed === 0;
       }
+      const baseVersion =
+        p.baseVersion === undefined
+          ? { value: undefined }
+          : versionParam(
+              p.baseVersion,
+              'name the version your edit started from — get_automation answers it as version',
+            );
+      if ('error' in baseVersion) return baseVersion;
+      const projectId = asString(p.projectId) || undefined;
       try {
-        const saved = await store.save(
-          automation,
-          asString(p.message),
-          testsPassed === undefined ? undefined : { testsPassed },
-        );
+        const saved = await store.save(automation, asString(p.message), {
+          ...(testsPassed !== undefined && { testsPassed }),
+          ...(baseVersion.value !== undefined && {
+            baseVersion: baseVersion.value,
+          }),
+          ...(p.create === true && { create: true }),
+          ...(projectId !== undefined && { projectId }),
+          metadata: versionMetadata(p),
+        });
         return {
-          ...saved,
+          name: saved.name,
+          version: saved.version,
           ...(testsPassed !== undefined && { testsPassed }),
           warnings,
+          // What the host kept from the latest version because the call
+          // left it out — the agent sees the effect of every save.
+          carried: saved.carried ?? [],
+          baseVersionChecked: baseVersion.value !== undefined,
         };
       } catch (e) {
         // The host's own refusals — a name it reserves for its fixed routes,
-        // a name another owner holds — are refusals, not protocol errors:
-        // they come back as data so the caller can rename and retry.
-        return refusalFrom(e);
+        // a name another owner holds, a version saved since the edit began —
+        // are refusals, not protocol errors: they come back as data so the
+        // caller can rename, merge and retry.
+        const refusal = refusalFrom(e);
+        if (refusal.code === 'AUTOMATION_VERSION_STALE') {
+          return staleSave(asString(automation.name), refusal);
+        }
+        return refusal;
       }
     }
 
     case 'get_automation': {
       const name = asString(p.name);
+      if (store.getVersionView) return await versionView(store, name, p);
       // "deployed" reads the version that actually runs — the REST door's
       // `?version=deployed`, which MCP lacked (2026-09-14 evaluation, h9).
       if (p.version === 'deployed') {
@@ -872,6 +1359,18 @@ export async function dispatch(
           errors,
         };
       }
+      const expected = p.expectedDeployedVersion;
+      if (
+        expected !== undefined &&
+        expected !== null &&
+        !Number.isInteger(expected)
+      ) {
+        return {
+          error: `params.expectedDeployedVersion must be a whole number or null — got ${JSON.stringify(expected)}`,
+          code: 'INVALID_PARAMS',
+          hint: 'list_versions answers deployedVersion — pass it as read, null while nothing is deployed',
+        };
+      }
       let testsPassed: boolean | undefined;
       if (automation.tests && automation.tests.length > 0) {
         const report = await runAutomationTests(automation, { store });
@@ -891,17 +1390,60 @@ export async function dispatch(
         testsPassed = true;
       }
       try {
-        const deployed = await store.deploy(
-          name,
-          version,
-          testsPassed === undefined ? undefined : { testsPassed },
-        );
+        const deployed = await store.deploy(name, version, {
+          ...(testsPassed !== undefined && { testsPassed }),
+          ...(expected !== undefined && {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a whole number or null, checked above
+            expectedDeployedVersion: expected as number | null,
+          }),
+        });
+        const previousVersion = deployed.previousVersion ?? null;
         return {
-          deployed,
-          note: 'this version is now live-eligible via run_deployed and triggers',
+          deployed: { name: deployed.name, version: deployed.version },
+          // What was live before: deploy it again to undo this one.
+          previousVersion,
+          note:
+            previousVersion === null || previousVersion === deployed.version
+              ? 'this version is now live-eligible via run_deployed and triggers'
+              : `this version is now live-eligible via run_deployed and triggers; v${previousVersion} was live before — deploy_automation it again to roll back`,
         };
       } catch (e) {
         return refusalFrom(e);
+      }
+    }
+
+    case 'delete_automation': {
+      if (!store.deleteAutomation)
+        return notSupported('deleting automations is');
+      const name = asString(p.name);
+      if (!name) {
+        return {
+          error: 'missing params.name',
+          code: 'INVALID_PARAMS',
+          hint: LIST_AUTOMATIONS_HINT,
+        };
+      }
+      const expected = versionParam(
+        p.expectedLatestVersion,
+        'name the latest version you read — get_automation answers it as latestVersion',
+      );
+      if ('error' in expected) return expected;
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
+      try {
+        const { versions } = await store.deleteAutomation(name, expected.value);
+        return {
+          deleted: true,
+          name,
+          versions,
+          note: 'every version, the trigger and the installations are gone; the run history stays',
+        };
+      } catch (e) {
+        const refusal = refusalFrom(e);
+        if (refusal.code === 'AUTOMATION_VERSION_STALE') {
+          return staleDelete(name, refusal);
+        }
+        return refusal;
       }
     }
 
@@ -1029,10 +1571,34 @@ export async function dispatch(
           ? { value: undefined }
           : versionParam(p.version, 'omit it to run the deployed version');
       if ('error' in wanted) return wanted;
-      const version = wanted.value;
-      // The host's own execution mode: a deployment runs live, a test session
-      // runs against mocks — the same rule `run_deployed` follows.
-      const mode = ctx.allowLive ? 'live' : 'mock';
+      // Live by default, as on the REST door; a host that does not run live
+      // (a test session) defaults to the mocks, and refuses live.
+      const mode = p.mode ?? (ctx.allowLive ? 'live' : 'mock');
+      if (mode !== 'mock' && mode !== 'live') {
+        return {
+          error: `unknown mode "${String(p.mode)}"`,
+          code: 'INVALID_PARAMS',
+          hint: 'mode is "live" (the deployed version, real effects) or "mock" (any saved version, against the mocks)',
+        };
+      }
+      if (mode === 'live' && !ctx.allowLive) {
+        return {
+          error: 'live mode is not enabled in this environment',
+          code: 'LIVE_MODE_UNAVAILABLE',
+          hint: 'start it with mode: "mock"; live execution is enabled on deployment',
+        };
+      }
+      // A mock start runs the latest SAVED version unless one is named — the
+      // version being built, not the one that is live.
+      let version = wanted.value;
+      if (mode === 'mock' && version === undefined) {
+        const latest = await store.get(name);
+        if (latest === null) {
+          const missing = await missingAutomation(store, name);
+          if (missing) return missing;
+        }
+        version = latest?.meta.version;
+      }
       const projectId = asString(p.projectId) || undefined;
       const idempotencyKey = asString(p.idempotencyKey) || undefined;
       try {
@@ -1058,9 +1624,14 @@ export async function dispatch(
           mode,
           note:
             started.duplicate === true
-              ? 'this idempotencyKey already started this run — no new run was started; poll get_run {runId} for its status, output, trace and effects'
-              : 'the run continues in the background — poll get_run {runId} for its status, output, trace and effects',
-          hint: 'use run_deployed instead when you want the finished result in a single call',
+              ? 'this idempotencyKey already started this run — no new run was started; poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects'
+              : mode === 'mock'
+                ? 'the mock run continues in the background against the mocks — nothing leaves Tale, and it is recorded in the run history; poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects'
+                : 'the run continues in the background — poll get_run {runId, detail: []} for its status, then get_run {runId} once it finished for its output, trace and effects',
+          hint:
+            mode === 'mock'
+              ? 'start_run with mode "live" runs the deployed version for real'
+              : 'use run_deployed instead when you want the finished result in a single call',
         };
       } catch (e) {
         const refusal = refusalFrom(e);
@@ -1071,7 +1642,7 @@ export async function dispatch(
           return {
             ...refusal,
             error: `"${name}@${String(version)}" is not the deployed version, and a live start runs only that one`,
-            hint: 'omit version to run the deployed version, deploy_automation {name, version} first, or run_automation {automation, mode: "mock"} to try the document',
+            hint: 'omit version to run the deployed version, deploy_automation {name, version} first, or start it with mode: "mock" to try that version against the mocks',
           };
         }
         return refusal;
@@ -1079,13 +1650,41 @@ export async function dispatch(
     }
 
     case 'list_runs': {
-      if (!store.listRuns) return notSupported('run history is');
+      if (!store.listRuns && !store.listRunsPage) {
+        return notSupported('run history is');
+      }
       const name = asString(p.name);
       const limit = p.limit === undefined ? undefined : Number(p.limit);
-      const runs = await store.listRuns({
-        ...(name !== '' && { name }),
-        ...(limit !== undefined && Number.isFinite(limit) && { limit }),
-      });
+      const cursor = asString(p.cursor) || undefined;
+      const statuses = stringList(p.statuses);
+      const mode = p.mode === 'mock' || p.mode === 'live' ? p.mode : undefined;
+      let runs: RunSummary[];
+      let nextCursor: string | null = null;
+      if (store.listRunsPage) {
+        const page = await store.listRunsPage({
+          ...(name !== '' && { name }),
+          ...(limit !== undefined && Number.isFinite(limit) && { limit }),
+          ...(mode !== undefined && { mode }),
+          ...(statuses !== undefined && statuses.length > 0 && { statuses }),
+          ...(cursor !== undefined && { cursor }),
+        });
+        if (page === null) {
+          return {
+            error: 'params.cursor is not a nextCursor this listing answered',
+            code: 'INVALID_CURSOR',
+            hint: 'pass the nextCursor list_runs answered, unchanged and with the same name, or omit cursor for the first page',
+          };
+        }
+        runs = page.runs;
+        nextCursor = page.nextCursor;
+      } else if (store.listRuns) {
+        runs = await store.listRuns({
+          ...(name !== '' && { name }),
+          ...(limit !== undefined && Number.isFinite(limit) && { limit }),
+        });
+      } else {
+        return notSupported('run history is');
+      }
       if (name !== '' && runs.length === 0) {
         // A name that exists with no runs and a name that does not exist
         // used to read the same ({runs: []}); the second is a refusal —
@@ -1095,7 +1694,7 @@ export async function dispatch(
         const missing = await missingAutomation(store, name);
         if (missing) return missing;
       }
-      return { runs };
+      return { runs, nextCursor };
     }
 
     case 'get_run': {
@@ -1108,14 +1707,26 @@ export async function dispatch(
           hint: RUN_ID_HINT,
         };
       }
+      const detail = runDetailParam(p.detail);
+      if ('error' in detail) return detail;
       const run = await store.getRun(runId);
-      return run
-        ? { run }
-        : {
-            error: `no run "${runId}"`,
-            code: 'RUN_NOT_FOUND',
-            hint: RUN_ID_HINT,
-          };
+      if (!run) {
+        return {
+          error: `no run "${runId}"`,
+          code: 'RUN_NOT_FOUND',
+          hint: RUN_ID_HINT,
+        };
+      }
+      // The run's own data the caller left out of `detail` is dropped; its
+      // status, its scope and the question it waits on always stay.
+      const dropped = RUN_DETAIL.filter((key) => !detail.value.has(key));
+      return {
+        run: Object.fromEntries(
+          Object.entries(run).filter(
+            ([key]) => !(dropped as readonly string[]).includes(key),
+          ),
+        ),
+      };
     }
 
     case 'cancel_run': {
@@ -1176,7 +1787,82 @@ export async function dispatch(
           deployed: version.version === deployedVersion,
         }),
       );
-      return { deployedVersion, versions };
+      // When each version went live, and what was live before it — the
+      // history a rollback (deploy_automation of an older version) reads.
+      return store.listDeployments
+        ? {
+            deployedVersion,
+            versions,
+            deployments: await store.listDeployments(name),
+          }
+        : { deployedVersion, versions };
+    }
+
+    case 'set_automation_projects': {
+      if (!store.setAutomationProjects) {
+        return notSupported('installing automations in projects is');
+      }
+      const name = asString(p.name);
+      const add = stringList(p.add);
+      const remove = stringList(p.remove);
+      if (!name || add === undefined || remove === undefined) {
+        return {
+          error:
+            'set_automation_projects takes {name, add?: [projectId], remove?: [projectId]}',
+          code: 'INVALID_PARAMS',
+          hint: 'list_automations shows the projects each automation is installed in (projectIds)',
+        };
+      }
+      if (add.length === 0 && remove.length === 0) {
+        return {
+          error: 'nothing to change — add and remove are both empty',
+          code: 'INVALID_PARAMS',
+          hint: 'name at least one project to install it in (add) or remove it from (remove)',
+        };
+      }
+      const missing = await missingAutomation(store, name);
+      if (missing) return missing;
+      try {
+        return {
+          name,
+          ...(await store.setAutomationProjects(name, { add, remove })),
+        };
+      } catch (e) {
+        return refusalFrom(e);
+      }
+    }
+
+    case 'answer_run_ask': {
+      if (!store.answerAsk) return notSupported('answering a run is');
+      const runId = asString(p.runId);
+      const askId = asString(p.askId);
+      if (!runId || !askId) {
+        return {
+          error: 'answer_run_ask takes {runId, askId, answer}',
+          code: 'INVALID_PARAMS',
+          hint: 'get_run {runId} answers the question a waiting run asks as run.ask (askId, question)',
+        };
+      }
+      const answer = asString(p.answer).trim();
+      if (answer === '') {
+        return {
+          error: 'the answer is blank — send the text the run should resume on',
+          code: 'EMPTY_ANSWER',
+          hint: 'answer the question in words; the run reads them as the person’s answer',
+        };
+      }
+      try {
+        const answered = await store.answerAsk(runId, askId, answer);
+        return {
+          answered: true,
+          runId: answered.runId,
+          askId: answered.askId,
+          taskId: answered.taskId,
+          note: 'the run resumes on the answer — poll get_run {runId} for where it goes next',
+        };
+      } catch (e) {
+        return refusalFrom(e);
+      }
     }
 
     case 'list_triggers': {

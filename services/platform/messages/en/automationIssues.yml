@@ -343,6 +343,31 @@ codes:
     explanation: The model of an llm or agent node must be served by one of the organization's connected providers. Otherwise, a live run fails at this node.
     cause: '{nodeLabel} uses "{model}", which no connected provider serves.'
     fix: Pick a model a connected provider serves, or connect the provider for this one.
+  SKILL_UNKNOWN:
+    title: Skill not found
+    explanation: An agent node asks for a skill this organization doesn't have, or one that isn't shared with where the automation runs. The node fails when it runs.
+    cause: '{nodeLabel} asks for the skill "{skill}".'
+    fix: '{suggestion, select, none {Add the skill in Settings › Skills, or remove it from the node.} other {Did you mean "{suggestion}"?}}'
+  CONNECTOR_NOT_CONNECTED:
+    title: Connector not connected
+    explanation: A node uses a connector that isn't connected in this organization, so a live run can't reach that app.
+    cause: '{catalogued, select, true {{nodeLabel} uses "{connector}", which nobody has connected yet.} other {{nodeLabel} uses "{connector}", which this deployment doesn''t offer.}}'
+    fix: '{catalogued, select, true {Connect it in Settings › Connectors.} other {{suggestion, select, none {Pick a connector from the catalog.} other {Did you mean "{suggestion}"?}}}}'
+  SECRET_UNKNOWN:
+    title: Secret not found
+    explanation: An agent node asks for a secret this organization hasn't stored, so the agent runs without it.
+    cause: '{nodeLabel} asks for the secret "{secret}".'
+    fix: '{suggestion, select, none {Add the secret under Secrets in this node, or remove it from the node.} other {Did you mean "{suggestion}"?}}'
+  HARNESS_UNKNOWN:
+    title: Agent runtime not available
+    explanation: An agent node names an agent runtime this deployment can't run, so the node fails when it runs.
+    cause: '{nodeLabel} uses "{harness}". Available: {availableList}.'
+    fix: Pick one of the available agent runtimes, or leave it empty to use the default.
+  EVENT_UNKNOWN:
+    title: Event never happens
+    explanation: The trigger waits for an event Tale doesn't raise, so it never starts a run.
+    cause: 'The trigger waits for "{event}".'
+    fix: '{suggestion, select, none {Choose an event from the list.} other {Did you mean "{suggestion}"?}}'
   OUTPUT_MISSING:
     title: No output
     explanation: The output is what the automation returns. Without one, every run returns nothing.

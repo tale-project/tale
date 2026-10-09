@@ -385,7 +385,7 @@ async function readWorkerFacts(
   // every kick names that one, so counting the name would send a task's
   // next run away from its own worker, and a burst of starts to new
   // workers, whenever another start came a moment earlier. The name still
-  // guards the worker against an idle release (`SBX-R18`). A start by an
+  // guards the worker against an idle release (`SBX-R19`). A start by an
   // image that never claims shares worker 1 with a claim while both images
   // serve; the per-session limit on processes bounds that.
   const others = await tx<{ sessionId: string }[]>`

@@ -1044,6 +1044,18 @@ export async function processErasure(
     return removed.length;
   });
 
+  // The subject's coding agents' daily call counters (when, which method and
+  // tool, the client's own name): kept for their activity view, never as
+  // evidence, so they go with the person.
+  await pass('mcpActivity', async () => {
+    const removed = await sql<{ day: number }[]>`
+      DELETE FROM app.mcp_client_activity
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING day
+    `;
+    return removed.length;
+  });
+
   await pass('memories', async () => {
     const removed = await sql<{ id: string }[]>`
       DELETE FROM app.memories

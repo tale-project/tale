@@ -486,8 +486,8 @@ export async function checkTriggerStreakLockOrder(
       );
     }
   } finally {
-    await deleteTrigger(sql, orgId, name);
-    await deleteTrigger(sql, removalOrgId, name);
+    await deleteTrigger(sql, orgId, name, 'itest');
+    await deleteTrigger(sql, removalOrgId, name, 'itest');
     await sql.begin(async (fixtureTx) => {
       await markAutomationWriterInTx(fixtureTx);
       return fixtureTx`

@@ -112,6 +112,18 @@ export const CODES = {
   LLM_MODEL_UNAVAILABLE:
     'an llm/agent model should be one a connected provider of the organization serves',
 
+  // What the organization has.
+  SKILL_UNKNOWN:
+    "an agent step's skills should be skills a run of the automation can reach",
+  CONNECTOR_NOT_CONNECTED:
+    'a connector a step uses should be one the organization connected',
+  SECRET_UNKNOWN:
+    "an agent step's secrets should be secrets the organization stored",
+  HARNESS_UNKNOWN:
+    "an agent step's runtime should be one this deployment can run",
+  EVENT_UNKNOWN:
+    'an event trigger should wait for an event the platform raises',
+
   // Document quality.
   OUTPUT_MISSING: 'an automation without output returns null',
   UNUSED_NODE:
@@ -456,6 +468,32 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     level: 'warning',
     family: 'contract',
     params: ['node', 'model'],
+  },
+  SKILL_UNKNOWN: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'skill', 'suggestion?'],
+  },
+  // `catalogued` is false for a name this deployment has no connector by.
+  CONNECTOR_NOT_CONNECTED: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'connector', 'catalogued', 'suggestion?'],
+  },
+  SECRET_UNKNOWN: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'secret', 'suggestion?'],
+  },
+  HARNESS_UNKNOWN: {
+    level: 'warning',
+    family: 'contract',
+    params: ['node', 'harness', 'available'],
+  },
+  EVENT_UNKNOWN: {
+    level: 'warning',
+    family: 'contract',
+    params: ['event', 'suggestion?'],
   },
   OUTPUT_MISSING: { level: 'warning', family: 'quality', params: [] },
   UNUSED_NODE: {

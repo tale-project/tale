@@ -1668,7 +1668,7 @@ async function latestVersion(
  * back, still on, and keeps the notice current at every occurrence.
  * Idempotent: a recorded refusal is enough.
  */
-export async function ensureTriggerSkipNotice(
+async function ensureTriggerSkipNotice(
   page: Page,
   orgId: string,
 ): Promise<void> {
@@ -1707,7 +1707,7 @@ export async function ensureTriggerSkipNotice(
  * runs are enough, and each delivery's `Idempotency-Key` makes a repeat
  * answer the run it already started.
  */
-export async function ensureWebhookDeliveries(
+async function ensureWebhookDeliveries(
   page: Page,
   orgId: string,
   projects: ReadonlyMap<string, string>,

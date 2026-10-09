@@ -198,6 +198,7 @@ export async function writeManagedAutomation(
               ...scope,
               ...resource.config,
               document,
+              origin: { via: 'managed' },
               ...(message === undefined ? {} : { message }),
               ...(options?.testsPassed === undefined
                 ? {}

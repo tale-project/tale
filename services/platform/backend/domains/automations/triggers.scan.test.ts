@@ -794,7 +794,7 @@ describe('scanScheduledTriggers', () => {
  * repeats starts once, at its first instant; "every N minutes" keeps its
  * pace in real time, so a repeated quarter hour starts twice.
  */
-describe('a schedule through daylight-saving changes [AUTO-R27]', () => {
+describe('a schedule through daylight-saving changes [AUTO-R29]', () => {
   const zurich = (
     id: string,
     repeat: Record<string, unknown>,
@@ -901,7 +901,7 @@ describe('a schedule through daylight-saving changes [AUTO-R27]', () => {
  * The others are counted in `missed_occurrences`, never run; a fire's own
  * outcome wins over the count, which rides in its detail.
  */
-describe('missed occurrences [AUTO-R28]', () => {
+describe('missed occurrences [AUTO-R32]', () => {
   // A daily 09:00 schedule, down from 08:30 on the 6th until 10:15 on the
   // 8th: the 6th, 7th and 8th at 09:00 came due while nothing ran.
   const sixth = NINE - 2 * DAY;

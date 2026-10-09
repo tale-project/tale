@@ -448,7 +448,7 @@ describe('POST …/runs/{runId}/asks/{askId}', () => {
     );
     expect(res.status).toBe(200);
     expect(warn).toHaveBeenCalledWith(
-      '[rest] ask answer comment mirror failed',
+      '[automations] ask answer comment mirror failed',
       expect.objectContaining({ askId: 'ask-1' }),
     );
     warn.mockRestore();

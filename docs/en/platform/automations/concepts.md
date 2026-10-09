@@ -121,6 +121,12 @@ A condition that always gives the same answer decides nothing. Text around a tem
 
 A `subautomation` node is checked against the version a run would call: the version it names, otherwise the deployed one, otherwise the latest. That version must exist and contain no `agent` node. Tale warns when the input does not fit its `inputs`, and when it performs a write that an approval could hold, because a called automation cannot wait. A schedule trigger whose start input the automation's `inputs` refuses is reported as well.
 
+### What the organization has {#checks-organization}
+
+Tale also compares an `agent` node with your organization. It warns when the node asks for a skill that no run of the automation can use, a connector nobody has connected, a secret nobody has stored, or an agent runtime this deployment can't run. A node that runs a connector action nobody has connected gets the same warning, and so does an event trigger that waits for an event Tale doesn't raise. When the automation runs, a missing skill or agent runtime fails the node, a node without its connector can't reach that app, and a missing secret is simply not there.
+
+These stay warnings because your organization can change before the run: connect the connector or add the skill, and the next check no longer reports it. Only Owners, Admins and Developers are told about secrets, because only they can see which secrets exist.
+
 ### Tests {#checks-tests}
 
 A test's input must fit `inputs`, each expected effect must come from a node that performs it, and an expected output value must have a type the automation can return. A test that breaks one of these rules can never pass, so Tale warns before you run it.

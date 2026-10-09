@@ -33,6 +33,27 @@ export const EMITTED_EVENT_TYPES = [
 ] as const;
 export type EventType = (typeof EMITTED_EVENT_TYPES)[number];
 
+/**
+ * What each raised event means, in one agent-facing English sentence — the
+ * MCP endpoint's event listing answers it, so an agent binding an event
+ * trigger reads when it fires instead of guessing from the name. Exhaustive
+ * over `EventType`: a new event cannot be raised without saying when. The
+ * app's trigger editor keeps its own localized labels.
+ */
+export const EVENT_DESCRIPTIONS = {
+  'contact.created': 'A contact was added to the organization.',
+  'contact.updated': "A contact's details changed.",
+  'contact.deleted': 'A contact was deleted.',
+  'conversation.created': 'A conversation was created.',
+  'conversation.message_received': 'A message arrived in a conversation.',
+  'project.created': 'A project was created.',
+  'task.created':
+    'A task was created — in the app, through the API, or as the next one of a repeating task.',
+  'task.status_changed': "A task's status changed.",
+  'comment.created': 'A comment was posted on a task.',
+  'comment.mentioned': 'A comment on a task mentioned someone.',
+} as const satisfies { readonly [K in EventType]: string };
+
 /** Declared, not raised — see the module header. A producer that starts
  * raising one MOVES it into `EMITTED_EVENT_TYPES` (the guard test insists). */
 export const RESERVED_EVENT_TYPES = [

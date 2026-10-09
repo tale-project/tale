@@ -25,6 +25,8 @@ export const SCHEDULES: CronSchedule[] = [
   // loginAttempts carry a 30-day retention (GDPR minimization); the hourly
   // block counters age out after 90 days. Daily sweep.
   { name: 'maintenance.login_attempts_ttl', cron: '40 3 * * *' },
+  // An MCP client's daily call counters are kept 90 days. Daily sweep.
+  { name: 'maintenance.mcp_activity_ttl', cron: '50 3 * * *' },
   // Realtime hints are reclaimed lazily by the `/events` poll loops, which
   // only run while a browser is connected: a headless deployment (REST and
   // automation use, nights, weekends) inserts hints on every write and

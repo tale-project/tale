@@ -464,8 +464,8 @@
     "slug": "platform/automations/assistant",
     "locale": "de",
     "frontmatter": {
-      "title": "Den Weg zur Automation wählen",
-      "description": "Bearbeite Workflows direkt im visuellen Editor oder verbinde einen externen Assistenten über MCP mit Tale."
+      "title": "Den Weg zur Automatisierung wählen",
+      "description": "Ändere Workflows direkt im visuellen Editor oder lass deinen Coding-Agent Automatisierungen über den MCP-Endpoint von Tale bearbeiten."
     }
   },
   "de:platform/automations/builtin": {
@@ -1617,7 +1617,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Choose how to author an automation",
-      "description": "Use the visual editor for direct changes or connect an external assistant to Tale through MCP."
+      "description": "Use the visual editor for direct changes, or have your coding agent edit automations through Tale’s MCP endpoint."
     }
   },
   "en:platform/automations/builtin": {
@@ -2769,7 +2769,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Choisir comment créer une automatisation",
-      "description": "Modifie directement le workflow dans l’éditeur visuel ou connecte un assistant externe à Tale avec MCP."
+      "description": "Modifie directement le workflow dans l’éditeur visuel ou laisse ton agent de code modifier les automatisations par l’endpoint MCP de Tale."
     }
   },
   "fr:platform/automations/builtin": {

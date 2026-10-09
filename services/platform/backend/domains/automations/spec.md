@@ -21,6 +21,7 @@ then belongs to the project it ran in.
 | Change an automation | yes | no |
 | Start a live run | yes | no |
 | See a run in a project | only when they can read that project | only when they can read that project |
+| See an automation installed only in projects | when they can read one of them | when they can read one of them |
 | Have a draft checked for problems | yes | no |
 
 Four things are not settled and are listed under Not yet: who can see a run of the
@@ -53,6 +54,20 @@ automation is installed in. A project of another organization is hidden the same
   run's input is shown.
 - **Example**: Zoe belongs to a different organization. With her own API key she asks for a run
   at this project's address → not found, as for a project that does not exist.
+
+### AUTO-R27 · An automation installed only in projects you cannot read is hidden from you
+
+An automation installed nowhere belongs to the organization and every member sees it. One
+installed in projects is seen by whoever can read one of them. For anyone else it is left out
+of the automation list and of the list over the API and MCP, and reading it, its versions or
+its trigger over the API or MCP answers "not found", as for one that does not exist. Its runs by
+name answer "not found" too, unless runs of it are in a scope the person can read. Listed with
+no installations, it would read as an organization automation, where it cannot run.
+
+- **Example**: `hr/onboarding` is installed only in a project shared with the HR team. Mia, an
+  ordinary member outside that team, lists the automations with her API key → it is not there;
+  she asks for its versions → "not found"; she asks for its runs → "not found", as for a name
+  nobody saved. Ada, in the HR team, sees it and its versions.
 
 ## Versions and deployment
 
@@ -91,6 +106,24 @@ version, deployed or not.
   2 → refused. He starts a test run of version 2 → it runs.
 - **Example**: A schedule is switched on for an automation with nothing deployed. Its time
   comes → no run starts, and the trigger shows `not_deployed`.
+
+### AUTO-R28 · Every change to an automation's definition leaves an audit row
+
+Saving a version, deploying one, setting or removing the trigger, installing the automation in
+a project or removing it from one, and deleting the automation each write a row to the audit
+log in the same step, whoever made the change and through whichever door: the app, a package
+upload, the API, a coding agent, managed configuration. The row names the automation, the
+versions or the project involved and who made the change, never the document or a webhook
+token. A change that changed nothing, such as an install that was already there, writes none.
+A change made with an API key, through the REST API or a coding agent, is recorded as the key's
+(actor type API), naming the key and the request, never as a change made in the app.
+
+- **Example**: Ben deploys version 7 over version 6 → the audit log shows "Automation deployed"
+  by Ben, from version 6 to version 7. He installs it again in a project it is already in → no
+  new row.
+- **Example**: Ada's key "ci" deletes `billing/dunning` through the REST API → the row reads
+  "Automation deleted" by Ada, actor type API, with the key's id and the request id, so an
+  admin knows which key to revoke.
 
 ## Checking a version for problems
 
@@ -293,7 +326,7 @@ and event triggers count the same way and are never switched off.
   fifth run fails the same way → the schedule is switched off and marked
   `paused_after_failures`.
 
-### AUTO-R27 · A schedule starts each occurrence once, at the local time it names
+### AUTO-R29 · A schedule starts each occurrence once, at the local time it names
 
 A schedule keeps the time of day it names in its time zone through daylight-saving changes. A
 time the clock skips that day starts once, moved forward by the gap; a time the clock repeats
@@ -306,7 +339,7 @@ day, one whose minute or hour starts with `*` keeps its pace.
   on 29 March 2026, when the clock skips 02:30, and once, at the first 02:30, on 25 October
   2026, when the clock shows 02:30 twice.
 
-### AUTO-R28 · A schedule that missed occurrences starts one at most, and counts the rest
+### AUTO-R32 · A schedule that missed occurrences starts one at most, and counts the rest
 
 When the platform was not running at an occurrence, the schedule decides what to start when it
 is back. "Latest", the default, starts the most recent missed occurrence once, however late.
@@ -319,7 +352,7 @@ was saved, are not missed.
   10:15 → with Latest, a run starts at 10:15 for the 09:00 occurrence; with Skip, no run
   starts, and the trigger shows one missed occurrence.
 
-### AUTO-R29 · A trigger whose input the deployed version refuses is saved with a warning
+### AUTO-R31 · A trigger whose input the deployed version refuses is saved with a warning
 
 Saving a trigger, and deploying a version, checks what the trigger will hand each run against
 the inputs of the version that runs: its own fields and its fixed input, an event's payload
@@ -493,8 +526,8 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   across the organization's address and a project's (`triggers.ts`,
   `backend/core/automations/webhook_delivery.ts`).
 - **Schedules in detail**: two scans meeting the same occurrence, and a schedule that became
-  unreadable (`triggers.ts`, `lib/automations/schedule/occurrences.ts`); `AUTO-R27` covers
-  daylight-saving changes and `AUTO-R28` missed occurrences.
+  unreadable (`triggers.ts`, `lib/automations/schedule/occurrences.ts`); `AUTO-R29` covers
+  daylight-saving changes and `AUTO-R32` missed occurrences.
 - **Triggers of an organization that no longer exists** (`triggers.ts`).
 - **Switching a trigger off**: what it stops beyond the next start, such as a project agent a
   schedule had started (`triggers.ts`, `backend/core/automations/agent_host.ts`).
@@ -508,7 +541,8 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   `backend/rest/v1-automations.ts`).
 - **Package upload with its carried skills, managed configuration, and the builder and MCP
   doors** (`upload.ts`, `backend/core/automations/upload_impl.ts`, `managed-configuration.ts`,
-  `dispatch-store.ts`, `backend/core/automations_builder/`).
+  `dispatch-store.ts`, `backend/core/automations_builder/`, `backend/domains/mcp/`); the MCP
+  door's own rules are the [MCP spec](../mcp/spec.md).
 - **Undecided: who can stop a run?** The app's own run endpoints let any member stop a run of
   the organization, and an editor of the project stop a run in a project, an archived one
   included (`routes.ts`, `project-visibility.ts`). The API and MCP let only an owner, admin or
@@ -552,7 +586,7 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in
   `store.ts`). The project settings of an existing automation refuse an archived project
   (`AUTO-R8`) and answer a project the author cannot read like a missing one.
-- **A webhook's body is never checked when it is saved.** `AUTO-R29` warns about what is known
+- **A webhook's body is never checked when it is saved.** `AUTO-R31` warns about what is known
   before a request comes — a required field the fixed input lacks, a `payload` the inputs do
   not take — but a delivery whose body the inputs refuse is refused only when it comes, and the
   contract debt ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records that it
