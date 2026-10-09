@@ -350,6 +350,7 @@ trigger:
       notObject: 'The fixed input must be a JSON object.'
       reservedKey: 'Remove {keys}: the trigger sets these fields itself.'
       tooLarge: 'The fixed input is larger than 16 KiB.'
+      unstorableText: 'The fixed input contains a character that can''t be stored: a NUL character or half of an emoji.'
     event:
       required: 'Pick an event.'
       unknown: 'Tale doesn''t raise this event.'

@@ -353,6 +353,7 @@ trigger:
       notObject: 'L’entrée fixe doit être un objet JSON.'
       reservedKey: 'Retire {keys} : le déclencheur définit ces champs lui-même.'
       tooLarge: 'L’entrée fixe dépasse 16 Kio.'
+      unstorableText: 'L’entrée fixe contient un caractère impossible à enregistrer : un caractère NUL ou la moitié d’un emoji.'
     event:
       required: 'Choisis un événement.'
       unknown: 'Tale ne déclenche pas cet événement.'

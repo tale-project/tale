@@ -80,6 +80,8 @@ export function triggerIssueText(
       });
     case 'input.too_large':
       return t('trigger.issues.input.tooLarge');
+    case 'input.unstorable_text':
+      return t('trigger.issues.input.unstorableText');
     case 'event.required':
       return t('trigger.issues.event.required');
     case 'event.unknown':

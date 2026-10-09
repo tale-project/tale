@@ -42,6 +42,7 @@ export const TRIGGER_ISSUE_CODES = [
   'input.not_object',
   'input.reserved_key',
   'input.too_large',
+  'input.unstorable_text',
   'event.required',
   'event.unknown',
 ] as const;
@@ -182,6 +183,22 @@ export const STATIC_INPUT_MAX_BYTES = 16 * 1024;
 
 const encoder = new TextEncoder();
 
+/** Whether a value holds text the database cannot store as JSON: a NUL
+ * character, or one half of a character written as a surrogate pair (half
+ * an emoji). */
+function holdsUnstorableText(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return value.includes('\u0000') || !value.isWellFormed();
+  }
+  if (Array.isArray(value)) return value.some(holdsUnstorableText);
+  if (value !== null && typeof value === 'object') {
+    return Object.entries(value).some(
+      ([key, entry]) => holdsUnstorableText(key) || holdsUnstorableText(entry),
+    );
+  }
+  return false;
+}
+
 /**
  * Values a trigger adds to every run's input: a JSON object, at most 16 KiB.
  * The trigger's own fields are set over it, so it may not name them. Plain
@@ -208,6 +225,14 @@ export const staticInputSchema = z
         ctx,
         'input.too_large',
         'The fixed input is larger than 16 KiB.',
+        [],
+      );
+    }
+    if (holdsUnstorableText(input)) {
+      addIssue(
+        ctx,
+        'input.unstorable_text',
+        "The fixed input contains a character that can't be stored: a NUL character or half of an emoji.",
         [],
       );
     }

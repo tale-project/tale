@@ -609,6 +609,26 @@ describe('setTrigger — warnings about what the trigger sends [AUTO-R36]', () =
     });
     expect(fake.statements).toHaveLength(0);
   });
+
+  it.each([
+    ['a NUL character', { note: 'a\u0000b' }],
+    ['half of an emoji', { note: 'cut \ud83d' }],
+  ])(
+    'refuses a fixed input with %s as the trigger’s own problem, before any write',
+    async (_case, input) => {
+      const fake = fakeUpsert('fresh');
+      await expect(
+        setTrigger(fake.sql, args({ kind: 'webhook', input })),
+      ).rejects.toMatchObject({
+        code: 'AUTOMATION_TRIGGER_INVALID',
+        status: 400,
+        data: {
+          issues: [expect.objectContaining({ code: 'input.unstorable_text' })],
+        },
+      });
+      expect(fake.statements).toHaveLength(0);
+    },
+  );
 });
 
 /**

@@ -29,8 +29,8 @@ const daily = { frequency: 'daily', interval: 1, times: ['09:00'] };
 
 describe('TRIGGER_ISSUE_CODES', () => {
   it('lists the twenty codes the doors answer, the schedule rule’s among them', () => {
-    expect(TRIGGER_ISSUE_CODES).toHaveLength(20);
-    expect(new Set(TRIGGER_ISSUE_CODES).size).toBe(20);
+    expect(TRIGGER_ISSUE_CODES).toHaveLength(21);
+    expect(new Set(TRIGGER_ISSUE_CODES).size).toBe(21);
     for (const code of SCHEDULE_ISSUE_CODES) {
       expect(TRIGGER_ISSUE_CODES).toContain(code);
     }
@@ -300,8 +300,32 @@ describe('staticInputSchema, through the write schema', () => {
       'input.too_large',
       'input',
     ],
+    [
+      'a NUL character, which the database cannot store',
+      { note: 'before\u0000after' },
+      'input.unstorable_text',
+      'input',
+    ],
+    [
+      'a NUL character in a key',
+      { ['no\u0000te']: 1 },
+      'input.unstorable_text',
+      'input',
+    ],
+    [
+      'half of an emoji, deep in a list',
+      { notes: [{ text: 'cut \ud83d here' }] },
+      'input.unstorable_text',
+      'input',
+    ],
   ])('refuses %s', (_case, input, code, path) => {
     expect(issuesOf({ kind: 'webhook', input })).toEqual([{ path, code }]);
+  });
+
+  it('keeps a whole emoji', () => {
+    expect(issuesOf({ kind: 'webhook', input: { note: 'done 😀' } })).toEqual(
+      [],
+    );
   });
 });
 

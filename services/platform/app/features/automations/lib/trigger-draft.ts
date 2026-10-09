@@ -296,7 +296,11 @@ export function fixedInputIssue(text: string): TriggerDraftIssue | null {
   if (checked.success) return null;
   for (const issue of checked.error.issues) {
     const code: unknown = 'params' in issue ? issue.params?.code : undefined;
-    if (code === 'input.reserved_key' || code === 'input.too_large') {
+    if (
+      code === 'input.reserved_key' ||
+      code === 'input.too_large' ||
+      code === 'input.unstorable_text'
+    ) {
       return code;
     }
   }

@@ -353,6 +353,7 @@ trigger:
       notObject: 'Die feste Eingabe muss ein JSON-Objekt sein.'
       reservedKey: 'Entferne {keys}: Diese Felder setzt der Trigger selbst.'
       tooLarge: 'Die feste Eingabe ist größer als 16 KiB.'
+      unstorableText: 'Die feste Eingabe enthält ein Zeichen, das sich nicht speichern lässt: ein NUL-Zeichen oder ein halbes Emoji.'
     event:
       required: 'Wähle ein Ereignis.'
       unknown: 'Dieses Ereignis löst Tale nicht aus.'
