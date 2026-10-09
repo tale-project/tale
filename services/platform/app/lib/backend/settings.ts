@@ -30,6 +30,7 @@ import {
   backendEntityPrefix,
   backendKey,
   orgApiKeyListKey,
+  projectCapabilityCatalogKey,
 } from './query-keys';
 
 type OrgTeamItem = ItemOf<'members/queries:listOrgTeams'>;
@@ -1099,6 +1100,9 @@ function invalidateConnectorCredentials(
   if (orgId === undefined) return;
   void client.invalidateQueries({
     queryKey: backendEntityPrefix(orgId, CONNECTOR_CREDENTIAL_HINT_ENTITY),
+  });
+  void client.invalidateQueries({
+    queryKey: projectCapabilityCatalogKey(orgId),
   });
 }
 

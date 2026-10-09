@@ -54,3 +54,17 @@ export function backendOrgPrefix(orgId: string): readonly ['backend', string] {
 export function orgApiKeyListKey(orgId: string): BackendQueryKey {
   return backendKey(orgId, API_KEY_HINT_ENTITY, 'org-list');
 }
+
+/** Project equipment depends on its audience and the org's skill/connector
+ * catalog. A separate backend entity lets a project hint target one catalog
+ * without expiring other projects; resync still reaches every org read. */
+export function projectCapabilityCatalogKey(
+  orgId: string,
+  projectId?: string,
+): BackendQueryKey {
+  return backendKey(
+    orgId,
+    'project_capability',
+    ...(projectId === undefined ? [] : [projectId]),
+  );
+}
