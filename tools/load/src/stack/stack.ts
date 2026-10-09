@@ -103,6 +103,9 @@ function spawnDetached(
   }
 }
 
+/** How long a worker must stay up after its spawn before the stack counts it. */
+const WORKER_SETTLE_MS = 5_000;
+
 async function waitReady(url: string, deadline: number): Promise<boolean> {
   while (Date.now() < deadline) {
     try {
@@ -223,6 +226,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
     });
     processes.push({ role: 'worker', pid, port: null, log });
   }
+  const workersSettleAt = Date.now() + WORKER_SETTLE_MS;
   const state = await writeState(
     options.stateFile,
     platformDir,
@@ -239,8 +243,15 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
     throw new Error(`api processes not ready: ${notReady.join(', ')}`);
   }
   // A worker serves no port, so readiness cannot see it die at boot (a bad
-  // env, a crash on its first job): check it is still there.
-  const dead = processes.filter((p) => p.role === 'worker' && !alive(p.pid));
+  // env, a crash on its first job): watch it through a settle window, which
+  // the readiness wait above may already have spent.
+  const deadWorkers = () =>
+    processes.filter((p) => p.role === 'worker' && !alive(p.pid));
+  let dead = deadWorkers();
+  while (dead.length === 0 && Date.now() < workersSettleAt) {
+    await new Promise((wake) => setTimeout(wake, 250));
+    dead = deadWorkers();
+  }
   if (dead.length > 0) {
     throw new Error(
       `worker processes exited at boot; see ${dead.map((p) => p.log).join(', ')}`,
