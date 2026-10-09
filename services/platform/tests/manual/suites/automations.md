@@ -1089,6 +1089,17 @@ output:
       it lays out in about a second, typing in a prompt never stutters, and
       the paths list says `automations.paths.truncated`.
 
+- [ ] `AUTO-B21` · **History read failure and recovery** — Keep the automation
+      detail read successful and fail only its Runs request until retries are
+      exhausted; repeat for the Version history request → Each history shows
+      an announced error and keyboard-reachable **Try again**
+      (`common.errors.tryAgain`), never its successful empty-history message.
+      Restore the request and activate retry with Enter → Only that history
+      reloads, and focus moves to its heading, not the page body. A successful
+      empty response still shows `automations.runs.empty` or
+      `automations.versions.empty`. Repeat in EN/DE/FR and check the control's
+      visible focus and wrapping in the narrow layout.
+
 ## Run liveness — chaos recovery (backend, scripted)
 
 Proves on a real backend that a parked run whose scheduled wakes are all lost

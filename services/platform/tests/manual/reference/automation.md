@@ -347,6 +347,13 @@ pending saves, failure recovery and the sequential control. The shared drain's
 synchronous reset is covered in `app/features/shared/files/use-file-upload.test.ts`.
 Live storage persistence and cross-session races remain manual.
 
+The history read-state regression in
+`app/features/automations/components/automation-history.test.tsx` owns failed
+Runs and Version history reads, retry invocation, unchanged successful empty
+responses, pending states, EN/DE/FR controls, alert semantics and focus handoff.
+`AUTO-B21` keeps live request recovery, visible focus and narrow-layout wrapping
+in the manual layer.
+
 Feedback analytics keeps summary metrics visible when the recent-feedback read
 fails, announces the unavailable list and offers Retry; successful empty lists
 retain their normal copy. `app/features/analytics/feedback/recent-feedback-table.test.tsx`
