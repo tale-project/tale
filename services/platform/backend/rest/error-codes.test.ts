@@ -151,8 +151,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'AUTOMATION_NAME_INVALID',
   'AUTOMATION_NAME_RESERVED',
   'AUTOMATION_NAME_TAKEN',
-  // The editor's optimistic base version (`baseVersion` on the app save);
-  // no REST or MCP save sends one yet, so no machine door can answer it.
+  // The editor's and a coding agent's compare-and-set: `baseVersion` on a
+  // save, `expectedLatestVersion` on an MCP delete, `expectedDeployedVersion`
+  // on an MCP deploy. No REST door saves, deploys or sends an expected
+  // version, so none can answer them; MCP answers them as tool results.
+  'AUTOMATION_DEPLOYMENT_STALE',
   'AUTOMATION_VERSION_STALE',
   // A project id the organization does not have: every REST door resolves
   // the URL project first (`loadRestProject` → `PROJECT_NOT_FOUND`), the MCP
@@ -165,9 +168,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // credential admin surface is the app's (`/api/app/provider-credentials`);
   // REST has no credential door.
   'CREDENTIAL_IN_USE',
-  // The MCP dispatch store's own gates — answered as JSON-RPC results.
+  // The MCP dispatch store's own gates — answered as JSON-RPC results —
+  // and the platform tools' refusal of a tool they do not serve.
   'FORBIDDEN_DEVELOPER_SETTINGS',
   'UNAUTHENTICATED',
+  'UNKNOWN_METHOD',
   // The connector bridge and the in-sandbox doors — and Better Auth's
   // status names, which its `APIError` takes as the first argument
   // (`new APIError('CONFLICT', { code })`); the code beside it is what
@@ -287,6 +292,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_FORBIDDEN',
   'TASK_LABELS_INVALID',
   'TASK_TITLE_INVALID',
+  // The managed task-instructions lane, which stores a description exactly
+  // as sent and so refuses a mention token naming nobody mentionable, is
+  // the configuration door's (`POST /api/app/tasks/{taskId}/configuration/
+  // instructions`); every REST door stores such a token as plain text.
+  'TASK_MENTION_INVALID',
   // Projects: the door validates the name (`nonBlank`), description and
   // external key (`externalKeySchema`) at the domain's own caps before the
   // create or the PATCH reaches the cores, and the agent name and
@@ -457,6 +467,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // an unknown slug `ORG_SLUG_INVALID` and never creates or deletes one.
   'ORG_NOT_FOUND',
   'ORG_SLUG_RETIRING',
+  // The app's organization delete refuses unresolved legacy automation
+  // holds; REST mounts no organization-deletion door.
+  'ORG_LEGACY_AUTOMATION_HELD',
   // The skill bundle's zip upload lane; the REST save writes SKILL.md
   // through the file layer, whose failure is a 500, never this code.
   'WRITE_FAILED',

@@ -9,6 +9,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       if (key === 'agentRuns.status.running') return 'Running';
       if (key === 'agentRuns.status.failed') return 'Failed';
+      if (key === 'agentRuns.status.queued') return 'Queued';
+      if (key === 'agentRun.waiting.org_limit') return 'Waiting for a worker';
+      if (key === 'agentRun.waiting.host') return 'Waiting for room';
       if (key === 'agentRuns.detail.openAria') {
         return `Open ${String(values?.status)} details for ${String(values?.agent)}`;
       }
@@ -48,6 +51,37 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 }));
 
 describe('TaskAgentRunStatusBadge', () => {
+  it('reads a run waiting for room by its reason, and a merely queued run as queued', () => {
+    const run = {
+      runId: 'run_1' as string,
+      agentSlug: 'agent-1',
+      trigger: 'manual',
+      status: 'queued',
+      startedAt: Date.now(),
+      costCents: 0,
+    };
+    const { rerender } = render(
+      <TaskAgentRunStatusBadge
+        agentName="Scribe"
+        run={{ ...run, waitingForCapacity: true, waitingReason: 'org_limit' }}
+      />,
+    );
+    expect(screen.getByText('Waiting for a worker')).toBeInTheDocument();
+    // Waiting is no outcome to open.
+    expect(screen.queryByRole('button')).toBeNull();
+
+    rerender(
+      <TaskAgentRunStatusBadge
+        agentName="Scribe"
+        run={{ ...run, waitingForCapacity: true, waitingReason: 'host' }}
+      />,
+    );
+    expect(screen.getByText('Waiting for room')).toBeInTheDocument();
+
+    rerender(<TaskAgentRunStatusBadge agentName="Scribe" run={run} />);
+    expect(screen.getByText('Queued')).toBeInTheDocument();
+  });
+
   // The embedded live-run transcript is offline while the automations backend
   // is rebuilt — a linked execution opens the dialog with the "no live
   // detail" notice instead of crashing on the retired run viewer.

@@ -8,6 +8,7 @@ import {
 } from '../../core/tasks/task_auto_retry.ts';
 import { resolveTaskKickResume } from '../../core/tasks/task_kick_resume.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { recordSlotReleaseInTx } from './slot-wakes.ts';
 
 /**
  * The kick-time resume plan over PG — the 0.5 twin of
@@ -222,6 +223,8 @@ export async function resolveTaskKickStartArgs(
 export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
   readonly id: string;
   readonly startedBy: string;
+  /** The API key the run was started with; its retry carries it. */
+  readonly apiKeyId?: string | undefined;
   readonly inPlace: boolean;
   /** Original task decision; absent on legacy in-place kicks. */
   readonly inPlaceRetryStatus?: string | undefined;
@@ -252,6 +255,7 @@ export async function loadTaskRetryHistory(
       status: string;
       agentId: string;
       startedBy: string;
+      apiKeyId: string | null;
       inPlace: boolean;
       inPlaceRetryStatus: string | null;
       inPlaceRetryActivityId: string | null;
@@ -265,7 +269,8 @@ export async function loadTaskRetryHistory(
     }[]
   >`
     SELECT id, status, agent_id AS "agentId",
-           started_by AS "startedBy", in_place AS "inPlace",
+           started_by AS "startedBy", api_key_id AS "apiKeyId",
+           in_place AS "inPlace",
            in_place_retry_status AS "inPlaceRetryStatus",
            in_place_retry_activity_id::text AS "inPlaceRetryActivityId",
            launched_at_ms::float8 AS "launchedAt",
@@ -284,6 +289,7 @@ export async function loadTaskRetryHistory(
     id: row.id,
     agentId: row.agentId,
     startedBy: row.startedBy,
+    apiKeyId: row.apiKeyId ?? undefined,
     inPlace: row.inPlace,
     inPlaceRetryStatus: row.inPlaceRetryStatus ?? undefined,
     inPlaceRetryActivityId: row.inPlaceRetryActivityId ?? undefined,
@@ -310,14 +316,23 @@ export async function markAutoRetryRetired(
   tx: TransactionSql,
   args: { organizationId: string; taskId: string; failedRunId: string },
 ): Promise<boolean> {
-  const retired = await tx<{ id: string }[]>`
+  const retired = await tx<{ id: string; armed: boolean }[]>`
     UPDATE app.project_agent_runs SET auto_retry_refused_at_ms = ${Date.now()}
     WHERE id = ${args.failedRunId} AND org_id = ${args.organizationId}
       AND task_id = ${args.taskId} AND status = 'failed'
       AND auto_retry_refused_at_ms IS NULL
-    RETURNING id
+    RETURNING id, auto_retry_armed_at_ms IS NOT NULL AS armed
   `;
-  if (retired.length === 0) return false;
+  const run = retired[0];
+  if (run === undefined) return false;
+  // An armed retry held the slot (`slot-wakes.ts`): retiring it for good is
+  // the run's release. A run failed without an arm released at its failure.
+  if (run.armed) {
+    await recordSlotReleaseInTx(tx, {
+      runId: args.failedRunId,
+      organizationId: args.organizationId,
+    });
+  }
   // A silent final refusal changes retryPending too. A prior task-move hint
   // can already have been read before this transaction retires the arm.
   await emitHintInTx(tx, {

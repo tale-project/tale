@@ -39,14 +39,18 @@ export interface BuilderMessage {
 }
 
 /** A direct text-model call with an explicit provider and model. */
-export type BuilderModel = (request: {
+export type BuilderModel = ((request: {
   messages: BuilderMessage[];
   temperature: number;
   turn: number;
+  signal?: AbortSignal;
 }) => Promise<{
   content: string;
-  usage?: { prompt: number; completion: number };
-}>;
+  usage?: { prompt: number; completion: number; reported?: boolean };
+}>) & {
+  /** Resolve local credentials/catalog before a caller reserves paid work. */
+  prepare?: () => Promise<void>;
+};
 
 /** A model, named the way the platform names models everywhere else. */
 export interface BuilderModelTarget {
@@ -173,7 +177,7 @@ export function createBuilderModel(
 ): BuilderModel {
   let wire: WireTarget | null = null;
 
-  return async ({ messages, temperature }) => {
+  const call: BuilderModel = async ({ messages, temperature, signal }) => {
     wire ??= await resolveWireTarget(ctx, args.organizationId, args.target);
     const request = buildChatRequest({
       apiFormat: wire.apiFormat,
@@ -204,7 +208,14 @@ export function createBuilderModel(
         body: request.body,
         timeoutMs: REQUEST_TIMEOUT_MS,
         maxResponseBytes: MAX_RESPONSE_BYTES,
-        ...(args.signal !== undefined ? { signal: args.signal } : {}),
+        ...(args.signal !== undefined || signal !== undefined
+          ? {
+              signal: AbortSignal.any([
+                ...(args.signal ? [args.signal] : []),
+                ...(signal ? [signal] : []),
+              ]),
+            }
+          : {}),
       });
     } catch (error) {
       if (error instanceof SafeFetchError) {
@@ -233,4 +244,8 @@ export function createBuilderModel(
     }
     return parseChatReply(wire.apiFormat, payload);
   };
+  call.prepare = async () => {
+    wire ??= await resolveWireTarget(ctx, args.organizationId, args.target);
+  };
+  return call;
 }

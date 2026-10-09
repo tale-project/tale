@@ -28,6 +28,7 @@ import {
   saveVersion,
   versionRow,
   setTrigger,
+  triggerWakesOnSlotFreed,
 } from './store';
 
 export const managedAutomationKindSchema = z.enum([
@@ -125,7 +126,20 @@ export async function readManagedAutomation(
         'An orphaned trigger requires explicit recovery.',
         409,
       );
-    config = managedScheduleValue(scope.projectId, scope.name, row);
+    config = managedScheduleValue(
+      scope.projectId,
+      scope.name,
+      row === null
+        ? null
+        : {
+            ...row,
+            wakeOnSlotFreed: await triggerWakesOnSlotFreed(
+              sql,
+              scope.organizationId,
+              scope.name,
+            ),
+          },
+    );
   }
   return { config, hash: managedConfigurationHash(config) };
 }
@@ -162,6 +176,9 @@ export async function writeManagedAutomation(
         cron: resource.config.cron,
         timezone: resource.config.timezone,
         enabled: resource.config.enabled,
+        // The declaration is the whole desired state: an absent opt-in
+        // turns it off (a native save that omits it keeps it).
+        wakeOnSlotFreed: resource.config.wakeOnSlotFreed === true,
       },
       managed: {
         projectId,
@@ -191,6 +208,7 @@ export async function writeManagedAutomation(
               ...scope,
               ...resource.config,
               document,
+              origin: { via: 'managed' },
               ...(message === undefined ? {} : { message }),
               ...(options?.testsPassed === undefined
                 ? {}

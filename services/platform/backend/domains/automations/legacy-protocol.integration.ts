@@ -19,6 +19,11 @@ import {
   runBootMigrations,
 } from '../../db/migrate.ts';
 import { resolvePostgresConnection } from '../../db/ssl.ts';
+import { eraseSubjectAutomationRuns } from '../erasure/service.ts';
+import {
+  assertNoLegacyAutomationHolds,
+  OrganizationError,
+} from '../organizations/service.ts';
 import { TaskError } from '../tasks/errors.ts';
 import {
   findLatestAutomationRunForTask,
@@ -746,6 +751,81 @@ export async function checkLegacyAutomationProtocol(
         afterStopAgent === 'P7502' &&
         afterStopDelete === 'P7502',
       'one operator decision; original asks preserved; task start and purge still refused',
+    );
+
+    // Exercise the real erasure primitive against an actual 0163 cutover,
+    // including a stopped hold. Ordinary subject rows must still be erased.
+    await fixture.begin(async (tx) => {
+      await markAutomationWriterInTx(tx);
+      await tx`
+        INSERT INTO app.automation_runs
+          (id, org_id, name, version, status, mode, started_by, started_at_ms, finished_at_ms)
+        VALUES ('erasure-unheld', 'fixture', 'example', 1, 'success', 'live', 'user:fixture', 1, 2),
+          ('erasure-other-subject', 'fixture', 'example', 1, 'success', 'live', 'user:other', 1, 2),
+          ('erasure-other-org', 'other', 'example', 1, 'success', 'live', 'user:fixture', 1, 2)
+      `;
+    });
+    const heldSnapshot = () => fixture<{ rows: unknown }[]>`
+      SELECT jsonb_agg(to_jsonb(r) ORDER BY id) AS rows
+      FROM app.automation_runs r WHERE legacy_quarantine IS NOT NULL
+    `;
+    // The earlier writer-admission probes also left two unheld subject runs.
+    // Assert that complete starting set so the deletion count cannot ignore it.
+    const unheldSubjectRuns = () => fixture<{ id: string }[]>`
+      SELECT id FROM app.automation_runs
+      WHERE org_id = 'fixture' AND started_by = 'user:fixture'
+        AND legacy_quarantine IS NULL
+      ORDER BY id
+    `;
+    const beforeUnheldErasure = await unheldSubjectRuns();
+    const beforeErasure = await heldSnapshot();
+    const erased = await eraseSubjectAutomationRuns(
+      fixture,
+      'fixture',
+      'fixture',
+    );
+    const afterErasure = await heldSnapshot();
+    const afterUnheldErasure = await unheldSubjectRuns();
+    const kept = await fixture<{ id: string }[]>`
+      SELECT id FROM app.automation_runs WHERE id LIKE 'erasure-%' ORDER BY id
+    `;
+    const [ask] = await fixture<{ question: string }[]>`
+      SELECT question FROM app.automation_human_asks WHERE id = 'held-ask'
+    `;
+    const repeatErasure = await eraseSubjectAutomationRuns(
+      fixture,
+      'fixture',
+      'fixture',
+    );
+    record(
+      'subject erasure deletes unheld runs and preserves exact held evidence across retries [ERASE-R9]',
+      beforeUnheldErasure.map((row) => row.id).join(',') ===
+        'erasure-unheld,fresh,future-floor' &&
+        erased.deleted === 3 &&
+        erased.held === 3 &&
+        afterUnheldErasure.length === 0 &&
+        repeatErasure.deleted === 0 &&
+        repeatErasure.held === 3 &&
+        JSON.stringify(beforeErasure) === JSON.stringify(afterErasure) &&
+        kept.map((row) => row.id).join(',') ===
+          'erasure-other-org,erasure-other-subject' &&
+        ask?.question === 'original question',
+      'same subject in another tenant and another subject in this tenant survive; stop never grants deletion authority',
+    );
+    let orgConflict: string | undefined;
+    try {
+      await fixture.begin((tx) => assertNoLegacyAutomationHolds(tx, 'fixture'));
+    } catch (error) {
+      if (!(error instanceof OrganizationError) || error.status !== 409)
+        throw error;
+      orgConflict = error.code;
+    }
+    await fixture.begin((tx) => assertNoLegacyAutomationHolds(tx, 'other'));
+    record(
+      'organization legacy-hold preflight returns a tenant-scoped conflict [ORG-R12]',
+      orgConflict === 'ORG_LEGACY_AUTOMATION_HELD' &&
+        JSON.stringify(afterErasure) === JSON.stringify(await heldSnapshot()),
+      'held organization is refused; another tenant is admitted; hold facts remain unchanged',
     );
   } finally {
     await releaseLedger?.();

@@ -13,7 +13,14 @@
  */
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// The definition writes' audit rows are their own concern (`audit.ts`,
+// `audit.test.ts`); this double answers no audit-chain query.
+vi.mock('./audit.ts', () => ({
+  auditDefinitionWrite: vi.fn(async () => undefined),
+  listDeployments: vi.fn(async () => []),
+}));
 
 import { hashWebhookToken } from '../../core/automations/webhook_token.ts';
 import { AutomationError, setTrigger } from './store.ts';
@@ -47,15 +54,21 @@ function fakeUpsert(
   statements: Statement[];
   /** The realtime hints emitted alongside. */
   hints: Statement[];
+  /** Every statement in order, the advisory locks included. */
+  sequence: Statement[];
 } {
   const statements: Statement[] = [];
   const hints: Statement[] = [];
+  const sequence: Statement[] = [];
   const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
+    sequence.push({ text, values });
     if (text.includes('INSERT INTO app_realtime.outbox')) {
       hints.push({ text, values });
       return Promise.resolve([]);
     }
+    // Audit-chain and automation-name locks are not trigger writes.
+    if (text.includes('pg_advisory_xact_lock')) return Promise.resolve([]);
     statements.push({ text, values });
     if (text.includes('FOR UPDATE')) {
       return Promise.resolve(existing === null ? [] : [existing]);
@@ -75,7 +88,7 @@ function fakeUpsert(
   };
   fn.begin = (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
     callback(fn);
-  return { sql: fn as unknown as Sql, statements, hints };
+  return { sql: fn as unknown as Sql, statements, hints, sequence };
 }
 
 /** The upsert — the one write of the bind. */
@@ -96,8 +109,15 @@ describe('setTrigger', () => {
     const fake = fakeUpsert('fresh');
     await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
 
-    // The locked read of the row being replaced, then the ONE write — never
-    // a SELECT-then-INSERT that decides existence in JavaScript.
+    // The organization's audit chain first — the order every transaction
+    // holding the chain and a trigger row takes them in
+    // (`trigger-failures.ts`) — then the locked read of the row being
+    // replaced, then the ONE write — never a SELECT-then-INSERT that decides
+    // existence in JavaScript.
+    expect(fake.sequence[0]?.values).toEqual([
+      expect.any(Number),
+      'audit-chain:org_1',
+    ]);
     expect(fake.statements).toHaveLength(2);
     const [read, statement] = fake.statements;
     expect(read?.text).toContain('FOR UPDATE');
@@ -143,10 +163,18 @@ describe('setTrigger', () => {
       rotate.sql,
       args({ kind: 'webhook', rotateToken: true }),
     );
-    // The rotate flag follows the eleven INSERT parameters, decided
-    // in SQL against the existing row.
-    expect(upsertOf(plain.statements)?.values[11]).toBe(false);
-    expect(upsertOf(rotate.statements)?.values[11]).toBe(true);
+    // Read the parameter at the rotation expression, independently of
+    // columns appended to the INSERT list.
+    const rotationFlag = (statements: Statement[]) => {
+      const upsert = upsertOf(statements);
+      const marker = 'WHEN ?::boolean OR t.token_hash IS NULL';
+      if (upsert === undefined || upsert.text.split(marker).length !== 2)
+        throw new Error('expected one token rotation expression');
+      const before = upsert.text.slice(0, upsert.text.indexOf(marker));
+      return upsert.values[before.split('?').length - 1];
+    };
+    expect(rotationFlag(plain.statements)).toBe(false);
+    expect(rotationFlag(rotate.statements)).toBe(true);
     expect(rotated.token).toBeTypeOf('string');
   });
 
@@ -285,5 +313,210 @@ describe('setTrigger', () => {
     ).rejects.toBeInstanceOf(AutomationError);
     expect(fake.statements).toHaveLength(0);
     expect(fake.hints).toHaveLength(0);
+  });
+});
+
+/**
+ * The slot-wake opt-in (#4540): a scripted `sql` whose locked read answers
+ * `existing` and whose single-target probe answers `others` — another
+ * enabled, opted-in schedule bound to one of this automation's projects.
+ */
+function fakeWakeBind(
+  existing: { kind: string; enabled: boolean; wakeOnSlotFreed: boolean } | null,
+  others: { name: string }[] = [],
+  options: { bound?: string[]; claimFails?: boolean } = {},
+): { sql: Sql; statements: Statement[]; order: string[] } {
+  const statements: Statement[] = [];
+  const order: string[] = [];
+  const fn = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?');
+    if (text.includes('INSERT INTO app_realtime.outbox')) {
+      order.push('hint');
+      return Promise.resolve([]);
+    }
+    if (text.includes('pg_advisory_xact_lock')) {
+      order.push(
+        values.includes('audit-chain:org_1') ? 'audit-lock' : 'name-lock',
+      );
+      return Promise.resolve([]);
+    }
+    statements.push({ text, values });
+    if (text.includes('FROM app.automation_project_bindings theirs')) {
+      order.push('pre-check');
+      return Promise.resolve(others);
+    }
+    if (text.includes('FROM app.automation_project_bindings')) {
+      order.push('claim-rows');
+      return Promise.resolve(
+        (options.bound ?? []).map((projectId) => ({ projectId })),
+      );
+    }
+    if (text.includes('UPDATE app.automation_project_bindings')) {
+      order.push(`claim:${String(values[0])}:${String(values[3])}`);
+      return Promise.resolve([]);
+    }
+    if (text.includes('FOR UPDATE')) {
+      order.push('trigger-row');
+      return Promise.resolve(
+        existing === null
+          ? []
+          : [
+              {
+                id: 'trigger_1',
+                tokenHash: null,
+                lastSkipReason: null,
+                cron: '0 9 * * *',
+                timezone: 'UTC',
+                ...existing,
+              },
+            ],
+      );
+    }
+    if (!text.includes('INSERT INTO app.automation_triggers')) {
+      throw new Error(`unexpected statement: ${text}`);
+    }
+    order.push('upsert');
+    if (options.claimFails === true) {
+      // Migration 0168's trigger rewrites the bindings inside the upsert and
+      // the one-wake index refuses a second claim there.
+      return Promise.reject(
+        Object.assign(new Error('duplicate key value'), {
+          code: '23505',
+          constraint_name: 'automation_project_bindings_one_wake',
+        }),
+      );
+    }
+    return Promise.resolve([{ tokenHash: null }]);
+  };
+  fn.begin = (callback: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+    callback(fn);
+  return { sql: fn as unknown as Sql, statements, order };
+}
+
+/** Position of the opt-in in the upsert's VALUES list. */
+const WAKE_PARAM = 11;
+
+describe('setTrigger — the slot-wake opt-in (#4540) [AUTO-R29]', () => {
+  it('keeps the opt-in when a save omits it, and clears it on a kind change', async () => {
+    const fake = fakeWakeBind({
+      kind: 'schedule',
+      enabled: true,
+      wakeOnSlotFreed: true,
+    });
+    await setTrigger(
+      fake.sql,
+      args({ kind: 'schedule', cron: '0 9 * * 1', enabled: false }),
+    );
+    const upsert = upsertOf(fake.statements);
+    expect(upsert?.values[WAKE_PARAM]).toBe(true);
+    expect(upsert?.text).toContain(
+      "WHEN EXCLUDED.kind <> 'schedule' THEN false",
+    );
+    expect(upsert?.text).toContain(
+      "THEN t.kind = 'schedule' AND t.wake_on_slot_freed",
+    );
+  });
+
+  it('never opts in a trigger of another kind', async () => {
+    const fake = fakeWakeBind({
+      kind: 'schedule',
+      enabled: true,
+      wakeOnSlotFreed: true,
+    });
+    await setTrigger(fake.sql, args({ kind: 'webhook' }));
+    expect(upsertOf(fake.statements)?.values[WAKE_PARAM]).toBe(false);
+  });
+
+  it('refuses a second enabled schedule that wakes the same project', async () => {
+    const fake = fakeWakeBind(null, [{ name: 'ops/other-manager' }]);
+    const refused = await setTrigger(
+      fake.sql,
+      args({ kind: 'schedule', cron: '0 9 * * 1', wakeOnSlotFreed: true }),
+    ).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(AutomationError);
+    expect(refused).toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+      status: 409,
+    });
+    expect(upsertOf(fake.statements)).toBeUndefined();
+  });
+
+  it('lets a disabled schedule keep its opt-in beside an enabled one', async () => {
+    const fake = fakeWakeBind(null, [{ name: 'ops/other-manager' }]);
+    await setTrigger(
+      fake.sql,
+      args({
+        kind: 'schedule',
+        cron: '0 9 * * 1',
+        enabled: false,
+        wakeOnSlotFreed: true,
+      }),
+    );
+    expect(
+      fake.statements.some((s) =>
+        s.text.includes('FROM app.automation_project_bindings theirs'),
+      ),
+    ).toBe(false);
+    expect(upsertOf(fake.statements)?.values[WAKE_PARAM]).toBe(true);
+  });
+});
+
+describe('setTrigger — one wake target per project, kept by the database (#4540) [AUTO-R29]', () => {
+  it('takes the automation name lock before the row it replaces', async () => {
+    const fake = fakeWakeBind(null);
+    await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 9 * * 1' }));
+    expect(fake.order.slice(0, 3)).toEqual([
+      'audit-lock',
+      'name-lock',
+      'trigger-row',
+    ]);
+  });
+
+  it('leaves the bindings to the database: a claiming save writes no binding itself', async () => {
+    const fake = fakeWakeBind(
+      { kind: 'schedule', enabled: true, wakeOnSlotFreed: false },
+      [],
+      { bound: ['p-1', 'p-2'] },
+    );
+    await setTrigger(
+      fake.sql,
+      args({ kind: 'schedule', cron: '0 9 * * 1', wakeOnSlotFreed: true }),
+    );
+    expect(fake.order).toEqual([
+      'audit-lock',
+      'name-lock',
+      'trigger-row',
+      'pre-check',
+      'upsert',
+      'hint',
+    ]);
+  });
+
+  it('answers a second claim the database refuses (the one-wake index) with 409 and stops there', async () => {
+    const fake = fakeWakeBind(
+      { kind: 'schedule', enabled: true, wakeOnSlotFreed: false },
+      [],
+      { bound: ['p-1'], claimFails: true },
+    );
+    const refused = await setTrigger(
+      fake.sql,
+      args({ kind: 'schedule', cron: '0 9 * * 1', wakeOnSlotFreed: true }),
+    ).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(AutomationError);
+    expect(refused).toMatchObject({
+      code: 'AUTOMATION_TRIGGER_INVALID',
+      status: 409,
+    });
+    expect(fake.order).not.toContain('hint');
+  });
+
+  it('skips the friendly pre-check when the claim does not change', async () => {
+    const fake = fakeWakeBind(
+      { kind: 'schedule', enabled: true, wakeOnSlotFreed: true },
+      [],
+      { bound: ['p-1'] },
+    );
+    await setTrigger(fake.sql, args({ kind: 'schedule', cron: '0 10 * * 1' }));
+    expect(fake.order).not.toContain('pre-check');
   });
 });

@@ -106,7 +106,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/automation-run-input.webp",
@@ -178,7 +179,8 @@
       },
       "dpr": 2,
       "width": 1536,
-      "height": 1000
+      "height": 1012,
+      "locale": "en"
     },
     {
       "file": "images/platform/chat-document-attachment.webp",
@@ -202,7 +204,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/chat-starters-empty.webp",
@@ -238,7 +241,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/connectors-add-credential.webp",
@@ -265,6 +269,110 @@
       "height": 968
     },
     {
+      "file": "images/platform/de/automation-run-detail.webp",
+      "shot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "de"
+    },
+    {
+      "file": "images/platform/de/chat-thread-reply.webp",
+      "shot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "de"
+    },
+    {
+      "file": "images/platform/de/governance-audit-logs.webp",
+      "shot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "de"
+    },
+    {
+      "file": "images/platform/de/home-inbox.webp",
+      "shot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "de"
+    },
+    {
+      "file": "images/platform/de/knowledge-entries-list.webp",
+      "shot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "de"
+    },
+    {
+      "file": "images/platform/de/project-agents-models.webp",
+      "shot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "de"
+    },
+    {
+      "file": "images/platform/de/project-task-detail.webp",
+      "shot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "dpr": 2,
+      "width": 2048,
+      "height": 1700,
+      "locale": "de"
+    },
+    {
+      "file": "images/platform/de/projects-task-board.webp",
+      "shot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 2240,
+        "height": 1400
+      },
+      "dpr": 2,
+      "width": 4480,
+      "height": 2800,
+      "locale": "de"
+    },
+    {
       "file": "images/platform/document-indexing-unsupported.webp",
       "shot": "document-indexing-unsupported",
       "route": "/dashboard/:orgId/documents",
@@ -277,6 +385,110 @@
       "height": 440
     },
     {
+      "file": "images/platform/fr/automation-run-detail.webp",
+      "shot": "automation-run-detail",
+      "route": "/dashboard/:orgId/automations/github-triage-issues/runs",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "fr"
+    },
+    {
+      "file": "images/platform/fr/chat-thread-reply.webp",
+      "shot": "chat-thread-reply",
+      "route": "/dashboard/:orgId/chat",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "fr"
+    },
+    {
+      "file": "images/platform/fr/governance-audit-logs.webp",
+      "shot": "governance-audit-logs",
+      "route": "/dashboard/:orgId/settings/governance/logs?category=member",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "fr"
+    },
+    {
+      "file": "images/platform/fr/home-inbox.webp",
+      "shot": "home-inbox",
+      "route": "/dashboard/:orgId/conversations/open",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "fr"
+    },
+    {
+      "file": "images/platform/fr/knowledge-entries-list.webp",
+      "shot": "knowledge-entries-list",
+      "route": "/dashboard/:orgId/knowledge-entries",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "fr"
+    },
+    {
+      "file": "images/platform/fr/project-agents-models.webp",
+      "shot": "project-agents-models",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 2880,
+      "height": 1800,
+      "locale": "fr"
+    },
+    {
+      "file": "images/platform/fr/project-task-detail.webp",
+      "shot": "project-task-detail",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "dpr": 2,
+      "width": 2048,
+      "height": 1700,
+      "locale": "fr"
+    },
+    {
+      "file": "images/platform/fr/projects-task-board.webp",
+      "shot": "projects-task-board",
+      "route": "/dashboard/:orgId/projects",
+      "viewport": {
+        "width": 2240,
+        "height": 1400
+      },
+      "dpr": 2,
+      "width": 4480,
+      "height": 2800,
+      "locale": "fr"
+    },
+    {
       "file": "images/platform/governance-audit-logs.webp",
       "shot": "governance-audit-logs",
       "route": "/dashboard/:orgId/settings/governance/logs?category=member",
@@ -286,7 +498,20 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
+    },
+    {
+      "file": "images/platform/governance-budget-project-rule.webp",
+      "shot": "governance-budget-project-rule",
+      "route": "/dashboard/:orgId/settings/governance/policies-limits",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "dpr": 2,
+      "width": 768,
+      "height": 1400
     },
     {
       "file": "images/platform/governance-confidentiality-notice.webp",
@@ -430,7 +655,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/knowledge-entries-list.webp",
@@ -442,7 +668,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/knowledge-products-list.webp",
@@ -502,7 +729,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/project-agents-standard.webp",
@@ -514,7 +742,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/project-general-tab.webp",
@@ -546,11 +775,12 @@
       "route": "/dashboard/:orgId/projects",
       "viewport": {
         "width": 1440,
-        "height": 900
+        "height": 1000
       },
       "dpr": 2,
-      "width": 1536,
-      "height": 1532
+      "width": 2048,
+      "height": 1700,
+      "locale": "en"
     },
     {
       "file": "images/platform/project-task-repeat.webp",
@@ -562,7 +792,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "locale": "en"
     },
     {
       "file": "images/platform/project-task-standard-agent.webp",
@@ -574,7 +805,8 @@
       },
       "dpr": 2,
       "width": 1056,
-      "height": 798
+      "height": 798,
+      "locale": "en"
     },
     {
       "file": "images/platform/projects-task-board.webp",
@@ -586,7 +818,8 @@
       },
       "dpr": 2,
       "width": 4480,
-      "height": 2800
+      "height": 2800,
+      "locale": "en"
     },
     {
       "file": "images/platform/sandbox-add-device.webp",
@@ -622,7 +855,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 550
+      "height": 550,
+      "locale": "en"
     },
     {
       "file": "images/platform/settings-account-security.webp",
@@ -706,7 +940,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 1048
+      "height": 1048,
+      "locale": "en"
     },
     {
       "file": "images/platform/settings-teams.webp",

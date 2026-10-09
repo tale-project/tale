@@ -6,6 +6,7 @@
 // chosen once at boot from `SANDBOX_BACKEND` (see backend/index.ts).
 
 import type { SessionDiskState } from '../host-disk.ts';
+import type { LargestWorkspaces } from '../session/workspace-usage.ts';
 import type { SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
@@ -27,6 +28,20 @@ export class SessionIncarnationChangedError extends Error {
   constructor(sessionId: string, detail: string) {
     super(`session ${sessionId} incarnation changed (${detail})`);
     this.name = 'SessionIncarnationChangedError';
+  }
+}
+
+/** A create found a LIVE session under the id's deterministic name — a
+ * running container, or a Pod that is neither terminating nor ended — that
+ * the route's registry does not hold: a peer replica's create, or compute
+ * this spawner lost track of (a restart before adoption). Nothing was
+ * touched. The route answers it as a duplicate, so the caller adopts the
+ * session through acquire instead of treating the create as failed and
+ * tearing down what runs under the id. */
+export class SessionExistsError extends Error {
+  constructor(sessionId: string, detail: string, options?: ErrorOptions) {
+    super(`session ${sessionId} already exists (${detail})`, options);
+    this.name = 'SessionExistsError';
   }
 }
 
@@ -57,7 +72,8 @@ export interface HostBackend {
 
   /** Liveness probe backing GET /health. */
   health(): Promise<HealthResult>;
-  /** Best-effort warm of the runtime image (no-op where the platform pulls). */
+  /** Make the runtime image present (no-op where the platform pulls).
+   * Throws while it stays absent, so the caller tries again later. */
   warmImage(): Promise<void>;
 
   /**
@@ -159,6 +175,14 @@ export interface CreateSessionResult {
    * the half-made workspace it provisioned itself.
    */
   resumed: boolean;
+  /**
+   * The incarnation runnerd named in the readiness answer this create waited
+   * for (see RUNNERD_INCARNATION_ENV): the route layer records it like any
+   * later runnerd answer, so a fresh or resumed session's first activity call
+   * needs no backend existence check. Absent when runnerd named none (an
+   * older runtime image, or a backend that launches without the stamp).
+   */
+  incarnation?: string;
 }
 
 /**
@@ -182,6 +206,18 @@ export interface BuildCacheUpkeep {
    * while it is below its floor, the caches of organizations that are not
    * building go first. */
   sessionDisk?: () => Promise<SessionDiskState | null>;
+}
+
+/** How a stop ends what still runs in the session. */
+export interface StopSessionOptions {
+  /** Let the session end its own work for this long before it is killed:
+   * runnerd passes the stop on to every live exec (a harness writes its
+   * transcript, a wrapper restores what it staged) and a Docker-in-sandbox
+   * session's supervisor shuts its inner engine down. Absent or 0, the
+   * compute is killed at once — the stop of an idle session, which has
+   * nothing to end. Docker only: a Kubernetes Pod is always deleted with its
+   * own grace period. */
+  graceMs?: number;
 }
 
 export interface SessionBackend {
@@ -254,6 +290,7 @@ export interface SessionBackend {
   stopSession(
     sessionId: string,
     expectedCreatedAtMs?: number,
+    options?: StopSessionOptions,
   ): Promise<boolean>;
   /** Recover an abandoned startup only when its durable age and current
    * backend state prove no peer is still starting it. Fenced to the original
@@ -263,6 +300,10 @@ export interface SessionBackend {
     sessionId: string,
     expectedCreatedAtMs: number,
   ): Promise<boolean>;
+  /** Hear that a create found the runtime image missing on this host (an
+   * `image prune` on an idle Docker host removes it once no session uses
+   * it): the spawner pulls it again and holds creates until it is back. */
+  onRuntimeImageMissing?(listener: (detail: string) => void): void;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
    * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":
@@ -317,6 +358,14 @@ export interface SessionBackend {
    * containers/Pods beside them cannot be listed at all.
    */
   listWorkspaces(): Promise<BackendWorkspace[]>;
+  /**
+   * The `limit` largest workspaces this backend holds, measured now, for the
+   * log of a session disk below its critical tier. Bounded in time: what was
+   * measured by the deadline is answered, with how much that was. THROWS
+   * when the workspaces cannot be listed. Absent where the spawner does not
+   * hold the workspaces' disk (Kubernetes).
+   */
+  largestWorkspaces?(limit: number): Promise<LargestWorkspaces>;
   /**
    * The organizations holding resources beyond their sessions' workspaces
    * (Docker: the organization's build helpers, their network and cache

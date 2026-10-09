@@ -504,6 +504,7 @@ export async function checkProjectResourceRest(args: {
         assert.deepEqual(JSON.parse(rpc.content[0]?.text ?? '{}'), {
           error: 'Project not found.',
           code: 'PROJECT_NOT_FOUND',
+          hint: 'list_projects shows the projects you can see; use one of their ids',
         });
       }
     }

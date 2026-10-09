@@ -94,9 +94,7 @@ it with the corresponding platform version and encryption secrets.
 `tale update` changes the CLI and project files, staying in the current `x.y` line
 unless you select another version. `tale deploy` rolls application containers;
 `--stop` also permits stop-gated updates with downtime. Blue-green rollout does not
-make every operation downtime-free. After the rollout it removes Tale's
-images of versions older than the new version and the rollback target, leaving any
-image a container still uses.
+make every operation downtime-free.
 
 `tale rollback` is limited to a recorded compatible patch version. Recovery across
 minor or major migrations uses a snapshot and its matching version; see the
@@ -126,6 +124,14 @@ Preparation checks configurations before it pulls runtime images. It refuses a
 pack that declares fields this CLI does not know and names those fields, so pin a
 CLI at least as new as the Tale your packs target.
 
+Git acquisition failures identify the runtime or configuration source, the Git
+stage and its exit status when available. The fixed failure hint distinguishes
+disk space, name resolution, timeout and output-limit failures; `unknown` retains
+no unrecognized Git text. Hints narrow the investigation without proving a cause.
+Check the preparation runner at the reported stage before retrying. Each Git
+command has a five-minute deadline and a 1 MiB combined output limit; diagnostics
+omit repository URLs, local paths, credentials and raw Git output.
+
 ```bash
 tale deploy prepare --spec "$TALE_DEPLOY_SPEC" --output "$TALE_DEPLOY_BUNDLE" --json
 tale deploy verify-bundle --bundle "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --json
@@ -137,6 +143,33 @@ Prepare and apply managed bundles on Linux with a matching architecture; managed
 bundle commands require POSIX custody checks and are unavailable on Windows.
 Retain the bundle, source pins and receipts together. Serialize competing
 deployments externally: a local lock does not coordinate separate hosts.
+
+The protocol-1 to protocol-2 automation upgrade uses a bounded admission barrier
+for the bundled database and the verified `b4931db4` legacy runtime. It requires
+the complete legacy migration inventory in one validated `public` or `tale`
+ledger and zero unfinished automation runs across every organization. A second
+or malformed ledger refuses admission. A held database lock blocks new legacy admissions and
+claims while the CLI gracefully stops every recorded backend API and worker
+container. The CLI observes those exact containers exited before releasing the
+lock; the new images install their protocol fence before serving requests or
+starting workers. Busy or unsupported sources and database layouts refuse the
+upgrade before any backend stop. Existing protocol-1 tag deployments must use
+this managed upgrade first; fresh installations and compatible later deployments
+do not need the legacy barrier.
+
+If the lock connection drops, a stop times out, or identities change, the CLI
+leaves the runtime pending and starts no new containers. Keep the bundle and
+`.tale/automation-cutover.json` receipt, then retry the same managed deployment.
+Before another legacy handoff, the retry verifies the recorded identities and
+takes a fresh locked census. If Compose already created some target containers,
+it can resume only with every retained old writer still exactly stopped, each
+replacement on the prepared target image, complete backend roles and the same
+database incarnation. Unknown identities or missing roles require reconciliation
+of the pending deployment. Elapsed time never authorizes a retry. The CLI does not
+force-kill or automatically restart old writers. Do not run an older CLI or
+manually restart containers during this transition. Terminal legacy runs may
+still have historical external effects; this barrier does not claim those
+effects have retired or cancel independent project agents.
 
 After a completed rollout, `tale --json deploy accept --bundle
 "$TALE_DEPLOY_BUNDLE" --cli-ref "$TALE_CLI_COMMIT" --deployment-ref "$DEPLOYMENT_COMMIT"
@@ -154,6 +187,14 @@ and cleanup do not have a cancellable whole-command deadline. Use an external
 process supervisor when a total deadline is required. A receipt is point-in-time
 correlation, not authentication or a guarantee of later routing. `sourceTag` is
 image-reference metadata; OCI labels and frontend health establish the version.
+
+`tale deploy smoke --url <url>` checks any running deployment through its public
+URL as a browser would, without credentials or writes: health and version,
+readiness, the app shell, an anonymous session, and the `/events` and `/api/app`
+session gates. `--full` also signs in as `TALE_SMOKE_EMAIL`/`TALE_SMOKE_PASSWORD`
+and creates, observes (live update) and deletes a task (archives it, when the
+account may not delete tasks); `--chat` adds one model
+turn. `--json` reports every check; exit `5` means a check failed.
 
 Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
 retained `name`. To use a canonical reporting label, declare
@@ -403,7 +444,10 @@ Declare an `automation-deployment` for the same name and project, with
 serialized as compact JSON with object keys sorted recursively. Arrays retain their
 order. The CLI refuses a different digest. A schedule also requires both phases in
 the same declaration. Its `automation-schedule` configuration has `projectId`,
-`name`, `cron`, `timezone` and `enabled`. Application saves definitions, promotes their
+`name`, `cron`, `timezone` and `enabled`, and optionally `wakeOnSlotFreed: true`, which
+also fires the schedule as soon as an agent of its project frees its slot; leave it out
+to opt out. Only one enabled schedule per project may set it: a second one, or binding its
+automation to a project another schedule already wakes, is refused with 409. Application saves definitions, promotes their
 exact tested versions, then reconciles schedules. Existing runs retain their version.
 
 Equal resources are no-ops. Interrupted phases reconcile native readback before

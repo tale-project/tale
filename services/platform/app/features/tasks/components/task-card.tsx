@@ -6,7 +6,7 @@ import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
-import { GitBranch } from 'lucide-react';
+import { Bot, Eye, GitBranch, MessageCircleQuestion } from 'lucide-react';
 import { memo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -26,12 +26,9 @@ import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAutomationBadge } from './task-automation-badge';
 import { useTaskBoardContext } from './task-board-context';
 import {
-  AgentNeedsAnswerIndicator,
-  AgentWorkingIndicator,
   BlockedIndicator,
   CommentCountIndicator,
   DueDateIndicator,
-  NeedsReviewIndicator,
   RepeatIndicator,
   SubtaskProgress,
   useTaskCardStateLabels,
@@ -140,9 +137,45 @@ function TaskCardView({
         ).name
       : undefined;
 
+  // The one thing on the card that is someone's move or in motion, said in
+  // words: an agent waiting for an answer, a review waiting on someone, an
+  // agent at work — in that order, the most urgent only.
+  const asking = isAgentAsking(task._id);
+  const reviewing = needsReview(task._id);
+  const working = isAgentWorking(task._id) && !asking;
+  const agentName =
+    task.assigneeType === 'agent' && task.assigneeId
+      ? resolveActor('agent', task.assigneeId).name
+      : undefined;
+  const liveLine = asking
+    ? {
+        icon: MessageCircleQuestion,
+        text: t('agentRuns.needsAnswer'),
+        className: 'text-amber-700 dark:text-amber-400',
+        pulse: false,
+      }
+    : reviewing
+      ? {
+          icon: Eye,
+          text: stateLabels.review(reviewerName, reviewerIsMe),
+          className: 'text-blue-700 dark:text-blue-400',
+          pulse: false,
+        }
+      : working
+        ? {
+            icon: Bot,
+            text:
+              agentName !== undefined
+                ? t('board.agentWorking', { name: agentName })
+                : t('agentRuns.working'),
+            className: 'text-primary',
+            pulse: true,
+          }
+        : null;
+
   const stateDescription = [
     blocked && stateLabels.blocked,
-    needsReview(task._id) && stateLabels.review(reviewerName, reviewerIsMe),
+    liveLine?.text,
     task.commentCount != null &&
       task.commentCount > 0 &&
       stateLabels.comments(task.commentCount),
@@ -242,10 +275,35 @@ function TaskCardView({
           </Row>
         )}
 
+        {liveLine !== null && (
+          // Read with the title through its description; shown once here.
+          <p
+            aria-hidden="true"
+            className={cn(
+              'mt-2 flex min-w-0 items-center gap-1.5 text-xs font-medium',
+              liveLine.className,
+            )}
+          >
+            <liveLine.icon
+              className={cn(
+                'size-3.5 shrink-0',
+                liveLine.pulse && 'animate-pulse motion-reduce:animate-none',
+              )}
+              aria-hidden="true"
+            />
+            <span className="min-w-0 truncate">{liveLine.text}</span>
+          </p>
+        )}
+
         {/* Above the title's stretched hit layer: the pickers keep their own
             clicks, and the indicators' tooltips still get their hover. */}
-        <Row gap={2} justify="between" className="relative z-10 mt-3">
-          <div className="flex items-center gap-1.5">
+        <Row
+          gap={2}
+          justify="between"
+          align="center"
+          className="relative z-10 mt-3"
+        >
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <PriorityPicker
               priority={task.priority ?? null}
               disabled={!editable}
@@ -273,17 +331,6 @@ function TaskCardView({
               task={task}
               runActive={isAgentWorking(task._id)}
             />
-            {/* A run parked on a question is the viewer's move — the ask chip
-                replaces the working pulse rather than pulsing next to it. */}
-            <AgentWorkingIndicator
-              working={isAgentWorking(task._id) && !isAgentAsking(task._id)}
-            />
-            <AgentNeedsAnswerIndicator asking={isAgentAsking(task._id)} />
-            <NeedsReviewIndicator
-              needsReview={needsReview(task._id)}
-              reviewerName={reviewerName}
-              reviewerIsMe={reviewerIsMe}
-            />
             <RepeatIndicator
               repeat={task.repeat}
               status={task.status}
@@ -304,6 +351,17 @@ function TaskCardView({
               assignTask.mutate({ taskId: task._id, assigneeType, assigneeId })
             }
             onUnassign={() => assignTask.mutate({ taskId: task._id })}
+            // Which agent carries the card is the board's key fact: its name
+            // rides beside the avatar.
+            {...(agentName !== undefined
+              ? {
+                  afterTrigger: (
+                    <span className="text-muted-foreground max-w-[6.5rem] truncate text-xs">
+                      {agentName}
+                    </span>
+                  ),
+                }
+              : {})}
           />
         </Row>
       </div>

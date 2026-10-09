@@ -118,6 +118,20 @@ function fakeSql(row: SessionRow | null, options: { lockFree?: boolean } = {}) {
       stored.status = 'active';
       return [{ id: stored.id }];
     }
+    if (text.startsWith("UPDATE app.sandbox_sessions SET status = 'stopped'")) {
+      // The heal of an agent session that keeps its workspace: by row id
+      // and org, only from a compute-holding status, only while unpinned.
+      if (
+        stored === null ||
+        !['creating', 'active', 'degraded'].includes(stored.status) ||
+        stored.pinned ||
+        !values.includes(stored.id) ||
+        !values.includes(stored.organizationId)
+      )
+        return [];
+      stored.status = 'stopped';
+      return [{ id: stored.id }];
+    }
     if (text.startsWith('UPDATE app.sandbox_sessions')) {
       if (
         stored === null ||
@@ -1011,6 +1025,149 @@ describe('reconcileSession heals unpinned phantoms as before', () => {
     await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('skipped');
 
     expectRowUntouched(data, stored, 'stopped');
+  });
+});
+
+describe('reconcileSession keeps an agent workspace whose sandbox disappeared [SBX-R17]', () => {
+  const held = (sessionId: string) => ({
+    backend: 'docker' as const,
+    workspaces: [{ sessionId, touchedAtMs: 1, active: false, pinned: false }],
+    organizations: [],
+  });
+
+  it.each(['agent', 'agent-light'])(
+    'settles a gone %s session whose workspace the spawner holds as stopped, reclaiming its credentials',
+    async (profile) => {
+      const { sql, dataSql, data, stored } = fakeSql({
+        ...OWNED_SESSION,
+        profile,
+      });
+      const inventory = vi.fn(async () => held('session-a'));
+      const { spawner } = fakeSpawner(false, { inventory });
+
+      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+        'healed',
+      );
+
+      expect(inventory).toHaveBeenCalledOnce();
+      expect(stored?.status).toBe('stopped');
+      expect(spawner.create).not.toHaveBeenCalled();
+      // Under the organization's admission lock, like every release.
+      expect(data.map((statement) => statement.text).slice(-2)).toEqual([
+        expect.stringContaining('pg_advisory_xact_lock'),
+        expect.stringContaining("SET status = 'stopped'"),
+      ]);
+      expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(
+        dataSql,
+        { ...ARGS, rowId: 'row-a' },
+      );
+      expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(
+        dataSql,
+        'org-a',
+      );
+    },
+  );
+
+  it('keeps the workspace when the inventory cannot be read', async () => {
+    for (const inventory of [
+      vi.fn(async () => {
+        throw new Error('sandbox workspace inventory unavailable (503)');
+      }),
+      vi.fn(async () => null),
+    ]) {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const { sql, stored } = fakeSql(OWNED_SESSION);
+      const { spawner } = fakeSpawner(false, { inventory });
+
+      await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe(
+        'healed',
+      );
+
+      expect(stored?.status).toBe('stopped');
+    }
+  });
+
+  it('settles as destroyed when the spawner holds no workspace under the id', async () => {
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const { spawner } = fakeSpawner(false, {
+      inventory: vi.fn(async () => held('another-session')),
+    });
+
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('healed');
+
+    expect(stored?.status).toBe('destroyed');
+  });
+
+  it('settles a gone render session as destroyed without asking for the inventory', async () => {
+    const { sql, stored } = fakeSql({
+      ...OWNED_SESSION,
+      profile: 'default',
+      ownerType: 'render',
+    });
+    const inventory = vi.fn(async () => held('session-a'));
+    const { spawner } = fakeSpawner(false, { inventory });
+
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('healed');
+
+    expect(stored?.status).toBe('destroyed');
+    expect(inventory).not.toHaveBeenCalled();
+  });
+
+  // The inventory is read under the session's lifecycle lock: the read is
+  // bounded on its own, and stops with the pass that asked for it.
+  it('bounds the inventory read, which a pass out of time ends without settling the row', async () => {
+    const pass = new AbortController();
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const inventory = vi.fn(async (options?: { signal?: AbortSignal }) => {
+      expect(options?.signal?.aborted).toBe(false);
+      pass.abort();
+      options?.signal?.throwIfAborted();
+      return held('session-a');
+    });
+    const { spawner } = fakeSpawner(false, { inventory });
+
+    await expect(
+      reconcileSession(sql, ARGS, spawner, { signal: pass.signal }),
+    ).rejects.toThrow();
+
+    expect(inventory).toHaveBeenCalledOnce();
+    expect(stored?.status).toBe('active');
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+  });
+
+  it('reads an inventory that times out on its own as unknown, keeping the workspace', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const pass = new AbortController();
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const inventory = vi.fn(async (options?: { signal?: AbortSignal }) => {
+      expect(options?.signal).toBeInstanceOf(AbortSignal);
+      throw new DOMException('The operation timed out.', 'TimeoutError');
+    });
+    const { spawner } = fakeSpawner(false, { inventory });
+
+    await expect(
+      reconcileSession(sql, ARGS, spawner, { signal: pass.signal }),
+    ).resolves.toBe('healed');
+
+    expect(stored?.status).toBe('stopped');
+  });
+
+  it('leaves a row pinned meanwhile to its next visit, settling and revoking nothing', async () => {
+    const { sql, stored } = fakeSql(OWNED_SESSION);
+    const { spawner } = fakeSpawner(false, {
+      inventory: vi.fn(async () => {
+        // A pin taken meanwhile keeps the row from being hibernated.
+        if (stored !== null) stored.pinned = true;
+        return held('session-a');
+      }),
+    });
+
+    await expect(reconcileSession(sql, ARGS, spawner)).resolves.toBe('skipped');
+
+    expect(stored?.status).toBe('active');
+    expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+    expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
   });
 });
 

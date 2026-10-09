@@ -20,7 +20,13 @@ import type {
  * gone when the turn settles or the watchdog clears it); a managed turn
  * holds its gateway allowance on its op row until its spend is booked
  * (`app.sandbox_session_ops`), and while one of its `generate_image` calls
- * runs, that call's estimate and image requests on top. An admission adds
+ * runs, that call's estimate and image requests on top; an automation's
+ * `llm` step holds its worst case on an op row of its own
+ * (`automations/llm-metering.ts`), and so does a call the platform makes
+ * straight to a provider for a chat title, the Inbox's Improve, a
+ * transcription or an embedding request (`direct-calls.ts`), until each is
+ * booked; a voice output chunk holds its
+ * estimate on its pending row (`app.tts_audio_chunks`). An admission adds
  * every other hold to the booked usage under the organization's admission
  * lock, so the holds it reads cannot change until its own is written.
  */
@@ -81,21 +87,32 @@ interface HoldRow {
         requests: number;
       }[]
     | null;
+  projects:
+    | {
+        projectId: string;
+        costCents: number;
+        tokens: number;
+        requests: number;
+      }[]
+    | null;
 }
 
 /**
  * What every other piece of work in flight holds, per bucket the subject is
  * measured in: the organization's, the subject's own, each of their teams'
  * (the holds of that team's CURRENT members and of the keys it owns, as the
- * team's usage is read)
- * and the authenticating API key's — a keyed chat turn's, a keyed run's
+ * team's usage is read), the authenticating API key's — a keyed chat turn's, a keyed run's
  * managed turn and a model-endpoint request alike, each op row carrying the
  * key its reservation stamped, and, for a key that is not a person, every
- * hold of its identity. A chat turn's hold, a managed turn's
- * allowance and a model-endpoint request count as one request each; an
- * image generation in flight counts one per image it may make. Costs count
- * as reserved, tokens where the work sized them (a chat turn's round, a
- * model-endpoint request's prompt and output cap; an agent turn holds no
+ * hold of its identity — and each of the subject's projects': a chat turn
+ * in one of its threads, and every op row its reservation stamped with it
+ * (an automation run's op, with every project the run belongs to). A chat
+ * turn's hold, a managed turn's
+ * allowance, a model-endpoint request, a direct call and a pending voice
+ * chunk count as one request each; an image generation in flight counts one
+ * per image it may make. Costs count as reserved, tokens where the work
+ * sized them (a chat turn's round, a model-endpoint request's or a direct
+ * call's prompt and output cap; an agent turn and a voice chunk hold no
  * token figure). `exclude` leaves out the admission's own row when it
  * already exists.
  */
@@ -105,26 +122,36 @@ export async function readInFlightReservations(
   exclude: {
     threadId?: string;
     op?: { sessionId: string; execId: string };
+    tts?: { chunkId: string; attemptCreatedAt: number };
   } = {},
 ): Promise<BudgetReservations> {
   const org = subject.organizationId;
   const apiKeyId = subject.apiKeyId ?? null;
   // A key that is not a person: everything its identity holds is the key's.
   const keyIdentity = subject.apiKeyIdentity ?? null;
+  const projectIds = [...(subject.projectIds ?? [])];
   const rows = await sql<HoldRow[]>`
     WITH holds AS (
-      SELECT user_id, api_key_id,
-             reserved_cost_cents::float8 AS cost_cents,
-             reserved_tokens::float8 AS tokens,
+      -- New turns keep the projects captured with the request. Only legacy
+      -- unstamped rows follow the thread's current project.
+      SELECT g.user_id, g.api_key_id,
+             coalesce(g.project_ids,
+               CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                    ELSE ARRAY[tm.project_id] END) AS project_ids,
+             g.reserved_cost_cents::float8 AS cost_cents,
+             g.reserved_tokens::float8 AS tokens,
              1::float8 AS requests
-      FROM app.generations
-      WHERE org_id = ${org} AND user_id IS NOT NULL
-        AND thread_id <> ${exclude.threadId ?? ''}
+      FROM app.generations g
+      LEFT JOIN app.thread_metadata tm
+        ON tm.thread_id = g.thread_id AND tm.org_id = g.org_id
+      WHERE g.org_id = ${org} AND g.user_id IS NOT NULL
+        AND g.thread_id <> ${exclude.threadId ?? ''}
       UNION ALL
       -- A managed turn or a model-endpoint request: its gateway allowance
       -- (a subscription turn has none) and the tokens its hold sized, plus
-      -- the image generation it has in flight.
-      SELECT user_id, api_key_id,
+      -- the image generation it has in flight — in the projects its
+      -- reservation stamped.
+      SELECT user_id, api_key_id, coalesce(project_ids, '{}'::text[]),
              (coalesce(budget_cents, 0) + image_hold_cents)::float8,
              coalesce(reserved_tokens, 0)::float8,
              ((CASE WHEN budget_cents IS NULL THEN 0 ELSE 1 END)
@@ -135,6 +162,21 @@ export async function readInFlightReservations(
         AND spend_settled_at_ms IS NULL
         AND NOT (session_id = ${exclude.op?.sessionId ?? ''}
                  AND exec_id = ${exclude.op?.execId ?? ''})
+      UNION ALL
+      -- Pending voice attempts hold one request and their admitted cost.
+      -- Legacy rows have no known cost; keep their request visible anyway.
+      SELECT c.user_id, NULL::text,
+             coalesce(c.project_ids,
+               CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                    ELSE ARRAY[tm.project_id] END),
+             coalesce(c.reserved_cost_cents, 0)::float8,
+             0::float8, 1::float8
+      FROM app.tts_audio_chunks c
+      LEFT JOIN app.thread_metadata tm
+        ON tm.thread_id = c.thread_id AND tm.org_id = c.org_id
+      WHERE c.org_id = ${org} AND c.status = 'pending'
+        AND NOT (c.id = ${exclude.tts?.chunkId ?? ''}
+          AND c.attempt_created_at_ms = ${exclude.tts?.attemptCreatedAt ?? -1})
     ),
     -- Who spends for a team: its current members, and the keys it owns.
     team_spenders AS (
@@ -156,6 +198,17 @@ export async function readInFlightReservations(
       FROM holds h
       JOIN team_spenders ts ON ts.user_id = h.user_id
       GROUP BY ts.team_id
+    ),
+    -- A hold in several projects counts toward each of them.
+    project_holds AS (
+      SELECT p.project_id AS "projectId",
+             sum(h.cost_cents)::float8 AS "costCents",
+             sum(h.tokens)::float8 AS "tokens",
+             sum(h.requests)::float8 AS "requests"
+      FROM holds h
+      CROSS JOIN LATERAL unnest(h.project_ids) AS p(project_id)
+      WHERE p.project_id = ANY(${projectIds}::text[])
+      GROUP BY p.project_id
     )
     SELECT
       coalesce(sum(cost_cents), 0)::float8 AS "orgCostCents",
@@ -176,7 +229,8 @@ export async function readInFlightReservations(
       coalesce(sum(requests) FILTER (
         WHERE api_key_id = ${apiKeyId} OR user_id = ${keyIdentity}), 0)::float8
         AS "keyRequests",
-      (SELECT json_agg(team_holds) FROM team_holds) AS "teams"
+      (SELECT json_agg(team_holds) FROM team_holds) AS "teams",
+      (SELECT json_agg(project_holds) FROM project_holds) AS "projects"
     FROM holds
   `;
   const row = rows[0];
@@ -190,6 +244,16 @@ export async function readInFlightReservations(
     user: hold(row?.userCostCents, row?.userTokens, row?.userRequests),
     ...(subject.apiKeyId !== undefined
       ? { apiKey: hold(row?.keyCostCents, row?.keyTokens, row?.keyRequests) }
+      : {}),
+    ...(projectIds.length > 0
+      ? {
+          projects: Object.fromEntries(
+            (row?.projects ?? []).map((project) => [
+              project.projectId,
+              hold(project.costCents, project.tokens, project.requests),
+            ]),
+          ),
+        }
       : {}),
     teams: Object.fromEntries(
       (row?.teams ?? []).map((team) => [

@@ -179,7 +179,7 @@ Each call is governed like a chat request, for the person whose key sent it:
 - **The model.** It must be on your list, and the organization's model access must allow it for you at the moment of the call. The model allowlist of the provider credential applies as well.
 - **What the model can read.** Images need a model with vision, and tools a model that takes them. Images travel as OpenAI `image_url` parts with a `data:` or `https:` URL, or as Anthropic `image` blocks in base64 or with an `https:` URL, also inside tool results. Documents travel as OpenAI `file` parts or Anthropic `document` blocks.
 - **The input guardrails.** The organization's content safety, personal-data protection, and moderation provider read every text the request carries before it is sent on: system and developer instructions, your turns and the assistant's, tool calls, tool results and tool definitions, and documents given as text. A block refuses the request, and a mask sends the model the masked text. The model's answers, and images and documents that are not text, are not filtered. [Guardrails](/platform/admin/governance/guardrails#model-endpoints) has the details.
-- **The budgets.** Before the call, Tale works out its worst case, the estimated prompt plus the most output it may produce at the model's catalog price. It refuses the call with `429 BUDGET_EXCEEDED` when that worst case does not fit what is left under a budget cap that applies to you, your teams, the organization, or the key, and holds it against those caps while the call runs; a lower `max_tokens` fits more. Afterwards it books the cost the model gateway measured and the reported tokens under your name and the key. A call you break off while Tale is still checking it is never sent on and is not booked. Breaking it off once it has been sent cancels its request to the provider as well, and the call is still booked: at least for its prompt and the output that had reached you, at the model's catalog price. Each call counts as one request and appears as **Direct API** in usage analytics.
+- **The budgets.** Before the call, Tale works out its worst case, the estimated prompt plus the most output it may produce at the model's catalog price. It refuses the call with `429 BUDGET_EXCEEDED` when that worst case does not fit what is left under a budget cap that applies to you, your teams, the organization, or the key — or, for a project's own key, its project — and holds it against those caps while the call runs; a lower `max_tokens` fits more. Afterwards it books the cost the model gateway measured and the reported tokens under your name and the key. A call you break off while Tale is still checking it is never sent on and is not booked. Breaking it off once it has been sent cancels its request to the provider as well, and the call is still booked: at least for its prompt and the output that had reached you, at the model's catalog price. Each call counts as one request and appears as **Direct API** in usage analytics.
 - **Eight calls at a time.** You, and each of your keys, may have eight calls running at once. A ninth is refused with `429 MODEL_API_CONCURRENCY_EXCEEDED` and a `Retry-After` of two seconds.
 
 Your tools never see a provider key. Tale relays each call through its model gateway with a key minted for that one request and that one model. Revoking your API key under **Settings > API > REST** ends its access with the next request; an answer that is already streaming finishes.
@@ -349,6 +349,36 @@ To share the server with a team through a committed `.mcp.json`, reference the k
 
 `claude mcp list` reports whether Claude Code can reach the server.
 
+### Prompts and resources in Claude Code {#prompts-and-resources}
+
+With the server registered as `tale`, type `/` in Claude Code to find Tale's prompts: `/tale:edit_automation`, `/tale:debug_failed_run` and `/tale:add_trigger`. Put the arguments after the command, separated by spaces, for example `/tale:debug_failed_run <run-id>`. Each prompt attaches what it is about and tells the agent to ask you before anything is deployed.
+
+Type `@` to mention a Tale resource, for example `@tale:tale://runs/<run-id>` for a run or `@tale:tale://docs/triggers` for the triggers reference. Claude Code reads it with your key and attaches it to your message. [Resources and prompts](/develop/mcp-endpoint#resources-and-prompts) lists every address and prompt.
+
+### Install the Tale skill {#tale-skill}
+
+The Tale skill is a `SKILL.md` file in the Agent Skills format. It teaches your agent how to work in Tale: the editing loop, testing on the mocks, triggers, debugging a failed run, reading a refusal, and the rules it keeps, such as asking you before anything is deployed. It is not one of your organization's skills, and it names no host, organization or key, so one copy serves every project. Save it where your agent reads skills:
+
+| Agent | This project | All your projects |
+| --- | --- | --- |
+| Claude Code | `.claude/skills/tale/SKILL.md` | `~/.claude/skills/tale/SKILL.md` |
+| Codex | `.agents/skills/tale/SKILL.md` | `~/.agents/skills/tale/SKILL.md` |
+
+Read it from the MCP endpoint with your key. The example saves it for Claude Code in the current project; change the folder for another agent:
+
+```bash
+mkdir -p .claude/skills/tale
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'MCP-Protocol-Version: 2025-11-25' \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"tale://docs/skill"}}' \
+  | jq -r '.result.contents[0].text' > .claude/skills/tale/SKILL.md
+```
+
+A connected agent can also read `tale://docs/skill` and save the file itself. The skill matches the Tale release it came from, so fetch it again after an update; the references it points to are read from your deployment every time.
+
 ## Let a project agent edit scripts
 
 To have the edit made inside Tale, in a sandbox and with a person's review, hand the script to a [project agent](/platform/projects/project-agents). Tale runs an agent runtime such as OpenCode in a sandbox, on the model the agent is configured with. The run counts against the budgets of the member who started it and is recorded under that person; a run you start over REST is booked to you, not to the API key. The edited files come back as the task's deliverables, and the task waits in review for a person. [Choose an agent runtime](/platform/agents/harnesses) compares the agent runtimes; OpenCode runs only through Tale's model gateway, so it never receives a provider key.
@@ -389,14 +419,14 @@ tale_api -X POST "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments"
 echo "TASK_ID=$TASK_ID"
 ```
 
-`externalSystem` and `externalId` make the task idempotent: sending the same pair again returns the existing task. A description holds up to 20,000 characters; for a longer script, upload it to the project as described in [Upload a file in two steps](/develop/api-reference#upload-a-file-in-two-steps). An agent answers to its ID and to its name in lower case with spaces replaced by dots or removed, so `@script.editor` also works.
+`externalSystem` and `externalId` make the task idempotent: sending the same pair again returns the existing task. A description holds up to 20,000 characters; for a longer script, upload it to the project as described in [Upload a file in two steps](/develop/api-reference#upload-a-file-in-two-steps). The comment names the agent by its ID; its `handle` works as well, here `@script-editor`, and the agent's read carries it. Tale stores either as a mention of the agent itself, so the comment keeps naming it after a rename: read back, its `body` is `[@Script editor](mention:agent/<agent ID>) please take this task.` and its `bodyText` is `@Script editor please take this task.`
 
 The mention assigns the task to the agent and starts a run, and the task moves to `in_progress`. A mention that cannot start a run is saved as an ordinary comment without an error, for example when the task is not yours to change, task automation is turned off, or another run already holds the task. Set `TASK_ID` to the value the script printed, check the task, and read the agent's report once the task reaches `in_review`:
 
 ```bash
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID" | jq -r '.task.status'
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments?limit=20" \
-  | jq -r '.comments[] | select(.authorType == "agent") | .body'
+  | jq -r '.comments[] | select(.authorType == "agent") | .bodyText'
 ```
 
 Review the edited files under the task's deliverables in the app before you approve the task. To send the agent back with changes, post another comment that mentions it.

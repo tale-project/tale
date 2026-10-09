@@ -80,11 +80,70 @@ describe('get_knowledge on the capability surface', () => {
     expect(searchKnowledgeForOrg).toHaveBeenCalledTimes(1);
     expect(searchKnowledgeForOrg).toHaveBeenCalledWith(sql, {
       organizationId: 'org_1',
+      // Embedding the query is the key holder's spend [GOV-R5].
+      spender: { userId: 'user_1', agentSlug: '__embedding__' },
       query: 'returns policy',
       corpus: 'documents',
       // The scope the same person's chat tools search under, stamped with
       // the holder so the retrievability re-check runs as them.
       access: { ...HOLDER_SCOPE, userId: 'user_1' },
+    });
+  });
+
+  it('books the search, and the runs a capability starts, to the key the call came with [GOV-R5]', async () => {
+    findActingMember.mockResolvedValue({ role: 'member' });
+    await dispatchCapabilityAs(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      apiKeyId: 'key_1',
+      method: 'get_knowledge',
+      params: { query: 'returns policy' },
+    });
+
+    expect(searchKnowledgeForOrg).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        spender: {
+          userId: 'user_1',
+          agentSlug: '__embedding__',
+          apiKeyId: 'key_1',
+        },
+      }),
+    );
+    expect(pgAutomationStore).toHaveBeenCalledWith(sql, {
+      organizationId: 'org_1',
+      actor: 'user_1',
+      apiKeyId: 'key_1',
+    });
+  });
+
+  it('answers a search a usage limit refused with its code and sentence, never as nothing found [GOV-R4]', async () => {
+    const { ChatBudgetExceededError } = await import('./budget-admission.ts');
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    searchKnowledgeForOrg.mockRejectedValueOnce(
+      new ChatBudgetExceededError({
+        code: 'BUDGET_EXCEEDED',
+        message:
+          'Usage limit reached. Your daily request limit is used up until 2026-10-09T00:00:00.000Z.',
+        scope: 'user',
+        limitCode: 'REQUEST_LIMIT',
+        period: 'daily',
+        used: 50,
+        limit: 50,
+        resetsAt: Date.UTC(2026, 9, 9),
+      }),
+    );
+    const surface = await buildCapabilitySurface(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+
+    const result = await surface.dispatch('get_knowledge', { query: 'x' });
+
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      code: 'BUDGET_EXCEEDED',
+      reason: expect.stringContaining('Your daily request limit is used up'),
     });
   });
 

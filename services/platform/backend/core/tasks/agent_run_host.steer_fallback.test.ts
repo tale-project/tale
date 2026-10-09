@@ -104,3 +104,79 @@ describe('steerTaskAgentTurnImpl settled-run fallback', () => {
     expect(payload.mentionSource).toBe('description');
   });
 });
+
+describe('steerTaskAgentTurnImpl — the API key the text was written with [SBX-R14]', () => {
+  function ctxFor(
+    queries: unknown[],
+    mutationCalls: Array<{ payload: unknown }>,
+  ): ActionCtx {
+    return {
+      runQuery: async () => queries.shift() ?? null,
+      runMutation: async (_ref: unknown, payload: unknown) => {
+        mutationCalls.push({ payload });
+        // A rotation another steer won: the host retries, sending nothing.
+        return null;
+      },
+      runAction: async () => null,
+      scheduler: {
+        runAfter: async () => 'job',
+        runAt: async () => 'job',
+        cancel: async () => undefined,
+      },
+    } as unknown as ActionCtx;
+  }
+
+  it('kicks the fallback run under the key', async () => {
+    const args = { ...steerArgs(), authorApiKeyId: 'key-1' };
+    const mutationCalls: Array<{ payload: unknown }> = [];
+    const ctx = ctxFor(
+      [
+        {
+          status: 'settled',
+          execId: args.execId,
+          sessionId: args.sessionId,
+          organizationId: args.organizationId,
+        },
+      ],
+      mutationCalls,
+    );
+
+    await steerTaskAgentTurnImpl(ctx, args);
+
+    expect(mutationCalls[0]?.payload).toMatchObject({
+      authorId: 'user_1',
+      apiKeyId: 'key-1',
+    });
+  });
+
+  it('books a restarted turn to the person who steered it and their key', async () => {
+    // A harness with no held-open stdin: the restart lane.
+    const args = {
+      ...steerArgs(),
+      harness: 'itest-no-steering',
+      authorApiKeyId: 'key-1',
+    };
+    const mutationCalls: Array<{ payload: unknown }> = [];
+    const ctx = ctxFor(
+      [
+        {
+          status: 'running',
+          execId: args.execId,
+          sessionId: args.sessionId,
+          organizationId: args.organizationId,
+        },
+        { status: 'running', finalized: false },
+      ],
+      mutationCalls,
+    );
+
+    await steerTaskAgentTurnImpl(ctx, args);
+
+    expect(mutationCalls[0]?.payload).toEqual({
+      runId: args.runId,
+      fromExecId: args.execId,
+      startedBy: 'user_1',
+      apiKeyId: 'key-1',
+    });
+  });
+});

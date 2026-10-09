@@ -74,6 +74,10 @@ mcpEndpoint:
       title: Run & trigger management
       description: Operate what is deployed — start and poll durable runs,
         browse versions, bind and unbind triggers.
+    discovery:
+      title: Discovery
+      description: Look up what an automation may name — models, agent
+        runtimes, skills, connectors, secret names, projects and events.
     capability:
       title: Capabilities & knowledge
       description: This organization's own surface — search what it can do,
@@ -253,6 +257,7 @@ organization:
   deleteLoading: Deleting…
   deleteSuccess: Organization deleted
   deleteFailed: Couldn't delete organization
+  deleteBlockedByLegacyAutomation: Automation runs are on hold because their earlier external actions have not been verified. Your organization was preserved. A stop request does not release these holds.
   deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
   deleteTypeNameLabel: Type the organization name to confirm
   deleteConfirmNameMismatch: The confirmation doesn't match the organization name. Reload the page and try again.
@@ -1162,6 +1167,10 @@ logs:
       Audit logs will appear here as actions are performed in your
       organization.
     detailTitle: Audit log details
+    viaLabel: Source
+    viaLabels:
+      mcp: Coding agent
+    clientLabel: Client
     columns:
       timestamp: Timestamp
       action: Action
@@ -1253,6 +1262,8 @@ logs:
       document.trashed: Document moved to trash
       document.deleted: Document deleted
       folder.deleted: Folder deleted
+      knowledge_entry.created: Knowledge entry created
+      knowledge_entry.updated: Knowledge entry updated
       branding.updated: Branding updated
       branding.image_uploaded: Branding image uploaded
       branding.image_deleted: Branding image removed
@@ -1352,6 +1363,13 @@ logs:
       automation.run.cancelled: Automation run stopped
       automation.run.deleted: Automation run deleted
       automation.run.in_doubt_resolved: Interrupted automation step decided
+      automation.version.saved: Automation version saved
+      automation.deployed: Automation deployed
+      automation.deleted: Automation deleted
+      automation.trigger.set: Automation trigger changed
+      automation.trigger.deleted: Automation trigger removed
+      automation.project.bound: Automation installed in a project
+      automation.project.unbound: Automation removed from a project
       create_connector: Created connector
       delete_connector: Deleted connector
       update_credential: Updated credential
@@ -1458,10 +1476,12 @@ logs:
       conversationMessage: Conversation message
       document: Document
       folder: Folder
+      knowledge_entry: Knowledge entry
       agent: Agent
       workflow: Automation
       workflow_run: Automation run
       automation_trigger: Automation trigger
+      automation: Automation
       workflow_creation: Automation creation
       workflow_update: Automation update
       customer: Contact

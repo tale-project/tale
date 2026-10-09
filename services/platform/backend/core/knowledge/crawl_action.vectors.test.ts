@@ -10,7 +10,11 @@ import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
 import { PageIndexer, type StoreOutcome, storePageText } from './crawl_action';
 import { EmbeddingDimensionMismatch } from './dimensions';
-import { embedderForOrg, EmbeddingNotConfigured } from './embedding';
+import {
+  embedderForOrg,
+  EmbeddingBudgetExceeded,
+  EmbeddingNotConfigured,
+} from './embedding';
 
 vi.mock('./connection', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./connection')>()),
@@ -692,5 +696,133 @@ describe('PageIndexer.embedPage [KNOW-R11]', () => {
     expect(statements[0]?.params).toEqual(['ruler.example', URL]);
     // Nothing to embed: the model is not resolved.
     expect(embedderForOrg).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A usage limit that binds whoever a scan is for stops its embedding, not
+ * the scan: the page is stored without vectors — the site's own content
+ * search still reads it — the rest of the link embeds nothing, and the
+ * website row says why, so the hourly pass can resume the scan once the
+ * limit allows it.
+ */
+describe('PageIndexer at a usage limit', () => {
+  const requested = {
+    domain: 'ruler.example',
+    orgSlug: 'ruler',
+    organizationId: 'org-1',
+    requestedBy: { userId: 'user-1', apiKeyId: 'key-1' },
+  };
+
+  function storedPageCorpus(): { sql: Sql; inserts: unknown[][] } {
+    const inserts: unknown[][] = [];
+    const unsafe = (text: string, params: unknown[] = []) => {
+      if (text.includes('SELECT content, title')) {
+        return Promise.resolve([{ content: TEXT.repeat(20), title: 'About' }]);
+      }
+      if (text.includes('INSERT INTO public_web.chunks')) inserts.push(params);
+      return Promise.resolve([]);
+    };
+    const sql = {
+      unsafe,
+      begin: async (run: (tx: { unsafe: typeof unsafe }) => Promise<void>) =>
+        run({ unsafe }),
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+    return { sql: sql as unknown as Sql, inserts };
+  }
+
+  afterEach(() => {
+    vi.mocked(embedderForOrg).mockReset();
+    vi.restoreAllMocks();
+  });
+
+  it('stores the page without vectors, embeds nothing more, and notes the limit on the row [GOV-R4] [WEB-R11]', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    const embedAll = vi.fn(() =>
+      Promise.reject(new EmbeddingBudgetExceeded('Usage limit reached.')),
+    );
+    vi.mocked(embedderForOrg).mockResolvedValue(model(1024, embedAll));
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const { sql, statements } = storedPage();
+    const indexer = new PageIndexer(rowCtx, sql, requested, meter);
+
+    await indexer.indexPage('https://ruler.example/about');
+    await indexer.indexPage('https://ruler.example/team');
+    await expect(indexer.embedVectorless(Date.now() + 60_000)).resolves.toBe(0);
+    await indexer.finish();
+
+    expect(embedderForOrg).toHaveBeenCalledWith(
+      rowCtx,
+      expect.objectContaining({ meter }),
+    );
+    // Asked once; the second page went straight to text without vectors.
+    expect(embedAll).toHaveBeenCalledTimes(1);
+    const chunkWrites = statements.filter(({ text }) =>
+      text.startsWith('INSERT INTO public_web.chunks'),
+    );
+    expect(chunkWrites.length).toBeGreaterThan(0);
+    // No vector is written, in this width's table or the previous column.
+    expect(chunkWrites.every(({ params }) => params[10] === null)).toBe(true);
+    for (const { text } of statements) {
+      expect(text).not.toContain('chunk_vectors_');
+    }
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+      reason: 'Usage limit reached.',
+      requestedBy: { userId: 'user-1', apiKeyId: 'key-1' },
+    });
+  });
+
+  it('clears the note once a link embedded again', async () => {
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockResolvedValue(
+      model(1024, async (texts) => texts.map(() => [0])),
+    );
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(rowCtx, storedPage().sql, requested);
+
+    await indexer.indexPage('https://ruler.example/about');
+    await indexer.finish();
+
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+    });
+  });
+
+  it('clears the note when nothing is left without vectors, though the link embedded nothing [WEB-R11]', async () => {
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(rowCtx, storedPageCorpus().sql, requested);
+
+    // Another organization's scan of the shared domain embedded what was
+    // left, or the pages went: the backfill found none.
+    await indexer.finish(0);
+
+    expect(runMutation).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      domain: 'ruler.example',
+    });
+  });
+
+  it('leaves the note alone while pages still wait for vectors, or when the backfill did not run', async () => {
+    const runMutation = vi.fn(async () => null);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runMutation is dispatched
+    const rowCtx = { runMutation } as unknown as ActionCtx;
+    const indexer = new PageIndexer(rowCtx, storedPageCorpus().sql, requested);
+
+    await indexer.finish(3);
+    await indexer.finish();
+
+    expect(runMutation).not.toHaveBeenCalled();
   });
 });

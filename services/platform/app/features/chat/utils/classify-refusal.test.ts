@@ -36,6 +36,19 @@ describe('classifyRefusal', () => {
     });
   });
 
+  it('names a project’s cap, which Settings > Usage does not list [GOV-R14]', () => {
+    expect(
+      classifyRefusal('Usage limit reached.', 'BUDGET_EXCEEDED', 'project'),
+    ).toEqual({
+      titleKey: 'toast.budgetExceeded',
+      descriptionKey: 'errorHintProjectBudgetExceeded',
+    });
+    expect(
+      classifyRefusal('Usage limit reached.', 'BUDGET_EXCEEDED', 'team')
+        .descriptionKey,
+    ).toBe('errorHintBudgetExceeded');
+  });
+
   it('still matches the phrasing for a code it does not map', () => {
     expect(
       classifyRefusal('Message blocked: PII detected', 'CHAT_MODEL_UNKNOWN')

@@ -68,8 +68,13 @@ describe('marketing content source graph', () => {
     expect(failures).toEqual([]);
   }, 15_000);
 
-  it('makes every localized comparison and use case reachable from its own hub', () => {
-    for (const hub of pages.filter((page) => page.slug === 'index')) {
+  // The comparison hub lists metadata through ComparisonHub rather than
+  // duplicating the registry in Markdown; its rendered links are checked
+  // in comparison-hub.test.tsx and comparison-discovery.spec.ts.
+  it('makes every localized use case reachable from its source hub', () => {
+    for (const hub of pages.filter(
+      (page) => page.slug === 'index' && page.category === 'use-cases',
+    )) {
       const linked = new Set(internalLinks(hub.content, hub.url));
       const leaves = pages.filter(
         (page) =>

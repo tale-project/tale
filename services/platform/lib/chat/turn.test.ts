@@ -94,8 +94,13 @@ const API_KEY_CREDENTIAL: CredentialAuth = { authMethod: 'api-key' };
 
 interface StoreCalls {
   readonly appended: Array<Record<string, unknown>>;
-  /** Every streaming-progress write, in order (the full text so far). */
-  readonly streamed: Array<{ messageId: string | undefined; text: string }>;
+  /** Every streaming-progress write, in order (the full text so far); a
+   *  stall's cancel poll carries `poll`. */
+  readonly streamed: Array<{
+    messageId: string | undefined;
+    text: string;
+    poll?: true;
+  }>;
   /** Every settled-parts write, in order (the authoritative parts-so-far). */
   readonly partsWrites: Array<readonly Record<string, unknown>[]>;
   /** Every settle write into the placeholder. */
@@ -182,6 +187,7 @@ function fakeStore(
         calls.streamed.push({
           messageId: update.messageId,
           text: update.text,
+          ...(update.poll === true ? { poll: true as const } : {}),
         });
         const cancelAt = options.cancelAfterStreamWrites;
         // The tool-round boundary is the only write that is both flushed and
@@ -356,6 +362,19 @@ describe('runTurn — the happy path', () => {
     ]);
   });
 
+  it('books the usage of a turn in a project’s thread to the project [GOV-R14]', async () => {
+    const d = deps();
+    await runTurn(request({ projectId: 'project_1' }), d.deps);
+    expect(d.usage).toEqual([
+      expect.objectContaining({ userId: 'user_1', projectIds: ['project_1'] }),
+    ]);
+    const outside = deps();
+    await runTurn(request(), outside.deps);
+    expect(outside.usage).toEqual([
+      expect.not.objectContaining({ projectIds: expect.anything() }),
+    ]);
+  });
+
   it('hands the open what the turn may spend, for the host to hold against the caps', async () => {
     const { store } = fakeStore();
     const spends: unknown[] = [];
@@ -383,6 +402,7 @@ describe('runTurn — the happy path', () => {
     expect(spends).toEqual([
       {
         userId: 'user_1',
+        projectIds: [],
         apiKeyId: 'key_1',
         tokens: expect.any(Number),
         costCents: expect.any(Number),
@@ -850,6 +870,38 @@ describe('runTurn — input guardrails', () => {
     });
   });
 
+  it('keeps a refused message from every model, its title’s too, and names the key that sent it [CHAT-R8]', async () => {
+    const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
+    await runTurn(request({ apiKeyId: 'key-1' }), d.deps);
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      apiKeyId: 'key-1',
+      nameWithoutModel: true,
+    });
+  });
+
+  it('names the key on a message the execution refused, and lets a model name its thread', async () => {
+    const d = deps();
+    await runTurn(
+      request({
+        apiKeyId: 'key-1',
+        credential: {
+          authMethod: 'subscription-key',
+          constraints: { execution: 'sandbox', harness: 'claude-code' },
+        },
+        executionMode: 'direct',
+      }),
+      d.deps,
+    );
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      apiKeyId: 'key-1',
+    });
+    expect(d.store.appended[0]).not.toHaveProperty('nameWithoutModel');
+  });
+
   it('appends only the refusal on a regenerate — the user row already exists [CHAT-R8]', async () => {
     const d = deps({ inputFilters: [blockingFilter('chat_filter')] });
     await runTurn(request({ appendUserMessage: false }), d.deps);
@@ -1091,6 +1143,43 @@ describe('runTurn — the tool loop', () => {
       },
     };
   }
+
+  it('raises the turn’s hold before each further round, by the round’s worst case [GOV-R5]', async () => {
+    const { model } = oneToolRoundModel();
+    const { executor } = fakeExecutor({ status: 'ok', hits: 3 });
+    const d = deps({ model, tools: executor });
+    const holds: Array<{ tokens: number; costCents: number }> = [];
+    d.deps.store.holdNextRound = (round) => {
+      holds.push({ tokens: round.tokens, costCents: round.costCents });
+      return Promise.resolve();
+    };
+
+    await runTurn(request(), d.deps);
+
+    // One tool round, so one further round: held once, on a transcript
+    // that now carries the round's call and result.
+    expect(holds).toHaveLength(1);
+    expect(holds[0]?.tokens).toBeGreaterThan(0);
+  });
+
+  it('keeps answering when raising the hold fails', async () => {
+    const { model } = oneToolRoundModel();
+    const { executor } = fakeExecutor();
+    const d = deps({ model, tools: executor });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    d.deps.store.holdNextRound = () =>
+      Promise.reject(new Error('connection reset'));
+
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'completed',
+      text: 'Found it: 30 days.',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('for its next round failed'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
 
   it('executes the calls, settles parts in order, and answers', async () => {
     const { model, requests } = oneToolRoundModel();
@@ -1668,6 +1757,27 @@ describe('runTurn — the tool loop', () => {
     expect(calls.generations).toEqual(['begin', 'end']);
     // Nothing streamed; the settle is the empty stop, not a hang.
     expect(calls.finalized).toHaveLength(1);
+  }, 10_000);
+
+  it('marks the stall tick after streamed text as a poll, so the store holds it only to the shortest gap', async () => {
+    // The chunk's own write, then the stall's tick: the store answers the
+    // tick with the cancel. Without `poll` it would wait the gap a long
+    // reply's text earns.
+    const { store, calls } = fakeStore({ cancelAfterStreamWrites: 2 });
+    const stalled: ModelCall = async function* stream() {
+      yield { text: 'partial' };
+      await new Promise(() => undefined);
+    };
+    const d = deps({ model: stalled, store });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    expect(calls.streamed.map((write) => write.poll ?? false)).toEqual([
+      false,
+      true,
+    ]);
+    expect(calls.streamed[1]?.text).toBe('partial');
   }, 10_000);
 });
 

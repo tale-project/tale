@@ -78,6 +78,11 @@ mcpEndpoint:
       description: Piloter ce qui est déployé — lancer et suivre les
         exécutions, parcourir les versions, poser et retirer les
         déclencheurs.
+    discovery:
+      title: Découverte
+      description: Consulter ce qu'une automatisation peut nommer — modèles,
+        environnements d'agent, skills, connectors, noms de secrets, projets
+        et événements.
     capability:
       title: Capacités & connaissances
       description: La surface propre à l'organisation — chercher ce qu'elle
@@ -265,6 +270,7 @@ organization:
   deleteLoading: Suppression…
   deleteSuccess: Organisation supprimée
   deleteFailed: Échec de la suppression de l'organisation
+  deleteBlockedByLegacyAutomation: Des exécutions d'automatisation restent bloquées car leurs actions externes antérieures n'ont pas encore été vérifiées. Ton organisation a été conservée. Une demande d'arrêt ne lève pas ces blocages.
   deleteBlockedByLegalHold: Une conservation légale active préserve les données de cette organisation. Lève chaque conservation dans Gouvernance > Conservation légale, puis réessaie.
   deleteTypeNameLabel: Tape le nom de l'organisation pour confirmer
   deleteConfirmNameMismatch: La confirmation ne correspond pas au nom de l'organisation. Recharge la page et réessaie.
@@ -1248,6 +1254,10 @@ logs:
       Les journaux d'audit apparaîtront ici à mesure que des actions
       sont effectuées dans ton organisation.
     detailTitle: Détails du journal d'audit
+    viaLabel: Source
+    viaLabels:
+      mcp: Agent de code
+    clientLabel: Client
     columns:
       timestamp: Horodatage
       action: Action
@@ -1339,6 +1349,8 @@ logs:
       document.trashed: Document mis à la corbeille
       document.deleted: Document supprimé
       folder.deleted: Dossier supprimé
+      knowledge_entry.created: Entrée de connaissances créée
+      knowledge_entry.updated: Entrée de connaissances mise à jour
       branding.updated: Branding mis à jour
       branding.image_uploaded: Image de branding chargée
       branding.image_deleted: Image de branding retirée
@@ -1438,6 +1450,13 @@ logs:
       automation.run.cancelled: Exécution d'automatisation arrêtée
       automation.run.deleted: Exécution d'automatisation supprimée
       automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
+      automation.version.saved: Version d’automatisation enregistrée
+      automation.deployed: Automatisation mise en service
+      automation.deleted: Automatisation supprimée
+      automation.trigger.set: Déclencheur d’automatisation modifié
+      automation.trigger.deleted: Déclencheur d’automatisation supprimé
+      automation.project.bound: Automatisation installée dans un projet
+      automation.project.unbound: Automatisation retirée d’un projet
       create_connector: Connector créée
       delete_connector: Connector supprimée
       update_credential: Identifiants mis à jour
@@ -1544,10 +1563,12 @@ logs:
       conversationMessage: Message de conversation
       document: Document
       folder: Dossier
+      knowledge_entry: Entrée de connaissances
       agent: Agent
       workflow: Automatisation
       workflow_run: Exécution d'automatisation
       automation_trigger: Déclencheur d'automatisation
+      automation: Automatisation
       workflow_creation: Création d'automatisation
       workflow_update: Mise à jour d'automatisation
       customer: Contact

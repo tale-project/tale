@@ -489,10 +489,13 @@ run.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →
-  The page (`settings.mcpEndpoint.title`) renders three tool groups —
+  The page (`settings.mcpEndpoint.title`) renders four tool groups —
   **Authoring** (`settings.mcpEndpoint.tools.authoring.title`), **Run &
   trigger management** (`settings.mcpEndpoint.tools.management.title`),
-  **Skills & knowledge** (`settings.mcpEndpoint.tools.capability.title`) — and
+  **Discovery** (`settings.mcpEndpoint.tools.discovery.title`), **Capabilities
+  & knowledge** (`settings.mcpEndpoint.tools.capability.title`) — each tool
+  name whole and none running into another, also at 375 px; a screen reader
+  names each list by its group; and
   the **Try it** example (`settings.mcpEndpoint.exampleTitle`); auth help
   points at REST API keys (`settings.mcpEndpoint.authLink`); the
   **Organization slug** row (`settings.mcpEndpoint.orgSlug.title`) shows this
@@ -937,6 +940,29 @@ run.
   `CLAUDE_CODE_OAUTH_TOKEN` with `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY`
   empty. Chat lists no model that only this credential serves
   ([CHAT-F59](chat.md)).
+- [ ] `SET-F80` · **Workers and their tasks in Workspaces** — With an agent
+  working two tasks ([tasks](tasks.md) `TASK-F81`), open
+  `/dashboard/{org}/settings/sandboxes` as owner → the agent has one row per
+  worker, its name over **Worker 1** and **Worker 2**
+  (`sandboxes.worker.agent`); **Current tasks** (`sandboxes.columns.task`)
+  names each task by its key and title (`WEB-12 Release notes`), cut short
+  with the whole name on hover, and selecting it opens
+  `/dashboard/{org}/tasks/{taskId}`; no task id prefix shows.
+- [ ] `SET-F81` · **The Agent workers limit** — **Organization limits**
+  (`sandboxes.limits.title`) → the first field reads **Agent workers**
+  (`sandboxes.quota.budgets.project`) with the hint that each task an agent
+  works on at the same time runs in a sandbox of its own
+  (`sandboxes.quota.budgetHints.project`). With a run waiting for a worker
+  ([tasks](tasks.md) `TASK-F82`), a line under the field reads **1 agent run
+  is waiting for a free worker.** (`sandboxes.limits.waitingForWorkers`); a
+  Developer sees no such line. Raise the limit to 3 and **Save** → the
+  waiting run starts on its own within about two minutes, as a third worker,
+  and the line goes away.
+- [ ] `SET-F82` · **Stop task stops one worker's task** — With an agent on
+  two tasks, choose **Stop task** (`sandboxes.actions.stop`) on its
+  **Worker 1** row → that task's run is cancelled, while the task on
+  **Worker 2** keeps **Working…** (`tasks.agentRun.status.running`) and its
+  row stays busy.
 
 ## Boundary & error tests
 
@@ -1189,11 +1215,12 @@ run.
   B. Stop the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
   project agent's **Stopped** workspace → while its row reads
   **Destroying**, start a task with that agent, and mention the agent in a
-  chat → each run reads **Waiting for a sandbox slot**
-  (`tasks.agentRun.waitingForSlot`, `chat.taskTray.waitingForSlot`) and
-  nothing runs in the workspace; start the service again (`docker start
-  tale-sandbox`) → the row leaves, then the runs start on their own in a
-  fresh workspace, whose file list holds nothing the old one did.
+  chat → each run reads **Waiting for a workspace**
+  (`tasks.agentRun.waiting.destroy_pending`), in the task and in the chat's
+  task tray, and nothing runs in the workspace; start the service again
+  (`docker start tale-sandbox`) → the row leaves, then the runs start on
+  their own in fresh workspaces, whose file lists hold nothing the old one
+  did.
 
 - [ ] `SET-B31` · **Concurrent device commands stay separate** — Two admins
   open **Add device** (`sandboxes.devices.add`) in the same organization;
@@ -1206,6 +1233,22 @@ run.
   own device. Repeat with two commands from the same admin. If command
   generation fails, **Try again** (`sandboxes.devices.addDialog.retry`)
   remains available inside the dialog.
+- [ ] `SET-B35` · **Destroy one worker while another is free** — Mode B.
+  With an agent whose **Worker 1** and **Worker 2** are both **Stopped**,
+  stop the sandbox service (`docker stop tale-sandbox`) and **Destroy**
+  Worker 1 → while its row reads **Destroying**, start the agent on a task →
+  its Run row never reads **Waiting for a workspace**
+  (`tasks.agentRun.waiting.destroy_pending`): the run is headed for Worker 2,
+  which can only start once the service is back. Start the service again →
+  the run works in Worker 2 (its task under **Current tasks** on the Worker 2
+  row), no fresh workspace opens, and the Worker 1 row leaves. With a
+  one-worker agent, `SET-B30` still holds.
+- [ ] `SET-B36` · **A worker gives its quota back when its own run ends** —
+  With an agent on two tasks, let the task on **Worker 1** finish while
+  **Worker 2** still works → within a minute the Worker 1 row reads **Quota
+  released** (`sandboxes.status.quotaReleased`) and the **Allocated** count
+  of **Agent workers** drops by one, while Worker 2 still reads **Quota
+  allocated** (`sandboxes.status.quotaInUse`).
 
 ## Accessibility (WCAG 2.1 AA)
 

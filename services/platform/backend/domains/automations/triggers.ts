@@ -68,7 +68,8 @@ import {
 /** Rows per page of the scan walk — a page size, not a cap: the walk goes on
  * until every enabled schedule has been examined. */
 const SCAN_PAGE_SIZE = 200;
-const DEFAULT_TIMEZONE = 'UTC';
+/** The zone a schedule reads its clock in when it names none. */
+export const DEFAULT_TIMEZONE = 'UTC';
 const MINUTE_MS = 60_000;
 /** How many bindings one log line names; the rest are counted. */
 const NAMES_IN_LOG = 5;
@@ -123,7 +124,7 @@ const UNUSABLE_WARN_INTERVAL_MS = 60 * 60 * 1000;
 
 /** The binding started a run: the fire stamp and the run it names, in the
  * caller's transaction — the one that inserts the run. */
-async function stampFired(
+export async function stampFired(
   sql: Sql | TransactionSql,
   triggerId: string,
   at: number,

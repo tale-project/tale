@@ -1,7 +1,7 @@
 import { FeatureHero } from '@tale/marketing-ui/feature-hero';
 import { Check } from 'lucide-react';
 
-import { HomeHeroDemo } from '@/app/components/blocks/demos/content';
+import { ProductScreenshot } from '@/app/components/blocks/product-screenshot';
 import { CtaPair } from '@/app/components/marketing';
 import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
 import { getSelfHostedQuickstartUrl } from '@/lib/docs-url';
@@ -16,10 +16,11 @@ export function HeroHeadline() {
   return (
     <FeatureHero
       layout="split"
+      visualTreatment="plain"
       eyebrow={t('hero.eyebrow')}
       title={t('hero.title')}
       description={t('hero.subtitle')}
-      visual={<HomeHeroDemo />}
+      visual={<ProductScreenshot page="home" />}
       actions={
         <CtaPair
           align="start"

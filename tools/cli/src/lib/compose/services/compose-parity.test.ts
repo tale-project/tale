@@ -21,6 +21,7 @@ import { generateStatefulCompose } from '../generators/generate-stateful-compose
 import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
+  BUILDKITD_MIRROR_IMAGE,
   THIRD_PARTY_IMAGES,
   imagePlatform,
   imageRef,
@@ -37,6 +38,7 @@ import {
   EGRESS_HEALTH_PROBE,
   createSandboxEgressService,
 } from './create-sandbox-egress-service';
+import { createSandboxLlmGatewayService } from './create-sandbox-llm-gateway-service';
 import { createSandboxService } from './create-sandbox-service';
 
 // Guards the class of "works in dev, silently broken in `tale deploy`" bugs:
@@ -250,6 +252,35 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
   });
 });
 
+describe('buildkitd mirror image parity', () => {
+  // The spawner pulls the pull-through registry mirror itself, so its default
+  // lives in three places: compose.yml, the CLI generator and the spawner's
+  // config. All three name the same version and digest, never a moving tag.
+  const expected = `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`;
+
+  test('the mirror default is pinned by version and digest', () => {
+    expect(BUILDKITD_MIRROR_IMAGE).toMatch(
+      /^registry:\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$/,
+    );
+  });
+
+  test('both compose pipelines and the spawner default to it', () => {
+    expect(
+      compose.services['sandbox']?.environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    expect(
+      createSandboxService(config).environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    const spawnerConfig = readFileSync(
+      resolve(repoRoot, 'services/sandbox/src/config.ts'),
+      'utf8',
+    );
+    expect(spawnerConfig.replace(/\s+/g, ' ')).toContain(
+      `process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? '${BUILDKITD_MIRROR_IMAGE}'`,
+    );
+  });
+});
+
 describe('egress connection capacity parity', () => {
   const expected = '${SANDBOX_EGRESS_MAX_CLIENTS:-2000}';
   const egress = createSandboxEgressService(config);
@@ -310,6 +341,22 @@ describe('egress readiness probe parity (log-flood guard)', () => {
       expect(command).not.toMatch(/nc\s+-z/);
     });
   }
+
+  // Nested containers and BuildKit RUN steps resolve names only through the
+  // proxy's dnsmasq, so the probe asks it too: for a name it answers from its
+  // own configuration, on loopback, never through an upstream resolver.
+  test('the probe asks dnsmasq for the name the entrypoint has it answer itself', () => {
+    const query =
+      /nslookup -type=a -timeout=1 (\S+\.invalid) 127\.0\.0\.1 /.exec(
+        EGRESS_HEALTH_PROBE,
+      );
+    expect(query).not.toBeNull();
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/sandbox-egress/entrypoint.sh'),
+      'utf8',
+    );
+    expect(entrypoint).toContain(`--host-record=${query?.[1]},127.0.0.1`);
+  });
 });
 
 describe('sandbox spawner URL parity', () => {
@@ -419,6 +466,17 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     const fromCompose = compose.services['backend-worker']?.stop_grace_period;
     const generated = createBackendWorkerService(config).stop_grace_period;
     expect(graceSeconds(fromCompose)).toBeGreaterThanOrEqual(90 + 15);
+    expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
+
+  // The gateway drains its model calls on SIGTERM and then writes its budget
+  // counters; Docker's 10s default would cut the streams and that write
+  // alike.
+  test('model gateway lets its calls in flight finish in both pipelines', () => {
+    const fromCompose =
+      compose.services['sandbox-llm-gateway']?.stop_grace_period;
+    const generated = createSandboxLlmGatewayService(config).stop_grace_period;
+    expect(graceSeconds(fromCompose)).toBe(90);
     expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
   });
 });
@@ -569,6 +627,25 @@ describe('blob-backend parity (the deployment cannot accept an upload without it
       'BACKEND_UPSTREAM="${BACKEND_UPSTREAM:-backend-api:3005}"',
     );
     expect(entrypoint).not.toContain('-n "${BACKEND_UPSTREAM');
+  });
+
+  test('public control paths are refused before the generic API fallback', () => {
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/proxy/docker-entrypoint.sh'),
+      'utf8',
+    );
+    for (const path of ['/api/control', '/api/control/*']) {
+      const handle = entrypoint.split(`handle ${path} {`)[1]?.split('\n\t}')[0];
+      expect(handle).toBeDefined();
+      expect(handle).toContain('respond "Not found" 404');
+      expect(handle).not.toContain('reverse_proxy');
+    }
+    // Removing the explicit control route alone leaves /api/* forwarding it.
+    const caddyfile = readFileSync(
+      resolve(repoRoot, 'services/proxy/Caddyfile'),
+      'utf8',
+    );
+    expect(caddyfile).toContain('handle /api/* {');
   });
 
   test('nothing routes to the retired runtime any more', () => {

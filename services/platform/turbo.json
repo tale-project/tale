@@ -6,11 +6,13 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/web/app/content/product-screenshots.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-replay.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-cutover-sql.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]
@@ -19,6 +21,7 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/web/app/content/product-screenshots.ts",
         "$TURBO_ROOT$/.env.example",
         "$TURBO_ROOT$/.github/workflows/checks.yml",
         "$TURBO_ROOT$/compose.yml",
@@ -26,6 +29,7 @@
         "$TURBO_ROOT$/configs/platform/**",
         "!$TURBO_ROOT$/configs/platform/**/.turbo/**",
         "!$TURBO_ROOT$/configs/platform/**/*.tsbuildinfo",
+        "$TURBO_ROOT$/docs/*/develop/mcp-endpoint.md",
         "$TURBO_ROOT$/docs/*/platform/admin/connectors.md",
         "$TURBO_ROOT$/docs/*/platform/connectors/overview.md",
         "$TURBO_ROOT$/docs/*/platform/projects/tasks.md",
@@ -49,6 +53,7 @@
         "$TURBO_ROOT$/services/sandbox/src/config.ts",
         "$TURBO_ROOT$/.github/ci-scope.yml",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-cutover-sql.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]
@@ -191,11 +196,13 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/web/app/content/product-screenshots.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-replay.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/protocol.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-floor.ts",
+        "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-cutover-sql.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/automation-model.ts",
         "$TURBO_ROOT$/tools/cli/src/lib/deployment/migration-model.ts"
       ]

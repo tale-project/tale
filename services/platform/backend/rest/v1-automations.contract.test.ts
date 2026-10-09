@@ -81,6 +81,9 @@ const row = (version: number) => ({
   presentation: null,
   createdBy: 'user-1',
   createdAt: 1_700_000_000_000,
+  createdVia: 'mcp' as const,
+  apiKeyId: 'key-1',
+  clientName: 'claude-code',
 });
 
 /** The one project the key holder can see — every binding listing is
@@ -163,10 +166,14 @@ function fakeSql(): { sql: Sql; queries: string[] } {
   return { sql: sql as unknown as Sql, queries };
 }
 
-function mount(options: { role?: string } = {}) {
+function mount(
+  options: { role?: string; apiKeyId?: string; requestId?: string } = {},
+) {
   const { sql, queries } = fakeSql();
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
+    if (options.requestId !== undefined) c.set('requestId', options.requestId);
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
@@ -206,7 +213,7 @@ beforeEach(() => {
   vi.mocked(bindingProjectIds).mockReset();
   vi.mocked(bindingProjectIds).mockResolvedValue([]);
   vi.mocked(deleteAutomationCascade).mockReset();
-  vi.mocked(deleteAutomationCascade).mockResolvedValue(undefined);
+  vi.mocked(deleteAutomationCascade).mockResolvedValue({ versions: 2 });
   vi.mocked(listTriggers).mockClear();
   vi.mocked(listVersions).mockReset();
   vi.mocked(listVersions).mockResolvedValue([]);
@@ -1133,6 +1140,8 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: null,
         createdBy: 'user-1',
         createdAt: 2,
+        createdVia: 'mcp',
+        clientName: 'claude-code',
       },
       {
         version: 1,
@@ -1141,6 +1150,8 @@ describe('GET /automations/{name}/versions', () => {
         testsCheckedAt: 1_700_000_000_500,
         createdBy: 'user-1',
         createdAt: 1,
+        createdVia: null,
+        clientName: null,
       },
     ]);
     const res = await mount().app.request(
@@ -1559,7 +1570,7 @@ describe('DELETE /automations/{name}', () => {
     expect(deleteAutomationCascade).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
       name: SAVED,
-      actor: 'user-1',
+      actor: 'api-key:user-1',
     });
   });
 
@@ -1619,6 +1630,151 @@ describe('changing an automation over REST', () => {
       expect(deleteAutomationCascade).not.toHaveBeenCalled();
     },
   );
+});
+
+/**
+ * A definition installed only in projects the key holder cannot read is not
+ * theirs to read: every read of it answers the 404 a missing automation
+ * gets, so the answer never confirms it exists. Installed in a project they
+ * can read, or in none, it reads as before (the release that brought this
+ * named it: member reads follow project visibility on MCP and REST).
+ */
+describe('reads of an automation installed only in hidden projects [AUTO-R27]', () => {
+  it.each([
+    [`/api/v1/automations/${SAVED}`],
+    [`/api/v1/automations/${SAVED}?version=deployed`],
+    [`/api/v1/automations/${SAVED}/versions`],
+    [`/api/v1/automations/${SAVED}/triggers`],
+  ])('%s answers not found', async (path) => {
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+    const res = await mount({ role: 'member' }).app.request(
+      `http://localhost${path}`,
+    );
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'AUTOMATION_NOT_FOUND' });
+  });
+
+  it.each([[['p-visible']], [[]]])(
+    'installed in %j it answers as before',
+    async (bindings) => {
+      vi.mocked(bindingProjectIds).mockResolvedValue(bindings);
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost/api/v1/automations/${SAVED}/versions`,
+      );
+      expect(res.status).toBe(200);
+    },
+  );
+
+  it.each([
+    [`/api/v1/automations/${SAVED}/runs`],
+    [`/api/v1/projects/p-visible/automations/${SAVED}/runs`],
+  ])(
+    "%s answers not found when no run of it is in the URL's scope — an empty page would confirm the name",
+    async (path) => {
+      // Mia is not in the HR team: hr/onboarding is installed only there.
+      vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+      const res = await mount({ role: 'member' }).app.request(
+        `http://localhost${path}`,
+      );
+      expect(res.status).toBe(404);
+      expect(await res.json()).toMatchObject({
+        code: 'AUTOMATION_NOT_FOUND',
+      });
+      expect(listRunsPage).not.toHaveBeenCalled();
+    },
+  );
+
+  it('lists its runs in a scope the caller reads, where runs of it are', async () => {
+    vi.mocked(bindingProjectIds).mockResolvedValue(['p-hidden']);
+    const res = await mount({ role: 'member' }).app.request(
+      `http://localhost/api/v1/automations/${RETIRED}/runs`,
+    );
+    expect(res.status).toBe(200);
+  });
+});
+
+/**
+ * A definition write made with an API key is the key's act, not a click in
+ * the app: the store records `api-key:<userId>` (actor type "API" on the
+ * audit row, as the same write over MCP records), and the write runs in the
+ * REST door's request channel, so its audit rows name the key and the
+ * request (`via: 'api-key'`). The example: a leaked key deletes an
+ * automation, and the admin reading the row sees which key to revoke.
+ */
+describe('definition writes made with an API key name the key [AUTO-R28]', () => {
+  const keyChannel = {
+    via: 'api-key',
+    requestId: 'req-9',
+    apiKeyId: 'key-7',
+  };
+
+  it('DELETE /automations/{name} runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(deleteAutomationCascade).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return { versions: 1 };
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([keyChannel]);
+    expect(deleteAutomationCascade).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actor: 'api-key:user-1' }),
+    );
+  });
+
+  it('PUT /automations/{name}/triggers runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(setTrigger).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return {};
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('PUT', JSON.stringify({ kind: 'webhook' })),
+    );
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([keyChannel]);
+    expect(setTrigger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ actor: 'api-key:user-1' }),
+    );
+  });
+
+  it('DELETE /automations/{name}/triggers runs as the key, inside its channel', async () => {
+    const seen: unknown[] = [];
+    const { currentRequestChannel } = await import('../lib/request-channel.ts');
+    vi.mocked(deleteTrigger).mockImplementationOnce(async () => {
+      seen.push(currentRequestChannel());
+      return true;
+    });
+    const res = await mount({
+      apiKeyId: 'key-7',
+      requestId: 'req-9',
+    }).app.request(
+      `http://localhost/api/v1/automations/${SAVED}/triggers`,
+      json('DELETE'),
+    );
+    expect(res.status).toBe(204);
+    expect(seen).toEqual([keyChannel]);
+    expect(deleteTrigger).toHaveBeenCalledWith(
+      expect.anything(),
+      'org-1',
+      SAVED,
+      'api-key:user-1',
+    );
+  });
 });
 
 describe('quarantined run reads', () => {

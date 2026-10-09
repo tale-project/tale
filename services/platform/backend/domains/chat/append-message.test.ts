@@ -19,6 +19,7 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { MESSAGE_SLOT_CLAIM_DEADLINE_MS } from '../threads/store.ts';
 import { appendMessageRow } from './store.ts';
 
@@ -134,5 +135,51 @@ describe('appendMessageRow — claiming a unique slot', () => {
     );
     expect(insertsOf(statements)).toBe(3);
     expect(statements.some((text) => text.includes('UPDATE'))).toBe(false);
+  });
+});
+
+describe('appendMessageRow — naming the thread its first message opens', () => {
+  /** A thread with no title yet, whose member is `u-1`. */
+  function untitledThreadSql(): Sql {
+    const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      const text = strings.join('?');
+      if (text.includes('INSERT INTO app.messages')) {
+        return Promise.resolve([{ id: 'm-1', order: 0 }]);
+      }
+      if (text.includes('SELECT branch_root_id')) {
+        return Promise.resolve([
+          { branchRootId: null, chatType: 'chat', userId: 'u-1' },
+        ]);
+      }
+      if (text.includes('title IS NULL')) {
+        return Promise.resolve([{ id: 't-1' }]);
+      }
+      return Promise.resolve([]);
+    };
+    Object.assign(tag, { json: (value: unknown) => value });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `json` are exercised
+    return tag as unknown as Sql;
+  }
+
+  it('carries the sending key, and a guardrail’s refusal, to the title job', async () => {
+    vi.mocked(addJobInTx).mockClear();
+    const sql = untitledThreadSql();
+    await appendMessageRow(sql, {
+      organizationId: 'org-1',
+      threadId: 't-1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'Plan the launch' }],
+      text: 'Plan the launch',
+      apiKeyId: 'key-1',
+      nameWithoutModel: true,
+    });
+    expect(addJobInTx).toHaveBeenCalledWith(sql, 'chat.generate_title', {
+      organizationId: 'org-1',
+      threadId: 't-1',
+      userId: 'u-1',
+      firstMessage: 'Plan the launch',
+      apiKeyId: 'key-1',
+      nameWithoutModel: true,
+    });
   });
 });

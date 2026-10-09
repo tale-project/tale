@@ -13,9 +13,10 @@ import { Text } from '@tale/ui/text';
 import { AlertTriangle, Ban, Clock, RefreshCcw, X } from 'lucide-react';
 import { useState } from 'react';
 
+import { ERASURE_LEGACY_AUTOMATION_HOLD } from '@/backend/core/governance/erasure_constants';
+import { foldBreakdownEntries } from '@/backend/core/governance/erasure_counts';
 import { useT } from '@/lib/i18n/client';
 
-import { foldBreakdownEntries } from './breakdown-entries.ts';
 import { CancelDialog } from './cancel-dialog';
 import { ErasureApprovalActions } from './erasure-approval-actions';
 import { ExtendDeadlineDialog } from './extend-deadline-dialog';
@@ -377,7 +378,14 @@ function DrawerBody({
         {request.errorMessage && !isBlocked && (
           <KeyValue
             label={t('dataSubjectRequests.drawer.errorMessage')}
-            value={request.errorMessage}
+            value={request.errorMessage
+              .split('; ')
+              .map((reason) =>
+                reason === ERASURE_LEGACY_AUTOMATION_HOLD
+                  ? t('dataSubjectRequests.drawer.legacyAutomationHold')
+                  : reason,
+              )
+              .join('; ')}
             multiline
           />
         )}

@@ -133,6 +133,8 @@ import {
   classifyEmbeddingFailure,
   Embedder,
   embedderForOrg,
+  EmbeddingBudgetExceeded,
+  type EmbeddingMeter,
   EmbeddingNotConfigured,
 } from './embedding';
 import { assertCorpusWritable } from './index_health';
@@ -244,10 +246,20 @@ const SCAN_STAGGER_MS = 5_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Whose spend a scan's embeddings are: the member who added the site or
+ * asked for the scan, with the API key they asked with. A scan the
+ * scheduler started names nobody, and books under `__automation__`. */
+export interface ScanRequester {
+  readonly userId: string;
+  readonly apiKeyId?: string;
+}
+
 interface ScanIdentity {
   readonly domain: string;
   readonly orgSlug: string;
   readonly organizationId: string;
+  /** Carried from link to link, as the scan's own. */
+  readonly requestedBy?: ScanRequester;
 }
 
 /** The engine body, hoisted so the 0.5 backend can run it on a ctx shim
@@ -265,6 +277,11 @@ export async function scanWebsiteImpl(
      * takes exactly that claim over instead of waiting out
      * {@link STUCK_SCAN_TAKEOVER}; a claim that moved since is left alone. */
     takeover?: string;
+    /** Who asked for the scan — see {@link ScanRequester}. */
+    requestedBy?: ScanRequester;
+    /** Where this link's embedding requests are held and booked, as the
+     * requester's spend. Absent, nothing is metered. */
+    embeddingMeter?: EmbeddingMeter;
     /** Aborted once the job this link runs in has ended under it — the
      * process is stopping, or the link outlived the job's expiry. */
     signal?: AbortSignal;
@@ -278,6 +295,9 @@ export async function scanWebsiteImpl(
       domain: args.domain,
       orgSlug: args.orgSlug,
       organizationId: args.organizationId,
+      ...(args.requestedBy !== undefined
+        ? { requestedBy: args.requestedBy }
+        : {}),
     };
 
     // Acquiring the pool runs real SQL on a bring-your-own database (the
@@ -383,7 +403,7 @@ export async function scanWebsiteImpl(
       const linkStartedAt = Date.now();
       const hardWall = actionStartedAt + ACTION_HARD_WALL_MS;
       const deadline = Math.min(linkStartedAt + SCAN_BUDGET_MS, hardWall);
-      const indexer = new PageIndexer(ctx, sql, identity);
+      const indexer = new PageIndexer(ctx, sql, identity, args.embeddingMeter);
       const renderQueue: { page: DuePage; probe: PageProbe }[] = [];
       let renderBatchCounter = 0;
       // What this link's requests found, for the scan's log: how many pages
@@ -586,7 +606,7 @@ export async function scanWebsiteImpl(
       const unembedded = renderDeferred
         ? 0
         : await indexer.embedVectorless(deadline);
-      await indexer.finish();
+      await indexer.finish(renderDeferred ? undefined : unembedded);
 
       const remaining =
         (await countDuePages(sql, args.domain, scanStartedAt)) + unembedded;
@@ -2027,6 +2047,10 @@ export class PageIndexer {
   private embedderResolved = false;
   private missingModelLogged = false;
   private indexedAny = false;
+  /** The refusal that stopped this link's embedding, when a usage limit
+   * did: what is left is stored without vectors for a later scan. */
+  private limited: EmbeddingBudgetExceeded | null = null;
+  private embeddedAny = false;
   /** The previous release's column width, once asked (`legacyColumnWidth`);
    * read once per link. */
   private legacyWidth: number | null | undefined;
@@ -2035,6 +2059,7 @@ export class PageIndexer {
     private readonly ctx: ActionCtx,
     private readonly sql: Sql,
     private readonly identity: ScanIdentity,
+    private readonly meter?: EmbeddingMeter,
   ) {}
 
   private async resolveEmbedder(): Promise<Embedder | null> {
@@ -2047,6 +2072,7 @@ export class PageIndexer {
         organizationId,
         orgSlug,
         config,
+        ...(this.meter !== undefined ? { meter: this.meter } : {}),
       });
     } catch (error) {
       if (!(error instanceof EmbeddingNotConfigured)) {
@@ -2105,13 +2131,28 @@ export class PageIndexer {
     }
   }
 
-  /** The chunks' vectors, or null without an embedding model. */
+  /** The chunks' vectors, or null without an embedding model — or once a
+   * usage limit stopped this link's embedding. */
   private async embed(texts: string[]): Promise<number[][] | null> {
+    if (this.limited !== null) return null;
     const embedder = await this.resolveEmbedder();
     if (embedder === null) return null;
     try {
-      return await embedder.embedAll(texts);
+      const vectors = await embedder.embedAll(texts);
+      this.embeddedAny = true;
+      return vectors;
     } catch (error) {
+      if (error instanceof EmbeddingBudgetExceeded) {
+        // A limit that binds whoever the scan is for: the page is stored
+        // without vectors — the site's own content search still reads it —
+        // and the rest of the link embeds nothing. The website row says
+        // why, and a later scan embeds what is left once the limit allows.
+        this.limited = error;
+        console.warn(
+          `[crawl] ${this.identity.domain}: embedding stopped by a usage limit — ${error.message}`,
+        );
+        return null;
+      }
       throw embeddingScanFailure(error);
     }
   }
@@ -2146,6 +2187,7 @@ export class PageIndexer {
           LIMIT $2`,
         [domain, limit],
       );
+    if (this.limited !== null) return 0;
     if ((await vectorless(stated, 1)).length === 0) return 0;
     if (this.embedderResolved && this.embedder === null) {
       this.embedderResolved = false;
@@ -2166,10 +2208,13 @@ export class PageIndexer {
       ).filter((row) => !done.has(row.url));
       if (batch.length === 0) break;
       for (const { url } of batch) {
-        if (Date.now() >= deadline) break;
+        if (Date.now() >= deadline || this.limited !== null) break;
         done.add(url);
         await this.embedPage(url, vectors);
       }
+      // A usage limit stopped it: what is left waits for a later scan,
+      // not for the next link of this one.
+      if (this.limited !== null) return 0;
     }
     const [left] = await this.sql.unsafe<{ n: string }[]>(
       `SELECT count(DISTINCT c.url)::text AS n
@@ -2345,8 +2390,10 @@ export class PageIndexer {
     });
   }
 
-  /** Post-loop bookkeeping: the homepage's title names the site itself. */
-  async finish(): Promise<void> {
+  /** Post-loop bookkeeping: the homepage's title names the site itself.
+   * `vectorlessLeft` is what the vector backfill left behind, when it ran. */
+  async finish(vectorlessLeft?: number): Promise<void> {
+    await this.noteUsageLimit(vectorlessLeft);
     if (!this.indexedAny) return;
     const { domain } = this.identity;
     const homepageRows = await this.sql.unsafe<Array<{ title: string | null }>>(
@@ -2361,6 +2408,39 @@ export class PageIndexer {
             SET title = $2, updated_at = NOW()
           WHERE domain = $1`,
         [domain, title],
+      );
+    }
+  }
+
+  /**
+   * Tell the website row whether a usage limit stopped this link's
+   * embedding — the row then says so, and the hourly pass resumes the scan
+   * once the limit allows it — or that the note no longer holds: the link
+   * embedded again, or nothing is left without vectors (another
+   * organization's scan of the shared domain embedded it, the pages went,
+   * or no model is set to embed them). A failure to record is logged; the
+   * scan stands.
+   */
+  private async noteUsageLimit(vectorlessLeft?: number): Promise<void> {
+    if (this.limited === null && !this.embeddedAny && vectorlessLeft !== 0) {
+      return;
+    }
+    try {
+      await this.ctx.runMutation(
+        internal.websites.internal_mutations.recordEmbeddingLimit,
+        {
+          organizationId: this.identity.organizationId,
+          domain: this.identity.domain,
+          ...(this.limited !== null ? { reason: this.limited.message } : {}),
+          ...(this.limited !== null && this.identity.requestedBy !== undefined
+            ? { requestedBy: this.identity.requestedBy }
+            : {}),
+        },
+      );
+    } catch (error) {
+      console.error(
+        `[crawl] ${this.identity.domain}: could not record the usage limit on the websites row:`,
+        error instanceof Error ? error.message : error,
       );
     }
   }

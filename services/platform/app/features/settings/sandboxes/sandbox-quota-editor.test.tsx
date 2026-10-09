@@ -9,7 +9,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { AppError } from '@/lib/shared/errors/app-error';
-import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import { SandboxQuotaEditor } from './sandbox-quota-editor';
 
@@ -82,7 +88,7 @@ describe('SandboxQuotaEditor', () => {
     });
     expect(total).toHaveTextContent('6 / 16');
     for (const [label, value, sum] of [
-      ['Project agent sessions', '5', '9 / 16'],
+      ['Agent workers', '5', '9 / 16'],
       ['Workflow sessions', '6', '13 / 16'],
       ['Render sessions', '5', '16 / 16'],
     ]) {
@@ -114,7 +120,7 @@ describe('SandboxQuotaEditor', () => {
     ];
     const { user } = render(<EditorView />);
     const input = screen.getByRole('spinbutton', {
-      name: 'Project agent sessions',
+      name: 'Agent workers',
     });
     await user.clear(input);
     await user.type(input, '6');
@@ -217,10 +223,10 @@ describe('SandboxQuotaEditor', () => {
   });
 
   it.each([
-    ['Project agent sessions', '0'],
+    ['Agent workers', '0'],
     ['Workflow sessions', '501'],
     ['Render sessions', '2.5'],
-    ['Project agent sessions', ''],
+    ['Agent workers', ''],
   ])('rejects an invalid %s limit of "%s"', async (label, value) => {
     const { user } = render(<EditorView />);
     const input = screen.getByRole('spinbutton', { name: label });
@@ -440,6 +446,23 @@ describe('SandboxQuotaEditor', () => {
     expect(
       screen.queryByRole('button', { name: 'Discard' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('says how many agent runs wait for a free worker, under that limit alone', () => {
+    const { rerender } = render(<EditorView waitingForWorkers={1} />);
+    const row = screen
+      .getByRole('spinbutton', { name: 'Agent workers' })
+      .closest('[data-settings-field-row]') as HTMLElement;
+    expect(
+      within(row).getByText('1 agent run is waiting for a free worker.'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(/waiting for a free worker/)).toHaveLength(1);
+
+    // Nothing waits, or the count is not the reader's: no line at all.
+    rerender(<EditorView waitingForWorkers={0} />);
+    expect(screen.queryByText(/waiting for a free worker/)).toBeNull();
+    rerender(<EditorView />);
+    expect(screen.queryByText(/waiting for a free worker/)).toBeNull();
   });
 
   it('shows unavailable allocation data without substituting defaults or a zero total', () => {

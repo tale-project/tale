@@ -191,20 +191,30 @@ export interface UsageLedgerEntryInput {
   connectorName?: string;
   connectorOperation?: string;
   connectorCallCount?: number;
+  /** The model requests this row is: one by default. A connector call is
+   * none — it is counted on `connector_call_count`, and a request cap
+   * counts model requests only. */
+  requestCount?: number;
   /** TTS lane: synthesized characters, accumulated on the bucket. */
   characterCount?: number;
   /** Transcription lane: audio seconds, accumulated on the bucket. */
   audioDurationSec?: number;
+  /** The projects the spend belongs to: also booked on each project's own
+   * buckets (`app.project_usage`), which a `project` budget rule reads — a
+   * run of an automation bound to several projects belongs to each. */
+  projectIds?: readonly string[];
 }
 
 const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
 
-/** One billable call → three period buckets, each an atomic upsert. */
+/** One billable call → three period buckets, each an atomic upsert — and,
+ * for spend that belongs to projects, each project's three as well. */
 export async function incrementUsageLedger(
   sql: Sql | TransactionSql,
   entry: UsageLedgerEntryInput,
 ): Promise<void> {
   const totalTokens = entry.inputTokens + entry.outputTokens;
+  const requests = entry.requestCount ?? 1;
   const now = Date.now();
   for (const period of ALL_PERIODS) {
     const periodKey = buildPeriodKeyFromTimestamp(period, entry.timestamp);
@@ -222,7 +232,8 @@ export async function incrementUsageLedger(
         ${entry.apiKeyId ?? null}, ${entry.connectorName ?? null},
         ${entry.connectorOperation ?? null},
         ${entry.inputTokens}, ${entry.outputTokens}, ${totalTokens},
-        ${entry.costEstimateCents}, 1, ${entry.connectorCallCount ?? 0},
+        ${entry.costEstimateCents}, ${requests},
+        ${entry.connectorCallCount ?? 0},
         ${entry.characterCount ?? null}, ${entry.audioDurationSec ?? null},
         ${now}
       )
@@ -239,7 +250,7 @@ export async function incrementUsageLedger(
         cost_estimate_cents =
           app.usage_ledger.cost_estimate_cents
             + EXCLUDED.cost_estimate_cents,
-        request_count = app.usage_ledger.request_count + 1,
+        request_count = app.usage_ledger.request_count + EXCLUDED.request_count,
         connector_call_count =
           app.usage_ledger.connector_call_count
             + EXCLUDED.connector_call_count,
@@ -260,32 +271,74 @@ export async function incrementUsageLedger(
         provider = coalesce(app.usage_ledger.provider, EXCLUDED.provider),
         updated_at_ms = ${now}
     `;
+    // A project's buckets count requests, tokens and cost alone: a row that
+    // adds none of them — a connector call — leaves them as they are.
+    const countsInProjects =
+      requests > 0 || totalTokens > 0 || entry.costEstimateCents > 0;
+    for (const projectId of countsInProjects
+      ? new Set(entry.projectIds ?? [])
+      : []) {
+      await sql`
+        INSERT INTO app.project_usage (
+          org_id, project_id, granularity, period_key, input_tokens,
+          output_tokens, total_tokens, cost_estimate_cents, request_count,
+          updated_at_ms
+        ) VALUES (
+          ${entry.organizationId}, ${projectId}, ${period},
+          ${periodKey}, ${entry.inputTokens}, ${entry.outputTokens},
+          ${totalTokens}, ${entry.costEstimateCents}, ${requests}, ${now}
+        )
+        ON CONFLICT (org_id, project_id, period_key) DO UPDATE SET
+          input_tokens = app.project_usage.input_tokens + EXCLUDED.input_tokens,
+          output_tokens =
+            app.project_usage.output_tokens + EXCLUDED.output_tokens,
+          total_tokens = app.project_usage.total_tokens + EXCLUDED.total_tokens,
+          cost_estimate_cents =
+            app.project_usage.cost_estimate_cents
+              + EXCLUDED.cost_estimate_cents,
+          request_count =
+            app.project_usage.request_count + EXCLUDED.request_count,
+          updated_at_ms = ${now}
+      `;
+    }
   }
 }
 
-/** Connector-lane accounting (the tool dispatch's metering seam). */
+/**
+ * One connector call, counted as such: on `connector_call_count`, never as
+ * a model request — a request cap counts model requests only — under whoever
+ * made it, the API key it came with and the projects it was made in.
+ */
 export async function recordConnectorUsage(
   sql: Sql | TransactionSql,
   args: {
     organizationId: string;
     userId: string;
     agentSlug?: string;
+    apiKeyId?: string;
     connectorName: string;
     connectorOperation: string;
     costEstimateCents: number;
     timestamp: number;
+    /** The projects the call was made in: a project chat's, a run's. */
+    projectIds?: readonly string[];
   },
 ): Promise<void> {
   await incrementUsageLedger(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
+    ...(args.projectIds !== undefined && args.projectIds.length > 0
+      ? { projectIds: args.projectIds }
+      : {}),
     inputTokens: 0,
     outputTokens: 0,
     costEstimateCents: args.costEstimateCents,
     timestamp: args.timestamp,
     ...(args.agentSlug !== undefined ? { agentSlug: args.agentSlug } : {}),
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
     connectorName: args.connectorName,
     connectorOperation: args.connectorOperation,
     connectorCallCount: 1,
+    requestCount: 0,
   });
 }

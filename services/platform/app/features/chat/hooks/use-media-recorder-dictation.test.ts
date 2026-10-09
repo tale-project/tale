@@ -565,6 +565,37 @@ describe('useMediaRecorderDictation', () => {
       return hook;
     }
 
+    it('says a usage limit refused the recording, and retains it for a retry [GOV-R4]', async () => {
+      mockTranscribeDictation.mockRejectedValueOnce(
+        new BackendApiError(
+          429,
+          'Usage limit reached. Your monthly cost limit is used up until 2026-11-01T00:00:00.000Z.',
+          'BUDGET_EXCEEDED',
+        ),
+      );
+      const { result } = renderHook(() =>
+        useMediaRecorderDictation({
+          organizationId: ORG_ID,
+          onTranscript: vi.fn(),
+        }),
+      );
+      await act(async () => {
+        result.current.startListening();
+      });
+      const recorder = latestRecorder();
+      await act(async () => {
+        recorder._fireEvent('dataavailable', {
+          data: new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/webm' }),
+        });
+        recorder._fireEvent('stop');
+      });
+
+      await waitFor(() => {
+        expect(result.current.error).toBe('limit-reached');
+      });
+      expect(result.current.hasFailedRecording).toBe(true);
+    });
+
     it('retains the recording when transcription fails', async () => {
       const { result } = await failOnce(vi.fn());
       expect(result.current.hasFailedRecording).toBe(true);

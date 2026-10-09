@@ -4,7 +4,7 @@
 
 import { describe, expect, test } from 'bun:test';
 
-import { buildkitdEndpoint } from '../buildkitd.ts';
+import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
 import type { SpawnerConfig } from '../types.ts';
 import { buildDockerSessionRunArgs } from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -222,6 +222,9 @@ describe('buildDockerSessionRunArgs', () => {
     // Distinct session label so the one-shot sweep never reaps a session.
     expect(args).toContain('tale.sandbox-session=1');
     expect(args).not.toContain('tale.sandbox=1');
+    // Never an implicit pull: a multi-gigabyte image cannot arrive inside
+    // the run's budget, and the warmup owns pulling it.
+    expect(args).toContain('--pull=never');
     // Daemon dispatch is the only positional; no user entry path in argv.
     expect(args[args.length - 1]).toBe('daemon');
     expect(args[args.length - 2]).toBe('tale-sandbox-runtime:test');
@@ -249,6 +252,9 @@ describe('buildDockerSessionRunArgs', () => {
     );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);
+    // runnerd names the incarnation it serves: the `tale.created` stamp.
+    expect(args).toContain('tale.created=1700000000000');
+    expect(args).toContain('TALE_RUNNERD_INCARNATION=1700000000000');
     // Container + workspace mount.
     expect(args).toContain('tale-sbx-ses-ses-abc-123');
     expect(args).toContain(
@@ -342,6 +348,51 @@ describe('buildDockerSessionRunArgs', () => {
       const userIdx = args.indexOf('--user');
       expect(args[userIdx + 1]).toBe('0:0');
     });
+  });
+
+  test('sessions keep their CPU quota but yield the CPU to the control plane under contention', () => {
+    // The control plane runs at Docker's default weight (1024, cgroup v2
+    // weight 100). A session at that weight competes with the database and
+    // backend as an equal; six busy ones on 4 vCPUs stalled them for hours.
+    const shares = (args: string[]) =>
+      args.filter((a) => a.startsWith('--cpu-shares='));
+    const agent = buildDockerSessionRunArgs(cfg, goodInput);
+    expect(agent).toContain('--cpus=2');
+    expect(shares(agent)).toEqual(['--cpu-shares=256']);
+    const render = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      profile: 'default',
+    });
+    expect(render).toContain('--cpus=1');
+    expect(shares(render)).toEqual(['--cpu-shares=128']);
+    // The operator's agent weight applies to every agent capability.
+    const tuned: SpawnerConfig = {
+      ...cfg,
+      session: {
+        ...cfg.session,
+        agentProfile: { ...cfg.session.agentProfile, cpuShares: 512 },
+      },
+    };
+    expect(shares(buildDockerSessionRunArgs(tuned, goodInput))).toEqual([
+      '--cpu-shares=512',
+    ]);
+    expect(
+      shares(
+        buildDockerSessionRunArgs(tuned, { ...goodInput, profile: 'default' }),
+      ),
+    ).toEqual(['--cpu-shares=128']);
+    expect(() =>
+      buildDockerSessionRunArgs(
+        {
+          ...tuned,
+          session: {
+            ...tuned.session,
+            agentProfile: { ...tuned.session.agentProfile, cpuShares: 1.5 },
+          },
+        },
+        goodInput,
+      ),
+    ).toThrow(/profile.cpuShares value rejected/);
   });
 
   // The crawler's headless browser runs in a `default` session. Under the
@@ -444,6 +495,54 @@ describe('buildDockerSessionRunArgs', () => {
       expect(args).toContain(
         `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
       );
+    });
+
+    test("shared build cache: names the organization's docker.io mirror for the inner engine", () => {
+      const dockerHubMirror = buildkitdMirrorRef(
+        goodInput.organizationId,
+        'docker.io',
+      );
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+        dockerHubMirror,
+      });
+      expect(args).toContain(`TALE_DOCKER_HUB_MIRROR=${dockerHubMirror}`);
+      expect(
+        buildDockerSessionRunArgs(dindCfg, dindInput).some((a) =>
+          a.startsWith('TALE_DOCKER_HUB_MIRROR='),
+        ),
+      ).toBe(false);
+    });
+
+    test('shared build cache: an endpoint whose docker.io mirror is down names no mirror', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+      });
+      expect(args).toContain(
+        `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
+      );
+      expect(args.some((a) => a.startsWith('TALE_DOCKER_HUB_MIRROR='))).toBe(
+        false,
+      );
+    });
+
+    test("shared build cache: refuses another organization's docker.io mirror", () => {
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+          dockerHubMirror: buildkitdMirrorRef('another-org', 'docker.io'),
+        }),
+      ).toThrow(/another organization's docker.io mirror/);
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+          dockerHubMirror: 'mirror:5000 --insecure-registry=0.0.0.0/0',
+        }),
+      ).toThrow(/dockerHubMirror value rejected/);
     });
 
     test('planned subnets are sent as validated JSON before delayed network attachment', () => {

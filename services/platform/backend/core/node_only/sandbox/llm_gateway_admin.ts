@@ -154,6 +154,132 @@ export function gatewayRequestTimeoutSeconds(): number {
   return Math.max(REQUEST_TIMEOUT_SECONDS, gatewayStreamIdleTimeoutSeconds());
 }
 
+/** Request workers per SHARED standard provider record. The gateway starts
+ * a record's `concurrency` workers as goroutines the moment it loads the
+ * record — at boot for every stored record, and again on each create or
+ * update — and they stay parked, holding their stacks, whether or not
+ * anything calls the record. A standard record exists once per built-in
+ * vendor and carries every organization's sessions and model-endpoint
+ * requests, so it keeps a deep pool. Operator-tunable
+ * (`SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY`). */
+const STANDARD_PROVIDER_CONCURRENCY = 512;
+
+/** Request workers per org-scoped CUSTOM record. Those records multiply with
+ * organizations times custom models (one per organization, connector and
+ * model, plus the Anthropic-lane sibling — see customGatewayProviderName),
+ * and each carries one organization's calls to one model. A worker is held
+ * for a whole answer only when it is not streamed; a stream holds it until
+ * the upstream's response headers arrive, then the gateway hands the stream
+ * to its caller. A sandbox host sizes itself to at most 256 sessions, so 64
+ * workers cover one organization's burst on one model, and a hundred such
+ * records park 6,400 workers instead of 100,000. A request past the pool
+ * waits in the queue, and one past the queue waits for room in it
+ * (applyGatewayConfig keeps the gateway from dropping it), rather than
+ * failing. Operator-tunable
+ * (`SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY`). */
+const CUSTOM_PROVIDER_CONCURRENCY = 64;
+
+/** The most workers a record is given: the gateway opens at most 5,000
+ * connections to one upstream host unless told otherwise (its default
+ * `max_conns_per_host`, which the platform never sets), so a worker past
+ * that would only wait for a connection. */
+const MAX_PROVIDER_CONCURRENCY = 5_000;
+
+/** Queue slots per worker. A request that finds every worker busy waits in
+ * the record's queue, a channel of this many pointers per worker (8 bytes a
+ * slot), and the gateway refuses a queue shorter than the pool. */
+const PROVIDER_QUEUE_SLOTS_PER_WORKER = 16;
+
+/** The pool a provider record is pushed with: the gateway's
+ * `concurrency_and_buffer_size`. */
+interface GatewayProviderPool {
+  concurrency: number;
+  buffer_size: number;
+}
+
+/** Operator values already warned about, so a bad setting is said once per
+ * process rather than on every provision. */
+const warnedPoolSettings = new Set<string>();
+
+/** A worker count from `SANDBOX_LLM_GATEWAY_<suffix>`: a whole number from 1
+ * up to {@link MAX_PROVIDER_CONCURRENCY}. Anything else falls back to the
+ * default (or the ceiling) with a warning — the gateway refuses a record
+ * whose pool is not positive, which would fail every session's provision. */
+function providerWorkers(suffix: string, fallback: number): number {
+  const raw = gatewayEnv(suffix)?.trim();
+  if (raw === undefined || raw === '') return fallback;
+  const workers = Number(raw);
+  const valid = Number.isSafeInteger(workers) && workers > 0;
+  const used = valid ? Math.min(workers, MAX_PROVIDER_CONCURRENCY) : fallback;
+  if (used !== workers) {
+    const setting = `SANDBOX_LLM_GATEWAY_${suffix}=${raw}`;
+    if (!warnedPoolSettings.has(setting)) {
+      warnedPoolSettings.add(setting);
+      console.warn(
+        valid
+          ? `[llm-gateway] ${setting} is above the gateway's ${MAX_PROVIDER_CONCURRENCY} connections per upstream host; using ${used}`
+          : `[llm-gateway] ${setting} is not a positive whole number; using ${used}`,
+      );
+    }
+  }
+  return used;
+}
+
+/** The request-worker pool for a standard (shared) or custom (org-scoped)
+ * provider record, and its queue sixteen requests deep per worker. */
+function gatewayProviderPool(custom: boolean): GatewayProviderPool {
+  const concurrency = custom
+    ? providerWorkers(
+        'CUSTOM_PROVIDER_CONCURRENCY',
+        CUSTOM_PROVIDER_CONCURRENCY,
+      )
+    : providerWorkers('PROVIDER_CONCURRENCY', STANDARD_PROVIDER_CONCURRENCY);
+  return {
+    concurrency,
+    buffer_size: concurrency * PROVIDER_QUEUE_SLOTS_PER_WORKER,
+  };
+}
+
+/** How many days the gateway keeps its request log (`log_retention_days`):
+ * one row per model call with its model, tokens, cost and timing, never a
+ * prompt or an answer (`disable_content_logging`). Nothing in Tale reads that
+ * log — spend, budgets and usage come from each virtual key's budget counters
+ * (readVirtualKeySpend), which the gateway keeps in its config store — so it
+ * only serves an operator debugging recent traffic, and every day kept is
+ * disk on the gateway's volume. The gateway refuses a value below 1.
+ * Operator-tunable (`SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS`); the gateway
+ * reads the stored value when it starts, so a change applies from its next
+ * start. */
+const LOG_RETENTION_DAYS = 3;
+
+/** The longest request log the backend asks for: a decade. The gateway reads
+ * the value into a Go int and refuses a config whose number does not fit,
+ * which would fail every config apply, so a larger setting is held here. */
+const MAX_LOG_RETENTION_DAYS = 3650;
+
+function gatewayLogRetentionDays(): number {
+  const raw = gatewayEnv('LOG_RETENTION_DAYS')?.trim();
+  if (raw === undefined || raw === '') return LOG_RETENTION_DAYS;
+  const days = Number(raw);
+  const valid = Number.isSafeInteger(days) && days >= 1;
+  const used = valid
+    ? Math.min(days, MAX_LOG_RETENTION_DAYS)
+    : LOG_RETENTION_DAYS;
+  if (used !== days) {
+    // Said once per process: the config apply runs on every sandbox start.
+    const setting = `SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS=${raw}`;
+    if (!warnedPoolSettings.has(setting)) {
+      warnedPoolSettings.add(setting);
+      console.warn(
+        valid
+          ? `[llm-gateway] ${setting} is above ${MAX_LOG_RETENTION_DAYS} days; keeping the request log for ${used} days`
+          : `[llm-gateway] ${setting} is not a whole number of days of at least 1; keeping the request log for ${used} days`,
+      );
+    }
+  }
+  return used;
+}
+
 function managementHeaders(): Record<string, string> {
   // The gateway authenticates /api/* with HTTP Basic
   // (admin_username/admin_password), not a bearer token. ALWAYS sent:
@@ -184,9 +310,14 @@ const STORE_BUSY = /database is locked/i;
 
 type ManagementMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
+/** How long one attempt of a management call may take, unless its caller
+ * gives it a bound of its own. */
+const MANAGEMENT_TIMEOUT_MS = 15_000;
+
 /**
  * One call to the gateway's management API: `path` under its base URL, with
- * the admin credentials and a 15 s bound per attempt, `json` as the body.
+ * the admin credentials and a 15 s bound per attempt (`timeoutMs` for
+ * another), `json` as the body.
  *
  * The gateway keeps its config in SQLite, which turns away a write that
  * collides with another one — right after the gateway starts, while it syncs
@@ -197,11 +328,18 @@ type ManagementMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
  * times, when that is safe: always when the answer names the locked store,
  * and for the idempotent methods whatever it says. A POST answered otherwise
  * comes back at once — it may have created what it asked for. The last
- * answer is returned either way, for the caller to read as before.
+ * answer is returned either way, for the caller to read as before. A caller
+ * that must look at the gateway before a write goes out again passes
+ * `resend: false` and gets the first answer.
  */
 async function managementFetch(
   path: string,
-  init: { method?: ManagementMethod; json?: unknown } = {},
+  init: {
+    method?: ManagementMethod;
+    json?: unknown;
+    timeoutMs?: number;
+    resend?: boolean;
+  } = {},
 ): Promise<Response> {
   const method = init.method ?? 'GET';
   const request = (): Promise<Response> =>
@@ -209,8 +347,9 @@ async function managementFetch(
       method,
       headers: managementHeaders(),
       ...(init.json !== undefined ? { body: JSON.stringify(init.json) } : {}),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(init.timeoutMs ?? MANAGEMENT_TIMEOUT_MS),
     });
+  if (init.resend === false) return request();
   for (const delayMs of STORE_BUSY_RETRY_DELAYS_MS) {
     const res = await request();
     if (res.status < 500) return res;
@@ -1011,7 +1150,9 @@ function providerFingerprint(
   // baseUrl IS included: for a custom provider it is pushed to the gateway
   // as network_config.base_url, so a base-URL-only change must bust the memo
   // and re-provision. Inert for standard providers (their baseUrl is never
-  // pushed and is a stable value).
+  // pushed and is a stable value). The worker pool is included for the same
+  // reason: a record whose pool the platform resized is rewritten, so the
+  // gateway restarts its workers at the new count, on the next provision.
   return createHash('sha256')
     .update(
       JSON.stringify({
@@ -1020,6 +1161,7 @@ function providerFingerprint(
         apiFormat: p.apiFormat ?? null,
         allowPrivateNetwork,
         models: [...p.models].sort(),
+        pool: gatewayProviderPool(!isStandardGatewayProvider(p.name)),
       }),
     )
     .digest('hex');
@@ -1152,9 +1294,175 @@ async function deleteGatewayProvider(name: string): Promise<void> {
   }
 }
 
+/** GET /api/providers — the name of every provider record the gateway
+ * holds. Throws when the gateway does not answer with the list: a teardown
+ * must never read a failed listing as "nothing left". */
+async function listGatewayProviderNames(): Promise<string[]> {
+  const res = await managementFetch('/api/providers');
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway list providers failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  const parsed: unknown = await res.json();
+  if (!isRecord(parsed) || !Array.isArray(parsed.providers)) {
+    throw new Error('llm-gateway list providers answered without a list');
+  }
+  return parsed.providers.flatMap((provider: unknown) =>
+    isRecord(provider) && typeof provider.name === 'string'
+      ? [provider.name]
+      : [],
+  );
+}
+
+/** GET /api/providers/:provider/keys for a teardown: a record that is gone
+ * has no keys, and any other failure throws rather than reading as none. */
+async function readProviderKeysForRemoval(
+  provider: string,
+): Promise<{ id: string; name: string }[]> {
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(provider)}/keys`,
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway list keys for provider ${provider} failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  const parsed: unknown = await res.json();
+  if (!isRecord(parsed)) {
+    throw new Error(
+      `llm-gateway list keys for provider ${provider} answered without a list`,
+    );
+  }
+  if (parsed.keys === null || parsed.keys === undefined) return [];
+  if (!Array.isArray(parsed.keys)) {
+    throw new Error(
+      `llm-gateway list keys for provider ${provider} answered without a list`,
+    );
+  }
+  return parsed.keys.flatMap((key: unknown) =>
+    isRecord(key) && typeof key.id === 'string' && typeof key.name === 'string'
+      ? [{ id: key.id, name: key.name }]
+      : [],
+  );
+}
+
+/** DELETE /api/providers/:provider/keys/:id — one upstream key. A 404 means
+ * it (or its record) is already gone. */
+async function deleteProviderKey(
+  provider: string,
+  keyId: string,
+): Promise<void> {
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(provider)}/keys/${encodeURIComponent(keyId)}`,
+    { method: 'DELETE' },
+  );
+  if (!res.ok && res.status !== 404) {
+    throw new Error(
+      `llm-gateway delete key ${keyId} of provider ${provider} failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+}
+
+/** What {@link removeOrganizationFromGateway} removed. */
+export interface GatewayOrganizationRemoval {
+  /** The organization's own per-(connector, model) records, keys and all. */
+  records: number;
+  /** Its upstream keys on records it shares with other organizations. */
+  keys: number;
+}
+
+/**
+ * Remove what the gateway still holds for a deleted organization. Revoking
+ * its virtual keys leaves the provider credentials they spent through in the
+ * gateway's store: its upstream key on every shared record (each standard
+ * provider's, found by the exact name {@link gatewayKeyName} gives it), and
+ * its own records — the per-(org, connector, model) ones
+ * {@link customGatewayProviderName} names, which go with their keys.
+ *
+ * Idempotent: a record or key already gone counts as removed, and a second
+ * run finds nothing to do. Every record is tried; the call throws when the
+ * gateway cannot be listed or any removal failed, so the caller retries.
+ * An own record is `<org>__<slug>__<model>`; one that goes on with another
+ * `_` after `<org>__` is the record of an organization whose id continues
+ * with `_`, and is left alone.
+ */
+export async function removeOrganizationFromGateway(
+  organizationId: string,
+): Promise<GatewayOrganizationRemoval> {
+  const ownPrefix = `${organizationId}__`.replace(/\//g, '_');
+  const keyName = (provider: string) =>
+    gatewayKeyName(organizationId, provider);
+  const removed: GatewayOrganizationRemoval = { records: 0, keys: 0 };
+  const failed: string[] = [];
+  for (const provider of await listGatewayProviderNames()) {
+    // Nothing this process remembers of the organization's keys holds any
+    // more, whether the removal lands or not.
+    const memoKey = providerMemoKey(organizationId, provider);
+    pushedProviderFingerprints.delete(memoKey);
+    recentProviderKeys.delete(memoKey);
+    try {
+      if (
+        provider.startsWith(ownPrefix) &&
+        provider[ownPrefix.length] !== '_'
+      ) {
+        // A resize of this record already sent lands first; none is sent
+        // after this mark (see removedProviderRecords).
+        removedProviderRecords.add(provider);
+        const shrinking = shrinkingProviderRecords.get(provider);
+        if (shrinking !== undefined) await shrinking;
+        await deleteGatewayProvider(provider);
+        removed.records += 1;
+        continue;
+      }
+      for (const key of await readProviderKeysForRemoval(provider)) {
+        if (key.name !== keyName(provider)) continue;
+        await deleteProviderKey(provider, key.id);
+        removed.keys += 1;
+      }
+    } catch (error) {
+      console.error(
+        `[llm-gateway] removing organization ${organizationId} from provider ${provider} failed:`,
+        error,
+      );
+      failed.push(provider);
+    }
+  }
+  if (failed.length > 0) {
+    throw new Error(
+      `llm-gateway still holds organization ${organizationId} on: ${failed.join(', ')}`,
+    );
+  }
+  return removed;
+}
+
+/** Provider records whose config this process has started to write. Every
+ * such write carries the pool the record's kind is sized to now
+ * (gatewayProviderPool) and a config newer than any earlier listing, so the
+ * shrink pass leaves these records alone (see shrinkProviderPools). */
+const configuredProviderRecords = new Set<string>();
+
+/** Records an organization teardown in this process has deleted, or is
+ * deleting: the gateway's PUT creates a record it does not hold, so the
+ * shrink pass never writes one of these, and a teardown waits for a write
+ * of the pass already in flight before it deletes. A provision takes a name
+ * off again, since it means the record is in use. Another backend process's
+ * teardown is not seen here: a resize it races can bring a deleted
+ * organization's record back without keys, which serves nothing and goes
+ * with that process's next teardown retry or by hand. */
+const removedProviderRecords = new Set<string>();
+
+/** The shrink pass's write to a record, from the moment it is sent until the
+ * pass is done with it. A provision of the same record waits for it before
+ * writing, so the config the pass echoes from its read never lands after,
+ * and over, the provision's newer one. The promise never rejects. */
+const shrinkingProviderRecords = new Map<string, Promise<unknown>>();
+
 /** PUT /api/providers/:name — provider RECORD config only (network +
  * concurrency; keys are a sub-resource, a keys[] in this body is refused;
- * concurrency must be > 0 or the config validator 400s). Idempotent.
+ * the config validator 400s unless 0 < concurrency <= buffer_size — see
+ * gatewayProviderPool for how each record kind is sized). Idempotent.
  *
  * A STANDARD gateway provider carries its own base URL — overriding it
  * breaks the built-in URL construction and custom_provider_config on it is
@@ -1176,6 +1484,10 @@ async function ensureProviderConfig(
   p: ProviderProvision,
   allowPrivateNetwork: boolean,
 ): Promise<{ recreated: boolean }> {
+  configuredProviderRecords.add(p.name);
+  removedProviderRecords.delete(p.name);
+  const shrinking = shrinkingProviderRecords.get(p.name);
+  if (shrinking !== undefined) await shrinking;
   const attribution = providerAttributionHeaders({
     providerName: p.name,
     baseUrl: p.baseUrl ?? '',
@@ -1208,7 +1520,7 @@ async function ensureProviderConfig(
         ? { extra_headers: attribution }
         : {}),
     },
-    concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
+    concurrency_and_buffer_size: gatewayProviderPool(custom),
     ...(custom
       ? {
           custom_provider_config: anthropic
@@ -1456,6 +1768,355 @@ export async function provisionProviders(
   return failures;
 }
 
+/** The fields of a provider record the shrink pass sends back as the
+ * gateway answered them, because `PUT /api/providers/:name` would otherwise
+ * reset them: the network block (base URL, timeouts, headers, private-network
+ * opt-in), which every PUT replaces whole — a masked CA certificate in it the
+ * gateway restores itself; the custom upstream, without which the gateway
+ * refuses a custom record's PUT; and the raw-payload switches, which fall
+ * back to off when absent. The blocks a PUT leaves alone when absent (proxy,
+ * OpenAI and prompt-cache settings, whose secrets the gateway masks in its
+ * answer) are not sent. */
+const ECHOED_PROVIDER_FIELDS = [
+  'network_config',
+  'custom_provider_config',
+  'send_back_raw_request',
+  'send_back_raw_response',
+  'store_raw_request_response',
+] as const;
+
+/** GET /api/providers — every provider record the gateway holds, in the
+ * shape `GET /api/providers/:name` answers one (keys left out). Throws when
+ * the gateway answers no listing. */
+async function listProviderRecords(): Promise<Record<string, unknown>[]> {
+  const res = await managementFetch('/api/providers');
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway list providers failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  const listed: unknown = await res.json();
+  if (!isRecord(listed) || !Array.isArray(listed.providers)) {
+    throw new Error('llm-gateway list providers answered no providers list');
+  }
+  return listed.providers.filter(isRecord);
+}
+
+/** The request workers a record holds, as the gateway answers it. */
+function recordWorkers(record: Record<string, unknown>): unknown {
+  return isRecord(record.concurrency_and_buffer_size)
+    ? record.concurrency_and_buffer_size.concurrency
+    : undefined;
+}
+
+/** The pool a listed record shrinks to: its kind's (gatewayProviderPool),
+ * when the record holds more workers than that, else undefined. */
+function poolToShrinkTo(
+  name: string,
+  record: Record<string, unknown>,
+): GatewayProviderPool | undefined {
+  const current = recordWorkers(record);
+  const pool = gatewayProviderPool(!isStandardGatewayProvider(name));
+  return typeof current === 'number' && current > pool.concurrency
+    ? pool
+    : undefined;
+}
+
+/** How long the gateway may take to answer the shrink pass's write to one
+ * record. It resolves a custom record's base URL first (up to 5 s), then
+ * stores the record and restarts its workers, and only then asks the
+ * upstream for its models (up to 15 s) before it answers. A write to a record
+ * whose upstream is unreachable has therefore landed long before its answer
+ * comes, up to 20 s later: past the 15 s every other management call is
+ * given. */
+const RESIZE_WRITE_TIMEOUT_MS = 30_000;
+
+/** What the shrink pass did with one record it listed as oversized:
+ * `resized` it holds its kind's pool now; `refused` the gateway refused the
+ * write, or the record came back without the config the write must send, and
+ * it keeps its workers; `unconfirmed` the gateway failed the write or did not
+ * answer, and reading the record back did not show the new pool; `left`
+ * nothing to do any more — the record is gone, already sized, or being
+ * written by a provision of this process. */
+type ResizeOutcome = 'resized' | 'refused' | 'unconfirmed' | 'left';
+
+/** GET /api/providers/:name — one provider record, or null when the gateway
+ * holds none by that name. Throws on any other answer. */
+async function readProviderRecord(
+  name: string,
+): Promise<Record<string, unknown> | null> {
+  const res = await managementFetch(
+    `/api/providers/${encodeURIComponent(name)}`,
+  );
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(
+      `llm-gateway read provider ${name} failed (${res.status}): ${sanitizeError(await res.text())}`,
+    );
+  }
+  const record: unknown = await res.json();
+  if (!isRecord(record)) {
+    throw new Error(`llm-gateway read provider ${name} answered no record`);
+  }
+  return record;
+}
+
+/** Read a record back after a write the gateway failed or did not answer:
+ * the outcome, when that settles it, else the record as it reads now, still
+ * over its pool. The gateway stores a record before it asks the upstream for
+ * its models, so a write whose answer came too late has usually landed. */
+async function readBackResize(
+  name: string,
+  pool: GatewayProviderPool,
+): Promise<ResizeOutcome | Record<string, unknown>> {
+  // A provision of this process is waiting to write the record, with its
+  // pool: nothing is left for the pass to do.
+  if (configuredProviderRecords.has(name)) return 'left';
+  let record: Record<string, unknown> | null;
+  try {
+    record = await readProviderRecord(name);
+  } catch (error) {
+    console.warn(
+      `[llm-gateway] reading provider '${name}' back after its resize failed:`,
+      error,
+    );
+    return 'unconfirmed';
+  }
+  if (record === null) return 'left';
+  if (recordWorkers(record) === pool.concurrency) return 'resized';
+  if (poolToShrinkTo(name, record) === undefined) return 'left';
+  if (configuredProviderRecords.has(name)) return 'left';
+  return isRecord(record.network_config) ? record : 'unconfirmed';
+}
+
+/** Send one record back once with `pool` and its own config (see
+ * ECHOED_PROVIDER_FIELDS): `failed` when the gateway answered a 5xx, `no
+ * answer` when it did not answer in time. */
+async function sendResize(
+  name: string,
+  record: Record<string, unknown>,
+  pool: GatewayProviderPool,
+): Promise<'resized' | 'refused' | 'failed' | 'no answer'> {
+  const body: Record<string, unknown> = { concurrency_and_buffer_size: pool };
+  for (const field of ECHOED_PROVIDER_FIELDS) {
+    const value = record[field];
+    if (value !== undefined && value !== null) body[field] = value;
+  }
+  const failed = `[llm-gateway] resizing provider '${name}' to ${pool.concurrency} workers failed`;
+  try {
+    const res = await managementFetch(
+      `/api/providers/${encodeURIComponent(name)}`,
+      {
+        method: 'PUT',
+        json: body,
+        timeoutMs: RESIZE_WRITE_TIMEOUT_MS,
+        resend: false,
+      },
+    );
+    if (res.ok) return 'resized';
+    const said = sanitizeError(await res.text());
+    if (res.status < 500) {
+      // The gateway resolves the base URL a write carries and refuses one
+      // whose host no longer resolves, so a record of a removed connector or
+      // a decommissioned host is refused at every pass. Deleting such a
+      // record is safe, since a provision sets up one still in use again; a
+      // built-in provider's record carries no base URL and holds every
+      // organization's key, so the hint is never given for it.
+      const carriesBaseUrl =
+        isRecord(record.network_config) &&
+        typeof record.network_config.base_url === 'string';
+      console.warn(
+        carriesBaseUrl
+          ? `${failed} (${res.status}): ${said}; it keeps its workers. If its upstream is gone for good, delete it from the gateway (DELETE /api/providers/${encodeURIComponent(name)}): a provision sets up a record still in use again`
+          : `${failed} (${res.status}): ${said}; it keeps its workers`,
+      );
+      return 'refused';
+    }
+    console.warn(`${failed} (${res.status}): ${said}; reading it back`);
+    return 'failed';
+  } catch (error) {
+    console.warn(`${failed}; reading it back:`, error);
+    return 'no answer';
+  }
+}
+
+/** Write one record back with `pool`, sending it again after a 5xx — the
+ * gateway's store turns a write away while another one holds it — up to
+ * three times, 250, 750 and 2,000 ms later. The gateway's PUT creates a
+ * record it does not hold, so a write goes out again only to a record that
+ * is still there and still over its pool when read back after the wait, and
+ * carries the config the record has then. A write the gateway did not answer
+ * may still be under way there, and is never sent again. Never throws. */
+async function writeResizedRecord(
+  name: string,
+  record: Record<string, unknown>,
+  pool: GatewayProviderPool,
+): Promise<ResizeOutcome> {
+  let current = record;
+  for (let attempt = 0; ; attempt += 1) {
+    if (removedProviderRecords.has(name)) return 'left';
+    const sent = await sendResize(name, current, pool);
+    if (sent === 'resized' || sent === 'refused') return sent;
+    const delayMs: number | undefined = STORE_BUSY_RETRY_DELAYS_MS[attempt];
+    if (sent === 'failed' && delayMs !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    const now = await readBackResize(name, pool);
+    if (typeof now === 'string') return now;
+    if (sent === 'no answer' || delayMs === undefined) return 'unconfirmed';
+    current = now;
+  }
+}
+
+/** Write one record back with its kind's pool and its own config. The record
+ * is read again first: the listing may be minutes old by the time the pass
+ * reaches it, and another platform process may have provisioned the record
+ * since — with its pool already, or with a newer config this write must not
+ * undo. Never throws. */
+async function resizeProviderRecord(name: string): Promise<ResizeOutcome> {
+  let record: Record<string, unknown> | null;
+  try {
+    record = await readProviderRecord(name);
+  } catch (error) {
+    console.warn(
+      `[llm-gateway] reading provider '${name}' to resize its workers failed:`,
+      error,
+    );
+    return 'unconfirmed';
+  }
+  if (record === null) return 'left';
+  const pool = poolToShrinkTo(name, record);
+  // A provision of this process that began during the read writes the record
+  // with its pool and a newer config.
+  if (
+    pool === undefined ||
+    configuredProviderRecords.has(name) ||
+    removedProviderRecords.has(name)
+  )
+    return 'left';
+  if (!isRecord(record.network_config)) {
+    console.warn(
+      `[llm-gateway] provider '${name}' came back without its network config; keeping its workers, since a resize would drop its base URL`,
+    );
+    return 'refused';
+  }
+  // Nothing is awaited between the check above and this entry, so a
+  // provision of the record either made the pass leave it or finds the write
+  // in flight and waits for it.
+  const write = writeResizedRecord(name, record, pool);
+  shrinkingProviderRecords.set(name, write);
+  try {
+    return await write;
+  } finally {
+    shrinkingProviderRecords.delete(name);
+  }
+}
+
+/** Resize every record the gateway lists with more workers than its kind's
+ * pool, one at a time, so the writes never contend for the gateway's store,
+ * and log one line with what came of them once it is done, whatever the
+ * counts. Throws only when the listing fails. */
+async function runProviderPoolShrink(): Promise<void> {
+  const records = await listProviderRecords();
+  const counts: Record<ResizeOutcome, number> = {
+    resized: 0,
+    refused: 0,
+    unconfirmed: 0,
+    left: 0,
+  };
+  for (const listed of records) {
+    const name = getString(listed, 'name');
+    if (name === undefined || poolToShrinkTo(name, listed) === undefined) {
+      continue;
+    }
+    // A record this process provisioned already carries its pool, and the
+    // provision's config is newer than the listing.
+    if (configuredProviderRecords.has(name)) continue;
+    counts[await resizeProviderRecord(name)] += 1;
+  }
+  console.info(
+    `[llm-gateway] provider worker resize finished: ${counts.resized} resized, ${counts.refused} refused, ${counts.unconfirmed} unconfirmed`,
+  );
+}
+
+/** This process's shrink pass, once started (see shrinkProviderPools). */
+let providerPoolShrink: Promise<void> | undefined;
+
+/**
+ * Shrink the worker pools of the provider records no provision rewrites.
+ * A provision resizes only the records it names, so a record nothing
+ * provisions again — a model an organization removed or renamed, an
+ * `__anthropic` sibling of a lane no session rides, an inactive
+ * organization's records, a rarely used model — would keep whatever pool it
+ * was stored with, up to the gateway's default of 1,000 workers, and the
+ * gateway starts those workers again at every boot. Once per process (see
+ * scheduleProviderPoolShrink for when), this lists every record and writes
+ * each one with more workers than its kind's pool back with that pool
+ * (gatewayProviderPool) and its own config. The gateway is the platform's
+ * derived cache, so a record an operator added by hand is sized the same way.
+ *
+ * The pass must not write an old config over a newer one. A record this
+ * process already provisioned is skipped, and a provision of a record waits
+ * for the pass's write to it; a record another process may provision is read
+ * again right before its write. That leaves the time the gateway takes to
+ * handle the write: it writes the record's keys back as it found them when the
+ * write arrived, and the config the pass read, so a key or config another
+ * process writes to the record meanwhile is undone, and that process's memo
+ * keeps it from writing the record again until it restarts (a key it lost is
+ * written again at its next provision, which lists the keys). Never rejects: a
+ * failed listing is logged and the next call lists again; a record the gateway
+ * refuses, or whose write it fails without the new pool showing when the record
+ * is read back, is logged and kept, for the next process to retry. A finished
+ * pass logs one line that counts the records it resized, the ones the gateway
+ * refused and the ones it could not confirm, so an operator waiting for the
+ * pass sees it end even when nothing was resized. Answers the pass so a caller
+ * may wait for it; the session provisioning does not.
+ */
+export function shrinkProviderPools(): Promise<void> {
+  providerPoolShrink ??= runProviderPoolShrink().catch((error: unknown) => {
+    providerPoolShrink = undefined;
+    console.warn(
+      '[llm-gateway] could not list the provider records to resize their request workers; trying again at the next provision:',
+      error,
+    );
+  });
+  return providerPoolShrink;
+}
+
+/** How long after the first provision a backend process waits before its
+ * shrink pass, and the most it adds to that at random. A fresh process's
+ * provisions rewrite every record and key they name once, since its memo is
+ * empty, and so do those of every other process a deploy starts in the same
+ * minutes; a key rotated through the environment lands in exactly that
+ * burst. The pass's write to a record undoes a key or config another process
+ * writes to it while the gateway handles the write (see shrinkProviderPools),
+ * so the pass starts after the burst, and at a different moment in each
+ * process. */
+const SHRINK_PASS_DELAY_MS = 2 * 60_000;
+const SHRINK_PASS_JITTER_MS = 3 * 60_000;
+
+/** Whether this process's shrink pass is waiting for its start. */
+let providerPoolShrinkScheduled = false;
+
+/**
+ * Start this process's shrink pass (shrinkProviderPools) two to five minutes
+ * from now, unless it is waiting for that already or has run. Called at every
+ * provision once the auth posture is applied, so a pass whose listing failed
+ * is scheduled again by the next one. The timer never keeps the process
+ * alive.
+ */
+export function scheduleProviderPoolShrink(): void {
+  if (providerPoolShrink !== undefined || providerPoolShrinkScheduled) return;
+  providerPoolShrinkScheduled = true;
+  setTimeout(
+    () => {
+      providerPoolShrinkScheduled = false;
+      void shrinkProviderPools();
+    },
+    SHRINK_PASS_DELAY_MS + Math.floor(Math.random() * SHRINK_PASS_JITTER_MS),
+  ).unref();
+}
+
 /** How long a request-scoped provision trusts the auth posture this process
  * applied (see applyGatewayConfig). */
 const GATEWAY_CONFIG_REUSE_MS = 5 * 60_000;
@@ -1475,6 +2136,9 @@ let gatewayConfigAppliedAt: number | undefined;
  *     anonymous (it shares the gateway's single port on the sandbox network).
  *     The gateway hashes the stored password itself and compares with bcrypt;
  *     managementHeaders() sends the plaintext as Basic.
+ *   - `client_config.drop_excess_requests` off → a request that finds a
+ *     provider record's queue full waits for room in it instead of being
+ *     refused (see gatewayProviderPool).
  *
  * GET-merge-PUT: `PUT /api/config` reads several client_config fields
  * directly from the payload, so the FULL current client_config is sent with
@@ -1538,30 +2202,27 @@ async function verifyGatewayConfig(): Promise<void> {
     auth_config?: { is_enabled?: boolean };
   };
   const current = cfg.client_config ?? {};
+  const logRetentionDays = gatewayLogRetentionDays();
   // Authenticate and inspect on every sandbox create; write only on drift.
-  // A restored/insecure store is repaired before any virtual key is minted.
+  // A restored/insecure store is repaired before any virtual key is minted,
+  // and a gateway keeping its request log for any other span is moved to
+  // this one.
   if (
     cfg.auth_config?.is_enabled === true &&
     current.enforce_auth_on_inference === true &&
     current.disable_content_logging === true &&
-    typeof current.log_retention_days === 'number' &&
-    current.log_retention_days >= 1
+    current.drop_excess_requests !== true &&
+    current.log_retention_days === logRetentionDays
   ) {
     gatewayConfigAppliedAt = Date.now();
     return;
   }
   // `PUT /api/config` re-validates the whole client_config, but GET returns
   // server-side zero-defaults that fail it — notably log_retention_days=0 vs
-  // the `min=1` validator. Clamp the known-constrained field before
-  // re-PUTting.
-  const logRetentionRaw = current.log_retention_days;
-  const logRetention =
-    typeof logRetentionRaw === 'number' && logRetentionRaw >= 1
-      ? logRetentionRaw
-      : 30;
+  // the `min=1` validator — so the retention is always sent, never copied.
   const clientConfig = {
     ...current,
-    log_retention_days: logRetention,
+    log_retention_days: logRetentionDays,
     enforce_auth_on_inference: true,
     // The gateway's request log would otherwise keep every prompt and
     // answer — agent turns and model-endpoint calls alike — for its
@@ -1569,6 +2230,13 @@ async function verifyGatewayConfig(): Promise<void> {
     // erasure. Tale never reads that log: spend is read from each virtual
     // key's usage, which the governance plugin keeps without content.
     disable_content_logging: true,
+    // With it on, the gateway answers a request that finds a provider
+    // record's queue full with a 503 "request dropped: queue is full". Each
+    // record's pool and queue are sized for the load one record carries
+    // (gatewayProviderPool), so a burst past them must wait for room — the
+    // gateway's default, until the caller hangs up — never fail an agent's
+    // call outright.
+    drop_excess_requests: false,
   };
   // The gateway (Bifrost >= v1.6.9) enforces an admin-password strength policy
   // (>=12 chars, an upper, a lower, a digit and a non-alphanumeric special

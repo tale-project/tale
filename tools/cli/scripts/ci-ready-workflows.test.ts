@@ -17,8 +17,10 @@ import { parse } from 'yaml';
 
 import {
   BUILD_FILTERS,
+  CHECKS_MERGE_QUEUE_ONLY,
   CI_CONTEXTS,
   CI_JOBS,
+  MERGE_QUEUE_ONLY_SCOPES,
   E2E_SERVICES,
   COMPOSE_SERVICES,
 } from './ci-ready';
@@ -68,6 +70,35 @@ const actions = async (name: string): Promise<Step[]> =>
   (await yaml(`.github/actions/${name}/action.yml`)).runs.steps;
 
 describe('seven complete native merge gates', () => {
+  test('exactly the merge-queue-only scopes skip their pull-request runs', async () => {
+    const callers: Record<string, string> = {
+      build: 'build',
+      cli: 'cli',
+      e2e: 'e2e',
+      checks: 'integration',
+      security: 'security',
+    };
+    const queued: string[] = [];
+    for (const [stem, filter] of Object.entries(callers)) {
+      const steps = Object.values((await workflow(stem)).jobs).flatMap(
+        (job) => job.steps ?? [],
+      );
+      const scope = steps.filter(
+        (step) => step.uses === './.github/actions/ci-scope',
+      );
+      expect(scope, stem).toHaveLength(1);
+      expect(scope[0]!.with?.filter, stem).toBe(filter);
+      if (scope[0]!.with?.['queue-only'] === 'true') queued.push(filter);
+      else expect(scope[0]!.with?.['queue-only'], stem).toBeUndefined();
+    }
+    expect(queued.toSorted()).toEqual([...MERGE_QUEUE_ONLY_SCOPES].toSorted());
+    const checks = await workflow('checks');
+    for (const id of CHECKS_MERGE_QUEUE_ONLY)
+      expect(checks.jobs[id]!.if, id).toStartWith(
+        "github.event_name != 'pull_request' &&",
+      );
+  });
+
   test('unique direct contexts cover every actual job, including explicit event-only lanes', async () => {
     const names: string[] = [];
     for (const [stem, expected] of Object.entries(CI_JOBS)) {
@@ -261,6 +292,7 @@ describe('seven complete native merge gates', () => {
       expect(scope.steps?.[0]?.with).toEqual(sparseInputs(scopeFiles));
       expect(scope.steps?.find((step) => step.id === 'scope')?.with).toEqual({
         filter: stem,
+        ...(stem === 'security' ? {} : { 'queue-only': 'true' }),
       });
       const roots = {
         build: ['changes'],

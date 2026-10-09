@@ -12,6 +12,7 @@ import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import type { TaskStatusWriteResult } from '@/app/lib/backend/contract/tasks';
+import { isAgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
 import { parseTaskRepeat } from '@/lib/shared/task-repeat';
 
 import type {
@@ -507,6 +508,9 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
             error: string | null;
             failureCode: string | null;
             trigger: string | null;
+            waitingForCapacityAt: number | null;
+            waitingReason?: string | null;
+            worker?: number;
             startedAt: number;
             launchedAt: number | null;
             settledAt: number | null;
@@ -526,6 +530,15 @@ export const taskReadAdapters: Record<string, ReadAdapter> = {
               ...(run.failureCode !== null
                 ? { failureCode: run.failureCode }
                 : {}),
+              // A run parked for room says so, and why, while it waits: the
+              // timeline reads it instead of a bare "Queued".
+              ...(run.status === 'queued' && run.waitingForCapacityAt !== null
+                ? { waitingForCapacity: true }
+                : {}),
+              ...(isAgentRunWaitingReason(run.waitingReason)
+                ? { waitingReason: run.waitingReason }
+                : {}),
+              ...(typeof run.worker === 'number' ? { worker: run.worker } : {}),
               // A run an automation step started links to that automation
               // run; one another agent started names that agent.
               ...(run.startedVia === 'automation' &&

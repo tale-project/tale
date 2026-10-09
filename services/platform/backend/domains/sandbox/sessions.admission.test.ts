@@ -15,7 +15,11 @@ import { DEFAULT_SANDBOX_QUOTA } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { reserveSessionSlot, resumeSessionSlot } from './sessions.ts';
+import {
+  projectSessionRoom,
+  reserveSessionSlot,
+  resumeSessionSlot,
+} from './sessions.ts';
 
 const { policy } = vi.hoisted(() => ({ policy: vi.fn() }));
 
@@ -200,6 +204,46 @@ describe('reserveSessionSlot — each workload against its own limit [SBX-R8]', 
     });
 
     expect(ran(statements, INSERT)).toBe(false);
+  });
+});
+
+describe('every agent worker holds a slot of its own [SBX-R18]', () => {
+  const SECOND_WORKER = { ...AGENT_SESSION, sessionId: 'pa-agent-1-w2' };
+
+  it("admits an agent's second worker beside its first while a slot is left", async () => {
+    const { sql, statements } = fakeSql({ inFlight: ['project_agent'] });
+
+    await expect(reserveSessionSlot(sql, SECOND_WORKER)).resolves.toBe(
+      'row-new',
+    );
+
+    // The one-live-session cap is the worker's own, never the agent's.
+    const owner = statements.find((statement) =>
+      statement.text.includes(OWNER_COUNT),
+    );
+    expect(owner?.values).toContain('pa-agent-1-w2');
+  });
+
+  it("refuses an agent's third worker when its two hold both slots", async () => {
+    const { sql, statements } = fakeSql({
+      inFlight: ['project_agent', 'project_agent'],
+    });
+
+    await expect(
+      reserveSessionSlot(sql, {
+        ...AGENT_SESSION,
+        sessionId: 'pa-agent-1-w3',
+      }),
+    ).rejects.toMatchObject({ code: 'QUOTA_EXCEEDED', reason: undefined });
+    expect(ran(statements, INSERT)).toBe(false);
+  });
+
+  it('reads the cap and the workers holding a slot for a claim', async () => {
+    const { sql } = fakeSql({ inFlight: ['project_agent', 'workflow_run'] });
+
+    await expect(
+      sql.begin((tx) => projectSessionRoom(tx, 'org-1')),
+    ).resolves.toEqual({ cap: 2, inFlight: 1 });
   });
 });
 

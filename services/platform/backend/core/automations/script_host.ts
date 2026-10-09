@@ -134,6 +134,9 @@ export function workflowScriptRunner(
     const { files, harvestSkipped } = await harvestSessionOutput(ctx, {
       organizationId: run.organizationId,
       sessionId,
+      // Every step's exec has ended by now; one cut at its timeout may still
+      // have processes inside their kill grace.
+      execExited: exec.status !== 'cancelled',
     });
 
     // The result file is the script's own verdict — read it back directly so

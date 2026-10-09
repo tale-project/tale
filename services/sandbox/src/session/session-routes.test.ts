@@ -19,12 +19,14 @@ import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type SessionBackend,
   type SessionSpec,
 } from '../backend/types.ts';
 import type { SpawnerConfig } from '../types.ts';
+import type { RunnerdHealth } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRoutes, settlesWithin } from './session-routes.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -92,6 +94,7 @@ const fakeHealth = {
   liveExecs: 0,
   dockerReady: undefined as boolean | undefined,
   dockerRecoveryRequired: undefined as boolean | undefined,
+  docker: undefined as RunnerdHealth['docker'],
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -108,6 +111,15 @@ const deadDaemons = new Set<string>();
 const healthProbes = new Map<string, number>();
 // Per-daemon activity clocks (by session token), over fakeHealth's shared one.
 const daemonLastActivity = new Map<string, number>();
+// Daemons (by session token) launched with a creation stamp: they name it in
+// their answers and refuse an activity request meant for another incarnation,
+// as runnerd does. The rest name none, like an older runtime image.
+const daemonIncarnations = new Map<string, string>();
+// The incarnation each activity request named, in arrival order.
+const activityIncarnations: Array<{ path: string; named: string | null }> = [];
+// Per-daemon live exec counts (by session token) /healthz reports, over
+// fakeHealth's shared one: an exec runnerd runs that no spawner registered.
+const daemonLiveExecs = new Map<string, number>();
 
 function ndjson(
   lines: Array<{ t: string; seq?: number; [key: string]: unknown }>,
@@ -177,6 +189,17 @@ beforeAll(() => {
       if (deadDaemons.has(token)) {
         return new Response('runnerd is gone', { status: 503 });
       }
+      const served = daemonIncarnations.get(token);
+      const incarnation = served === undefined ? {} : { incarnation: served };
+      if (['/acquire', '/release', '/reclaim', '/pin'].includes(url.pathname)) {
+        const named = req.headers.get('x-tale-runnerd-incarnation');
+        activityIncarnations.push({ path: url.pathname, named });
+        if (served !== undefined && named !== null && named !== served)
+          return Response.json(
+            { error: 'incarnation_mismatch', ...incarnation },
+            { status: 409 },
+          );
+      }
       if (url.pathname === '/healthz') {
         healthProbes.set(token, (healthProbes.get(token) ?? 0) + 1);
         const dockerReady = fakeHealth.dockerReady;
@@ -187,13 +210,17 @@ beforeAll(() => {
         return Response.json({
           ok: true,
           bootedAtMs: 0,
+          ...incarnation,
           lastActivityAtMs:
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
-          liveExecs: fakeHealth.liveExecs,
+          liveExecs: daemonLiveExecs.get(token) ?? fakeHealth.liveExecs,
           ...(dockerReady === undefined ? {} : { dockerReady }),
           ...(fakeHealth.dockerRecoveryRequired === undefined
             ? {}
             : { dockerRecoveryRequired: fakeHealth.dockerRecoveryRequired }),
+          ...(fakeHealth.docker === undefined
+            ? {}
+            : { docker: fakeHealth.docker }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
@@ -205,7 +232,7 @@ beforeAll(() => {
           );
         const generation = activity.acquire();
         return Response.json(
-          { generation },
+          { generation, ...incarnation },
           { status: generation === null ? 503 : 200 },
         );
       }
@@ -214,7 +241,10 @@ beforeAll(() => {
         url.pathname === '/release' &&
         req.method === 'GET'
       ) {
-        return Response.json({ generation: activity.snapshot().generation });
+        return Response.json({
+          generation: activity.snapshot().generation,
+          ...incarnation,
+        });
       }
       if (
         !legacyDaemon &&
@@ -228,6 +258,7 @@ beforeAll(() => {
         if (url.pathname === '/release')
           return Response.json({
             released: activity.release(String(body.generation)),
+            ...incarnation,
           });
         if (url.pathname === '/reclaim') {
           const idleBeforeMs =
@@ -242,10 +273,14 @@ beforeAll(() => {
               String(body.generation),
               idleBeforeMs,
             ),
+            ...incarnation,
           });
         }
         const applied = activity.setPinned(body.pinned === true);
-        return Response.json({ ok: applied }, { status: applied ? 200 : 503 });
+        return Response.json(
+          { ok: applied, ...incarnation },
+          { status: applied ? 200 : 503 },
+        );
       }
       if (activity.snapshot().reclaiming)
         return new Response('reclaiming', { status: 503 });
@@ -296,6 +331,21 @@ beforeAll(() => {
                 truncated: { stdout: false, stderr: false },
                 timedOut: false,
                 cancelled: false,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (text.includes('__disk_full__')) {
+          // runnerd's journal hit ENOSPC (exec-replay.ts): the exec ends.
+          return new Response(
+            ndjson([
+              { t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 },
+              {
+                t: 'fail',
+                code: 'REPLAY_DISK_FULL',
+                message: 'The sandbox host ran out of disk space.',
+                seq: 2,
               },
             ]),
             { headers: { 'content-type': 'application/x-ndjson' } },
@@ -532,6 +582,7 @@ let backendCheckThrows = false;
 // Sessions whose backend destroy fails (a wedged dockerd) — destroySession
 // throws for these so the route's honesty path (no laundered success) is tested.
 const backendDestroyThrows = new Set<string>();
+const backendStopThrows = new Set<string>();
 // Sessions whose create is a RESUME (the workspace pre-existed backend-side).
 const resumedSessions = new Set<string>();
 // The backend's durable pin record (what a restart would re-adopt).
@@ -568,6 +619,9 @@ const fakeBackend: SessionBackend = {
     return had;
   },
   async stopSession(sessionId: string) {
+    if (backendStopThrows.has(sessionId)) {
+      throw new Error('backend stop failed (wedged dockerd)');
+    }
     // Stop releases compute but PRESERVES the workspace — never marks destroyed.
     const had = created.has(sessionId);
     stopped.add(sessionId);
@@ -626,6 +680,7 @@ async function readSse(res: Response): Promise<{ events: SseEvent[] }> {
 // into another test's assertions). fakeServer/fakeBaseUrl stay (beforeAll-owned).
 beforeEach(() => {
   created.clear();
+  backendStopThrows.clear();
   destroyed.clear();
   stopped.clear();
   stdinWrites.length = 0;
@@ -643,6 +698,7 @@ beforeEach(() => {
   fakeHealth.liveExecs = 0;
   fakeHealth.dockerReady = undefined;
   fakeHealth.dockerRecoveryRequired = undefined;
+  fakeHealth.docker = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -651,6 +707,9 @@ beforeEach(() => {
   deadDaemons.clear();
   healthProbes.clear();
   daemonLastActivity.clear();
+  daemonIncarnations.clear();
+  activityIncarnations.length = 0;
+  daemonLiveExecs.clear();
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -1664,6 +1723,39 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(again.status).toBe(409);
   });
 
+  // The platform adopts a 409 and cleans up after a 502: a live session the
+  // registry lost must read as the former, or its compute is removed.
+  test('a create that finds a live unregistered session → 409 duplicate; a failed create → 502', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        if (spec.sessionId === 'live-unregistered') {
+          throw new SessionExistsError(
+            spec.sessionId,
+            'container tale-sbx-ses-live-unregistered is running',
+          );
+        }
+        throw new Error(
+          'docker run (session) failed: Conflict. The container name is already in use',
+        );
+      },
+    });
+    const live = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'live-unregistered', organizationId: 'o' }),
+    );
+    expect(live.status).toBe(409);
+    expect(await live.json()).toMatchObject({ error: 'duplicate' });
+    const failed = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'not-live', organizationId: 'o' }),
+    );
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toMatchObject({ error: 'create_failed' });
+    for (const id of ['live-unregistered', 'not-live']) {
+      expect(destroyed.has(id)).toBe(false);
+      expect(stopped.has(id)).toBe(false);
+    }
+  });
+
   test('env / files / content / attach round-trip through runnerd', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -1799,6 +1891,26 @@ describe('SessionRoutes (fake runnerd)', () => {
       );
     },
   );
+
+  test('a journal that ran out of disk ends the exec stream with REPLAY_DISK_FULL, never a result, and keeps the session', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'disk-full', organizationId: 'org_disk' }),
+    );
+    const { events } = await readSse(
+      await routes.handleExec(
+        new Request('http://x'),
+        'disk-full',
+        JSON.stringify({ execId: 'full', command: ['echo', '__disk_full__'] }),
+      ),
+    );
+    expect(events.map((event) => event.event)).toEqual(['phase', 'error']);
+    expect(events[1]?.data).toEqual({
+      code: 'REPLAY_DISK_FULL',
+      message: 'The sandbox host ran out of disk space.',
+    });
+    expect(routes.holds('disk-full')).toBe(true);
+  });
 
   test('env/files/attach against unknown session → 404', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
@@ -2389,6 +2501,82 @@ describe('SessionRoutes (fake runnerd)', () => {
         busy: false,
         deletion: 'done',
       });
+    });
+  });
+
+  // The platform's cleanup after a failed create of an agent session: the
+  // id may name a workspace preserved for the owner's next turn, so only the
+  // compute goes.
+  describe('conditional stop that keeps the workspace (ifIdle + keepWorkspace)', () => {
+    test('idle: the compute is stopped, the workspace kept, and the answer says so', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep1', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 0;
+      const res = await routes.handleDestroy('keep1', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        stopped: true,
+        busy: false,
+        workspaceKept: true,
+      });
+      expect(stopped.has('keep1')).toBe(true);
+      expect(destroyed.has('keep1')).toBe(false);
+      expect((await routes.handleGet('keep1')).status).toBe(404);
+    });
+
+    test('busy: nothing is stopped', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep2', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 1;
+      const res = await routes.handleDestroy('keep2', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(await res.json()).toEqual({ destroyed: false, busy: true });
+      expect(stopped.has('keep2')).toBe(false);
+      expect(destroyed.has('keep2')).toBe(false);
+    });
+
+    test('no compute under the id: nothing stopped, and the workspace is never destroyed', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      backendGone.add('dead-keep3');
+      const res = await routes.handleDestroy('dead-keep3', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(await res.json()).toEqual({
+        stopped: false,
+        busy: false,
+        workspaceKept: true,
+      });
+      expect(destroyed.has('dead-keep3')).toBe(false);
+    });
+
+    test('a failed backend stop answers 502 and keeps the registry entry', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep4', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 0;
+      backendStopThrows.add('keep4');
+      const res = await routes.handleDestroy('keep4', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(res.status).toBe(502);
+      expect(await res.json()).toMatchObject({
+        destroyed: false,
+        error: 'backend stop failed',
+      });
+      expect((await routes.handleGet('keep4')).status).toBe(200);
+      expect(destroyed.has('keep4')).toBe(false);
     });
   });
 
@@ -3758,6 +3946,179 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect((await routes.handleGet('drain-owned')).status).toBe(200);
       expect(await routes.stopAllSessions()).toBe(1);
       expect([...stopped]).toEqual(['drain-owned']);
+    });
+
+    test('the linger reap lets a session with a live exec end its work, and stops an idle one at once', async () => {
+      const graces = new Map<string, number | undefined>();
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        {
+          ...fakeBackend,
+          async stopSession(id, _stamp, options) {
+            graces.set(id, options?.graceMs);
+            return fakeBackend.stopSession(id);
+          },
+        },
+      );
+      for (const [sessionId, docker] of [
+        ['linger-busy', false],
+        ['linger-busy-docker', true],
+        ['linger-idle', false],
+      ] as const) {
+        expect(
+          (
+            await routes.handleCreate(
+              JSON.stringify({
+                sessionId,
+                organizationId: 'org_linger',
+                profile: 'agent',
+                docker,
+              }),
+            )
+          ).status,
+        ).toBe(201);
+      }
+      const callers = [new AbortController(), new AbortController()];
+      try {
+        for (const [index, sessionId] of [
+          'linger-busy',
+          'linger-busy-docker',
+        ].entries()) {
+          const exec = await routes.handleExec(
+            new Request('http://sandbox/exec', {
+              signal: callers[index]?.signal,
+            }),
+            sessionId,
+            JSON.stringify({ execId: `hang-${sessionId}`, command: ['true'] }),
+          );
+          await exec.body?.getReader().read();
+        }
+        expect(await routes.stopAllSessions()).toBe(3);
+      } finally {
+        for (const caller of callers) caller.abort();
+      }
+      expect(Object.fromEntries(graces)).toEqual({
+        'linger-busy': 5_000,
+        'linger-busy-docker': 20_000,
+        'linger-idle': 0,
+      });
+      expect(routes.sessionIds()).toEqual([]);
+    });
+
+    test('the linger reap asks runnerd whether a session is busy: an exec it follows by attach, or an operation, keeps its grace', async () => {
+      const tokenOf = (id: string) => deriveRunnerdToken(cfg.sandboxToken, id);
+      const graces = new Map<string, number | undefined>();
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        {
+          ...fakeBackend,
+          async stopSession(id, _stamp, options) {
+            graces.set(id, options?.graceMs);
+            return fakeBackend.stopSession(id);
+          },
+        },
+      );
+      for (const [sessionId, docker] of [
+        ['linger-attached', false],
+        ['linger-attached-docker', true],
+        ['linger-operating', false],
+        ['linger-silent', false],
+        ['linger-quiet', false],
+      ] as const) {
+        expect(
+          (
+            await routes.handleCreate(
+              JSON.stringify({
+                sessionId,
+                organizationId: 'org_linger',
+                profile: 'agent',
+                docker,
+              }),
+            )
+          ).status,
+        ).toBe(201);
+      }
+      // Between drain windows nothing is attached, so no exec is registered
+      // here; runnerd still runs one.
+      daemonLiveExecs.set(tokenOf('linger-attached'), 1);
+      daemonLiveExecs.set(tokenOf('linger-attached-docker'), 1);
+      const operating = new ActivityGate(() => 0);
+      operating.enter();
+      fakeActivities.set(tokenOf('linger-operating'), operating);
+      // A daemon that does not answer could not act on a stop's signal.
+      deadDaemons.add(tokenOf('linger-silent'));
+      expect(await routes.stopAllSessions()).toBe(5);
+      expect(Object.fromEntries(graces)).toEqual({
+        'linger-attached': 5_000,
+        'linger-attached-docker': 20_000,
+        'linger-operating': 5_000,
+        'linger-silent': 0,
+        'linger-quiet': 0,
+      });
+      expect(routes.sessionIds()).toEqual([]);
+    });
+
+    test('the linger reap joins a stop already under way instead of cutting it short', async () => {
+      const release = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      let stops = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async stopSession(id) {
+          stops += 1;
+          started.resolve();
+          await release.promise;
+          return fakeBackend.stopSession(id);
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'linger-joined', organizationId: 'org_a' }),
+      );
+      fakeHealth.lastActivityAtMs = 0;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await started.promise;
+      const linger = routes.stopAllSessions();
+      release.resolve();
+      expect(await sweep).toBe(1);
+      expect(await linger).toBe(1);
+      expect(stops).toBe(1);
+    });
+
+    test('the linger reap stops a session itself when the stop it joined ends without stopping it', async () => {
+      const release = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      let stops = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async stopSession(id) {
+          stops += 1;
+          if (stops === 1) {
+            started.resolve();
+            await release.promise;
+            throw new Error('docker rm timed out');
+          }
+          return fakeBackend.stopSession(id);
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'linger-refused',
+          organizationId: 'org_a',
+        }),
+      );
+      fakeHealth.lastActivityAtMs = 0;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await started.promise;
+      const linger = routes.stopAllSessions();
+      release.resolve();
+      expect(await sweep).toBe(0);
+      expect(await linger).toBe(1);
+      expect(stops).toBe(2);
+      expect(routes.sessionIds()).toEqual([]);
     });
 
     test.each(['get', 'pin'])(
@@ -5382,6 +5743,27 @@ describe('sweep and adoption hygiene', () => {
     expect(stopped.has('dind-1')).toBe(true);
   });
 
+  test('a released Docker-in-sandbox agent session keeps the full idle window only once its engine has run', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      fakeBackend,
+    );
+    await create(routes, 'dind-used', 'agent');
+    await release(routes, 'dind-used');
+    const now = Date.now();
+    fakeHealth.lastActivityAtMs = now - 6 * 60_000;
+    // A slept engine still holds its image store.
+    fakeHealth.docker = { engine: 'stopped', used: true };
+    expect(await routes.sweepExpired(now)).toBe(0);
+    fakeHealth.docker = { engine: 'running', used: true };
+    expect(await routes.sweepExpired(now)).toBe(0);
+    // Never started: nothing to re-pull, so the short window applies.
+    fakeHealth.docker = { engine: 'cold', used: false };
+    expect(await routes.sweepExpired(now)).toBe(1);
+    expect(stopped.has('dind-used')).toBe(true);
+    expect(destroyed.size).toBe(0);
+  });
+
   test('a running session whose runnerd stays unreachable is stopped after five sweeps', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await create(routes, 'wedged-1');
@@ -6471,6 +6853,199 @@ describe('disk-aware admission', () => {
       { availableBytes: 8 * GIB, short: false },
     ]);
   });
+
+  /** Two Docker-in-sandbox sessions, one of them released by its platform
+   * and active a moment ago. */
+  async function releasedDockerSessions(routes: SessionRoutes): Promise<void> {
+    for (const id of ['dind-released', 'dind-held'])
+      expect((await create(routes, id)).status).toBe(201);
+    const ticket: unknown = await (
+      await routes.handleActivity('dind-released', 'ticket')
+    ).json();
+    await routes.handleActivity(
+      'dind-released',
+      'release',
+      JSON.stringify(ticket),
+    );
+    fakeHealth.lastActivityAtMs = Date.now();
+  }
+
+  test('below its critical tier, the sweep stops a released Docker-in-sandbox session at once and logs the largest workspaces at most every ten minutes', async () => {
+    let available = 50;
+    const measured: number[] = [];
+    const warnings: string[] = [];
+    const warn = spyOn(console, 'warn').mockImplementation(
+      (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      },
+    );
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async largestWorkspaces(limit) {
+          measured.push(limit);
+          return {
+            largest: [
+              { sessionId: 'big', bytes: 12 * GIB },
+              { sessionId: 'dind-held', bytes: 3 * GIB },
+            ],
+            measured: 2,
+            total: 3,
+          };
+        },
+      },
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    try {
+      await releasedDockerSessions(routes);
+      // Below the 5 GiB floor, above the 1.25 GiB tier: the released session
+      // keeps its full idle window, and nothing is measured.
+      available = 4;
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(measured).toEqual([]);
+      available = 1;
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('dind-released')).toBe(true);
+      // Held by its turn: never stopped for the disk.
+      expect(stopped.has('dind-held')).toBe(false);
+      expect(reclaimRequests).toHaveLength(1);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toEqual([3]);
+      expect(
+        warnings.filter((line) => line.includes('below its critical 1.3 GiB')),
+      ).toHaveLength(1);
+      expect(warnings).toContain(
+        '[sandbox.session] the session disk is critical; its largest workspaces: big 12.0 GiB, dind-held 3.0 GiB (2 of 3 workspaces measured in time)',
+      );
+      // Still critical a sweep later: said and measured once.
+      expect(await routes.sweepExpired()).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toEqual([3]);
+      expect(
+        warnings.filter((line) => line.includes('below its critical')),
+      ).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('a critical tier acts on each watched filesystem for what lives there', async () => {
+    const warnings: string[] = [];
+    const warn = spyOn(console, 'warn').mockImplementation(
+      (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      },
+    );
+    let measured = 0;
+    let workspaceFree = 50;
+    let dockerFree = 50;
+    const reading = (free: number) => ({
+      totalBytes: 100 * GIB,
+      availableBytes: free * GIB,
+    });
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async largestWorkspaces() {
+          measured += 1;
+          return { largest: [], measured: 0, total: 0 };
+        },
+      },
+      undefined,
+      undefined,
+      {
+        latest: () => reading(Math.min(workspaceFree, dockerFree)),
+        read: () =>
+          Promise.resolve(reading(Math.min(workspaceFree, dockerFree))),
+        byFilesystem: () => ({
+          workspace: reading(workspaceFree),
+          dockerData: reading(dockerFree),
+        }),
+      },
+    );
+    try {
+      await releasedDockerSessions(routes);
+      // Only the workspace disk is critical: its largest workspaces are
+      // logged, and no Docker-in-sandbox session stops, since its inner
+      // image store lives on Docker's data disk.
+      workspaceFree = 1;
+      expect(await routes.sweepExpired()).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toBe(1);
+      expect(stopped.has('dind-released')).toBe(false);
+      expect(
+        warnings.some((line) =>
+          line.startsWith(
+            '[sandbox.session] the session disk has 1.0 GiB free',
+          ),
+        ),
+      ).toBe(true);
+      // Docker's data disk turns critical too: the released session stops.
+      dockerFree = 1;
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('dind-released')).toBe(true);
+      expect(
+        warnings.some((line) =>
+          line.startsWith(
+            "[sandbox.session] Docker's data disk has 1.0 GiB free",
+          ),
+        ),
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('an unknown disk, or a critical tier of 0, stops nothing for the disk', async () => {
+    const off = {
+      ...cfg,
+      dockerInContainer: true,
+      session: { ...cfg.session, criticalFreeDiskBytes: 0 },
+    };
+    let measured = 0;
+    const backend = {
+      ...fakeBackend,
+      async largestWorkspaces() {
+        measured += 1;
+        return { largest: [], measured: 0, total: 0 };
+      },
+    };
+    let available: number | null = 50;
+    const reading = () =>
+      available === null
+        ? null
+        : { totalBytes: 100 * GIB, availableBytes: available * GIB };
+    const source = {
+      latest: reading,
+      read: () => Promise.resolve(reading()),
+    };
+    for (const [routes, after] of [
+      [new SessionRoutes(off, backend, undefined, undefined, source), 1],
+      [
+        new SessionRoutes(
+          { ...cfg, dockerInContainer: true },
+          backend,
+          undefined,
+          undefined,
+          source,
+        ),
+        null,
+      ],
+    ] as const) {
+      available = 50;
+      await releasedDockerSessions(routes);
+      available = after;
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(stopped.has('dind-released')).toBe(false);
+      await routes.handleDestroy('dind-released');
+      await routes.handleDestroy('dind-held');
+    }
+    expect(measured).toBe(0);
+  });
 });
 
 describe('settlesWithin', () => {
@@ -7067,3 +7642,427 @@ test('cancelling a backpressured HTTP replay detaches its upstream producer', as
     await proxy.stop(true);
   }
 }, 10000);
+
+describe('runnerd answers naming the session incarnation', () => {
+  const tokenOf = (sessionId: string) =>
+    deriveRunnerdToken(cfg.sandboxToken, sessionId);
+
+  /** A Docker backend whose containers carry their creation stamp to runnerd
+   * (docker-session-args), counting its existence checks. Its create reports
+   * the incarnation its readiness answer named, as DockerSessionBackend does. */
+  function stampedBackend(
+    checks: string[],
+    overrides: Partial<SessionBackend> = {},
+  ): SessionBackend {
+    return {
+      ...fakeBackend,
+      async createSession(spec) {
+        daemonIncarnations.set(
+          tokenOf(spec.sessionId),
+          String(spec.createdAtMs),
+        );
+        return {
+          ...(await fakeBackend.createSession(spec)),
+          incarnation: String(spec.createdAtMs),
+        };
+      },
+      async sessionExists(sessionId, expected) {
+        checks.push(sessionId);
+        return fakeBackend.sessionExists(sessionId, expected);
+      },
+      ...overrides,
+    };
+  }
+
+  async function provenSession(
+    routes: SessionRoutes,
+    sessionId: string,
+    checks: string[],
+  ): Promise<string> {
+    expect(
+      (
+        await routes.handleCreate(
+          JSON.stringify({ sessionId, organizationId: 'org_inc' }),
+        )
+      ).status,
+    ).toBe(201);
+    // The create's readiness answer named the incarnation, so even the first
+    // acquire asks the backend nothing.
+    expect((await routes.handleActivity(sessionId, 'acquire')).status).toBe(
+      200,
+    );
+    expect(checks).toEqual([]);
+    activityIncarnations.length = 0;
+    const stamp = daemonIncarnations.get(tokenOf(sessionId));
+    if (stamp === undefined) throw new Error('the create named no stamp');
+    return stamp;
+  }
+
+  test('a turn on a proven session forks no backend check', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-turn', checks);
+
+    expect((await routes.handleGet('inc-turn')).status).toBe(200);
+    const acquired = await routes.handleActivity('inc-turn', 'acquire');
+    expect(acquired.status).toBe(200);
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const { generation } = (await acquired.json()) as { generation: string };
+    expect((await routes.handleActivity('inc-turn', 'ticket')).status).toBe(
+      200,
+    );
+    const released = await routes.handleActivity(
+      'inc-turn',
+      'release',
+      JSON.stringify({ generation }),
+    );
+    expect(await released.json()).toEqual({ released: true });
+
+    expect(checks).toEqual([]);
+    expect(activityIncarnations).toEqual([
+      { path: '/acquire', named: stamp },
+      { path: '/release', named: stamp },
+      { path: '/release', named: stamp },
+    ]);
+  });
+
+  test('a create proves its session: the ticket and release after it fork no backend check', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    // A resume as the platform's agent flow runs it: the acquire missed, so
+    // it creates and goes straight to the release ticket.
+    expect(
+      (
+        await routes.handleCreate(
+          JSON.stringify({
+            sessionId: 'inc-created',
+            organizationId: 'org_inc',
+          }),
+        )
+      ).status,
+    ).toBe(201);
+    const ticket = await routes.handleActivity('inc-created', 'ticket');
+    expect(ticket.status).toBe(200);
+    expect(
+      await (
+        await routes.handleActivity(
+          'inc-created',
+          'release',
+          JSON.stringify(await ticket.json()),
+        )
+      ).json(),
+    ).toEqual({ released: true });
+    expect(checks).toEqual([]);
+  });
+
+  test('an older runtime naming no incarnation keeps the backend check on every call', async () => {
+    const checks: string[] = [];
+    // Its readiness answer names none either, so the create proves nothing.
+    const routes = new SessionRoutes(
+      cfg,
+      stampedBackend(checks, {
+        createSession: (spec) => fakeBackend.createSession(spec),
+      }),
+    );
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'inc-legacy', organizationId: 'org_inc' }),
+    );
+
+    expect((await routes.handleActivity('inc-legacy', 'acquire')).status).toBe(
+      200,
+    );
+    expect((await routes.handleGet('inc-legacy')).status).toBe(200);
+    expect((await routes.handleActivity('inc-legacy', 'ticket')).status).toBe(
+      200,
+    );
+    expect(checks).toEqual(['inc-legacy', 'inc-legacy', 'inc-legacy']);
+  });
+
+  test('a replacement under the name refuses the request and the stale entry is evicted', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-replaced', checks);
+    const activity = fakeActivities.get(tokenOf('inc-replaced'));
+    const before = activity?.snapshot().generation;
+    daemonIncarnations.set(tokenOf('inc-replaced'), String(Number(stamp) + 1));
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (await routes.handleActivity('inc-replaced', 'acquire')).status,
+      ).toBe(404);
+    } finally {
+      warn.mockRestore();
+    }
+    // Refused before it changed anything; the replacement is not stopped or
+    // destroyed, only the stale entry goes.
+    expect(activity?.snapshot().generation).toBe(before);
+    expect(routes.holds('inc-replaced')).toBe(false);
+    expect(stopped.has('inc-replaced')).toBe(false);
+    expect(destroyed.has('inc-replaced')).toBe(false);
+    expect(checks).toEqual([]);
+  });
+
+  test('a proven session answering without a stamp gets the skipped check after all', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await provenSession(routes, 'inc-unstamped', checks);
+    // A replacement launched without a stamp now holds the name.
+    daemonIncarnations.delete(tokenOf('inc-unstamped'));
+    backendGone.add('inc-unstamped');
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (await routes.handleActivity('inc-unstamped', 'ticket')).status,
+      ).toBe(404);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(checks).toEqual(['inc-unstamped']);
+    expect(routes.holds('inc-unstamped')).toBe(false);
+  });
+
+  test('a proven session read asks runnerd, and the backend only when runnerd fails', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await provenSession(routes, 'inc-read', checks);
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await routes.handleGet('inc-read')).status).toBe(200);
+      expect(checks).toEqual([]);
+
+      // runnerd fails: the backend decides — alive keeps the entry...
+      deadDaemons.add(tokenOf('inc-read'));
+      expect((await routes.handleGet('inc-read')).status).toBe(200);
+      expect(checks).toEqual(['inc-read']);
+      // ...and gone evicts it.
+      backendGone.add('inc-read');
+      expect((await routes.handleGet('inc-read')).status).toBe(404);
+      expect(routes.holds('inc-read')).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('a proven session read answered by a replacement evicts without a backend check', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-read-replaced', checks);
+    daemonIncarnations.set(
+      tokenOf('inc-read-replaced'),
+      String(Number(stamp) + 1),
+    );
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await routes.handleGet('inc-read-replaced')).status).toBe(404);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(checks).toEqual([]);
+    expect(routes.holds('inc-read-replaced')).toBe(false);
+  });
+
+  test('the sweep takes a pinned session runnerd names as live and asks the backend only when runnerd fails', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'inc-pinned', organizationId: 'org_inc' }),
+    );
+    expect(
+      (
+        await routes.handleSetPinned(
+          'inc-pinned',
+          JSON.stringify({ pinned: true }),
+        )
+      ).status,
+    ).toBe(200);
+    checks.length = 0;
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(checks).toEqual([]);
+
+      deadDaemons.add(tokenOf('inc-pinned'));
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(checks).toEqual(['inc-pinned']);
+      expect(routes.holds('inc-pinned')).toBe(true);
+
+      backendGone.add('inc-pinned');
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(routes.holds('inc-pinned')).toBe(false);
+      expect(destroyed.has('inc-pinned')).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('the sweep asks the backend for a pinned session whose runnerd names no incarnation', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'inc-pinned-old',
+        organizationId: 'org_inc',
+      }),
+    );
+    await routes.handleSetPinned(
+      'inc-pinned-old',
+      JSON.stringify({ pinned: true }),
+    );
+    daemonIncarnations.clear();
+    checks.length = 0;
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(checks).toEqual(['inc-pinned-old']);
+  });
+
+  test('the sweep evicts an unpinned session a replacement answers for, stopping nothing', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'inc-sweep-replaced',
+        organizationId: 'org_inc',
+      }),
+    );
+    const token = tokenOf('inc-sweep-replaced');
+    const stamp = daemonIncarnations.get(token);
+    if (stamp === undefined) throw new Error('the create named no stamp');
+    // Recently active, so nothing but the replacement can end the entry.
+    daemonLastActivity.set(token, Date.now());
+    daemonIncarnations.set(token, String(Number(stamp) + 1));
+    checks.length = 0;
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await routes.sweepExpired()).toBe(1);
+    } finally {
+      warn.mockRestore();
+    }
+    // The stale entry goes without a backend check; the replacement holding
+    // the name is neither stopped nor destroyed.
+    expect(routes.holds('inc-sweep-replaced')).toBe(false);
+    expect(checks).toEqual([]);
+    expect(stopped.has('inc-sweep-replaced')).toBe(false);
+    expect(destroyed.has('inc-sweep-replaced')).toBe(false);
+  });
+
+  test('the sweep proves an unpinned session runnerd names, so its next ticket forks no backend check', async () => {
+    const checks: string[] = [];
+    // Re-adopted after a spawner restart: registered from the backend's
+    // listing, so no runnerd answer has named its incarnation yet.
+    const createdAtMs = Date.now();
+    const routes = new SessionRoutes(
+      cfg,
+      stampedBackend(checks, {
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            {
+              ...mkBackendSession('inc-sweep-proves', 'org_inc'),
+              createdAtMs,
+              ttlMs: 3_600_000,
+              idleTimeoutMs: 3_600_000,
+            },
+          ];
+        },
+      }),
+    );
+    const token = tokenOf('inc-sweep-proves');
+    daemonIncarnations.set(token, String(createdAtMs));
+    daemonLastActivity.set(token, Date.now());
+    await routes.adoptExisting();
+    expect(routes.holds('inc-sweep-proves')).toBe(true);
+    checks.length = 0;
+
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(
+      (await routes.handleActivity('inc-sweep-proves', 'ticket')).status,
+    ).toBe(200);
+    expect(checks).toEqual([]);
+  });
+
+  test('a pin refused by a replacement drops the stale entry and leaves the durable pin alone', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-pin-replaced', checks);
+    daemonIncarnations.set(
+      tokenOf('inc-pin-replaced'),
+      String(Number(stamp) + 1),
+    );
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (
+          await routes.handleSetPinned(
+            'inc-pin-replaced',
+            JSON.stringify({ pinned: true }),
+          )
+        ).status,
+      ).toBe(503);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(backendPins.has('inc-pin-replaced')).toBe(false);
+    expect(routes.holds('inc-pin-replaced')).toBe(false);
+  });
+
+  test('a pressure reclaim refused by a replacement claims and stops nothing, and drops the stale entry', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      stampedBackend(checks),
+    );
+    const stamp = await provenSession(routes, 'inc-warm', checks);
+    const ticket: unknown = await (
+      await routes.handleActivity('inc-warm', 'ticket')
+    ).json();
+    expect(
+      await (
+        await routes.handleActivity(
+          'inc-warm',
+          'release',
+          JSON.stringify(ticket),
+        )
+      ).json(),
+    ).toEqual({ released: true });
+    daemonIncarnations.set(tokenOf('inc-warm'), String(Number(stamp) + 1));
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'inc-next', organizationId: 'org_inc' }),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+    expect(activityIncarnations).toContainEqual({
+      path: '/reclaim',
+      named: stamp,
+    });
+    expect(fakeActivities.get(tokenOf('inc-warm'))?.snapshot().reclaiming).toBe(
+      false,
+    );
+    expect(stopped.has('inc-warm')).toBe(false);
+    expect(routes.holds('inc-warm')).toBe(false);
+  });
+
+  test('Kubernetes keeps the backend check even when runnerd names the incarnation', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(
+      { ...cfg, backend: 'kubernetes' },
+      stampedBackend(checks, { kind: 'kubernetes' }),
+    );
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'inc-k8s', organizationId: 'org_inc' }),
+    );
+    checks.length = 0;
+    expect((await routes.handleActivity('inc-k8s', 'acquire')).status).toBe(
+      200,
+    );
+    expect((await routes.handleGet('inc-k8s')).status).toBe(200);
+    expect((await routes.handleActivity('inc-k8s', 'acquire')).status).toBe(
+      200,
+    );
+    expect(checks).toEqual(['inc-k8s', 'inc-k8s', 'inc-k8s']);
+  });
+});

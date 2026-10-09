@@ -71,6 +71,7 @@ usage:
   connector: Connector
   transcription: Transkription
   tts: Sprachausgabe
+  embedding: Wissensindexierung und -suche
   granularity:
     label: Granularität
     daily: Täglich

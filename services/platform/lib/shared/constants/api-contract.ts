@@ -399,5 +399,143 @@
  * `GET /api/v1/me` answers `key.owner` (`kind`, `team`, `project`), lists
  * the bound organization alone, and an empty `user.email` for a key that
  * is not a person. Additive.
+ *
+ * 3.22.0 — 2026-10-08: budget rules can cap a project — everything spent in
+ * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
+ * names such a cap with `data.scope` `project`. Additive.
+ *
+ * 3.23.0 — 2026-10-09: the project-agent tools vocabulary gains
+ * `knowledge_entry_write`, an explicit grant to save an organization-wide
+ * knowledge entry by topic; changing an existing entry needs the version the
+ * agent read, and a stale one is refused with the current text.
+ * `KnowledgeEntry.source` gains `agent` for what such a grant wrote, its
+ * `createdBy` naming the agent. Native `knowledge_entry_find` answers each
+ * entry's version `id` and `updatedAt` and matches its content as well. No
+ * REST operation changes. Additive.
+ *
+ * 3.24.0 — 2026-10-09: agents have mention handles, and mentions are stored
+ * as whom they name. `ProjectAgent.handle` is the agent's handle, made from
+ * its current name, unique in its project (`-02`, `-03` on a clash) and
+ * made again on a rename, or when a member's email name or an automation's
+ * store name comes to equal it. A comment body and a task description store each
+ * mention a door resolves as a mention link,
+ * `[@Ada Lovelace](mention:user/<userId>)`, and every read returns that
+ * stored form: observable for a client that read the `@handle` it posted
+ * back out of the text. Plain `@handle`, `@<id>` and the older name forms
+ * still resolve when posted; a mention link naming nobody who can be
+ * mentioned on the task is stored as plain text, and a task mirrored from
+ * GitHub or GlitchTip keeps its `@names` as written. Comment reads carry
+ * `bodyText` and task reads `descriptionText`, the same text with each
+ * mention read as `@` and the current name, and so do the comment events
+ * (`comment.bodyText`). A comment or a new task's description with a
+ * mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` while who can be
+ * mentioned cannot be read, where it answered 500 `INTERNAL_ERROR`.
+ * Additive.
+ *
+ * 3.25.0 — 2026-10-09: an agent working other tasks is started all the
+ * same, each run in an agent worker of its own. Native task_start_agent and
+ * the automation step task.start_agent no longer answer `agent_busy` or
+ * `busyTaskId`: such a start answers `started: true`, and a run that waits
+ * for a free worker carries `waitingReason` (`org_limit`, `host`,
+ * `destroy_pending` or `exec_limit`) and starts by itself. An agent that
+ * names itself for another task is refused with `self_start`. Native
+ * task_get agentRuns carry `waitingReason` while a run waits. No REST
+ * operation changes.
+ *
+ * 3.26.0 — 2026-10-09: embeddings are counted and held to the budget caps.
+ * A knowledge search answers 429 `BUDGET_EXCEEDED` (with `data` and
+ * `Retry-After`) when a cap that binds the key holder, the key or the
+ * searched project is reached; a document's indexing `errorCode` gains
+ * `usage_limit` — a `failed` file whose indexing waits for such a cap and
+ * resumes by itself. Additive.
+ *
+ * 3.27.0 — 2026-10-09: the MCP endpoint speaks protocol revision 2025-11-25
+ * beside 2025-06-18 and 2025-03-26, answers an `MCP-Protocol-Version` it
+ * does not speak with -32022 naming the `supported` revisions, answers
+ * `initialize` with `instructions`, and reports this contract version as
+ * `serverInfo.version`. Tool arguments that miss a tool's schema are a tool
+ * result `INVALID_ARGUMENTS` listing every problem under `data.issues`
+ * (`path`, `code`, `message`) where they were a -32602 naming the first; a
+ * refusal a tool throws keeps its code, and an unexpected failure is
+ * `INTERNAL_ERROR` with `data.requestId`. Read tools declare an
+ * `outputSchema` and answer `structuredContent`; the text block is compact
+ * JSON. Tools carry `_meta` hints (`anthropic/requiresUserInteraction` on
+ * `deploy_automation` and `set_trigger`, `anthropic/maxResultSizeChars`).
+ * Tools that execute an automation, and `answer_run_ask`, draw from the
+ * `rest:execute` budget (`RATE_LIMITED`, `data.retryAfterMs`), and
+ * `run_deployed`, a live `start_run`, `cancel_run` and `delete_trigger`
+ * refuse a member before anything runs.
+ * A request whose `Origin` the deployment does not accept is logged, and
+ * refused with 403 `ORIGIN_FORBIDDEN` where the operator enforces the rule
+ * (TALE_MCP_ORIGIN_ENFORCE); clients that send no `Origin` are not judged.
+ * The MCP authoring tools reach the editor's parity: `save_automation` takes
+ * `baseVersion` (a version saved since is refused, `AUTOMATION_VERSION_STALE`
+ * with `data.latestVersion`), `create`, `projectId` and the version's
+ * `settings`, `taskContract` and `presentation` (left out = kept from the
+ * latest version, named in `carried`; null = none), answering `carried` and
+ * `baseVersionChecked`; `get_automation` answers the whole version beside
+ * `meta` and `automation` (`latestVersion`, `deployedVersion`, the three
+ * fields, `createdVia`, `clientName`, `projectIds`, `trigger`); a version
+ * records the door it was saved through (`createdVia`) and the client;
+ * `test_automation` tests a saved version by `name` and records its verdict;
+ * `deploy_automation` takes `expectedDeployedVersion`
+ * (`AUTOMATION_DEPLOYMENT_STALE`) and answers `previousVersion`; `start_run`
+ * takes `mode` — `live`, the default, or `mock`, any saved version and open
+ * to every member; `list_runs` filters by `mode` and `statuses` (the REST
+ * list's, `quarantined` included) and pages
+ * with `cursor` / `nextCursor`; `list_versions` answers `createdVia`,
+ * `clientName` and `deployments`. New tools: `delete_automation`,
+ * `set_automation_projects`, `answer_run_ask` (each asking the person first,
+ * like `deploy_automation` and `set_trigger`) and `get_automation_metrics`;
+ * `get_run` names the question a run waiting on a person asked under
+ * `run.ask` (`askId`, `question`, `nodeId`, `expiresAt`), which
+ * `answer_run_ask` answers, and takes `detail` (`input`, `output`, `trace`,
+ * `effects`; `[]` answers the status alone, for polling); `run_automation`
+ * advertises only `mode: "mock"`, the one it ever ran here.
+ * Member reads tighten on MCP and REST alike: an automation installed only in
+ * projects the key holder cannot read is left out of `list_automations` and
+ * `GET /api/v1/automations`, and its reads answer `AUTOMATION_NOT_FOUND`
+ * (REST 404) — its runs by name too, unless runs of it are in the URL's
+ * scope — and an MCP save onto it is refused as `AUTOMATION_NAME_TAKEN`.
+ * Every change to an automation's definition is audited; one made through
+ * the REST API is recorded as the key's (actor type `api`, `via: api-key`,
+ * the key's id and the request id).
+ * `validate_automation` takes `detail` (`[]` answers the issues alone), and
+ * validation warns when a document names what the organization lacks:
+ * SKILL_UNKNOWN, CONNECTOR_NOT_CONNECTED, SECRET_UNKNOWN (told only to
+ * owners, admins and developers), HARNESS_UNKNOWN and EVENT_UNKNOWN, with
+ * `params` and a closest name; a save's warnings carry them too. New
+ * discovery tools list what a document may name: `list_models`,
+ * `list_harnesses`, `list_skills`, `list_connectors`, `list_agent_secrets`
+ * (names and masked previews for owners, admins and developers, an empty
+ * list for anyone else), `list_projects` and `list_events`.
+ * The endpoint serves resources and prompts: `resources/list` (the
+ * references `tale://docs/{authoring,triggers,validation,skill}`, the node
+ * kinds `tale://catalog/{kind}`, then every automation the key holder can
+ * see, 100 a page with `nextCursor`), `resources/templates/list`
+ * (`tale://automations/{name}`, `…/versions/{version}`, `tale://runs/{runId}`)
+ * and `resources/read`, which reads exactly as the matching tool does and
+ * answers a read that finds nothing with -32002 and the refusal's
+ * `data.code`; `prompts/list` and `prompts/get` (`edit_automation`,
+ * `debug_failed_run`, `add_trigger`, attaching what they are about).
+ * `get_docs` takes `topic`; `get_catalog` narrowed to a core kind answers
+ * the kind's `reference`. In a batch, a resource read or listing and a
+ * prompt draw from the request budget like a tool call. The session route
+ * `GET /api/app/mcp/skill` downloads the Tale skill (`SKILL.md`).
+ * The endpoint also speaks MCP 2026-07-28, request by request beside the
+ * 2025 revisions: a request whose `params._meta` names its revision (with
+ * the client's capabilities and, optionally, its name) needs no
+ * `initialize`; `server/discover` answers the revisions, capabilities and
+ * instructions; its `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name`
+ * headers must say what its body says (else 400 -32020), a missing envelope
+ * is 400 -32602, a revision it does not speak is 400 -32022 (now listing
+ * 2026-07-28 too), a batch is refused (400 -32600), and `initialize`,
+ * `ping` and unknown methods are 404 -32601; every result adds `resultType`
+ * and the server under `_meta`, the lists, reads and `server/discover` add
+ * `ttlMs` and `cacheScope: "private"`, and a read that finds nothing is
+ * -32602 with the same `data`. The client a 2026-07-28 request names is
+ * recorded with the call and on the versions and audit rows it writes.
+ * No other REST operation changes. A script that matched the -32602
+ * argument error, or read the indented text, reads the tool result instead.
  */
-export const API_CONTRACT_VERSION = '3.21.0';
+export const API_CONTRACT_VERSION = '3.27.0';

@@ -10,12 +10,16 @@ import {
   type DragStartEvent,
   type ScreenReaderInstructions,
 } from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+import { arrayMove } from '@dnd-kit/sortable';
 import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { createBoardCollisionDetection } from '@/app/hooks/use-board-dnd';
+import {
+  boardKeyboardCoordinates,
+  createBoardCollisionDetection,
+} from '@/app/hooks/use-board-dnd';
 import { useT } from '@/lib/i18n/client';
+import { compareRank } from '@/lib/shared/task-rank-order';
 
 import type { TaskRow } from '../components/task-card';
 import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
@@ -35,7 +39,7 @@ const AUTO_SCROLL = { acceleration: 5, threshold: { x: 0.15, y: 0.2 } };
 // which re-rendered every card and row subscribed to it on every render.
 const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 5 } };
 const KEYBOARD_SENSOR_OPTIONS = {
-  coordinateGetter: sortableKeyboardCoordinates,
+  coordinateGetter: boardKeyboardCoordinates,
   // An expanded parent can be thousands of pixels from its next sortable
   // peer. Complete the scroll before a following key or drop uses its target.
   scrollBehavior: 'auto' as const,
@@ -83,7 +87,7 @@ function buildColumns(tasks: TaskRow[]): TaskColumns {
   const cols = emptyColumns();
   // Sort once globally by rank, then partition — each column inherits rank order
   // without a per-column O(n²) lookup.
-  const sorted = [...tasks].sort((a, b) => a.rank.localeCompare(b.rank));
+  const sorted = [...tasks].sort((a, b) => compareRank(a.rank, b.rank));
   for (const task of sorted) cols[task.status].push(task._id);
   return cols;
 }

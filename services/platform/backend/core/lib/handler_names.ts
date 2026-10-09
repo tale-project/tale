@@ -64,6 +64,8 @@ interface HandlerNames {
       finishRun: FunctionRef;
       heartbeatRun: FunctionRef;
       recordAgentTurnSettled: FunctionRef;
+      recordLlmStepUsage: FunctionRef;
+      reserveLlmStepBudget: FunctionRef;
       recordProgress: FunctionRef;
       stampAgentTurnLaunch: FunctionRef;
       suspendRun: FunctionRef;
@@ -78,11 +80,6 @@ interface HandlerNames {
       readAgentCursor: FunctionRef;
     };
   };
-  automations_builder: FunctionRef & {
-    run_session: FunctionRef & {
-      dispatchEngineMethod: FunctionRef;
-    };
-  };
   browser_sessions: FunctionRef & {
     sessions: FunctionRef & {
       claimBrowserSession: FunctionRef;
@@ -92,9 +89,6 @@ interface HandlerNames {
   chat: FunctionRef & {
     branches: FunctionRef & {
       getThreadLineageIds: FunctionRef;
-    };
-    capabilities_action: FunctionRef & {
-      dispatchCapabilityAs: FunctionRef;
     };
     handover: FunctionRef & {
       getTaskHandoverInternal: FunctionRef;
@@ -187,9 +181,12 @@ interface HandlerNames {
       bindFileToConversation: FunctionRef;
       bindStorageIdsToThread: FunctionRef;
       linkDocumentToFile: FunctionRef;
+      openTranscriptionCall: FunctionRef;
       queueRagIndexIfUnstarted: FunctionRef;
+      releaseTranscriptionCall: FunctionRef;
       releaseTranscriptionLock: FunctionRef;
       saveFileMetadata: FunctionRef;
+      settleTranscriptionCall: FunctionRef;
       updateFileTranscription: FunctionRef;
     };
     internal_queries: FunctionRef & {
@@ -217,7 +214,6 @@ interface HandlerNames {
     internal_mutations: FunctionRef & {
       recordChatFilterEvent: FunctionRef;
       recordConnectorUsage: FunctionRef;
-      recordTranscriptionUsage: FunctionRef;
     };
     internal_queries: FunctionRef & {
       getPolicyConfigInternal: FunctionRef;
@@ -234,13 +230,11 @@ interface HandlerNames {
     };
   };
   knowledge_entries: FunctionRef & {
+    internal_mutations: FunctionRef & {
+      upsertEntryForAgent: FunctionRef;
+    };
     internal_queries: FunctionRef & {
       listEntriesForAgent: FunctionRef;
-    };
-  };
-  members: FunctionRef & {
-    internal_queries: FunctionRef & {
-      getMemberRole: FunctionRef;
     };
   };
   products: FunctionRef & {
@@ -367,6 +361,7 @@ interface HandlerNames {
       getTaskByIdInternal: FunctionRef;
       getTaskContextForAgent: FunctionRef;
       getTaskWorkStateForAgent: FunctionRef;
+      getTaskOccupancyForAgent: FunctionRef;
       getTaskReviewFilesForAgent: FunctionRef;
       listTasksForAgent: FunctionRef;
     };
@@ -404,6 +399,7 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
+      recordEmbeddingLimit: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {

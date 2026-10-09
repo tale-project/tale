@@ -25,6 +25,7 @@ import {
   s3PutObject,
 } from '../../lib/object-store.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { projectChatAccess } from '../chat/threads.ts';
 import { blobRefHeld } from './blob-holders.ts';
 import {
   claimRejectedUpload,
@@ -49,12 +50,12 @@ import {
 
 export class FileError extends Error {
   readonly code: string;
-  readonly status: 400 | 403 | 404 | 409 | 413 | 503;
+  readonly status: 400 | 403 | 404 | 409 | 413 | 429 | 503;
 
   constructor(
     code: string,
     message: string,
-    status: 400 | 403 | 404 | 409 | 413 | 503 = 400,
+    status: 400 | 403 | 404 | 409 | 413 | 429 | 503 = 400,
   ) {
     super(message);
     this.name = 'FileError';
@@ -178,6 +179,9 @@ export interface RegisterUploadArgs {
   fileName: string;
   contentType: string;
   threadId?: string;
+  /** The project a new chat's upload is made in, before its thread exists —
+   * one the uploader may chat in; what the upload costs counts toward it. */
+  projectId?: string;
   source?: string;
   /** The caller's opt-out from RAG indexing (0.4 `skipRagIndexing`). Every
    * enqueue gate reads the column, so a row that carries it never indexes,
@@ -236,6 +240,22 @@ export async function registerUpload(
       409,
     );
   }
+  if (args.projectId !== undefined) {
+    // What the upload costs counts toward this project, so the uploader must
+    // be able to chat in it — as they must to start the chat itself.
+    const access = await projectChatAccess(tx, {
+      projectId: args.projectId,
+      organizationId: scope.organizationId,
+      userId: scope.userId,
+    });
+    if (access !== 'ok') {
+      throw new FileError(
+        access === 'not_found' ? 'PROJECT_NOT_FOUND' : 'PROJECT_FORBIDDEN',
+        'Project unavailable',
+        access === 'not_found' ? 404 : 403,
+      );
+    }
+  }
   const { orgSlug, store } = await requireOrgStore(sql, scope.organizationId);
   const key = requireOrgScopedKey(args.storageRef, orgSlug);
   const head = await s3HeadObject(store, key);
@@ -249,11 +269,11 @@ export async function registerUpload(
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO app.file_metadata (
       org_id, storage_ref, file_name, content_type, size, source,
-      uploaded_by, thread_id, skip_rag_indexing, created_at_ms
+      uploaded_by, thread_id, project_id, skip_rag_indexing, created_at_ms
     ) VALUES (
       ${scope.organizationId}, ${args.storageRef}, ${args.fileName},
       ${args.contentType}, ${head.size}, ${args.source ?? null},
-      ${scope.userId}, ${args.threadId ?? null},
+      ${scope.userId}, ${args.threadId ?? null}, ${args.projectId ?? null},
       ${args.skipRagIndexing === true ? true : null}, ${Date.now()}
     )
     RETURNING id

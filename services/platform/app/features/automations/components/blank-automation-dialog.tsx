@@ -28,7 +28,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   SkillsMenu,
-  type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
 import { AgentSecretsField } from '@/app/features/projects/components/agent-secrets-field';
@@ -36,25 +35,22 @@ import {
   useAgentSecrets,
   useProjectHarnesses,
 } from '@/app/features/projects/hooks/queries';
-import {
-  findSelectedModel,
-  toModelOptions,
-} from '@/app/features/projects/lib/model-options';
-import {
-  AGENT_TOOL_CATALOG,
-  PROJECT_AGENT_ONLY_TOOLS,
-} from '@/backend/core/sandbox/tool_names';
+import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
 import { blankAutomationDocument } from '@/lib/automations/blank-document';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
+import {
+  DEFAULT_HARNESS,
+  findSelectedModel,
+  toModelOptions,
+} from '@/lib/shared/harness-offer';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
 import { useCronPreview } from '../hooks/use-cron-preview';
 import { isValidTimezone, listTimezoneOptions } from '../lib/cron-preview';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
-import { DEFAULT_HARNESS } from './agent-node-fields';
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
@@ -164,28 +160,7 @@ export function BlankAutomationDialog({
     setMinted(null);
   }, [open]);
 
-  // The grantable platform tools, labelled per name with a read/write badge
-  // (the same labels the project-agent dialog uses).
-  const toolOptions = useMemo<SkillOption[]>(
-    () =>
-      // A project agent's delegation tool: an automation starts agents with
-      // its `task.start_agent` step, so its agent node is never offered it.
-      AGENT_TOOL_CATALOG.filter(
-        (tool) => !PROJECT_AGENT_ONLY_TOOLS.includes(tool.name),
-      ).map((tool) => ({
-        slug: tool.name,
-        label: tProjects(`agents.tool.${tool.name}`, {
-          defaultValue: tool.name,
-        }),
-        description: tProjects(
-          tool.effect === 'write'
-            ? 'agents.tool.writeBadge'
-            : 'agents.tool.readBadge',
-        ),
-        group: tProjects(`agents.tool.module.${tool.module}`),
-      })),
-    [tProjects],
-  );
+  const { tools: toolOptions, lockedTools } = useAgentToolOptions('automation');
 
   // One option per (provider, model) pair — the shared picker vocabulary:
   // collapsing two providers serving the same id was how a pick silently
@@ -522,6 +497,7 @@ export function BlankAutomationDialog({
             skills={capabilities.data?.skills ?? []}
             connectors={capabilities.data?.connectors ?? []}
             tools={toolOptions}
+            lockedTools={lockedTools}
             value={binding}
             onChange={setBinding}
             label={t('blank.equipmentLabel')}

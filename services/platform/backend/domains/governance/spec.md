@@ -12,7 +12,8 @@ content moderation and the usage pages are mostly not covered; see Not yet.
 ## Spending limits
 
 A limit caps tokens, cost or the number of requests over a day, a week or a month. It is set
-for one person, for a team, for a role, for an API key, or as the default for everyone.
+for one person, for a team, for a role, for an API key, for a project, or as the default for
+everyone.
 
 ### GOV-R1 · The most specific limit decides what one person can spend
 
@@ -41,6 +42,30 @@ tightens the limit of the person it belongs to, and the reverse.
 - **Example**: Mia's reporting key is capped at 10 a month and has used it up → calls with
   that key are refused, and Mia can still chat in the app.
 
+### GOV-R14 · A project's limit caps everything spent in the project, whoever spends it
+
+What a project spent is everything done in it: its chats (their titles, the answers read aloud,
+the recordings transcribed in them, even before a new chat's first message, the files indexed for
+them and the assistant's tool calls and searches included), the turns of its agents and the agent
+and `llm` steps of the automations run in it, with the images they make, and the calls made with
+its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
+schedule started included, and binds nothing done outside the project. A run that names no
+project, of an automation installed in several projects, is each one's work: it counts toward,
+and must fit, every one of their limits, as a member's spend counts toward each of their teams.
+
+Voice output keeps the projects it was admitted under even if the conversation moves; an empty
+project list remains empty. It reserves an estimate and one request while pending. Success books
+its resolved rate; an already-reserved failure or stale replacement conservatively books its
+saved estimate once, even when failure precedes the provider call. That estimate does not assert
+that the provider charged it. A retry includes the predecessor estimate when checking the limit,
+and a late result cannot bill it again. Ordinary audio age cleanup leaves pending attempts to
+their watchdog. Authorized history purge and erasure retain their existing deletion behavior;
+no strict budget guarantee overrides that privacy boundary.
+
+- **Example**: The Website project is capped at 100 a month and has spent 100. Mia, far from
+  her own limit, writes in one of the project's chats → refused, naming the project's limit.
+  She can still chat outside the project.
+
 ### GOV-R4 · Work over a limit is refused, and the refusal names the limit
 
 The refusal says whose limit it is, which kind (`TOKEN_LIMIT`, `COST_LIMIT`, `REQUEST_LIMIT`)
@@ -52,19 +77,50 @@ and when it resets. When several limits are reached, the token limit is named fi
 ### GOV-R5 · Work in progress counts against a limit before it is paid for
 
 What running work may still cost is set aside against the person's and the organization's
-limits, so several things started at the same moment cannot overrun a limit together. With no
-limit set, work gets the deployment's default allowance.
+limits, so several things started at the same moment cannot overrun a limit together: a chat
+reply's every round as it starts, an agent's allowance, a voice chunk's estimate, and the
+estimated largest cost of a call Tale makes straight to a model — an automation's `llm` step, a
+chat's title, a rewrite with Improve with AI, a transcription at the recording's length, each
+embedding request of knowledge indexing and search. Such a call is refused when a limit has too
+little room for that cost; a chat's title is then made from the first message, without a call, and
+indexing waits for the limit (`KNOW-R18`). With no limit set, work gets the deployment's default
+allowance.
 
 - **Example**: Two agents are working for Mia and hold most of what is left under her limit.
   She starts a third → it gets only what remains, or is refused.
 
+### GOV-R15 · A connector call is counted on its own, never as a model request
+
+Every call Tale makes through a connector is counted as a connector call, at no cost, under whoever
+made it and with the API key it came with: the assistant's search and web tools, an agent's or an
+automation's connector step, an email sent from the Inbox. A request limit counts model requests
+alone, so connector calls never use it up.
+
+- **Example**: Mia's rule allows 20 requests a day and she has used 19. Her next chat reply
+  searches the documents five times → the reply runs, and its searches add nothing to her
+  requests.
+
+### GOV-R16 · A turn on a subscription is a request at no cost
+
+An agent turn served by a provider subscription the organization pays its vendor for apart from
+Tale costs nothing per call. It is counted as one request, with the tokens its agent reports, and
+holds that request while it runs. Request and token limits bind it; a cost limit cannot, since it
+adds no cost.
+
+- **Example**: The organization's monthly cost limit is used up. Mia starts an agent that runs on
+  the team's Claude subscription → it runs, and counts as one request.
+
 ### GOV-R6 · A warning comes before a limit is reached, for each limit on its own
 
-The organization's limit, an API key's limit and a person's limit each have their own warning
-threshold, and each is measured against its own usage.
+The organization's limit, an API key's limit, a project's limit and a person's limit each have
+their own warning threshold, and each is measured against its own usage. A project's warning is
+shown to everyone chatting in the project, and names the project.
 
 - **Example**: The organization has used 85% of its monthly limit, and the warning threshold
   is 80% → a warning is shown, although Mia's own limit is far from reached.
+- **Example**: The Website relaunch project has used 85% of its monthly limit, with a threshold
+  of 80% → Mia, writing in one of its chats, sees that much is left of the project's limit; in
+  a chat outside the project she sees no such warning.
 
 ### GOV-R7 · A member can see the limits that apply to them, with what they have used
 
@@ -142,6 +198,10 @@ It counts only in the organization it was granted in.
   (`moderation.ts`).
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
+- **Legacy voice reservations**: previous writers left no saved price or project stamp. `NULL`
+  projects retain the current-thread fallback, unlike an explicitly empty project list; an
+  unknown legacy price is not invented. Every new admission receives the reservation guarantee
+  only after old writers retire.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

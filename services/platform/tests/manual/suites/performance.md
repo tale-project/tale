@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 28 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 29 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -152,6 +152,7 @@ magnitude:
 - [ ] `PERF-P14` · **Large Home collections and deep links** — With 1,000 chats, tasks and projects, open `/dashboard/{org}/chat/{threadId}` for an older chat and `/dashboard/{org}/projects/{projectId}` for a project near the end of its list. → Home mounts stream rows around the viewport and only project rows near the project tree's viewport, including the selected item; opening a deep link does not mount every preceding row. Scroll both lists to the end and search for an item beyond the initial window: it remains reachable, with no duplicate selected row. Record the DOM counts and warm trace.
 - [ ] `PERF-P15` · **Language catalogs per topic** — In a brand-new browser context with the browser language set to German, open `/log-in`; then, in another with English and `localStorage` cleared, sign in, pick Language → Français in the user menu, and open a page not visited yet (Automations). → The German page is German from its first frame, its title included, and fetches only the German topic files its page reads (`de-<topic>-*.js`, a few KB each, about 36 KB gzip for the first pages) and no French one; the English one fetches neither. Picking Français fetches the French topics of the pages already loaded, each once, and turns the page French without a reload; the page opened next is French from its first frame, and a reload starts in French. With the network offline, a language whose topics cannot load leaves the page in the language it shows.
 - [ ] `PERF-P16` · **Load smoke** — Dispatch the **Load** workflow (Actions → **Load** → **Run workflow**) with profile `smoke`, or run `node tools/load/src/cli.ts run --plan <plan> --profile smoke` against a seeded throwaway stack (`tools/load/README.md`). → The run exits 0; its report counts journeys for every persona (its journey rows), shows no `http_5xx` error kind and no `server_error_on_bad_input` from the fuzzer, and records a time-to-first-token sample (the report's chat.ttft row) for every settled chat turn.
+- [ ] `PERF-P17` · **Idle tabs cost the database per process** — On a stack with one api process, run the `connections` profile with 5,000 users and `--db-url` pointing at the database that holds `pg_stat_statements`. → While the crowd holds, the report's database section shows the outbox tail read a few times a second (one reader per process, not one per tab), transactions in the low hundreds per second, the open hint streams (the report's sse.events.open gauge) reaching the user count, and no error.
 
 ## Response-time SLAs
 

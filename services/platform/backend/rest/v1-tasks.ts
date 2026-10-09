@@ -14,6 +14,7 @@ import {
   TASK_TITLE_MAX,
   taskLimitText,
 } from '../core/tasks/helpers.ts';
+import { taskMentionPlainText } from '../core/tasks/mentions.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
 import {
   AUTOMATION_NOT_BOUND_SENTENCE,
@@ -22,6 +23,7 @@ import {
   bindingProjectIds,
   deployedVersion,
 } from '../domains/automations/store.ts';
+import { currentMentionNames } from '../domains/collab/mention-directory.ts';
 import {
   getProjectAuthContext,
   loadProjectOrThrow,
@@ -286,6 +288,17 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
             ORDER BY array_position(${task.labelIds}::text[], id)
           `
         : [];
+    // The description as stored (each mention a mention link), and read as
+    // text, each mention as `@` and the current name of whoever it names.
+    const descriptionText =
+      task.description == null
+        ? undefined
+        : taskMentionPlainText(
+            task.description,
+            await currentMentionNames(deps.sql, task.organizationId, [
+              task.description,
+            ]),
+          );
     return {
       id: task.id,
       title: task.title,
@@ -295,6 +308,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       externalId: task.externalId ?? undefined,
       externalUrl: task.externalUrl ?? undefined,
       description: task.description ?? undefined,
+      descriptionText,
       labels: labels.map((row) => row.name),
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
@@ -690,12 +704,20 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         limit,
         ...(cursor !== null ? { before: cursor } : {}),
       });
+      // `body` as stored, each mention a mention link; `bodyText` the same
+      // text with each mention as `@` and the current name.
+      const names = await currentMentionNames(
+        deps.sql,
+        auth.organizationId,
+        page.comments.map((comment) => comment.body),
+      );
       return c.json({
         comments: page.comments.map((comment) => ({
           id: comment.messageId,
           authorType: comment.authorType,
           authorId: comment.authorId,
           body: comment.body,
+          bodyText: taskMentionPlainText(comment.body, names),
           ...(comment.bodyByLocale != null
             ? { bodyByLocale: comment.bodyByLocale }
             : {}),
@@ -861,6 +883,9 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
+      const keyId = restApiKeyId(c);
+      // The person's access, the key's spend: a run the decision starts —
+      // an agent a relayed comment names — books to the key too.
       const actorAuth = await getProjectAuthContext(
         deps.sql,
         {
@@ -869,6 +894,7 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           role: actor.role,
         },
         actor.email,
+        keyId !== undefined ? { apiKeyId: keyId } : {},
       );
       const result = await transactSerializable(deps.sql, async (tx) => {
         // The PERSON's access decides, not the key's: a relayed decision
@@ -913,7 +939,6 @@ export function createTaskRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           body: body.comment ?? '',
         });
         await updateTaskStatus(tx, actorAuth, task.id, 'in_progress');
-        const keyId = restApiKeyId(c);
         const started = await startWorkflowForTaskInTx(tx, {
           organizationId: auth.organizationId,
           task: { ...task, status: 'in_progress' },

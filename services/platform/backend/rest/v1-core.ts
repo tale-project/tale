@@ -18,6 +18,7 @@ import { z } from 'zod';
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types.ts';
 import { KNOWLEDGE_QUERY_MAX } from '../../lib/knowledge/types.ts';
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
+import { EMBEDDING_SLUG } from '../../lib/shared/constants/usage.ts';
 import { attachmentDisposition } from '../../lib/shared/http/content-disposition.ts';
 import { dataSourceSchema } from '../../lib/shared/schemas/common.ts';
 import {
@@ -44,6 +45,7 @@ import {
   type SkillWritePrecondition,
 } from '../core/skills/file_actions.ts';
 import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
+import { ChatBudgetExceededError } from '../domains/chat/budget-admission.ts';
 import {
   contactBulkItemSchema,
   contactCreateSchema,
@@ -147,6 +149,8 @@ import {
   readKeysetCursor,
   readPageLimit,
   readQuery,
+  restApiKeyId,
+  restBudgetExceeded,
   type RestEnv,
   restProjectAuth,
   serveDocumentBytes,
@@ -1212,8 +1216,17 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
           includeConversationScoped: false,
         };
       }
+      const apiKeyId = restApiKeyId(c);
       const result = await searchKnowledgeForOrg(deps.sql, {
         organizationId: c.get('organizationId'),
+        // Embedding the query is the key holder's spend, the key's, and the
+        // project's it searches in.
+        spender: {
+          userId: auth.userId,
+          agentSlug: EMBEDDING_SLUG,
+          ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+          ...(projectId !== null ? { projectIds: access.projectIds } : {}),
+        },
         query: body.query,
         corpus: projectId === null ? (body.corpus ?? 'all') : 'documents',
         access,
@@ -1224,6 +1237,11 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       });
       return c.json(result);
     } catch (error) {
+      // A usage limit with too little room for the query's embedding: the
+      // 429 every budget refusal answers, with the cap and its reset.
+      if (error instanceof ChatBudgetExceededError) {
+        return restBudgetExceeded(c, error);
+      }
       // The domain reports a missing embedding model as its 503; on this
       // door that is the documented 409 — the organization's state refuses
       // the search until an admin configures a model — never the 500 an

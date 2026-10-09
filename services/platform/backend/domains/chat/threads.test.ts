@@ -48,6 +48,7 @@ import {
   projectSharedViewLeaf,
   searchChats,
   setThreadArchived,
+  setThreadSharedWithProject,
   shareThread,
   unshareThread,
   trashThread,
@@ -685,9 +686,27 @@ describe('unshareThread', () => {
 describe('moveThreadToProject [CHAT-R3]', () => {
   const auth = { organizationId: 'org_1', userId: 'user_1', email: 'o@x.io' };
   const answering =
-    (row: Omit<typeof OWNED_ROW, 'projectId'> & { projectId: string | null }) =>
+    (
+      row: Omit<typeof OWNED_ROW, 'projectId' | 'branchRootId'> & {
+        projectId: string | null;
+        branchRootId: string | null;
+      },
+    ) =>
     (statement: Statement): unknown[] | undefined => {
-      if (statement.text.includes('FROM app.threads t')) return [row];
+      if (statement.text.includes('FROM app.threads t')) {
+        // The branch and its canonical root are separate owned rows.
+        return [
+          row.branchRootId !== null &&
+          statement.values.includes(row.branchRootId)
+            ? {
+                ...row,
+                id: row.branchRootId,
+                branchRootId: null,
+                hidden: false,
+              }
+            : row,
+        ];
+      }
       if (statement.text.includes('FROM app.projects WHERE id')) {
         // The access read selects the audience (`PROJECT_TEAM_IDS_SQL`,
         // bound as a value by the stand-in's `unsafe`); the other read is
@@ -781,6 +800,135 @@ describe('moveThreadToProject [CHAT-R3]', () => {
     });
   });
 
+  it('moves the conversation’s hidden branches and arena column with it [GOV-R14]', async () => {
+    const rows: { id: string; branchRootId: string | null }[] = [
+      { id: 'thread_1', branchRootId: null },
+      // A call that names one of the conversation's branches moves its root
+      // lineage all the same.
+      { id: 'branch_2', branchRootId: 'thread_1' },
+    ];
+    for (const { id, branchRootId } of rows) {
+      const row = { ...OWNED_ROW, id, branchRootId };
+      const rootId = 'thread_1';
+      const { sql, statements } = fakeSql(answering(row));
+      await moveThreadToProject(sql, auth, row.id, 'project_b');
+      const lineage = statements.find((s) =>
+        s.text.includes('OR branch_root_id = ?'),
+      );
+      expect(lineage?.text).toContain('project_id = ?');
+      expect(lineage?.text).toContain(
+        'shared_with_project = CASE WHEN project_id IS DISTINCT FROM ?',
+      );
+      expect(lineage?.text).toContain(
+        'THEN false ELSE shared_with_project END',
+      );
+      expect(lineage?.values).toEqual([
+        'project_b',
+        'project_b',
+        'org_1',
+        'user_1',
+        rootId,
+        rootId,
+      ]);
+    }
+  });
+
+  it('a hidden sibling refile clears the root audience and audits the root, not the private sibling [CHAT-R3] [GOV-R14]', async () => {
+    const branch = {
+      ...OWNED_ROW,
+      id: 'branch_2',
+      branchRootId: 'thread_1',
+      hidden: true,
+      sharedWithProject: false,
+    };
+    const { sql, statements } = fakeSql((statement) => {
+      if (statement.text.includes('FROM app.threads t')) {
+        return statement.values.includes(branch.id) ? [branch] : [OWNED_ROW];
+      }
+      return answering(OWNED_ROW)(statement);
+    });
+    await expect(
+      moveThreadToProject(sql, auth, branch.id, 'project_b'),
+    ).resolves.toBe(true);
+    const ownedReads = statements.filter((statement) =>
+      statement.text.includes('FROM app.threads t'),
+    );
+    expect(ownedReads).toHaveLength(2);
+    expect(JSON.stringify(ownedReads[1])).toContain('FOR UPDATE');
+    expect(ownedReads[1]?.values).toEqual(
+      expect.arrayContaining(['thread_1', 'org_1', 'user_1']),
+    );
+    const rootUpdate = statements.find((statement) =>
+      statement.text.includes('UPDATE app.thread_metadata'),
+    );
+    expect(rootUpdate?.values).toEqual(['project_b', false, 'thread_1']);
+    const lineage = statements.find((statement) =>
+      statement.text.includes('OR branch_root_id = ?'),
+    );
+    expect(lineage?.text).toContain('shared_with_project');
+    expect(createAuditLog).toHaveBeenCalledTimes(2);
+    expect(createAuditLog.mock.calls[0]?.[1]).toMatchObject({
+      action: 'project.thread.unshared',
+      resourceId: 'project_a',
+      previousState: { threadId: 'thread_1', shared: true },
+      newState: {
+        threadId: 'thread_1',
+        shared: false,
+        movedToProjectId: 'project_b',
+      },
+    });
+    expect(createAuditLog.mock.calls[1]?.[1]).toMatchObject({
+      action: 'project.thread.moved',
+      resourceId: 'project_b',
+      previousState: { threadId: 'thread_1', projectId: 'project_a' },
+      newState: { threadId: 'thread_1', projectId: 'project_b' },
+    });
+  });
+
+  it('a sibling cannot refile a root absent from the same owner and organization [CHAT-R1] [CHAT-R3]', async () => {
+    const branch = {
+      ...OWNED_ROW,
+      id: 'branch_2',
+      branchRootId: 'thread_1',
+      hidden: true,
+    };
+    const { sql, statements } = fakeSql((statement) => {
+      if (statement.text.includes('FROM app.threads t'))
+        return statement.values.includes(branch.id) ? [branch] : [];
+      return answering(OWNED_ROW)(statement);
+    });
+    await expect(
+      moveThreadToProject(sql, auth, branch.id, 'project_b'),
+    ).resolves.toBe(false);
+    expect(
+      statements.some((statement) => statement.text.includes('UPDATE')),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('a sibling refile to the same root project preserves its existing share and emits no move audit [CHAT-R3]', async () => {
+    const branch = {
+      ...OWNED_ROW,
+      id: 'branch_2',
+      branchRootId: 'thread_1',
+      hidden: true,
+      sharedWithProject: false,
+    };
+    const { sql, statements } = fakeSql((statement) => {
+      if (statement.text.includes('FROM app.threads t'))
+        return statement.values.includes(branch.id) ? [branch] : [OWNED_ROW];
+      return answering(OWNED_ROW)(statement);
+    });
+    await expect(
+      moveThreadToProject(sql, auth, branch.id, 'project_a'),
+    ).resolves.toBe(true);
+    const update = statements.find((statement) =>
+      statement.text.includes('UPDATE app.thread_metadata'),
+    );
+    expect(update?.values).toEqual(['project_a', true, 'thread_1']);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
   it('audits filing an unfiled thread into a project, on that project', async () => {
     const { sql } = fakeSql(
       answering({ ...OWNED_ROW, projectId: null, sharedWithProject: false }),
@@ -793,6 +941,74 @@ describe('moveThreadToProject [CHAT-R3]', () => {
       previousState: { threadId: 'thread_1', projectId: null },
       newState: { threadId: 'thread_1', projectId: 'project_b' },
     });
+  });
+});
+
+describe('setThreadSharedWithProject locked audience [CHAT-R2] [CHAT-R3]', () => {
+  const auth = { organizationId: 'org_1', userId: 'user_1' };
+
+  it.each([true, false])(
+    'locks and reads the current project before setting shared=%s and auditing',
+    async (shared) => {
+      const { sql, statements } = fakeSql((statement) => {
+        if (statement.text.includes('FROM app.threads t')) {
+          // A stale unlocked read would still see A. A refile already committed
+          // before this metadata lock, so the protected read must see B.
+          return [
+            {
+              ...OWNED_ROW,
+              projectId: JSON.stringify(statement).includes('FOR UPDATE')
+                ? 'project_b'
+                : 'project_a',
+            },
+          ];
+        }
+        if (statement.text.includes('FROM app.projects WHERE id'))
+          return [{ name: 'Project B' }];
+        return [];
+      });
+      await expect(
+        setThreadSharedWithProject(sql, auth, 'thread_1', shared),
+      ).resolves.toBe(true);
+      const owned = statements.find((statement) =>
+        statement.text.includes('FROM app.threads t'),
+      );
+      expect(JSON.stringify(owned)).toContain('FOR UPDATE');
+      const update = statements.find((statement) =>
+        statement.text.includes('UPDATE app.thread_metadata'),
+      );
+      expect(update?.values).toEqual([shared, 'thread_1']);
+      expect(createAuditLog).toHaveBeenCalledOnce();
+      expect(createAuditLog.mock.calls[0]?.[1]).toMatchObject({
+        action: shared ? 'project.thread.shared' : 'project.thread.unshared',
+        resourceId: 'project_b',
+        newState: { threadId: 'thread_1', shared },
+      });
+    },
+  );
+
+  it('refuses a missing owned thread without a sharing write or audit', async () => {
+    const { sql, statements } = fakeSql(() => []);
+    await expect(
+      setThreadSharedWithProject(sql, auth, 'thread_1', true),
+    ).resolves.toBe(false);
+    expect(
+      statements.some((statement) => statement.text.includes('UPDATE')),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a currently unfiled thread after acquiring its metadata lock', async () => {
+    const { sql, statements } = fakeSql(() => [
+      { ...OWNED_ROW, projectId: null },
+    ]);
+    await expect(
+      setThreadSharedWithProject(sql, auth, 'thread_1', true),
+    ).rejects.toThrow('File the conversation in a project first');
+    expect(
+      statements.some((statement) => statement.text.includes('UPDATE')),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
   });
 });
 
@@ -955,9 +1171,12 @@ describe('the project share read grant [CHAT-R2]', () => {
         userId: 'user_1',
       }),
     ).resolves.toBe('thread_sibling');
-    // The lineage is read as the OWNER — the reader never holds it.
+    // The lineage is read as the OWNER — the reader never holds it. The
+    // fake tag retains the static unsafe lock suffix as one extra value;
+    // this read deliberately has no metadata lock.
     const owned = statements.find(({ text }) => isOwnedRead(text));
-    expect(owned?.values.slice(1)).toEqual(['thread_1', 'org_1', 'user_1']);
+    expect(owned?.values.slice(1, 4)).toEqual(['thread_1', 'org_1', 'user_1']);
+    expect(owned?.values.slice(4)).toEqual(['']);
   });
 
   it('serves the root itself while nothing is selected away from it', async () => {

@@ -307,6 +307,52 @@ export interface StoreAdapter {
    * host without triggers leaves it out.
    */
   triggerKinds?(name: string): Promise<ReadonlyArray<TriggerKind>>;
+  /**
+   * What the organization has of what a document names — for the
+   * validator's org-state warnings (`SKILL_UNKNOWN`,
+   * `CONNECTOR_NOT_CONNECTED`, `SECRET_UNKNOWN`, `HARNESS_UNKNOWN`,
+   * `EVENT_UNKNOWN`). Asked once per validation, for only the facts the
+   * document needs. A fact left out means the host cannot tell — a lookup
+   * failed or ran out of time, or the caller may not see it — and never
+   * warns; a host without the seam never warns. The organization can change
+   * between a save and a run, so every answer is a warning, never an error.
+   */
+  orgFacts?(query: OrgFactsQuery): Promise<OrgFacts>;
+}
+
+/** Which org facts a document needs: each flag set only when the document
+ * names something of that kind. */
+export interface OrgFactsQuery {
+  /** The automation the document is a version of: its installations widen
+   * the skills a run can reach, and its event trigger is the one checked. */
+  automation?: string;
+  skills: boolean;
+  connectors: boolean;
+  secrets: boolean;
+  harnesses: boolean;
+  event: boolean;
+}
+
+/** What the organization has, as the validator compares a document with it.
+ * Every field is optional: absent = cannot tell, so nothing warns. */
+export interface OrgFacts {
+  /** Every skill a run of the automation can reach. */
+  skills?: ReadonlySet<string>;
+  /** The connector catalog this deployment has, the connectors the
+   * organization connected, and the ones that need a credential to act (a
+   * platform capability never does). */
+  connectors?: {
+    catalogued: ReadonlySet<string>;
+    connected: ReadonlySet<string>;
+    needsCredential: ReadonlySet<string>;
+  };
+  /** The names of the organization's agent secrets — never their values. */
+  secrets?: ReadonlySet<string>;
+  /** The agent runtimes (harnesses) an automation's agent step can run on. */
+  harnesses?: ReadonlySet<string>;
+  /** The event the automation's enabled event trigger waits for, with every
+   * event the platform raises; null when it has no event trigger. */
+  boundEvent?: { event: string; raised: readonly string[] } | null;
 }
 
 /** The ways a host starts a run on its own. */

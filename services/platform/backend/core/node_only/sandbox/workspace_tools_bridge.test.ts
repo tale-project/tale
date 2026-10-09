@@ -301,6 +301,37 @@ describe('dispatchWorkspaceToolImpl', () => {
     );
   });
 
+  it('rag_search meters its query with the turn’s meter, and says a usage limit stopped it [GOV-R4]', async () => {
+    const { EmbeddingBudgetExceeded } =
+      await import('../../knowledge/embedding');
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded(
+        'Usage limit reached. The organization’s monthly cost limit is used up until 2026-11-01T00:00:00.000Z.',
+      ),
+    );
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({}).ctx, {
+      ...BASE,
+      embeddingMeter: meter,
+      tool: 'rag_search',
+      callArgs: { query: 'anything' },
+    });
+    expect(searchKnowledgeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter }),
+    );
+    expect(result.status).toBe('unavailable');
+    const [blocker] = result.blockers as { code: string; guidance: string }[];
+    expect(blocker?.code).toBe('usage_limit');
+    // The refusal's own sentence: whose limit, and when it resets.
+    expect(blocker?.guidance).toContain(
+      'The organization’s monthly cost limit is used up until 2026-11-01',
+    );
+    expect(blocker?.guidance).toContain('Do not treat it as nothing found.');
+  });
+
   it('rag_search carries the SESSION-derived access scope, never a body one', async () => {
     searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
     const scope = {
@@ -2182,6 +2213,34 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     },
   );
 
+  it('starts a busy agent and says its run waits for a free worker [TASK-R26]', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = startCtx({
+      answer: {
+        outcome: 'started',
+        runId: 'run_9',
+        taskId: 'task_1',
+        agentId: 'agent_worker',
+        waiting: { reason: 'org_limit' },
+      },
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1', agentId: 'agent_worker' },
+    });
+    expect(result.status).toBe('ok');
+    const output = result.output as Record<string, unknown>;
+    expect(output).toMatchObject({
+      started: true,
+      runId: 'run_9',
+      waitingReason: 'org_limit',
+    });
+    expect(output).not.toHaveProperty('waiting');
+    expect(String(output.guidance)).toContain('starts by itself');
+  });
+
   it.each([
     ['stale_question', { staleBecause: 'review_changed' }],
     // A resumption naming no agent and a run that is not the task's has no
@@ -2190,7 +2249,7 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     ['already_running', { runId: 'run_live' }],
     ['in_review', {}],
     ['closed', { taskStatus: 'done' }],
-    ['agent_busy', { runId: 'run_other', busyTaskId: 'task_2' }],
+    ['self_start', {}],
     ['blocked', { blockedBy: ['task_3'] }],
     ['paused', { retryAfter: 1_790_000_000_000 }],
   ])(
@@ -2379,7 +2438,8 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     expect(tools[0]?.readOnly).toBe(false);
     expect(tools[0]?.description).toContain('the task was decided');
     for (const word of [
-      'agent_busy',
+      'self_start',
+      'waitingReason',
       'blocked',
       'already_running',
       'paused',

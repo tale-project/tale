@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 import { parse, stringify } from 'yaml';
 
+import { BUILDKITD_MIRROR_IMAGE } from '../compose/types';
 import type { exec } from '../docker/exec';
 import {
   AUTOMATION_PROTOCOL_LABEL,
@@ -117,8 +118,7 @@ export function runtimeFixture(proxy: { trustsTerminator?: boolean } = {}) {
       '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}',
     SANDBOX_BUILDKITD_IMAGE:
       '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
-    SANDBOX_BUILDKITD_MIRROR_IMAGE:
-      '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
+    SANDBOX_BUILDKITD_MIRROR_IMAGE: `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`,
   };
   // A proxy source from before or after the external-terminator trust fix:
   // only the latter carries the placeholder additional origins depend on.

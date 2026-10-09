@@ -53,6 +53,12 @@ function fakeSql(answers: Array<{ match: string; rows: unknown[] }>) {
   return { sql: sql as never, statements };
 }
 
+/** A workflow session's owner: the automation run it executes. */
+const WORKFLOW_SESSION = {
+  match: 'FROM app.sandbox_sessions s',
+  rows: [{ runId: 'run-1' }],
+};
+
 const ARGS = {
   organizationId: 'org-1',
   sessionId: 'pa-alice',
@@ -69,6 +75,33 @@ beforeEach(() => {
 });
 
 describe('reserveTurnBudget', () => {
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    're-admits an existing op against its immutable projects: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 10,
+      });
+      const { sql, statements } = fakeSql([
+        { match: 'SELECT project_ids AS', rows: [{ projectIds }] },
+      ]);
+      await reserveTurnBudget(sql, {
+        ...ARGS,
+        kind: 'model-api',
+        subject: { userId: 'user-1', projectIds: ['new-project'] },
+      });
+      expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectIds }),
+      );
+      const write = statements.find((s) =>
+        s.text.includes('INSERT INTO app.sandbox_session_ops'),
+      );
+      expect(write?.values).toContainEqual(projectIds);
+      expect(write?.values).not.toContainEqual(['new-project']);
+    },
+  );
+
   it('evaluates the allowance for the starter with the in-flight reservations and records it [SBX-R16]', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: true,
@@ -139,6 +172,41 @@ describe('reserveTurnBudget', () => {
     );
   });
 
+  it('holds a subscription turn as one request at no cost [GOV-R16]', async () => {
+    gate.resolveTurnAllowance.mockResolvedValue({
+      allowed: true,
+      budgetCents: 0,
+    });
+    const { sql, statements } = fakeSql([
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [{ startedBy: 'user-1', agentId: 'agent-alice' }],
+      },
+    ]);
+
+    const result = await reserveTurnBudget(sql, {
+      ...ARGS,
+      defaultBudgetCents: 0,
+      costFree: true,
+      modelRef: 'anthropic/claude-sonnet-4-5',
+    });
+
+    expect(result).toEqual({ allowed: true, budgetCents: 0 });
+    // No cent floor: the turn is measured at no cost, request and token
+    // caps alone.
+    expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ defaultCents: 0, costFree: true }),
+    );
+    // A 0-cent hold is still a hold: one request while the turn runs.
+    const upsert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.sandbox_session_ops'),
+    );
+    expect(upsert?.values).toEqual(
+      expect.arrayContaining(['task-agent', 'user-1', 'agent-alice', 0]),
+    );
+  });
+
   it('records nothing when the cap refuses [SBX-R16]', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: false,
@@ -195,8 +263,9 @@ describe('reserveTurnBudget', () => {
       budgetCents: 500,
     });
     const { sql, statements } = fakeSql([
+      WORKFLOW_SESSION,
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'api-key:user-7',
@@ -370,8 +439,9 @@ describe('reserveTurnBudget', () => {
       budgetCents: 500,
     });
     const { sql, statements } = fakeSql([
+      WORKFLOW_SESSION,
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'trigger:t-1',
@@ -403,5 +473,149 @@ describe('reserveTurnBudget', () => {
     expect(upsert?.values).toEqual(
       expect.arrayContaining(['__automation__', 'invoices/monthly']),
     );
+  });
+
+  describe('in a project [GOV-R14]', () => {
+    function projectStamp(statements: Statement[]): unknown {
+      const upsert = statements.find((s) =>
+        s.text.includes('INSERT INTO app.sandbox_session_ops'),
+      );
+      // `project_ids` follows `api_key_id` in the insert's column list.
+      return upsert?.values[7];
+    }
+
+    it('holds an agent’s turn to its run’s project and stamps the project on the op', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        {
+          match: 'FROM app.project_agent_runs r',
+          rows: [
+            { startedBy: 'user-1', agentId: 'agent-1', projectId: 'project-1' },
+          ],
+        },
+      ]);
+      await reserveTurnBudget(sql, ARGS);
+      expect(gate.loadBudgetSubject).toHaveBeenCalledWith(expect.anything(), {
+        organizationId: 'org-1',
+        userId: 'user-1',
+        projectIds: ['project-1'],
+      });
+      expect(projectStamp(statements)).toEqual(['project-1']);
+    });
+
+    it('holds a run a schedule started to its project’s caps too', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        WORKFLOW_SESSION,
+        {
+          match: 'FROM app.automation_runs ar WHERE',
+          rows: [
+            {
+              startedBy: 'trigger:t-1',
+              name: 'invoices/monthly',
+              apiKeyId: null,
+              projectId: 'project-1',
+            },
+          ],
+        },
+      ]);
+      await reserveTurnBudget(sql, {
+        ...ARGS,
+        sessionId: 'wf-run-3',
+        kind: 'workflow-agent',
+      });
+      expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          impersonal: true,
+          projectIds: ['project-1'],
+        }),
+      );
+      expect(projectStamp(statements)).toEqual(['project-1']);
+    });
+
+    it('stamps a project’s own key’s model request with the key’s project', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 40,
+      });
+      // The key's binding names its project (`loadBudgetSubject`).
+      gate.loadBudgetSubject.mockResolvedValueOnce({
+        organizationId: 'org-1',
+        userId: 'identity-1',
+        userTeamIds: [],
+        userRole: 'member',
+        impersonal: true,
+        apiKeyId: 'key-9',
+        projectIds: ['project-1'],
+      } as never);
+      const { sql, statements } = fakeSql([]);
+      await reserveTurnBudget(sql, {
+        organizationId: 'org-1',
+        sessionId: 'model-api:key-9',
+        execId: 'req-2',
+        kind: 'model-api',
+        defaultBudgetCents: 40,
+        subject: {
+          userId: 'identity-1',
+          agentSlug: '__direct_api__',
+          apiKeyId: 'key-9',
+        },
+      });
+      expect(projectStamp(statements)).toEqual(['project-1']);
+    });
+
+    it('holds an unscoped run of an automation bound to two projects to both, and stamps both', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        WORKFLOW_SESSION,
+        {
+          match: 'FROM app.automation_runs ar WHERE',
+          rows: [
+            {
+              startedBy: 'trigger:t-1',
+              name: 'invoices/monthly',
+              apiKeyId: null,
+              projectId: null,
+              boundProjectIds: ['project-1', 'project-2'],
+            },
+          ],
+        },
+      ]);
+      await reserveTurnBudget(sql, {
+        ...ARGS,
+        sessionId: 'wf-run-4',
+        kind: 'workflow-agent',
+      });
+      expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ projectIds: ['project-1', 'project-2'] }),
+      );
+      expect(projectStamp(statements)).toEqual(['project-1', 'project-2']);
+    });
+
+    it('stamps an authoritative empty project list on work outside one', async () => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 500,
+      });
+      const { sql, statements } = fakeSql([
+        {
+          match: 'FROM app.project_agent_runs r',
+          rows: [{ startedBy: 'user-1', agentId: 'agent-1', projectId: null }],
+        },
+      ]);
+      await reserveTurnBudget(sql, ARGS);
+      expect(projectStamp(statements)).toEqual([]);
+    });
   });
 });

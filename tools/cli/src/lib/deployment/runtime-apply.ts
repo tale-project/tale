@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { externalDepError } from '../../utils/fail';
 import { BACKUP_VOLUME, GATEWAY_VOLUME } from '../backup/constants';
 import { validateAdditionalSiteUrls } from '../config/ensure-env';
+import { cutoverLegacyAutomation } from './automation-cutover';
 import { AUTOMATION_PROTOCOL_MIGRATION } from './automation-model';
 import {
   bundledBackendIdentity,
@@ -1113,6 +1114,24 @@ export async function applyRuntime(
     operation: 'compose-validation',
   });
   await checkInstalledProtocol();
+  if (bundle.automationWriterProtocol === 2 && databases.length === 1)
+    await cutoverLegacyAutomation(
+      {
+        databaseId: databases[0].Id,
+        project: options.composeProject,
+        stateDirectory: options.stateDirectory,
+        targetRevision: bundle.revision,
+        targetBackendImages: bundle.images
+          .filter((image) =>
+            image.services.some(
+              (service) =>
+                service === 'backend-api' || service === 'backend-worker',
+            ),
+          )
+          .map((image) => image.reference),
+      },
+      dependencies,
+    );
   await runtimeCommand(
     [
       ...composeArgs,

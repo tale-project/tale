@@ -7,7 +7,7 @@ can make their own key, which works wherever they are a member. An Owner or Admi
 a key for another member, for a team, for a project or for the organization itself; such a key
 works in that one organization only. These rules cover who can make which key, what a key acts
 as and reaches, when it stops working, who sees it, and whose limits its spend counts toward.
-Capping what one project spends is not covered; see Not yet.
+A project's own limit, which binds its keys too, is the governance spec's (`GOV-R14`).
 
 ## Who can make a key, and for whom
 
@@ -75,8 +75,10 @@ the key acts with, and names whose key it is.
 A team's key sees the team's projects, documents and inbox. A project's key reaches its project,
 the project list (which shows that project only), `GET /me` and the model endpoints; any other
 route is refused (`API_KEY_SCOPE_FORBIDDEN`). Through the chat assistant it reads its project's
-files and tasks, and none of the organization's contacts, products, websites, inbox or hub
-documents. The organization's key sees what its role sees across the organization.
+files and tasks, and none of the organization's contacts, products, websites, inbox, knowledge
+entries or hub documents. Organization-wide knowledge entries stay out of both search and
+listing, including the user-keyed sandbox entry finder. The organization's key sees what its role
+sees across the organization.
 
 - **Example**: The Launch project's key calls `GET /contacts` → 403 `API_KEY_SCOPE_FORBIDDEN`.
 
@@ -117,7 +119,8 @@ and the audit log names who made and who ended it.
 ### APIKEY-R9 · A key that is not a person spends under its own name
 
 No personal, role or default limit applies to it. The organization's limits and the limits set
-for the key itself do, and a team's key counts toward, and is held to, its team's limit. A limit
+for the key itself do, a team's key counts toward, and is held to, its team's limit, and a
+project's key its project's (`GOV-R14`), whatever it calls. A limit
 set for the key counts everything its identity spends, whether or not the booking names the key
 (a run its REST comment started), and the key stays itself after it is revoked: the work it
 started before keeps spending as the key. On the usage page its spend is a row of its own, never
@@ -128,8 +131,6 @@ an active user.
 
 ## Not yet
 
-- **A project's own limit**: a project's key is held to the organization's limits and to its own
-  key limits; there is no limit for everything one project spends.
 - **Renaming a key, or changing its role or expiry** after it is made: make a new key and end the
   old one.
 - **Revoking a key stops what it would start, not what it started**: a run in flight or a REST

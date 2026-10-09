@@ -15,13 +15,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   wakeParkedAgentRuns,
-  wakeSessionParkedAgentRun,
+  wakeAgentParkedAgentRun,
 } from '../tasks/agent-runs.ts';
 import { releaseProjectAgentSessionSlot } from './sessions.ts';
 
 vi.mock('../tasks/agent-runs.ts', () => ({
   wakeParkedAgentRuns: vi.fn(() => Promise.resolve(1)),
-  wakeSessionParkedAgentRun: vi.fn(() => Promise.resolve(1)),
+  wakeAgentParkedAgentRun: vi.fn(() => Promise.resolve(1)),
 }));
 vi.mock('./gateway-keys.ts', () => ({
   revokeSessionGatewayKeys: vi.fn(() => Promise.resolve()),
@@ -77,12 +77,26 @@ describe('releaseProjectAgentSessionSlot', () => {
     );
     expect(update?.text).toContain('s.pinned = false');
     expect(update?.text).toContain("op.status = 'running'");
-    // A live turn of the agent (queued or running, not parked for capacity)
-    // owns the slot before its exec exists: an older settle must not uncount
-    // it.
+    // A live turn (queued or running, not parked for capacity) that names
+    // the worker owns its slot before its exec exists: an older settle must
+    // not uncount it.
     expect(update?.text).toContain("r.status IN ('queued', 'running')");
     expect(update?.text).toContain('r.waiting_for_capacity_at_ms IS NULL');
     expect(update?.values).toEqual(['agent-1', 'org-1']);
+  });
+
+  it("stops a worker once its own run ended, whatever the agent's other workers do [SBX-R19]", async () => {
+    const { sql, statements } = fakeSql([{ id: 'row-1' }]);
+
+    await releaseProjectAgentSessionSlot(sql, ARGS);
+
+    const update = statements.find((statement) =>
+      statement.text.startsWith('UPDATE'),
+    );
+    // The run guard is the worker's own: a run of the agent working in
+    // another worker keeps that one up, never this one.
+    expect(update?.text).toContain('r.session_id = s.session_id');
+    expect(update?.text).not.toContain('r.agent_id = s.owner_id');
   });
 
   it('wakes the org on the release edge when a slot was freed', async () => {
@@ -103,10 +117,10 @@ describe('releaseProjectAgentSessionSlot', () => {
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
   });
 
-  it("wakes the oldest run parked on the ended turn's workspace while a sibling keeps it up", async () => {
-    // Four turns filled the workspace's live-exec places and a fifth parked;
-    // one of the four ended. The workspace stays up for the other three,
-    // and the place the ended exec gave back goes to the parked run.
+  it("wakes the agent's oldest parked run when the ended turn's worker stays up", async () => {
+    // The worker is pinned, or a run still names it: it stays up, and is
+    // free for the agent's next run without a slot of its own — the run
+    // parked for it names no worker, so it is found by its agent.
     const { sql } = fakeSql([]);
 
     const released = await releaseProjectAgentSessionSlot(sql, {
@@ -116,10 +130,25 @@ describe('releaseProjectAgentSessionSlot', () => {
 
     expect(released).toBe(false);
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
-    expect(wakeSessionParkedAgentRun).toHaveBeenCalledExactlyOnceWith(sql, {
+    expect(wakeAgentParkedAgentRun).toHaveBeenCalledExactlyOnceWith(sql, {
       organizationId: 'org-1',
+      agentId: 'agent-1',
       sessionId: 'pa-agent-1',
     });
+  });
+
+  it("leaves the freed slot to the organization's wake when the ended turn's worker stopped", async () => {
+    const { sql } = fakeSql([
+      { organizationId: 'org-1', sessionId: 'pa-agent-1' },
+    ]);
+
+    await releaseProjectAgentSessionSlot(sql, {
+      ...ARGS,
+      sessionId: 'pa-agent-1',
+    });
+
+    expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(sql, 'org-1');
+    expect(wakeAgentParkedAgentRun).not.toHaveBeenCalled();
   });
 
   it('wakes no run on the workspace for a release that is itself parking', async () => {
@@ -133,12 +162,12 @@ describe('releaseProjectAgentSessionSlot', () => {
     );
 
     expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
-    expect(wakeSessionParkedAgentRun).not.toHaveBeenCalled();
+    expect(wakeAgentParkedAgentRun).not.toHaveBeenCalled();
   });
 
   it('never fails the release over a failed workspace wake', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.mocked(wakeSessionParkedAgentRun).mockRejectedValueOnce(
+    vi.mocked(wakeAgentParkedAgentRun).mockRejectedValueOnce(
       new Error('boss down'),
     );
     const { sql } = fakeSql([]);

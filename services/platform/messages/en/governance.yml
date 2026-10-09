@@ -31,11 +31,13 @@ budgets:
   maxRequestsHelp: Total AI requests per period. Leave empty for no limit.
   warningThreshold: Warning threshold (%)
   warningThresholdHelp: Alert when usage exceeds this percentage of the limit.
+  warningThresholdProjectHelp: Everyone chatting in this project sees a warning once the project's usage exceeds this percentage of the limit.
   orgScopeTarget: Entire organization
   allUsers: All users
   overrideHint:
     'More specific scopes override broader ones: user > team > role >
-    default. Org limits always apply as an additional cap.'
+    default. Org limits always apply as an additional cap, and a project''s
+    limits to the work in that project.'
   noRulesTitle: No budget rules configured
   noRulesDescription: Add a rule to start enforcing limits.
   editRuleAriaLabel: Edit rule {index}
@@ -58,6 +60,13 @@ budgets:
   searchTeams: Search teams
   noTeamsFound: No teams found
   selectTeamAriaLabel: Select team
+  project: Project
+  selectProject: Select project...
+  searchProjects: Search projects
+  noProjectsFound: No projects found
+  selectProjectAriaLabel: Select project
+  projectDeleted: Deleted project
+  projectDeletedHint: This project no longer exists, so the rule limits nothing. Choose a project or remove the rule.
   apiKey: API key
   selectApiKey: Select API key...
   searchApiKeys: Search API keys
@@ -75,6 +84,7 @@ budgets:
     default: Default
     user: User
     team: Team
+    project: Project
     role: Role
     apiKey: API key
     org: Organization
@@ -1433,6 +1443,7 @@ dataSubjectRequests:
     wfExecutionsErased: Automation runs erased
     startedAt: Started
     completedAt: Completed
+    legacyAutomationHold: Some automation runs were preserved because their earlier external actions have not been verified. Retrying does not release these holds.
     errorMessage: Error
     errorState:
       title: Could not load this request
@@ -1465,21 +1476,42 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejected
     gdpr_erasure_cancelled: Cancelled
   categories:
+    modelApiRequests: Model requests
     userMemories: Personal memories
     userPreferences: User preferences
     messageFeedback: Message feedback
     fileMetadata: Chat-uploaded files
-    usageLedger: Token usage ledger
+    usageLedger: Usage records
     twoFactorAttempts: Two-factor attempts
     policyAcknowledgements: Policy acknowledgements
     onedrive: OneDrive sync configs
     googleDriveSync: Google Drive sync configs
     userCloudAuthorizations: Cloud import authorizations
     loginAttempts: Login attempts and lockouts
-    notifications: Security notifications
+    notifications: Notifications
     wfExecutions: Automation runs
     promptTemplates: Personal prompts
     sandboxWorkspaces: Sandbox workspaces
+    threads: Chats
+    documents: Documents
+    uploads: Uploaded files
+    preferences: Preferences
+    subscriptions: Followed tasks
+    feedback: Message feedback
+    memories: Personal memories
+    mcpActivity: Coding agent activity
+    directCalls: Direct model calls
+    videoLinks: Video links
+    cloudGrants: Cloud import authorizations
+    syncConfigs: Cloud sync configurations
+    websiteScanNotes: Website scans they asked for
+    orgNotifications: Security notifications about them
+    automationRuns: Automation runs
+    agentRuns: Agent runs
+    reviewDecisions: Review decisions
+    mentions: Mentions of them in task text
+    authState: Sign-in and two-factor attempts
+    auditScrub: Audit log entries
   legalHoldBlock:
     title: Erasure blocked by legal hold
     orgHeld:

@@ -333,6 +333,31 @@ codes:
     explanation: Das Modell einer llm- oder Agent-Node muss von einem der verbundenen Anbieter der Organisation bereitgestellt werden. Sonst schlägt ein Live-Lauf an dieser Node fehl.
     cause: '{nodeLabel} verwendet „{model}“, das kein verbundener Anbieter bereitstellt.'
     fix: Wähle ein Modell, das ein verbundener Anbieter bereitstellt, oder verbinde den Anbieter dieses Modells.
+  SKILL_UNKNOWN:
+    title: Skill nicht gefunden
+    explanation: Eine Agent-Node verlangt einen Skill, den diese Organisation nicht hat oder der nicht dort geteilt ist, wo die Automatisierung läuft. Beim Lauf schlägt die Node deshalb fehl.
+    cause: '{nodeLabel} verlangt den Skill „{skill}“.'
+    fix: '{suggestion, select, none {Füge den Skill unter Einstellungen › Skills hinzu oder entferne ihn aus der Node.} other {Meintest du „{suggestion}“?}}'
+  CONNECTOR_NOT_CONNECTED:
+    title: Connector nicht verbunden
+    explanation: Eine Node verwendet einen Connector, der in dieser Organisation nicht verbunden ist. Ein Live-Lauf erreicht diese App deshalb nicht.
+    cause: '{catalogued, select, true {{nodeLabel} verwendet „{connector}“, den noch niemand verbunden hat.} other {{nodeLabel} verwendet „{connector}“, den dieses Deployment nicht anbietet.}}'
+    fix: '{catalogued, select, true {Verbinde ihn unter Einstellungen › Connectors.} other {{suggestion, select, none {Wähle einen Connector aus dem Katalog.} other {Meintest du „{suggestion}“?}}}}'
+  SECRET_UNKNOWN:
+    title: Secret nicht gefunden
+    explanation: Eine Agent-Node verlangt ein Secret, das diese Organisation nicht gespeichert hat. Der Agent läuft dann ohne dieses Secret.
+    cause: '{nodeLabel} verlangt das Secret „{secret}“.'
+    fix: '{suggestion, select, none {Füge das Secret unter Secrets in dieser Node hinzu oder entferne es aus der Node.} other {Meintest du „{suggestion}“?}}'
+  HARNESS_UNKNOWN:
+    title: Agent-Laufzeit nicht verfügbar
+    explanation: Eine Agent-Node nennt eine Agent-Laufzeit, die dieses Deployment nicht ausführen kann. Beim Lauf schlägt die Node deshalb fehl.
+    cause: '{nodeLabel} verwendet „{harness}“. Verfügbar: {availableList}.'
+    fix: Wähle eine der verfügbaren Agent-Laufzeiten oder lass das Feld leer, damit die Standard-Laufzeit gilt.
+  EVENT_UNKNOWN:
+    title: Ereignis tritt nie ein
+    explanation: Der Trigger wartet auf ein Ereignis, das Tale nicht auslöst. Er startet deshalb nie einen Lauf.
+    cause: 'Der Trigger wartet auf „{event}“.'
+    fix: '{suggestion, select, none {Wähle ein Ereignis aus der Liste.} other {Meintest du „{suggestion}“?}}'
   OUTPUT_MISSING:
     title: Keine Ausgabe
     explanation: Die Ausgabe ist das, was die Automatisierung zurückgibt. Ohne Ausgabe liefert jeder Lauf nichts.

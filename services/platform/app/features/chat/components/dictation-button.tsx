@@ -141,6 +141,8 @@ const DictationButtonComponent = forwardRef<
         // The browser's speech service could not be reached; the
         // microphone itself is fine.
         message = t('dictation.serviceUnavailable');
+      } else if (error === 'limit-reached') {
+        message = t('dictation.limitReached');
       } else if (error === 'transcription-failed') {
         // Surfaced by the persistent failed-dictation pill (with retry /
         // discard) instead of a transient toast. No toast here.

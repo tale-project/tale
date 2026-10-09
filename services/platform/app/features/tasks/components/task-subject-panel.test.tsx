@@ -371,7 +371,7 @@ describe('TaskSubjectPanel', () => {
     await user.click(screen.getByRole('button', { name: 'Send back' }));
     expect(mocks.addComment).toHaveBeenCalledExactlyOnceWith({
       taskId: 'task_1',
-      body: '@document-verify-desk Check the last document.',
+      body: '[@Document verification desk](mention:automation/document-verify-desk) Check the last document.',
     });
     await user.click(screen.getByRole('button', { name: 'Approve' }));
     expect(mocks.updateStatus).toHaveBeenCalledExactlyOnceWith({

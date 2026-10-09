@@ -124,7 +124,13 @@ export function useMediaRecorderDictation({
         failedRecordingRef.current = { blob, mimeType };
         if (isMountedRef.current) {
           setHasFailedRecording(true);
-          setError('transcription-failed');
+          // A reached usage limit says so; the recording stays for a retry
+          // once the limit allows it.
+          setError(
+            err instanceof BackendApiError && err.code === 'BUDGET_EXCEEDED'
+              ? 'limit-reached'
+              : 'transcription-failed',
+          );
           if (
             err instanceof BackendApiError &&
             isTranscriptionUnavailableReason(err.code)

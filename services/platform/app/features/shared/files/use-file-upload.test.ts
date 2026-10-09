@@ -687,3 +687,44 @@ describe('useFileUpload — concurrent-batch cap & dedup', () => {
     );
   });
 });
+
+// A recording in a project's new chat is transcribed before the first send
+// creates the thread; the registration names the project so the
+// transcription counts toward it. Once a thread exists, the thread names it.
+describe('useFileUpload — a project’s new chat', () => {
+  async function uploadOne(projectConfig: Parameters<typeof useFileUpload>[0]) {
+    const { result } = renderHook(() => useFileUpload(projectConfig));
+    let upload!: Promise<void>;
+    act(() => {
+      upload = result.current.uploadFiles([
+        makeFile('notes.txt', 120, 'text/plain'),
+      ]);
+    });
+    await flush();
+    resolveAllFetches();
+    await act(async () => {
+      await upload;
+    });
+    await waitFor(() => expect(saveFileMetadata).toHaveBeenCalledTimes(1));
+  }
+
+  it('names the project when the chat has no thread yet', async () => {
+    await uploadOne({ ...config, projectId: 'project-1' });
+
+    expect(saveFileMetadata).toHaveBeenCalledWith(
+      expect.objectContaining({ projectId: 'project-1' }),
+    );
+  });
+
+  it('leaves the project to the thread once there is one', async () => {
+    await uploadOne({
+      ...config,
+      threadId: 'thread-1',
+      projectId: 'project-1',
+    });
+
+    const registered = saveFileMetadata.mock.calls[0]?.[0];
+    expect(registered).toMatchObject({ threadId: 'thread-1' });
+    expect(registered).not.toHaveProperty('projectId');
+  });
+});

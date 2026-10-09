@@ -34,7 +34,7 @@ export { parseCron, type CronField, type CronSchedule };
 /** How far back a scan will look for a missed minute. A schedule is a
  * heartbeat, not a queue: after an outage the automation resumes on its next
  * occurrence rather than replaying an hour of them. */
-const MAX_CATCHUP_MS = 60 * 60 * 1000;
+export const MAX_CATCHUP_MS = 60 * 60 * 1000;
 
 const MINUTE_MS = 60 * 1000;
 

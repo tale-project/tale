@@ -11,6 +11,7 @@ import {
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { isBackendDraining } from '../control/service.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
+import { ChatBudgetExceededError } from './budget-admission.ts';
 import { runChatTurn } from './service.ts';
 import {
   appendAssistantCancelledMessage,
@@ -180,6 +181,9 @@ async function runAcceptedTurn(
             role: 'user',
             parts: [{ type: 'text', text: payload.userText }],
             text: payload.userText,
+            ...(payload.apiKeyId !== undefined
+              ? { apiKeyId: payload.apiKeyId }
+              : {}),
           });
         }
         const reply = {
@@ -345,6 +349,10 @@ async function runAcceptedTurn(
         code: classifyChatErrorCode(error),
         model: payload.modelId,
         raw: reason,
+        // Whose cap: a project's is named as the project's.
+        ...(error instanceof ChatBudgetExceededError
+          ? { budgetScope: error.data.scope }
+          : {}),
       }),
       !userAppended,
     );

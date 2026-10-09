@@ -7,6 +7,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import { computeAuditHash } from '../../core/lib/helpers/audit_hash.ts';
 import { toJson } from '../../db/sql.ts';
 import {
+  channelAuditMetadata,
+  currentRequestChannel,
+} from '../../lib/request-channel.ts';
+import {
   buildAuditRecordHashInput,
   computeChangedFields,
   redactSensitiveFields,
@@ -88,6 +92,25 @@ export async function lockAuditChain(
   } catch (error) {
     throw markRetryQueueKey(error, queueKey);
   }
+}
+
+/**
+ * {@link lockAuditChain} without waiting: `true` when this transaction now
+ * holds the org's chain key (or already did), `false` when another holds it.
+ * For a sweep that must not stall behind one busy organization — the wake
+ * scan (`automations/wakes.ts`) skips that org for the minute instead; the
+ * order stays the chain key first.
+ */
+export async function tryLockAuditChain(
+  tx: TransactionSql,
+  organizationId: string,
+): Promise<boolean> {
+  const queueKey = auditChainQueueKey(organizationId);
+  const rows = await tx<{ locked: boolean }[]>`
+    SELECT pg_try_advisory_xact_lock(${RETRY_QUEUE_LOCK_CLASS}, hashtext(${queueKey})) AS locked
+  `;
+  // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- only an explicit database true admits a sweep
+  return rows[0]?.locked === true;
 }
 
 /**
@@ -186,11 +209,45 @@ async function selfCheckPriorRow(
   }
 }
 
+/**
+ * The row as the caller described it, plus the door it came through: inside
+ * a request channel (an MCP tool call, a REST definition write) `metadata`
+ * gains `via`, the tool, the API key and the client, and `requestId` the
+ * request's, unless the writer named its own `via` (the skills publish
+ * door). What the channel stamps WINS over a writer's key of the same name:
+ * the channel's `apiKeyId` is the key that made the call, and a writer that
+ * records another key (one it created, say) names it differently — an
+ * admin reading the row must never be pointed at the wrong key to revoke.
+ * Applied BEFORE hashing, so the stored row and its hash agree and the
+ * verifier, which rebuilds from the row, sees the same record.
+ */
+function withRequestChannel(args: CreateAuditLogArgs): CreateAuditLogArgs {
+  const channel = currentRequestChannel();
+  if (channel === undefined) return args;
+  const stamped =
+    args.metadata?.via === undefined
+      ? {
+          metadata: {
+            ...args.metadata,
+            ...channelAuditMetadata(channel),
+          },
+        }
+      : {};
+  return {
+    ...args,
+    ...stamped,
+    ...(args.requestId === undefined && channel.requestId !== undefined
+      ? { requestId: channel.requestId }
+      : {}),
+  };
+}
+
 /** Append one audit row to the org's chain inside the caller's transaction. */
 export async function createAuditLog(
   tx: TransactionSql,
-  args: CreateAuditLogArgs,
+  callerArgs: CreateAuditLogArgs,
 ): Promise<string> {
+  const args = withRequestChannel(callerArgs);
   const head = await lockChainHead(tx, args.organizationId);
   await selfCheckPriorRow(tx, args.organizationId, head.lastHash);
 

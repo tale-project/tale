@@ -57,15 +57,12 @@ function retiredWith(announce: boolean) {
 
 import { memberSessionIdForProjectAgent } from '../core/sandbox/session_naming.ts';
 import {
-  AGENT_BUSY_RETRY_DELAY_MS,
-  AGENT_BUSY_RETRY_MAX_WAIT_MS,
-  AGENT_BUSY_RETRY_MAX_WAITS,
   AUTO_RETRY_HISTORY_LIMIT,
   AUTO_RETRY_MAX_ATTEMPTS,
 } from '../core/tasks/task_auto_retry.ts';
 import { TaskError } from '../domains/tasks/errors.ts';
 import { addJobInTx } from './enqueue.ts';
-import { agentRetryRecheckKey, createTaskList } from './task-list.ts';
+import { createTaskList } from './task-list.ts';
 import { TASK_QUEUE_OPTIONS } from './tasks.ts';
 
 const PAYLOAD = {
@@ -102,14 +99,11 @@ interface World {
   activityId?: string;
   /** Who holds the card (default: the retried agent). */
   assigneeId?: string;
-  /** The agent's live run on another task in the workspace the retry
-   * looks at (default: none — the workspace is free). */
+  /** The agent's live run on another task, which a look for a busy agent
+   * would find (default: none). The retry looks for none. */
   busy?: { id: string; taskId: string };
   /** The agent row is gone (default: it is there). */
   agentGone?: boolean;
-  /** An earlier delivery already retired this failed run's retry: the
-   * retirement's election updates nothing. */
-  refusedAlready?: boolean;
 }
 
 /** The busy probe's statements with their values, in order. */
@@ -174,9 +168,7 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
       return Promise.resolve([]);
     }
     if (text.includes('UPDATE app.project_agent_runs')) {
-      return Promise.resolve(
-        world.refusedAlready === true ? [] : [{ id: 'run-failed' }],
-      );
+      return Promise.resolve([{ id: 'run-failed' }]);
     }
     if (text.includes('UPDATE app.project_agents')) {
       return Promise.resolve(
@@ -307,6 +299,37 @@ describe('task.agent_retry', () => {
       );
     },
   );
+
+  it('carries the API key the failed run was started with, and none it lacked [SBX-R14]', async () => {
+    for (const apiKeyId of ['key-1', null]) {
+      const handler = createTaskList({
+        sql: sqlWith([
+          {
+            id: 'run-failed',
+            status: 'failed',
+            agentId: 'agent-1',
+            startedBy: 'api-key:user-starter',
+            apiKeyId,
+            launchedAt: 1_000,
+            settledAt: 2_000,
+          },
+        ]),
+      })['task.agent_retry'];
+      await handler?.(PAYLOAD);
+    }
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(2);
+    expect(kickAgentRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({ apiKeyId: 'key-1', trigger: 'auto_retry' }),
+    );
+    expect(kickAgentRun).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.not.objectContaining({ apiKeyId: expect.anything() }),
+    );
+  });
 
   it('resumes a run the broker’s refresh cut, even with the crash-loop budget spent', async () => {
     const handler = createTaskList({
@@ -738,7 +761,7 @@ describe('task.agent_retry admission', () => {
   });
 });
 
-describe('task.agent_retry — an automated chain waits for its busy agent', () => {
+describe('task.agent_retry — an automated chain’s retry starts at once [TASK-R26]', () => {
   const via = { kind: 'agent', runId: 'run-manager', agentId: 'agent-9' };
   const elsewhere = { id: 'run-other', taskId: 'task-other' };
 
@@ -778,31 +801,17 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
     return lines;
   }
 
-  const lockIndex = () =>
-    statements.findIndex((text) => text.includes('UPDATE app.project_agents'));
-  const taskLockIndex = () =>
-    statements.findIndex(
-      (text) => text.includes('FROM app.tasks') && text.includes('FOR UPDATE'),
-    );
-
-  it('takes the agent row before the task row, and starts into the workspace it found free', async () => {
-    const lines = await deliver({});
+  it('kicks the retry while its agent works other tasks: no agent lock, no look for a busy agent, no later check', async () => {
+    const lines = await deliver({ busy: elsewhere });
 
     expect(lines).toEqual([]);
-    expect(lockIndex()).toBeGreaterThan(-1);
-    expect(taskLockIndex()).toBeGreaterThan(lockIndex());
-    // The lock is a write, as the delegated start's: it invalidates an
-    // overlapping serializable snapshot.
-    expect(statements[lockIndex()]).toContain('updated_at_ms = updated_at_ms');
-    expect(statements[lockIndex()]).toContain('org_id');
     expect(
-      statements.filter((text) => text.includes('UPDATE app.project_agents')),
-    ).toHaveLength(1);
-    expect(probes).toHaveLength(1);
-    expect(probes[0]?.values).toEqual(
-      expect.arrayContaining(['org-1', 'agent-1', 'pa-agent-1', 'task-1']),
-    );
-    expect(probes[0]?.text).toContain("status IN ('queued', 'running')");
+      statements.some((text) => text.includes('UPDATE app.project_agents')),
+    ).toBe(false);
+    expect(probes).toHaveLength(0);
+    expect(addJobInTx).not.toHaveBeenCalled();
+    // Into the family the failed run worked in; its worker is claimed when
+    // the run starts.
     expect(kickAgentRun).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -811,237 +820,78 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
         sessionId: 'pa-agent-1',
       }),
     );
-    expect(addJobInTx).not.toHaveBeenCalled();
   });
 
-  it('leaves the retry of a person’s run as it was — no agent lock, no look at the workspace', async () => {
+  it('leaves the retry of a person’s run as it was', async () => {
     const lines = await deliver({ busy: elsewhere }, { automated: false });
 
     expect(lines).toEqual([]);
-    expect(lockIndex()).toBe(-1);
-    expect(probes).toHaveLength(0);
     expect(kickAgentRun).toHaveBeenCalledWith(
       expect.anything(),
       expect.not.objectContaining({ sessionId: expect.anything() }),
     );
   });
 
-  it('waits while the agent works another task there: nothing started, refused or counted — a later check of the retry is queued', async () => {
-    const before = Date.now();
-    const lines = await deliver({ busy: elsewhere });
-    const after = Date.now();
+  it('kicks a confined retry into the member’s own workers', async () => {
+    const own = memberSessionIdForProjectAgent('agent-1', 'user-starter');
 
-    expect(kickAgentRun).not.toHaveBeenCalled();
-    expect(addJobInTx).toHaveBeenCalledTimes(1);
-    const [, name, next, options] = vi.mocked(addJobInTx).mock.calls[0] ?? [];
-    expect(name).toBe('task.agent_retry_recheck');
-    expect(next).toEqual({ ...PAYLOAD, agentBusyWaits: 1 });
-    const { startAfter, singletonKey } =
-      (options as { startAfter?: Date; singletonKey?: string } | undefined) ??
-      {};
-    expect(singletonKey).toBe('agent-retry:org-1:task-1:run-failed');
-    expect(startAfter?.getTime()).toBeGreaterThanOrEqual(
-      before + AGENT_BUSY_RETRY_DELAY_MS,
+    await deliver({
+      member: { role: 'member' },
+      createdBy: 'user-starter',
+      busy: elsewhere,
+    });
+
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ sessionId: own }),
     );
-    expect(startAfter?.getTime()).toBeLessThanOrEqual(
-      after + AGENT_BUSY_RETRY_DELAY_MS,
-    );
-    // Never at once: a busy agent is no hot loop.
-    expect(AGENT_BUSY_RETRY_DELAY_MS).toBeGreaterThanOrEqual(60_000);
-    expect(
-      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
-    ).toBe(false);
-    // Judged before the hourly budget, which it neither reads nor spends.
-    expect(
-      statements.some((text) => text.includes('started_via IS NOT NULL')),
-    ).toBe(false);
-    expect(lines).toEqual([
-      `[task-agent] auto-retry waiting: agent_busy (check 1 of ${AGENT_BUSY_RETRY_MAX_WAITS} queued: run run-other on task task-other)`,
-    ]);
   });
 
-  it('keeps at most one check queued per failed run: every check, from the arm or from a check, carries its key on a short queue of its own', async () => {
-    await deliver({ busy: elsewhere });
-    await deliver(
-      { busy: elsewhere },
-      { payload: { ...PAYLOAD, agentBusyWaits: 5 } },
-    );
-
-    const keys = vi
-      .mocked(addJobInTx)
-      .mock.calls.map(
-        ([, name, , options]) =>
-          `${name}|${(options as { singletonKey?: string } | undefined)?.singletonKey}`,
-      );
-    expect(keys).toEqual([
-      'task.agent_retry_recheck|agent-retry:org-1:task-1:run-failed',
-      'task.agent_retry_recheck|agent-retry:org-1:task-1:run-failed',
-    ]);
-    expect(agentRetryRecheckKey(PAYLOAD)).toBe(
-      'agent-retry:org-1:task-1:run-failed',
-    );
-    // `short`: one QUEUED job per key, so a second send is dropped while the
-    // first waits (the documented queue contract, `TaskQueueOptions`). The
-    // arm's queue keeps its standard policy: the previous image's arms are
-    // keyless and would shut each other out there.
+  it('kicks on a check an earlier image queued while it waited, through the same worker and queue', async () => {
+    const tasks = createTaskList({ sql: sqlWith([]) });
+    expect(tasks['task.agent_retry_recheck']).toBe(tasks['task.agent_retry']);
+    // The queue a check queued before the upgrade waits on keeps its policy.
     expect(TASK_QUEUE_OPTIONS['task.agent_retry_recheck']).toEqual({
       policy: 'short',
       retryLimit: 1,
       expireInSeconds: 600,
     });
     expect(TASK_QUEUE_OPTIONS['task.agent_retry'].policy).toBeUndefined();
-  });
 
-  it('says so when the one check of its failed run is already queued', async () => {
-    vi.mocked(addJobInTx).mockResolvedValueOnce(null);
-
-    const lines = await deliver({ busy: elsewhere });
-
-    expect(lines).toEqual([
-      '[task-agent] auto-retry waiting: agent_busy (a check is already queued: run run-other on task task-other)',
-    ]);
-    expect(kickAgentRun).not.toHaveBeenCalled();
-  });
-
-  it('runs the arm and every check through one worker', () => {
-    const tasks = createTaskList({ sql: sqlWith([]) });
-
-    expect(tasks['task.agent_retry_recheck']).toBeDefined();
-    expect(tasks['task.agent_retry_recheck']).toBe(tasks['task.agent_retry']);
-  });
-
-  it('carries the broker cooldown and counts its checks', async () => {
     const startAfterMs = Date.now() + 42_000;
-
-    await deliver(
+    const lines = await deliver(
       { busy: elsewhere },
-      { payload: { ...PAYLOAD, startAfterMs, agentBusyWaits: 3 } },
+      { payload: { ...PAYLOAD, startAfterMs, agentBusyWaits: 7 } },
     );
 
-    expect(vi.mocked(addJobInTx).mock.calls[0]?.[2]).toEqual({
-      ...PAYLOAD,
-      startAfterMs,
-      agentBusyWaits: 4,
-    });
-  });
-
-  it('looks in the workspace the retry would join — a confined retry in the member’s own — and starts there', async () => {
-    const own = memberSessionIdForProjectAgent('agent-1', 'user-starter');
-
-    await deliver({ member: { role: 'member' }, createdBy: 'user-starter' });
-
-    expect(probes[0]?.values).toContain(own);
-    expect(probes[0]?.values).not.toContain('pa-agent-1');
+    expect(lines).toEqual([]);
+    expect(addJobInTx).not.toHaveBeenCalled();
     expect(kickAgentRun).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ sessionId: own }),
+      expect.objectContaining({ trigger: 'auto_retry', startedVia: via }),
     );
-
-    vi.clearAllMocks();
-    probes.length = 0;
-    await deliver({
-      member: { role: 'member' },
-      createdBy: 'user-starter',
-      busy: elsewhere,
-    });
-    expect(probes[0]?.values).toContain(own);
-    expect(kickAgentRun).not.toHaveBeenCalled();
-    expect(addJobInTx).toHaveBeenCalledTimes(1);
-  });
-
-  it('gives up after its last check: retired on its failed run and refused once on the timeline, as the agent, with nothing sent or started', async () => {
-    const lines = await deliver(
-      { busy: elsewhere },
-      { payload: { ...PAYLOAD, agentBusyWaits: AGENT_BUSY_RETRY_MAX_WAITS } },
-    );
-
-    expect(kickAgentRun).not.toHaveBeenCalled();
-    expect(addJobInTx).not.toHaveBeenCalled();
-    const retire = statements.findIndex((text) =>
-      text.includes('UPDATE app.project_agent_runs'),
-    );
-    const refusal = statements.findIndex((text) =>
-      text.includes('INSERT INTO app.task_activity'),
-    );
-    expect(retire).toBeGreaterThan(-1);
-    expect(statements[retire]).toContain('auto_retry_refused_at_ms IS NULL');
-    expect(statements[retire]).toContain("status = 'failed'");
-    expect(refusal).toBeGreaterThan(retire);
-    expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
-    expect(announceAgentRunFailed).toHaveBeenCalledWith(expect.anything(), {
-      organizationId: 'org-1',
-      runId: 'run-failed',
-    });
-  });
-
-  it('gives up once a look would fall past the longest wait after the failure', async () => {
-    await deliver(
-      { busy: elsewhere },
-      { run: failedAgo(AGENT_BUSY_RETRY_MAX_WAIT_MS - 60_000) },
-    );
-    expect(addJobInTx).not.toHaveBeenCalled();
-    expect(
-      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
-    ).toBe(true);
-
-    vi.clearAllMocks();
-    statements.length = 0;
-    await deliver(
-      { busy: elsewhere },
-      {
-        run: failedAgo(
-          AGENT_BUSY_RETRY_MAX_WAIT_MS - AGENT_BUSY_RETRY_DELAY_MS - 60_000,
-        ),
-      },
-    );
-    expect(addJobInTx).toHaveBeenCalledTimes(1);
-  });
-
-  it('records the refusal once: only the delivery that retires the failed run writes the timeline row', async () => {
-    const lines = await deliver(
-      { busy: elsewhere, refusedAlready: true },
-      { payload: { ...PAYLOAD, agentBusyWaits: AGENT_BUSY_RETRY_MAX_WAITS } },
-    );
-
-    expect(
-      statements.some((text) => text.includes('UPDATE app.project_agent_runs')),
-    ).toBe(true);
-    expect(
-      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
-    ).toBe(false);
-    expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_busy']);
-    // Told once, by the delivery that retired it.
-    expect(announceAgentRunFailed).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['the arm, the agent still busy', { busy: elsewhere }, PAYLOAD],
-    ['the arm, the agent free by now', {}, PAYLOAD],
-    [
-      'a check queued before the refusal, the agent free',
-      {},
-      { ...PAYLOAD, agentBusyWaits: 7 },
-    ],
-    [
-      'the very check that refused, delivered again once the agent is free',
-      {},
-      { ...PAYLOAD, agentBusyWaits: AGENT_BUSY_RETRY_MAX_WAITS },
-    ],
-  ] satisfies [string, World, Record<string, unknown>][])(
-    'stands down on a retry refused for good — %s — and starts, queues and records nothing',
-    async (_label, world, payload) => {
-      const lines = await deliver(world, {
-        payload,
-        run: {
-          ...failedAgo(3 * 60 * 60 * 1000),
-          autoRetryRefusedAt: Date.now() - 60_000,
+    ['the arm', PAYLOAD],
+    ['a check an earlier image queued', { ...PAYLOAD, agentBusyWaits: 7 }],
+  ] satisfies [string, Record<string, unknown>][])(
+    'stands down on a retry an earlier image refused for good — %s — and starts, queues and records nothing',
+    async (_label, payload) => {
+      const lines = await deliver(
+        {},
+        {
+          payload,
+          run: {
+            ...failedAgo(3 * 60 * 60 * 1000),
+            autoRetryRefusedAt: Date.now() - 60_000,
+          },
         },
-      });
+      );
 
       expect(lines).toEqual(['[task-agent] auto-retry skipped: retry_refused']);
       expect(kickAgentRun).not.toHaveBeenCalled();
       expect(addJobInTx).not.toHaveBeenCalled();
-      expect(probes).toHaveLength(0);
       expect(
         statements.some(
           (text) =>
@@ -1083,36 +933,20 @@ describe('task.agent_retry — an automated chain waits for its busy agent', () 
       'not_permitted',
     ],
   ] satisfies [string, World, string][])(
-    'judges every final refusal before the busy agent (%s)',
+    'still ends on every final refusal (%s)',
     async (_label, world, reason) => {
       const lines = await deliver({ ...world, busy: elsewhere });
 
       expect(lines).toEqual([`[task-agent] auto-retry skipped: ${reason}`]);
-      expect(probes).toHaveLength(0);
       expect(addJobInTx).not.toHaveBeenCalled();
       expect(kickAgentRun).not.toHaveBeenCalled();
     },
   );
 
-  it('waits instead of spending an hour whose budget is full', async () => {
-    const now = Date.now();
-
-    await deliver({
-      busy: elsewhere,
-      automatedStarts: [now - 50_000, now - 40_000, now - 30_000],
-    });
-
-    expect(addJobInTx).toHaveBeenCalledTimes(1);
-    expect(
-      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
-    ).toBe(false);
-  });
-
   it('ends as before when the agent is gone', async () => {
     const lines = await deliver({ agentGone: true, busy: elsewhere });
 
     expect(lines).toEqual(['[task-agent] auto-retry skipped: agent_gone']);
-    expect(probes).toHaveLength(0);
     expect(kickAgentRun).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
     expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));

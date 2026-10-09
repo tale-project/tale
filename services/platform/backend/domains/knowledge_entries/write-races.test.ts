@@ -18,6 +18,9 @@ vi.mock('../../lib/object-store.ts', () => ({
 }));
 
 const {
+  checkAgentWriteBudget,
+  checkConcurrentAgentAndPersonEdits,
+  checkConcurrentAgentCreates,
   checkConcurrentEntryCreation,
   checkConcurrentEntryUpdates,
   checkConcurrentEntryRenameAndCreate,
@@ -59,6 +62,8 @@ describe.skipIf(!databaseUrl)(
     afterAll(async () => {
       vi.restoreAllMocks();
       await sql`DELETE FROM app.knowledge_entries WHERE org_id = ${writer.organizationId}`;
+      await sql`DELETE FROM app.audit_logs WHERE org_id = ${writer.organizationId}`;
+      await sql`DELETE FROM app.audit_chain_heads WHERE org_id = ${writer.organizationId}`;
       await sql`DELETE FROM app.file_metadata WHERE org_id = ${writer.organizationId}`;
       await sql`DELETE FROM app.documents WHERE org_id = ${writer.organizationId}`;
       await sql.end();
@@ -84,6 +89,18 @@ describe.skipIf(!databaseUrl)(
 
     it('arbitrates a rename against a create at the same destination topic', async () => {
       await checkConcurrentEntryRenameAndCreate(sql, writer);
+    });
+
+    it('lets one of two agents creating a topic at once win, refusing the other with its text [KENTRY-R10]', async () => {
+      await checkConcurrentAgentCreates(sql, writer);
+    });
+
+    it('refuses whichever of an agent and a person edits a fact second [KENTRY-R12]', async () => {
+      await checkConcurrentAgentAndPersonEdits(sql, writer);
+    });
+
+    it('answers a spent agent budget with a wait, leaving people’s budget alone [KENTRY-R13]', async () => {
+      await checkAgentWriteBudget(sql, writer);
     });
   },
 );

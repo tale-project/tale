@@ -57,7 +57,7 @@ Your instructions never override the organization’s mandatory instructions or 
 
 ## Check your usage limits {#usage-limits}
 
-Open **Settings > Usage** to see how much you have used of each limit your organization applies to you. The page says so when no limit covers you.
+Open **Settings > Usage** to see how much you have used of each limit your organization applies to you. The page says so when no limit covers you. A project's limit, which caps everything spent in that project, is not listed here: in the project's chats, the banner above the composer warns about it, and a request it refuses says so.
 
 <Frame caption="Settings > Usage lists each limit that applies to you with its usage and next reset.">
 
@@ -69,7 +69,7 @@ Open **Settings > Usage** to see how much you have used of each limit your organ
 - **Shared limits** count the usage of everyone they cover, such as a team you belong to or the entire organization, so they can be reached before your own limits.
 - **Storage** compares the files you have uploaded with your storage limit. New document uploads are refused once it is reached.
 
-Each usage limit shows the amount used, the limit, and when it resets in your local time. Periods follow UTC: daily limits reset at midnight, weekly limits on Monday, and monthly limits on the first of the month. If an administrator set a warning threshold, the bar turns amber once your usage reaches it. When a banner above the composer warns about a limit, **View usage** opens this page. Administrators also see **Manage limits**, which opens **Governance > Policies & Limits**.
+Each usage limit shows the amount used, the limit, and when it resets in your local time. Periods follow UTC: daily limits reset at midnight, weekly limits on Monday, and monthly limits on the first of the month. If an administrator set a warning threshold, the bar turns amber once your usage reaches it. When a banner above the composer warns about a limit, **View usage** opens this page; a banner about a project's limit names the project instead. Administrators also see **Manage limits**, which opens **Governance > Policies & Limits**.
 
 ## Archive old chats or sign out
 

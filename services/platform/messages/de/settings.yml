@@ -76,6 +76,11 @@ mcpEndpoint:
       title: Lauf- & Trigger-Verwaltung
       description: Betreiben, was live ist — Läufe starten und abfragen,
         Versionen durchsehen, Trigger setzen und lösen.
+    discovery:
+      title: Nachschlagen
+      description: Nachsehen, was eine Automatisierung nennen darf — Modelle,
+        Agent-Laufzeiten, Skills, Connectors, Namen von Secrets, Projekte
+        und Ereignisse.
     capability:
       title: Capabilities & Wissen
       description: Die eigene Oberfläche der Organisation — durchsuchen, was
@@ -263,6 +268,7 @@ organization:
   deleteLoading: Lösche…
   deleteSuccess: Organisation gelöscht
   deleteFailed: Organisation konnte nicht gelöscht werden
+  deleteBlockedByLegacyAutomation: Automationsläufe bleiben gesperrt, weil ihre früheren externen Aktionen noch nicht überprüft wurden. Deine Organisation wurde nicht gelöscht. Eine Stopp-Anfrage hebt diese Sperren nicht auf.
   deleteBlockedByLegalHold: Ein aktiver Legal Hold bewahrt die Daten dieser Organisation. Gib alle Holds unter Richtlinien > Legal Hold frei und versuch es dann erneut.
   deleteTypeNameLabel: Tippe den Namen der Organisation zur Bestätigung
   deleteConfirmNameMismatch: Die Bestätigung stimmt nicht mit dem Namen der Organisation überein. Lade die Seite neu und versuch es erneut.
@@ -1218,6 +1224,10 @@ logs:
       Audit-Protokolle werden hier angezeigt, sobald Aktionen in
       deiner Organisation durchgeführt werden.
     detailTitle: Audit-Protokoll-Details
+    viaLabel: Quelle
+    viaLabels:
+      mcp: Coding-Agent
+    clientLabel: Client
     columns:
       timestamp: Zeitstempel
       action: Aktion
@@ -1309,6 +1319,8 @@ logs:
       document.trashed: Dokument in den Papierkorb verschoben
       document.deleted: Dokument gelöscht
       folder.deleted: Ordner gelöscht
+      knowledge_entry.created: Wissenseintrag erstellt
+      knowledge_entry.updated: Wissenseintrag aktualisiert
       branding.updated: Branding aktualisiert
       branding.image_uploaded: Branding-Bild hochgeladen
       branding.image_deleted: Branding-Bild entfernt
@@ -1408,6 +1420,13 @@ logs:
       automation.run.cancelled: Automatisierungslauf gestoppt
       automation.run.deleted: Automatisierungslauf gelöscht
       automation.run.in_doubt_resolved: Über unterbrochenen Automatisierungsschritt entschieden
+      automation.version.saved: Automatisierungsversion gespeichert
+      automation.deployed: Automatisierung live geschaltet
+      automation.deleted: Automatisierung gelöscht
+      automation.trigger.set: Automatisierungs-Trigger geändert
+      automation.trigger.deleted: Automatisierungs-Trigger entfernt
+      automation.project.bound: Automatisierung in einem Projekt installiert
+      automation.project.unbound: Automatisierung aus einem Projekt entfernt
       create_connector: Connector erstellt
       delete_connector: Connector gelöscht
       update_credential: Zugangsdaten aktualisiert
@@ -1514,10 +1533,12 @@ logs:
       conversationMessage: Konversationsnachricht
       document: Dokument
       folder: Ordner
+      knowledge_entry: Wissenseintrag
       agent: Agent
       workflow: Automatisierung
       workflow_run: Automatisierungslauf
       automation_trigger: Automatisierungs-Trigger
+      automation: Automatisierung
       workflow_creation: Erstellung der Automatisierung
       workflow_update: Automatisierungs-Update
       customer: Kontakt

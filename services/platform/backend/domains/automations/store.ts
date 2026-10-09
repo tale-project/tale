@@ -59,6 +59,7 @@ import {
 } from '../collab/service.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
+import { auditDefinitionWrite } from './audit.ts';
 import {
   describeLegacyQuarantine,
   legacyRunStopSchema,
@@ -175,6 +176,41 @@ export function assertAutomationNameCreatable(name: string): string {
 
 // ------------------------------------------------------------- definitions
 
+/** The doors a version can be saved through — `automations.created_via`
+ * (0181): the editor, a package upload, a coding agent over MCP, the REST
+ * API, managed configuration, the shipped default packs. */
+export const AUTOMATION_WRITE_VIAS = [
+  'app',
+  'upload',
+  'mcp',
+  'rest',
+  'managed',
+  'system',
+] as const;
+
+export type AutomationWriteVia = (typeof AUTOMATION_WRITE_VIAS)[number];
+
+/** Which door a definition write came through, and — for a keyed door —
+ * with which key and client. Recorded on the version a save writes. */
+export interface AutomationWriteOrigin {
+  via: AutomationWriteVia;
+  /** The API key the door authenticated, by id. */
+  apiKeyId?: string;
+  /** The name the agent's client gave itself, already cleaned by
+   * `displayClientName` (at most 80 characters). */
+  clientName?: string;
+}
+
+/** The three version fields beside the document a save can carry forward
+ * from the latest version. */
+export const CARRIED_VERSION_FIELDS = [
+  'settings',
+  'taskContract',
+  'presentation',
+] as const;
+
+export type CarriedVersionField = (typeof CARRIED_VERSION_FIELDS)[number];
+
 export interface SaveVersionArgs {
   organizationId: string;
   name: string;
@@ -207,9 +243,58 @@ export interface SaveVersionArgs {
    * saver that passes none (the builder's autosave, an upload, MCP)
    * appends as before. */
   baseVersion?: number;
+  /** How `settings`, `taskContract` and `presentation` are read. `explicit`
+   * (the default — the editor, an upload, managed configuration): an absent
+   * field stores none. `carry` (a coding agent's save, which sends only
+   * what it changes): an absent field keeps the latest version's value,
+   * copied under the name lock so no save lands between the read and the
+   * write; `null` stores none. The answer's `carried` names what was kept. */
+  metadataMode?: 'explicit' | 'carry';
+  /** The door the save came through, recorded on the version (0181). */
+  origin?: AutomationWriteOrigin;
   /** Declarative ownership is field/value bounded and checked under the
    * same native name lock as every version writer. */
   managed?: { projectId: string; expectedHash: string | null };
+  /** The door's own check of THIS save, run under the name lock once the
+   * latest version is known (null: the save creates the automation) and
+   * before anything is written — so what it decides cannot change before
+   * the insert: a coding agent's save refuses an automation the person
+   * cannot see, and checks the project it installs a NEW one in only when
+   * the save creates it. A refusal it throws leaves nothing written. */
+  authorize?: (tx: TransactionSql, latest: number | null) => Promise<void>;
+}
+
+/** What a save stored, and which version fields it kept from the version
+ * before it (`metadataMode: 'carry'` only). */
+export interface SavedVersion {
+  name: string;
+  version: number;
+  carried?: CarriedVersionField[];
+}
+
+/** The version fields a carry-mode save stores: an absent field is copied
+ * from the latest version, `null` stores none, a value stores itself. */
+function carryVersionFields(
+  args: SaveVersionArgs,
+  latest: VersionRow | null,
+): {
+  fields: Pick<SaveVersionArgs, CarriedVersionField>;
+  carried: CarriedVersionField[];
+} {
+  const fields: Pick<SaveVersionArgs, CarriedVersionField> = {};
+  const carried: CarriedVersionField[] = [];
+  for (const field of CARRIED_VERSION_FIELDS) {
+    const sent = args[field];
+    if (sent !== undefined) {
+      if (sent !== null) fields[field] = sent;
+      continue;
+    }
+    const kept: unknown = latest?.[field];
+    if (kept === null || kept === undefined) continue;
+    fields[field] = kept;
+    carried.push(field);
+  }
+  return { fields, carried };
 }
 
 /** Serialize every writer of ONE automation name (two tabs, the builder's
@@ -285,9 +370,12 @@ async function assertManagedProject(
 export async function saveVersion(
   sql: Sql,
   args: SaveVersionArgs,
-): Promise<{ name: string; version: number }> {
+): Promise<SavedVersion> {
   const name = assertAutomationName(args.name);
   return sql.begin(async (tx) => {
+    // The audit chain before the name: the order every definition writer
+    // takes them in (`audit.ts`), so two writers never wait on each other.
+    await lockAuditChain(tx, args.organizationId);
     await lockAutomationName(tx, args.organizationId, name);
     // The latest version, read under the lock: null is the create (a name
     // the router keeps for itself is refused here, once, before anything is
@@ -298,6 +386,7 @@ export async function saveVersion(
     `;
     const latest = heads[0]?.latest ?? null;
     if (latest === null) assertAutomationNameCreatable(name);
+    await args.authorize?.(tx, latest);
     if (args.managed) {
       await assertManagedProject(
         tx,
@@ -353,22 +442,35 @@ export async function saveVersion(
         { latestVersion: latest, baseVersion: args.baseVersion },
       );
     }
+    // A carry-mode save keeps what it does not restate, read from the
+    // latest version under the lock this transaction holds.
+    const carry =
+      args.metadataMode === 'carry'
+        ? carryVersionFields(
+            args,
+            latest === null
+              ? null
+              : await versionRow(tx, args.organizationId, name, latest),
+          )
+        : null;
+    const stored = carry?.fields ?? args;
     const now = Date.now();
     const rows = await tx<{ version: number }[]>`
       INSERT INTO app.automations (
         org_id, name, version, document, message, tests_passed,
         tests_checked_at_ms, task_contract, settings, presentation,
-        created_by, created_at_ms
+        created_by, created_at_ms, created_via, api_key_id, client_name
       )
       SELECT ${args.organizationId}, ${name},
              coalesce(max(version), 0) + 1,
              ${tx.json(toJson(args.document))}, ${args.message ?? null},
              ${args.testsPassed ?? null},
              ${args.testsPassed === undefined ? null : now},
-             ${args.taskContract === undefined ? null : tx.json(toJson(args.taskContract))},
-             ${args.settings === undefined ? null : tx.json(toJson(args.settings))},
-             ${args.presentation === undefined || args.presentation === null ? null : tx.json(toJson(args.presentation))},
-             ${args.actor}, ${now}
+             ${stored.taskContract === undefined || stored.taskContract === null ? null : tx.json(toJson(stored.taskContract))},
+             ${stored.settings === undefined || stored.settings === null ? null : tx.json(toJson(stored.settings))},
+             ${stored.presentation === undefined || stored.presentation === null ? null : tx.json(toJson(stored.presentation))},
+             ${args.actor}, ${now}, ${args.origin?.via ?? null},
+             ${args.origin?.apiKeyId ?? null}, ${args.origin?.clientName ?? null}
       FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${name}
       RETURNING version
@@ -380,10 +482,29 @@ export async function saveVersion(
       DELETE FROM app.automation_tombstones
       WHERE org_id = ${args.organizationId} AND name = ${name}
     `;
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.version.saved',
+      name,
+      version,
+      newState: { version },
+      metadata: {
+        version,
+        ...(args.baseVersion === undefined
+          ? {}
+          : { baseVersion: args.baseVersion }),
+        ...(carry === null ? {} : { carried: carry.carried }),
+        ...(args.testsPassed === undefined
+          ? {}
+          : { testsPassed: args.testsPassed }),
+      },
+    });
     if (version === 1 && args.projectId !== undefined) {
+      const projectId = args.projectId;
       const owned = await tx<{ id: string }[]>`
         SELECT id FROM app.projects
-        WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
+        WHERE org_id = ${args.organizationId} AND id = ${projectId}
         LIMIT 1
       `;
       if (owned.length === 0) {
@@ -393,18 +514,34 @@ export async function saveVersion(
           404,
         );
       }
-      await tx`
-        INSERT INTO app.automation_project_bindings (
-          org_id, automation_name, project_id, bound_at_ms, bound_by
-        ) VALUES (
-          ${args.organizationId}, ${name}, ${args.projectId}, ${Date.now()},
-          ${args.actor}
-        )
-        ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-      `;
+      // The database derives the binding's claim and refuses a second wake.
+      const bound = await claimingWake(
+        () => tx`
+          INSERT INTO app.automation_project_bindings (
+            org_id, automation_name, project_id, bound_at_ms, bound_by
+          ) VALUES (
+            ${args.organizationId}, ${name}, ${projectId}, ${Date.now()},
+            ${args.actor}
+          )
+          ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+        `,
+      );
+      if (bound.count > 0) {
+        await auditDefinitionWrite(tx, {
+          organizationId: args.organizationId,
+          actor: args.actor,
+          action: 'automation.project.bound',
+          name,
+          newState: { projectId },
+        });
+      }
     }
     await emitDefinitionHint(tx, args.organizationId, name);
-    return { name, version };
+    return {
+      name,
+      version,
+      ...(carry === null ? {} : { carried: carry.carried }),
+    };
   });
 }
 
@@ -442,6 +579,13 @@ export interface VersionRow {
   presentation: unknown;
   createdBy: string;
   createdAt: number;
+  /** The door the version was saved through (0181) — null for a version
+   * saved before the door was recorded. */
+  createdVia: AutomationWriteVia | null;
+  /** The API key a keyed door saved it with, by id. */
+  apiKeyId: string | null;
+  /** The name the saving agent's client gave itself. */
+  clientName: string | null;
 }
 
 export async function versionRow(
@@ -456,7 +600,9 @@ export async function versionRow(
     SELECT name, version, document, message, tests_passed AS "testsPassed",
            tests_checked_at_ms::float8 AS "testsCheckedAt",
            task_contract AS "taskContract", settings, presentation,
-           created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
+           created_by AS "createdBy", created_at_ms::float8 AS "createdAt",
+           created_via AS "createdVia", api_key_id AS "apiKeyId",
+           client_name AS "clientName"
     FROM app.automations
     WHERE org_id = ${organizationId} AND name = ${name}
       AND (${version ?? null}::int IS NULL OR version = ${version ?? null})
@@ -510,10 +656,15 @@ export async function automationRunsExist(
   sql: Sql | TransactionSql,
   organizationId: string,
   name: string,
+  /** Only runs in this scope: a project's, or (null) the organization's
+   * own — absent, runs anywhere in the organization. */
+  scope?: { projectId: string | null },
 ): Promise<boolean> {
   const rows = await sql<{ present: number }[]>`
     SELECT 1 AS present FROM app.automation_runs
     WHERE org_id = ${organizationId} AND name = ${name}
+      AND (${scope === undefined}
+           OR project_id IS NOT DISTINCT FROM ${scope?.projectId ?? null}::text)
     LIMIT 1
   `;
   return rows.length > 0;
@@ -592,13 +743,18 @@ export async function deploy(
      * run's word; without a fresh verdict a version saved with failing
      * tests stays refused. */
     testsPassed?: boolean;
+    /** Compare-and-set on the live version: the version the caller read as
+     * deployed (`null`: nothing deployed). Another one live now refuses the
+     * deploy with `AUTOMATION_DEPLOYMENT_STALE` (409, `data.deployedVersion`)
+     * and changes nothing. Absent, no check (the editor's deploy). */
+    expectedDeployedVersion?: number | null;
     managed?: {
       projectId: string;
       expectedHash: string | null;
       definitionSha256: string;
     };
   },
-): Promise<{ name: string; version: number }> {
+): Promise<{ name: string; version: number; previousVersion: number | null }> {
   const row = await versionRow(
     sql,
     args.organizationId,
@@ -622,10 +778,29 @@ export async function deploy(
       409,
     );
   }
+  let previousVersion: number | null = null;
   await sql.begin(async (tx) => {
     // Serialize promotion with saves and other promoters. Existing runs keep
     // their immutable version; only future admissions read this pointer.
+    // The audit chain first, as every definition writer takes it (`audit.ts`).
+    await lockAuditChain(tx, args.organizationId);
     await lockAutomationName(tx, args.organizationId, args.name);
+    const live =
+      (await deployedVersion(tx, args.organizationId, args.name)) ?? null;
+    previousVersion = live;
+    if (
+      args.expectedDeployedVersion !== undefined &&
+      args.expectedDeployedVersion !== live
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_DEPLOYMENT_STALE',
+        live === null
+          ? `"${args.name}" has no deployed version any more — the deploy expected v${String(args.expectedDeployedVersion)}.`
+          : `v${live} of "${args.name}" is live now — the deploy expected ${args.expectedDeployedVersion === null ? 'nothing deployed' : `v${args.expectedDeployedVersion}`}.`,
+        409,
+        { deployedVersion: live },
+      );
+    }
     if (args.managed) {
       await assertManagedProject(
         tx,
@@ -716,9 +891,25 @@ export async function deploy(
         testsPassed: args.testsPassed,
       });
     }
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.deployed',
+      name: args.name,
+      version: args.version,
+      previousState: { deployedVersion: live },
+      newState: { deployedVersion: args.version },
+      metadata: {
+        fromVersion: live,
+        toVersion: args.version,
+        ...(args.testsPassed === undefined
+          ? {}
+          : { testsPassed: args.testsPassed }),
+      },
+    });
     await emitDefinitionHint(tx, args.organizationId, args.name);
   });
-  return { name: args.name, version: args.version };
+  return { name: args.name, version: args.version, previousVersion };
 }
 
 export interface AutomationListing {
@@ -931,33 +1122,30 @@ export async function listAutomationsForApp(
   });
 }
 
+/** One entry of a version history, without its document. */
+export interface VersionListing {
+  version: number;
+  message: string | null;
+  testsPassed: boolean | null;
+  testsCheckedAt: number | null;
+  createdBy: string;
+  createdAt: number;
+  /** The door it was saved through (0181) — null before it was recorded. */
+  createdVia: AutomationWriteVia | null;
+  /** The name the saving agent's client gave itself. */
+  clientName: string | null;
+}
+
 export async function listVersions(
   sql: Sql,
   organizationId: string,
   name: string,
-): Promise<
-  Array<{
-    version: number;
-    message: string | null;
-    testsPassed: boolean | null;
-    testsCheckedAt: number | null;
-    createdBy: string;
-    createdAt: number;
-  }>
-> {
-  return sql<
-    {
-      version: number;
-      message: string | null;
-      testsPassed: boolean | null;
-      testsCheckedAt: number | null;
-      createdBy: string;
-      createdAt: number;
-    }[]
-  >`
+): Promise<VersionListing[]> {
+  return sql<VersionListing[]>`
     SELECT version, message, tests_passed AS "testsPassed",
            tests_checked_at_ms::float8 AS "testsCheckedAt",
-           created_by AS "createdBy", created_at_ms::float8 AS "createdAt"
+           created_by AS "createdBy", created_at_ms::float8 AS "createdAt",
+           created_via AS "createdVia", client_name AS "clientName"
     FROM app.automations
     WHERE org_id = ${organizationId} AND name = ${name}
     ORDER BY version DESC
@@ -982,6 +1170,9 @@ export async function setAutomationProjects(
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
+    // Every definition writer takes the audit chain before its name lock.
+    await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
     let projectIds = args.projectIds;
     if (args.visibleProjectIds !== undefined) {
       const visible = new Set(args.visibleProjectIds);
@@ -1021,7 +1212,9 @@ export async function setAutomationProjects(
         403,
       );
     }
-    await tx`
+    // Lock every existing/requested claim key before the first binding write.
+    await lockWakeClaimKeys(tx, args.organizationId, args.name, projectIds);
+    const unbound = await tx<{ projectId: string }[]>`
       DELETE FROM app.automation_project_bindings
       WHERE org_id = ${args.organizationId}
         AND automation_name = ${args.name}
@@ -1031,19 +1224,50 @@ export async function setAutomationProjects(
             ? tx``
             : tx`AND project_id = ANY(${args.visibleProjectIds})`
         }
+      RETURNING project_id AS "projectId"
     `;
-    for (const projectId of projectIds) {
-      await tx`
-        INSERT INTO app.automation_project_bindings (
-          org_id, automation_name, project_id, bound_at_ms, bound_by
-        ) VALUES (
-          ${args.organizationId}, ${args.name}, ${projectId}, ${Date.now()},
-          ${args.actor}
-        )
-        ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-      `;
+    for (const { projectId } of unbound) {
+      await auditProjectBinding(tx, args, projectId, 'unbound');
+    }
+    // Ordered, deduplicated inserts retain upstream no-op audit semantics.
+    for (const projectId of [...new Set(projectIds)].sort()) {
+      const bound = await claimingWake(
+        () => tx`
+          INSERT INTO app.automation_project_bindings (
+            org_id, automation_name, project_id, bound_at_ms, bound_by
+          ) VALUES (
+            ${args.organizationId}, ${args.name}, ${projectId}, ${Date.now()},
+            ${args.actor}
+          )
+          ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
+        `,
+      );
+      if (bound.count > 0) {
+        await auditProjectBinding(tx, args, projectId, 'bound');
+      }
     }
     await emitDefinitionHint(tx, args.organizationId, args.name);
+  });
+}
+
+/** The audit row of one installation added to or removed from a project. */
+function auditProjectBinding(
+  tx: TransactionSql,
+  args: { organizationId: string; name: string; actor: string },
+  projectId: string,
+  change: 'bound' | 'unbound',
+): Promise<void> {
+  return auditDefinitionWrite(tx, {
+    organizationId: args.organizationId,
+    actor: args.actor,
+    action:
+      change === 'bound'
+        ? 'automation.project.bound'
+        : 'automation.project.unbound',
+    name: args.name,
+    ...(change === 'bound'
+      ? { newState: { projectId } }
+      : { previousState: { projectId } }),
   });
 }
 
@@ -1070,6 +1294,7 @@ export async function bindProjectInTx(
     actor: string;
   },
 ): Promise<{ bound: boolean }> {
+  await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
   const owned = await tx<{ id: string }[]>`
     SELECT id FROM app.projects
     WHERE org_id = ${args.organizationId} AND id = ${args.projectId}
@@ -1081,7 +1306,9 @@ export async function bindProjectInTx(
       404,
     );
   }
-  const inserted = await tx`
+  // The binding trigger retains the SERIALIZABLE snapshot fence.
+  const inserted = await claimingWake(
+    () => tx`
       INSERT INTO app.automation_project_bindings (
         org_id, automation_name, project_id, bound_at_ms, bound_by
       ) VALUES (
@@ -1089,10 +1316,15 @@ export async function bindProjectInTx(
         ${args.actor}
       )
       ON CONFLICT (org_id, automation_name, project_id) DO NOTHING
-    `;
+    `,
+  );
   const bound = inserted.count > 0;
-  // An idempotent re-add changed nothing — no screen needs a refetch.
-  if (bound) await emitDefinitionHint(tx, args.organizationId, args.name);
+  // An idempotent re-add changed nothing — no screen needs a refetch, and
+  // nothing is audited.
+  if (bound) {
+    await auditProjectBinding(tx, args, args.projectId, 'bound');
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+  }
   return { bound };
 }
 
@@ -1101,15 +1333,25 @@ export async function bindProjectInTx(
  * an uninstall from a no-op. Versions, triggers and run history stay. */
 export async function unbindProjectInTx(
   tx: TransactionSql,
-  args: { organizationId: string; name: string; projectId: string },
+  args: {
+    organizationId: string;
+    name: string;
+    projectId: string;
+    /** Who removes it — the audit row's actor. */
+    actor: string;
+  },
 ): Promise<{ unbound: boolean }> {
+  await lockAutomationProjectBindingsInTx(tx, args, [args.projectId]);
   const removed = await tx`
     DELETE FROM app.automation_project_bindings
     WHERE org_id = ${args.organizationId}
       AND automation_name = ${args.name} AND project_id = ${args.projectId}
   `;
   const unbound = removed.count > 0;
-  if (unbound) await emitDefinitionHint(tx, args.organizationId, args.name);
+  if (unbound) {
+    await auditProjectBinding(tx, args, args.projectId, 'unbound');
+    await emitDefinitionHint(tx, args.organizationId, args.name);
+  }
   return { unbound };
 }
 
@@ -1134,6 +1376,10 @@ export interface TriggerInput {
   event?: string;
   enabled?: boolean;
   rotateToken?: boolean;
+  /** A schedule only: fire early when an agent of its project frees its
+   * slot (#4540, `automations/wakes.ts`). Only the managed door sets it; a
+   * save that omits it keeps it, and a kind change clears it. */
+  wakeOnSlotFreed?: boolean;
 }
 
 /** Which kind each optional key belongs to. A key of another kind used to be
@@ -1143,7 +1389,7 @@ export interface TriggerInput {
  * the guard the MCP twin and every other caller converge on. */
 const TRIGGER_KEY_KINDS: ReadonlyArray<
   [
-    key: 'cron' | 'timezone' | 'event' | 'rotateToken',
+    key: 'cron' | 'timezone' | 'event' | 'rotateToken' | 'wakeOnSlotFreed',
     kind: TriggerInput['kind'],
   ]
 > = [
@@ -1151,6 +1397,7 @@ const TRIGGER_KEY_KINDS: ReadonlyArray<
   ['timezone', 'schedule'],
   ['event', 'event'],
   ['rotateToken', 'webhook'],
+  ['wakeOnSlotFreed', 'schedule'],
 ];
 
 function assertTriggerKeysMatchKind(trigger: TriggerInput): void {
@@ -1283,8 +1530,10 @@ export async function setTrigger(
   const rotate = args.trigger.rotateToken === true;
   const enabled = args.trigger.enabled ?? true;
   const { rows, revoked } = await sql.begin(async (tx) => {
+    // The audit chain precedes the name and trigger row for every writer.
+    await lockAuditChain(tx, args.organizationId);
+    await lockAutomationName(tx, args.organizationId, args.name);
     if (args.managed) {
-      await lockAutomationName(tx, args.organizationId, args.name);
       await assertManagedProject(
         tx,
         args.organizationId,
@@ -1325,11 +1574,14 @@ export async function setTrigger(
         lastSkipReason: string | null;
         cron: string | null;
         timezone: string | null;
+        event: string | null;
         enabled: boolean;
+        wakeOnSlotFreed: boolean;
       }[]
     >`
-      SELECT id, kind, token_hash AS "tokenHash", cron, timezone, enabled,
-             last_skip_reason AS "lastSkipReason"
+      SELECT id, kind, token_hash AS "tokenHash", cron, timezone, event,
+             enabled, last_skip_reason AS "lastSkipReason",
+             wake_on_slot_freed AS "wakeOnSlotFreed"
       FROM app.automation_triggers
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
       FOR UPDATE
@@ -1352,6 +1604,7 @@ export async function setTrigger(
         cron: args.trigger.cron ?? null,
         timezone: args.trigger.timezone ?? null,
         enabled,
+        wakeOnSlotFreed: args.trigger.wakeOnSlotFreed === true,
       });
       assertManagedHash(
         managedConfigurationHash(current),
@@ -1371,15 +1624,40 @@ export async function setTrigger(
           409,
         );
     }
-    const upserted = await tx<{ tokenHash: string | null }[]>`
+    // The opt-in this save leaves: what it says, else what the schedule
+    // already had — a kind change clears it.
+    const prior = existing[0];
+    const wakes =
+      args.trigger.kind === 'schedule' &&
+      (args.trigger.wakeOnSlotFreed ??
+        // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- preserve only an explicit database opt-in
+        (prior?.kind === 'schedule' && prior.wakeOnSlotFreed === true));
+    // The schedule's claim on its projects' wake before and after this save
+    // (`app.automation_wake_claims`, migration 0168): a pause by failures
+    // keeps it; a save ends any pause, so after it the claim is the opt-in of
+    // an enabled schedule. Only the friendly pre-check reads it here.
+    const claimedBefore =
+      prior !== undefined &&
+      prior.kind === 'schedule' &&
+      // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- claiming requires an explicit database opt-in
+      prior.wakeOnSlotFreed === true &&
+      (prior.enabled || prior.lastSkipReason === 'paused_after_failures');
+    const claims = wakes && enabled;
+    if (claims && !claimedBefore) {
+      await assertSingleWakeTarget(tx, args.organizationId, args.name);
+    }
+    // The database rewrites the bindings' claim when the schedule's changes
+    // (migration 0168's trigger), and refuses a second claim on a project.
+    const upserted = await claimingWake(
+      () => tx<{ tokenHash: string | null }[]>`
       INSERT INTO app.automation_triggers AS t (
         org_id, name, kind, cron, timezone, event, token_hash, enabled,
-        created_by, created_at_ms, updated_at_ms
+        created_by, created_at_ms, updated_at_ms, wake_on_slot_freed
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${args.trigger.kind},
         ${args.trigger.cron ?? null}, ${args.trigger.timezone ?? null},
         ${args.trigger.event?.trim() ?? null}, ${mintedHash}, ${enabled},
-        ${args.actor}, ${now}, ${now}
+        ${args.actor}, ${now}, ${now}, ${wakes}
       )
       ON CONFLICT (org_id, name) DO UPDATE SET
         kind = EXCLUDED.kind,
@@ -1427,10 +1705,17 @@ export async function setTrigger(
           ELSE NULL
         END,
         enabled = EXCLUDED.enabled,
+        wake_on_slot_freed = CASE
+          WHEN EXCLUDED.kind <> 'schedule' THEN false
+          WHEN ${args.trigger.wakeOnSlotFreed ?? null}::boolean IS NULL
+            THEN t.kind = 'schedule' AND t.wake_on_slot_freed
+          ELSE ${args.trigger.wakeOnSlotFreed ?? null}::boolean
+        END,
         updated_at_ms = CASE WHEN ${args.managed !== undefined} THEN t.updated_at_ms ELSE EXCLUDED.updated_at_ms END
       WHERE ${args.managed?.expectedHash !== null}
       RETURNING token_hash AS "tokenHash"
-    `;
+    `,
+    );
     if (args.managed && upserted.length !== 1)
       throw new AutomationError(
         'AUTOMATION_VERSION_STALE',
@@ -1444,15 +1729,35 @@ export async function setTrigger(
         triggerId: before.id,
       });
     }
+    const revokedWebhook =
+      before !== undefined &&
+      before.kind === 'webhook' &&
+      before.tokenHash !== null &&
+      args.trigger.kind !== 'webhook';
+    // What the binding was and is — never its token or the token's hash.
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.trigger.set',
+      name: args.name,
+      ...(before === undefined
+        ? {}
+        : { previousState: triggerAuditState(before) }),
+      newState: triggerAuditState({
+        kind: args.trigger.kind,
+        cron: args.trigger.cron ?? null,
+        timezone: args.trigger.timezone ?? null,
+        event: args.trigger.event?.trim() ?? null,
+        enabled,
+        wakeOnSlotFreed: wakes,
+      }),
+      metadata: {
+        ...(rotate && args.trigger.kind === 'webhook' ? { rotated: true } : {}),
+        ...(revokedWebhook ? { revoked: 'webhook' } : {}),
+      },
+    });
     await emitDefinitionHint(tx, args.organizationId, args.name);
-    return {
-      rows: upserted,
-      revoked:
-        before !== undefined &&
-        before.kind === 'webhook' &&
-        before.tokenHash !== null &&
-        args.trigger.kind !== 'webhook',
-    };
+    return { rows: upserted, revoked: revokedWebhook };
   });
   const landed = rows[0]?.tokenHash ?? null;
   return {
@@ -1463,19 +1768,178 @@ export async function setTrigger(
   };
 }
 
+/** A binding as its audit row records it: what starts the automation and
+ * whether it is on — never its token or the token's hash. */
+function triggerAuditState(trigger: {
+  kind: string;
+  cron: string | null;
+  timezone: string | null;
+  event: string | null;
+  enabled: boolean;
+  wakeOnSlotFreed?: boolean;
+}): Record<string, unknown> {
+  return {
+    kind: trigger.kind,
+    ...(trigger.cron === null ? {} : { cron: trigger.cron }),
+    ...(trigger.timezone === null ? {} : { timezone: trigger.timezone }),
+    ...(trigger.event === null ? {} : { event: trigger.event }),
+    enabled: trigger.enabled,
+    ...(trigger.kind === 'schedule' && trigger.wakeOnSlotFreed !== undefined
+      ? { wakeOnSlotFreed: trigger.wakeOnSlotFreed }
+      : {}),
+  };
+}
+
+/** The partial unique index that keeps one wake target per project
+ * (migration 0168, AUTO-R29). */
+const ONE_WAKE_INDEX = 'automation_project_bindings_one_wake';
+
+/** A write that may claim a project's wake: a second claim, refused by the
+ * one-wake index — also when two saves race past every check — answers 409
+ * and the whole transaction rolls back. */
+async function claimingWake<T>(write: () => Promise<T>): Promise<T> {
+  try {
+    return await write();
+  } catch (error) {
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === '23505' &&
+      'constraint_name' in error &&
+      error.constraint_name === ONE_WAKE_INDEX
+    ) {
+      throw new AutomationError(
+        'AUTOMATION_TRIGGER_INVALID',
+        'Another schedule already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.',
+        409,
+      );
+    }
+    throw error;
+  }
+}
+
+/**
+ * Take every claim key a binding change can touch before it touches any
+ * (R4-F3), in one database call (`app.lock_automation_wake_keys`, migration
+ * 0168): the automation's fence, then — only when its schedule claims, read
+ * under that fence — each project it is bound to now or is asked for, in
+ * the order the database's own claim writes use. Two claiming saves that
+ * swap projects queue behind each other instead of deadlocking on each
+ * other's deletions; a save whose schedule does not claim takes no project
+ * key, so it never waits on another writer's (R5-F1).
+ */
+async function lockWakeClaimKeys(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+  projectIds: readonly string[],
+): Promise<void> {
+  await tx`
+    SELECT app.lock_automation_wake_keys(
+      ${organizationId}, ${name}, ${[...projectIds]}::text[]
+    )
+  `;
+}
+
+/** Preclaim a complete binding edit before its first write. A batch caller
+ * supplies every added/removed project after authorization; individual doors
+ * re-enter these transaction locks without changing their order. */
+export async function lockAutomationProjectBindingsInTx(
+  tx: TransactionSql,
+  args: { organizationId: string; name: string },
+  projectIds: readonly string[],
+): Promise<void> {
+  await lockAuditChain(tx, args.organizationId);
+  await lockAutomationName(tx, args.organizationId, args.name);
+  await lockWakeClaimKeys(tx, args.organizationId, args.name, projectIds);
+}
+
+/**
+ * The friendly half of AUTO-R29: before a schedule starts claiming, name the
+ * schedule that already wakes one of its projects. The one-wake index is the
+ * rule itself (`claimingWake`); this only words the common refusal.
+ */
+async function assertSingleWakeTarget(
+  tx: TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  const others = await tx<{ name: string }[]>`
+    SELECT theirs.automation_name AS name
+    FROM app.automation_project_bindings theirs
+    JOIN app.automation_project_bindings ours
+      ON ours.org_id = theirs.org_id AND ours.project_id = theirs.project_id
+     AND ours.automation_name = ${name}
+    WHERE theirs.org_id = ${organizationId}
+      AND theirs.automation_name <> ${name} AND theirs.wakes
+    ORDER BY theirs.automation_name
+    LIMIT 1
+  `;
+  const other = others[0];
+  if (other !== undefined) {
+    throw new AutomationError(
+      'AUTOMATION_TRIGGER_INVALID',
+      `"${other.name}" already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.`,
+      409,
+    );
+  }
+}
+
+/** Whether the named trigger is a schedule opted in to slot wakes — the
+ * managed readback's half of `wakeOnSlotFreed` (the trigger listing itself
+ * does not carry it). */
+export async function triggerWakesOnSlotFreed(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  name: string,
+): Promise<boolean> {
+  const rows = await sql<{ wakes: boolean }[]>`
+    SELECT kind = 'schedule' AND wake_on_slot_freed AS wakes
+    FROM app.automation_triggers
+    WHERE org_id = ${organizationId} AND name = ${name}
+  `;
+  // oxlint-disable-next-line typescript/no-unnecessary-boolean-literal-compare -- absence or a malformed projection never opts in
+  return rows[0]?.wakes === true;
+}
+
 export async function deleteTrigger(
   sql: Sql,
   organizationId: string,
   name: string,
+  /** Who removes it — the audit row's actor. */
+  actor: string,
 ): Promise<boolean> {
   return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string; lastSkipReason: string | null }[]>`
+    // The audit chain before the trigger row (`trigger-failures.ts`).
+    await lockAuditChain(tx, organizationId);
+    await lockAutomationName(tx, organizationId, name);
+    const rows = await tx<
+      {
+        id: string;
+        lastSkipReason: string | null;
+        kind: string;
+        cron: string | null;
+        timezone: string | null;
+        event: string | null;
+        enabled: boolean;
+        wakeOnSlotFreed: boolean;
+      }[]
+    >`
       DELETE FROM app.automation_triggers
       WHERE org_id = ${organizationId} AND name = ${name}
-      RETURNING id, last_skip_reason AS "lastSkipReason"
+      RETURNING id, last_skip_reason AS "lastSkipReason", kind, cron,
+                timezone, event, enabled, wake_on_slot_freed AS "wakeOnSlotFreed"
     `;
     const removed = rows[0];
     if (removed === undefined) return false;
+    await auditDefinitionWrite(tx, {
+      organizationId,
+      actor,
+      action: 'automation.trigger.deleted',
+      name,
+      previousState: triggerAuditState(removed),
+    });
     // A paused schedule removed is a pause someone dealt with.
     if (removed.lastSkipReason === 'paused_after_failures') {
       await dismissTriggerPausedNotifications(tx, {
@@ -1954,6 +2418,8 @@ export interface ListRunsOptions {
   visibleProjectIds?: string[];
   /** Only runs in these statuses (any of them). */
   statuses?: string[];
+  /** Only live runs, or only mock runs. */
+  mode?: 'mock' | 'live';
   /** Keyset position: only runs strictly older than this `(startedAt, id)`
    * pair — the previous page's last row. */
   before?: { at: number; id: string };
@@ -1979,6 +2445,8 @@ async function runRows(
            OR project_id = ANY(${options.visibleProjectIds ?? []}::text[]))
       AND (${options.statuses === undefined}
            OR status = ANY(${options.statuses ?? []}::text[]))
+      AND (${options.mode ?? null}::text IS NULL
+           OR mode = ${options.mode ?? null})
       AND (${options.before === undefined}
            OR (started_at_ms, id)
               < (${options.before?.at ?? 0}::bigint, ${options.before?.id ?? ''}::text))
@@ -3644,10 +4112,42 @@ export async function releaseOwnedRunLeases(sql: Sql): Promise<number> {
 
 export async function deleteAutomationCascade(
   sql: Sql,
-  args: { organizationId: string; name: string; actor: string },
-): Promise<void> {
-  await sql.begin(async (tx) => {
+  args: {
+    organizationId: string;
+    name: string;
+    actor: string;
+    /** Compare-and-set on the history: the latest version the caller read.
+     * A version saved since refuses the delete with
+     * `AUTOMATION_VERSION_STALE` (409, `data.latestVersion`) and removes
+     * nothing. Absent, no check (the app's and the REST door's delete). */
+    expectedLatestVersion?: number;
+  },
+): Promise<{ versions: number }> {
+  return sql.begin(async (tx) => {
+    // The audit chain first, then the name, then the trigger row: the order
+    // every definition writer takes them in (`audit.ts`).
+    await lockAuditChain(tx, args.organizationId);
     await lockAutomationName(tx, args.organizationId, args.name);
+    if (args.expectedLatestVersion !== undefined) {
+      const heads = await tx<{ latest: number | null }[]>`
+        SELECT max(version)::int AS latest FROM app.automations
+        WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      `;
+      const latest = heads[0]?.latest ?? null;
+      if (latest !== args.expectedLatestVersion) {
+        throw new AutomationError(
+          'AUTOMATION_VERSION_STALE',
+          latest === null
+            ? `"${args.name}" has no version any more.`
+            : `v${latest} of "${args.name}" was saved after the version the delete expected (v${args.expectedLatestVersion}).`,
+          409,
+          {
+            latestVersion: latest,
+            expectedLatestVersion: args.expectedLatestVersion,
+          },
+        );
+      }
+    }
     // The active-run guard the core store documents (and this wired path had
     // dropped): deleting mid-run would remove the versions the stepper needs
     // to load, stranding the run non-terminal forever — the liveness sweep
@@ -3673,13 +4173,14 @@ export async function deleteAutomationCascade(
         409,
       );
     }
-    await tx`
+    const versions = await tx`
       DELETE FROM app.automations
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
     `;
-    await tx`
+    const deployment = await tx<{ version: number }[]>`
       DELETE FROM app.automation_deployments
       WHERE org_id = ${args.organizationId} AND name = ${args.name}
+      RETURNING version
     `;
     const triggers = await tx<{ id: string; lastSkipReason: string | null }[]>`
       DELETE FROM app.automation_triggers
@@ -3707,7 +4208,19 @@ export async function deleteAutomationCascade(
         deleted_by = EXCLUDED.deleted_by,
         deleted_at_ms = EXCLUDED.deleted_at_ms
     `;
+    const removed = versions.count;
+    await auditDefinitionWrite(tx, {
+      organizationId: args.organizationId,
+      actor: args.actor,
+      action: 'automation.deleted',
+      name: args.name,
+      previousState: {
+        versions: removed,
+        deployedVersion: deployment[0]?.version ?? null,
+      },
+    });
     await emitDefinitionHint(tx, args.organizationId, args.name);
+    return { versions: removed };
   });
 }
 

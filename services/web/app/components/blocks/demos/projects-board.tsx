@@ -22,7 +22,7 @@ const BEAT = {
   done: 5,
 } as const;
 
-const COLS = '1.6fr 1fr 0.9fr';
+const COLS = 'grid-cols-2 @lg/demo:grid-cols-[1.6fr_1fr_0.9fr]';
 
 /**
  * D7 — Projects list. Shared DemoToolbar chrome.
@@ -47,7 +47,7 @@ export function ProjectsBoard({
         label={scene.label}
         title={t('demos.projects.windowTitle')}
         activeNav="projects"
-        className="mx-auto aspect-[7/10] max-w-4xl @lg/demo:aspect-[16/10]"
+        className="mx-auto aspect-[7/10] min-h-144 max-w-4xl @lg/demo:aspect-[16/10] @lg/demo:min-h-120"
       >
         <div className="flex h-full flex-col gap-3 p-3 @2xl/demo:gap-4 @2xl/demo:p-4">
           <DemoToolbar
@@ -57,10 +57,14 @@ export function ProjectsBoard({
 
           <div className="border-border-base bg-surface-site-raised flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
             <div
-              className="text-fg-subtle border-border-base grid gap-2 border-b px-3 py-2 text-[10px] font-medium tracking-wide uppercase @2xl/demo:px-4"
-              style={{ gridTemplateColumns: COLS }}
+              className={cn(
+                'text-fg-subtle border-border-base grid gap-2 border-b px-3 py-2 text-[10px] font-medium tracking-wide uppercase @2xl/demo:px-4',
+                COLS,
+              )}
             >
-              <span>{t('demos.projects.colName')}</span>
+              <span className="col-span-2 @lg/demo:col-span-1">
+                {t('demos.projects.colName')}
+              </span>
               <span>{t('demos.projects.colAgents')}</span>
               <span className="text-right">
                 {t('demos.projects.colMembers')}
@@ -76,21 +80,21 @@ export function ProjectsBoard({
                     transition={{ duration: 0.3, ease: easeOut }}
                     className={cn(
                       'border-border-base/60 grid items-center gap-2 border-b px-3 py-2.5 last:border-b-0 @2xl/demo:px-4',
+                      COLS,
                       beat >= BEAT.done && index === 0
                         ? 'bg-surface-site-inset/50'
                         : '',
                     )}
-                    style={{ gridTemplateColumns: COLS }}
                   >
-                    <span className="text-fg-base flex min-w-0 items-center gap-2 text-xs font-medium @2xl/demo:text-[13px]">
+                    <span className="text-fg-base col-span-2 flex min-w-0 items-center gap-2 text-xs font-medium @lg/demo:col-span-1 @2xl/demo:text-[13px]">
                       <span className="bg-surface-site-inset text-fg-muted flex size-7 shrink-0 items-center justify-center rounded-md">
                         <Folder className="size-3.5" strokeWidth={1.75} />
                       </span>
-                      <span className="truncate">{row.name}</span>
+                      <span className="wrap-break-word">{row.name}</span>
                     </span>
                     <span className="text-fg-muted flex min-w-0 items-center gap-1.5 text-xs">
                       <Bot className="size-3.5 shrink-0" strokeWidth={1.75} />
-                      <span className="truncate">{row.agents}</span>
+                      <span>{row.agents}</span>
                     </span>
                     <span className="text-fg-muted flex items-center justify-end gap-1 text-xs">
                       <Users className="size-3.5" strokeWidth={1.75} />

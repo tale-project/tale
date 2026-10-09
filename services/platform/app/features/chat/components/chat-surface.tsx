@@ -73,6 +73,7 @@ import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
+import { budgetScopeOf } from '@/app/lib/backend/budget-refusal';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 import {
@@ -383,13 +384,34 @@ function ChatSurfaceInner({
   const { data: currentUser } = useCurrentUser();
   const draftKey = chatDraftKey(currentUser?.userId, organizationId, threadId);
 
+  // The thread being viewed, once the list has answered.
+  const activeThread =
+    threadId !== undefined && threads.status === 'ready'
+      ? threads.data.find((thread) => thread.id === threadId)
+      : undefined;
+  // What the header names: the list's row, or — for a chat the list does not
+  // hold (an archived one, or a teammate's shared into a project) — the
+  // thread's own read. The owner's row actions still key off `activeThread`.
+  const headerThread =
+    activeThread ??
+    (openThread.status === 'ready' && openThread.data !== null
+      ? openThread.data
+      : undefined);
+  // The project this chat spends in: the open thread's, or the one a new
+  // chat is being started in. Its cap binds the send too.
+  const spendProjectId =
+    threadId === undefined ? projectId : headerThread?.projectId;
+
   // Client-side budget gate. The server enforces the budget authoritatively
   // (a refused turn), but without this the composer leaves Send enabled and
   // the user only learns they are over budget after the message lands as a
   // failed turn (#2345). `exceeded` is what the gate would refuse right now
-  // over every cap that binds the member; loading returns undefined → the
-  // gate stays open, never a false block.
-  const { data: budgetStatus } = useMyBudgetStatus(organizationId);
+  // over every cap that binds the member, the chat's project's included;
+  // loading returns undefined → the gate stays open, never a false block.
+  const { data: budgetStatus } = useMyBudgetStatus(
+    organizationId,
+    spendProjectId,
+  );
   const budgetExceeded = budgetStatus?.exceeded === true;
 
   // The open thread answered null: deleted, foreign, or a revoked share.
@@ -532,20 +554,6 @@ function ChatSurfaceInner({
       ),
     ];
   }, [composerOptions, models]);
-
-  // The thread being viewed, once the list has answered.
-  const activeThread =
-    threadId !== undefined && threads.status === 'ready'
-      ? threads.data.find((thread) => thread.id === threadId)
-      : undefined;
-  // What the header names: the list's row, or — for a chat the list does not
-  // hold (an archived one, or a teammate's shared into a project) — the
-  // thread's own read. The owner's row actions still key off `activeThread`.
-  const headerThread =
-    activeThread ??
-    (openThread.status === 'ready' && openThread.data !== null
-      ? openThread.data
-      : undefined);
 
   // The header menu carries the SAME thread actions as the sidebar row (the
   // 0.3 doctrine: header and sidebar never drift) — shared handlers, plus
@@ -976,10 +984,16 @@ function ChatSurfaceInner({
         voiceCapabilities.transcriptionUnavailableReason,
       onTranscriptionUnavailable: handleTranscriptionUnavailable,
       ...(threadId !== undefined ? { threadId } : {}),
+      // A project's new chat: its uploads count toward the project before
+      // the first send creates the thread.
+      ...(threadId === undefined && projectId !== undefined
+        ? { projectId }
+        : {}),
     }),
     [
       organizationId,
       threadId,
+      projectId,
       voiceCapabilities.hasTranscription,
       voiceCapabilities.transcriptionUnavailableReason,
       handleTranscriptionUnavailable,
@@ -1025,6 +1039,9 @@ function ChatSurfaceInner({
   // path below.
   const videoLinks = useChatVideoLinks({
     threadId: viewThreadId,
+    ...(viewThreadId === undefined && projectId !== undefined
+      ? { projectId }
+      : {}),
     organizationId,
     locale,
   });
@@ -1114,8 +1131,17 @@ function ChatSurfaceInner({
   // denials each get their own localized title instead of a generic "Send
   // failed" wrapping the raw server sentence — by the refusal's code when
   // the server names one.
-  const refusalToast = (reason: string | undefined, code?: string) => {
-    const { titleKey, description } = turnRefusalToastContent(reason, t, code);
+  const refusalToast = (
+    reason: string | undefined,
+    code?: string,
+    budgetScope?: string,
+  ) => {
+    const { titleKey, description } = turnRefusalToastContent(
+      reason,
+      t,
+      code,
+      budgetScope,
+    );
     toast({
       title: t(titleKey),
       ...(description !== undefined ? { description } : {}),
@@ -1257,7 +1283,7 @@ function ChatSurfaceInner({
           if (failed.persisted !== true) {
             composerRef.current?.restoreText(text);
           }
-          refusalToast(failed.reason, failed.code);
+          refusalToast(failed.reason, failed.code, failed.budgetScope);
         });
       return;
     }
@@ -1336,7 +1362,7 @@ function ChatSurfaceInner({
             error instanceof BackendApiError &&
             isBudgetRefusalCode(error.code)
           ) {
-            refusalToast(error.message, error.code);
+            refusalToast(error.message, error.code, budgetScopeOf(error.data));
           } else {
             sendFailedToast(error);
           }
@@ -1426,7 +1452,7 @@ function ChatSurfaceInner({
             if (fork !== undefined && outcome.persisted !== true) {
               abandonBranch(fork);
             }
-            refusalToast(outcome.reason, outcome.code);
+            refusalToast(outcome.reason, outcome.code, outcome.budgetScope);
           },
           (error: unknown) => {
             console.error('[chat] the turn failed', error);
@@ -1533,7 +1559,7 @@ function ChatSurfaceInner({
     if (viewThreadId === undefined) return false;
     const forked = await branchActions.branchForEdit(viewThreadId, message.id);
     if (forked.status === 'refused') {
-      refusalToast(forked.reason, forked.code);
+      refusalToast(forked.reason, forked.code, forked.budgetScope);
       return false;
     }
     if (forked.status === 'failed') {
@@ -1600,7 +1626,7 @@ function ChatSurfaceInner({
         // The door measured the budget before forking: a reached cap is
         // named as a refused send is, and nothing was created or selected.
         if (forked.status === 'refused') {
-          refusalToast(forked.reason, forked.code);
+          refusalToast(forked.reason, forked.code, forked.budgetScope);
           return;
         }
         if (forked.status === 'failed') {
@@ -1638,7 +1664,7 @@ function ChatSurfaceInner({
           rememberSelection(parentId, forkSequence, restoreTo);
         }
         if (isBudgetRefusalCode(outcome.code)) {
-          refusalToast(outcome.reason, outcome.code);
+          refusalToast(outcome.reason, outcome.code, outcome.budgetScope);
           return;
         }
         const { titleKey, description } = regenerateFailureToastContent(
@@ -2135,7 +2161,12 @@ function ChatSurfaceInner({
               />
             ) : (
               <div className="shrink-0 px-4 pb-4">
-                <BudgetBanner organizationId={organizationId} />
+                <BudgetBanner
+                  organizationId={organizationId}
+                  {...(spendProjectId !== undefined
+                    ? { projectId: spendProjectId }
+                    : {})}
+                />
                 {/* The tasks this conversation handed over, live. */}
                 {threadId !== undefined && pair === null && (
                   <ChatTaskTray

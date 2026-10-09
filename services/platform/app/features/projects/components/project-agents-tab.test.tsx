@@ -135,6 +135,26 @@ describe('ProjectAgentsTab', () => {
     expect(screen.getByText('Drafts copy.')).toBeInTheDocument();
   });
 
+  it('shows how each agent is mentioned', () => {
+    state.agents = [
+      {
+        _id: 'agent-1',
+        name: 'My Opus Agent #3',
+        handle: 'my-opus-agent-3',
+        organizationId: 'org-1',
+        projectId: 'project-1',
+        harness: 'codex',
+        model: 'gpt-6.1',
+        skills: [],
+        connectors: [],
+        tools: [],
+        managed: false,
+      },
+    ];
+    renderTab();
+    expect(screen.getByText(/^@my-opus-agent-3 · /)).toBeInTheDocument();
+  });
+
   it('marks the standard agent and offers no edit for it, while it stays removable', () => {
     state.agents = [
       {

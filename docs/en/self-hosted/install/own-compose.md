@@ -167,6 +167,7 @@ Configure `BACKEND_UPSTREAM=backend-api:3005` on the proxy. For bundled file sto
 | Egress IPv6 | `sysctls` with `net.ipv6.conf.all.disable_ipv6: '1'` and `net.ipv6.conf.default.disable_ipv6: '1'`, as in the shipped stack. The egress firewall fails closed: it needs working IPv6 firewall support or IPv6 disabled for the default and every interface, and a container cannot write those sysctls itself through a read-only `/proc/sys`. Without them the proxy refuses to start on a kernel without the `ip6_tables` module; see [Sandbox infrastructure](/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Postgres shutdown | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` in the reference stack. |
 | Web, backend and spawner shutdown | Allow the stop grace: 45 seconds for the web tier, 30 for `backend-api`, 120 for `backend-worker` and 30 for the spawner. A stopping worker hands its automation runs on within it (`SHUTDOWN_DRAIN_MS`); coordinate other active work before stopping. |
+| Gateway shutdown | `stop_grace_period: 90s`. A stopping gateway takes no new model call, lets the calls in flight finish, streamed answers included, and saves its spend counters at the end only when that drain ends within 30 seconds of the stop. Docker's 10-second default cuts longer answers. |
 
 Keep `db-backup` if your database tooling writes to `/var/lib/postgresql/backup`; mounting it alone does not create a backup schedule. Older `convex-data` configuration volumes need a deliberate transfer into `config-data`, not deletion. Preserve the old copy until verified.
 
@@ -182,7 +183,7 @@ Keep `db-backup` if your database tooling writes to `/var/lib/postgresql/backup`
 | `db` | `pg_isready -U tale && [ -f /tmp/.db_ready ]` | Postgres and initialization are ready; adapt the user to your configuration. |
 | `object-store` | `mc ready local` | Bundled MinIO readiness. |
 | `sandbox` | `curl -fsS http://127.0.0.1:8003/health` | Spawner readiness after runtime-image preparation. |
-| `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/` | The proxy answers a non-proxy request itself (400 page), so this proves it serves without reaching a third-party website. Do not probe the port with a bare TCP connect: tinyproxy logs every connect-and-close at error level, one line per interval. |
+| `sandbox-egress` | `curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1` | The proxy answers a non-proxy request itself (400 page), so this proves it serves without reaching a third-party website. dnsmasq then answers a name from its own configuration, which proves the DNS forwarder for nested containers and builds answers, without an upstream lookup. Do not probe the port with a bare TCP connect: tinyproxy logs every connect-and-close at error level, one line per interval. |
 | `sandbox-llm-gateway` | `wget -q -O /dev/null http://127.0.0.1:8080/health` | Use the image's available client; it does not ship `curl`. |
 
 Give cold starts enough time: downloading the sandbox runtime can take longer than a warm-host probe budget. A successful readiness probe does not prove file access, model credentials, or an entire user task. Check those separately.

@@ -7,21 +7,9 @@ import {
   requireOrganizationMember,
 } from '../auth/membership.ts';
 import type { AuthEnv } from '../auth/session.ts';
-import {
-  describeDatabaseError,
-  isDatabaseUnavailable,
-  ROUTINE_RESTART_MS,
-} from '../db/unavailable.ts';
-import { reportError } from '../error-reporting.ts';
+import { ROUTINE_RESTART_MS } from '../db/unavailable.ts';
 import { hintStreamClosed, hintStreamOpened } from '../telemetry.ts';
-import { coalesceHints } from './hints.ts';
-import {
-  createOutboxReclaimer,
-  latestOutboxId,
-  outboxRetainsCursor,
-  readHintsAfter,
-  reclaimOutbox,
-} from './outbox.ts';
+import { createHintHub } from './hint-hub.ts';
 
 const POLL_INTERVAL_MS = 300;
 const HEARTBEAT_INTERVAL_MS = 15_000;
@@ -31,8 +19,9 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
  * member removed or disabled mid-stream (and a session revoked — idle
  * enforcement, a member removal that deletes the user's sessions) would keep
  * receiving the org's entity kinds and ids until the tab reconnected. The
- * cadence is coarse on purpose — two indexed reads per stream per interval —
- * and it runs on its own clock: the heartbeat's is silenced by any hint.
+ * cadence is coarse on purpose and the reads are batched across every
+ * stream of the process (two queries per 500 streams per interval); it runs
+ * on its own clock, independent of hints and heartbeats.
  */
 const AUTH_RECHECK_INTERVAL_MS = 15_000;
 const ERROR_BACKOFF_MS = 1_000;
@@ -61,77 +50,16 @@ export interface EventsHandlerOptions {
   errorBackoffMs?: number;
   unavailableBackoffMaxMs?: number;
   outageReportAfterMs?: number;
-}
-
-/**
- * A database outage as the streams of one handler see it, however many are
- * backing off: the first failed poll logs it, the first poll to succeed logs
- * its end, and an outage that outlasts `reportAfterMs` is reported once, at
- * warning level.
- */
-function createOutageWatch(reportAfterMs: number): {
-  failed: (error: unknown) => void;
-  recovered: () => void;
-} {
-  let since: number | null = null;
-  let reported = false;
-  return {
-    failed(error) {
-      const now = Date.now();
-      if (since === null) {
-        since = now;
-        reported = false;
-        console.warn(
-          `[backend] /events: database unavailable, streams backing off: ${describeDatabaseError(error)}`,
-        );
-        return;
-      }
-      const outageMs = now - since;
-      if (!reported && outageMs >= reportAfterMs) {
-        reported = true;
-        console.warn(
-          `[backend] /events: database still unavailable after ${Math.round(outageMs / 1000)}s`,
-        );
-        reportError(error, {
-          level: 'warning',
-          tags: { 'tale.lane': 'events-poll' },
-          extra: { outageMs },
-        });
-      }
-    },
-    recovered() {
-      if (since === null) return;
-      console.log(
-        `[backend] /events: database back after ${Math.round((Date.now() - since) / 1000)}s`,
-      );
-      since = null;
-      reported = false;
-    },
-  };
-}
-
-/**
- * Whether the (org, user, session) behind an open stream is still allowed to
- * read it. A definite refusal — no active membership, or the session row is
- * gone or expired — is `false`; a database fault throws, so the caller's
- * poll backoff handles it and a DB blip never ends a legitimate stream.
- */
-async function streamStillAuthorized(
-  sql: Sql,
-  args: { orgId: string; userId: string; sessionId: string },
-): Promise<boolean> {
-  try {
-    await requireOrganizationMember(sql, args.orgId, args.userId);
-  } catch (error) {
-    if (error instanceof MembershipError) return false;
-    throw error;
-  }
-  const rows = await sql<{ id: string }[]>`
-    SELECT "id" FROM "session"
-    WHERE "id" = ${args.sessionId} AND "expiresAt" > now()
-    LIMIT 1
-  `;
-  return rows.length > 0;
+  /** Newest outbox rows kept in memory for resume (tests shrink it). */
+  ringCapacity?: number;
+  /** Rows one tail read takes. */
+  tailPage?: number;
+  /** How long the shared loop keeps reading after its last stream left. */
+  lingerMs?: number;
+  /** Writes a stream may have queued before it is treated as gone. */
+  maxPendingWrites?: number;
+  /** How long the shared tail looks for an outbox id it read past. */
+  lateCommitGraceMs?: number;
 }
 
 /**
@@ -180,44 +108,49 @@ export function endAllEventStreams(): number {
  * membership of the requested organization — the org scope is validated
  * server-side, never trusted from the client.
  *
- * Each API pod polls the outbox independently and fans hints out to its own
- * connected clients; no cross-pod coordination, no sticky sessions. A client
- * resumes after a reconnect by replaying from `Last-Event-ID` (the outbox id
- * it last saw); without one it starts at the tail — TanStack Query's
- * refetch-on-reconnect covers the gap. A resume the outbox can no longer
- * serve in full (the cursor row was reclaimed past the retention horizon)
- * is answered with a `resync` event first: the client refetches its whole
- * org scope instead of trusting a cache with a hole in it.
+ * The streams of a process share ONE tail of the outbox (`hint-hub.ts`): it
+ * reads each new row once and fans it out in memory, so the database cost is
+ * per process, not per open tab. No cross-pod coordination and no sticky
+ * sessions: every pod tails the same table. A client resumes after a
+ * reconnect by replaying from `Last-Event-ID` (the outbox id it last saw),
+ * served from the hub's in-memory ring when it can be; without one it starts
+ * at the tail — TanStack Query's refetch-on-reconnect covers the gap. A
+ * resume the outbox can no longer serve in full (the cursor row was
+ * reclaimed past the retention horizon) is answered with a `resync` event
+ * first: the client refetches its whole org scope instead of trusting a
+ * cache with a hole in it.
  *
  * Membership and the session are re-proved on a coarse cadence while the
- * stream is open ({@link AUTH_RECHECK_INTERVAL_MS}); a stream whose reader
- * lost either is told `forbidden` and ended — the client closes on that
- * event, and a reconnect without it meets the 401/403 above.
+ * stream is open ({@link AUTH_RECHECK_INTERVAL_MS}), batched across every
+ * stream of the process; a stream whose reader lost either is told
+ * `forbidden` and ended — the client closes on that event, and a reconnect
+ * without it meets the 401/403 above.
  *
- * The same poll loops are the fast path that keeps the outbox from growing:
- * every poll ticks the process's one reclaimer, which sweeps delivered rows
- * older than the horizon at most once a minute. The `realtime.reclaim_outbox`
- * cron on the worker is the backstop for a deployment with no stream open
+ * The shared tail is also the fast path that keeps the outbox from growing:
+ * it ticks the process's one reclaimer, which sweeps delivered rows older
+ * than the horizon at most once a minute. The `realtime.reclaim_outbox` cron
+ * on the worker is the backstop for a deployment with no stream open
  * (headless REST/automation use, nights, weekends).
  */
 export function createEventsHandler(
   sql: Sql,
   options: EventsHandlerOptions = {},
 ) {
-  const pollIntervalMs = options.pollIntervalMs ?? POLL_INTERVAL_MS;
-  const heartbeatIntervalMs =
-    options.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS;
-  const authRecheckIntervalMs =
-    options.authRecheckIntervalMs ?? AUTH_RECHECK_INTERVAL_MS;
-  const errorBackoffMs = options.errorBackoffMs ?? ERROR_BACKOFF_MS;
-  const unavailableBackoffMaxMs =
-    options.unavailableBackoffMaxMs ?? UNAVAILABLE_BACKOFF_MAX_MS;
-  const reclaimer = createOutboxReclaimer({
-    reclaim: () => reclaimOutbox(sql),
+  const hub = createHintHub(sql, {
+    pollIntervalMs: options.pollIntervalMs ?? POLL_INTERVAL_MS,
+    heartbeatIntervalMs: options.heartbeatIntervalMs ?? HEARTBEAT_INTERVAL_MS,
+    authRecheckIntervalMs:
+      options.authRecheckIntervalMs ?? AUTH_RECHECK_INTERVAL_MS,
+    errorBackoffMs: options.errorBackoffMs ?? ERROR_BACKOFF_MS,
+    unavailableBackoffMaxMs:
+      options.unavailableBackoffMaxMs ?? UNAVAILABLE_BACKOFF_MAX_MS,
+    outageReportAfterMs: options.outageReportAfterMs ?? OUTAGE_REPORT_AFTER_MS,
+    ringCapacity: options.ringCapacity,
+    tailPage: options.tailPage,
+    lingerMs: options.lingerMs,
+    maxPendingWrites: options.maxPendingWrites,
+    lateCommitGraceMs: options.lateCommitGraceMs,
   });
-  const outage = createOutageWatch(
-    options.outageReportAfterMs ?? OUTAGE_REPORT_AFTER_MS,
-  );
   return async (c: Context<AuthEnv>): Promise<Response> => {
     const orgId = c.req.query('orgId');
     if (!orgId) {
@@ -243,108 +176,13 @@ export function createEventsHandler(
       }
       throw error;
     }
-    const resumeFrom = c.req.header('Last-Event-ID') ?? null;
+    const resumeCursor = c.req.header('Last-Event-ID') ?? null;
 
     return streamSSE(c, async (stream) => {
       hintStreamOpened();
       registerLiveStream(stream);
-      const resumeCursor =
-        resumeFrom !== null && /^\d+$/.test(resumeFrom) ? resumeFrom : null;
-      // The tail is read inside the poll loop, where a database outage backs
-      // off like any failed poll, not ahead of it, where one ended the
-      // stream before its first poll.
-      let cursor = resumeCursor;
-      // Checked once, AFTER the first read, so the verdict is exact: reclaim
-      // removes a strict id-prefix, so a cursor row still present after the
-      // read proves every row above it was there to be read.
-      let verifyResume = resumeCursor !== null;
-      let lastBeatAt = Date.now();
-      let lastAuthCheckAt = Date.now();
-      let unavailableBackoffMs = errorBackoffMs;
-
       try {
-        while (!stream.aborted) {
-          try {
-            cursor ??= await latestOutboxId(sql);
-            if (Date.now() - lastAuthCheckAt >= authRecheckIntervalMs) {
-              lastAuthCheckAt = Date.now();
-              if (
-                !(await streamStillAuthorized(sql, {
-                  orgId,
-                  userId,
-                  sessionId,
-                }))
-              ) {
-                // Terminal: the reader no longer belongs here. Returning
-                // closes the response; the client closes its source on this
-                // event instead of reconnecting into a 401/403.
-                await stream.writeSSE({ event: 'forbidden', data: '' });
-                break;
-              }
-            }
-            const rows = await readHintsAfter(sql, cursor, { orgId, userId });
-            if (verifyResume) {
-              if (!(await outboxRetainsCursor(sql, cursor))) {
-                await stream.writeSSE({ event: 'resync', data: '' });
-              }
-              // Only once answered: a check the database failed runs again
-              // after the next read instead of being skipped for good.
-              verifyResume = false;
-            }
-            if (rows.length > 0) {
-              const lastRow = rows[rows.length - 1];
-              if (lastRow !== undefined) {
-                cursor = lastRow.id;
-              }
-              for (const hint of coalesceHints(rows)) {
-                await stream.writeSSE({
-                  event: 'hint',
-                  id: hint.id,
-                  data: JSON.stringify({
-                    entity: hint.entity,
-                    entityId: hint.entityId,
-                  }),
-                });
-              }
-              lastBeatAt = Date.now();
-            } else if (Date.now() - lastBeatAt >= heartbeatIntervalMs) {
-              await stream.writeSSE({ event: 'heartbeat', data: '' });
-              lastBeatAt = Date.now();
-            }
-            unavailableBackoffMs = errorBackoffMs;
-            outage.recovered();
-          } catch (error) {
-            if (stream.aborted) {
-              break;
-            }
-            if (isDatabaseUnavailable(error)) {
-              // A restart, not a defect: the watch logs it and reports only
-              // an outage that outlasts its threshold. The lane stays open
-              // meanwhile — a proxy that sees no byte for a minute cuts it,
-              // and the reconnect would meet the same outage at the session
-              // gate — so the heartbeat keeps its schedule.
-              outage.failed(error);
-              if (Date.now() - lastBeatAt >= heartbeatIntervalMs) {
-                await stream.writeSSE({ event: 'heartbeat', data: '' });
-                lastBeatAt = Date.now();
-              }
-              await stream.sleep(unavailableBackoffMs);
-              unavailableBackoffMs = Math.min(
-                unavailableBackoffMs * 2,
-                unavailableBackoffMaxMs,
-              );
-              continue;
-            }
-            console.error('[backend] /events poll failed, backing off:', error);
-            reportError(error, { tags: { 'tale.lane': 'events-poll' } });
-            await stream.sleep(errorBackoffMs);
-            continue;
-          }
-          // Housekeeping rides the poll: throttled, non-overlapping, and
-          // never awaited by the stream — its failures are its own.
-          void reclaimer.tick();
-          await stream.sleep(pollIntervalMs);
-        }
+        await hub.attach(stream, { orgId, userId, sessionId, resumeCursor });
       } finally {
         unregisterLiveStream(stream);
         // Paired with the open above — an aborted stream decrements too, or

@@ -20,8 +20,9 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+const upsert = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../hooks/mutations', () => ({
-  useUpsertGovernancePolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpsertGovernancePolicy: () => ({ mutateAsync: upsert, isPending: false }),
 }));
 
 const STABLE_MEMBERS = { members: [] };
@@ -111,10 +112,21 @@ const STABLE_API_KEYS = {
     },
   ] as unknown[],
 };
+// The projects a project rule can cap, archived ones included: the table
+// still names the project a saved rule caps after it was archived.
+const STABLE_PROJECTS = {
+  data: [
+    { _id: 'project-1', name: 'Website relaunch' },
+    { _id: 'project-2', name: 'Annual report' },
+    { _id: 'project-old', name: 'Old campaign', archivedAt: 1 },
+  ] as unknown[],
+  isLoading: false,
+};
 const backendQueryRefs = vi.hoisted(() => [] as unknown[]);
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (ref: unknown) => {
     backendQueryRefs.push(ref);
+    if (ref === 'projects/queries:listProjects') return STABLE_PROJECTS;
     return ref === 'governance/api_keys:listOrgApiKeys'
       ? STABLE_API_KEYS
       : { data: undefined, isLoading: false };
@@ -137,7 +149,10 @@ const { state } = vi.hoisted(() => ({
     config: { enabled: true, rules: [] as unknown[] } as
       | Record<string, unknown>
       | undefined,
+    /** The project caps file; null while it was never written. */
+    projectConfig: null as Record<string, unknown> | null,
     result: undefined as unknown,
+    projectResult: undefined as unknown,
   },
 }));
 
@@ -146,23 +161,45 @@ function refreshPolicy() {
     data: state.isLoading ? undefined : { config: state.config },
     isLoading: state.isLoading,
   };
+  state.projectResult = {
+    data: state.isLoading
+      ? undefined
+      : state.projectConfig === null
+        ? null
+        : { config: state.projectConfig },
+    isLoading: state.isLoading,
+  };
 }
 refreshPolicy();
 
 vi.mock('../hooks/queries', () => ({
-  useGovernancePolicy: () => state.result,
+  useGovernancePolicy: (_organizationId: string, policyType: string) =>
+    policyType === 'project_budgets' ? state.projectResult : state.result,
 }));
 
 const { BudgetEditor } = await import('./budget-editor');
 
-function setLoaded(rules: unknown[] = []) {
+/** The budgets file holding `rules`, and the project caps file holding
+ *  `projectRules` (written, and empty, unless they are left out). */
+function setLoaded(rules: unknown[] = [], projectRules?: unknown[]) {
   state.isLoading = false;
   state.config = { enabled: true, rules };
+  state.projectConfig =
+    projectRules !== undefined ? { rules: projectRules } : null;
+  refreshPolicy();
+}
+/** A budgets file as an earlier release saved it: project caps in its own
+ *  `projectRules`, and no project caps file yet. */
+function setLegacy(rules: unknown[], projectRules: unknown[]) {
+  state.isLoading = false;
+  state.config = { enabled: true, rules, projectRules };
+  state.projectConfig = null;
   refreshPolicy();
 }
 function setLoading() {
   state.isLoading = true;
   state.config = undefined;
+  state.projectConfig = null;
   refreshPolicy();
 }
 
@@ -598,6 +635,233 @@ describe('BudgetEditor', () => {
       ).toBeInTheDocument();
       expect(
         screen.getByRole('button', { name: /confirm/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/no budget rules configured/i),
+      ).toBeInTheDocument();
+    });
+  });
+
+  describe('project rules [GOV-R14]', () => {
+    const PROJECT_RULE = {
+      scope: 'project',
+      scopeId: 'project-1',
+      period: 'monthly',
+      maxCostCents: 20_000,
+    };
+    const DEFAULT_RULE = {
+      scope: 'default',
+      period: 'monthly',
+      maxCostCents: 5_000,
+    };
+
+    it('names the project a rule caps, marks an archived one, and says when it is gone', () => {
+      setLoaded(
+        [],
+        [
+          PROJECT_RULE,
+          { ...PROJECT_RULE, scopeId: 'project-old' },
+          { ...PROJECT_RULE, scopeId: 'project-gone' },
+        ],
+      );
+      render(<BudgetEditor organizationId="org-1" />);
+      expect(screen.getAllByRole('cell', { name: 'Project' })).toHaveLength(3);
+      expect(
+        screen.getByRole('cell', { name: 'Website relaunch' }),
+      ).toBeInTheDocument();
+      const archived = screen.getByRole('cell', { name: /Old campaign/ });
+      expect(within(archived).getByText('Archived')).toBeInTheDocument();
+      // Never a bare id: a project that is gone says so.
+      expect(
+        screen.getByRole('cell', { name: 'Deleted project' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText('project-gone')).not.toBeInTheDocument();
+    });
+
+    it('says a rule’s project is gone in its dialog', async () => {
+      setLoaded([], [{ ...PROJECT_RULE, scopeId: 'project-gone' }]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      expect(
+        dialog.getByText(/This project no longer exists/),
+      ).toBeInTheDocument();
+    });
+
+    it('starts a switched scope without the previous scope’s target', async () => {
+      upsert.mockClear();
+      setLoaded([
+        { scope: 'role', scopeId: 'admin', period: 'monthly', maxCostCents: 5 },
+      ]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: 'Project' }));
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      // A role's id is no project: the rule needs a target before it saves.
+      expect(
+        await screen.findByText(/select a target for this scope/i),
+      ).toBeInTheDocument();
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it('keeps the table in the order a save reads back', async () => {
+      upsert.mockClear();
+      setLoaded([DEFAULT_RULE], [PROJECT_RULE]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: 'Organization' }));
+      await user.type(dialog.getByLabelText(/max cost/i), '9');
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      // The new organization rule sits with the other `rules`, ahead of the
+      // project's cap — where the saved file puts it.
+      const scopes = screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => within(row).getAllByRole('cell')[0]?.textContent);
+      expect(scopes).toEqual(['Default', 'Organization', 'Project']);
+    });
+
+    it('saves a project’s cap in its own file, and leaves the budgets file as it is', async () => {
+      upsert.mockClear();
+      setLoaded([DEFAULT_RULE], [PROJECT_RULE]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: 'Edit rule 2' }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.type(dialog.getByLabelText(/warning threshold/i), '80');
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      // An image that predates project caps still reads the budgets file,
+      // and saves it whole: the project's cap is never in it.
+      expect(upsert).toHaveBeenCalledTimes(1);
+      expect(upsert).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        policyType: 'project_budgets',
+        config: { rules: [{ ...PROJECT_RULE, warningThresholdPercent: 80 }] },
+      });
+    });
+
+    it('moves the project caps an earlier release saved into their own file before the budgets file drops them', async () => {
+      upsert.mockClear();
+      setLegacy([DEFAULT_RULE], [PROJECT_RULE]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('cell', { name: 'Website relaunch' }),
+      ).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Edit rule 1' }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.clear(dialog.getByLabelText(/max cost/i));
+      await user.type(dialog.getByLabelText(/max cost/i), '60');
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      expect(upsert.mock.calls).toEqual([
+        [
+          {
+            organizationId: 'org-1',
+            policyType: 'project_budgets',
+            config: { rules: [PROJECT_RULE] },
+          },
+        ],
+        [
+          {
+            organizationId: 'org-1',
+            policyType: 'budgets',
+            config: {
+              enabled: true,
+              rules: [{ ...DEFAULT_RULE, maxCostCents: 6_000 }],
+            },
+          },
+        ],
+      ]);
+    });
+
+    it('switches the rules off without touching the project caps an earlier release saved', async () => {
+      upsert.mockClear();
+      setLegacy([DEFAULT_RULE], [PROJECT_RULE]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('switch', { name: /budget rules/i }));
+
+      expect(upsert).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        policyType: 'budgets',
+        config: {
+          enabled: false,
+          rules: [DEFAULT_RULE],
+          projectRules: [PROJECT_RULE],
+        },
+      });
+    });
+
+    it('offers the active projects, and keeps the edited rule’s archived one', async () => {
+      setLoaded([], [{ ...PROJECT_RULE, scopeId: 'project-old' }]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      const dialog = await screen.findByRole('dialog');
+      const picker = within(dialog).getByRole('button', { name: /Project/ });
+      expect(picker).toHaveTextContent('Old campaign');
+
+      await user.click(picker);
+      const options = (await screen.findAllByRole('option')).map(
+        (option) => option.textContent,
+      );
+      expect(options).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining('Website relaunch'),
+          expect.stringContaining('Annual report'),
+          expect.stringContaining('Old campaign'),
+        ]),
+      );
+      expect(options).toHaveLength(3);
+    });
+
+    it('offers a warning threshold for a project’s cap, saying who sees the warning [GOV-R6]', async () => {
+      setLoaded([
+        {
+          scope: 'default',
+          period: 'monthly',
+          maxCostCents: 100,
+          warningThresholdPercent: 80,
+        },
+      ]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /edit rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      expect(dialog.getByLabelText(/warning threshold/i)).toHaveValue(80);
+      await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: 'Project' }));
+      // The threshold stays: a project's cap warns everyone chatting in it.
+      expect(dialog.getByLabelText(/warning threshold/i)).toHaveValue(80);
+      expect(
+        dialog.getByText(/everyone chatting in this project sees a warning/i),
+      ).toBeInTheDocument();
+    });
+
+    it('blocks saving a project rule that names no project', async () => {
+      setLoaded([]);
+      const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+      await user.click(screen.getByRole('button', { name: /add rule/i }));
+      const dialog = within(await screen.findByRole('dialog'));
+      await user.click(dialog.getByRole('combobox', { name: 'Scope' }));
+      await user.click(screen.getByRole('option', { name: 'Project' }));
+      await user.type(dialog.getByLabelText(/max cost/i), '50');
+      await user.click(dialog.getByRole('button', { name: /confirm/i }));
+
+      expect(
+        await screen.findByText(/select a target for this scope/i),
       ).toBeInTheDocument();
       expect(
         screen.getByText(/no budget rules configured/i),

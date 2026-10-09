@@ -70,6 +70,7 @@ usage:
   connector: Connector
   transcription: Transcription
   tts: Voice output
+  embedding: Knowledge indexing and search
   granularity:
     label: Granularity
     daily: Daily

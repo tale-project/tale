@@ -8,6 +8,16 @@
 export const RUNNERD_PORT = 8200;
 export const RUNNERD_TOKEN_HEADER = 'x-tale-runnerd-token';
 export const RUNNERD_TOKEN_CONTEXT = 'runnerd-v1:';
+/** Environment variable carrying the session's creation stamp (the value of
+ * the backend object's `tale.created` label) into the container. runnerd names
+ * it in /healthz and in its activity answers, so the spawner can tell the
+ * incarnation it registered from a replacement under the same name without
+ * asking the backend. A container launched without it names none. */
+export const RUNNERD_INCARNATION_ENV = 'TALE_RUNNERD_INCARNATION';
+/** Request header naming the incarnation an activity request is meant for.
+ * runnerd refuses the request with 409 `incarnation_mismatch` (naming its own)
+ * when it serves another, before anything changes. */
+export const RUNNERD_INCARNATION_HEADER = 'x-tale-runnerd-incarnation';
 
 export const RUNNERD_MAX_LIVE_EXECS = 4;
 /** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
@@ -53,7 +63,13 @@ export interface RunnerdHealth {
   dockerReady?: boolean;
   /** Sustained probe failure or observed terminal Docker state; permits fenced idle recovery. */
   dockerRecoveryRequired?: boolean;
+  /** The lazy inner engine: `used` once it has started in this container.
+   * Absent without Docker and on older runtime images. */
+  docker?: { engine: 'cold' | 'running' | 'stopped'; used: boolean };
   bootedAtMs: number;
+  /** The creation stamp the container was launched with (see
+   * RUNNERD_INCARNATION_ENV); absent when it was launched without one. */
+  incarnation?: string;
   lastActivityAtMs: number;
   liveExecs: number;
   /** Optional dependency diagnostics; do not affect daemon liveness. */
@@ -157,7 +173,8 @@ export type RunnerdExecEvent = (
         | 'BAD_REQUEST'
         | 'OUTPUT_LIMIT'
         | 'REPLAY_UNAVAILABLE'
-        | 'OUTPUT_GAP';
+        | 'OUTPUT_GAP'
+        | 'REPLAY_DISK_FULL';
       message: string;
     }
 ) & { seq?: number };
@@ -216,7 +233,8 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
           value.code === 'BAD_REQUEST' ||
           value.code === 'OUTPUT_LIMIT' ||
           value.code === 'REPLAY_UNAVAILABLE' ||
-          value.code === 'OUTPUT_GAP')
+          value.code === 'OUTPUT_GAP' ||
+          value.code === 'REPLAY_DISK_FULL')
       );
     default:
       return false;

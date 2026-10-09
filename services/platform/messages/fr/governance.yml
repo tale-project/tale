@@ -33,11 +33,13 @@ budgets:
   maxRequestsHelp: Total de requêtes IA par période. Laisse vide pour aucune limite.
   warningThreshold: Seuil d'alerte (%)
   warningThresholdHelp: Alerte lorsque l'utilisation dépasse ce pourcentage de la limite.
+  warningThresholdProjectHelp: Toutes les personnes qui discutent dans ce projet voient une alerte dès que l'utilisation du projet dépasse ce pourcentage de la limite.
   orgScopeTarget: Organisation entière
   allUsers: Tous les utilisateurs
   overrideHint: "Les portées plus spécifiques remplacent les plus larges :
     utilisateur > équipe > rôle > défaut. Les limites de l'organisation
-    s'appliquent toujours comme plafond supplémentaire."
+    s'appliquent toujours comme plafond supplémentaire, et celles d'un projet
+    au travail fait dans ce projet."
   noRulesTitle: Aucune règle de budget configurée
   noRulesDescription: Ajoute une règle pour commencer à appliquer les limites.
   editRuleAriaLabel: Modifier la règle {index}
@@ -60,6 +62,13 @@ budgets:
   searchTeams: Rechercher des équipes
   noTeamsFound: Aucune équipe trouvée
   selectTeamAriaLabel: Sélectionner une équipe
+  project: Projet
+  selectProject: Sélectionner un projet...
+  searchProjects: Rechercher des projets
+  noProjectsFound: Aucun projet trouvé
+  selectProjectAriaLabel: Sélectionner un projet
+  projectDeleted: Projet supprimé
+  projectDeletedHint: Ce projet n'existe plus, la règle ne limite donc rien. Choisis un projet ou supprime la règle.
   apiKey: Clé API
   selectApiKey: Sélectionner une clé API...
   searchApiKeys: Rechercher des clés API
@@ -80,6 +89,7 @@ budgets:
     default: Par défaut
     user: Utilisateur
     team: Équipe
+    project: Projet
     role: Rôle
     apiKey: Clé API
     org: Organisation
@@ -1527,6 +1537,7 @@ dataSubjectRequests:
     wfExecutionsErased: Exécutions d'automatisation effacées
     startedAt: Démarré
     completedAt: Terminé
+    legacyAutomationHold: Certaines exécutions d'automatisation ont été conservées car leurs actions externes antérieures n'ont pas encore été vérifiées. Réessayer ne lève pas ces blocages.
     errorMessage: Erreur
     errorState:
       title: Impossible de charger cette demande
@@ -1560,21 +1571,42 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejetée
     gdpr_erasure_cancelled: Annulée
   categories:
+    modelApiRequests: Requêtes aux modèles
     userMemories: Mémoires personnelles
     userPreferences: Préférences utilisateur
     messageFeedback: Retours sur messages
     fileMetadata: Fichiers déposés en chat
-    usageLedger: Journal de consommation de tokens
+    usageLedger: "Relevés d'utilisation"
     twoFactorAttempts: Tentatives 2FA
     policyAcknowledgements: Accusés de réception de politiques
     onedrive: Configurations de synchronisation OneDrive
     googleDriveSync: Configurations de synchronisation Google Drive
     userCloudAuthorizations: Autorisations d'importation cloud
     loginAttempts: Tentatives de connexion et verrouillages
-    notifications: Notifications de sécurité
+    notifications: Notifications
     wfExecutions: Exécutions d'automatisation
     promptTemplates: Prompts personnels
     sandboxWorkspaces: Espaces de travail de sandbox
+    threads: Chats
+    documents: Documents
+    uploads: Fichiers téléversés
+    preferences: Préférences
+    subscriptions: Tâches suivies
+    feedback: Retours sur messages
+    memories: Mémoires personnelles
+    mcpActivity: Activité des agents de code
+    directCalls: Appels directs aux modèles
+    videoLinks: Liens vidéo
+    cloudGrants: "Autorisations d'importation cloud"
+    syncConfigs: Configurations de synchronisation cloud
+    websiteScanNotes: Analyses de sites web demandées par la personne
+    orgNotifications: Notifications de sécurité la concernant
+    automationRuns: "Exécutions d'automatisation"
+    agentRuns: "Exécutions d'agents"
+    reviewDecisions: Décisions de relecture
+    mentions: Mentions dans le texte des tâches
+    authState: Tentatives de connexion et de double authentification
+    auditScrub: "Entrées du journal d'audit"
   legalHoldBlock:
     title: Effacement bloqué par une rétention légale
     orgHeld: Une rétention organisationnelle préserve toutes les entités de ce

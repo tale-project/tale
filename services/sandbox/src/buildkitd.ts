@@ -1,19 +1,28 @@
 // Persistent build cache shared only by sessions from one organization.
 // Each daemon and its registry mirrors have private volumes and an internal
-// organization network. Legacy global resources are neither adopted nor removed.
+// organization network. Legacy global resources are never adopted; their
+// retirement (buildkit-resources.ts retireLegacyBuildkitd) stops and, after
+// the cache retention, removes them.
 
 import { createHash } from 'node:crypto';
+import { statfs } from 'node:fs/promises';
 
 import type { BuildCacheUpkeep } from './backend/types.ts';
 import {
+  DEFAULT_CACHE_RETENTION_MS,
   ensureBuildkitNetwork,
   ensureBuildkitVolume,
+  forgetKnownEgress,
   inspectBuildkitContainer,
   inspectBuildkitHelper,
+  inspectBuildkitHelpers,
   readDockerMetadata,
   removeBuildkitNetwork,
   removeBuildkitVolume,
   retireLegacyBuildkitd,
+  type BuildkitHelperObservation,
+  type BuildkitHelperReading,
+  type BuildkitNetworkPlan,
 } from './buildkit-resources.ts';
 import {
   operationSignal,
@@ -90,7 +99,7 @@ export function parseDnsNameserver(tomlText: string): string | null {
 // which SERVFAILs Go's queries for EXTERNAL names on a user-defined network
 // ("server misbehaving") — and can't be fixed from inside the container
 // (resolv.conf / [dns] / GODEBUG all ignored for pulls). The robust fix is to
-// never resolve an upstream registry from buildkit at all: one `registry:2`
+// never resolve an upstream registry from buildkit at all: one registry
 // pull-through cache PER upstream registry, each referenced by its docker NAME
 // (a SIBLING name, which the embedded resolver answers locally without
 // forwarding → no SERVFAIL). buildkit pulls base images by name from the mirror;
@@ -133,13 +142,19 @@ export function buildkitdMirrorRef(
 ): string {
   return `${buildkitdMirrorContainerName(organizationId, registry)}:${MIRROR_PORT}`;
 }
-// registry:2 proxies ONE upstream per instance; Docker Hub's registry API host
+// A registry proxies ONE upstream per instance; Docker Hub's registry API host
 // differs from its canonical name.
 function mirrorUpstream(registry: string): string {
   return registry === 'docker.io'
     ? 'https://registry-1.docker.io'
     : `https://${registry}`;
 }
+
+/** How long a mirror keeps a pulled blob. Distribution v3 makes the proxy's
+ * expiry configurable (it was fixed at a week); two days keeps the base
+ * layers of an organization's active builds while letting what it stopped
+ * using go, and BuildKit's own cache keeps what its builds reuse. */
+const MIRROR_PROXY_TTL = '48h';
 
 /** Immutable mirror settings, also stamped so an existing helper adopts a
  * changed cleanup policy once its organization's builds finish. */
@@ -149,6 +164,7 @@ export function buildkitMirrorEnvironment(
 ): string[] {
   return [
     `REGISTRY_PROXY_REMOTEURL=${mirrorUpstream(registry)}`,
+    `REGISTRY_PROXY_TTL=${MIRROR_PROXY_TTL}`,
     // Distribution's proxy TTL scheduler calls the storage deletion path.
     // Its default is disabled: expiration otherwise fails before removing
     // any layer bytes, even though the scheduler forgets the expired entry.
@@ -201,8 +217,8 @@ export function buildkitdEndpoint(organizationId: string): string {
 // the same organization starting at once would otherwise both race past the
 // inspect gate and both `docker run --name`, the second erroring). Mirrors
 // ensureCacheVolume in volume.ts.
-const ensureInFlight = new Map<string, Promise<string>>();
-const mirrorInFlight = new Map<string, Promise<void>>();
+const ensureInFlight = new Map<string, Promise<BuildkitdReady>>();
+const mirrorInFlight = new Map<string, Promise<unknown>>();
 const organizationOperations = new Map<string, Promise<void>>();
 const createLeases = new Map<string, number>();
 const idleSince = new Map<string, number>();
@@ -316,9 +332,11 @@ function builderMemory(cfg: HelperBoundsConfig): string {
  * pressure the kernel killed sessions (OOM score 500) before the builder (0).
  * The builder is shared by every agent session of its organization and gets
  * {@link builderMemory} and an agent session's CPUs unless the operator sets
- * SANDBOX_BUILDKITD_CPUS; a mirror idles at about 10 MB. Logging is set in
- * full, as for a session (docker-session-args.ts): an option left unset falls
- * through to the host daemon's defaults, which can make the run fail. */
+ * SANDBOX_BUILDKITD_CPUS; a mirror idles at about 10 MB. Both take an agent
+ * session's CPU weight: a build is session work, and under contention it
+ * yields to the control plane like the session that started it. Logging is
+ * set in full, as for a session (docker-session-args.ts): an option left unset
+ * falls through to the host daemon's defaults, which can make the run fail. */
 export function buildkitHelperLimits(
   cfg: HelperBoundsConfig,
   role: 'builder' | 'mirror',
@@ -328,6 +346,7 @@ export function buildkitHelperLimits(
   const cpus = cfg.buildkitdCpus ?? agent.cpus;
   return [
     `--cpus=${role === 'builder' ? cpus : 1}`,
+    `--cpu-shares=${agent.cpuShares}`,
     `--memory=${memory}`,
     `--memory-swap=${memory}`,
     `--pids-limit=${role === 'builder' ? Math.max(agent.pidsLimit, 16384) : 256}`,
@@ -362,7 +381,7 @@ export function helperStamp(
 /** The bounds a busy helper takes in place. Never its memory: on cgroup v2 a
  * limit below what the helper uses OOM-kills its running builds there and
  * then, so memory waits for the recreate once the helper is idle. */
-const LIVE_LIMIT_FLAGS = ['--cpus=', '--pids-limit='];
+const LIVE_LIMIT_FLAGS = ['--cpus=', '--cpu-shares=', '--pids-limit='];
 // Running helpers whose bounds were updated in place, with the stamp they were
 // updated to: done once per stamp, not on every ensure.
 const limitsUpdated = new Map<string, string>();
@@ -410,6 +429,51 @@ async function currentImageId(reference: string): Promise<string | null> {
   if (id === '') return null;
   imageIds.set(reference, { id, atMs: Date.now() });
   return id;
+}
+
+/** How long a background image pull may take. */
+const IMAGE_PULL_TIMEOUT_MS = 15 * 60_000;
+/** Image pulls under way, by reference: one per image, however many
+ * launches asked for it. */
+const imagePulls = new Map<string, Promise<void>>();
+
+/** Pull an image a helper launch found missing, beside every create: a pull
+ * inside a create's few-second provisioning budget is cut short at each
+ * attempt, so the launch reports the helper unavailable instead and the pull
+ * runs to its own bound. Logged; never rejects. */
+function pullImageInBackground(reference: string): void {
+  if (imagePulls.has(reference)) return;
+  console.warn(
+    `[sandbox.buildkitd] ${reference} is not on this host; pulling it in the background`,
+  );
+  const pull = (async () => {
+    try {
+      const result = await outsideOperationBudget(() =>
+        runDocker(['pull', reference], { timeoutMs: IMAGE_PULL_TIMEOUT_MS }),
+      );
+      imageIds.delete(reference);
+      if (result.exitCode === 0) {
+        console.log(`[sandbox.buildkitd] pulled ${reference}`);
+      } else {
+        console.warn(
+          `[sandbox.buildkitd] could not pull ${reference} (the next launch tries again): ${result.stderr.trim()}`,
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[sandbox.buildkitd] could not pull ${reference} (the next launch tries again):`,
+        error,
+      );
+    } finally {
+      imagePulls.delete(reference);
+    }
+  })();
+  imagePulls.set(reference, pull);
+}
+
+/** Does a `docker run --pull never` failure say its image is missing? */
+function imageMissing(stderr: string): boolean {
+  return /no such image|unable to find image/i.test(stderr);
 }
 
 /** Was this running helper launched otherwise than it would be now: other
@@ -555,9 +619,11 @@ function organizationHelperNames(organizationId: string): string[] {
   ];
 }
 
-/** How long an organization's stopped helpers keep their caches, unless
- * SANDBOX_BUILDKITD_CACHE_RETENTION says otherwise. */
-const DEFAULT_CACHE_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+/** How long an organization's helpers keep running once no agent session
+ * that builds may use them, unless SANDBOX_BUILDKITD_IDLE_MS says otherwise.
+ * Shorter than the session idle window: a stopped builder starts again with
+ * its cache in seconds, while a running one holds its memory all along. */
+const DEFAULT_HELPER_IDLE_MS = 10 * 60_000;
 
 function finishedAtKey(org: string, containerId: string): string {
   return `${org}\t${containerId}`;
@@ -584,6 +650,7 @@ async function expireStoppedBuildCache(
     builderId,
     org,
     buildkitdNetworkName(org),
+    'shared',
   );
   if (
     builder !== null &&
@@ -607,6 +674,84 @@ async function expireStoppedBuildCache(
   );
 }
 
+/** Remove an idle organization's registry mirrors and their cache volumes.
+ * The builder's own cache, pruned to the idle budget before it stopped,
+ * still holds the base layers its builds used, so the mirrors' copies only
+ * cost disk while the organization does not build; its next build recreates
+ * them empty. Each mirror is inspected by its immutable id right before its
+ * removal and must be owned, private and stopped; its volume goes only after
+ * it, by exact name and ownership label, and Docker refuses to remove a
+ * volume any container still uses. A mirror that cannot go is logged and
+ * kept. Returns how many volumes went. */
+async function retireIdleMirrors(
+  org: string,
+  mirrorIds: ReadonlyArray<{ registry: string; id: string }>,
+): Promise<number> {
+  const network = buildkitdNetworkName(org);
+  let volumes = 0;
+  for (const { registry, id } of mirrorIds) {
+    // A create that took the organization's lease meanwhile waits behind
+    // its lock with only its provisioning budget: it goes first, and the
+    // next sweep removes what is left.
+    if (createLeases.has(org)) break;
+    try {
+      const mirror = await inspectBuildkitHelper(id, org, network, 'shared');
+      // Gone already, or running again: never the cache of a running mirror.
+      if (mirror === null || mirror.running) continue;
+      const removed = await runDocker(['rm', id], { timeoutMs: 35_000 });
+      if (
+        removed.exitCode !== 0 &&
+        !/no such container/i.test(removed.stderr)
+      ) {
+        throw new Error(
+          `buildkitd: cannot remove idle mirror ${id}: ${removed.stderr.trim()}`,
+        );
+      }
+      if (
+        await removeBuildkitVolume(
+          buildkitdMirrorVolumeName(org, registry),
+          org,
+        )
+      ) {
+        volumes++;
+      }
+    } catch (error) {
+      console.warn(
+        `[sandbox.buildkitd] keeping ${org}'s ${registry} mirror cache for now:`,
+        error,
+      );
+    }
+  }
+  return volumes;
+}
+
+/** An organization's mirror containers in the helper inventory. */
+function inventoriedMirrors(
+  org: string,
+  names: ReadonlyMap<string, string>,
+): Array<{ registry: string; id: string }> {
+  return MIRROR_REGISTRIES.flatMap((registry) => {
+    const id = names.get(buildkitdMirrorContainerName(org, registry));
+    return id === undefined ? [] : [{ registry, id }];
+  });
+}
+
+/** {@link retireIdleMirrors} once nothing wants the helpers, logged. */
+async function retireIdleMirrorsUnlessWanted(
+  org: string,
+  names: ReadonlyMap<string, string>,
+  wanted: () => Promise<boolean>,
+): Promise<void> {
+  const mirrors = inventoriedMirrors(org, names);
+  if (mirrors.length === 0 || (await wanted())) return;
+  const volumes = await retireIdleMirrors(org, mirrors);
+  if (volumes > 0) {
+    console.log(
+      `[sandbox.buildkitd] removed ${org}'s idle registry mirrors and ${volumes} mirror cache volumes; its next build fills them again`,
+    );
+  }
+}
+
 /** At most this many organizations' caches go in one sweep for want of
  * disk: each removal is measured before the next. */
 const PRESSURE_REMOVALS_PER_SWEEP = 3;
@@ -616,9 +761,9 @@ const PRESSURE_PAUSE_MS = 6 * 60 * 60 * 1000;
 /** Until when removals for want of disk are paused (epoch ms). */
 let pressurePausedUntilMs = 0;
 
-/** Release only compute after an org has had no live session for the normal
- * session idle grace. A fresh spawner observes a full grace before reclaiming
- * anything. Persistent volumes, private networks and container configuration
+/** Release only compute after an org has had no live session for the
+ * helpers' idle window (SANDBOX_BUILDKITD_IDLE_MS). A fresh spawner observes a
+ * full window before reclaiming anything. Persistent volumes, private networks and container configuration
  * survive; the next ensure recreates stopped helpers from their caches. While
  * the disk the workspaces live on is below its floor, the caches of
  * organizations whose helpers are all stopped go too, the longest-stopped
@@ -703,6 +848,13 @@ async function sweepIdleBuildkitdUnlocked(
     names.set(name, id);
     byOrg.set(org, names);
     stateById.set(id, state);
+    // A builder that may run again stops at a later time than remembered.
+    if (
+      name === buildkitdContainerName(org) &&
+      !STOPPED_HELPER_STATES.has(state)
+    ) {
+      builderFinishedAt.delete(finishedAtKey(org, id));
+    }
   }
   for (const key of builderFinishedAt.keys()) {
     const [org, id] = key.split('\t');
@@ -740,7 +892,8 @@ async function sweepIdleBuildkitdUnlocked(
         idleSince.set(org, nowMs);
         return 0;
       }
-      if (nowMs - since < cfg.session.maxIdleMs) return 0;
+      if (nowMs - since < (cfg.buildkitdIdleMs ?? DEFAULT_HELPER_IDLE_MS))
+        return 0;
 
       const runningIds: string[] = [];
       // Validate EVERY candidate before the first stop. Inspect and stop by
@@ -757,6 +910,7 @@ async function sweepIdleBuildkitdUnlocked(
             id,
             org,
             buildkitdNetworkName(org),
+            'shared',
           )) === 'running'
         )
           runningIds.push(id);
@@ -774,10 +928,14 @@ async function sweepIdleBuildkitdUnlocked(
       // retention, an organization that has not built since gives back the
       // disk its caches hold, and its next build starts cold.
       if (runningIds.length === 0 && builderId !== undefined) {
+        // Mirrors an earlier stop left behind go now; an organization
+        // without any costs nothing here.
+        await retireIdleMirrorsUnlessWanted(org, names, wanted);
         await expireStoppedBuildCache(cfg, org, builderId, nowMs, wanted);
         return 0;
       }
       let stoppedCount = 0;
+      forgetVerified(org);
       for (const id of runningIds) {
         if (await wanted()) return stoppedCount;
         if (id === builderId) {
@@ -793,6 +951,7 @@ async function sweepIdleBuildkitdUnlocked(
           throw new Error(`buildkitd: failed to stop idle helper ${id}`);
         stoppedCount++;
       }
+      await retireIdleMirrorsUnlessWanted(org, names, wanted);
       idleSince.delete(org);
       return stoppedCount;
     }).catch((error: unknown) => {
@@ -810,6 +969,7 @@ async function sweepIdleBuildkitdUnlocked(
   if (upkeep.sessionDisk !== undefined && nowMs >= pressurePausedUntilMs) {
     const relieved = await relieveDiskPressure(
       byOrg,
+      stateById,
       live,
       upkeep.sessionDisk,
       nowMs,
@@ -828,6 +988,7 @@ async function sweepIdleBuildkitdUnlocked(
  * went. */
 async function relieveDiskPressure(
   byOrg: ReadonlyMap<string, ReadonlyMap<string, string>>,
+  stateById: ReadonlyMap<string, string>,
   live: ReadonlySet<string>,
   sessionDisk: NonNullable<BuildCacheUpkeep['sessionDisk']>,
   nowMs: number,
@@ -844,6 +1005,11 @@ async function relieveDiskPressure(
     const builderId = names.get(buildkitdContainerName(org));
     if (builderId === undefined) continue;
     try {
+      // Judged from the inventory: a helper it lists as stopped is not
+      // inspected, nor a stopped builder whose stop time is remembered, so
+      // a disk that stays short for hours does not cost every stopped
+      // organization's helpers an inspect a minute. The owner and state are
+      // read again under the organization's lock right before a removal.
       const network = buildkitdNetworkName(org);
       let anyRunning = false;
       for (const name of organizationHelperNames(org)) {
@@ -851,22 +1017,39 @@ async function relieveDiskPressure(
         if (
           id !== undefined &&
           id !== builderId &&
-          (await inspectBuildkitContainer(id, org, network)) === 'running'
+          !STOPPED_HELPER_STATES.has(stateById.get(id) ?? '') &&
+          (await inspectBuildkitContainer(id, org, network, 'shared')) ===
+            'running'
         ) {
           anyRunning = true;
           break;
         }
       }
-      const builder = await inspectBuildkitHelper(builderId, org, network);
-      if (
-        anyRunning ||
-        builder === null ||
-        builder.running ||
-        builder.finishedAtMs === undefined
-      ) {
-        continue;
+      if (anyRunning) continue;
+      const key = finishedAtKey(org, builderId);
+      let finishedAtMs = STOPPED_HELPER_STATES.has(
+        stateById.get(builderId) ?? '',
+      )
+        ? builderFinishedAt.get(key)
+        : undefined;
+      if (finishedAtMs === undefined) {
+        const builder = await inspectBuildkitHelper(
+          builderId,
+          org,
+          network,
+          'shared',
+        );
+        if (
+          builder === null ||
+          builder.running ||
+          builder.finishedAtMs === undefined
+        ) {
+          continue;
+        }
+        finishedAtMs = builder.finishedAtMs;
+        builderFinishedAt.set(key, finishedAtMs);
       }
-      candidates.push({ org, builderId, finishedAtMs: builder.finishedAtMs });
+      candidates.push({ org, builderId, finishedAtMs });
     } catch (error) {
       console.warn(
         `[sandbox.buildkitd] cannot judge ${org}'s stopped helpers for the short session disk (next sweep retries):`,
@@ -890,6 +1073,7 @@ async function relieveDiskPressure(
         candidate.builderId,
         candidate.org,
         buildkitdNetworkName(candidate.org),
+        'shared',
       );
       if (builder === null || builder.running) return null;
       return removeOrganizationBuildkitUnlocked(candidate.org);
@@ -957,6 +1141,7 @@ export async function removeOrganizationBuildkit(
 async function removeOrganizationBuildkitUnlocked(
   organizationId: string,
 ): Promise<{ containers: number; volumes: number; networks: number }> {
+  forgetVerified(organizationId);
   const result = { containers: 0, volumes: 0, networks: 0 };
   const listed = await readDockerMetadata([
     'ps',
@@ -1013,10 +1198,18 @@ async function removeOrganizationBuildkitUnlocked(
   return result;
 }
 
+/** A helper found running as it would be launched now, and kept as is. */
+interface ReusedHelper {
+  name: string;
+  observation: BuildkitHelperObservation;
+  stamp: string;
+}
+
 /**
- * Lazy, idempotent launch of every built-in pull-through mirror (one `registry:2`
+ * Lazy, idempotent launch of every built-in pull-through mirror (one registry
  * per MIRROR_REGISTRIES entry). Returns the `registry=ref;...` mapping the
- * buildkitd entrypoint turns into `[registry."<x>"]` blocks. Best-effort per
+ * buildkitd entrypoint turns into `[registry."<x>"]` blocks, and the mirrors
+ * that were running as launched now and kept as they were. Best-effort per
  * mirror — a registry whose mirror fails to come up is dropped from the mapping
  * (its base images then aren't pullable, but the others still work).
  */
@@ -1026,12 +1219,23 @@ async function ensureBuildkitdMirrors(
   /** Is the organization's builder idle? A drifted mirror is recreated only
    * then: the pulls through it come from that builder's builds. */
   idle: () => Promise<boolean>,
-): Promise<string> {
-  const pairs = await Promise.all(
+  /** The mirrors as one inspect of every helper read them. */
+  readings: ReadonlyMap<string, BuildkitHelperReading>,
+): Promise<{ mapping: string; reused: ReusedHelper[] }> {
+  const outcomes = await Promise.all(
     MIRROR_REGISTRIES.map(async (registry) => {
       try {
-        await ensureOneMirror(cfg, organizationId, registry, idle);
-        return `${registry}=${buildkitdMirrorRef(organizationId, registry)}`;
+        const reused = await ensureOneMirror(
+          cfg,
+          organizationId,
+          registry,
+          idle,
+          readings.get(buildkitdMirrorContainerName(organizationId, registry)),
+        );
+        return {
+          pair: `${registry}=${buildkitdMirrorRef(organizationId, registry)}`,
+          reused,
+        };
       } catch (err) {
         console.warn(
           `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
@@ -1043,7 +1247,15 @@ async function ensureBuildkitdMirrors(
     }),
   );
   operationSignal()?.throwIfAborted();
-  return pairs.filter((pair) => pair !== null).join(';');
+  return {
+    mapping: outcomes
+      .filter((outcome) => outcome !== null)
+      .map((outcome) => outcome.pair)
+      .join(';'),
+    reused: outcomes.flatMap((outcome) =>
+      outcome?.reused ? [outcome.reused] : [],
+    ),
+  };
 }
 
 async function ensureOneMirror(
@@ -1051,21 +1263,56 @@ async function ensureOneMirror(
   organizationId: string,
   registry: string,
   idle: () => Promise<boolean>,
-): Promise<void> {
+  reading: BuildkitHelperReading | undefined,
+): Promise<ReusedHelper | null> {
   const name = buildkitdMirrorContainerName(organizationId, registry);
   const existing = mirrorInFlight.get(name);
-  if (existing) return waitWithinOperation(existing);
+  if (existing) return waitWithinOperation(existing).then(() => null);
   const work = ensureOneMirrorUnlocked(
     cfg,
     organizationId,
     registry,
     name,
     idle,
+    reading,
   ).finally(() => {
     mirrorInFlight.delete(name);
   });
   mirrorInFlight.set(name, work);
   return work;
+}
+
+/** Start a stopped helper again, by the immutable id its inspect showed.
+ * One whose stamp and image are current was launched exactly as it would be
+ * now, so a start spares the create and keeps its writable layer; its
+ * entrypoint installs the egress fence again as on any start. False when it
+ * did not start: the caller recreates it. */
+async function startStoppedHelper(
+  name: string,
+  helper: BuildkitHelperObservation,
+): Promise<boolean> {
+  if (!DOCKER_ID_RE.test(helper.id)) return false;
+  const started = await runDocker(['start', helper.id], { timeoutMs: 30_000 });
+  if (started.exitCode === 0) return true;
+  console.warn(
+    `[sandbox.buildkitd] could not start ${name} again; recreating it: ${started.stderr.trim() || 'no output'}`,
+  );
+  return false;
+}
+
+/** A helper's reading from the shared inspect, or its own inspect when
+ * there is none. A refused helper throws. */
+async function helperFromReading(
+  reading: BuildkitHelperReading | undefined,
+  name: string,
+  organizationId: string,
+  network: string,
+): Promise<BuildkitHelperObservation | null> {
+  if (reading === undefined) {
+    return inspectBuildkitHelper(name, organizationId, network);
+  }
+  if ('refused' in reading) throw reading.refused;
+  return reading.helper;
 }
 
 async function ensureOneMirrorUnlocked(
@@ -1074,11 +1321,13 @@ async function ensureOneMirrorUnlocked(
   registry: string,
   name: string,
   idle: () => Promise<boolean>,
-): Promise<void> {
+  reading: BuildkitHelperReading | undefined,
+): Promise<ReusedHelper | null> {
   const limits = buildkitHelperLimits(cfg, 'mirror');
   const environment = buildkitMirrorEnvironment(cfg, registry);
   const stamp = helperStamp(cfg.buildkitdMirrorImage, limits, environment);
-  const helper = await inspectBuildkitHelper(
+  const helper = await helperFromReading(
+    reading,
     name,
     organizationId,
     cfg.egressNetwork,
@@ -1086,7 +1335,7 @@ async function ensureOneMirrorUnlocked(
   if (helper !== null) {
     if (helper.running) {
       if (!(await helperDrifted(helper, stamp, cfg.buildkitdMirrorImage))) {
-        return;
+        return { name, observation: helper, stamp };
       }
       // A mirror launched otherwise than now keeps serving while a build
       // may pull through it, with the bounds that apply in place.
@@ -1094,8 +1343,13 @@ async function ensureOneMirrorUnlocked(
         if (helper.stamp !== stamp) {
           await updateHelperLimits(name, stamp, limits);
         }
-        return;
+        return null;
       }
+    } else if (
+      !(await helperDrifted(helper, stamp, cfg.buildkitdMirrorImage)) &&
+      (await startStoppedHelper(name, helper))
+    ) {
+      return null;
     }
     const rm = await runDocker(['rm', '-f', name]);
     if (rm.exitCode !== 0) {
@@ -1130,13 +1384,25 @@ async function ensureOneMirrorUnlocked(
       ...environment.flatMap((value) => ['--env', value]),
       '--mount',
       `type=volume,src=${volume},dst=/var/lib/registry`,
+      // Idle mirrors are removed, so on a host where every organization is
+      // idle nothing references this image, and an image prune can delete
+      // it. A pull inside a create's budget would be cut short at every
+      // attempt: a missing image is pulled in the background instead.
+      '--pull',
+      'never',
       cfg.buildkitdMirrorImage,
     ],
-    // A first-use image pull can take a while; bounded so a wedged daemon
-    // can't pin the session create (or boot) forever.
+    // Bounded so a wedged daemon can't pin the session create (or boot)
+    // forever.
     { timeoutMs: 120_000 },
   );
   if (run.exitCode !== 0) {
+    if (imageMissing(run.stderr)) {
+      pullImageInBackground(cfg.buildkitdMirrorImage);
+      throw new Error(
+        `buildkitd: ${cfg.buildkitdMirrorImage} is not on this host yet; the ${registry} mirror starts once it is pulled`,
+      );
+    }
     if (/already in use|already exists/i.test(run.stderr)) {
       if (
         (await inspectBuildkitContainer(
@@ -1145,27 +1411,54 @@ async function ensureOneMirrorUnlocked(
           cfg.egressNetwork,
         )) === 'running'
       )
-        return;
+        return null;
     }
     throw new Error(
       `buildkitd: failed to launch mirror ${name}: ${run.stderr.trim() || run.stdout.trim()}`,
     );
   }
+  return null;
+}
+
+/** An organization's builder, ready for a session: the endpoint its buildx
+ * builder targets, the plan its attachment to the build network is checked
+ * against, and the docker.io mirror a session's inner engine pulls through.
+ * The mirror is absent when it did not come up, so no session engine tries a
+ * name that does not resolve before every Docker Hub pull. */
+export interface BuildkitdReady {
+  endpoint: string;
+  plan: BuildkitNetworkPlan;
+  dockerHubMirror?: string;
+}
+
+/** The docker.io mirror a `registry=ref;…` mirror mapping names, if any. */
+function dockerHubMirrorIn(mapping: string): string | undefined {
+  for (const pair of mapping.split(';')) {
+    const [registry, ref] = pair.split('=');
+    if (registry === 'docker.io' && ref) return ref;
+  }
+  return undefined;
 }
 
 /**
- * Lazy, idempotent launch of the shared buildkitd; returns the endpoint a
- * session's remote buildx builder should target. An already-running daemon is
- * detected via `docker inspect` and reused (its persistent cache volume
- * survives spawner + daemon restarts). Throws on a hard launch failure — the
+ * Lazy, idempotent launch of the organization's buildkitd; returns the
+ * endpoint a session's remote buildx builder should target and the private
+ * network plan the session attaches by. An already-running daemon is detected
+ * via `docker inspect` and reused (its persistent cache volume survives
+ * spawner + daemon restarts). Helpers verified in full within the last
+ * {@link VERIFIED_TTL_MS} are confirmed with one inspect instead; `fresh`
+ * asks for the full check regardless. Throws on a hard launch failure — the
  * caller (docker-session-backend) treats the shared cache as an optimization
  * and proceeds without it on error, never failing session creation.
  */
-export async function ensureBuildkitd(
+export async function provisionBuildkitd(
   cfg: SpawnerConfig,
   organizationId: string,
-): Promise<string> {
+  options: { fresh?: boolean } = {},
+): Promise<BuildkitdReady> {
   const name = buildkitdContainerName(organizationId);
+  if (options.fresh === true)
+    verifiedHelpers.delete(verifiedKey(organizationId));
   const existing = ensureInFlight.get(name);
   if (existing) return waitWithinOperation(existing);
   const release = retainBuildkitd(organizationId);
@@ -1182,6 +1475,47 @@ export async function ensureBuildkitd(
   ensureInFlight.set(name, work);
   return waitWithinOperation(work);
 }
+
+/** {@link provisionBuildkitd}, for a caller that needs the endpoint alone. */
+export async function ensureBuildkitd(
+  cfg: SpawnerConfig,
+  organizationId: string,
+  options: { fresh?: boolean } = {},
+): Promise<string> {
+  return (await provisionBuildkitd(cfg, organizationId, options)).endpoint;
+}
+
+/** What one exec reads of a running builder's egress fence: whether its
+ * marker is there, the live config, and what the proxy host resolves to now.
+ * The host is the script's positional parameter, never part of its text. */
+const FENCE_PROBE = `
+if [ -f ${EGRESS_READY_MARKER} ]; then echo '#tale-fence marker 0'; else echo '#tale-fence marker 1'; fi
+echo '#tale-fence toml'
+cat ${BUILDKITD_LIVE_TOML} 2>/dev/null
+echo '#tale-fence resolved'
+if [ -n "$1" ]; then getent hosts "$1" 2>/dev/null; fi
+exit 0
+`;
+
+/** {@link FENCE_PROBE}'s output, or null when it is not the probe's. */
+export function parseFenceProbe(
+  stdout: string,
+): { marker: boolean; toml: string; resolved: string } | null {
+  const match =
+    /^#tale-fence marker ([01])\n#tale-fence toml\n([\s\S]*?)\n?#tale-fence resolved\n?([\s\S]*)$/.exec(
+      stdout.replace(/^\s+/, ''),
+    );
+  if (match === null) return null;
+  return {
+    marker: match[1] === '0',
+    toml: match[2] ?? '',
+    resolved: match[3] ?? '',
+  };
+}
+
+/** A running builder's egress fence: in place and current, missing or
+ * stale, or not conclusively read. */
+type FenceVerdict = 'healthy' | 'broken' | 'unknown';
 
 /**
  * Is a RUNNING buildkitd's egress fence actually installed AND still pointing at
@@ -1202,58 +1536,200 @@ export async function ensureBuildkitd(
  *     resolving 'archive.ubuntu.com'"). The marker is still present, so marker
  *     presence alone can't catch this — we compare the pinned IP to the live one.
  *
- * Either ⇒ recreate (the entrypoint reinstalls the fence against the CURRENT
- * egress IP; the persistent cache volume is preserved). Best-effort: any probe
- * we can't conclusively read is treated as healthy so a transient `docker exec`
- * hiccup never needlessly tears down a working daemon.
+ * Either ⇒ 'broken': recreate (the entrypoint reinstalls the fence against the
+ * CURRENT egress IP; the persistent cache volume is preserved). All three are
+ * read in one exec. A probe that cannot be read conclusively is 'unknown': the
+ * daemon is reused, so a transient `docker exec` hiccup never needlessly tears
+ * down a working daemon, but it is not remembered as verified.
  */
-async function buildkitdEgressHealthy(
+async function buildkitdEgressFence(
   cfg: SpawnerConfig,
   name: string,
-): Promise<boolean> {
-  // (1) Fence present at all?
-  const present = await runDocker(
-    ['exec', name, 'test', '-f', EGRESS_READY_MARKER],
+): Promise<FenceVerdict> {
+  // The live [dns] pin and the egress's CURRENT IP are both read from inside
+  // the daemon (its embedded resolver answers the sibling proxy name).
+  const host = egressProxyHostname(cfg.egressProxy);
+  const probe = await runDocker(
+    ['exec', name, '/bin/sh', '-c', FENCE_PROBE, 'sh', host ?? ''],
     { timeoutMs: 5_000 },
   );
-  if (present.exitCode === 1) return false; // definitively absent ⇒ broken
-  if (present.exitCode !== 0) return true; // exec glitch ⇒ assume healthy
-
-  // (2) Fence not stale? Compare the egress IP the live [dns] is pinned to with
-  // the egress's CURRENT IP, both read from inside the daemon (its embedded
-  // resolver answers the sibling `sandbox-egress` name).
-  const host = egressProxyHostname(cfg.egressProxy);
-  if (!host) return true; // no proxy host configured ⇒ nothing to compare
-  const toml = await runDocker(['exec', name, 'cat', BUILDKITD_LIVE_TOML], {
-    timeoutMs: 5_000,
-  });
-  const pinnedIp = parseDnsNameserver(toml.stdout);
-  if (!pinnedIp) return true; // no [dns] (skip-egress dev mode) ⇒ nothing to compare
-  const resolved = await runDocker(['exec', name, 'getent', 'hosts', host], {
-    timeoutMs: 5_000,
-  });
-  const currentIp = firstIpv4(resolved.stdout);
-  if (!currentIp || currentIp === pinnedIp) return true; // unresolvable now, or matches
+  if (probe.exitCode !== 0) return 'unknown'; // exec glitch ⇒ reuse, unproven
+  const fence = parseFenceProbe(probe.stdout);
+  if (fence === null) return 'unknown';
+  if (!fence.marker) return 'broken'; // definitively absent ⇒ broken
+  if (!host) return 'healthy'; // no proxy host configured ⇒ nothing to compare
+  const pinnedIp = parseDnsNameserver(fence.toml);
+  if (!pinnedIp) return 'healthy'; // no [dns] (skip-egress dev mode) ⇒ nothing to compare
+  const currentIp = firstIpv4(fence.resolved);
+  if (!currentIp) return 'unknown'; // unresolvable now ⇒ reuse, unproven
+  if (currentIp === pinnedIp) return 'healthy';
   console.warn(
     `[sandbox.buildkitd] ${name} egress fence is stale: [dns] pinned to ${pinnedIp} ` +
       `but ${host} now resolves to ${currentIp} (sandbox-egress was recreated). ` +
       `Recreating so build RUN steps regain DNS + egress.`,
   );
-  return false;
+  return 'broken';
+}
+
+/** How long an organization's helpers, once verified in full, are taken as
+ * they were on the strength of one `docker inspect`: the helpers and the
+ * egress proxy are the same containers, none restarted since, the proxy is
+ * still on the organization's network at the address the fence pins, and
+ * every stamp is the one a launch now would carry. A fence can only go stale
+ * through one of those changing. Past this, the full check runs again, and
+ * with it the image drift check. */
+const VERIFIED_TTL_MS = 60_000;
+
+interface VerifiedHelpers {
+  /** When the full check that verified them started. */
+  atMs: number;
+  /** The organization's private network and its plan. */
+  network: string;
+  plan: BuildkitNetworkPlan;
+  egress: { id: string; startedAt: string; ipAddress: string };
+  helpers: ReusedHelper[];
+  /** The docker.io mirror, up when they were verified. */
+  dockerHubMirror?: string;
+}
+
+/** Per Docker target and organization: its helpers' last full verification. */
+const verifiedHelpers = new Map<string, VerifiedHelpers>();
+
+function verifiedKey(organizationId: string): string {
+  return `${dockerTarget()}\t${organizationId}`;
+}
+
+/** Forget an organization's verified helpers: they are being stopped,
+ * removed or recreated, and the next ensure checks them in full. */
+function forgetVerified(organizationId: string): void {
+  verifiedHelpers.delete(verifiedKey(organizationId));
+}
+
+/** Forget every verified organization (tests). */
+export function forgetVerifiedBuildkitd(): void {
+  verifiedHelpers.clear();
+}
+
+/** Forget every verified organization and remembered egress proxy (tests). */
+export function resetBuildkitObservations(): void {
+  verifiedHelpers.clear();
+  forgetKnownEgress();
+}
+
+const VERIFY_FORMAT =
+  '{"id":{{json .Id}},"running":{{json .State.Running}},"startedAt":{{json .State.StartedAt}},"labels":{{json .Config.Labels}},"networks":{{json .NetworkSettings.Networks}},"ports":{{json .HostConfig.PortBindings}}}';
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? Object.fromEntries(Object.entries(value))
+    : null;
+}
+
+/** Are these helpers still as their full verification found them? One
+ * inspect of the egress proxy and every helper by immutable id answers it;
+ * any difference, a missing container or an unreadable answer is "no". */
+async function stillVerified(
+  organizationId: string,
+  verified: VerifiedHelpers,
+  nowMs: number,
+): Promise<boolean> {
+  if (nowMs < verified.atMs || nowMs - verified.atMs >= VERIFIED_TTL_MS) {
+    return false;
+  }
+  const result = await readDockerMetadata(
+    [
+      'inspect',
+      '--format',
+      VERIFY_FORMAT,
+      verified.egress.id,
+      ...verified.helpers.map((helper) => helper.observation.id),
+    ],
+    { priority: true, timeoutMs: 5_000 },
+  );
+  if (result.exitCode !== 0) return false;
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const line of result.stdout.split('\n').filter(Boolean)) {
+    let data: Record<string, unknown> | null;
+    try {
+      data = record(JSON.parse(line));
+    } catch (error) {
+      console.warn(
+        `[sandbox.buildkitd] unreadable helper inspect for ${organizationId}; checking its helpers in full:`,
+        error,
+      );
+      return false;
+    }
+    if (data !== null && typeof data.id === 'string') byId.set(data.id, data);
+  }
+  const onNetwork = (data: Record<string, unknown> | undefined) =>
+    record(record(data?.networks)?.[verified.network]);
+  const egress = byId.get(verified.egress.id);
+  const egressEndpoint = onNetwork(egress);
+  if (
+    egress?.running !== true ||
+    egress.startedAt !== verified.egress.startedAt ||
+    egressEndpoint?.NetworkID !== verified.plan.id ||
+    egressEndpoint.IPAddress !== verified.egress.ipAddress
+  ) {
+    return false;
+  }
+  for (const { observation, stamp } of verified.helpers) {
+    const helper = byId.get(observation.id);
+    const labels = record(helper?.labels);
+    const networks = record(helper?.networks);
+    const ports = record(helper?.ports);
+    if (
+      helper?.running !== true ||
+      helper.startedAt !== observation.startedAt ||
+      labels?.['tale.buildkitd'] !== '1' ||
+      labels['tale.org'] !== organizationId ||
+      labels[HELPER_STAMP_LABEL] !== stamp ||
+      networks === null ||
+      Object.keys(networks).join('\n') !== verified.network ||
+      onNetwork(helper)?.NetworkID !== verified.plan.id ||
+      (ports !== null && Object.keys(ports).length > 0)
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 async function ensureBuildkitdUnlocked(
   cfg: SpawnerConfig,
   organizationId: string,
   name: string,
-): Promise<string> {
-  await retireLegacyBuildkitd();
+): Promise<BuildkitdReady> {
+  const endpoint = buildkitdEndpoint(organizationId);
+  const key = verifiedKey(organizationId);
+  const verified = verifiedHelpers.get(key);
+  // Gone unless proven again: any failure below leaves it forgotten.
+  verifiedHelpers.delete(key);
+  const startedAtMs = Date.now();
+  if (
+    verified !== undefined &&
+    (await stillVerified(organizationId, verified, startedAtMs))
+  ) {
+    verifiedHelpers.set(key, verified);
+    return {
+      endpoint,
+      plan: verified.plan,
+      ...(verified.dockerHubMirror === undefined
+        ? {}
+        : { dockerHubMirror: verified.dockerHubMirror }),
+    };
+  }
+  // Stops drained legacy helpers only: their removal, a long one, belongs to
+  // the upkeep sweep, never to a create's provisioning budget.
+  await retireLegacyBuildkitd(cfg.buildkitdCacheRetentionMs, {
+    stopOnly: true,
+  });
   const privateNetwork = await ensureBuildkitNetwork(
     cfg,
     organizationId,
     buildkitdNetworkName(organizationId),
   );
-  return ensureBuildkitdOnNetwork(
+  const { reused: helpers, mapping } = await ensureBuildkitdOnNetwork(
     {
       ...cfg,
       egressNetwork: privateNetwork.network,
@@ -1262,57 +1738,275 @@ async function ensureBuildkitdUnlocked(
     organizationId,
     name,
   );
+  const dockerHubMirror = dockerHubMirrorIn(mapping);
+  const egressEndpoint = privateNetwork.egress.networks[privateNetwork.network];
+  if (
+    helpers !== null &&
+    helpers.length === organizationHelperNames(organizationId).length &&
+    helpers.every(({ observation }) => DOCKER_ID_RE.test(observation.id)) &&
+    egressEndpoint !== undefined &&
+    egressEndpoint.networkId === privateNetwork.plan.id &&
+    egressEndpoint.ipAddress !== ''
+  ) {
+    verifiedHelpers.set(key, {
+      atMs: startedAtMs,
+      network: privateNetwork.network,
+      plan: privateNetwork.plan,
+      egress: {
+        id: privateNetwork.egress.id,
+        startedAt: privateNetwork.egress.startedAt,
+        ipAddress: egressEndpoint.ipAddress,
+      },
+      helpers,
+      ...(dockerHubMirror === undefined ? {} : { dockerHubMirror }),
+    });
+  }
+  return {
+    endpoint,
+    plan: privateNetwork.plan,
+    ...(dockerHubMirror === undefined ? {} : { dockerHubMirror }),
+  };
 }
 
+const GIB = 1024 ** 3;
+/** The most build cache one organization's builder keeps: the cap its GC
+ * policy ships with (BuildKit reads `20GB` as binary gigabytes). */
+const MAX_CACHE_BYTES = 20 * GIB;
+/** The cache GC never prunes below for want of free disk, at most. */
+const MAX_RESERVED_BYTES = 2 * GIB;
+/** The least cache a builder is capped to, however small the disk. */
+const MIN_CACHE_BYTES = GIB;
+
+/** The cache bounds one organization's builder runs with: the operator's cap
+ * (SANDBOX_BUILDKITD_MAX_CACHE), else a tenth of the session disk's size, at
+ * least 1 GiB and at most the 20 GiB the policy ships with. A fixed 20 GiB per
+ * organization let ten building organizations claim 200 GiB of any disk. The
+ * floor that disk pressure never prunes below stays a tenth of the cap, at
+ * most 2 GiB. The disk-sized cap is whole GiB: some filesystems (ZFS among
+ * them) report a total that moves with the pool's use, and a cap that moved
+ * with it would change the builder's stamp, and recreate the builder, at
+ * every disk re-read. The operator's cap is whole MiB. */
+export function buildkitCacheBudget(
+  diskTotalBytes: number | null,
+  configuredBytes?: number,
+): { maxUsedBytes: number; reservedBytes: number } {
+  const sized =
+    configuredBytes ??
+    (diskTotalBytes === null || diskTotalBytes <= 0
+      ? MAX_CACHE_BYTES
+      : Math.min(
+          MAX_CACHE_BYTES,
+          Math.max(
+            MIN_CACHE_BYTES,
+            Math.floor(diskTotalBytes / 10 / GIB) * GIB,
+          ),
+        ));
+  const maxUsedBytes = Math.floor(sized / MIB) * MIB;
+  const reservedBytes =
+    Math.floor(Math.min(MAX_RESERVED_BYTES, maxUsedBytes / 10) / MIB) * MIB;
+  return { maxUsedBytes, reservedBytes };
+}
+
+/** How often the session disk's size is read again for the cache cap: a
+ * disk is resized rarely, and a changed cap reaches a builder only when it
+ * is recreated anyway. */
+const DISK_SIZE_TTL_MS = 10 * 60_000;
+let sessionDiskSize: { path: string; atMs: number; bytes: number } | undefined;
+let sessionDiskSizeWarned = '';
+
+/** The size of the disk the session root lives on, as the spawner's own
+ * admission reads it (`statfs` of the session root, blocks times block
+ * size). Null until it has been read once; afterwards the last size read
+ * stands in for a read that fails, so a builder's stamp does not flip with
+ * a passing error. */
+async function sessionDiskTotalBytes(path: string): Promise<number | null> {
+  const known = sessionDiskSize?.path === path ? sessionDiskSize : undefined;
+  const nowMs = Date.now();
+  if (known !== undefined && nowMs - known.atMs < DISK_SIZE_TTL_MS) {
+    return known.bytes;
+  }
+  try {
+    const disk = await statfs(path);
+    const bytes = disk.blocks * disk.bsize;
+    sessionDiskSize = { path, atMs: nowMs, bytes };
+    return bytes;
+  } catch (error) {
+    if (sessionDiskSizeWarned !== path) {
+      sessionDiskSizeWarned = path;
+      console.warn(
+        `[sandbox.buildkitd] cannot read the size of ${path}; build caches keep the ${MAX_CACHE_BYTES / GIB} GiB cap until it can be read:`,
+        error,
+      );
+    }
+    return known?.bytes ?? null;
+  }
+}
+
+/** What a builder launched now is configured with beyond its image and
+ * bounds, as its stamp records it: a builder launched with other settings
+ * adopts them when it is recreated. */
+export function builderConfiguration(
+  parallelism: number,
+  budget: { maxUsedBytes: number; reservedBytes: number },
+): string[] {
+  return [
+    `solver-parallelism=${parallelism}`,
+    `max-used-space=${budget.maxUsedBytes}`,
+    `reserved-space=${budget.reservedBytes}`,
+  ];
+}
+
+/** The solver parallelism a builder launched now runs with. */
+export function builderParallelism(
+  cfg: Pick<SpawnerConfig, 'buildkitdCpus' | 'session'>,
+): number {
+  return Math.max(
+    1,
+    Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus),
+  );
+}
+
+/** The label recording what a builder was launched with beyond its stamp:
+ * the registries its mirror mapping covers and the proxy it egresses by. Both
+ * come from its organization's network and mirrors as they are at its launch,
+ * so a stopped builder started again by id keeps them. */
+const BUILDER_LAUNCH_LABEL = 'tale.buildkitd-launch';
+
+/** The {@link BUILDER_LAUNCH_LABEL} of a builder launched with this mirror
+ * mapping (`registry=ref;…`) and egress proxy URL: `<proxy hash>;<registry>,…`.
+ * The proxy is hashed, since a proxy URL may carry credentials. */
+export function builderLaunchRecord(mirrors: string, proxy: string): string {
+  const registries = mirrors
+    .split(';')
+    .filter(Boolean)
+    .map((pair) => pair.split('=')[0])
+    .join(',');
+  const proxyHash = createHash('sha256')
+    .update(proxy)
+    .digest('hex')
+    .slice(0, 16);
+  return `${proxyHash};${registries}`;
+}
+
+/** Was this builder launched otherwise than it would be with the mirror
+ * mapping its mirrors give now: through another proxy, or without a registry
+ * a mirror serves now (one whose mirror failed to come up at its launch)? A
+ * registry it maps whose mirror is down now is no drift: BuildKit cannot pull
+ * from that registry without its mirror either way. A builder without the
+ * record predates it. */
+export function builderLaunchDrifted(
+  launch: string | undefined,
+  mirrors: string,
+  proxy: string,
+): boolean {
+  if (launch === undefined) return true;
+  const [haveProxy, haveRegistries = ''] = launch.split(';');
+  const [wantProxy, wantRegistries = ''] = builderLaunchRecord(
+    mirrors,
+    proxy,
+  ).split(';');
+  if (haveProxy !== wantProxy) return true;
+  const have = new Set(haveRegistries.split(','));
+  return wantRegistries
+    .split(',')
+    .filter(Boolean)
+    .some((registry) => !have.has(registry));
+}
+
+/** How a builder launched now is launched: its bounds, solver parallelism,
+ * cache bounds and the stamp they make. */
+async function builderLaunch(cfg: SpawnerConfig): Promise<{
+  limits: string[];
+  parallelism: number;
+  budget: { maxUsedBytes: number; reservedBytes: number };
+  stamp: string;
+}> {
+  const limits = buildkitHelperLimits(cfg, 'builder');
+  const parallelism = builderParallelism(cfg);
+  const budget = buildkitCacheBudget(
+    await sessionDiskTotalBytes(cfg.hostSessionRoot),
+    cfg.buildkitdMaxCacheBytes,
+  );
+  const stamp = helperStamp(
+    cfg.buildkitdImage,
+    limits,
+    builderConfiguration(parallelism, budget),
+  );
+  return { limits, parallelism, budget, stamp };
+}
+
+/** Bring the builder and its mirrors up on the organization's network.
+ * Returns the mirror mapping that is up, and every helper when all four were
+ * found running as launched now, the builder's fence verified, and kept as
+ * they were (`reused`, null otherwise). */
 async function ensureBuildkitdOnNetwork(
   cfg: SpawnerConfig,
   organizationId: string,
   name: string,
-): Promise<string> {
-  const endpoint = buildkitdEndpoint(organizationId);
-
+): Promise<{ reused: ReusedHelper[] | null; mapping: string }> {
   // Already running? Reuse it ONLY if its egress fence is still installed AND
   // still pinned to the current egress IP. A daemon that restarted (--restart
   // unless-stopped) with sandbox-egress unreachable, or that kept running while
   // a stack restart moved sandbox-egress to a new IP, silently serves builds
   // with no working DNS/egress (RUN steps fail to resolve any external host) —
-  // recreate it. See buildkitdEgressHealthy.
-  const limits = buildkitHelperLimits(cfg, 'builder');
-  const parallelism = Math.max(
-    1,
-    Math.floor(cfg.buildkitdCpus ?? cfg.session.agentProfile.cpus),
+  // recreate it. See buildkitdEgressFence.
+  const { limits, parallelism, budget, stamp } = await builderLaunch(cfg);
+  // The builder and its three mirrors in one inspect.
+  const readings = await inspectBuildkitHelpers(
+    organizationHelperNames(organizationId),
+    organizationId,
+    cfg.egressNetwork,
   );
-  const stamp = helperStamp(cfg.buildkitdImage, limits, [
-    `solver-parallelism=${parallelism}`,
-  ]);
-  const helper = await inspectBuildkitHelper(
+  const helper = await helperFromReading(
+    readings.get(name),
     name,
     organizationId,
     cfg.egressNetwork,
   );
+  // The mirror mapping the builder is launched with, once the mirrors are up.
+  let mirrors: string | undefined;
   if (helper !== null) {
     if (helper.running) {
-      if (await buildkitdEgressHealthy(cfg, name)) {
+      const fence = await buildkitdEgressFence(cfg, name);
+      if (fence !== 'broken') {
         // A builder launched by an earlier release or with other bounds runs
         // its old image (and with it the old cache policy): it is recreated
         // once no build is under way, and meanwhile gets the bounds that
         // apply in place.
         const idle = idleOnce(name);
-        const drifted = await helperDrifted(helper, stamp, cfg.buildkitdImage);
+        // A partial idle-stop/crash may have stopped mirrors while the
+        // builder stayed healthy. Reusing the builder must revive those
+        // caches too. They come first: a builder launched without a registry
+        // their mapping covers now, or through another proxy, is drifted.
+        const ensured = await ensureBuildkitdMirrors(
+          cfg,
+          organizationId,
+          idle,
+          readings,
+        );
+        const drifted =
+          builderLaunchDrifted(
+            helper.launch,
+            ensured.mapping,
+            cfg.egressProxy,
+          ) || (await helperDrifted(helper, stamp, cfg.buildkitdImage));
         if (!drifted || !(await idle())) {
           if (helper.stamp !== stamp) {
             await updateHelperLimits(name, stamp, limits);
           }
-          // A partial idle-stop/crash may have stopped mirrors while the
-          // builder stayed healthy. Reusing the builder must revive those
-          // caches too.
-          await ensureBuildkitdMirrors(cfg, organizationId, idle);
-          return endpoint;
+          return {
+            reused:
+              !drifted && fence === 'healthy'
+                ? [{ name, observation: helper, stamp }, ...ensured.reused]
+                : null,
+            mapping: ensured.mapping,
+          };
         }
+        mirrors = ensured.mapping;
         console.log(
           `[sandbox.buildkitd] recreating ${name}: it was launched with another ` +
-            `image or other bounds and no build is running. The persistent ` +
-            `cache volume is preserved.`,
+            `image, other bounds, another proxy or fewer registry mirrors, and ` +
+            `no build is running. The persistent cache volume is preserved.`,
         );
       } else {
         console.warn(
@@ -1320,6 +2014,25 @@ async function ensureBuildkitdOnNetwork(
             `stale; recreating so build RUN steps regain internet. The persistent ` +
             `cache volume is preserved.`,
         );
+      }
+    } else if (!(await helperDrifted(helper, stamp, cfg.buildkitdImage))) {
+      // Stopped for want of sessions and launched as it would be now: its
+      // mirrors first (it pulls base images through them), then itself,
+      // unless it was launched without a registry they serve now or through
+      // another proxy: a start keeps the mapping and proxy of its launch.
+      mirrors = (
+        await ensureBuildkitdMirrors(
+          cfg,
+          organizationId,
+          NOTHING_BUILDS,
+          readings,
+        )
+      ).mapping;
+      if (
+        !builderLaunchDrifted(helper.launch, mirrors, cfg.egressProxy) &&
+        (await startStoppedHelper(name, helper))
+      ) {
+        return { reused: null, mapping: mirrors };
       }
     }
     // Stopped/dead OR running-but-egress-broken: reap it so the `run --name`
@@ -1341,11 +2054,9 @@ async function ensureBuildkitdOnNetwork(
 
   // Bring up the pull-through mirrors first (buildkit pulls base images from them
   // by name, sidestepping its broken external-name DNS — see MIRROR_REGISTRIES).
-  const mirrors = await ensureBuildkitdMirrors(
-    cfg,
-    organizationId,
-    NOTHING_BUILDS,
-  );
+  mirrors ??= (
+    await ensureBuildkitdMirrors(cfg, organizationId, NOTHING_BUILDS, readings)
+  ).mapping;
 
   const run = await runDocker(
     [
@@ -1359,6 +2070,8 @@ async function ensureBuildkitdOnNetwork(
       `tale.org=${organizationId}`,
       '--label',
       `${HELPER_STAMP_LABEL}=${stamp}`,
+      '--label',
+      `${BUILDER_LAUNCH_LABEL}=${builderLaunchRecord(mirrors, cfg.egressProxy)}`,
       // Long-lived shared infra: survive a daemon crash + host docker restart.
       '--restart',
       'unless-stopped',
@@ -1382,6 +2095,11 @@ async function ensureBuildkitdOnNetwork(
       `TALE_BUILDKITD_MIRRORS=${mirrors}`,
       '--env',
       `TALE_BUILDKITD_MAX_PARALLELISM=${parallelism}`,
+      // The GC policy's cache cap and pressure floor, in bytes.
+      '--env',
+      `TALE_BUILDKITD_MAX_USED=${budget.maxUsedBytes}`,
+      '--env',
+      `TALE_BUILDKITD_RESERVED=${budget.reservedBytes}`,
       '--env',
       `HTTPS_PROXY=${cfg.egressProxy}`,
       '--env',
@@ -1403,11 +2121,11 @@ async function ensureBuildkitdOnNetwork(
           cfg.egressNetwork,
         )) === 'running'
       )
-        return endpoint;
+        return { reused: null, mapping: mirrors };
     }
     throw new Error(
       `buildkitd: failed to launch ${name}: ${run.stderr.trim() || run.stdout.trim()}`,
     );
   }
-  return endpoint;
+  return { reused: null, mapping: mirrors };
 }

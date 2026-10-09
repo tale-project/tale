@@ -33,6 +33,27 @@ export const EMITTED_EVENT_TYPES = [
 ] as const;
 export type EventType = (typeof EMITTED_EVENT_TYPES)[number];
 
+/**
+ * What each raised event means, in one agent-facing English sentence — the
+ * MCP endpoint's event listing answers it, so an agent binding an event
+ * trigger reads when it fires instead of guessing from the name. Exhaustive
+ * over `EventType`: a new event cannot be raised without saying when. The
+ * app's trigger editor keeps its own localized labels.
+ */
+export const EVENT_DESCRIPTIONS = {
+  'contact.created': 'A contact was added to the organization.',
+  'contact.updated': "A contact's details changed.",
+  'contact.deleted': 'A contact was deleted.',
+  'conversation.created': 'A conversation was created.',
+  'conversation.message_received': 'A message arrived in a conversation.',
+  'project.created': 'A project was created.',
+  'task.created':
+    'A task was created — in the app, through the API, or as the next one of a repeating task.',
+  'task.status_changed': "A task's status changed.",
+  'comment.created': 'A comment was posted on a task.',
+  'comment.mentioned': 'A comment on a task mentioned someone.',
+} as const satisfies { readonly [K in EventType]: string };
+
 /** Declared, not raised — see the module header. A producer that starts
  * raising one MOVES it into `EMITTED_EVENT_TYPES` (the guard test insists). */
 export const RESERVED_EVENT_TYPES = [
@@ -62,7 +83,11 @@ export interface EventMention {
 
 /** A task comment as its events carry it. */
 export interface EventComment {
+  /** The comment as stored: a mention is a mention token,
+   * `[@Ada Lovelace](mention:user/<id>)`. */
   body: string;
+  /** The same text with every mention read as `@` and the name. */
+  bodyText: string;
   projectId: string;
   taskId: string;
   mentions: EventMention[];
@@ -114,7 +139,8 @@ const EXAMPLE_USER = 'c41d7e88-2b3a-4f95-8e60-7d5a9b1c0f23';
 const EXAMPLE_CONTACT = '9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d';
 const EXAMPLE_CONVERSATION = '3f1e2d4c-6b5a-4978-8a1b-2c3d4e5f6a7b';
 const EXAMPLE_COMMENT: EventComment = {
-  body: 'Can you check the invoice total?',
+  body: `[@Ada Lovelace](mention:user/${EXAMPLE_USER}) can you check the invoice total?`,
+  bodyText: '@Ada Lovelace can you check the invoice total?',
   projectId: EXAMPLE_PROJECT,
   taskId: EXAMPLE_TASK,
   mentions: [{ type: 'user', id: EXAMPLE_USER }],

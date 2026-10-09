@@ -101,15 +101,15 @@ nodes:
       feedback: 'Scheduled occurrence {{ input.firedAt }}.'
 ```
 
-The step answers the run it started, and the task's timeline lists that run as **automation** with a link to the automation run. When it starts nothing, the step still succeeds and says why, so the occurrence is recorded rather than queued:
+The step answers the run it started, and the task's timeline lists that run as **automation** with a link to the automation run. An agent that is working other tasks is started all the same: its run works in a [worker](/platform/projects/project-agents#run-one-agent-on-several-tasks) of its own, and when every agent worker of your organization is busy it waits for one and starts on its own. When the step starts nothing, it still succeeds and says why, so the occurrence is recorded rather than queued:
 
 | Answer | Meaning |
 | --- | --- |
-| `started: true` | The agent's run started; `runId` names it. |
+| `started: true` | The agent's run started; `runId` names it. With `waitingReason`, the run waits for room before it works: `org_limit` when every agent worker of your organization is busy, `host` when the sandbox host is full, `destroy_pending` when the workspace it would use is being deleted, `exec_limit` when its sandbox is still ending an earlier process. It starts on its own once room frees. |
 | `already_running` | The task's previous run is still working and carries the work. Nothing new starts, and the occurrence does not wait behind it. |
 | `in_review` | With `moveToInProgress: false`, the card waits for its captured reviewer, a person or an agent. Nothing is assigned or started, and the review keeps that recipient. |
 | `closed` | With `moveToInProgress: false`, the card is **Done** or **Cancelled** (`taskStatus`). Nothing is assigned or started. |
-| `agent_busy` | The agent is working another task (`busyTaskId`). An agent works one task at a time in its workspace. |
+| `agent_busy` | No longer answered: an agent working another task is started in a worker of its own, or waits for one. Older runs of an automation may still show it. |
 | `blocked` | A task this one depends on is still open (`blockedBy`). |
 | `paused` | The task took three starts by automations and agents within the last hour, ordinary automatic retries included. One broker cooldown immediately after the same agent’s HTTP 429 adds no start; consecutive cooldowns still count. `retryAfter` says when the hourly count permits another start; other admission checks still apply. |
 
@@ -118,6 +118,10 @@ A run a schedule starts answers to no person. It works with the agent's configur
 `moveToInProgress` decides what happens to the card. By default the card moves to **In progress** and the result waits at **In review** for its [configured reviewer](/platform/projects/tasks#review-default), as after **Start agent**; a review still pending on the earlier work is withdrawn, never approved. With `false` the card stays where it is and the run asks for no review, which suits a standing task in **To do**. The run keeps that choice to its end: when it completes, its report and files arrive as usual, and the card is neither moved nor sent for review, even if someone moved it to **In progress** meanwhile. That start only runs under open work (**Backlog**, **To do** or **In progress**): a card waiting at **In review** answers `in_review` and a closed one `closed`, so the card never presents earlier work for judgment, or as finished, while new work runs under it.
 
 A retryable failure can be retried automatically while the task keeps its original status and assignee, with no later status, assignment, archive or review decision. Changing a value and then changing it back still ends that retry; comments do not. The attempt limits, schedule permissions and workspace checks still apply. A later scheduled occurrence can start fresh work when eligible.
+
+### Wake the schedule when an agent frees its slot
+
+A schedule that runs a project's standing role, such as a manager that hands out work, can also fire as soon as an agent of its project finishes and one of its standing workers is free, instead of waiting for its next cron minute. Turn this on with `wakeOnSlotFreed: true` in the schedule's managed configuration, applied with the Tale CLI; only one enabled schedule per project can have it — a second one is refused, and so is installing its automation in a project another schedule already wakes — and the app has no switch for it. Each wake is one ordinary occurrence with the usual input `{ trigger: "schedule", firedAt }`, so the answers above still apply. Agents that finish while a wake is pending add up to one wake. A wake waits while the manager's own card has a live run or an armed retry, the card would refuse the start or is no longer assigned to the agent, until `retryAfter` when the task took three starts within the hour, and, after an occurrence that did not serve, for one minute, doubling up to an hour, with no limit on attempts. Other tasks of the same agent do not hold the wake; the manager's new run takes its own worker or waits for capacity as usual. It counts as served only once the agent's run it started has launched and settled. While the schedule is paused after failures, switched off or no longer opted in, the wake waits and fires once the schedule is saved again.
 
 ### Import every issue on a schedule
 

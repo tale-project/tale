@@ -41,6 +41,7 @@ const NO_HOLDS = {
   keyTokens: 0,
   keyRequests: 0,
   teams: null,
+  projects: null,
 };
 
 describe('readInFlightReservations', () => {
@@ -85,7 +86,7 @@ describe('readInFlightReservations', () => {
     // keyed run's turn and a model-endpoint request alike — with the tokens
     // its hold sized and an image generation it has in flight.
     expect(read).toContain(
-      'SELECT user_id, api_key_id, (coalesce(budget_cents, 0) + image_hold_cents)::float8, coalesce(reserved_tokens, 0)::float8,',
+      "SELECT user_id, api_key_id, coalesce(project_ids, '{}'::text[]), (coalesce(budget_cents, 0) + image_hold_cents)::float8, coalesce(reserved_tokens, 0)::float8,",
     );
     // A team's holds are its current members' and its own keys'.
     expect(read).toContain('FROM "teamMember" tm');
@@ -119,6 +120,55 @@ describe('readInFlightReservations', () => {
       // The user bucket's three filters, and the key bucket's three.
       6,
     );
+  });
+
+  it('holds against each project what its threads’ turns and its stamped ops hold [GOV-R14]', async () => {
+    const { sql, statements } = scriptedSql([
+      {
+        ...NO_HOLDS,
+        projects: [
+          {
+            projectId: 'project-1',
+            costCents: 120,
+            tokens: 3_000,
+            requests: 2,
+          },
+          { projectId: 'project-2', costCents: 40, tokens: 0, requests: 1 },
+        ],
+      },
+    ]);
+    const reservations = await readInFlightReservations(sql, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      userTeamIds: [],
+      projectIds: ['project-1', 'project-2'],
+    });
+    expect(reservations.projects).toEqual({
+      'project-1': { costCents: 120, tokens: 3_000, requests: 2 },
+      'project-2': { costCents: 40, tokens: 0, requests: 1 },
+    });
+    const read = statements[0]?.text ?? '';
+    // A new chat hold follows its immutable stamp. Legacy NULL still has
+    // the previous thread lookup; an empty stamp never falls back.
+    expect(read).toContain('coalesce(g.project_ids,');
+    expect(read).toContain(
+      'LEFT JOIN app.thread_metadata tm ON tm.thread_id = g.thread_id',
+    );
+    expect(read).toContain("coalesce(project_ids, '{}'::text[])");
+    expect(read).toContain(
+      'CROSS JOIN LATERAL unnest(h.project_ids) AS p(project_id)',
+    );
+    expect(statements[0]?.values).toContainEqual(['project-1', 'project-2']);
+  });
+
+  it('answers no project hold for work outside a project', async () => {
+    const { sql } = scriptedSql([NO_HOLDS]);
+    const reservations = await readInFlightReservations(sql, {
+      organizationId: 'org-1',
+      userId: 'user-1',
+      userTeamIds: [],
+    });
+    expect(reservations).not.toHaveProperty('projects');
   });
 
   it('adds an image generation in flight to its turn’s hold, one request per image', async () => {
@@ -171,6 +221,7 @@ describe('readInFlightReservations', () => {
       {
         threadId: 'thread-1',
         op: { sessionId: 'session-1', execId: 'exec-1' },
+        tts: { chunkId: 'chunk-1', attemptCreatedAt: 123 },
       },
     );
     expect(statements[0]?.text).toContain('thread_id <> ?');
@@ -178,7 +229,13 @@ describe('readInFlightReservations', () => {
       'AND NOT (session_id = ? AND exec_id = ?)',
     );
     expect(statements[0]?.values).toEqual(
-      expect.arrayContaining(['thread-1', 'session-1', 'exec-1']),
+      expect.arrayContaining([
+        'thread-1',
+        'session-1',
+        'exec-1',
+        'chunk-1',
+        123,
+      ]),
     );
   });
 });

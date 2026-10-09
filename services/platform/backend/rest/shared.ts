@@ -16,6 +16,11 @@ import { mintCursorFor, verifyCursorFor } from '../core/lib/signed_cursor.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
+  budgetRetryAfterSeconds,
+  type ChatBudgetExceededError,
+} from '../domains/chat/budget-admission.ts';
+import { MentionDirectoryError } from '../domains/collab/mention-directory.ts';
+import {
   DocumentError,
   type DocumentRow,
 } from '../domains/documents/service.ts';
@@ -56,6 +61,7 @@ import {
   checkUserRateLimit,
   type RateLimitName,
 } from '../lib/rate-limit.ts';
+import { findUnstorableText } from '../lib/unstorable-text.ts';
 import { isRestErrorCode } from './error-codes.ts';
 
 /**
@@ -105,6 +111,18 @@ export function restApiKeyId(c: Context<RestEnv>): string | undefined {
   const apiKeyId = c.get('apiKeyId');
   return apiKeyId === '' ? undefined : apiKeyId;
 }
+
+/**
+ * What a caller of this door authenticated with. Today one kind: a personal
+ * API key, which acts with its holder's live role in the resolved
+ * organization and never with more.
+ */
+export type RestCredential = {
+  readonly kind: 'api-key';
+  /** The key row the bearer verified as (`restApiKeyId`); absent only when
+   * the verified session named none, which the real door never does. */
+  readonly apiKeyId?: string;
+};
 
 /**
  * The REST door's 429: the shared producer, with `error` a sentence rather
@@ -286,6 +304,20 @@ export function domainErrorResponse(
   if (limited !== null) {
     return restRateLimited(c, limited);
   }
+  // Who a comment or a task description mentions could not be read: nothing
+  // was written, and the same request can be sent again — a 503, never the
+  // 500 an unmapped error becomes.
+  if (error instanceof MentionDirectoryError) {
+    noteRestErrorCode(error.code);
+    return c.json(
+      {
+        error:
+          'Who the text mentions could not be looked up, so nothing was saved. Send it again.',
+        code: error.code,
+      },
+      503,
+    );
+  }
   if (isDomainError(error)) {
     // Every domain error carries a client-mappable status; NOT_FOUND-ish
     // codes read as 404 rather than leaking existence semantics. A domain
@@ -301,6 +333,32 @@ export function domainErrorResponse(
     );
   }
   throw error;
+}
+
+/** A reached budget cap: 429 with the cap that binds in `data` — whose
+ * bucket, which period and limit, the usage and the limit, and when the
+ * period resets (epoch ms) — and that wait as `Retry-After`. */
+export function restBudgetExceeded(
+  c: Context<RestEnv>,
+  error: ChatBudgetExceededError,
+): Response {
+  const refusal = error.data;
+  c.header('Retry-After', String(budgetRetryAfterSeconds(refusal.resetsAt)));
+  return c.json(
+    {
+      error: refusal.message,
+      code: refusal.code,
+      data: {
+        scope: refusal.scope,
+        period: refusal.period,
+        limitCode: refusal.limitCode,
+        used: refusal.used,
+        limit: refusal.limit,
+        resetsAt: refusal.resetsAt,
+      },
+    },
+    429,
+  );
 }
 
 /** The `{data}` a domain error carries, when it is a plain object. */
@@ -487,59 +545,6 @@ export async function readJsonBody(
 }
 
 /**
- * The dotted path of the first string — a value or an object key — in a
- * parsed JSON body for which `test` holds, or null when none does.
- * Iterative, so a deeply nested body cannot exhaust the stack.
- */
-function findStringPath(
-  value: unknown,
-  test: (text: string) => boolean,
-): string | null {
-  const stack: { value: unknown; path: string }[] = [{ value, path: '' }];
-  while (stack.length > 0) {
-    const item = stack.pop();
-    if (item === undefined) break;
-    const current = item.value;
-    if (typeof current === 'string') {
-      if (test(current)) return item.path;
-      continue;
-    }
-    if (Array.isArray(current)) {
-      for (let index = current.length - 1; index >= 0; index -= 1) {
-        stack.push({
-          value: current[index],
-          path: item.path === '' ? String(index) : `${item.path}.${index}`,
-        });
-      }
-      continue;
-    }
-    if (current !== null && typeof current === 'object') {
-      const entries = Object.entries(current);
-      for (let index = entries.length - 1; index >= 0; index -= 1) {
-        const entry = entries[index];
-        if (entry === undefined) continue;
-        const [key, child] = entry;
-        const path = item.path === '' ? key : `${item.path}.${key}`;
-        if (test(key)) return path;
-        stack.push({ value: child, path });
-      }
-    }
-  }
-  return null;
-}
-
-/**
- * The dotted path of the first string — a value or an object key — that
- * carries a U+0000, or null when none does. Postgres refuses a NUL in any
- * text or jsonb value (`22021`), so a body that carries one can never be
- * stored; letting it reach the driver turned a client mistake into a
- * text/plain 500.
- */
-export function findNulByte(value: unknown): string | null {
-  return findStringPath(value, (text) => text.includes('\0'));
-}
-
-/**
  * A parsed body that carries a value Postgres cannot store reads as
  * `INVALID_JSON`, with the offending path recorded for `invalidBodyResponse`
  * to name. Two cases, both refused the same field-named way: a NUL character
@@ -549,24 +554,10 @@ export function findNulByte(value: unknown): string | null {
  * no signal (2026-09-14 evaluation, g7-6). A NUL is named first.
  */
 function refuseUnstorableText(c: Context<RestEnv>, parsed: unknown): unknown {
-  const nul = findNulByte(parsed);
-  if (nul !== null) {
-    c.set('bodyIssue', {
-      path: nul,
-      message: 'must not contain a NUL character (U+0000)',
-    });
-    return INVALID_JSON;
-  }
-  const surrogate = findStringPath(parsed, (text) => !text.isWellFormed());
-  if (surrogate !== null) {
-    c.set('bodyIssue', {
-      path: surrogate,
-      message:
-        'must not contain an unpaired UTF-16 surrogate (U+D800–U+DFFF), which cannot be stored',
-    });
-    return INVALID_JSON;
-  }
-  return parsed;
+  const issue = findUnstorableText(parsed);
+  if (issue === null) return parsed;
+  c.set('bodyIssue', issue);
+  return INVALID_JSON;
 }
 
 /**
@@ -1238,6 +1229,7 @@ export function readPageLimit(
  * own key reaches that project alone. */
 export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
   const owner = c.get('apiKeyOwner');
+  const apiKeyId = restApiKeyId(c);
   return getProjectAuthContext(
     sql,
     {
@@ -1246,9 +1238,14 @@ export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
       role: c.get('role'),
     },
     undefined,
-    owner?.kind === 'project' && owner.projectId !== null
-      ? { projectScope: owner.projectId }
-      : {},
+    {
+      ...(owner?.kind === 'project' && owner.projectId !== null
+        ? { projectScope: owner.projectId }
+        : {}),
+      // What the caller starts — an agent's run from a start, a comment or
+      // a review — is the key's spend too.
+      ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+    },
   );
 }
 

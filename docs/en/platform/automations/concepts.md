@@ -68,7 +68,7 @@ Four types are built in, and every connector action and platform native — know
 
 **`transform`** runs pure JavaScript to reshape data. It has no network and no imports: the body reads the node's resolved `input` and must return a value.
 
-**`llm`** calls a language model with a templated prompt. `model` is required and always explicit — an automation never picks one on your behalf (the chat composer's Auto is a chat-only affordance). The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`.
+**`llm`** calls a language model with a templated prompt. `model` is required and always explicit — an automation never picks one on your behalf (the chat composer's Auto is a chat-only affordance). The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`. Each live call is usage of the run: it is checked against the [budget limits](/platform/admin/governance/policies-and-limits) before it is made, and a call a limit refuses fails the node with `budget_exceeded`, which halts the run unless its `onError` is `continue`. Before calling the provider, each attempt reserves the estimated prompt cost and the maximum reply allowance in every project admitted for that attempt. The model needs catalog pricing. Reported usage replaces the hold when the call finishes. If a timeout, lost connection or missing usage leaves the cost unknown, the hold remains until the request deadline and is then booked as the reserved estimate; this is an estimate, not a provider bill. Changing project bindings during the call does not move its spend.
 
 **`agent`** runs one turn of a coding agent (Claude Code, Codex, and the other agent runtimes) in the sandbox. It reads staged `files`, uses `skills`, brokered `connectors`, granted platform `tools`, and injected `secrets`, and returns `{text, files, status}`; `model` is required. When an admin has turned on [image generation](/platform/admin/governance/content-models#let-agents-generate-images), it can also create images, which come back among its `files`. Reach for `llm` when a one-shot completion is enough, and for `agent` only when the step needs tools, files, or several turns — a live agent node runs as an asynchronous turn, so it sits at the top level rather than inside a `subautomation` and does not iterate with `forEach`.
 
@@ -120,6 +120,12 @@ A condition that always gives the same answer decides nothing. Text around a tem
 ### Called automations {#checks-called-automations}
 
 A `subautomation` node is checked against the version a run would call: the version it names, otherwise the deployed one, otherwise the latest. That version must exist and contain no `agent` node. Tale warns when the input does not fit its `inputs`, and when it performs a write that an approval could hold, because a called automation cannot wait. A schedule trigger whose start input the automation's `inputs` refuses is reported as well.
+
+### What the organization has {#checks-organization}
+
+Tale also compares an `agent` node with your organization. It warns when the node asks for a skill that no run of the automation can use, a connector nobody has connected, a secret nobody has stored, or an agent runtime this deployment can't run. A node that runs a connector action nobody has connected gets the same warning, and so does an event trigger that waits for an event Tale doesn't raise. When the automation runs, a missing skill or agent runtime fails the node, a node without its connector can't reach that app, and a missing secret is simply not there.
+
+These stay warnings because your organization can change before the run: connect the connector or add the skill, and the next check no longer reports it. Only Owners, Admins and Developers are told about secrets, because only they can see which secrets exist.
 
 ### Tests {#checks-tests}
 

@@ -6,7 +6,7 @@ import { page, userEvent } from 'vitest/browser';
 import { i18n } from '@/lib/i18n/i18n';
 import { act, cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
-import { TaskComments, type TaskCommentData } from './task-comments';
+import type { TaskCommentData } from './task-comments';
 import { TaskConversation } from './task-conversation';
 
 import '@/app/globals.css';
@@ -37,6 +37,7 @@ const comments: TaskCommentData[] = Array.from(
 );
 
 vi.mock('../hooks/queries', () => ({
+  TASK_DISCUSSION_PAGE_SIZE: 50,
   useTaskDiscussion: () => {
     const [count, setCount] = useState(50);
     const [isLoadingEarlier, setLoadingEarlier] = useState(false);
@@ -102,10 +103,7 @@ vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
   },
 }));
 
-function renderHistory(
-  reverse = true,
-  surface: 'conversation' | 'comments' = 'conversation',
-) {
+function renderHistory(reverse = true) {
   const rendered = render(
     <div
       data-testid="task-history-scroll"
@@ -113,23 +111,13 @@ function renderHistory(
     >
       <div className="flex shrink-0 flex-col gap-8 p-6">
         <div className="h-48 shrink-0">Task brief</div>
-        {surface === 'conversation' ? (
-          <TaskConversation
-            taskId="task-1"
-            organizationId="org-1"
-            projectId="proj-1"
-            canComment
-            currentUserId="user-1"
-          />
-        ) : (
-          <TaskComments
-            taskId="task-1"
-            organizationId="org-1"
-            projectId="proj-1"
-            canComment={false}
-            currentUserId="user-1"
-          />
-        )}
+        <TaskConversation
+          taskId="task-1"
+          organizationId="org-1"
+          projectId="proj-1"
+          canComment
+          currentUserId="user-1"
+        />
       </div>
     </div>,
   );
@@ -170,12 +158,12 @@ afterEach(() => {
 });
 
 describe('TaskConversation long history (Chromium)', () => {
-  it.each(['conversation', 'comments'] as const)(
-    'keeps the earlier-history button focused through a pending %s page and blocks repeat activation',
-    async (surface) => {
+  it.each([false, true])(
+    'keeps the earlier-history button focused through a pending page and blocks repeat activation (reverse scrollport: %s)',
+    async (reverse) => {
       const pending = Promise.withResolvers<void>();
       reads.pendingPage = pending.promise;
-      renderHistory(false, surface);
+      renderHistory(reverse);
       const earlier = screen.getByRole('button', {
         name: 'Show earlier comments',
       });
@@ -242,8 +230,9 @@ describe('TaskConversation long history (Chromium)', () => {
   it('retains an edit draft and its keyboard path across offscreen scrolling and earlier pages', async () => {
     const { scroller } = renderHistory();
     const newest = commentRow(0);
+    // The comment's icon action, named by its label.
     const edit = Array.from(newest.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Edit',
+      (button) => button.getAttribute('aria-label') === 'Edit',
     );
     if (edit === undefined) throw new Error('Edit control is missing');
     edit.focus();
@@ -306,10 +295,10 @@ describe('TaskConversation long history (Chromium)', () => {
         .toBeCloseTo(before, 0);
       expect(reads.markdown).toHaveBeenCalledTimes(parses + 600);
       const band = oldest.closest('ol')?.parentElement;
-      expect(band?.firstElementChild?.textContent).toContain('September 23');
-      expect(
-        band?.previousElementSibling?.firstElementChild?.textContent,
-      ).toContain('September 22');
+      const divider = (day: Element | null | undefined) =>
+        day?.querySelector('[data-slot="thread-day-divider"]')?.textContent;
+      expect(divider(band)).toContain('September 23');
+      expect(divider(band?.previousElementSibling)).toContain('September 22');
     },
   );
 

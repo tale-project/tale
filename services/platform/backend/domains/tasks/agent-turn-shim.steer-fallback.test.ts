@@ -166,3 +166,68 @@ describe('the settled-run fallback of a steer', () => {
     warn.mockRestore();
   });
 });
+
+describe('a steer written with an API key [SBX-R14]', () => {
+  it('kicks the fallback run under the key', async () => {
+    vi.mocked(kickAgentRun).mockResolvedValueOnce({
+      runId: 'run-live',
+      execId: 'exec-live',
+      reused: true,
+    });
+    const { sql } = fakeSql('editor');
+    const kick =
+      agentTurnShimHandlers(sql)[
+        'tasks/mutations:kickMentionRunAfterSteerMiss'
+      ];
+    if (kick === undefined) throw new Error('no handler');
+
+    await kick({
+      organizationId: 'org-1',
+      taskId: 't-1',
+      authorId: 'u-editor',
+      apiKeyId: 'key-1',
+      feedback: '@agent use the signed copies only',
+      mentionSource: 'comment',
+    });
+
+    expect(kickAgentRun).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({ startedBy: 'u-editor', apiKeyId: 'key-1' }),
+    );
+  });
+
+  it('moves the restarted turn to the key the steer was written with, or none', async () => {
+    const calls: { text: string; values: unknown[] }[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      calls.push({ text: strings.join('?').replace(/\s+/g, ' '), values });
+      return Promise.resolve([{ id: 'run-1' }]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the rotation's one statement
+    const rotate = agentTurnShimHandlers(tag as unknown as Sql)[
+      'tasks/agent_runs:rotateTaskAgentRunExec'
+    ];
+    if (rotate === undefined) throw new Error('no handler');
+
+    await rotate({
+      runId: 'run-1',
+      fromExecId: 'exec-1',
+      startedBy: 'u-editor',
+      apiKeyId: 'key-1',
+    });
+    await rotate({
+      runId: 'run-1',
+      fromExecId: 'exec-1',
+      startedBy: 'u-editor',
+    });
+    // A steer queued before its author was carried changes neither.
+    await rotate({ runId: 'run-1', fromExecId: 'exec-1' });
+
+    expect(calls[0]?.text).toContain('api_key_id = CASE WHEN');
+    expect(calls[0]?.values).toEqual(
+      expect.arrayContaining(['u-editor', 'key-1']),
+    );
+    expect(calls[1]?.values).toEqual(expect.arrayContaining(['u-editor']));
+    expect(calls[1]?.values).not.toContain('key-1');
+    expect(calls[2]?.values).not.toContain('u-editor');
+  });
+});

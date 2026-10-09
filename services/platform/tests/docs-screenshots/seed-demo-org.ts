@@ -39,6 +39,7 @@ import {
   DEMO_EMBEDDING_MODEL,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
+  DEMO_LAUNCH_TASK_DETAIL,
   DEMO_LEGAL_HOLD_REASON,
   DEMO_LEGAL_MATTER,
   DEMO_MEMBERS,
@@ -355,8 +356,8 @@ async function ensureProjectDescription(
  * README lead with, so it must show named agents, never the empty state.
  * Each is created through the New agent dialog: a name, the agent type, a
  * model searched from the catalog the mock provider serves, and standing
- * instructions; equipment stays empty. Runs after the mock provider exists,
- * or the model picker has nothing to offer.
+ * instructions; the dialog keeps its default equipment. Runs after the mock
+ * provider exists, or the model picker has nothing to offer.
  */
 async function ensureProjectAgents(
   page: Page,
@@ -365,19 +366,16 @@ async function ensureProjectAgents(
   agents: readonly DemoProjectAgent[] = DEMO_PROJECT_AGENTS,
 ): Promise<void> {
   await page.goto(`/dashboard/${orgId}/projects/${projectId}/agents`);
-  // Settled is the empty state OR a row's action button — the section title
-  // paints before the list query answers.
-  const rowEdit = page.getByRole('button', {
-    name: t('projects.agents.rowEdit'),
+  // The action mounts only after the list query answers. Its empty-state
+  // copy varies when the organization already provides a standard agent.
+  const newAgent = page.getByRole('button', {
+    name: t('projects.agents.newAgent'),
+    exact: true,
   });
-  await expect(
-    page.getByText(t('projects.agents.emptyTitle')).or(rowEdit.first()).first(),
-  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(newAgent).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   for (const agent of agents) {
     if (await isPresent(page.getByText(agent.name, { exact: true }))) continue;
-    await page
-      .getByRole('button', { name: t('projects.agents.newAgent') })
-      .click();
+    await newAgent.click();
     const dialog = page.getByRole('dialog', {
       name: t('projects.agents.dialogCreateTitle'),
     });
@@ -989,16 +987,17 @@ async function orgSlugOf(page: Page, orgId: string): Promise<string> {
   return org.slug;
 }
 
-async function ensureMockProvider(page: Page, orgId: string): Promise<void> {
+async function ensureMockProvider(
+  page: Page,
+  orgId: string,
+  configRoot: string,
+): Promise<void> {
   // The config dir is keyed by org SLUG.
   const org = { slug: await orgSlugOf(page, orgId) };
 
-  // PINNED to the fixtures tree the runbook starts the hermetic stack with
-  // (capture.ts preflight). Deliberately NOT process.env.TALE_CONFIG_DIR:
-  // bun auto-loads `.env`, so the capture process inherits the DEV stack's
-  // config root (e.g. the local-config examples mirror) — writing a mock
-  // provider there would corrupt a tree this pipeline does not own.
-  const configRoot = path.join(PLATFORM_DIR, 'tests/e2e/fixtures/config');
+  // Only use the fixture root or the capture's explicit --config-dir. Never
+  // read process.env.TALE_CONFIG_DIR: bun auto-loads `.env`, which may point
+  // at a development tree this pipeline does not own.
   const target = path.join(configRoot, org.slug, 'providers', 'e2e-mock.yml');
   if (!existsSync(target)) {
     mkdirSync(path.dirname(target), { recursive: true });
@@ -1559,6 +1558,119 @@ async function ensureAutomationTestRun(
   }).toPass({ timeout: TIMEOUT.EXECUTION });
 }
 
+/** Enrich the task through its real dialog after the unassigned-task triage
+ * fixture has finished. Repeated seeds leave existing details and discussion
+ * intact; the fresh load below verifies that each new write persisted. */
+async function ensureLaunchTaskDetail(
+  page: Page,
+  orgId: string,
+  projectId: string,
+): Promise<void> {
+  const detail = DEMO_LAUNCH_TASK_DETAIL;
+  const open = async () => {
+    await page.goto(`/dashboard/${orgId}/projects/${projectId}/tasks/board`);
+    await page.getByText(detail.title, { exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: detail.title });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    return dialog;
+  };
+  let dialog = await open();
+
+  const addDescription = dialog.getByRole('button', {
+    name: t('tasks.detail.addDescription'),
+    exact: true,
+  });
+  if (await isPresent(addDescription)) {
+    await addDescription.click();
+    const description = dialog.getByRole('textbox', {
+      name: t('tasks.fields.description'),
+      exact: true,
+    });
+    await description.fill(detail.description);
+    await dialog
+      .getByRole('button', { name: t('common.actions.save'), exact: true })
+      .click();
+    await expect(description).toBeHidden({ timeout: TIMEOUT.PERSIST });
+  }
+
+  const priority = dialog.getByRole('button', {
+    name: labelStart(t('tasks.fields.priority')),
+  });
+  // A task made on the board starts at Medium, so set the demo's priority
+  // whenever the task carries another.
+  if (
+    !(await priority.getAttribute('aria-label'))?.endsWith(
+      t(`tasks.priority.${detail.priority}`),
+    )
+  ) {
+    await priority.click();
+    await page
+      .getByRole('option', {
+        // The option's priority glyph exposes the same label as its text.
+        name: labelStart(t(`tasks.priority.${detail.priority}`)),
+      })
+      .click();
+    await expect(priority).toHaveAccessibleName(
+      `${t('tasks.fields.priority')}: ${t(`tasks.priority.${detail.priority}`)}`,
+      { timeout: TIMEOUT.PERSIST },
+    );
+  }
+
+  if (
+    await isPresent(
+      dialog.getByText(t('tasks.assignee.unassigned'), { exact: true }),
+    )
+  ) {
+    await dialog
+      .getByRole('button', { name: t('tasks.actions.assign'), exact: true })
+      .click();
+    await page
+      .getByRole('option', { name: labelStart(detail.assignee) })
+      .click();
+    await expect(
+      dialog.getByText(detail.assignee, { exact: true }),
+    ).toBeVisible({
+      timeout: TIMEOUT.PERSIST,
+    });
+  }
+
+  const savedComment = (scope: Locator) =>
+    scope
+      .getByText(detail.comment, { exact: true })
+      .and(scope.getByRole('paragraph'));
+  const comment = savedComment(dialog);
+  const commentDraft = dialog.getByRole('textbox', {
+    name: t('tasks.actions.comment'),
+    exact: true,
+  });
+  if (!(await isPresent(comment))) {
+    await commentDraft.fill(detail.comment);
+    await dialog
+      .getByRole('button', { name: t('tasks.actions.comment'), exact: true })
+      .click();
+    await expect(comment).toBeVisible({ timeout: TIMEOUT.PERSIST });
+    await expect(commentDraft).toHaveValue('', { timeout: TIMEOUT.PERSIST });
+  } else if ((await commentDraft.inputValue()) === detail.comment) {
+    // An interrupted earlier seed may have persisted the comment but left
+    // its same draft in browser storage. Keep the captured composer empty.
+    await commentDraft.fill('');
+  }
+
+  dialog = await open();
+  await expect(dialog).toContainText(detail.description.split('\n')[0]);
+  await expect(savedComment(dialog)).toBeVisible();
+  await expect(
+    dialog.getByText(detail.assignee, { exact: true }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole('button', {
+      name: labelStart(t('tasks.fields.priority')),
+    }),
+  ).toHaveAccessibleName(
+    `${t('tasks.fields.priority')}: ${t(`tasks.priority.${detail.priority}`)}`,
+  );
+}
+
 export function webdavPasswordRow(page: Page, label: string): Locator {
   return page.getByRole('row').filter({
     has: page.getByText(label, { exact: true }),
@@ -1804,11 +1916,20 @@ async function step(label: string, run: () => Promise<void>): Promise<void> {
   console.log(`  · ${label} (${Math.round(performance.now() - started)}ms)`);
 }
 
+export interface SeedDemoOptions {
+  /** Explicit config root owned by the hermetic capture stack. */
+  readonly configDir?: string;
+}
+
 /** Seed (or top up) the demo org; returns the ids the shot manifest needs. */
 export async function seedDemoOrg(
   page: Page,
   orgId: string,
+  options: SeedDemoOptions = {},
 ): Promise<SeededIds> {
+  const configRoot = options.configDir
+    ? path.resolve(options.configDir)
+    : path.join(PLATFORM_DIR, 'tests/e2e/fixtures/config');
   console.log('Seeding the demo workspace…');
   // People first: teams, the legal hold and the erasure request all need
   // somebody to act on.
@@ -1817,7 +1938,9 @@ export async function seedDemoOrg(
   // The mock AI provider and the org's embedding model come BEFORE any upload:
   // knowledge indexing refuses every file until an embedding model exists, so
   // a later wiring would leave the seeded documents "Failed".
-  await step('mock AI provider', () => ensureMockProvider(page, orgId));
+  await step('mock AI provider', () =>
+    ensureMockProvider(page, orgId, configRoot),
+  );
   await step('embedding model', () => ensureEmbeddingModel(page, orgId));
 
   const projects = new Map<string, string>();
@@ -1848,6 +1971,11 @@ export async function seedDemoOrg(
   await step('products', () => ensureProducts(page, orgId));
   await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('automation test run', () => ensureAutomationTestRun(page, orgId));
+  if (relaunchId) {
+    await step('launch task brief + ownership + discussion', () =>
+      ensureLaunchTaskDetail(page, orgId, relaunchId),
+    );
+  }
 
   // The settings surfaces that otherwise screenshot as bare empty states.
   await step('API keys', () => ensureApiKeys(page, orgId));

@@ -133,13 +133,47 @@ describe('prerender SEO suite', () => {
             .get(page.url)
             ?.content.match(/^## (.+)$/m)?.[1];
           expect(heading).toBeTruthy();
-          expect(document.querySelector('article')?.textContent).toContain(
-            heading,
-          );
+          const isComparisonHub =
+            page.category === 'comparisons' && page.slug === 'index';
+          expect(
+            document.querySelector(isComparisonHub ? 'main' : 'article')
+              ?.textContent,
+          ).toContain(heading);
           const markdown = readFileSync(
             join(SEO_DIST, `${page.url.slice(1)}.md`),
             'utf8',
           );
+          if (isComparisonHub) {
+            const directory = document.querySelector(
+              'main section[aria-labelledby]',
+            );
+            const directoryHeading = directory?.querySelector('h2');
+            expect(directoryHeading?.textContent).toBeTruthy();
+            expect(directory?.getAttribute('aria-labelledby')).toBe(
+              directoryHeading?.id,
+            );
+            expect(markdown).toContain(directoryHeading?.textContent);
+            const guides = published.filter(
+              (guide) =>
+                guide.category === 'comparisons' &&
+                guide.slug !== 'index' &&
+                guide.locale === page.locale,
+            );
+            const links = [...(directory?.querySelectorAll('li a') ?? [])];
+            expect(
+              links
+                .map((link) => link.getAttribute('href'))
+                .sort((left, right) => (left ?? '').localeCompare(right ?? '')),
+            ).toEqual(guides.map((guide) => guide.url).sort());
+            for (const guide of guides) {
+              expect(
+                links.find((link) => link.getAttribute('href') === guide.url)
+                  ?.textContent,
+              ).toContain(guide.frontmatter.competitor);
+              expect(markdown).toContain(`(${TALE_SITE_URL}${guide.url})`);
+              expect(markdown).toContain(guide.frontmatter.competitor);
+            }
+          }
           // The HTML-to-Markdown converter normalizes French nonbreaking
           // spaces; compare semantic heading text while keeping HTML exact.
           expect(markdown.replace(/\s+/g, ' ')).toContain(
@@ -515,9 +549,9 @@ describe('prerender SEO suite', () => {
     const PRERENDERED_BODIES = prerenderedBodyCount(
       RELEASES.slice(0, RELEASE_DISPLAY_LIMIT),
     );
-    // The prose wrapper ReleaseBody renders — one per rendered body.
-    const BODY_MARKER = /max-w-none text-\[15px\]/g;
-
+    const MARKDOWN_BODY_COUNT = RELEASES.slice(0, PRERENDERED_BODIES).filter(
+      ({ body }) => Boolean(body),
+    ).length;
     for (const url of ['/changelog', '/de/changelog', '/fr/changelog']) {
       it(`${url} lists every release but prerenders a bounded set of bodies`, () => {
         const html = readHtml(url);
@@ -527,9 +561,11 @@ describe('prerender SEO suite', () => {
         expect((found.match(/<article/g) ?? []).length).toBe(
           RELEASE_DISPLAY_LIMIT,
         );
-        expect((found.match(BODY_MARKER) ?? []).length).toBe(
-          PRERENDERED_BODIES,
-        );
+        // Count rendered release bodies independently of typography classes.
+        const document = new JSDOM(found).window.document;
+        expect(
+          document.querySelectorAll('article [data-release-body]'),
+        ).toHaveLength(MARKDOWN_BODY_COUNT);
         // The budget is a bound, never a reason to prerender nothing.
         expect(PRERENDERED_BODIES).toBeGreaterThanOrEqual(1);
       });

@@ -5,6 +5,7 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Row } from '@tale/ui/layout';
+import { formatMentionToken } from '@tale/ui/mentions/mention-token';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
@@ -376,8 +377,8 @@ function TaskSubjectPanelBody({
 
   /**
    * Request changes is ONE gesture, and that gesture is an `@`-mention: the
-   * feedback posts as a task comment addressed to the owning automation
-   * (`@<slug> …`), and the comment's mention trigger starts the rerun — the
+   * feedback posts as a task comment that mentions the owning automation
+   * first, and the comment's mention trigger starts the rerun — the
    * same lane a hand-typed `@` in the composer uses, so the timeline itself
    * teaches the pattern. Plain comments stay inert; only the mention runs.
    * The rerun starts after the comment lands (same transaction), so the
@@ -391,7 +392,11 @@ function TaskSubjectPanelBody({
     try {
       const result = await addComment.mutateAsync({
         taskId: task._id,
-        body: `@${automationSlug} ${body}`,
+        body: `${formatMentionToken({
+          kind: 'automation',
+          id: automationSlug,
+          label: displayName,
+        })} ${body}`,
       });
       // The comment landed either way, so the box always closes and empties:
       // leaving the text in a still-open dialog invites a second Send back,

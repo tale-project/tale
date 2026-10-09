@@ -2,7 +2,14 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+// The binding writers' audit rows are their own concern (`audit.ts`); this
+// double answers no audit-chain query.
+vi.mock('../domains/automations/audit.ts', () => ({
+  auditDefinitionWrite: vi.fn(async () => undefined),
+  listDeployments: vi.fn(async () => []),
+}));
 
 import type { RestEnv } from './shared.ts';
 import { createAutomationRestRoutes } from './v1-automations.ts';

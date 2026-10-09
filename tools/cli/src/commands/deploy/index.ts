@@ -15,6 +15,7 @@ import {
   runManagedDeployment,
 } from './managed';
 import { createProvisionCommand } from './provision';
+import { createSmokeCommand } from './smoke';
 
 export function createDeployCommand(): Command {
   return new Command('deploy')
@@ -74,6 +75,7 @@ export function createDeployCommand(): Command {
     .addCommand(createVerifyBundleCommand())
     .addCommand(createAcceptCommand())
     .addCommand(createProvisionCommand())
+    .addCommand(createSmokeCommand())
     .addCommand(createExportClientCommand())
     .addCommand(createNativeExportClientCommand(), { hidden: true })
     .action(
