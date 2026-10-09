@@ -68,6 +68,9 @@ custody/ownership, exact local target binding and scoped temporary-tool cleanup.
 Authored failure phases survive the private and nested-native command boundaries
 without carrying exception payloads; unknown nested envelopes refuse, and cleanup
 failures take precedence over the phase diagnostic.
+Retained state, configuration journal, client inventory, receipt inventory,
+receipt custody/schema and target identity refusals identify their boundary before
+native HTTP, preserving the files and excluding private values.
 Production observations and Ready acceptance remain separate deployment evidence.
 
 Bun Docker builders, runtimes and the React service generator match the pinned
