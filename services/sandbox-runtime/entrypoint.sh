@@ -54,6 +54,7 @@ TALE_DIND_INNER_BIP=""
 # iptables/ip6tables live in /usr/sbin, which the image ENV PATH deliberately
 # drops (keeps sbin tools off the agent PATH); call them by absolute path.
 _IPTABLES=/usr/sbin/iptables
+_IPTABLES_RESTORE=/usr/sbin/iptables-restore
 _REDSOCKS=/usr/sbin/redsocks
 _IP6TABLES=/usr/sbin/ip6tables
 # iproute2 `ip`, used by the SESSION transparent-egress path to add a default
@@ -445,6 +446,10 @@ setup_inner_transparent_egress() {
 # aware clients still egress via env), never wedges the session.
 # ---------------------------------------------------------------------------
 
+# The destinations transparent egress leaves DIRECT: internal / private /
+# link-local. Everything public is tunnelled to redsocks.
+_DIRECT_CIDRS='0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16'
+
 # Build the shared nat REDSOCKS chain if it doesn't already exist (the DinD inner
 # path may have built it). Same policy as setup_inner_transparent_egress: leave
 # internal / private / link-local DIRECT, tunnel everything public to redsocks.
@@ -454,7 +459,7 @@ _ensure_redsocks_chain() {
     return 0
   fi
   "$_IPTABLES" -t nat -N REDSOCKS
-  for _cidr in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
+  for _cidr in $_DIRECT_CIDRS; do
     "$_IPTABLES" -t nat -A REDSOCKS -d "$_cidr" -j RETURN
   done
   "$_IPTABLES" -t nat -A REDSOCKS -p tcp -j REDIRECT --to-ports 12346
@@ -530,6 +535,45 @@ _install_session_dns_dnat() {
   done
 }
 
+# The session's whole nat setup — the REDSOCKS chain, the OUTPUT hooks and the
+# DNS DNAT — as iptables-restore input, in exactly the order the per-rule path
+# below leaves it: the proxy's RETURN first in REDSOCKS (it inserts that one
+# at the top), then OUTPUT's owner RETURN, its REDSOCKS jump and the DNAT.
+_session_nat_rules() {
+  echo '*nat'
+  echo ':REDSOCKS - [0:0]'
+  echo "-A REDSOCKS -d ${TALE_EGRESS_IP} -p tcp -j RETURN"
+  for _cidr in $_DIRECT_CIDRS; do
+    echo "-A REDSOCKS -d ${_cidr} -j RETURN"
+  done
+  echo '-A REDSOCKS -p tcp -j REDIRECT --to-ports 12346'
+  echo "-A OUTPUT -p tcp -m owner --uid-owner ${TALE_REDSOCKS_UID} -j RETURN"
+  echo '-A OUTPUT -p tcp -j REDSOCKS'
+  if grep -q 'nameserver 127.0.0.11' /etc/resolv.conf 2>/dev/null; then
+    for _proto in udp tcp; do
+      echo "-A OUTPUT -p ${_proto} --dport 53 ! -d 127.0.0.11 -j DNAT --to-destination ${TALE_EGRESS_IP}:53"
+    done
+  fi
+  echo 'COMMIT'
+}
+
+# A fresh network namespace (no REDSOCKS chain yet) gets the session's nat
+# setup in one `iptables-restore --noflush` transaction: two processes instead
+# of about twenty `iptables` calls on every session boot. A restore commits the
+# table whole or not at all, so a refusal leaves nothing half-installed, and
+# the caller then takes the per-rule path. A chain that exists already (an
+# earlier pass, or a container restart that kept its Pod's namespace) is the
+# per-rule path's too: it checks each rule and adds only what is missing.
+_install_session_nat_batch() {
+  "$_IPTABLES" -t nat -S REDSOCKS >/dev/null 2>&1 && return 1
+  [ -x "$_IPTABLES_RESTORE" ] || return 1
+  if _session_nat_rules | "$_IPTABLES_RESTORE" --noflush; then
+    return 0
+  fi
+  echo "[entrypoint] WARN: iptables-restore refused the session's nat rules; installing them one by one" >&2
+  return 1
+}
+
 # Launch redsocks as the dedicated low-priv uid (for the owner-match), unless it
 # is already running from session setup or a prior engine activation. Background;
 # diagnostics go to the container logger, which owns rotation, instead of
@@ -572,10 +616,12 @@ setup_session_transparent_egress() {
   fi
   # Best-effort: never let an iptables/redsocks hiccup abort session boot.
   set +e
-  _ensure_redsocks_chain
-  _install_session_output_redirect
+  if ! _install_session_nat_batch; then
+    _ensure_redsocks_chain
+    _install_session_output_redirect
+    _install_session_dns_dnat
+  fi
   _ensure_default_route
-  _install_session_dns_dnat
   _launch_session_redsocks
   set -e
   echo "[entrypoint] session transparent egress installed (OUTPUT -> redsocks -> ${TALE_EGRESS_IP}:${TALE_EGRESS_PORT}; public TCP tunneled, internal direct)"

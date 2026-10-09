@@ -303,7 +303,12 @@ proxy's name is asked again for up to about five seconds before the session
 gives up on transparent egress (the first answer is used at once), and the
 session's redsocks runs under a restart loop as its own uid: one that exits is
 started again after 1 s, the delay doubling to 30 s and back to 1 s after a
-minute's good run.
+minute's good run. In a fresh network namespace the session's nat rules (the
+`REDSOCKS` chain, the `OUTPUT` hooks and the DNS DNAT) go in as one
+`iptables-restore --noflush` transaction, two processes instead of about
+twenty `iptables` calls; a restore the kernel refuses, or a chain that is
+already there (a restart that kept its Pod's namespace), takes the per-rule
+path, which checks each rule and adds only what is missing.
 
 ```bash
 # from repo root
