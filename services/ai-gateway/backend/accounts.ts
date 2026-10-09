@@ -479,7 +479,11 @@ export function createAccountService(
       return false;
     }
     const refreshAt = plannedRefreshMs(account);
-    return refreshAt === null || refreshAt <= now().getTime();
+    return (
+      account.status === 'error' ||
+      refreshAt === null ||
+      refreshAt <= now().getTime()
+    );
   }
 
   /**
@@ -691,6 +695,19 @@ export function createAccountService(
     return run;
   }
 
+  function usageAttemptIsNewerThanReading(account: StoredAccount): boolean {
+    if (!account.usage) return false;
+    const attempted = account.usageAttemptedAt
+      ? Date.parse(account.usageAttemptedAt)
+      : Number.NaN;
+    const checked = Date.parse(account.usage.checkedAt);
+    return (
+      Number.isFinite(attempted) &&
+      Number.isFinite(checked) &&
+      attempted > checked
+    );
+  }
+
   async function refreshStoredUsage(
     account: StoredAccount,
     force: boolean,
@@ -698,7 +715,20 @@ export function createAccountService(
     const stored = await store.getAccount(account.id);
     if (!stored) return account;
     const current = await ensureFresh(stored);
-    if (current.status === 'expired') return current;
+    // A persisted error has already failed a refresh. Keep it out of usage
+    // polling until a later refresh succeeds; an error produced by this
+    // call's initial refresh still gets one final usage read, preserving the
+    // existing transient-refresh behaviour.
+    if (
+      current.status === 'expired' ||
+      (current.status === 'error' &&
+        stored.status === 'error' &&
+        stored.usageAttemptedAt !== null &&
+        (account.status === 'error' ||
+          !stored.usage ||
+          usageAttemptIsNewerThanReading(stored)))
+    )
+      return current;
     if (
       current.status === 'error' &&
       current.expiresAt &&
@@ -756,11 +786,16 @@ export function createAccountService(
         `[ai-gateway] usage read failed for ${current.provider} account ${current.id}:`,
         error instanceof Error ? error.message : error,
       );
+      const rejected =
+        error instanceof ProviderError &&
+        error.code === 'access_token_rejected';
       const updated = await store.updateAccount(current.id, (row) => {
         if (row.accessToken !== current.accessToken) return;
         row.usageAttemptedAt = now().toISOString();
         if (error instanceof CipherError) row.status = 'expired';
+        else if (rejected) row.status = 'error';
       });
+      if (rejected && updated?.status === 'error') return ensureFresh(updated);
       return updated ?? current;
     }
   }
@@ -1170,6 +1205,12 @@ export function createAccountService(
       const account = await store.getAccount(id);
       if (!account) return null;
       const fresh = await ensureFresh(account);
+      if (fresh.status !== 'active') {
+        throw new AccountError(
+          'unavailable',
+          'This account is not currently available.',
+        );
+      }
       try {
         return providerFor(fresh).cliCommand(
           cipher.open(fresh.accessToken),
