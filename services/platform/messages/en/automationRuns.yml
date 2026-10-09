@@ -1,0 +1,273 @@
+runtime:
+  codes:
+    EXPR_SYNTAX:
+      title: An expression can't be read
+      explanation: The expression isn't valid JavaScript, so it couldn't be worked out.
+      cause: '{fieldLabel, select, none {An expression has a syntax error.} other {The expression in {fieldLabel} has a syntax error.}}'
+      fix: Look for a missing bracket, quote or operator. The technical details say where reading stopped.
+    EXPR_READ_MISSING:
+      title: A value it reads is missing
+      explanation: An expression asked for a field of a value that wasn't there, so it couldn't go on.
+      cause: '{chain, select, none {{expr} reads {keyLabel} of a value that is {base, select, null {null} other {missing}}.} other {{expr} reads {keyLabel} of {chain}, which is {base, select, null {null} other {missing}}.}}{sourceLabel, select, none {} other { That value comes from what {sourceLabel} returned.}}'
+      fix: '{suggestion, select, none {Read a field that exists, or read it with ?. so a missing value gives undefined instead of failing.} other {Read a field that exists, or read it with ?. so a missing value gives undefined instead of failing, as in {suggestion}.}}'
+    EXPR_NAME_UNKNOWN:
+      title: Unknown name
+      explanation: An expression uses a name that doesn't exist when the step runs.
+      cause: "{fieldLabel, select, none {{nameLabel} isn't defined.} other {{nameLabel} isn't defined in {fieldLabel}.}}"
+      fix: Use input, nodes, item or index, or define the name in the code.
+    EXPR_NOT_FUNCTION:
+      title: Called something that isn't a function
+      explanation: An expression called a value as if it were a function, but it isn't one.
+      cause: "{fieldLabel, select, none {{callee} isn't a function.} other {In {fieldLabel}, {callee} isn't a function.}}"
+      fix: Check the method's name and the kind of value it's called on, in the step's Data tab.
+    EXPR_FAILED:
+      title: An expression failed
+      explanation: An expression threw an error while it was worked out.
+      cause: '{fieldLabel, select, none {{expr} threw {errorName, select, none {an error} other {a {errorName}}}.} other {In {fieldLabel}, {expr} threw {errorName, select, none {an error} other {a {errorName}}}.}}'
+      fix: Check the values it read in the step's Data tab. The technical details have the error's own words.
+    EXPR_TIMEOUT:
+      title: An expression took too long
+      explanation: Each expression has a short time limit, and this one didn't finish in time.
+      cause: '{fieldLabel, select, none {An expression ran longer than {limit}.} other {The expression in {fieldLabel} ran longer than {limit}.}}'
+      fix: Move heavy work into a transform step, or simplify the expression.
+    TEMPLATE_VALUE_MISSING:
+      title: A value inside text is missing
+      explanation: A value placed inside text came out empty, so the step stopped instead of writing undefined into the text.
+      cause: '{fieldLabel, select, none {{expr} gave {base, select, null {null} other {nothing}} inside the text.} other {{expr} in {fieldLabel} gave {base, select, null {null} other {nothing}}.}}'
+      fix: Give it a fallback, such as {expr} ?? "".
+    FOREACH_NOT_LIST:
+      title: For each didn't get a list
+      explanation: For each runs the step once per item of a list, but this value wasn't a list.
+      cause: '{expr} is {kindLabel}, not a list.'
+      fix: Point For each at a list, such as nodes.fetch.output.items.
+    CODE_NO_RESULT:
+      title: Its code returned nothing
+      explanation: A transform's code must return a value, and this code returned nothing.
+      cause: The code ended without returning a value.
+      fix: End the code with a return statement, such as return result.
+    CODE_FAILED:
+      title: Its code threw an error
+      explanation: The transform's code stopped with an error.
+      cause: '{errorName, select, none {The code threw an error.} other {The code threw a {errorName}.}}'
+      fix: Check the values the code read in the step's Data tab. The technical details have the error's own words.
+    CODE_TIMEOUT:
+      title: Its code took too long
+      explanation: Transform code has a short time limit, and this code didn't finish in time.
+      cause: The code ran longer than {limit}.
+      fix: Do less in one run of the code, or split the work over several steps or items.
+    CONNECTOR_CREDENTIAL_MISSING:
+      title: No working connection
+      explanation: The step calls a service, but there's no working connection to it.
+      cause: "{connectorLabel} isn't connected, or its connection was removed."
+      fix: Connect {connectorLabel} under Connectors, then run again.
+    CONNECTOR_INPUT_REFUSED:
+      title: The input doesn't fit the action
+      explanation: Before calling a service, Tale checks the step's input against what the action takes. This input didn't fit, so nothing was sent.
+      cause: "{keyword, select, required {{propertyLabel, select, none {The input} other {{propertyLabel}}} lacks a field that {actionLabel} needs.} type {{propertyLabel, select, none {The input} other {{propertyLabel}}} has the wrong type for {actionLabel}.} enum {{propertyLabel, select, none {The input} other {{propertyLabel}}} isn't one of the values {actionLabel} allows.} additionalProperties {{propertyLabel, select, none {The input} other {{propertyLabel}}} has a field that {actionLabel} doesn't take.} other {{propertyLabel, select, none {The input} other {{propertyLabel}}} doesn't fit what {actionLabel} takes.}}"
+      fix: Compare the step's resolved input with what {actionLabel} of {connectorLabel} takes. The technical details name each mismatch.
+    CONNECTOR_AUTH:
+      title: The service refused access
+      explanation: The service didn't accept the connection's credentials, or they don't allow this action.
+      cause: '{connectorLabel} answered {status} to {actionLabel}.'
+      fix: Reconnect {connectorLabel}, or give its account the rights {actionLabel} needs.
+    CONNECTOR_NOT_FOUND:
+      title: The service couldn't find it
+      explanation: The service answered that what the step asked for doesn't exist.
+      cause: '{connectorLabel} answered {status} to {actionLabel}.'
+      fix: Check the IDs and names in the step's resolved input.
+    CONNECTOR_RATE_LIMITED:
+      title: The service asked to slow down
+      explanation: The service received too many requests and refused this one for now.
+      cause: '{connectorLabel} is limiting requests and refused {actionLabel} ({status}).'
+      fix: Run again later, or go through fewer items at once.
+    CONNECTOR_UNREACHABLE:
+      title: The service couldn't be reached
+      explanation: Tale couldn't reach the service, so the step didn't run.
+      cause: "{connectorLabel} didn't answer {actionLabel}."
+      fix: Check the service's status, then run again.
+    CONNECTOR_FAILED:
+      title: The service failed
+      explanation: The service answered with an error.
+      cause: '{status, select, none {{connectorLabel} failed {actionLabel}.} other {{connectorLabel} answered {status} to {actionLabel}.}}'
+      fix: The technical details have the service's own words. Fix the input, or try again.
+    LLM_OUTPUT_INVALID:
+      title: The model's answer didn't fit
+      explanation: The step asked the model for a structured answer, and the reply didn't match the output schema.
+      cause: "{modelLabel, select, none {The model} other {{modelLabel}}} didn't answer in the shape of the output schema."
+      fix: Make the prompt ask for exactly the schema's fields, or loosen the schema.
+    LLM_PROVIDER:
+      title: The model's provider failed
+      explanation: The provider of the step's model refused or failed the call.
+      cause: "{modelLabel, select, none {It happened calling the step's model.} other {It happened calling {modelLabel}.}}"
+      fix: Run again; if it repeats, choose another model.
+    AGENT_FAILED:
+      title: The agent failed
+      explanation: The coding agent couldn't finish its turn.
+      cause: '{harnessLabel, select, none {The agent} other {{harnessLabel}}} stopped{attempts, select, none {.} other { after {attempts, plural, one {# attempt} other {# attempts}}.}}'
+      fix: Run again, and read the agent log.
+    SUBAUTOMATION_FAILED:
+      title: The called automation failed
+      explanation: The automation this step calls failed, so this step failed too.
+      cause: '{childLabel, select, none {{automationLabel} v{version} failed.} other {{automationLabel} v{version} failed at {childLabel}.}}'
+      fix: Open this step to see the called automation's steps, then fix {automationLabel}.
+    SUBAUTOMATION_INPUT_REFUSED:
+      title: The called automation refused the input
+      explanation: The values passed didn't match the inputs the called automation accepts.
+      cause: The values this step passed don't fit the called automation's inputs.
+      fix: Pass the inputs it declares, under the names it uses.
+    SUBAUTOMATION_NOT_FOUND:
+      title: The called automation doesn't exist
+      explanation: The step calls an automation that couldn't be found, so it couldn't run.
+      cause: "{automationLabel} isn't saved, or it was deleted or renamed."
+      fix: Save {automationLabel}, or point the step at an automation that exists.
+    SUBAUTOMATION_TOO_DEEP:
+      title: Automations call each other too deep
+      explanation: An automation may call another, which may call another, but only to a limited depth.
+      cause: Here the calls nest more than {max} levels deep.
+      fix: Flatten the calls, so fewer automations call one another in a row.
+    APPROVAL_REJECTED:
+      title: A person rejected the step
+      explanation: The step needed an approval and it was rejected, so the run stopped.
+      cause: Its approval was rejected.
+      fix: Change what the step sends, or run again to ask once more.
+    EXECUTION_LIMIT:
+      title: The run did too many steps
+      explanation: A run may perform a limited number of step executions, counting every item and pass. This one reached it.
+      cause: The run reached {limit} step executions.
+      fix: Split the work into several automations, or go through fewer items.
+    EFFECT_IN_DOUBT_FAILED:
+      title: Stopped at an interrupted write
+      explanation: The run was interrupted while sending to a service, and a person chose to fail it.
+      cause: A person chose to fail the run here, because the write may already have reached its service.
+      fix: Check the service for the write, then run again if it's missing.
+    UNKNOWN:
+      title: The step failed
+      explanation: Tale couldn't tell why. The technical details have the engine's own words.
+      cause: The step stopped with an error Tale has no words for.
+      fix: Read the technical details, or run again.
+runFailure:
+  codes:
+    node_error:
+      title: A step failed
+      explanation: A step's code, template or expression failed.
+      fix: Open the failed step to see why.
+    connector_error:
+      title: A service call failed
+      explanation: A connected service refused or failed a call.
+      fix: Check the step's input and the service's connection.
+    llm_output_invalid:
+      title: The model's answer didn't fit
+      explanation: The reply didn't match the step's output schema.
+      fix: Make the prompt ask for the schema's fields, or loosen the schema.
+    approval_rejected:
+      title: A person rejected a step
+      explanation: An approval was rejected, so the run stopped.
+      fix: Change the request, or run again to ask once more.
+    execution_limit:
+      title: The run did too many steps
+      explanation: The run reached the limit of step executions.
+      fix: Split the work, or go through fewer items.
+    automation_deleted:
+      title: The automation was deleted
+      explanation: It was deleted while the run was going.
+      fix: Restore it, or use another automation.
+    engine_incompatible:
+      title: This run's progress couldn't be read
+      explanation: The run stopped instead of starting over, so nothing ran twice.
+      fix: Run it again.
+    effect_in_doubt:
+      title: Stopped at an interrupted write
+      explanation: A person failed the run at a write that may already have reached its service.
+      fix: Check the service, then run again if needed.
+    missing_api_key:
+      title: No key for the model's provider
+      explanation: The provider of this model has no key configured.
+      fix: An admin adds a key in the provider settings.
+    credit_exhausted:
+      title: The provider's credit is used up
+      explanation: The provider refused the call for lack of credit.
+      fix: Top up the account, or choose another model.
+    model_not_entitled:
+      title: No access to this model
+      explanation: The account may not use this model.
+      fix: Choose another model, or ask an admin.
+    auth_error:
+      title: The provider refused the key
+      explanation: The provider didn't accept the key.
+      fix: An admin replaces the key.
+    model_not_found:
+      title: The model doesn't exist
+      explanation: The provider doesn't know this model.
+      fix: Choose a model from the list.
+    unsupported_parameter:
+      title: The model refused a setting
+      explanation: A setting isn't supported by this model.
+      fix: Remove the setting, or choose another model.
+    output_cap_too_high:
+      title: The answer limit is too high
+      explanation: The step asked for a longer answer than the model allows.
+      fix: Lower the answer limit.
+    token_limit:
+      title: The answer was cut off
+      explanation: The model reached its answer limit.
+      fix: Ask for a shorter answer, or raise the limit.
+    rate_limited:
+      title: The provider asked to slow down
+      explanation: Too many requests in a short time.
+      fix: Run again later.
+    content_filter:
+      title: The provider's filter blocked it
+      explanation: The provider refused the content.
+      fix: Change the prompt or the input.
+    context_length:
+      title: The prompt is too long
+      explanation: The prompt and its data exceed what the model reads at once.
+      fix: Send less data, or choose a model with a larger context.
+    provider_unreachable:
+      title: The provider couldn't be reached
+      explanation: No answer from the model provider.
+      fix: Run again later.
+    provider_error:
+      title: The provider failed
+      explanation: The provider answered with an error.
+      fix: Run again; if it repeats, choose another model.
+    budget_exceeded:
+      title: A budget is used up
+      explanation: A spending limit for you, the project or the organization was reached.
+      fix: An admin raises the budget, or wait for the next period.
+    harness_error:
+      title: The agent's runtime failed
+      explanation: The coding agent stopped with an error.
+      fix: Run again, and read the agent log.
+    turn_crashed:
+      title: The agent stopped unexpectedly
+      explanation: The agent's sandbox stopped in the middle of its turn.
+      fix: Run again.
+    session_gone:
+      title: The agent's session ended
+      explanation: The sandbox session was gone before the turn finished.
+      fix: Run again.
+    start_failed:
+      title: The agent couldn't start
+      explanation: No sandbox or account was free to start the turn.
+      fix: Run again later.
+    harvest_failed:
+      title: The agent's files couldn't be collected
+      explanation: The turn finished, but its files couldn't be brought back.
+      fix: Run again.
+    resume_failed:
+      title: The agent couldn't continue
+      explanation: Continuing the conversation after an answer failed.
+      fix: Run again.
+    deadline:
+      title: The agent ran out of time
+      explanation: The turn passed its time window.
+      fix: Give it less to do, or more time.
+    ask_expired:
+      title: A question went unanswered
+      explanation: The agent asked a question that wasn't answered in time.
+      fix: Run again, and answer the question.
+  unknown:
+    title: The run failed
+    explanation: Tale couldn't tell why. The technical details have the engine's own words.
+    fix: Open the failed step, or run again.

@@ -53,6 +53,70 @@ export const STEP_FAILURE_REASONS = [
 
 export type StepFailureReason = (typeof STEP_FAILURE_REASONS)[number];
 
+/** What a reason's sentences are told with: the params it carries (`?`
+ * when it may lack one), and those that hold an engine's or a service's
+ * own words — shown under technical details, never inside a sentence. */
+export interface StepFailureMeta {
+  params: readonly string[];
+  optional?: readonly string[];
+  technical?: readonly string[];
+}
+
+const NONE: StepFailureMeta = { params: [] };
+const FIELD = ['field'] as const;
+
+/** The params each reason carries, as its raising sites set them; the run
+ * view's catalog is held to it (`automation-run-failure-keys.test.ts`). */
+export const STEP_FAILURE_META: Readonly<
+  Record<StepFailureReason, StepFailureMeta>
+> = {
+  EXPR_SYNTAX: { params: [], optional: FIELD, technical: ['detail'] },
+  EXPR_READ_MISSING: {
+    params: ['expr', 'key', 'base'],
+    optional: ['field', 'chain', 'source'],
+  },
+  EXPR_NAME_UNKNOWN: { params: ['name'], optional: FIELD },
+  EXPR_NOT_FUNCTION: { params: ['callee'], optional: FIELD },
+  EXPR_FAILED: {
+    params: ['expr'],
+    optional: ['field', 'errorName'],
+    technical: ['detail'],
+  },
+  EXPR_TIMEOUT: { params: ['limitMs'], optional: FIELD },
+  TEMPLATE_VALUE_MISSING: { params: ['expr', 'base'], optional: FIELD },
+  FOREACH_NOT_LIST: { params: ['expr', 'kind'] },
+  CODE_NO_RESULT: NONE,
+  CODE_FAILED: { params: [], optional: ['errorName'], technical: ['detail'] },
+  CODE_TIMEOUT: { params: ['limitMs'] },
+  CONNECTOR_CREDENTIAL_MISSING: { params: ['connector'] },
+  CONNECTOR_INPUT_REFUSED: {
+    params: ['connector', 'action'],
+    optional: ['keyword', 'property'],
+    technical: ['detail'],
+  },
+  CONNECTOR_AUTH: { params: ['connector', 'action', 'status'] },
+  CONNECTOR_NOT_FOUND: { params: ['connector', 'action', 'status'] },
+  CONNECTOR_RATE_LIMITED: { params: ['connector', 'action', 'status'] },
+  CONNECTOR_UNREACHABLE: { params: ['connector', 'action'] },
+  CONNECTOR_FAILED: {
+    params: ['connector', 'action'],
+    optional: ['status'],
+    technical: ['detail'],
+  },
+  LLM_OUTPUT_INVALID: { params: ['model'] },
+  LLM_PROVIDER: { params: ['model', 'providerCode'] },
+  AGENT_FAILED: { params: ['agentCode'], optional: ['harness', 'attempts'] },
+  SUBAUTOMATION_FAILED: { params: ['automation', 'version', 'childPath'] },
+  SUBAUTOMATION_INPUT_REFUSED: NONE,
+  SUBAUTOMATION_NOT_FOUND: { params: ['automation'] },
+  SUBAUTOMATION_TOO_DEEP: { params: ['max'] },
+  APPROVAL_REJECTED: NONE,
+  EXECUTION_LIMIT: { params: ['limit'] },
+  EFFECT_IN_DOUBT_FAILED: NONE,
+  // The error's own text, from whatever raised it.
+  UNKNOWN: { params: [], technical: ['detail'] },
+};
+
 /**
  * The run-level family of a reason, for a run that has no runtime of its
  * own to name it (the in-process executor): the durable runtime names the

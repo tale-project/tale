@@ -1,0 +1,273 @@
+runtime:
+  codes:
+    EXPR_SYNTAX:
+      title: Une expression est illisible
+      explanation: 'L’expression n’est pas du JavaScript valide : elle n’a donc pas pu être évaluée.'
+      cause: '{fieldLabel, select, none {Une expression contient une erreur de syntaxe.} other {L’expression de {fieldLabel} contient une erreur de syntaxe.}}'
+      fix: Cherche une parenthèse, un guillemet ou un opérateur manquant. Les détails techniques indiquent où la lecture s’est arrêtée.
+    EXPR_READ_MISSING:
+      title: Une valeur lue est absente
+      explanation: 'Une expression a demandé un champ d’une valeur absente : elle n’a donc pas pu continuer.'
+      cause: '{chain, select, none {{expr} lit {keyLabel} d’une valeur qui est {base, select, null {null} other {absente}}.} other {{expr} lit {keyLabel} de {chain}, qui est {base, select, null {null} other {absent}}.}}{sourceLabel, select, none {} other { Cette valeur provient de ce que {sourceLabel} a renvoyé.}}'
+      fix: '{suggestion, select, none {Lis un champ qui existe, ou lis-le avec ?. pour qu’une valeur absente donne undefined au lieu d’échouer.} other {Lis un champ qui existe, ou lis-le avec ?. pour qu’une valeur absente donne undefined au lieu d’échouer, par exemple {suggestion}.}}'
+    EXPR_NAME_UNKNOWN:
+      title: Nom inconnu
+      explanation: Une expression utilise un nom qui n’existe pas quand l’étape s’exécute.
+      cause: '{fieldLabel, select, none {{nameLabel} n’est pas défini.} other {{nameLabel} n’est pas défini dans {fieldLabel}.}}'
+      fix: Utilise input, nodes, item ou index, ou définis le nom dans le code.
+    EXPR_NOT_FUNCTION:
+      title: Appel de quelque chose qui n’est pas une fonction
+      explanation: Une expression a appelé une valeur comme une fonction, mais ce n’en est pas une.
+      cause: '{fieldLabel, select, none {{callee} n’est pas une fonction.} other {Dans {fieldLabel}, {callee} n’est pas une fonction.}}'
+      fix: Vérifie le nom de la méthode et le type de valeur sur lequel elle est appelée, dans l’onglet Données de l’étape.
+    EXPR_FAILED:
+      title: Une expression a échoué
+      explanation: Une expression a levé une erreur pendant son évaluation.
+      cause: '{fieldLabel, select, none {{expr} a levé {errorName, select, none {une erreur} other {une {errorName}}}.} other {Dans {fieldLabel}, {expr} a levé {errorName, select, none {une erreur} other {une {errorName}}}.}}'
+      fix: Vérifie les valeurs lues dans l’onglet Données de l’étape. Les détails techniques donnent le message exact de l’erreur.
+    EXPR_TIMEOUT:
+      title: Une expression a pris trop de temps
+      explanation: Chaque expression a une courte limite de temps, et celle-ci ne s’est pas terminée à temps.
+      cause: '{fieldLabel, select, none {Une expression a duré plus de {limit}.} other {L’expression de {fieldLabel} a duré plus de {limit}.}}'
+      fix: Déplace le travail lourd dans une étape de transformation, ou simplifie l’expression.
+    TEMPLATE_VALUE_MISSING:
+      title: Une valeur dans le texte est absente
+      explanation: 'Une valeur insérée dans un texte était vide : l’étape s’est donc arrêtée au lieu d’écrire undefined dans le texte.'
+      cause: '{fieldLabel, select, none {{expr} {base, select, null {a donné null} other {n’a rien donné}} dans le texte.} other {{expr} dans {fieldLabel} {base, select, null {a donné null} other {n’a rien donné}}.}}'
+      fix: Prévois une valeur de repli, par exemple {expr} ?? "".
+    FOREACH_NOT_LIST:
+      title: « Pour chaque » n’a pas reçu de liste
+      explanation: L’étape doit s’exécuter une fois par élément d’une liste, mais cette valeur n’était pas une liste.
+      cause: '{expr} est {kindLabel}, pas une liste.'
+      fix: Indique une liste, par exemple nodes.fetch.output.items.
+    CODE_NO_RESULT:
+      title: Le code n’a rien renvoyé
+      explanation: Le code d’une étape de transformation doit renvoyer une valeur, et ce code n’a rien renvoyé.
+      cause: Le code s’est terminé sans renvoyer de valeur.
+      fix: Termine le code par une instruction return, par exemple return result.
+    CODE_FAILED:
+      title: Le code a levé une erreur
+      explanation: Le code de l’étape de transformation s’est arrêté sur une erreur.
+      cause: '{errorName, select, none {Le code a levé une erreur.} other {Le code a levé une {errorName}.}}'
+      fix: Vérifie les valeurs lues par le code dans l’onglet Données de l’étape. Les détails techniques donnent le message exact de l’erreur.
+    CODE_TIMEOUT:
+      title: Le code a pris trop de temps
+      explanation: Le code de transformation a une courte limite de temps, et ce code ne s’est pas terminé à temps.
+      cause: Le code a duré plus de {limit}.
+      fix: Fais moins de travail par exécution du code, ou répartis-le sur plusieurs étapes ou éléments.
+    CONNECTOR_CREDENTIAL_MISSING:
+      title: Aucune connexion utilisable
+      explanation: L’étape appelle un service, mais aucune connexion utilisable n’y mène.
+      cause: '{connectorLabel} n’est pas connecté, ou sa connexion a été supprimée.'
+      fix: Connecte {connectorLabel} dans Connectors, puis relance.
+    CONNECTOR_INPUT_REFUSED:
+      title: L’entrée ne correspond pas à l’action
+      explanation: 'Avant d’appeler un service, Tale vérifie l’entrée de l’étape par rapport à ce que l’action accepte. Cette entrée ne correspondait pas : rien n’a donc été envoyé.'
+      cause: '{keyword, select, required {{propertyLabel, select, none {Il manque à l’entrée} other {Il manque à {propertyLabel}}} un champ dont {actionLabel} a besoin.} type {{propertyLabel, select, none {L’entrée} other {{propertyLabel}}} n’a pas le bon type pour {actionLabel}.} enum {{propertyLabel, select, none {L’entrée} other {{propertyLabel}}} ne fait pas partie des valeurs que {actionLabel} autorise.} additionalProperties {{propertyLabel, select, none {L’entrée} other {{propertyLabel}}} contient un champ que {actionLabel} n’accepte pas.} other {{propertyLabel, select, none {L’entrée} other {{propertyLabel}}} ne correspond pas à ce que {actionLabel} accepte.}}'
+      fix: Compare l’entrée résolue de l’étape avec ce qu’accepte {actionLabel} de {connectorLabel}. Les détails techniques indiquent chaque écart.
+    CONNECTOR_AUTH:
+      title: Le service a refusé l’accès
+      explanation: Le service n’a pas accepté les identifiants de la connexion, ou ils n’autorisent pas cette action.
+      cause: '{connectorLabel} a répondu {status} à {actionLabel}.'
+      fix: Reconnecte {connectorLabel}, ou donne à son compte les droits dont {actionLabel} a besoin.
+    CONNECTOR_NOT_FOUND:
+      title: Le service ne l’a pas trouvé
+      explanation: Le service a répondu que ce que l’étape demandait n’existe pas.
+      cause: '{connectorLabel} a répondu {status} à {actionLabel}.'
+      fix: Vérifie les identifiants et les noms dans l’entrée résolue de l’étape.
+    CONNECTOR_RATE_LIMITED:
+      title: Le service a demandé de ralentir
+      explanation: Le service a reçu trop de requêtes et a refusé celle-ci pour l’instant.
+      cause: '{connectorLabel} limite les requêtes et a refusé {actionLabel} ({status}).'
+      fix: Relance plus tard, ou traite moins d’éléments à la fois.
+    CONNECTOR_UNREACHABLE:
+      title: Le service était injoignable
+      explanation: 'Tale n’a pas pu joindre le service : l’étape ne s’est donc pas exécutée.'
+      cause: '{connectorLabel} n’a pas répondu à {actionLabel}.'
+      fix: Vérifie l’état du service, puis relance.
+    CONNECTOR_FAILED:
+      title: Le service a échoué
+      explanation: Le service a répondu par une erreur.
+      cause: '{status, select, none {{connectorLabel} a échoué sur {actionLabel}.} other {{connectorLabel} a répondu {status} à {actionLabel}.}}'
+      fix: Les détails techniques donnent le message exact du service. Corrige l’entrée, ou réessaie.
+    LLM_OUTPUT_INVALID:
+      title: La réponse du modèle ne correspondait pas
+      explanation: L’étape a demandé au modèle une réponse structurée, et la réponse ne correspondait pas au schéma de sortie.
+      cause: '{modelLabel, select, none {Le modèle} other {{modelLabel}}} n’a pas répondu sous la forme du schéma de sortie.'
+      fix: Fais demander au prompt exactement les champs du schéma, ou assouplis le schéma.
+    LLM_PROVIDER:
+      title: Le fournisseur du modèle a échoué
+      explanation: Le fournisseur du modèle de l’étape a refusé l’appel ou a échoué.
+      cause: '{modelLabel, select, none {C’est arrivé en appelant le modèle de l’étape.} other {C’est arrivé en appelant {modelLabel}.}}'
+      fix: Relance ; si cela se reproduit, choisis un autre modèle.
+    AGENT_FAILED:
+      title: L’agent a échoué
+      explanation: L’agent de code n’a pas pu terminer son tour.
+      cause: '{harnessLabel, select, none {L’agent} other {{harnessLabel}}} s’est arrêté{attempts, select, none {.} other { après {attempts, plural, one {# tentative} other {# tentatives}}.}}'
+      fix: Relance, et consulte le journal de l’agent.
+    SUBAUTOMATION_FAILED:
+      title: L’automatisation appelée a échoué
+      explanation: 'L’automatisation appelée par cette étape a échoué : cette étape a donc échoué aussi.'
+      cause: '{childLabel, select, none {{automationLabel} v{version} a échoué.} other {{automationLabel} v{version} a échoué à l’étape {childLabel}.}}'
+      fix: Ouvre cette étape pour voir les étapes de l’automatisation appelée, puis corrige {automationLabel}.
+    SUBAUTOMATION_INPUT_REFUSED:
+      title: L’automatisation appelée a refusé l’entrée
+      explanation: Les valeurs transmises ne correspondaient pas aux entrées que l’automatisation appelée accepte.
+      cause: Les valeurs transmises par cette étape ne correspondent pas aux entrées de l’automatisation appelée.
+      fix: Transmets les entrées qu’elle déclare, sous les noms qu’elle utilise.
+    SUBAUTOMATION_NOT_FOUND:
+      title: L’automatisation appelée n’existe pas
+      explanation: 'L’étape appelle une automatisation introuvable : elle n’a donc pas pu s’exécuter.'
+      cause: '{automationLabel} n’est pas enregistrée, ou a été supprimée ou renommée.'
+      fix: Enregistre {automationLabel}, ou fais appeler à l’étape une automatisation qui existe.
+    SUBAUTOMATION_TOO_DEEP:
+      title: Les automatisations s’appellent trop profondément
+      explanation: Une automatisation peut en appeler une autre, qui peut en appeler une autre, mais seulement jusqu’à une profondeur limitée.
+      cause: Ici, les appels s’imbriquent sur plus de {max} niveaux.
+      fix: Aplatis les appels, pour que moins d’automatisations s’appellent les unes après les autres.
+    APPROVAL_REJECTED:
+      title: Une personne a rejeté l’étape
+      explanation: 'L’étape avait besoin d’une approbation, qui a été rejetée : l’exécution s’est donc arrêtée.'
+      cause: Son approbation a été rejetée.
+      fix: Modifie ce que l’étape envoie, ou relance pour demander à nouveau.
+    EXECUTION_LIMIT:
+      title: L’exécution a fait trop d’étapes
+      explanation: Une exécution ne peut effectuer qu’un nombre limité d’exécutions d’étapes, chaque élément et chaque passage compris. Celle-ci l’a atteint.
+      cause: L’exécution a atteint {limit} exécutions d’étapes.
+      fix: Répartis le travail sur plusieurs automatisations, ou traite moins d’éléments.
+    EFFECT_IN_DOUBT_FAILED:
+      title: Arrêtée sur une écriture interrompue
+      explanation: L’exécution a été interrompue pendant un envoi vers un service, et une personne a choisi de la faire échouer.
+      cause: Une personne a fait échouer l’exécution ici, car l’écriture avait peut-être déjà atteint son service.
+      fix: Vérifie dans le service si l’écriture est arrivée, puis relance si elle manque.
+    UNKNOWN:
+      title: L’étape a échoué
+      explanation: Tale n’a pas pu déterminer pourquoi. Les détails techniques donnent le message exact du moteur.
+      cause: L’étape s’est arrêtée sur une erreur que Tale ne sait pas décrire.
+      fix: Lis les détails techniques, ou relance.
+runFailure:
+  codes:
+    node_error:
+      title: Une étape a échoué
+      explanation: Le code, un template ou une expression d’une étape a échoué.
+      fix: Ouvre l’étape en échec pour voir pourquoi.
+    connector_error:
+      title: Un appel de service a échoué
+      explanation: Un service connecté a refusé un appel ou a échoué.
+      fix: Vérifie l’entrée de l’étape et la connexion au service.
+    llm_output_invalid:
+      title: La réponse du modèle ne correspondait pas
+      explanation: La réponse ne correspondait pas au schéma de sortie de l’étape.
+      fix: Fais demander au prompt les champs du schéma, ou assouplis le schéma.
+    approval_rejected:
+      title: Une personne a rejeté une étape
+      explanation: 'Une approbation a été rejetée : l’exécution s’est donc arrêtée.'
+      fix: Modifie la demande, ou relance pour demander à nouveau.
+    execution_limit:
+      title: L’exécution a fait trop d’étapes
+      explanation: L’exécution a atteint la limite d’exécutions d’étapes.
+      fix: Répartis le travail, ou traite moins d’éléments.
+    automation_deleted:
+      title: L’automatisation a été supprimée
+      explanation: Elle a été supprimée pendant l’exécution.
+      fix: Restaure-la, ou utilise une autre automatisation.
+    engine_incompatible:
+      title: La progression de cette exécution était illisible
+      explanation: 'L’exécution s’est arrêtée au lieu de recommencer : rien ne s’est donc exécuté deux fois.'
+      fix: Relance-la.
+    effect_in_doubt:
+      title: Arrêtée sur une écriture interrompue
+      explanation: Une personne a fait échouer l’exécution sur une écriture qui avait peut-être déjà atteint son service.
+      fix: Vérifie le service, puis relance si besoin.
+    missing_api_key:
+      title: Aucune clé pour le fournisseur du modèle
+      explanation: Aucune clé n’est configurée pour le fournisseur de ce modèle.
+      fix: Un administrateur ajoute une clé dans les paramètres des fournisseurs.
+    credit_exhausted:
+      title: Le crédit du fournisseur est épuisé
+      explanation: Le fournisseur a refusé l’appel faute de crédit.
+      fix: Recharge le compte, ou choisis un autre modèle.
+    model_not_entitled:
+      title: Pas d’accès à ce modèle
+      explanation: Le compte n’a pas le droit d’utiliser ce modèle.
+      fix: Choisis un autre modèle, ou demande à un administrateur.
+    auth_error:
+      title: Le fournisseur a refusé la clé
+      explanation: Le fournisseur n’a pas accepté la clé.
+      fix: Un administrateur remplace la clé.
+    model_not_found:
+      title: Le modèle n’existe pas
+      explanation: Le fournisseur ne connaît pas ce modèle.
+      fix: Choisis un modèle dans la liste.
+    unsupported_parameter:
+      title: Le modèle a refusé un réglage
+      explanation: Ce modèle ne prend pas en charge un réglage.
+      fix: Retire le réglage, ou choisis un autre modèle.
+    output_cap_too_high:
+      title: La limite de réponse est trop élevée
+      explanation: L’étape a demandé une réponse plus longue que ce que le modèle permet.
+      fix: Abaisse la limite de réponse.
+    token_limit:
+      title: La réponse a été tronquée
+      explanation: Le modèle a atteint sa limite de réponse.
+      fix: Demande une réponse plus courte, ou augmente la limite.
+    rate_limited:
+      title: Le fournisseur a demandé de ralentir
+      explanation: Trop de requêtes en peu de temps.
+      fix: Relance plus tard.
+    content_filter:
+      title: Le filtre du fournisseur a bloqué
+      explanation: Le fournisseur a refusé le contenu.
+      fix: Modifie le prompt ou l’entrée.
+    context_length:
+      title: Le prompt est trop long
+      explanation: Le prompt et ses données dépassent ce que le modèle lit en une fois.
+      fix: Envoie moins de données, ou choisis un modèle avec un contexte plus grand.
+    provider_unreachable:
+      title: Le fournisseur était injoignable
+      explanation: Aucune réponse du fournisseur du modèle.
+      fix: Relance plus tard.
+    provider_error:
+      title: Le fournisseur a échoué
+      explanation: Le fournisseur a répondu par une erreur.
+      fix: Relance ; si cela se reproduit, choisis un autre modèle.
+    budget_exceeded:
+      title: Un budget est épuisé
+      explanation: Une limite de dépenses pour toi, le projet ou l’organisation a été atteinte.
+      fix: Un administrateur augmente le budget, ou attends la prochaine période.
+    harness_error:
+      title: L’environnement de l’agent a échoué
+      explanation: L’agent de code s’est arrêté sur une erreur.
+      fix: Relance, et consulte le journal de l’agent.
+    turn_crashed:
+      title: L’agent s’est arrêté de façon inattendue
+      explanation: La sandbox de l’agent s’est arrêtée au milieu de son tour.
+      fix: Relance.
+    session_gone:
+      title: La session de l’agent a pris fin
+      explanation: La session de sandbox avait disparu avant la fin du tour.
+      fix: Relance.
+    start_failed:
+      title: L’agent n’a pas pu démarrer
+      explanation: Aucune sandbox ni aucun compte n’était libre pour démarrer le tour.
+      fix: Relance plus tard.
+    harvest_failed:
+      title: Les fichiers de l’agent n’ont pas pu être récupérés
+      explanation: Le tour s’est terminé, mais ses fichiers n’ont pas pu être rapatriés.
+      fix: Relance.
+    resume_failed:
+      title: L’agent n’a pas pu continuer
+      explanation: La reprise de la conversation après une réponse a échoué.
+      fix: Relance.
+    deadline:
+      title: L’agent a manqué de temps
+      explanation: Le tour a dépassé sa fenêtre de temps.
+      fix: Donne-lui moins à faire, ou plus de temps.
+    ask_expired:
+      title: Une question est restée sans réponse
+      explanation: L’agent a posé une question qui n’a pas reçu de réponse à temps.
+      fix: Relance, et réponds à la question.
+  unknown:
+    title: L’exécution a échoué
+    explanation: Tale n’a pas pu déterminer pourquoi. Les détails techniques donnent le message exact du moteur.
+    fix: Ouvre l’étape en échec, ou relance.

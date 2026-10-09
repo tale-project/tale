@@ -189,15 +189,19 @@ function say(t: IssueTranslate, key: string, values: TextValues = {}): string {
   return t(key, { ...values, ns: 'automationIssues' });
 }
 
-function quote(t: IssueTranslate, text: string): string {
+/** `text` in the language's quotes. */
+export function quote(t: IssueTranslate, text: string): string {
   return say(t, 'quote', { text });
 }
 
-function nodeLabel(t: IssueTranslate, id: string): string {
+/** A node's name the way the canvas shows it, in the language's quotes. */
+export function nodeLabel(t: IssueTranslate, id: string): string {
   return quote(t, humanizeNodeId(id));
 }
 
-function fieldLabel(t: IssueTranslate, field: string): string {
+/** A field's label the way the inspector shows it, in the language's
+ * quotes; the field as written when it has no label. */
+export function fieldLabel(t: IssueTranslate, field: string): string {
   return quote(
     t,
     t(`editor.fields.${field}`, { ns: 'automations', defaultValue: field }),
@@ -244,6 +248,22 @@ type ValueKind =
   | 'array'
   | 'object'
   | 'other';
+
+const VALUE_KINDS: ReadonlySet<string> = new Set<ValueKind>([
+  'string',
+  'number',
+  'boolean',
+  'null',
+  'undefined',
+  'array',
+  'object',
+]);
+
+/** A kind of value (`kindOf`'s word) as the catalog names it: "a number",
+ * "text", "a list". */
+export function kindLabel(t: IssueTranslate, kind: string): string {
+  return say(t, `kinds.${VALUE_KINDS.has(kind) ? kind : 'other'}`);
+}
 
 /** `a | b` split where the `|` is not inside brackets or quotes. */
 function unionParts(type: string): string[] {

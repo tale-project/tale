@@ -59,3 +59,26 @@ export function formatSuccessRate(
     return `${successRate.toFixed(1)}%`;
   }
 }
+
+/**
+ * A time limit in the locale's words, in the largest unit that reads well:
+ * `250 milliseconds`, `5 seconds`, `1.5 minutes`.
+ *
+ * @example
+ * formatDurationWords(5000, 'en') // "5 seconds"
+ * formatDurationWords(90_000, 'de') // "1,5 Minuten"
+ */
+export function formatDurationWords(ms: number, locale: string): string {
+  const [value, unit] =
+    ms < 1000
+      ? [ms, 'millisecond']
+      : ms < 60_000
+        ? [ms / 1000, 'second']
+        : [ms / 60_000, 'minute'];
+  return new Intl.NumberFormat(locale, {
+    style: 'unit',
+    unit,
+    unitDisplay: 'long',
+    maximumFractionDigits: 1,
+  }).format(value);
+}
