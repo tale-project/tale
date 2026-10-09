@@ -35,6 +35,7 @@ const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
     stalled: undefined as boolean | undefined,
     failureCode: undefined as string | undefined,
     record: null as unknown,
+    replayOf: undefined as unknown,
   },
   resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
@@ -202,6 +203,7 @@ import { RunDetail } from './run-detail';
 beforeEach(() => {
   state.failureCode = undefined;
   state.record = null;
+  state.replayOf = undefined;
   state.status = 'waiting';
   state.finishedAt = null;
   state.detail = 'approval:250a93eb-9413-4699-94e8-ee3164e5e545';
@@ -818,6 +820,28 @@ describe('RunDetail starter and reason', () => {
       screen.getByRole('button', { name: 'Retry from this step' }),
     ).toBeEnabled();
     expect(screen.getByRole('link', { name: 'Show in editor' })).toBeVisible();
+  });
+
+  it('names the run a replay ran again, and how, with the way back to it', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.replayOf = { runId: 'run-src-1234', kind: 'from', fromNode: 'score' };
+    renderRun();
+    expect(screen.getByText('Replay of run runsrc · from Score')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Open run runsrc' })).toBeVisible();
+  });
+
+  it('says when the run a replay ran again was deleted', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.replayOf = { runId: null, kind: 'again' };
+    renderRun();
+    expect(screen.getByText('Replay of a run that was deleted')).toBeVisible();
+    expect(screen.queryByRole('link', { name: /Open run/ })).toBeNull();
   });
 
   it('shows no reason on a stopped run whose park is history', () => {

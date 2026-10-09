@@ -74,6 +74,7 @@ import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
 import { RunFailureCard } from './run-failure-card';
 import { RunInDoubtCard } from './run-in-doubt-card';
+import { RunLineage } from './run-lineage';
 import { RunQuarantineCard } from './run-quarantine-card';
 import { RunReplayDialog } from './run-replay-dialog';
 import { RunBadge } from './run-status-badge';
@@ -465,6 +466,13 @@ function RunDetailBody({
           >
             {t('runs.cancel')}
           </Button>
+        )}
+        {run.replayOf !== undefined && (
+          <RunLineage
+            replayOf={run.replayOf}
+            runsPath={runsPath}
+            stepLabel={nodeTitle}
+          />
         )}
         {/* A run another server took over, or a stopping one handed on:
             how often, and the last time when and why — the platform's

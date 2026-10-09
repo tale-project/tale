@@ -24,6 +24,12 @@ failure:
   retry: Retry from this step
   showInEditor: Show in editor
   location: '{step} › {field}'
+lineage:
+  again: Replay of run {id}
+  edited: Replay of run {id} · edited input
+  from: Replay of run {id} · from {step}
+  deleted: Replay of a run that was deleted
+  open: Open run {id}
 runtime:
   codes:
     EXPR_SYNTAX:

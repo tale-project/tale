@@ -24,6 +24,12 @@ failure:
   retry: Relancer à partir de cette étape
   showInEditor: Afficher dans l’éditeur
   location: '{step} › {field}'
+lineage:
+  again: Relance de l’exécution {id}
+  edited: Relance de l’exécution {id} · entrée modifiée
+  from: Relance de l’exécution {id} · à partir de l’étape {step}
+  deleted: Relance d’une exécution supprimée
+  open: Ouvrir l’exécution {id}
 runtime:
   codes:
     EXPR_SYNTAX:

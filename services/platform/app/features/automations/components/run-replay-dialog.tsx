@@ -25,6 +25,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useReplayRun } from '../hooks/mutations';
 import { useReplayPlan } from '../hooks/queries';
+import { shortRunId } from '../lib/run-view';
 
 type VersionChoice = 'same' | 'latest' | 'deployed';
 
@@ -46,11 +47,6 @@ export interface RunReplayDialogProps {
   onStarted: (started: ReplayStarted) => void;
   /** Show a step the plan names, closing the dialog. */
   onSelectStep?: (nodeId: string) => void;
-}
-
-/** The first characters of a run id, the way the run page names a run. */
-function shortRunId(runId: string): string {
-  return runId.replaceAll('-', '').slice(0, 6);
 }
 
 /**

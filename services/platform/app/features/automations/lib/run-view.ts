@@ -422,3 +422,10 @@ export function nodeStatusMap(
     }),
   );
 }
+
+/** A run's short name: the first six characters of its id, without
+ * dashes ("7f3e2a") — how the run page, its lineage and a replay name a
+ * run. */
+export function shortRunId(runId: string): string {
+  return runId.replaceAll('-', '').slice(0, 6);
+}

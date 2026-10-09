@@ -24,6 +24,12 @@ failure:
   retry: Ab diesem Schritt wiederholen
   showInEditor: Im Editor zeigen
   location: '{step} › {field}'
+lineage:
+  again: Wiederholung von Lauf {id}
+  edited: Wiederholung von Lauf {id} · geänderte Eingabe
+  from: Wiederholung von Lauf {id} · ab {step}
+  deleted: Wiederholung eines gelöschten Laufs
+  open: Lauf {id} öffnen
 runtime:
   codes:
     EXPR_SYNTAX:

@@ -17,6 +17,7 @@ import type { ReplayStarted } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
 import { useReplayRun } from '../hooks/mutations';
+import { shortRunId } from '../lib/run-view';
 import {
   AutomationRunDialog,
   type AutomationRunRequest,
@@ -303,11 +304,6 @@ export function RunActions({
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** The first characters of a run id, the way the run page names a run. */
-function shortRunId(runId: string): string {
-  return runId.replaceAll('-', '').slice(0, 6);
 }
 
 /** The run dialog, with the projects an issue import picks from — read
