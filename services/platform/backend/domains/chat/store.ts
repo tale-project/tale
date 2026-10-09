@@ -40,7 +40,8 @@ import { ChatThreadError, projectChatAccess } from './threads.ts';
 
 /** Shortest gap between two progress writes of one turn. */
 const STREAM_WRITE_INTERVAL_MS = 250;
-/** Longest gap: also how long a cancel may wait for the next write. */
+/** Longest gap between two writes of a streaming turn (a stalled turn's
+ * cancel poll is held only to the shortest). */
 const STREAM_WRITE_MAX_INTERVAL_MS = 1000;
 /** Characters of streamed text (answer and reasoning) per millisecond of
  * gap past the shortest one. */
@@ -406,11 +407,14 @@ function pgTurnStore(
 
     async streamProgress(update) {
       const nowMs = Date.now();
+      // A stall's cancel poll is held only to the shortest gap: Stop must
+      // not wait for the longer gap a long reply's text earns.
       const length = update.text.length + (update.reasoning?.length ?? 0);
-      if (
-        update.flush !== true &&
-        nowMs - lastStreamWriteAt < streamWriteIntervalMs(length)
-      ) {
+      const gapMs =
+        update.poll === true
+          ? STREAM_WRITE_INTERVAL_MS
+          : streamWriteIntervalMs(length);
+      if (update.flush !== true && nowMs - lastStreamWriteAt < gapMs) {
         return { cancelRequested: lastCancelRequested };
       }
       lastStreamWriteAt = nowMs;

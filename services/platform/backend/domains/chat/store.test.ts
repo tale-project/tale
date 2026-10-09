@@ -816,6 +816,16 @@ describe('createPgTurnStore.streamProgress write gap', () => {
       expect(writes()).toBe(3);
       await progress(`${long}!`, true);
       expect(writes()).toBe(4);
+      // A stall's cancel poll waits only the shortest gap, however long the
+      // reply: 300 ms after the last write it reads the row again.
+      vi.advanceTimersByTime(300);
+      await store.streamProgress({
+        organizationId: 'org_1',
+        threadId: 'thread_1',
+        text: `${long}!`,
+        poll: true,
+      });
+      expect(writes()).toBe(5);
     } finally {
       vi.useRealTimers();
     }
