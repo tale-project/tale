@@ -1,5 +1,6 @@
 import {
   managedTaskReviewContextSchema,
+  managedTaskReviewContextProvisionSchema,
   type ManagedTaskReviewContext,
 } from '@tale/shared/schemas/managed-configuration';
 import type { Sql, TransactionSql } from 'postgres';
@@ -19,6 +20,7 @@ import {
   assertTaskNotArchived,
   assertTaskReadable,
   assertTaskWorkable,
+  createTask,
   loadTaskOrThrow,
   type TaskRow,
 } from './service.ts';
@@ -42,13 +44,39 @@ export async function readTaskReviewContextConfiguration(
   auth: ProjectAuthContext,
   projectId: string,
   taskId: string,
+  createIfMissing = false,
 ) {
-  const task = await loadTaskOrThrow(sql, taskId, auth.organizationId);
+  assertTaskReadable(await loadProjectOrThrow(sql, projectId), auth);
+  const task = await taskForContext(
+    sql,
+    auth.organizationId,
+    taskId,
+    createIfMissing,
+  );
+  if (task === null) return { config: null, hash: null };
   if (task.projectId !== projectId)
     throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
-  assertTaskReadable(await loadProjectOrThrow(sql, projectId), auth);
   const config = await readReviewContext(sql, auth.organizationId, taskId);
   return { config, hash: managedConfigurationHash(config) };
+}
+
+async function taskForContext(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  taskId: string,
+  allowMissing: boolean,
+): Promise<TaskRow | null> {
+  try {
+    return await loadTaskOrThrow(sql, taskId, organizationId);
+  } catch (error) {
+    if (
+      allowMissing &&
+      error instanceof TaskError &&
+      error.code === 'TASK_NOT_FOUND'
+    )
+      return null;
+    throw error;
+  }
 }
 
 function isEmptyList(value: unknown): boolean {
@@ -121,7 +149,7 @@ async function assertPristineReviewContext(
     );
 }
 
-/** Managed native adoption only; no agent tool or generic task patch accepts
+/** Managed native enrollment; no agent tool or generic task patch accepts
  * this purpose. Agent-before-task lock order is shared with delegated starts.
  * The binding remains immutable while disabled and after all runs expire. */
 export async function updateTaskReviewContextConfiguration(
@@ -129,10 +157,20 @@ export async function updateTaskReviewContextConfiguration(
   auth: ProjectAuthContext,
   raw: ManagedTaskReviewContext,
   expectedHash: string | null,
+  createIfMissing = false,
 ): Promise<void> {
   const config = managedTaskReviewContextSchema.parse(raw);
-  const initial = await loadTaskOrThrow(tx, config.taskId, auth.organizationId);
-  if (initial.projectId !== config.projectId)
+  managedTaskReviewContextProvisionSchema.parse({
+    config,
+    ...(createIfMissing ? { createIfMissing: true } : {}),
+  });
+  const initial = await taskForContext(
+    tx,
+    auth.organizationId,
+    config.taskId,
+    createIfMissing,
+  );
+  if (initial !== null && initial.projectId !== config.projectId)
     throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
   const project = await loadProjectOrThrow(tx, config.projectId);
   assertTaskReadable(project, auth);
@@ -144,7 +182,43 @@ export async function updateTaskReviewContextConfiguration(
     agentId: config.reviewerAgentId,
   });
   await lockTaskRunStart(tx, auth.organizationId, config.taskId);
-  const task = await loadTaskOrThrow(tx, config.taskId, auth.organizationId);
+  let task = await taskForContext(
+    tx,
+    auth.organizationId,
+    config.taskId,
+    createIfMissing,
+  );
+  if (task === null) {
+    assertExpectedHash(null, expectedHash);
+    try {
+      await createTask(
+        tx,
+        auth,
+        {
+          projectId: config.projectId,
+          title: 'Independent review context',
+          status: 'backlog',
+          assigneeType: 'agent',
+          assigneeId: config.reviewerAgentId,
+        },
+        { taskId: config.taskId },
+      );
+    } catch (error) {
+      if (
+        error !== null &&
+        typeof error === 'object' &&
+        'code' in error &&
+        error.code === '23505'
+      )
+        throw new TaskError(
+          'TASK_REVIEW_INVALID',
+          'The declared task identity is unavailable',
+          409,
+        );
+      throw error;
+    }
+    task = await loadTaskOrThrow(tx, config.taskId, auth.organizationId);
+  }
   if (task.projectId !== config.projectId)
     throw new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
   await assertTaskWorkable(tx, project, task, auth);

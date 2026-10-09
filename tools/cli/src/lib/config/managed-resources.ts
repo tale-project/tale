@@ -41,7 +41,7 @@ function resourcePath(resource: ManagedPlatformResource, read = false): string {
     case 'task-instructions':
       return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/instructions?projectId=${encodeURIComponent(projectId)}`;
     case 'task-review-context':
-      return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/review-context?projectId=${encodeURIComponent(projectId)}`;
+      return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/review-context?projectId=${encodeURIComponent(projectId)}${read && resource.createIfMissing === true ? '&createIfMissing=true' : ''}`;
     default:
       return `/api/app/automations/${encodeURIComponent(resource.config.name)}/configuration${read ? `?projectId=${encodeURIComponent(projectId)}&kind=${resource.kind}` : ''}`;
   }
@@ -135,6 +135,10 @@ export async function writeManagedResource(
     await client.request(resourcePath(resource), 'POST', {
       config: resource.config,
       expectedHash,
+      ...(resource.kind === 'task-review-context' &&
+      resource.createIfMissing === true
+        ? { createIfMissing: true }
+        : {}),
     });
     return;
   }

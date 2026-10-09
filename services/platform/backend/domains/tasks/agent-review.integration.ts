@@ -859,6 +859,8 @@ export async function checkAgentTaskReviews(
     });
     await checkReviewBatches({
       sql,
+      base,
+      cookie: ctx.cookie,
       orgId,
       projectId: project,
       implementerId: author,

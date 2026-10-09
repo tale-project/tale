@@ -158,7 +158,19 @@ function native(resources: PlatformResource[]) {
                     : path.includes('/agents/')
                       ? 'agent-instructions'
                       : 'project-instructions'));
-      const selected = resources.find((resource) => resource.kind === kind);
+      const selected = resources.find(
+        (resource) =>
+          resource.kind === kind &&
+          ('agentId' in resource.config
+            ? path.includes(
+                `/agents/${encodeURIComponent(resource.config.agentId)}/`,
+              )
+            : 'taskId' in resource.config
+              ? path.includes(
+                  `/tasks/${encodeURIComponent(resource.config.taskId)}/`,
+                )
+              : true),
+      );
       if (!selected) throw new Error('unknown native resource');
       const key = resourceId(selected);
       const current = state.get(key) ?? null;
@@ -517,6 +529,104 @@ describe('managed review context adoption', () => {
       enabled: true,
     },
   };
+
+  test('explicit creation survives planning and lost-response reconciliation without a second POST', async () => {
+    const creation = {
+      ...resource,
+      createIfMissing: true as const,
+      config: {
+        ...resource.config,
+        taskId: '2045dc63-4934-40fc-89f8-f66b82a30152',
+      },
+    };
+    const config = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [creation],
+    });
+    const api = native(config.resources);
+    const requests: { path: string; method?: string }[] = [];
+    const request = api.client.request.bind(api.client);
+    api.client.request = async (path, method, body) => {
+      requests.push({ path, method });
+      return request(path, method, body);
+    };
+    const directory = await mkdtemp(
+      join(tmpdir(), 'managed-review-bootstrap-'),
+    );
+    roots.push(directory);
+    const receipt = join(directory, 'receipt.json');
+    const plan = await planPlatformConfiguration(config, api.client);
+    expect(requests[0]?.path).toEndWith('&createIfMissing=true');
+    api.lose(creation.kind);
+    await expect(
+      applyPlatformConfiguration(config, plan, api.client, receipt),
+    ).rejects.toThrow('Configuration apply stopped');
+    await applyPlatformConfiguration(config, plan, api.client, receipt);
+    expect(api.writes).toEqual([
+      {
+        kind: creation.kind,
+        body: {
+          config: creation.config,
+          expectedHash: null,
+          createIfMissing: true,
+        },
+      },
+    ]);
+    expect(
+      requests.find((entry) => entry.method === 'POST')?.path,
+    ).not.toContain('createIfMissing');
+    expect(
+      (await planPlatformConfiguration(config, api.client)).resources.every(
+        (change) => change.action === 'unchanged',
+      ),
+    ).toBe(true);
+  });
+
+  test('plans the complete 107-resource fleet inventory with 19 stable creation identities', async () => {
+    const existing = Array.from({ length: 68 }, (_, index) => ({
+      kind: 'agent-instructions',
+      config: {
+        projectId: 'project-1',
+        agentId: `existing-${index}`,
+        instructions: 'Existing role',
+      },
+    }));
+    const models = Array.from({ length: 20 }, (_, index) => ({
+      kind: 'agent-model',
+      config: {
+        projectId: 'project-1',
+        agentId: `worker-${index}`,
+        harness: index < 6 ? 'claude-code' : 'codex',
+        model: index < 6 ? 'claude-opus-5-5' : 'gpt-6.1-sol',
+        modelProvider: index < 6 ? 'anthropic' : 'openai',
+      },
+    }));
+    const contexts = Array.from({ length: 19 }, (_, index) => ({
+      ...resource,
+      createIfMissing: true as const,
+      config: {
+        ...resource.config,
+        taskId: `2045dc63-4934-40fc-89f8-${String(index).padStart(12, '0')}`,
+        reviewerAgentId: `worker-${index + 1}`,
+      },
+    }));
+    const config = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [...existing, ...models, ...contexts],
+    });
+    const api = native(config.resources);
+    const plan = await planPlatformConfiguration(config, api.client);
+    expect(plan.resources).toHaveLength(107);
+    expect(new Set(plan.resources.map((change) => change.id)).size).toBe(107);
+    expect(
+      config.resources.filter(
+        (entry) =>
+          entry.kind === 'task-review-context' &&
+          entry.createIfMissing === true,
+      ),
+    ).toHaveLength(19);
+    expect(api.writes).toEqual([]);
+  });
 
   test('enrolls an absent context through native CAS and reconciles a lost response without duplicate writes', async () => {
     const config = parsePlatformConfiguration({
