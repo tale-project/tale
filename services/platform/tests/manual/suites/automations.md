@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 104 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 119 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -323,10 +323,11 @@ output:
   leaves **Save** and **Discard** (`common.actions.discard`) disabled.
 - [ ] `AUTO-F28` · **Trigger — webhook token** — Switch **Trigger type** to
   Webhook → **Save** → The warning
-  `automations.trigger.tokenTitle` shows the full webhook URL once. The
-  **Webhook endpoint** section (`automations.trigger.webhookEndpointLabel`)
-  shows its POST command; after reload it uses a token placeholder and says
-  a token exists (`automations.trigger.hasToken`). **Rotate token**
+  `automations.trigger.tokenTitle` shows the full webhook URL once. After
+  reload the **Webhook endpoint** section
+  (`automations.trigger.webhookEndpointLabel`) lists the URL with its token
+  masked and says it was shown once
+  (`automations.trigger.webhook.tokenHiddenHint`). **Rotate token**
   (`automations.trigger.rotate`) reveals a new URL and the old URL stops
   working.
 - [ ] `AUTO-F29` · **Trigger — remove** — **Remove trigger**
@@ -528,8 +529,9 @@ output:
       copy button (`automations.blank.copyWebhookUrl`); the copied URL
       answers 202 to a POST (after Deploy); **Open the automation**
       (`automations.blank.openAutomation`) lands in the editor, whose **General**
-      tab's Trigger section says a token is active (`automations.trigger.hasToken`) — no
-      Rotate needed. Closing the dialog with Escape also lands there.
+      tab's Trigger section lists the URL with its token masked
+      (`automations.trigger.webhook.tokenHiddenHint`) — no Rotate needed.
+      Closing the dialog with Escape also lands there.
 - [ ] `AUTO-F48` · **Stopping a run asks first and keeps what ran** — On a
       live run parked on an approval (AUTO-F25) whose first node already ran,
       **Stop the run** (`automations.runs.cancel`) → a confirm dialog
@@ -772,6 +774,196 @@ output:
       the node's sheet closes, the Problems sheet opens on All
       (`automations.problems.filter.all`) with focus on the first error, and
       Enter on it opens the node that holds the error with its field focused.
+- [ ] `AUTO-F93` · **A preset saves in one click** — On a deployed
+      automation with an enabled schedule, open the **General** tab's
+      **Schedule** picker
+      (`automations.trigger.schedule.label`) → the popover lists the presets
+      (every 15 minutes, every hour, and daily, weekday
+      (`recurrence.workweekRange`), weekly and monthly at the schedule's
+      time) with the stored schedule's row checked and its next three runs
+      under **Next runs** (`recurrence.nextRuns`). Choose **Every hour** → the
+      popover closes, the picker reads Every hour, the **General** tab's
+      unsaved dot lights and the list below reads
+      `automations.trigger.nextRuns.titleUnsaved`; **Save**
+      (`common.actions.save`) → after reload the picker reads Every hour and
+      its row is checked. Opening the picker and pressing Escape changes
+      nothing.
+- [ ] `AUTO-F94` · **Times of day are added, deduplicated and sorted** — In
+      the picker, choose **Custom times** (`recurrence.customTimes`), **Week**
+      (`recurrence.editor.units.weekly`) on Mo–Fr and 09:00 under **At**
+      (`recurrence.editor.at`); **Add time** (`recurrence.editor.addTime`) →
+      a row one hour after the last (10:00) appears with focus in it; type
+      17:30, add another and type 09:00 → that row says
+      `recurrence.editor.duplicateTime`; remove it with its **Remove** button
+      (`recurrence.editor.removeTime`, naming the time). Add rows until there
+      are twelve → **Add time** is disabled and says
+      `recurrence.editor.maxTimes`. Remove back to 17:30 and 09:00 and
+      **Save** in the popover → the picker reads every weekday at 9:00 AM and
+      5:30 PM, in that order; after the tab's **Save** and a reload, Custom
+      times reopens with the same two times.
+- [ ] `AUTO-F95` · **An interval keeps to its hours** — Choose **Custom
+      interval** (`recurrence.customInterval`), every 15 minutes on Mo–Fr,
+      and turn on **Only between** (`recurrence.editor.onlyBetween`) from
+      08:00 until 18:00 → the line under the hours reads
+      `recurrence.editor.windowHint.sameDay` with 8:00 AM and 5:45 PM. From
+      22:00 until 06:00 → `recurrence.editor.windowHint.overnight`. The same
+      start and end → `recurrence.editor.windowHint.allDay`. Every 6 hours
+      from 08:00 until 11:00 → `recurrence.editor.windowHint.none`, and the
+      popover's **Save** is disabled with that reason; start at 06:00 instead
+      → `recurrence.editor.windowHint.once` and it saves.
+- [ ] `AUTO-F96` · **A stored cron keeps its meaning** — Switch **Schedule
+      format** to **Cron (advanced)** (`automations.trigger.schedule.formatCron`),
+      enter `0 7 * * *`, **Save** and reload → the schedule opens in
+      **Repeat** reading daily at 7:00 AM, with
+      `automations.trigger.schedule.savedAsCron` naming `0 7 * * *`. Turn
+      **Enabled** on, save and reload → the note still names the same
+      expression. Change the time to 07:30, save and reload → the note is
+      gone. Store `30 8 1 * 1` the same way → after reload it opens in
+      **Cron (advanced)** as typed; switching to **Repeat** shows
+      `automations.trigger.schedule.cronNotConvertible`, and switching back
+      shows the expression unchanged. In **Repeat**, a schedule at 9:00 and
+      17:30 switched to Cron reads `automations.trigger.schedule.repeatNoCron`.
+- [ ] `AUTO-F97` · **Next runs in the schedule's zone and across a clock
+      change** — With the computer's time zone set to America/New_York, set
+      **Timezone** (`automations.trigger.timezoneLabel`) to `Europe/Zurich`
+      and a Custom times schedule of **Year** on 28 March at 02:30 → **Next
+      runs** lists 28 March 2027 marked **Clock change**
+      (`recurrence.occurrences.clockChange`) with
+      `recurrence.occurrences.shiftedForward` (it starts at 3:30 AM), and
+      each run also in your own time
+      (`recurrence.occurrences.localOtherDay` or
+      `recurrence.occurrences.local`). On 25 October at 02:30 the 2026 run
+      reads `recurrence.occurrences.repeatedHour`. Set **Timezone** back to
+      your own zone (`automations.trigger.timezoneYours`) → the second time
+      is gone. (Past those dates, use the next last Sunday of March and of
+      October.)
+- [ ] `AUTO-F98` · **A skipped start says why and how to fix it** — Give an
+      automation an enabled every-minute schedule (**Custom interval**, every
+      minute) and reload a minute after each step: with no version deployed
+      → the **Trigger** section reads
+      `automations.trigger.skip.notDeployed.title` with **Open the editor**
+      (`automations.trigger.skip.openEditor`). Deploy a version whose
+      `inputs` require `owner` → `automations.trigger.skip.inputRefused.title`
+      naming that version, with **Add the missing field**
+      (`automations.trigger.fixedInput.fillMissing`) and **Open the editor**.
+      Each notice's **Technical details**
+      (`automations.trigger.skip.technicalDetails`) is closed at first and
+      shows the code in English. Add the field and **Save** → once the next
+      run starts, the notice is gone and the line reads
+      `automations.trigger.health.lastRun` with the run's state and **View
+      run** (`automations.trigger.failures.viewRun`). Then switch the trigger
+      to **Platform event** › **Contact created**, install the automation in
+      one project only, archive that project and create a contact →
+      `automations.trigger.skip.projectRefused.title`, saying an event
+      arrived and its project is archived, whose **Edit the projects**
+      (`automations.trigger.skip.editProjects`) moves focus to **Projects**.
+- [ ] `AUTO-F99` · **Run now starts what the trigger would** — On a deployed
+      automation with a saved schedule, **Run now**
+      (`automations.trigger.runNow.label`, beside **This run receives**,
+      `automations.trigger.input.title`) → a confirmation
+      (`automations.trigger.runNow.body`) shows the input with
+      `"trigger": "schedule"` and `firedAt`; **Start run**
+      (`automations.trigger.runNow.confirm`) → under the button
+      `automations.trigger.runNow.started` with **View run**, which opens a
+      live run of the deployed version; the trigger's last-run line and
+      **Next runs** do not change. On a webhook or event trigger, **Run now**
+      opens the run dialog with the sample `payload` to edit. Edit the
+      trigger without saving → **Run now** is disabled and says
+      `automations.trigger.runNow.unsaved`; with no deployed version it says
+      `automations.detail.runLiveNeedsDeploy`.
+- [ ] `AUTO-F100` · **A webhook answers on each project's URL** — Install an
+      automation in two projects, open its General tab inside the second one
+      (`/dashboard/{org}/projects/{projectId}/automations/{slug}/general`),
+      choose **Webhook** and **Save** → `automations.trigger.tokenTitle` lists
+      two copyable URLs, labelled with the project names, this project's
+      first, each ending in `/api/projects/<project id>/automations/webhook/`
+      and the token; **Send a test request**
+      (`automations.trigger.webhook.sampleTitle`) holds a curl command with
+      this project's full URL and an `Idempotency-Key`. Reload → **Project
+      URLs** (`automations.trigger.webhook.projectUrls`) lists both with the
+      token masked, `automations.trigger.webhook.tokenHiddenHint` and
+      `automations.trigger.webhook.orgUnused`; the curl command now reads
+      `$TALE_WEBHOOK_URL`, and the token appears nowhere on the page. An
+      automation installed in no project shows one **Webhook endpoint**
+      address under `/api/automations/webhook/`.
+- [ ] `AUTO-F101` · **Recent deliveries** — With the webhook of `AUTO-F100`
+      deployed and on, **Recent deliveries**
+      (`automations.trigger.webhook.deliveries.title`) reads
+      `automations.trigger.webhook.deliveries.empty`. Send the test request
+      with `Idempotency-Key: a1` and reload → one row with its time,
+      `automations.trigger.webhook.deliveries.byHeader` naming
+      `idempotency-key`, the run's state and **View run**. Send it again →
+      the answer names the same run and no row is added. Send a body with no
+      id header and reload → its row reads
+      `automations.trigger.webhook.deliveries.byBody`, which is gone two
+      minutes later. A request to a wrong token answers 404 and adds no row
+      (`automations.trigger.webhook.deliveries.refusedNote`). Block the
+      read in DevTools and reload →
+      `automations.trigger.webhook.deliveries.loadFailed` with **Try again**
+      (`automations.trigger.retry`); unblock and press it → the list returns
+      with focus on its heading.
+- [ ] `AUTO-F102` · **Events read as words** — Choose **Platform event** →
+      **Event name** (`automations.trigger.eventLabel`) lists the events
+      under Tasks, Comments, Conversations, Contacts and Projects
+      (`automations.trigger.events.group.*`), each with its name, its id
+      (such as task.created) and one sentence of when it is raised; typing
+      `status_changed` in the search (`automations.trigger.events.search`)
+      finds **Task status changed**, and `xyz` reads
+      `automations.trigger.events.empty`. Pick it → its sentence stays under
+      the field, with `automations.trigger.events.scopeOrg` (installed in no
+      project) or `automations.trigger.events.scopeProjects` naming the
+      saved projects, and `automations.trigger.events.loopBounded`; **This
+      run receives** shows `"trigger": "event"`, the event's id and a sample
+      `payload`, with `automations.trigger.input.event`. **Save** and reload
+      → the same event is picked.
+- [ ] `AUTO-F103` · **Missed runs follow the setting** — **Missed runs**
+      (`automations.trigger.catchUp.label`) reads
+      `automations.trigger.catchUp.latest` with
+      `automations.trigger.catchUp.latestHint`; choose
+      `automations.trigger.catchUp.skip` → the hint reads
+      `automations.trigger.catchUp.skipHint`, and **Save** + reload keep it.
+      On a deployed, enabled schedule due in two minutes under **Skip
+      them**, stop the backend before the due time and start it 12 minutes
+      after → no run starts for it, and the **Trigger** section reads
+      `automations.trigger.skip.missed.title` (1 run) with the time and
+      `automations.trigger.skip.missed.policySkip`. With the default, the
+      same outage starts one run for the due time as soon as the backend is
+      back, and no notice says a run was missed. An every-minute schedule
+      on the default, stopped for three minutes → one run starts for the
+      latest minute and the notice counts the earlier ones with
+      `automations.trigger.skip.missed.policyLatest`.
+- [ ] `AUTO-F104` · **The fixed input adds the missing fields** — Deploy a
+      version whose `inputs` require `owner` (a string) and `limit` (an
+      integer), with a saved schedule and no fixed input → **This run
+      receives** warns `automations.trigger.input.refusedTitle` naming the
+      version and both fields; **Fixed input**
+      (`automations.trigger.fixedInput.label`) is already open with **Add
+      the 2 missing fields** (`automations.trigger.fixedInput.fillMissing`).
+      Click it → the field holds `"owner": ""` and `"limit": 0` with the
+      caret inside the first; type `acme` and **Save** →
+      `automations.trigger.input.accepted` names the version, and after
+      reload the field and the input both show `owner` and `limit` beside
+      `trigger` and `firedAt`. Enter `{"trigger": "x"}` →
+      `automations.trigger.issues.input.reservedKey` under the field and
+      **Save** stays disabled; `[1]` →
+      `automations.trigger.issues.input.notObject`; `{` →
+      `automations.trigger.fixedInput.notJson`.
+- [ ] `AUTO-F105` · **A deploy offers to turn the trigger on** — On an
+      automation whose saved schedule is off, **Deploy** a saved version
+      (`automations.detail.deployVersion`) → a notice reads
+      `automations.trigger.deployNotice.title` with focus on it and **Turn
+      on the trigger** (`automations.trigger.deployNotice.turnOn`); press it
+      → the notice reads `automations.trigger.deployNotice.turnedOn` and
+      keeps the focus, and the General tab shows **Enabled** on with the
+      schedule unchanged. Deploy the built-in GitHub triage pack's version
+      from its editor → the notice offers **Review the trigger**
+      (`automations.trigger.deployNotice.review`) instead, which opens the
+      General tab with the **Trigger** section in view below the tab strip.
+      Upload a pack with a schedule and choose **Deploy**
+      (`automations.upload.deployNow`) → the dialog stays open on the same
+      notice. Block the trigger write in DevTools and press **Turn on the
+      trigger** → `automations.trigger.deployNotice.turnOnFailed` beside the
+      button, in words.
 
 ## Boundary & error tests
 
@@ -975,6 +1167,24 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       `AUTO-F62`, press ⌘S (Ctrl+S) in the Prompt field → the browser's
       "Save page as" dialog does not open, focus moves to **Save** and its
       tooltip says `automations.problems.saveBlocked`; nothing is saved.
+- [ ] `AUTO-A17` · **Times of day by keyboard and screen reader** → In
+      **Custom times**, keyboard only and with VoiceOver: Tab reaches each
+      time's hour and minute (and, in English, AM/PM) in turn, named by its
+      row (`recurrence.editor.timeName`) and part (`timeField.hours`,
+      `timeField.minutes`); Up and Down step a part, typing 0 9 3 0 gives
+      09:30, Backspace empties a part (`timeField.empty`), and Enter saves
+      the popover. VoiceOver reads each value as a time, says once that a
+      time was added or removed, and reads `recurrence.editor.duplicateTime`
+      as the duplicate row's description. Escape closes the popover and
+      returns focus to the **Schedule** button.
+- [ ] `AUTO-A18` · **The schedule picker at phone width and 200 % zoom** → At
+      375 px wide and at 200 % zoom, in light and dark: the presets, Custom
+      times with twelve rows, and Custom interval with **Only between** fit
+      the screen without horizontal scrolling, the popover's **Save** and
+      **Cancel** stay reachable, the **Trigger** section and its **Next
+      runs** wrap without horizontal scrolling, and all text keeps AA
+      contrast. With reduced motion on, switching **Repeat** and **Cron
+      (advanced)** and adding a time show no movement.
 
 ## Performance
 
