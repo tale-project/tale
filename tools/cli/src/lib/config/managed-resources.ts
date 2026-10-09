@@ -1,6 +1,7 @@
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
   managedPlatformResourceSchema,
+  managedAgentModelObservationSchema,
   type ManagedPlatformResource,
 } from '@tale/shared/schemas/managed-configuration';
 import { z } from 'zod';
@@ -17,6 +18,7 @@ export function isManagedResource(
     resource.kind === 'project-instructions' ||
     resource.kind === 'agent-instructions' ||
     resource.kind === 'agent-tools' ||
+    resource.kind === 'agent-model' ||
     resource.kind === 'task-instructions' ||
     resource.kind === 'task-review-context' ||
     resource.kind === 'automation-definition' ||
@@ -32,6 +34,8 @@ function resourcePath(resource: ManagedPlatformResource, read = false): string {
       return `/api/app/projects/${encodeURIComponent(projectId)}/configuration/instructions`;
     case 'agent-instructions':
       return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/instructions`;
+    case 'agent-model':
+      return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/model`;
     case 'agent-tools':
       return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/tools`;
     case 'task-instructions':
@@ -61,10 +65,16 @@ export async function readManagedResource(
       );
     return { config: null, revision: null };
   }
-  const observed = managedPlatformResourceSchema.parse({
-    kind: resource.kind,
-    config: view.config,
-  });
+  const observed =
+    resource.kind === 'agent-model'
+      ? {
+          kind: resource.kind,
+          config: managedAgentModelObservationSchema.parse(view.config),
+        }
+      : managedPlatformResourceSchema.parse({
+          kind: resource.kind,
+          config: view.config,
+        });
   // Stored legacy agent text may predate write-time trimming. Its preimage
   // must retain those bytes, otherwise a legitimate native hash cannot be used
   // to adopt and normalize that existing target.

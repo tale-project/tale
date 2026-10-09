@@ -38,6 +38,8 @@ const service = vi.hoisted(() => ({
   updateAgentInstructionsConfiguration: vi.fn(),
   readAgentToolsConfiguration: vi.fn(),
   updateAgentToolsConfiguration: vi.fn(),
+  readAgentModelConfiguration: vi.fn(),
+  updateAgentModelConfiguration: vi.fn(),
   deleteProject: vi.fn(),
   getProjectAuthContext: vi.fn(),
   assertCanCreateProjects: vi.fn(),
@@ -558,6 +560,63 @@ describe('managed tool routes [PROJ-R17]', () => {
     async (body) => {
       expect((await send('POST', path, body)).status).toBe(400);
       expect(service.updateAgentToolsConfiguration).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('managed model routes [PROJ-R20]', () => {
+  const path = '/p1/agents/a1/configuration/model';
+  const config = {
+    projectId: 'p1',
+    agentId: 'a1',
+    harness: 'codex',
+    model: 'next-model',
+    modelProvider: 'example',
+  };
+  const expectedHash = 'b'.repeat(64);
+  it('reads only the model tuple and sends exact identity/hash to its native writer', async () => {
+    service.readAgentModelConfiguration.mockResolvedValue({
+      config,
+      hash: expectedHash,
+    });
+    expect(await (await send('GET', path)).json()).toEqual({
+      config,
+      hash: expectedHash,
+    });
+    expect(service.readAgentModelConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      'a1',
+    );
+    expect((await send('POST', path, { config, expectedHash })).status).toBe(
+      200,
+    );
+    expect(service.updateAgentModelConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      config,
+      expectedHash,
+    );
+    expect(service.updateProjectAgent).not.toHaveBeenCalled();
+  });
+  it.each([
+    { config },
+    { config, expectedHash: null },
+    { config, expectedHash: 'bad' },
+    { config: { ...config, modelProvider: null }, expectedHash },
+    { config: { ...config, modelProvider: '' }, expectedHash },
+    { config: { ...config, projectId: 'other' }, expectedHash },
+    { config: { ...config, agentId: 'other' }, expectedHash },
+    { config: { ...config, secrets: [] }, expectedHash },
+    { config: { ...config, tools: [] }, expectedHash },
+    { config: { ...config, name: 'replacement' }, expectedHash },
+    { config, expectedHash, instructions: 'replacement' },
+  ])(
+    'refuses unowned fields, ambiguous provider and stale/missing identity: %j',
+    async (body) => {
+      expect((await send('POST', path, body)).status).toBe(400);
+      expect(service.updateAgentModelConfiguration).not.toHaveBeenCalled();
     },
   );
 });

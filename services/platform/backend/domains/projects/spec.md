@@ -196,6 +196,23 @@ change it. Reads expose only the project and agent identity, tools and hash.
   managed tools configuration → its other equipment and private secret grants
   remain unchanged; a concurrent stale full-agent save is refused.
 
+## Managed models
+
+### PROJ-R20 · Managed model changes preserve existing work and agent equipment
+
+An editor of the active project may adopt an existing non-managed agent's
+harness, model and explicit provider against their current hash. The same
+model catalog and harness rules as the agent editor apply. Stale hashes and
+unavailable serving choices are refused. An equal tuple changes no revision or
+audit row. A change preserves all equipment and secret grants exactly and
+invalidates stale full-agent saves. Queued and running work keeps its admitted
+serving tuple; no run is restarted. Reads expose only identity, serving choices
+and their hash, including an existing unpinned provider.
+
+- **Example**: Ada changes a worker's provider and model while a task is queued
+  → that task keeps its original provider and model; the next admission uses the
+  new pair, and the worker's private secret grants remain unchanged.
+
 ## Not yet
 
 - **Tasks**: see the tasks spec.

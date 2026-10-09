@@ -4,6 +4,8 @@ import { AGENT_TOOL_CATALOG } from '../agent-tool-grants';
 import {
   managedAgentToolsSchema,
   managedAutomationScheduleSchema,
+  managedAgentModelSchema,
+  managedAgentModelObservationSchema,
   managedPlatformResourceSchema,
 } from './managed-configuration';
 import { PROJECT_AGENT_BINDINGS_MAX } from './projects';
@@ -87,4 +89,56 @@ describe('managed schedule slot-wake opt-in (#4540)', () => {
       ).toBe(false);
     },
   );
+});
+
+describe('managed agent model declarations', () => {
+  const config = {
+    projectId: 'project-a',
+    agentId: 'agent-a',
+    harness: 'codex',
+    model: 'model-a',
+    modelProvider: 'provider-a',
+  };
+  it('requires an explicit provider and preserves nullable legacy observations', () => {
+    expect(
+      managedPlatformResourceSchema.parse({ kind: 'agent-model', config }),
+    ).toEqual({ kind: 'agent-model', config });
+    expect(
+      managedAgentModelSchema.parse({
+        ...config,
+        model: ' model-a ',
+        modelProvider: ' provider-a ',
+      }),
+    ).toEqual(config);
+    expect(
+      managedAgentModelObservationSchema.parse({
+        ...config,
+        modelProvider: null,
+      }).modelProvider,
+    ).toBeNull();
+    expect(
+      managedAgentModelObservationSchema.parse({
+        ...config,
+        model: ' legacy ',
+        modelProvider: ' legacy-provider ',
+      }).model,
+    ).toBe(' legacy ');
+  });
+  it.each([
+    { modelProvider: undefined },
+    { modelProvider: null },
+    { modelProvider: '' },
+    { modelProvider: ' ' },
+    { model: ' ' },
+    { harness: '' },
+    { agentId: '' },
+    { secrets: [] },
+    { tools: [] },
+    { instructions: 'overwrite' },
+    { name: 'overwrite' },
+  ])('rejects incomplete or unrelated fields %j', (fields) => {
+    expect(
+      managedAgentModelSchema.safeParse({ ...config, ...fields }).success,
+    ).toBe(false);
+  });
 });

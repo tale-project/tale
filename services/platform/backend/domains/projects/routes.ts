@@ -4,6 +4,7 @@ import {
   managedProjectInstructionsSchema,
   managedAgentInstructionsSchema,
   managedAgentToolsSchema,
+  managedAgentModelSchema,
 } from '@tale/shared/schemas/managed-configuration';
 import {
   createProjectInputSchema,
@@ -61,6 +62,8 @@ import {
   readAgentInstructionsConfiguration,
   readAgentToolsConfiguration,
   updateAgentToolsConfiguration,
+  readAgentModelConfiguration,
+  updateAgentModelConfiguration,
   updateAgentInstructionsConfiguration,
   restoreProject,
   searchProjects,
@@ -286,6 +289,55 @@ export function createProjectRoutes(deps: {
       const auth = await authCtx(c);
       await transactSerializable(deps.sql, (tx) =>
         updateAgentToolsConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:id/agents/:agentId/configuration/model', async (c) => {
+    try {
+      return c.json(
+        await readAgentModelConfiguration(
+          deps.sql,
+          await authCtx(c),
+          c.req.param('id'),
+          c.req.param('agentId'),
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:id/agents/:agentId/configuration/model', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedAgentModelSchema,
+        expectedHash: configurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.param('id') ||
+      body.data.config.agentId !== c.req.param('agentId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateAgentModelConfiguration(
           tx,
           auth,
           body.data.config,
