@@ -258,7 +258,7 @@ describe('RunReplayDialog — starting', () => {
     expect(post?.body).toMatchObject({
       kind: 'from',
       from: 'score',
-      version: 'same',
+      version: 3,
       mode: 'live',
     });
     expect(post?.body).toHaveProperty('requestId');
@@ -266,6 +266,28 @@ describe('RunReplayDialog — starting', () => {
       expect.objectContaining({ runId: 'run-2' }),
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // REGRESSION: "deployed" was resolved again when the retry started, so a
+  // deploy landing after the plan started a version nobody was shown.
+  it('starts the version the plan showed, whatever was deployed since', async () => {
+    doors.plan = () =>
+      Response.json({
+        plan: planOf({
+          version: { source: 3, target: 5, resolved: 'deployed' },
+        }),
+      });
+    const { user, onStarted } = renderDialog({
+      deployedVersion: 6,
+      latestVersion: 6,
+    });
+
+    await user.click(
+      await screen.findByRole('button', { name: 'Retry from score' }),
+    );
+    await waitFor(() => expect(onStarted).toHaveBeenCalled());
+    const post = doors.calls.find((call) => call.method === 'POST');
+    expect(post?.body).toMatchObject({ version: 5 });
   });
 
   it('says why a start was refused, keeping the dialog open', async () => {
