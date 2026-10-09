@@ -565,7 +565,7 @@ output:
       `model` (no `modelProvider`), and a live run of that node succeeds.
       **Type a model that is not listed** (`automations.editor.llm.typeUnlisted`)
       shows the id box for free text.
-- [ ] `AUTO-F69` · **What the organization lacks warns, never blocks** — In
+- [ ] `AUTO-F92` · **What the organization lacks warns, never blocks** — In
       an organization without Gmail connected, open an automation whose
       `agent` node names a skill nobody added, the connector `gmail`, a
       secret nobody stored and the agent runtime `cursor` → **Problems** lists
