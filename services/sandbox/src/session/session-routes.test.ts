@@ -117,6 +117,9 @@ const daemonLastActivity = new Map<string, number>();
 const daemonIncarnations = new Map<string, string>();
 // The incarnation each activity request named, in arrival order.
 const activityIncarnations: Array<{ path: string; named: string | null }> = [];
+// Per-daemon live exec counts (by session token) /healthz reports, over
+// fakeHealth's shared one: an exec runnerd runs that no spawner registered.
+const daemonLiveExecs = new Map<string, number>();
 
 function ndjson(
   lines: Array<{ t: string; seq?: number; [key: string]: unknown }>,
@@ -210,7 +213,7 @@ beforeAll(() => {
           ...incarnation,
           lastActivityAtMs:
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
-          liveExecs: fakeHealth.liveExecs,
+          liveExecs: daemonLiveExecs.get(token) ?? fakeHealth.liveExecs,
           ...(dockerReady === undefined ? {} : { dockerReady }),
           ...(fakeHealth.dockerRecoveryRequired === undefined
             ? {}
@@ -706,6 +709,7 @@ beforeEach(() => {
   daemonLastActivity.clear();
   daemonIncarnations.clear();
   activityIncarnations.length = 0;
+  daemonLiveExecs.clear();
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -4001,6 +4005,59 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(routes.sessionIds()).toEqual([]);
     });
 
+    test('the linger reap asks runnerd whether a session is busy: an exec it follows by attach, or an operation, keeps its grace', async () => {
+      const tokenOf = (id: string) => deriveRunnerdToken(cfg.sandboxToken, id);
+      const graces = new Map<string, number | undefined>();
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        {
+          ...fakeBackend,
+          async stopSession(id, _stamp, options) {
+            graces.set(id, options?.graceMs);
+            return fakeBackend.stopSession(id);
+          },
+        },
+      );
+      for (const [sessionId, docker] of [
+        ['linger-attached', false],
+        ['linger-attached-docker', true],
+        ['linger-operating', false],
+        ['linger-silent', false],
+        ['linger-quiet', false],
+      ] as const) {
+        expect(
+          (
+            await routes.handleCreate(
+              JSON.stringify({
+                sessionId,
+                organizationId: 'org_linger',
+                profile: 'agent',
+                docker,
+              }),
+            )
+          ).status,
+        ).toBe(201);
+      }
+      // Between drain windows nothing is attached, so no exec is registered
+      // here; runnerd still runs one.
+      daemonLiveExecs.set(tokenOf('linger-attached'), 1);
+      daemonLiveExecs.set(tokenOf('linger-attached-docker'), 1);
+      const operating = new ActivityGate(() => 0);
+      operating.enter();
+      fakeActivities.set(tokenOf('linger-operating'), operating);
+      // A daemon that does not answer could not act on a stop's signal.
+      deadDaemons.add(tokenOf('linger-silent'));
+      expect(await routes.stopAllSessions()).toBe(5);
+      expect(Object.fromEntries(graces)).toEqual({
+        'linger-attached': 5_000,
+        'linger-attached-docker': 20_000,
+        'linger-operating': 5_000,
+        'linger-silent': 0,
+        'linger-quiet': 0,
+      });
+      expect(routes.sessionIds()).toEqual([]);
+    });
+
     test('the linger reap joins a stop already under way instead of cutting it short', async () => {
       const release = Promise.withResolvers<void>();
       const started = Promise.withResolvers<void>();
@@ -4027,6 +4084,41 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect(await sweep).toBe(1);
       expect(await linger).toBe(1);
       expect(stops).toBe(1);
+    });
+
+    test('the linger reap stops a session itself when the stop it joined ends without stopping it', async () => {
+      const release = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      let stops = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async stopSession(id) {
+          stops += 1;
+          if (stops === 1) {
+            started.resolve();
+            await release.promise;
+            throw new Error('docker rm timed out');
+          }
+          return fakeBackend.stopSession(id);
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'linger-refused',
+          organizationId: 'org_a',
+        }),
+      );
+      fakeHealth.lastActivityAtMs = 0;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await started.promise;
+      const linger = routes.stopAllSessions();
+      release.resolve();
+      expect(await sweep).toBe(0);
+      expect(await linger).toBe(1);
+      expect(stops).toBe(2);
+      expect(routes.sessionIds()).toEqual([]);
     });
 
     test.each(['get', 'pin'])(

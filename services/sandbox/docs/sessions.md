@@ -180,9 +180,14 @@ has been replaced by newly forked, untagged processes after the leader exits.
 **Session teardown is best effort, not a wrapper-cleanup guarantee.** runnerd
 passes SIGTERM to execs when it receives a graceful stop, but does not await
 their completion before exiting. On Docker a stop removes the container with
-`docker rm --force`, which kills at once and delivers no graceful stop; only a
-stop of a session with a live exec through this spawner asks first. The
-max-linger self-reap stops such a session with `docker stop -t 5` (`-t 20` for
+`docker rm --force`, which kills at once and delivers no graceful stop; only
+the max-linger self-reap's stop of a busy session asks first. Busy is an exec
+running through this spawner or, failing one, a live exec or an operation
+under way as runnerd's health reports it (asked with a 3 s bound): the
+platform follows a long turn by attach and hangs up at every drain window, so
+an exec it is draining is usually registered in no spawner. A daemon that
+does not answer could not act on the stop and is removed at once. The
+max-linger self-reap stops a busy session with `docker stop -t 5` (`-t 20` for
 a Docker-in-sandbox session, whose supervisor also shuts its inner engine down
 and whose dockerd waits up to 15 s for its own containers) and then removes it,
 inside the same lifecycle serialization as every other stop: a sweep or an

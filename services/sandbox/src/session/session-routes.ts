@@ -167,6 +167,11 @@ const BUSY_DOCKER_STOP_GRACE_MS = 20_000;
  * docker CLI slot for up to its grace, and the rest stay for the others. */
 const LINGER_STOP_CONCURRENCY = 4;
 
+/** How long the linger reap waits for a session's runnerd to say whether it
+ * is busy, under the ordinary 5 s probe: a hung daemon holds one of its four
+ * lanes no longer than this, and is stopped at once after it. */
+const LINGER_HEALTH_PROBE_MS = 3_000;
+
 /** While the session disk is critical, its largest workspaces are logged at
  * most this often (each measurement is a bounded `du` of every workspace). */
 const WORKSPACE_USAGE_LOG_MS = 10 * 60_000;
@@ -497,7 +502,7 @@ export class SessionRoutes {
   }
 
   /** Stop every non-finished session (compute reclaimed, workspace
-   * preserved); one with a live exec gets a grace to end its work first.
+   * preserved); a busy one gets a grace to end its work first.
    * Used by the spawner's max-linger self-reap so a spawner that lingered
    * past its TTL can shut down without orphaning containers — even if the
    * deploy died mid-roll. Returns the number stopped. */
@@ -508,16 +513,24 @@ export class SessionRoutes {
       LINGER_STOP_CONCURRENCY,
       async (s) => {
         // A stop already under way (a sweep's, an idle reclaim's) owns the
-        // incarnation; a second one would cut its grace short.
-        const pending = this.stopping.get(s.sessionId);
-        if (pending !== undefined) {
-          if (await pending) stopped += 1;
-          return;
+        // incarnation; a second one would cut its grace short. One that ends
+        // without stopping it (a claim a turn won, a failed removal) leaves
+        // the session to this reap's own stop.
+        for (
+          let pending = this.stopping.get(s.sessionId);
+          pending !== undefined;
+          pending = this.stopping.get(s.sessionId)
+        ) {
+          if (await pending) {
+            stopped += 1;
+            return;
+          }
+          if (this.registry.get(s.sessionId) !== s) return;
         }
-        const stop = this.backend
-          .stopSession(s.sessionId, s.createdAtMs, {
-            graceMs: this.stopGraceMs(s),
-          })
+        const stop = this.lingerGraceMs(s)
+          .then((graceMs) =>
+            this.backend.stopSession(s.sessionId, s.createdAtMs, { graceMs }),
+          )
           .then(
             () => {
               this.forgetReclaimed(s);
@@ -546,10 +559,36 @@ export class SessionRoutes {
     return stopped;
   }
 
-  /** How long a stop of this session lets its work end: a grace while an
-   * exec runs through this replica, none for an idle session. */
-  private stopGraceMs(session: RegistrySession): number {
-    if (session.liveExecs.size === 0) return 0;
+  /** How long the linger reap lets this session's work end: a grace while
+   * it is busy, none for an idle session. Busy is an exec through this
+   * replica or, failing one, what runnerd counts: its live execs and its
+   * operations under way. The platform follows a long turn by attach and
+   * hangs up at every drain window, so an exec it is still draining is
+   * usually registered nowhere here. A daemon that does not answer gets no
+   * grace: it could not act on the stop. Never rejects. */
+  private async lingerGraceMs(session: RegistrySession): Promise<number> {
+    if (session.liveExecs.size === 0) {
+      try {
+        const health = await runnerdHealth(
+          {
+            baseUrl: session.endpoint,
+            token: this.tokenFor(session.sessionId),
+          },
+          AbortSignal.timeout(LINGER_HEALTH_PROBE_MS),
+        );
+        if (
+          health.liveExecs === 0 &&
+          (health.activity?.activeOperations ?? 0) === 0
+        )
+          return 0;
+      } catch (error) {
+        console.warn(
+          `[sandbox.session] linger health probe failed for ${session.sessionId}; stopping it without a grace:`,
+          error,
+        );
+        return 0;
+      }
+    }
     return (session.docker ?? this.cfg.dockerInContainer)
       ? BUSY_DOCKER_STOP_GRACE_MS
       : BUSY_STOP_GRACE_MS;
