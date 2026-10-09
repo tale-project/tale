@@ -338,9 +338,11 @@ counts twice, once in each. Counters are kept 90 days, and an erasure of the per
 ### MCP-R14 · Every write over MCP leaves an audit row naming the coding agent
 
 A write a tool call makes — a version saved, a deploy, a delete, a trigger set or removed, an
-installation added or removed, a run stopped, a question answered — leaves its audit row (`AUTO-R28`),
-and every row written during the call says it came through MCP, with the tool, the API key and the
-client's name when the client named itself on that call (every call on 2026-07-28; see Not yet).
+installation added or removed, a run stopped, a question answered, a setting changed — leaves its
+audit row (`AUTO-R28`; for a setting, the row the same change leaves when it is made on its
+Settings page), and every row written during the call says it came through MCP, with the tool, the
+API key and the client's name when the client named itself on that call (every call on 2026-07-28;
+see Not yet).
 
 - **Example**: Ada's agent deploys v7 with her key "laptop" → the audit log shows "Automation
   deployed" by Ada, through MCP (`deploy_automation`, her laptop key).
@@ -420,9 +422,11 @@ deployment of a release. A signed-in person downloads it in the app; an agent re
   a version its agent saves records the door and the key but no client name; a 2026-07-28 client
   names itself on every call (MCP-R26).
 - The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).
-- A kind of setting is served over MCP once its handler sits beside the code that writes it in
-  the app; until then the catalog lists it as unavailable, and a change to it is refused
-  (`SETTINGS_KIND_UNAVAILABLE`).
+- Settings pages no kind covers yet — members, teams, connectors, skills, competences, legal
+  holds, data subject requests, the audit log, metrics and a person's own settings among them —
+  are listed with what an agent cannot do there (`settings/coverage.ts`); those changes are made
+  in Tale. A secret is always entered in Tale: no change request carries an agent's change there
+  for the person to finish yet.
 - A client cannot subscribe to a resource or be told that a list changed (`subscriptions/listen`
   answers 404 on 2026-07-28): the lists are read again when a client reconnects, or on 2026-07-28
   once the time the answer named has passed.

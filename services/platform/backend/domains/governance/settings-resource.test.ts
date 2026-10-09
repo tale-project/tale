@@ -56,6 +56,7 @@ vi.mock('../sandbox/unused-rule.ts', () => ({
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import type { McpCaller } from '../mcp/caller.ts';
 import { applySettings } from '../mcp/settings/apply.ts';
+import { getSettings } from '../mcp/settings/get.ts';
 import { planSettings } from '../mcp/settings/plan.ts';
 import type { SettingsContext } from '../mcp/settings/registry.ts';
 import { governanceEffects, governanceSettings } from './settings-resource.ts';
@@ -411,6 +412,47 @@ describe('applying a policy change', () => {
       { enabled: true, idleTimeoutMinutes: 60 },
       null,
     );
+  });
+});
+
+describe('a credential someone pasted into a policy in Tale [MCP-R12]', () => {
+  const PASTED = 'sk-000000000000000000000000';
+
+  it('never leaves in a read, and stays as written when its mask comes back', async () => {
+    stored.set('system_prompt', {
+      enabled: true,
+      mandatoryInstructions: `Use the key ${PASTED} for the CRM.`,
+    });
+    const answer = await getSettings(contextOf('admin'), registry, {
+      kinds: ['governance'],
+      ids: ['system_prompt'],
+    });
+    expect(JSON.stringify(answer)).not.toContain(PASTED);
+    const [read] = answer.resources as Array<{
+      config: Record<string, unknown>;
+      hash: string;
+    }>;
+    expect(read?.config.mandatoryInstructions).toMatchObject({ masked: true });
+
+    const sent = { ...read?.config, enabled: false };
+    const plan = await planSettings(contextOf('admin'), registry, [
+      { kind: 'governance', id: 'system_prompt', op: 'set', config: sent },
+    ]);
+    expect(JSON.stringify(plan)).not.toContain(PASTED);
+    expect(plan.changes[0]).toMatchObject({
+      action: 'update',
+      diff: [{ path: '/enabled', before: true, after: false }],
+    });
+    await applySettings(
+      contextOf('admin'),
+      registry,
+      [{ kind: 'governance', id: 'system_prompt', op: 'set', config: sent }],
+      { 'governance/system_prompt': read?.hash ?? null },
+    );
+    expect(stored.get('system_prompt')).toEqual({
+      enabled: false,
+      mandatoryInstructions: `Use the key ${PASTED} for the CRM.`,
+    });
   });
 });
 
