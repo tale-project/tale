@@ -1,9 +1,6 @@
 import type { Sql } from 'postgres';
 
-import {
-  AUTOMATION_SUBJECT_ID,
-  TRANSCRIPTION_SLUG,
-} from '../../../lib/shared/constants/usage.ts';
+import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage.ts';
 import { estimateTranscriptionCostCents } from '../../core/governance/cost_estimation.ts';
 import {
   type DirectCallLease,
@@ -12,6 +9,7 @@ import {
   releaseDirectCall,
   settleDirectCall,
 } from '../governance/direct-calls.ts';
+import { fileAttachmentProjectId, fileSpenderUserId } from './attribution.ts';
 
 /**
  * A transcription is a direct call (`governance/direct-calls.ts`) billed by
@@ -81,12 +79,10 @@ export async function openTranscriptionCall(
 
 /**
  * Whose spend an uploaded recording's transcription is: its uploader's —
- * the organization's when nobody is named — and the project's it was made
- * in: the one the composer named when it registered the file, else the
- * project of the chat it was added to, when the uploader owns that chat (a
- * thread id on a file is the uploader's claim, not proof of the project).
- * Null when the recording is gone or its transcription was cancelled:
- * nothing is to be charged then.
+ * the organization's when nobody who acts in it is named
+ * (`fileSpenderUserId`) — and the project's it was added in
+ * (`fileAttachmentProjectId`). Null when the recording is gone or its
+ * transcription was cancelled: nothing is to be charged then.
  */
 export async function uploadTranscriptionSubject(
   sql: Sql,
@@ -96,30 +92,26 @@ export async function uploadTranscriptionSubject(
     {
       uploadedBy: string | null;
       projectId: string | null;
+      threadId: string | null;
       status: string | null;
-      threadProjectId: string | null;
-      threadOwner: string | null;
     }[]
   >`
-    SELECT fm.uploaded_by AS "uploadedBy", fm.project_id AS "projectId",
-           fm.transcription_status AS status,
-           tm.project_id AS "threadProjectId", tm.user_id AS "threadOwner"
-    FROM app.file_metadata fm
-    LEFT JOIN app.thread_metadata tm
-      ON tm.thread_id = fm.thread_id AND tm.org_id = fm.org_id
-    WHERE fm.org_id = ${args.organizationId}
-      AND fm.storage_ref = ${args.storageId}
+    SELECT uploaded_by AS "uploadedBy", project_id AS "projectId",
+           thread_id AS "threadId", transcription_status AS status
+    FROM app.file_metadata
+    WHERE org_id = ${args.organizationId} AND storage_ref = ${args.storageId}
     LIMIT 1
   `;
   const row = rows[0];
   if (row === undefined || row.status === 'skipped') return null;
-  const projectId =
-    row.projectId ??
-    (row.threadOwner !== null && row.threadOwner === row.uploadedBy
-      ? row.threadProjectId
-      : null);
+  const projectId = await fileAttachmentProjectId(sql, {
+    organizationId: args.organizationId,
+    uploadedBy: row.uploadedBy,
+    projectId: row.projectId,
+    threadId: row.threadId,
+  });
   return {
-    userId: row.uploadedBy ?? AUTOMATION_SUBJECT_ID,
+    userId: await fileSpenderUserId(sql, args.organizationId, [row.uploadedBy]),
     agentSlug: TRANSCRIPTION_SLUG,
     ...(projectId !== null ? { projectIds: [projectId] } : {}),
   };

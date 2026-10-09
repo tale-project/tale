@@ -175,6 +175,18 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
     });
   });
 
+  it('books a run a capability started with a key to the key as well [SBX-R14]', async () => {
+    // An MCP `invoke_capability` start records `user:` beside the key.
+    const { sql } = fakeSql([SESSION, run('user:user-3', 'key-1')]);
+    await expect(
+      resolveSessionOpAttribution(sql, WORKFLOW_OP),
+    ).resolves.toEqual({
+      userId: 'user-3',
+      agentSlug: 'invoices/monthly',
+      apiKeyId: 'key-1',
+    });
+  });
+
   it('leaves the key out when a keyed run predates the column', async () => {
     const { sql } = fakeSql([SESSION, run('api-key:user-3')]);
     await expect(

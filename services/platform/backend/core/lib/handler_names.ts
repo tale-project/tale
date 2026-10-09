@@ -412,6 +412,7 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
+      recordEmbeddingLimit: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {

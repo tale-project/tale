@@ -441,5 +441,12 @@
  * names itself for another task is refused with `self_start`. Native
  * task_get agentRuns carry `waitingReason` while a run waits. No REST
  * operation changes.
+ *
+ * 3.26.0 — 2026-10-09: embeddings are counted and held to the budget caps.
+ * A knowledge search answers 429 `BUDGET_EXCEEDED` (with `data` and
+ * `Retry-After`) when a cap that binds the key holder, the key or the
+ * searched project is reached; a document's indexing `errorCode` gains
+ * `usage_limit` — a `failed` file whose indexing waits for such a cap and
+ * resumes by itself. Additive.
  */
-export const API_CONTRACT_VERSION = '3.25.0';
+export const API_CONTRACT_VERSION = '3.26.0';

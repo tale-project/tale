@@ -352,3 +352,31 @@ describe('RagStatusBadge', () => {
     });
   });
 });
+
+describe('RagStatusBadge for a file a usage limit parked', () => {
+  it('says it waits for the limit, in the reader’s language, and keeps the retry', () => {
+    render(
+      <RagStatusBadge
+        status="failed"
+        errorCode="usage_limit"
+        error="Usage limit reached. Your monthly cost limit is used up until 2026-11-01T00:00:00.000Z. Indexing resumes by itself once the limit allows it."
+        documentId="doc-1"
+      />,
+    );
+    expect(
+      screen.getByText('documents.rag.status.usageLimit'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('documents.rag.status.failed'),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'documents.rag.dialog.usageLimit.title',
+      }),
+    );
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(
+      'documents.rag.dialog.usageLimit.description',
+    );
+    expect(screen.queryByText(/Usage limit reached/)).not.toBeInTheDocument();
+  });
+});

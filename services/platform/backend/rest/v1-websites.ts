@@ -33,6 +33,7 @@ import {
   readKeysetCursor,
   readPageLimit,
   readQuery,
+  restApiKeyId,
   type RestEnv,
 } from './shared.ts';
 
@@ -210,10 +211,16 @@ export function createRestWebsiteRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (body instanceof Response) return body;
     const { scanInterval, title, description, urls } = body;
     try {
+      const apiKeyId = restApiKeyId(c);
       const outcome = await registerWebsite(deps.sql, {
         organizationId: c.get('organizationId'),
         domain: body.domain,
         scanInterval,
+        // The first scan is the key holder's spend, and the key's.
+        requestedBy: {
+          userId: c.get('userId'),
+          ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+        },
         ...(title !== undefined ? { title } : {}),
         ...(description !== undefined ? { description } : {}),
         ...(urls !== undefined ? { urls } : {}),

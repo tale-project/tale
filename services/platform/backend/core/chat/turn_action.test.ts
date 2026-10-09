@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { modelCatalogEntrySchema } from '@tale/shared/schemas/providers';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   runTurn,
@@ -50,6 +50,17 @@ describe('chatToolContextForTurn — the executor’s scope boundary', () => {
       ...who,
       projectId: 'project_1',
     });
+  });
+
+  it('hands the tools the turn’s embedding meter, and none when the host has none', () => {
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    expect(
+      chatToolContextForTurn({ ...who, projectId: null, embeddingMeter: meter })
+        .embeddingMeter,
+    ).toBe(meter);
+    expect(
+      chatToolContextForTurn({ ...who, projectId: null }),
+    ).not.toHaveProperty('embeddingMeter');
   });
 
   it('pins a personal thread to null, never to undefined', () => {
