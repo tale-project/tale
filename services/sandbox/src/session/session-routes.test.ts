@@ -19,6 +19,7 @@ import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type SessionBackend,
@@ -108,6 +109,12 @@ const deadDaemons = new Set<string>();
 const healthProbes = new Map<string, number>();
 // Per-daemon activity clocks (by session token), over fakeHealth's shared one.
 const daemonLastActivity = new Map<string, number>();
+// Daemons (by session token) launched with a creation stamp: they name it in
+// their answers and refuse an activity request meant for another incarnation,
+// as runnerd does. The rest name none, like an older runtime image.
+const daemonIncarnations = new Map<string, string>();
+// The incarnation each activity request named, in arrival order.
+const activityIncarnations: Array<{ path: string; named: string | null }> = [];
 
 function ndjson(
   lines: Array<{ t: string; seq?: number; [key: string]: unknown }>,
@@ -177,6 +184,17 @@ beforeAll(() => {
       if (deadDaemons.has(token)) {
         return new Response('runnerd is gone', { status: 503 });
       }
+      const served = daemonIncarnations.get(token);
+      const incarnation = served === undefined ? {} : { incarnation: served };
+      if (['/acquire', '/release', '/reclaim', '/pin'].includes(url.pathname)) {
+        const named = req.headers.get('x-tale-runnerd-incarnation');
+        activityIncarnations.push({ path: url.pathname, named });
+        if (served !== undefined && named !== null && named !== served)
+          return Response.json(
+            { error: 'incarnation_mismatch', ...incarnation },
+            { status: 409 },
+          );
+      }
       if (url.pathname === '/healthz') {
         healthProbes.set(token, (healthProbes.get(token) ?? 0) + 1);
         const dockerReady = fakeHealth.dockerReady;
@@ -187,6 +205,7 @@ beforeAll(() => {
         return Response.json({
           ok: true,
           bootedAtMs: 0,
+          ...incarnation,
           lastActivityAtMs:
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
           liveExecs: fakeHealth.liveExecs,
@@ -205,7 +224,7 @@ beforeAll(() => {
           );
         const generation = activity.acquire();
         return Response.json(
-          { generation },
+          { generation, ...incarnation },
           { status: generation === null ? 503 : 200 },
         );
       }
@@ -214,7 +233,10 @@ beforeAll(() => {
         url.pathname === '/release' &&
         req.method === 'GET'
       ) {
-        return Response.json({ generation: activity.snapshot().generation });
+        return Response.json({
+          generation: activity.snapshot().generation,
+          ...incarnation,
+        });
       }
       if (
         !legacyDaemon &&
@@ -228,6 +250,7 @@ beforeAll(() => {
         if (url.pathname === '/release')
           return Response.json({
             released: activity.release(String(body.generation)),
+            ...incarnation,
           });
         if (url.pathname === '/reclaim') {
           const idleBeforeMs =
@@ -242,10 +265,14 @@ beforeAll(() => {
               String(body.generation),
               idleBeforeMs,
             ),
+            ...incarnation,
           });
         }
         const applied = activity.setPinned(body.pinned === true);
-        return Response.json({ ok: applied }, { status: applied ? 200 : 503 });
+        return Response.json(
+          { ok: applied, ...incarnation },
+          { status: applied ? 200 : 503 },
+        );
       }
       if (activity.snapshot().reclaiming)
         return new Response('reclaiming', { status: 503 });
@@ -532,6 +559,7 @@ let backendCheckThrows = false;
 // Sessions whose backend destroy fails (a wedged dockerd) — destroySession
 // throws for these so the route's honesty path (no laundered success) is tested.
 const backendDestroyThrows = new Set<string>();
+const backendStopThrows = new Set<string>();
 // Sessions whose create is a RESUME (the workspace pre-existed backend-side).
 const resumedSessions = new Set<string>();
 // The backend's durable pin record (what a restart would re-adopt).
@@ -568,6 +596,9 @@ const fakeBackend: SessionBackend = {
     return had;
   },
   async stopSession(sessionId: string) {
+    if (backendStopThrows.has(sessionId)) {
+      throw new Error('backend stop failed (wedged dockerd)');
+    }
     // Stop releases compute but PRESERVES the workspace — never marks destroyed.
     const had = created.has(sessionId);
     stopped.add(sessionId);
@@ -626,6 +657,7 @@ async function readSse(res: Response): Promise<{ events: SseEvent[] }> {
 // into another test's assertions). fakeServer/fakeBaseUrl stay (beforeAll-owned).
 beforeEach(() => {
   created.clear();
+  backendStopThrows.clear();
   destroyed.clear();
   stopped.clear();
   stdinWrites.length = 0;
@@ -651,6 +683,8 @@ beforeEach(() => {
   deadDaemons.clear();
   healthProbes.clear();
   daemonLastActivity.clear();
+  daemonIncarnations.clear();
+  activityIncarnations.length = 0;
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -1664,6 +1698,39 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(again.status).toBe(409);
   });
 
+  // The platform adopts a 409 and cleans up after a 502: a live session the
+  // registry lost must read as the former, or its compute is removed.
+  test('a create that finds a live unregistered session → 409 duplicate; a failed create → 502', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        if (spec.sessionId === 'live-unregistered') {
+          throw new SessionExistsError(
+            spec.sessionId,
+            'container tale-sbx-ses-live-unregistered is running',
+          );
+        }
+        throw new Error(
+          'docker run (session) failed: Conflict. The container name is already in use',
+        );
+      },
+    });
+    const live = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'live-unregistered', organizationId: 'o' }),
+    );
+    expect(live.status).toBe(409);
+    expect(await live.json()).toMatchObject({ error: 'duplicate' });
+    const failed = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'not-live', organizationId: 'o' }),
+    );
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toMatchObject({ error: 'create_failed' });
+    for (const id of ['live-unregistered', 'not-live']) {
+      expect(destroyed.has(id)).toBe(false);
+      expect(stopped.has(id)).toBe(false);
+    }
+  });
+
   test('env / files / content / attach round-trip through runnerd', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -2389,6 +2456,82 @@ describe('SessionRoutes (fake runnerd)', () => {
         busy: false,
         deletion: 'done',
       });
+    });
+  });
+
+  // The platform's cleanup after a failed create of an agent session: the
+  // id may name a workspace preserved for the owner's next turn, so only the
+  // compute goes.
+  describe('conditional stop that keeps the workspace (ifIdle + keepWorkspace)', () => {
+    test('idle: the compute is stopped, the workspace kept, and the answer says so', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep1', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 0;
+      const res = await routes.handleDestroy('keep1', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        stopped: true,
+        busy: false,
+        workspaceKept: true,
+      });
+      expect(stopped.has('keep1')).toBe(true);
+      expect(destroyed.has('keep1')).toBe(false);
+      expect((await routes.handleGet('keep1')).status).toBe(404);
+    });
+
+    test('busy: nothing is stopped', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep2', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 1;
+      const res = await routes.handleDestroy('keep2', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(await res.json()).toEqual({ destroyed: false, busy: true });
+      expect(stopped.has('keep2')).toBe(false);
+      expect(destroyed.has('keep2')).toBe(false);
+    });
+
+    test('no compute under the id: nothing stopped, and the workspace is never destroyed', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      backendGone.add('dead-keep3');
+      const res = await routes.handleDestroy('dead-keep3', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(await res.json()).toEqual({
+        stopped: false,
+        busy: false,
+        workspaceKept: true,
+      });
+      expect(destroyed.has('dead-keep3')).toBe(false);
+    });
+
+    test('a failed backend stop answers 502 and keeps the registry entry', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep4', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 0;
+      backendStopThrows.add('keep4');
+      const res = await routes.handleDestroy('keep4', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(res.status).toBe(502);
+      expect(await res.json()).toMatchObject({
+        destroyed: false,
+        error: 'backend stop failed',
+      });
+      expect((await routes.handleGet('keep4')).status).toBe(200);
+      expect(destroyed.has('keep4')).toBe(false);
     });
   });
 
@@ -7067,3 +7210,427 @@ test('cancelling a backpressured HTTP replay detaches its upstream producer', as
     await proxy.stop(true);
   }
 }, 10000);
+
+describe('runnerd answers naming the session incarnation', () => {
+  const tokenOf = (sessionId: string) =>
+    deriveRunnerdToken(cfg.sandboxToken, sessionId);
+
+  /** A Docker backend whose containers carry their creation stamp to runnerd
+   * (docker-session-args), counting its existence checks. Its create reports
+   * the incarnation its readiness answer named, as DockerSessionBackend does. */
+  function stampedBackend(
+    checks: string[],
+    overrides: Partial<SessionBackend> = {},
+  ): SessionBackend {
+    return {
+      ...fakeBackend,
+      async createSession(spec) {
+        daemonIncarnations.set(
+          tokenOf(spec.sessionId),
+          String(spec.createdAtMs),
+        );
+        return {
+          ...(await fakeBackend.createSession(spec)),
+          incarnation: String(spec.createdAtMs),
+        };
+      },
+      async sessionExists(sessionId, expected) {
+        checks.push(sessionId);
+        return fakeBackend.sessionExists(sessionId, expected);
+      },
+      ...overrides,
+    };
+  }
+
+  async function provenSession(
+    routes: SessionRoutes,
+    sessionId: string,
+    checks: string[],
+  ): Promise<string> {
+    expect(
+      (
+        await routes.handleCreate(
+          JSON.stringify({ sessionId, organizationId: 'org_inc' }),
+        )
+      ).status,
+    ).toBe(201);
+    // The create's readiness answer named the incarnation, so even the first
+    // acquire asks the backend nothing.
+    expect((await routes.handleActivity(sessionId, 'acquire')).status).toBe(
+      200,
+    );
+    expect(checks).toEqual([]);
+    activityIncarnations.length = 0;
+    const stamp = daemonIncarnations.get(tokenOf(sessionId));
+    if (stamp === undefined) throw new Error('the create named no stamp');
+    return stamp;
+  }
+
+  test('a turn on a proven session forks no backend check', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-turn', checks);
+
+    expect((await routes.handleGet('inc-turn')).status).toBe(200);
+    const acquired = await routes.handleActivity('inc-turn', 'acquire');
+    expect(acquired.status).toBe(200);
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    const { generation } = (await acquired.json()) as { generation: string };
+    expect((await routes.handleActivity('inc-turn', 'ticket')).status).toBe(
+      200,
+    );
+    const released = await routes.handleActivity(
+      'inc-turn',
+      'release',
+      JSON.stringify({ generation }),
+    );
+    expect(await released.json()).toEqual({ released: true });
+
+    expect(checks).toEqual([]);
+    expect(activityIncarnations).toEqual([
+      { path: '/acquire', named: stamp },
+      { path: '/release', named: stamp },
+      { path: '/release', named: stamp },
+    ]);
+  });
+
+  test('a create proves its session: the ticket and release after it fork no backend check', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    // A resume as the platform's agent flow runs it: the acquire missed, so
+    // it creates and goes straight to the release ticket.
+    expect(
+      (
+        await routes.handleCreate(
+          JSON.stringify({
+            sessionId: 'inc-created',
+            organizationId: 'org_inc',
+          }),
+        )
+      ).status,
+    ).toBe(201);
+    const ticket = await routes.handleActivity('inc-created', 'ticket');
+    expect(ticket.status).toBe(200);
+    expect(
+      await (
+        await routes.handleActivity(
+          'inc-created',
+          'release',
+          JSON.stringify(await ticket.json()),
+        )
+      ).json(),
+    ).toEqual({ released: true });
+    expect(checks).toEqual([]);
+  });
+
+  test('an older runtime naming no incarnation keeps the backend check on every call', async () => {
+    const checks: string[] = [];
+    // Its readiness answer names none either, so the create proves nothing.
+    const routes = new SessionRoutes(
+      cfg,
+      stampedBackend(checks, {
+        createSession: (spec) => fakeBackend.createSession(spec),
+      }),
+    );
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'inc-legacy', organizationId: 'org_inc' }),
+    );
+
+    expect((await routes.handleActivity('inc-legacy', 'acquire')).status).toBe(
+      200,
+    );
+    expect((await routes.handleGet('inc-legacy')).status).toBe(200);
+    expect((await routes.handleActivity('inc-legacy', 'ticket')).status).toBe(
+      200,
+    );
+    expect(checks).toEqual(['inc-legacy', 'inc-legacy', 'inc-legacy']);
+  });
+
+  test('a replacement under the name refuses the request and the stale entry is evicted', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-replaced', checks);
+    const activity = fakeActivities.get(tokenOf('inc-replaced'));
+    const before = activity?.snapshot().generation;
+    daemonIncarnations.set(tokenOf('inc-replaced'), String(Number(stamp) + 1));
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (await routes.handleActivity('inc-replaced', 'acquire')).status,
+      ).toBe(404);
+    } finally {
+      warn.mockRestore();
+    }
+    // Refused before it changed anything; the replacement is not stopped or
+    // destroyed, only the stale entry goes.
+    expect(activity?.snapshot().generation).toBe(before);
+    expect(routes.holds('inc-replaced')).toBe(false);
+    expect(stopped.has('inc-replaced')).toBe(false);
+    expect(destroyed.has('inc-replaced')).toBe(false);
+    expect(checks).toEqual([]);
+  });
+
+  test('a proven session answering without a stamp gets the skipped check after all', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await provenSession(routes, 'inc-unstamped', checks);
+    // A replacement launched without a stamp now holds the name.
+    daemonIncarnations.delete(tokenOf('inc-unstamped'));
+    backendGone.add('inc-unstamped');
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (await routes.handleActivity('inc-unstamped', 'ticket')).status,
+      ).toBe(404);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(checks).toEqual(['inc-unstamped']);
+    expect(routes.holds('inc-unstamped')).toBe(false);
+  });
+
+  test('a proven session read asks runnerd, and the backend only when runnerd fails', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await provenSession(routes, 'inc-read', checks);
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await routes.handleGet('inc-read')).status).toBe(200);
+      expect(checks).toEqual([]);
+
+      // runnerd fails: the backend decides — alive keeps the entry...
+      deadDaemons.add(tokenOf('inc-read'));
+      expect((await routes.handleGet('inc-read')).status).toBe(200);
+      expect(checks).toEqual(['inc-read']);
+      // ...and gone evicts it.
+      backendGone.add('inc-read');
+      expect((await routes.handleGet('inc-read')).status).toBe(404);
+      expect(routes.holds('inc-read')).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('a proven session read answered by a replacement evicts without a backend check', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-read-replaced', checks);
+    daemonIncarnations.set(
+      tokenOf('inc-read-replaced'),
+      String(Number(stamp) + 1),
+    );
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await routes.handleGet('inc-read-replaced')).status).toBe(404);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(checks).toEqual([]);
+    expect(routes.holds('inc-read-replaced')).toBe(false);
+  });
+
+  test('the sweep takes a pinned session runnerd names as live and asks the backend only when runnerd fails', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'inc-pinned', organizationId: 'org_inc' }),
+    );
+    expect(
+      (
+        await routes.handleSetPinned(
+          'inc-pinned',
+          JSON.stringify({ pinned: true }),
+        )
+      ).status,
+    ).toBe(200);
+    checks.length = 0;
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(checks).toEqual([]);
+
+      deadDaemons.add(tokenOf('inc-pinned'));
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(checks).toEqual(['inc-pinned']);
+      expect(routes.holds('inc-pinned')).toBe(true);
+
+      backendGone.add('inc-pinned');
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(routes.holds('inc-pinned')).toBe(false);
+      expect(destroyed.has('inc-pinned')).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('the sweep asks the backend for a pinned session whose runnerd names no incarnation', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'inc-pinned-old',
+        organizationId: 'org_inc',
+      }),
+    );
+    await routes.handleSetPinned(
+      'inc-pinned-old',
+      JSON.stringify({ pinned: true }),
+    );
+    daemonIncarnations.clear();
+    checks.length = 0;
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(checks).toEqual(['inc-pinned-old']);
+  });
+
+  test('the sweep evicts an unpinned session a replacement answers for, stopping nothing', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'inc-sweep-replaced',
+        organizationId: 'org_inc',
+      }),
+    );
+    const token = tokenOf('inc-sweep-replaced');
+    const stamp = daemonIncarnations.get(token);
+    if (stamp === undefined) throw new Error('the create named no stamp');
+    // Recently active, so nothing but the replacement can end the entry.
+    daemonLastActivity.set(token, Date.now());
+    daemonIncarnations.set(token, String(Number(stamp) + 1));
+    checks.length = 0;
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await routes.sweepExpired()).toBe(1);
+    } finally {
+      warn.mockRestore();
+    }
+    // The stale entry goes without a backend check; the replacement holding
+    // the name is neither stopped nor destroyed.
+    expect(routes.holds('inc-sweep-replaced')).toBe(false);
+    expect(checks).toEqual([]);
+    expect(stopped.has('inc-sweep-replaced')).toBe(false);
+    expect(destroyed.has('inc-sweep-replaced')).toBe(false);
+  });
+
+  test('the sweep proves an unpinned session runnerd names, so its next ticket forks no backend check', async () => {
+    const checks: string[] = [];
+    // Re-adopted after a spawner restart: registered from the backend's
+    // listing, so no runnerd answer has named its incarnation yet.
+    const createdAtMs = Date.now();
+    const routes = new SessionRoutes(
+      cfg,
+      stampedBackend(checks, {
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            {
+              ...mkBackendSession('inc-sweep-proves', 'org_inc'),
+              createdAtMs,
+              ttlMs: 3_600_000,
+              idleTimeoutMs: 3_600_000,
+            },
+          ];
+        },
+      }),
+    );
+    const token = tokenOf('inc-sweep-proves');
+    daemonIncarnations.set(token, String(createdAtMs));
+    daemonLastActivity.set(token, Date.now());
+    await routes.adoptExisting();
+    expect(routes.holds('inc-sweep-proves')).toBe(true);
+    checks.length = 0;
+
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(
+      (await routes.handleActivity('inc-sweep-proves', 'ticket')).status,
+    ).toBe(200);
+    expect(checks).toEqual([]);
+  });
+
+  test('a pin refused by a replacement drops the stale entry and leaves the durable pin alone', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(cfg, stampedBackend(checks));
+    const stamp = await provenSession(routes, 'inc-pin-replaced', checks);
+    daemonIncarnations.set(
+      tokenOf('inc-pin-replaced'),
+      String(Number(stamp) + 1),
+    );
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (
+          await routes.handleSetPinned(
+            'inc-pin-replaced',
+            JSON.stringify({ pinned: true }),
+          )
+        ).status,
+      ).toBe(503);
+    } finally {
+      warn.mockRestore();
+    }
+    expect(backendPins.has('inc-pin-replaced')).toBe(false);
+    expect(routes.holds('inc-pin-replaced')).toBe(false);
+  });
+
+  test('a pressure reclaim refused by a replacement claims and stops nothing, and drops the stale entry', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      stampedBackend(checks),
+    );
+    const stamp = await provenSession(routes, 'inc-warm', checks);
+    const ticket: unknown = await (
+      await routes.handleActivity('inc-warm', 'ticket')
+    ).json();
+    expect(
+      await (
+        await routes.handleActivity(
+          'inc-warm',
+          'release',
+          JSON.stringify(ticket),
+        )
+      ).json(),
+    ).toEqual({ released: true });
+    daemonIncarnations.set(tokenOf('inc-warm'), String(Number(stamp) + 1));
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'inc-next', organizationId: 'org_inc' }),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+    expect(activityIncarnations).toContainEqual({
+      path: '/reclaim',
+      named: stamp,
+    });
+    expect(fakeActivities.get(tokenOf('inc-warm'))?.snapshot().reclaiming).toBe(
+      false,
+    );
+    expect(stopped.has('inc-warm')).toBe(false);
+    expect(routes.holds('inc-warm')).toBe(false);
+  });
+
+  test('Kubernetes keeps the backend check even when runnerd names the incarnation', async () => {
+    const checks: string[] = [];
+    const routes = new SessionRoutes(
+      { ...cfg, backend: 'kubernetes' },
+      stampedBackend(checks, { kind: 'kubernetes' }),
+    );
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'inc-k8s', organizationId: 'org_inc' }),
+    );
+    checks.length = 0;
+    expect((await routes.handleActivity('inc-k8s', 'acquire')).status).toBe(
+      200,
+    );
+    expect((await routes.handleGet('inc-k8s')).status).toBe(200);
+    expect((await routes.handleActivity('inc-k8s', 'acquire')).status).toBe(
+      200,
+    );
+    expect(checks).toEqual(['inc-k8s', 'inc-k8s', 'inc-k8s']);
+  });
+});

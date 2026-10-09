@@ -47,7 +47,6 @@ createTask:
 taskTray:
   label: Tâches issues de ce chat
   working: L’agent travaille
-  waitingForSlot: En attente d’une place de sandbox
   retrying: Nouvelle tentative…
   failed: L’agent n’a pas pu la terminer
   ready: Prête pour la revue

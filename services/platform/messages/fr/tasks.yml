@@ -80,10 +80,25 @@ agentRun:
     settled: Terminée
     failed: Échouée
     cancelled: Annulée
-  # Remplace « En attente » tant que le quota de sandboxes de
-  # l'organisation est plein — l'exécution repart d'elle-même dès qu'une
+  # Remplace « En attente » tant que l'exécution attend de la place : un état
+  # court par raison ; `unknown` est une attente sans raison enregistrée (le
+  # plus souvent, un worker). L'exécution démarre d'elle-même dès que la
   # place se libère.
-  waitingForSlot: En attente d'une place de sandbox
+  waiting:
+    org_limit: En attente d’un worker
+    host: En attente de place
+    destroy_pending: En attente d’un espace de travail
+    exec_limit: En attente de sa sandbox
+    unknown: En attente d’un worker
+  # Ce que l'état court veut dire, affiché dessous pendant l'attente.
+  waitingWhy:
+    org_limit: Tous les workers d’agent de ton organisation sont occupés. L’exécution démarre d’elle-même dès que l’un d’eux se libère.
+    host: L’hôte des sandboxes est plein ou manque de mémoire ou d’espace disque. L’exécution démarre d’elle-même dès qu’il y a de la place.
+    destroy_pending: Un admin supprime l’espace de travail que cette exécution utiliserait. Elle démarre dans un nouvel espace une fois la suppression terminée.
+    exec_limit: Sa sandbox termine encore un processus précédent. L’exécution démarre d’elle-même dans un instant.
+    unknown: L’exécution démarre d’elle-même dès qu’il y a de la place pour elle.
+  # Pour les owners et les admins, à côté de « Tous les workers d’agent … ».
+  manageWorkers: Gérer les workers d’agent
   # Ligne sous le statut pendant que la plateforme relance elle-même une
   # exécution échouée — pour distinguer sa relance de la tienne.
   autoRetrying: 'Tentative automatique {n} sur {max}'
@@ -103,7 +118,7 @@ agentRun:
     setup: Il manque quelque chose à cet agent — son modèle, l’un de ses skills ou l’agent lui-même. Un éditeur ou un admin peut corriger cela dans l’onglet Agents du projet.
     input: Une pièce jointe de cette tâche n’est plus dans le stockage — « Détails » indique laquelle. Retire-la de la tâche ou téléverse-la à nouveau, puis relance l’agent.
     time_limit: L’exécution a atteint sa limite de temps avant que l’agent ait terminé. Relance l’agent, ou découpe la tâche en tâches plus petites.
-    capacity: L’exécution a attendu trop longtemps une sandbox libre. Relance l’agent quand moins d’agents seront occupés.
+    capacity: L’exécution a attendu trop longtemps un worker libre. Relance l’agent quand moins d’agents seront occupés.
     model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
     start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
     interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.
@@ -295,7 +310,6 @@ delete:
   error: Impossible de supprimer la tâche
 detail:
   overview: Aperçu
-  comments: Commentaires
   commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
   noComments: Aucun commentaire pour le moment.
   conversation: Conversation
@@ -310,7 +324,6 @@ detail:
   copyKey: 'Copier {key}'
   keyCopied: '{key} copié'
   showEarlierComments: Afficher les commentaires précédents
-  activity: Activité
   subtasks: Sous-tâches
   addSubtask: Ajouter une sous-tâche…
   addDescription: Ajouter une description…
@@ -455,6 +468,7 @@ agentRuns:
   working: L'agent travaille…
   needsAnswer: En attente de ta réponse
   totalCost: '{amount} au total'
+  costLabel: Coût des agents
   status:
     queued: En attente
     running: En cours
@@ -554,6 +568,14 @@ mentionPreview:
 mentionPicker:
   title: Mentionner un membre, un agent ou une automatisation
   empty: Aucun résultat
+mentionChip:
+  kind:
+    user: Personne
+    agent: Agent
+    automation: Automatisation
+  missing:
+    user: N’est plus membre
+    automation: Automatisation indisponible
 metrics:
   title: Métriques du projet
   description:

@@ -14,7 +14,10 @@ DefaultErrorFile "/usr/share/tinyproxy/default.html"
 # Notice (not Info) — Info logs full request lines including query strings,
 # which can leak tokens/secrets a sandboxed user pastes into a URL.
 LogLevel Notice
-LogFile "/var/log/tinyproxy/tinyproxy.log"
+# No LogFile and no Syslog: tinyproxy then writes its log to stdout, which is
+# the container log (rotated by the logging driver). A LogFile would grow
+# unrotated in the container's writable layer, and tinyproxy fsyncs it after
+# every line under its global log mutex.
 # entrypoint.sh supervises tinyproxy -d and tracks its child PID for shutdown.
 # Foreground operation needs no PID file or write access to /tmp.
 # Concurrent connections for the WHOLE fleet: every session's package

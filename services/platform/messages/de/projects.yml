@@ -240,6 +240,7 @@ agents:
   dialogEditTitle: Agent bearbeiten
   nameLabel: Name
   namePlaceholder: z. B. PR-Reviewer
+  handleHint: Erwähne ihn mit @{handle}. Benennst du den Agenten um, ändert sich das.
   harnessLabel: Agent-Laufzeit
   harnessPlaceholder: Wähle die Agent-Laufzeit, auf der er läuft
   modelLabel: Modell

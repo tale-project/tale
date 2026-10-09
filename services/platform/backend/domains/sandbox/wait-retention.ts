@@ -18,12 +18,22 @@ import type { Sql } from 'postgres';
  *   and every other reader (the latest incarnation of an id, a recent op's
  *   attribution) looks at newer rows or at rows still holding compute. A
  *   start at the front of the sandbox host's line asks every few seconds,
- *   so a long wait leaves hundreds of them an hour.
+ *   so a long wait leaves hundreds of them an hour. The newest row of a
+ *   project agent's session id stays, though: collecting a failed create of
+ *   an agent session stops its compute and keeps its workspace, and the
+ *   workspace cleanup finds a project agent's workspace through its rows,
+ *   to delete it once unused or with its agent or member. One that no row
+ *   names is kept for as long as its agent exists (a restored database may
+ *   have lost the row its next run resumes), so deleting the last row would
+ *   keep the workspace for good. The row goes once a newer one names the
+ *   id. An automation run's rows go regardless: the cleanup deletes a run's
+ *   workspace that no row names.
  */
 
 /** How long a refused start's op row stays after it ended. */
 const AWAITING_ROOM_OP_RETENTION_MS = 60 * 60 * 1000;
-/** How long a failed session row stays after it was collected. */
+/** How long a failed session row stays after it was collected — a project
+ * agent's newest row of its id stays until a newer one follows. */
 const COLLECTED_SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 /** Rows deleted per statement, and statements per table per sweep — a
@@ -79,11 +89,19 @@ export async function sweepRoomWaitLeftovers(
     const deleted = await sql<{ id: string }[]>`
       DELETE FROM app.sandbox_sessions
       WHERE id IN (
-        SELECT id FROM app.sandbox_sessions
-        WHERE status = 'failed'
-          AND destroyed_at_ms IS NOT NULL
-          AND destroyed_at_ms < ${sessionCutoff}
-        ORDER BY destroyed_at_ms
+        SELECT s.id FROM app.sandbox_sessions s
+        WHERE s.status = 'failed'
+          AND s.destroyed_at_ms IS NOT NULL
+          AND s.destroyed_at_ms < ${sessionCutoff}
+          AND (
+            s.owner_type <> 'project_agent'
+            OR EXISTS (
+              SELECT 1 FROM app.sandbox_sessions newer
+              WHERE newer.session_id = s.session_id
+                AND (newer.created_at_ms, newer.id) > (s.created_at_ms, s.id)
+            )
+          )
+        ORDER BY s.destroyed_at_ms
         LIMIT ${batch}
       )
       RETURNING id

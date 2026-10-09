@@ -55,6 +55,12 @@ export interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'
    * `aria-disabled` instead of the native attribute.
    */
   disabledReason?: React.ReactNode;
+  /**
+   * Drawn over the control, on the textarea's own box: highlights that
+   * follow its text, for instance. It never takes the pointer, so clicks,
+   * selection and the caret stay the textarea's.
+   */
+  overlay?: React.ReactNode;
 }
 
 // Keep the textarea's native dimensions and value while its surface is masked.
@@ -73,6 +79,7 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       wrapperClassName,
       disabled,
       disabledReason,
+      overlay,
       readOnly,
       id: providedId,
       'aria-describedby': callerDescribedBy,
@@ -133,6 +140,40 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       return undefined;
     }, [hasError, errorMessage]);
 
+    const control = (
+      <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
+        <SkeletonBox asChild>
+          <textarea
+            id={id}
+            disabled={softDisabled ? undefined : disabled}
+            aria-disabled={softDisabled || undefined}
+            readOnly={softDisabled ? true : readOnly}
+            className={cn(
+              'bg-background placeholder:text-muted-foreground flex min-h-[120px] w-full rounded-md border border-(--color-border-input) px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 disabled:cursor-not-allowed disabled:bg-[color:var(--color-bg-elevated)] disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:bg-[color:var(--color-bg-elevated)] aria-disabled:text-[color:var(--color-fg-subtle)] md:text-sm',
+              FIELD_FOCUS,
+              fillHeight && 'min-h-0 flex-1 resize-none',
+              hasError && FIELD_INVALID,
+              showShake && 'animate-shake',
+              className,
+            )}
+            ref={(node) => {
+              innerRef.current = node;
+              if (typeof ref === 'function') {
+                ref(node);
+              } else if (ref) {
+                ref.current = node;
+              }
+            }}
+            required={required}
+            aria-invalid={hasError || undefined}
+            aria-describedby={describedBy}
+            aria-errormessage={hasError ? errorId : undefined}
+            {...props}
+          />
+        </SkeletonBox>
+      </DisabledReasonTooltip>
+    );
+
     return (
       <FieldShell
         {...(wideControl !== undefined ? { wideControl } : {})}
@@ -172,37 +213,19 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
             }
           : {})}
       >
-        <DisabledReasonTooltip reason={disabledReason} active={softDisabled}>
-          <SkeletonBox asChild>
-            <textarea
-              id={id}
-              disabled={softDisabled ? undefined : disabled}
-              aria-disabled={softDisabled || undefined}
-              readOnly={softDisabled ? true : readOnly}
-              className={cn(
-                'bg-background placeholder:text-muted-foreground flex min-h-[120px] w-full rounded-md border border-(--color-border-input) px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 disabled:cursor-not-allowed disabled:bg-[color:var(--color-bg-elevated)] disabled:text-[color:var(--color-fg-subtle)] aria-disabled:cursor-not-allowed aria-disabled:bg-[color:var(--color-bg-elevated)] aria-disabled:text-[color:var(--color-fg-subtle)] md:text-sm',
-                FIELD_FOCUS,
-                fillHeight && 'min-h-0 flex-1 resize-none',
-                hasError && FIELD_INVALID,
-                showShake && 'animate-shake',
-                className,
-              )}
-              ref={(node) => {
-                innerRef.current = node;
-                if (typeof ref === 'function') {
-                  ref(node);
-                } else if (ref) {
-                  ref.current = node;
-                }
-              }}
-              required={required}
-              aria-invalid={hasError || undefined}
-              aria-describedby={describedBy}
-              aria-errormessage={hasError ? errorId : undefined}
-              {...props}
-            />
-          </SkeletonBox>
-        </DisabledReasonTooltip>
+        {overlay === undefined ? (
+          control
+        ) : (
+          <div
+            className={cn(
+              'relative w-full',
+              fillHeight && 'flex min-h-0 flex-1 flex-col',
+            )}
+          >
+            {control}
+            {overlay}
+          </div>
+        )}
         {counterMax !== undefined && (
           <p
             id={counterId}

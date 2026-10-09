@@ -117,7 +117,8 @@ export async function releaseIdleSession(
       AND NOT EXISTS (
         SELECT 1 FROM app.project_agent_runs r
         WHERE s.owner_type = 'project_agent' AND r.org_id = s.org_id
-          AND r.agent_id = s.owner_id AND r.status IN ('queued', 'running')
+          AND r.session_id = s.session_id
+          AND r.status IN ('queued', 'running')
           AND r.waiting_for_capacity_at_ms IS NULL
       )
       AND NOT EXISTS (

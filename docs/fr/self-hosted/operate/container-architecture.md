@@ -39,6 +39,20 @@ L’environnement fournit aussi Chromium et Playwright pour le rendu de pages et
 
 Le service de sortie bloque les destinations privées et de métadonnées et peut imposer une liste d’hôtes autorisés. Une sortie indisponible peut provoquer un refus ou une erreur réseau ; le message dépend de l’opération. [Durcissement](/fr/self-hosted/operate/security/hardening) décrit la politique et [Gérer Compose toi-même](/fr/self-hosted/install/own-compose) les capacités et montages requis.
 
+## Garder les sessions actives pendant un redémarrage de Docker
+
+Les sessions sandbox et le spawner tournent comme conteneurs du daemon Docker de l’hôte. Sans le live restore du daemon, le redémarrer, pour une mise à jour de paquet ou une modification de `/etc/docker/daemon.json`, les arrête tous : les tours d’agent, builds et rendus de pages en cours s’interrompent, mais leurs espaces de travail sont conservés. Tale ne modifie pas la configuration du daemon de l’hôte ; le spawner journalise un avertissement au démarrage tant que le live restore est désactivé.
+
+Pour l’activer, ajoute le réglage dans `/etc/docker/daemon.json` en gardant les autres entrées du fichier :
+
+```json
+{
+  "live-restore": true
+}
+```
+
+Recharge ensuite le daemon avec `sudo systemctl reload docker`, ou envoie `SIGHUP` à `dockerd` sur un hôte sans systemd. Le rechargement applique le réglage sans arrêter de conteneur. Le live restore garde les conteneurs actifs pendant un redémarrage du daemon et une mise à jour de correctif ; une mise à jour vers une nouvelle version majeure de Docker peut quand même les arrêter, planifie-la donc comme une fenêtre de maintenance. Le live restore est incompatible avec le mode Swarm : sur un nœud Swarm, planifie plutôt les redémarrages du daemon comme une maintenance. [Le guide live restore de Docker](https://docs.docker.com/engine/daemon/live-restore/) détaille les autres limites.
+
 ## Reconnaître une réparation d’index de connaissances
 
 Un index BM25 endommagé peut faire échouer l’ingestion alors que les tables de documents restent lisibles. Le backend vérifie les index avec `pdb.verify_index` ; un verrou consultatif coordonne les tentatives de réparation par base. Les bases propres aux organisations sont vérifiées à leur première utilisation.

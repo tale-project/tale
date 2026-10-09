@@ -3,14 +3,14 @@ title: Understand project agents
 description: Decide what an agent should own and how its runtime, model, instructions and equipment fit together.
 ---
 
-A project agent is a named worker for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. It can work on files and commands in a sandbox. The [configured reviewer](/platform/projects/tasks#review-default), a person or an independent project agent, checks the result before completing the task. New reviews that require human independence or competence records go to the human review chain; a captured agent review needs explicit transfer to an eligible person.
+A project agent is a named configuration for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. Each task it works on runs in a worker, a running copy of the agent that works on files and commands in a sandbox of its own, so one agent can work several tasks at once. The [configured reviewer](/platform/projects/tasks#review-default), a person or an independent project agent, checks the result before completing the task. New reviews that require human independence or competence records go to the human review chain; a captured agent review needs explicit transfer to an eligible person.
 
 ## Choose the right working mode
 
 | Use | Suitable work | What you configure |
 | --- | --- | --- |
 | Chat | Ask a question, retrieve knowledge or draft text in a conversation. | The message, model and optional project context. |
-| Project agent | Review a repository, prepare files or carry out a task over several turns. | A reusable worker in the project. |
+| Project agent | Review a repository, prepare files or carry out a task over several turns. | A reusable agent configuration in the project. |
 | Automation | Run defined steps, react to events or wait for an approval between actions. | A versioned workflow and its inputs. |
 
 A project chat still uses the built-in chat assistant. Adding a project to a chat does not select one of the project’s agents. An automation’s agent node has its own configuration.
@@ -45,6 +45,6 @@ flowchart LR
 
 ## Check readiness before assigning work
 
-The provider credential must support the selected agent runtime and model, and sandbox capacity must be available. Success in ordinary Chat proves neither condition. A task should explain what success looks like and include the material the agent needs to inspect.
+The provider credential must support the selected agent runtime and model, and sandbox capacity must be available: a run waits until one of your organization’s [agent workers](/platform/projects/project-agents#run-one-agent-on-several-tasks) is free. Success in ordinary Chat proves neither condition. A task should explain what success looks like and include the material the agent needs to inspect.
 
 [Create a project agent](/platform/projects/project-agents) once those choices are clear. [Task automation](/platform/projects/task-automation) explains starting, steering and reviewing its work.

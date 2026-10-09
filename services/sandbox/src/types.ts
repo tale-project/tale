@@ -45,9 +45,9 @@ export interface SpawnerConfig {
   // ghcr ref so the daemon matches the deployed version.
   buildkitdImage: string;
   // The pull-through registry mirror image (env SANDBOX_BUILDKITD_MIRROR_IMAGE;
-  // default stock `registry:2`) launched alongside the buildkitd so base-image
-  // pulls resolve by name on the internal net (buildkit can't resolve external
-  // registry names through docker's embedded DNS).
+  // default stock registry 2.8.3, pinned by digest) launched alongside the
+  // buildkitd so base-image pulls resolve by name on the internal net (buildkit
+  // can't resolve external registry names through docker's embedded DNS).
   buildkitdMirrorImage: string;
   // The bounds of each organization's builder (env SANDBOX_BUILDKITD_CPUS and
   // SANDBOX_BUILDKITD_MEMORY): unset, an agent session's CPUs and twice its
@@ -64,6 +64,10 @@ export interface SpawnerConfig {
   // (env SANDBOX_BUILDKITD_CACHE_RETENTION): unset, 14 days; 0 keeps them
   // until the organization is deleted (buildkitd.ts sweepIdleBuildkitd).
   buildkitdCacheRetentionMs?: number;
+  // How long an organization's pip, npm and bun cache volumes outlive their
+  // last use (env SANDBOX_PACKAGE_CACHE_RETENTION): unset, 14 days; 0 keeps
+  // them until the organization is deleted (package-cache-retention.ts).
+  packageCacheRetentionMs?: number;
   // Transparent egress for the session container's OWN processes (env
   // SANDBOX_TRANSPARENT_EGRESS; default true). When true the entrypoint installs
   // an iptables OUTPUT REDIRECT → redsocks → the egress proxy, so ANY client
@@ -86,17 +90,34 @@ export interface SpawnerConfig {
     runtimeClassName: string | null;
     // Size of the per-session /agent workspace PVC (K8s quantity string, env
     // SANDBOX_K8S_WORKSPACE_SIZE_LIMIT; storage class from
-    // SANDBOX_K8S_CACHE_STORAGECLASS) and, under DinD, the sizeLimit of the
-    // inner-docker emptyDir. Everything the session writes — dependency
-    // installs, temp files, outputs — lands on the workspace, so without a
-    // bound a runaway session can fill the node disk; the K8s analogue of
-    // docker's fsize ulimit.
+    // SANDBOX_K8S_CACHE_STORAGECLASS) and of a crawler render's workspace
+    // emptyDir. Everything the session writes — dependency installs, temp
+    // files, outputs — lands on the workspace, so without a bound a runaway
+    // session can fill the node disk; the K8s analogue of docker's fsize
+    // ulimit.
     workspaceSizeLimit: string;
     // What every session Pod requests from the scheduler, overriding the
     // per-profile defaults (env SANDBOX_K8S_CPU_REQUEST /
     // SANDBOX_K8S_MEMORY_REQUEST, K8s quantities). Never above the limit.
     cpuRequest?: string;
     memoryRequest?: string;
+    // The runner's node-disk budget (env SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST
+    // / _LIMIT, K8s quantities), overriding the pod-spec defaults. The limit
+    // covers what the runner writes outside its sized volumes (writable root
+    // filesystem, logs); the Pod's limit adds those volumes on top.
+    ephemeralStorageRequest?: string;
+    ephemeralStorageLimit?: string;
+    // sizeLimit of a DinD session's inner Docker store emptyDir (env
+    // SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT); unset, the pod-spec default.
+    dockerStorageSizeLimit?: string;
+    // Where session Pods may run and how they rank against other Pods (env
+    // SANDBOX_K8S_NODE_SELECTOR and SANDBOX_K8S_TOLERATIONS as JSON,
+    // SANDBOX_K8S_PRIORITY_CLASS), so untrusted sessions can be kept off the
+    // nodes of the database and platform and yield to them under pressure.
+    // Unset, the scheduler places them anywhere at the default priority.
+    nodeSelector?: Readonly<Record<string, string>>;
+    tolerations?: readonly K8sToleration[];
+    priorityClassName?: string;
   };
   maxTimeoutMs: number;
   // Single flat host session root. The sandbox tier is one container that rolls
@@ -137,6 +158,15 @@ export interface SpawnerConfig {
   // session routes + session backends only — the one-shot /v1/execute path
   // never reads these.
   session: SessionConfig;
+}
+
+/** A Pod toleration, as the apiserver accepts it (validated by loadConfig). */
+export interface K8sToleration {
+  key?: string;
+  operator?: 'Equal' | 'Exists';
+  value?: string;
+  effect?: 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute';
+  tolerationSeconds?: number;
 }
 
 export interface HubConfig {
@@ -188,6 +218,12 @@ export interface SessionConfig {
 
 export interface SessionAgentProfileConfig {
   cpus: number;
+  /** Relative CPU weight under contention (`--cpu-shares`; cgroup v2
+   * cpu.weight is derived from it). Below the 1024 every control-plane
+   * container runs at, so busy sessions yield the CPU to the database and
+   * backend instead of starving them; an idle host still gives a session its
+   * full `cpus` quota. */
+  cpuShares: number;
   /** Docker quantity string, e.g. '4g' (memory-swap is pinned to the same
    * value — no swap headroom, matching the one-shot containers). */
   memory: string;

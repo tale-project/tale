@@ -94,6 +94,26 @@ exec's group and replaced its environment. runnerd's startup line names the
 shim it uses (`execShim=`). On SIGTERM, runnerd passes the signal on to every
 live exec, and to what exited execs left waiting, before it exits.
 
+**An exec's command ranks above runnerd for the OOM killer.** runnerd keeps
+the score its container starts with (`--oom-score-adj=500` on Docker); before
+the shim runs the command it raises the command's adjustment to 900, never
+lowering a higher one, and everything the command starts inherits it, while
+the shim itself keeps runnerd's. When a session reaches its memory limit, the
+kernel's OOM killer, which picks the highest score, ends a build or a test run
+before runnerd, whose end would be the container's and every exec's in it.
+Raising a score needs no privilege, so this holds with every capability
+dropped; where the kernel has no such file or refuses the write, the command
+runs with the score it inherited and nothing is reported.
+
+runnerd is the only child of the container's init, so its end is the
+container's, and every exec in it ends too. An error nothing handled does not
+take the session with it: an unhandled promise rejection (which Node 24 turns
+into an exit) is logged and survived, as in the spawner; an uncaught exception,
+after which the daemon's state is unknown, stops runnerd the way SIGTERM does
+(live execs told to end, the two-second forced deadline still holding) and it
+exits 70 (`EX_SOFTWARE`), apart from a stop's 0 and a signal's 128 + N, or by
+SIGKILL when that deadline passes first.
+
 Reading another process's environment waits on that process's memory lock,
 which a process stuck under memory pressure can hold for minutes. While every
 exec a round covers still has its shim, the round reads `/proc/<pid>/stat`
@@ -178,11 +198,40 @@ nowhere. `SANDBOX_TOKEN` is required (the spawner refuses to boot without it —
 `loadConfig` fails closed), so every session carries a real token and runnerd
 always verifies; there is no unsigned mode.
 
+The Docker backend also launches each session container with
+`TALE_RUNNERD_INCARNATION` set to its creation stamp, the value of its
+`tale.created` label; the env patch route refuses the reserved `TALE_RUNNERD_`
+prefix, so session code cannot rename it. runnerd names that stamp as
+`incarnation` in `/healthz` and in every activity answer (release ticket,
+acquire, release, reclaim, pin). An activity request whose
+`x-tale-runnerd-incarnation` header names another stamp is refused with
+`409 incarnation_mismatch`, naming runnerd's own, before anything changes, so a
+replacement under the session's name is never acquired, released, claimed or
+pinned for a stale registry entry. Once runnerd has named the registered stamp
+(in the create's readiness answer, an activity answer or a sweep probe),
+acquire, release ticket and release skip the backend's `sessionExists` check (a
+`docker inspect`), and a session read asks `/healthz` instead. The sweep of a
+pinned session asks `/healthz` first and needs no backend check when the answer
+names the registered stamp; both probes are bounded at 1.5 s. An answer naming
+another stamp evicts the stale entry and keeps its workspace. A failed runnerd
+call, or an answer naming no stamp (an older runtime image), falls back to the
+backend check. Kubernetes keeps the backend check throughout: a terminating Pod
+still answers through its IP after the backend counts it gone.
+
 Image warming runs beside control startup and session adoption. While a cold
 runtime image is being pulled, new local creates return `429 runtime_image`
 with `Retry-After: 5`; health, limits and existing-session operations remain
-available. A failed warmup ends that wait, and subsequent creates report their
-own backend result. Device-placed creates follow the target device's readiness.
+available. A failed pull does not end that wait: while the image is absent
+every create would fail, so creates keep answering `429 runtime_image` (with a
+`Retry-After` of 5–60 s that follows the next attempt) and the pull is retried
+after 30 s, 1, 2, 5 and then every 10 minutes. Session containers run with
+`--pull=never`: an implicit pull of the multi-gigabyte image could never finish
+inside the run's 30 s budget. A create that finds the image gone (an
+`image prune` on an idle host removes it, since stopped sessions keep no
+container) restarts the warmup and answers `429 runtime_image` instead of
+`502`. `GET /health` reports the image's state (`unchecked`, `pulling`, `ready`
+or `missing`, with the last error) without turning unhealthy over it.
+Device-placed creates follow the target device's readiness.
 
 Docker create failures remove only a container bearing that attempt's private
 ownership label, using its immutable container ID. A concurrent replacement
@@ -194,11 +243,23 @@ budget after cancellation or failure: only acknowledged Pod and Secret UIDs
 can be removed, observed Pod deletion also fences its resource version, and
 workspace PVCs and ambiguous API outcomes remain for retry or recovery.
 
+A create that loses the session's deterministic name to a LIVE session this
+spawner's registry does not hold — a running container of this spawner's
+instance, or a Pod that is neither terminating nor ended — answers
+`409 duplicate`, as a create of a registered session does: the platform then
+adopts it through acquire, and the registry-miss resolve below registers it.
+Answered as `502 create_failed`, the platform would clean up after a failed
+create and remove that session's compute. A name held by anything else (a
+container still `created` or being removed, a terminating Pod, one that
+cannot be read) stays a `502`, and nothing under the name is touched.
+
 A session absent from this spawner's registry is resolved from the backend.
 If that inventory or endpoint lookup fails, or an existing nonterminal runtime
 is still starting, session routes return `503 session_unavailable` with
 `Retry-After: 1`. A local create still in progress answers the same way. The caller retries without
-declaring the running session lost or recreating it. A confirmed missing or
+declaring the running session lost or recreating it. The platform's acquire and create ask again at
+the `Retry-After` for up to 20 seconds, and wait out a refused, reset or unresolved connection to the
+spawner (a restart) within the same budget, before the turn's start fails. A confirmed missing or
 stopped session still returns 404 so its preserved workspace can be resumed.
 
 The in-memory session registry is a **cache, not the source of truth**: the
@@ -213,7 +274,10 @@ metadata and endpoint together. Late probes and cleanup from the old incarnation
 cannot launch an exec or clear the replacement's activity or exec state. Liveness
 checks distinguish the
 registered incarnation from another running object under its name, while an
-unreadable identity remains unknown. Linger stops also use the creation fence.
+unreadable identity remains unknown. On Docker a runnerd answer naming the
+registered creation stamp counts as such a check, and one naming another stamp
+shows the registered incarnation is gone. Linger stops also use the creation
+fence.
 A maintenance pass every minute
 (`SessionRoutes.maintain`: adoption, then the reaper `sweepExpired`; a pass
 still running is joined, never stacked) **stops**:
@@ -248,7 +312,18 @@ still running is joined, never stacked) **stops**:
   (the inner image volume, the pin marker) and would otherwise remove what
   the new container uses. The removal
   belongs to the ended incarnation: it never holds up an acquire of a
-  session registered under the id, nor counts as that session's stop.
+  session registered under the id, nor counts as that session's stop;
+- compute that never got going: a Kubernetes Pod still Pending past its
+  creator's startup deadline, or a Docker container still `created`, `paused`
+  or `restarting` (a spawner killed between the daemon's create and start, or
+  a timed-out run whose cleanup also timed out) once its create's whole
+  budget (`SANDBOX_SESSION_CREATE_TIMEOUT_MS`) and a minute's slack have
+  passed since both its `tale.created` stamp and Docker's own creation time.
+  Such a container used to hold a capacity slot for ever, answer every create
+  of the id busy, pin an old runtime image and outlive spawner restarts. It is
+  removed by the container id read with its state, with its inner image
+  volume; the workspace stays. One whose stamp names another incarnation than
+  the one listed is left alone.
 
 Every such stop is fenced to the incarnation the registry or listing
 describes, and keeps the workspace. The pass probes at most eight daemons at a
@@ -275,14 +350,18 @@ evicted first under the shared budget. An active writer that exhausts its
 budget ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
 `REPLAY_UNAVAILABLE`. The disk-backed spool is the sole retained output history.
 
-A checkpoint is durably written before its acknowledged prefix is pruned,
-so a run can produce more than 64 MiB over its lifetime while the consumer
-keeps acknowledging progress. A `gap` event identifies any pruned sequence
-interval; consumers restore the durable checkpoint before continuing. Spool
-segments and checkpoints live under the runtime-owned `TMPDIR`; normal
-disposal removes them and startup clears that directory after a crash. A
-runtime restart loses execs and checkpoints, and never clears user files
-elsewhere in the persistent workspace.
+A checkpoint is committed (written to a temporary file and renamed into
+place) before its acknowledged prefix is pruned, so a run can produce more
+than 64 MiB over its lifetime while the consumer keeps acknowledging progress.
+A `gap` event identifies any pruned sequence interval; consumers restore the
+committed checkpoint before continuing. Spool segments and checkpoints live
+under the runtime-owned `TMPDIR`; normal disposal removes them and startup
+clears that directory after a crash. A runtime restart loses execs and
+checkpoints, and never clears user files elsewhere in the persistent
+workspace. Because no checkpoint is read after a restart, the commit is not
+synced to disk: a sync per checkpoint (one every five seconds per streaming
+turn) would flush the filesystem journal for nothing, and a slow one past the
+five-second replay I/O deadline would end a healthy exec.
 
 An attach sends `replay-start` before retained history and `replay-complete`
 with `throughSeq` after delivering the
@@ -540,6 +619,18 @@ workspace. Pinned ("always-on") and live-exec sessions are exempt from the
 reaper entirely, except that compute which has already ended is removed (the
 pin's own reconcile recreates a pinned session).
 
+Losing compute is not losing the workspace. When the platform's reconcile finds
+the compute of an unpinned agent session gone without a Destroy — a host
+reboot, a daemon restart, an OOM-killed runnerd, the spawner's own TTL stop —
+it settles the row as `stopped` while the spawner's inventory
+(`GET /v1/workspaces`) lists the workspace, or cannot be read: the next turn
+resumes it in place, same incarnation and harness conversation included. A
+render session, or an agent session whose workspace is gone, settles as
+destroyed, and so does a session on a connected device: the inventory lists
+this host's workspaces only. A create that fails after such a loss removes
+only compute (`?keep_workspace=1`, below), never the workspace it would have
+re-attached.
+
 A pin change succeeds only after runnerd and the backend's durable record
 acknowledge it. Failure returns 503 and keeps the last acknowledged `pinned`
 value visible with `pinSynchronized: false`, so platform reconciliation retries
@@ -673,6 +764,16 @@ The spawner's part:
   defers the destroy. A failed create removes only its own container and
   preserves every workspace and organization marker, including a newly
   created directory. A later explicit destroy performs the workspace cleanup.
+- `DELETE /v1/sessions/:id?if_idle=1&keep_workspace=1` — compute only: it
+  refuses (`{busy:true}`) as `if_idle` does, and otherwise stops the session
+  (`backend.stopSession`) and keeps its workspace, answering
+  `{stopped, busy: false, workspaceKept: true}`. The platform sends it after a
+  failed create of an agent session (`agent_session.ts`) and from the
+  watchdog's collect of such a failed row: the id may name a workspace kept
+  for its next turn, and deleting what nothing owns is this cleanup's. The
+  device hub leaves the placement of a session whose device kept the workspace
+  as it was. A spawner or device older than the flag destroys instead, and its
+  answer carries no `workspaceKept`.
 - `DELETE /v1/organizations/:id` — for an organization the platform deleted:
   destroys every session the backend still holds for it (containers/Pods with
   their workspaces) and every stopped workspace attributed to it, then its
@@ -759,9 +860,16 @@ in-place container restart — this _is_ the session-persistence mechanism.
 `TMPDIR=/agent/.runtime/tmp` also lives on the workspace (disk-backed), not the
 `/tmp` tmpfs: pip stages a whole target install set in `$TMPDIR`, and the tmpfs
 is small and memory-backed (charged to the container's memory cgroup), so any
-install past the tmpfs size would die with ENOSPC. The entrypoint wipes the dir
-at container (re)start — no exec is live then — preserving the old /tmp
-lifecycle. `/tmp` remains for small control files such as redsocks.conf.
+install past the tmpfs size would die with ENOSPC. The dir dies with its
+container, preserving the old /tmp lifecycle: a Docker stop renames it into
+the session root's trash once the container is gone (the workspace being the
+agent's, a `.runtime` or `tmp` that is not a plain directory, such as a
+planted symbolic link, is left alone), and the background pass deletes it. At
+every container (re)start — no exec is live then — the entrypoint renames
+whatever is left aside as the profile uid and deletes it in the background at
+idle priority, so a large leftover (the replay spool, a pip staging tree)
+never delays runnerd's readiness. `/tmp` remains for small control files such
+as redsocks.conf.
 
 ## Kubernetes specifics
 

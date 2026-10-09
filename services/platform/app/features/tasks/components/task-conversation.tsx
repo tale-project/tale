@@ -10,9 +10,10 @@
  * customer conversation reads, and the events sit between the comments as
  * quiet one-line notes instead of a separate log.
  *
- * Only the loaded pages of the discussion are shown; while earlier comments
- * remain, events older than the oldest loaded comment wait with them, so the
- * history never shows a gap as if nothing had been said.
+ * It opens on the newest page of comments; while earlier comments remain —
+ * on the server, or loaded on an earlier visit — events older than the
+ * oldest shown comment wait with them, so the history never shows a gap as
+ * if nothing had been said.
  */
 
 import { Row } from '@tale/ui/layout';
@@ -22,11 +23,11 @@ import { ThreadEventGroup } from '@tale/ui/thread/thread-event';
 import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { History } from 'lucide-react';
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useTaskDiscussion } from '../hooks/queries';
+import { TASK_DISCUSSION_PAGE_SIZE, useTaskDiscussion } from '../hooks/queries';
 import {
   useTaskActorDirectory,
   withTaskActorDirectory,
@@ -57,6 +58,19 @@ const COMMENT_ACTIONS = new Set([
   'comment.edited',
   'comment.deleted',
 ]);
+
+/** A conversation opens on the discussion's newest page. Older comments kept
+ * from an earlier visit wait behind "Show earlier comments" with the rest —
+ * rendering every cached page at once made re-opening a long task the reader
+ * had read back through take a second. */
+/** The oldest moment shown when a conversation opens: the newest page's
+ *  oldest comment, or everything when there is no more than a page. */
+function openingFrom(newestFirst: readonly TaskCommentData[]): number {
+  return newestFirst.length > TASK_DISCUSSION_PAGE_SIZE
+    ? (newestFirst[TASK_DISCUSSION_PAGE_SIZE - 1]?.createdAt ??
+        Number.NEGATIVE_INFINITY)
+    : Number.NEGATIVE_INFINITY;
+}
 
 /** Three events in a row or more fold into one line that opens in place. */
 const FOLD_EVENTS_AT = 3;
@@ -134,16 +148,45 @@ function TaskConversationContent({
   const { t } = useT('tasks');
   const { formatDateHeader, formatDate } = useFormatDate();
   const {
-    comments: newestFirst,
-    hasEarlier,
+    comments: loaded,
+    hasEarlier: hasEarlierPages,
     isLoadingEarlier,
     loadEarlier,
   } = useTaskDiscussion(taskId);
   const { timeline, runs } = useTaskTimeline(taskId);
   const { requestDelete, dialog: deleteDialog } = useTaskCommentDelete();
+
+  // Where the shown history starts, fixed per task when its comments first
+  // arrive: a comment arriving later is newer and always shows, so it never
+  // pushes an older one out of view.
+  const [reveal, setReveal] = useState<{ taskId: string; from: number }>();
+  if (reveal?.taskId !== taskId && loaded.length > 0) {
+    setReveal({ taskId, from: openingFrom(loaded) });
+  }
+  const from = reveal?.taskId === taskId ? reveal.from : openingFrom(loaded);
+  const newestFirst = useMemo(
+    () => loaded.filter((comment) => comment.createdAt >= from),
+    [loaded, from],
+  );
+  const hiddenLoaded = newestFirst.length < loaded.length;
+  const hasEarlier = hiddenLoaded || hasEarlierPages;
+  // Earlier comments already here show at once; only past them does the
+  // conversation ask for another page.
+  const showEarlier = () => {
+    if (hiddenLoaded) {
+      const next = loaded[newestFirst.length + TASK_DISCUSSION_PAGE_SIZE - 1];
+      setReveal({
+        taskId,
+        from: next?.createdAt ?? Number.NEGATIVE_INFINITY,
+      });
+      return;
+    }
+    setReveal({ taskId, from: Number.NEGATIVE_INFINITY });
+    loadEarlier();
+  };
   const { historyRef, loadEarlierWithAnchor } = useTaskHistoryAnchor(
     newestFirst.at(-1)?.messageId,
-    loadEarlier,
+    showEarlier,
     isLoadingEarlier,
   );
 

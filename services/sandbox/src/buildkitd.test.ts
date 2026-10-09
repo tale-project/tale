@@ -160,6 +160,27 @@ describe('buildkitd helper bounds', () => {
     );
   });
 
+  test('helpers run at an agent session’s CPU weight, which a busy helper takes in place', () => {
+    for (const role of ['builder', 'mirror'] as const) {
+      expect(
+        buildkitHelperLimits(LIMITS_CFG, role).filter((flag) =>
+          flag.startsWith('--cpu-shares='),
+        ),
+      ).toEqual(['--cpu-shares=256']);
+    }
+    const tuned = {
+      session: {
+        ...TEST_SESSION_CONFIG,
+        agentProfile: { ...TEST_SESSION_CONFIG.agentProfile, cpuShares: 64 },
+      },
+    };
+    const limits = buildkitHelperLimits(tuned, 'builder');
+    expect(limits).toContain('--cpu-shares=64');
+    expect(helperStamp('buildkit:1', limits)).not.toBe(
+      helperStamp('buildkit:1', buildkitHelperLimits(LIMITS_CFG, 'builder')),
+    );
+  });
+
   test('a stamp changes with the image and with the bounds', () => {
     const limits = buildkitHelperLimits(LIMITS_CFG, 'builder');
     const stamp = helperStamp('buildkit:1', limits);
