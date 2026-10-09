@@ -4,9 +4,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   classifyStepFailure,
+  connectorFailureOf,
   exprFailureOf,
   failureCauseOf,
   fieldOf,
+  reasonFamily,
+  STEP_FAILURE_REASONS,
 } from './failure';
 
 const at = { pointer: '/nodes/2/when', range: [0, 20] as [number, number] };
@@ -176,5 +179,60 @@ describe('classifyStepFailure', () => {
     expect(failureCauseOf({ failure: 'text' })).toBeUndefined();
     expect(failureCauseOf(null)).toBeUndefined();
     expect(failureCauseOf('x')).toBeUndefined();
+  });
+});
+
+describe('reasonFamily', () => {
+  it.each([
+    ['CONNECTOR_AUTH', 'connector_error'],
+    ['CONNECTOR_INPUT_REFUSED', 'connector_error'],
+    ['LLM_OUTPUT_INVALID', 'llm_output_invalid'],
+    ['EXECUTION_LIMIT', 'execution_limit'],
+    ['APPROVAL_REJECTED', 'approval_rejected'],
+    ['EFFECT_IN_DOUBT_FAILED', 'effect_in_doubt'],
+    ['EXPR_READ_MISSING', 'node_error'],
+    ['SOMETHING_NEWER', 'node_error'],
+  ])('%s → %s', (reason, family) => {
+    expect(reasonFamily(reason)).toBe(family);
+  });
+
+  it('names a family for every reason', () => {
+    for (const reason of STEP_FAILURE_REASONS) {
+      expect(reasonFamily(reason)).toMatch(/^[a-z_]+$/);
+    }
+  });
+});
+
+describe('connectorFailureOf', () => {
+  const failed = (status?: number, message = 'boom') =>
+    Object.assign(new Error(message), status === undefined ? {} : { status });
+
+  it.each([
+    [401, 'CONNECTOR_AUTH'],
+    [403, 'CONNECTOR_AUTH'],
+    [404, 'CONNECTOR_NOT_FOUND'],
+    [429, 'CONNECTOR_RATE_LIMITED'],
+    [500, 'CONNECTOR_FAILED'],
+  ])('reads status %s as %s', (status, reason) => {
+    const cause = connectorFailureOf(failed(status), 'github', 'github.issue');
+    expect(cause.reason).toBe(reason);
+    expect(cause.params).toMatchObject({
+      connector: 'github',
+      action: 'github.issue',
+      status,
+    });
+  });
+
+  it('reads a network that never answered', () => {
+    expect(
+      connectorFailureOf(failed(undefined, 'fetch failed'), 'x', 'x.y').reason,
+    ).toBe('CONNECTOR_UNREACHABLE');
+  });
+
+  it('keeps any other failure as a detail', () => {
+    expect(connectorFailureOf('odd', 'x', 'x.y')).toEqual({
+      reason: 'CONNECTOR_FAILED',
+      params: { connector: 'x', action: 'x.y', detail: 'odd' },
+    });
   });
 });

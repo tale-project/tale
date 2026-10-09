@@ -10,6 +10,8 @@
  * and every API equally accepts the equivalent JSON object.
  */
 
+import type { NodeRunRecord } from './record/types';
+
 export type Json =
   | null
   | boolean
@@ -232,4 +234,7 @@ export interface RunResult {
   trace: NodeTrace[];
   effects: Effect[];
   validation?: { errors: Issue[]; warnings: Issue[] };
+  /** What the run did at each unit of work, when the caller passed a
+   * recorder that keeps one (`ExecuteOptions.recorder`). */
+  record?: NodeRunRecord[];
 }

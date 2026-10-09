@@ -1,7 +1,12 @@
 'use node';
 
 import { findConnector } from '../../../lib/connectors/catalog';
-import { refsOf, topoSort } from '../../../lib/engine/core/execute/controlflow';
+import { topoSort } from '../../../lib/engine/core/execute/controlflow';
+import {
+  decideNode,
+  repeatSettled,
+  resolveForEach,
+} from '../../../lib/engine/core/execute/decide';
 import {
   cloneData,
   makeScope,
@@ -13,9 +18,9 @@ import {
   connectorIdempotencyKey,
   subautomationPathPrefix,
 } from '../../../lib/engine/core/protocol';
+import { noRecorder } from '../../../lib/engine/core/record/recorder';
 import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import {
-  evalCondition,
   evalTemplates,
   ExprError,
   runCode,
@@ -876,6 +881,11 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
     const outcome = await stepNode({
       run,
       node,
+      pointer: `/nodes/${automation.nodes.indexOf(node)}`,
+      rank: (id) => {
+        const at = ordered.findIndex((candidate) => candidate.id === id);
+        return at === -1 ? Number.MAX_SAFE_INTEGER : at;
+      },
       input,
       checkpoints,
       sink,
@@ -915,6 +925,11 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
 interface StepArgs {
   run: RunContext;
   node: NodeDef;
+  /** The node's pointer in the document it comes from (`/nodes/3`). */
+  pointer: string;
+  /** Where a node sits in the walk, so a skip names the first skipped node
+   * it reads from. */
+  rank: (nodeId: string) => number;
   input: unknown;
   checkpoints: RunCheckpoints;
   sink: RunSink;
@@ -1036,8 +1051,9 @@ async function resolveSubautomationPins(
 }
 
 async function stepNode(args: StepArgs): Promise<StepOutcome> {
-  const { run, node, input, checkpoints, sink, depth } = args;
+  const { run, node, input, checkpoints, sink, depth, pointer } = args;
   const path = `${args.pathPrefix}${node.id}`;
+  const nodeKey = { path, item: -1, pass: -1 };
   // Where in the node this turn is — hoisted so a park in the catch below
   // can say where to come back to.
   let index = 0;
@@ -1095,27 +1111,15 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
   try {
     // The skip rules, in the executor's order: data dependencies first, then
     // the else-branch rule, then the node's own condition.
-    const upstream = [...refsOf(node).data].filter((ref) => skipped.has(ref));
-    if (upstream.length > 0) {
-      return await skip(
-        'upstream',
-        `skipped: reads from skipped node(s) ${upstream.join(', ')}`,
-      );
-    }
-    if (typeof node.elseOf === 'string' && !whenSkipped.has(node.elseOf)) {
-      return await skip('else', `skipped: elseOf partner "${node.elseOf}" ran`);
-    }
-    if (typeof node.when === 'string') {
-      const condition = await evalCondition(
-        node.when,
-        makeScope(input, outputs),
-      );
-      if (!condition) {
-        return await skip(
-          'when',
-          `skipped: when=${JSON.stringify(node.when)} was falsy`,
-        );
-      }
+    const verdict = await decideNode(
+      node,
+      input,
+      { outputs, skipped, whenSkipped, rank: args.rank },
+      { key: nodeKey, pointer },
+      noRecorder,
+    );
+    if (verdict.kind === 'skip') {
+      return await skip(verdict.reason, verdict.note);
     }
 
     // A live effectful step asks the human gate before it acts. The answer is
@@ -1204,15 +1208,13 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
 
     let items: unknown[] | null = null;
     if (typeof node.forEach === 'string') {
-      const resolved = await evalTemplates(
+      const resolved = await resolveForEach(
         node.forEach,
-        makeScope(input, outputs),
+        input,
+        { outputs },
+        { key: nodeKey, pointer },
+        noRecorder,
       );
-      if (!Array.isArray(resolved)) {
-        throw new Error(
-          `forEach must resolve to an array, got ${resolved === undefined ? 'undefined' : typeof resolved} — check the referenced path`,
-        );
-      }
       items = resolved;
       trace.input = { forEach: `${resolved.length} item(s)` };
     }
@@ -1260,10 +1262,20 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
 
       if (typeof node.repeatUntil === 'string') {
         passes++;
-        const withSelf = { ...outputs, [node.id]: { output } };
-        const condition = await evalCondition(
+        const condition = await repeatSettled(
+          node,
           node.repeatUntil,
-          makeScope(input, withSelf, { ...extra, output }),
+          input,
+          { outputs },
+          {
+            key: { path, item: items === null ? -1 : index, pass: passes - 1 },
+            pointer,
+            index: passes - 1,
+            max: maxRepeats,
+            extra,
+            output,
+          },
+          noRecorder,
         );
         trace.note = `repeatUntil ran ${passes}x${condition ? '' : ' (maxRepeats hit before the condition became true)'}`;
         if (!condition && passes < maxRepeats) {

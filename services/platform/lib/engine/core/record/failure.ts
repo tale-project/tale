@@ -53,6 +53,71 @@ export const STEP_FAILURE_REASONS = [
 
 export type StepFailureReason = (typeof STEP_FAILURE_REASONS)[number];
 
+/**
+ * The run-level family of a reason, for a run that has no runtime of its
+ * own to name it (the in-process executor): the durable runtime names the
+ * family itself, from the error it caught.
+ */
+export function reasonFamily(reason: string): string {
+  if (reason.startsWith('CONNECTOR_')) return 'connector_error';
+  switch (reason) {
+    case 'LLM_OUTPUT_INVALID':
+      return 'llm_output_invalid';
+    case 'EXECUTION_LIMIT':
+      return 'execution_limit';
+    case 'APPROVAL_REJECTED':
+      return 'approval_rejected';
+    case 'EFFECT_IN_DOUBT_FAILED':
+      return 'effect_in_doubt';
+    default:
+      return 'node_error';
+  }
+}
+
+/**
+ * The cause of a connector call that failed: refused credentials, a missing
+ * resource or a rate limit by the status the connector answered, a network
+ * that never answered, or any other failure.
+ */
+export function connectorFailureOf(
+  error: unknown,
+  connector: string,
+  action: string,
+): FailureCause {
+  const status =
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    typeof error.status === 'number'
+      ? error.status
+      : undefined;
+  const message = error instanceof Error ? error.message : String(error);
+  const params = { connector, action };
+  if (status === 401 || status === 403) {
+    return { reason: 'CONNECTOR_AUTH', params: { ...params, status } };
+  }
+  if (status === 404) {
+    return { reason: 'CONNECTOR_NOT_FOUND', params: { ...params, status } };
+  }
+  if (status === 429) {
+    return { reason: 'CONNECTOR_RATE_LIMITED', params: { ...params, status } };
+  }
+  if (status === undefined && UNREACHABLE_RE.test(message)) {
+    return { reason: 'CONNECTOR_UNREACHABLE', params };
+  }
+  return {
+    reason: 'CONNECTOR_FAILED',
+    params: {
+      ...params,
+      ...(status !== undefined && { status }),
+      detail: message,
+    },
+  };
+}
+
+const UNREACHABLE_RE =
+  /fetch failed|ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|network (?:error|request failed)|socket hang up/i;
+
 /** What a failure site knows about its cause: everything a {@link StepFailure}
  * holds but the run-level code and the English, which the run's own catch
  * supplies. */
