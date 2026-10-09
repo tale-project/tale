@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { Row, Stack } from '@tale/ui/layout';
@@ -12,6 +13,7 @@ import { History } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHoldReleaseRequestsPaginated } from '../hooks/queries';
@@ -47,6 +49,7 @@ export function ReleaseHistorySection({
   organizationId,
 }: ReleaseHistorySectionProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const [status, setStatus] = useState<ReleaseStatus>('effected');
 
   const result = useLegalHoldReleaseRequestsPaginated({
@@ -54,6 +57,7 @@ export function ReleaseHistorySection({
     status,
     initialNumItems: DEFAULT_LIST_PAGE_SIZE,
   });
+  const recovery = useListReadRecovery(result);
 
   const statusOptions = useMemo(
     () => [
@@ -194,29 +198,50 @@ export function ReleaseHistorySection({
           ]}
         />
       </Row>
-      <DataTable<HistoryRow>
-        columns={columns}
-        data={result.results}
-        isLoading={isInitialLoading}
-        approxRowCount={result.results.length}
-        getRowId={(row) => row._id}
-        infiniteScroll={{
-          hasMore,
-          onLoadMore: () => result.loadMore(DEFAULT_LIST_PAGE_SIZE),
-          isLoadingMore,
-          isInitialLoading,
-          entityLabel: {
-            one: t('legalHold.sections.history.entityLabelOne'),
-            other: t('legalHold.sections.history.entityLabel'),
-          },
-        }}
-        emptyState={{
-          icon: History,
-          title: t('legalHold.sections.history.empty.title'),
-          description: t('legalHold.sections.history.empty.description'),
-        }}
-        caption={t('legalHold.sections.history.title')}
-      />
+      <div
+        ref={recovery.regionRef}
+        role="region"
+        aria-label={t('legalHold.sections.history.title')}
+        tabIndex={-1}
+        className="flex flex-col gap-4"
+      >
+        {recovery.failedWithRows && (
+          <CatalogLoadError
+            message={tCommon('errors.errorLoadingPage')}
+            onRetry={recovery.retryRead}
+            isRetrying={result.isRetrying}
+            failureKey={result.errorCount}
+            onFocusLost={recovery.focusRegion}
+          />
+        )}
+        <DataTable<HistoryRow>
+          columns={columns}
+          data={result.results}
+          isLoading={isInitialLoading}
+          error={result.results.length ? null : result.error}
+          onRetry={recovery.retryRead}
+          onErrorFocusLost={recovery.focusRegion}
+          approxRowCount={isInitialLoading ? undefined : result.results.length}
+          getRowId={(row) => row._id}
+          infiniteScroll={{
+            hasMore,
+            onLoadMore: () => result.loadMore(DEFAULT_LIST_PAGE_SIZE),
+            isLoadingMore,
+            isInitialLoading,
+            loadFailed: !!result.error,
+            entityLabel: {
+              one: t('legalHold.sections.history.entityLabelOne'),
+              other: t('legalHold.sections.history.entityLabel'),
+            },
+          }}
+          emptyState={{
+            icon: History,
+            title: t('legalHold.sections.history.empty.title'),
+            description: t('legalHold.sections.history.empty.description'),
+          }}
+          caption={t('legalHold.sections.history.title')}
+        />
+      </div>
     </SettingsSection>
   );
 }

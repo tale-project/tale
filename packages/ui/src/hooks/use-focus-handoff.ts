@@ -28,8 +28,18 @@ export function useFocusHandoff<T extends HTMLElement>(
     if (node === null) return undefined;
     return () => {
       const handoff = onFocusLostRef.current;
-      if (handoff !== undefined && node.contains(document.activeElement)) {
-        requestAnimationFrame(handoff);
+      const ownerDocument = node.ownerDocument;
+      if (handoff !== undefined && node.contains(ownerDocument.activeElement)) {
+        requestAnimationFrame(() => {
+          const activeElement = ownerDocument.activeElement;
+          if (
+            activeElement === null ||
+            activeElement === ownerDocument.body ||
+            node.contains(activeElement)
+          ) {
+            handoff();
+          }
+        });
       }
     };
   }, [node]);
