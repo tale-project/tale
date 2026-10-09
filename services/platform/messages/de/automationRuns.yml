@@ -271,3 +271,52 @@ runFailure:
     title: Der Lauf ist fehlgeschlagen
     explanation: Tale konnte den Grund nicht bestimmen. Die technischen Details enthalten den Wortlaut der Engine.
     fix: Öffne den fehlgeschlagenen Schritt oder führe den Lauf erneut aus.
+replay:
+  from:
+    title: Ab {step} erneut ausführen?
+    titleRetry: Ab {step} wiederholen?
+    body: Ein neuer Lauf von v{version} startet mit der Eingabe von Lauf {run}. Er verwendet wieder, was die Schritte vor {step} zurückgegeben haben, und führt {step} und alle Schritte danach erneut aus.
+    reused: Wiederverwendet ({count})
+    rerun: Läuft erneut ({count})
+    nothingReused: Nichts wird wiederverwendet; jeder Schritt läuft erneut.
+    confirm: Ab {step} erneut ausführen
+    confirmRetry: Ab {step} wiederholen
+  version:
+    label: Ausführen mit
+    same: v{version} – Version dieses Laufs
+    latest: v{version} – neueste
+    deployed: v{version} – live
+  mode:
+    label: Modus
+    mock: Testlauf
+    live: Live-Lauf
+    liveNeedsRole: Deine Rolle kann keine Live-Läufe starten.
+    liveNeedsDeployed: Diese Version ist nicht live, deshalb läuft sie nur als Test.
+    mockStaysMock: Die Ergebnisse eines Testlaufs sind erfunden, deshalb bleibt die Wiederholung ab einem Schritt ein Test.
+  writes:
+    live: '{count, plural, one {Live wird # Schreibvorgang erneut gesendet, aus {list}.} other {Live werden # Schreibvorgänge erneut gesendet, aus {list}.}}'
+    mock: Ein Testlauf sendet nichts.
+  refusal:
+    REPLAY_NODE_UNKNOWN:
+      title: Den Schritt gibt es in dieser Version nicht
+      body: '{step} gibt es nicht in beiden Versionen, der dieses Laufs und der auszuführenden.'
+    REPLAY_GRAPH_CHANGED:
+      title: Die Version hat wiederverwendete Schritte geändert
+      body: Die auszuführende Version hat {nodes} geändert, deshalb passen ihre Ergebnisse aus diesem Lauf nicht. Führe ab einem früheren Schritt oder mit der Version dieses Laufs erneut aus.
+    REPLAY_RUN_NOT_FINISHED:
+      title: Der Lauf ist noch nicht beendet
+      body: Ein Lauf lässt sich erst ab einem Schritt erneut ausführen, wenn er beendet ist.
+    REPLAY_MODE_MISMATCH:
+      title: Ein Testlauf bleibt ein Test
+      body: Die Ergebnisse dieses Laufs sind erfunden, deshalb kann die Wiederholung ab einem Schritt nur ein Test sein.
+    REPLAY_PROGRESS_UNREADABLE:
+      title: Sein Fortschritt ist nicht lesbar
+      body: Was dieser Lauf erledigt hat, ist nicht lesbar, deshalb lässt sich keiner seiner Schritte wiederverwenden. Führe ihn stattdessen von vorn erneut aus.
+    REPLAY_INPUT_UNAVAILABLE:
+      title: Seine Eingabe wurde nicht gespeichert
+      body: Dieser Lauf hat keine Eingabe gespeichert, mit der er erneut laufen könnte. Führe die Automatisierung mit einer Eingabe erneut aus.
+  loadFailed: Es konnte nicht ermittelt werden, was dies tun würde.
+  loading: Wird ermittelt, was dies tun würde
+  tryAgain: Erneut versuchen
+  refused: Der Lauf konnte nicht gestartet werden. {detail}
+  cancel: Abbrechen

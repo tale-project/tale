@@ -271,3 +271,52 @@ runFailure:
     title: The run failed
     explanation: Tale couldn't tell why. The technical details have the engine's own words.
     fix: Open the failed step, or run again.
+replay:
+  from:
+    title: Run again from {step}?
+    titleRetry: Retry from {step}?
+    body: A new run of v{version} starts with the input of run {run}. It reuses what the steps before {step} returned and runs {step} and every step after it again.
+    reused: Reused ({count})
+    rerun: Runs again ({count})
+    nothingReused: Nothing is reused; every step runs again.
+    confirm: Run again from {step}
+    confirmRetry: Retry from {step}
+  version:
+    label: Run on
+    same: v{version} — this run's version
+    latest: v{version} — latest
+    deployed: v{version} — live
+  mode:
+    label: Mode
+    mock: Test run
+    live: Live run
+    liveNeedsRole: Your role can't start live runs.
+    liveNeedsDeployed: This version isn't live, so it can only run as a test.
+    mockStaysMock: A test run's results were made up, so running it again from a step stays a test.
+  writes:
+    live: '{count, plural, one {Running live sends # write again, from {list}.} other {Running live sends # writes again, from {list}.}}'
+    mock: A test run sends nothing.
+  refusal:
+    REPLAY_NODE_UNKNOWN:
+      title: The step isn't in this version
+      body: "{step} isn't in both this run's version and the version to run."
+    REPLAY_GRAPH_CHANGED:
+      title: The version changed steps it would reuse
+      body: The version to run changed {nodes}, so their results from this run don't fit. Run again from an earlier step, or on this run's version.
+    REPLAY_RUN_NOT_FINISHED:
+      title: The run hasn't finished
+      body: A run can be run again from a step once it has finished.
+    REPLAY_MODE_MISMATCH:
+      title: A test run stays a test
+      body: This run's results were made up, so running it again from a step can only be a test.
+    REPLAY_PROGRESS_UNREADABLE:
+      title: Its progress can't be read
+      body: What this run finished can't be read, so none of its steps can be reused. Run it again from the start instead.
+    REPLAY_INPUT_UNAVAILABLE:
+      title: Its input wasn't kept
+      body: This run kept no input to run again with. Run the automation again with an input.
+  loadFailed: Couldn't work out what this would do.
+  loading: Working out what this would do
+  tryAgain: Try again
+  refused: Couldn't start the run. {detail}
+  cancel: Cancel

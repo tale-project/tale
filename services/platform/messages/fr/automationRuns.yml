@@ -271,3 +271,52 @@ runFailure:
     title: L’exécution a échoué
     explanation: Tale n’a pas pu déterminer pourquoi. Les détails techniques donnent le message exact du moteur.
     fix: Ouvre l’étape en échec, ou relance.
+replay:
+  from:
+    title: Exécuter à nouveau à partir de l’étape {step} ?
+    titleRetry: Relancer à partir de l’étape {step} ?
+    body: Une nouvelle exécution de la v{version} démarre avec l’entrée de l’exécution {run}. Elle réutilise ce que les étapes avant {step} ont renvoyé, puis exécute à nouveau l’étape {step} et toutes les suivantes.
+    reused: Réutilisées ({count})
+    rerun: Exécutées à nouveau ({count})
+    nothingReused: 'Rien n’est réutilisé : chaque étape s’exécute à nouveau.'
+    confirm: Exécuter à partir de l’étape {step}
+    confirmRetry: Relancer à partir de l’étape {step}
+  version:
+    label: Exécuter sur
+    same: v{version} — version de cette exécution
+    latest: v{version} — la plus récente
+    deployed: v{version} — en service
+  mode:
+    label: Mode
+    mock: Essai
+    live: Exécution réelle
+    liveNeedsRole: Ton rôle ne permet pas de lancer des exécutions réelles.
+    liveNeedsDeployed: 'Cette version n’est pas en service : elle ne peut donc s’exécuter qu’en essai.'
+    mockStaysMock: 'Les résultats d’un essai sont inventés : la relance à partir d’une étape reste donc un essai.'
+  writes:
+    live: '{count, plural, one {En réel, # écriture est envoyée à nouveau, depuis {list}.} other {En réel, # écritures sont envoyées à nouveau, depuis {list}.}}'
+    mock: Un essai n’envoie rien.
+  refusal:
+    REPLAY_NODE_UNKNOWN:
+      title: L’étape n’existe pas dans cette version
+      body: L’étape {step} n’existe pas à la fois dans la version de cette exécution et dans celle à exécuter.
+    REPLAY_GRAPH_CHANGED:
+      title: La version a modifié des étapes à réutiliser
+      body: 'La version à exécuter a modifié {nodes} : leurs résultats de cette exécution ne conviennent donc plus. Relance à partir d’une étape antérieure, ou sur la version de cette exécution.'
+    REPLAY_RUN_NOT_FINISHED:
+      title: L’exécution n’est pas terminée
+      body: Une exécution ne peut être relancée à partir d’une étape qu’une fois terminée.
+    REPLAY_MODE_MISMATCH:
+      title: Un essai reste un essai
+      body: 'Les résultats de cette exécution sont inventés : la relance à partir d’une étape ne peut donc être qu’un essai.'
+    REPLAY_PROGRESS_UNREADABLE:
+      title: Sa progression est illisible
+      body: 'Ce que cette exécution a terminé est illisible : aucune de ses étapes ne peut donc être réutilisée. Relance-la plutôt depuis le début.'
+    REPLAY_INPUT_UNAVAILABLE:
+      title: Son entrée n’a pas été conservée
+      body: Cette exécution n’a conservé aucune entrée avec laquelle la relancer. Relance l’automatisation avec une entrée.
+  loadFailed: Impossible de déterminer ce que cela ferait.
+  loading: Détermination de ce que cela ferait
+  tryAgain: Réessayer
+  refused: Impossible de lancer l’exécution. {detail}
+  cancel: Annuler
