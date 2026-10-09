@@ -105,7 +105,7 @@ The step answers the run it started, and the task's timeline lists that run as *
 
 | Answer | Meaning |
 | --- | --- |
-| `started: true` | The agent's run started; `runId` names it. With `waitingReason`, the run waits for room before it works: `org_limit` when every agent worker of your organization is busy, `destroy_pending` when the workspace it would use is being deleted. It starts on its own once room frees. |
+| `started: true` | The agent's run started; `runId` names it. With `waitingReason`, the run waits for room before it works: `org_limit` when every agent worker of your organization is busy, `host` when the sandbox host is full, `destroy_pending` when the workspace it would use is being deleted, `exec_limit` when its sandbox is still ending an earlier process. It starts on its own once room frees. |
 | `already_running` | The task's previous run is still working and carries the work. Nothing new starts, and the occurrence does not wait behind it. |
 | `in_review` | With `moveToInProgress: false`, the card waits for its captured reviewer, a person or an agent. Nothing is assigned or started, and the review keeps that recipient. |
 | `closed` | With `moveToInProgress: false`, the card is **Done** or **Cancelled** (`taskStatus`). Nothing is assigned or started. |

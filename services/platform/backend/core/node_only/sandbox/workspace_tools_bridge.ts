@@ -304,8 +304,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Never fall back from a refused repair to an unguarded start. Answers ' +
     '{started, runId, reason?, waitingReason?}. An agent working other tasks ' +
     'is started all the same, in a worker of its own; waitingReason on a ' +
-    'started run says it waits for a free worker (org_limit: every agent ' +
-    'worker is in use) and starts by itself. reason stale_repair (the rejected review no ' +
+    'started run says why it waits for room (org_limit: every agent worker ' +
+    'is in use; host: the sandbox host is full; destroy_pending: its ' +
+    'workspace is being deleted; exec_limit: its sandbox is still ending an ' +
+    'earlier process) and that it starts by itself. reason stale_repair (the rejected review no ' +
     'longer authorizes this repair; reread and retire the outdated intent), ' +
     'stale_question (that question is no ' +
     'longer open — the task was decided, a newer run or review exists, or the ' +

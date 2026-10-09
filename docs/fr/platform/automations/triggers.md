@@ -105,7 +105,7 @@ L’étape renvoie l’exécution qu’elle a démarrée, et la chronologie de l
 
 | Réponse | Signification |
 | --- | --- |
-| `started: true` | L’exécution de l’agent a démarré ; `runId` l’identifie. Avec `waitingReason`, l’exécution attend de la place avant de travailler : `org_limit` quand tous les workers d’agent de ton organisation sont occupés, `destroy_pending` quand l’espace de travail qu’elle utiliserait est en cours de suppression. Elle démarre d’elle-même dès que la place se libère. |
+| `started: true` | L’exécution de l’agent a démarré ; `runId` l’identifie. Avec `waitingReason`, l’exécution attend de la place avant de travailler : `org_limit` quand tous les workers d’agent de ton organisation sont occupés, `host` quand l’hôte des sandboxes est plein, `destroy_pending` quand l’espace de travail qu’elle utiliserait est en cours de suppression, `exec_limit` quand sa sandbox termine encore un processus précédent. Elle démarre d’elle-même dès que la place se libère. |
 | `already_running` | L’exécution précédente de la tâche travaille encore et prend le travail en charge. Rien de nouveau ne démarre, et l’occurrence n’attend pas derrière elle. |
 | `in_review` | Avec `moveToInProgress: false`, la carte attend son relecteur enregistré, une personne ou un agent. Rien n’est assigné ni démarré, et la revue conserve ce destinataire. |
 | `closed` | Avec `moveToInProgress: false`, la carte est **Terminé** ou **Annulé** (`taskStatus`). Rien n’est assigné ni démarré. |

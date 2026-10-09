@@ -220,10 +220,11 @@ export interface WorkflowAgentStart {
   reason?: 'already_running' | 'in_review' | 'closed' | 'blocked' | 'paused';
   /** The step's first delivery started this run; this delivery found it. */
   replayed?: boolean;
-  /** A started run that waits for a free agent worker instead of working
-   * yet, and why: `org_limit` (every worker of the organization is in use)
-   * or `destroy_pending` (its workspace is being deleted). It starts by
-   * itself once one frees. */
+  /** A started run that waits for room instead of working yet, and why:
+   * `org_limit` (every agent worker of the organization is in use), `host`
+   * (the sandbox host is full), `destroy_pending` (its workspace is being
+   * deleted) or `exec_limit` (its sandbox is still ending an earlier
+   * process). It starts by itself once room frees. */
   waitingReason?: 'org_limit' | 'host' | 'destroy_pending' | 'exec_limit';
   /** The closed card's status (`closed`): done or cancelled. */
   taskStatus?: string;

@@ -843,9 +843,11 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
 
 /** What a model is told when the run it started waits for a worker. */
 const STARTED_WAITING_GUIDANCE =
-  'Started, but every agent worker is busy or its workspace is being ' +
-  'deleted (waitingReason): the run waits and starts by itself once one ' +
-  'frees. Do not start it again; go on with other work.';
+  'Started, but the run waits for room (waitingReason: org_limit, every ' +
+  'agent worker is busy; host, the sandbox host is full; destroy_pending, ' +
+  'its workspace is being deleted; exec_limit, its sandbox is still ending ' +
+  'an earlier process) and starts by itself once room frees. Do not start ' +
+  'it again; go on with other work.';
 
 /** `task_start_agent`: a project agent's live run puts another agent of the
  * project to work (`domains/tasks/delegated-start.ts`). A confined run — one

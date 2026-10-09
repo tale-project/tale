@@ -105,7 +105,7 @@ Der Schritt liefert den gestarteten Lauf zurück, und die Zeitleiste der Aufgabe
 
 | Antwort | Bedeutung |
 | --- | --- |
-| `started: true` | Der Lauf des Agenten wurde gestartet; `runId` nennt ihn. Mit `waitingReason` wartet der Lauf auf Platz, bevor er arbeitet: `org_limit`, wenn alle Agenten-Worker deiner Organisation belegt sind, `destroy_pending`, wenn der Arbeitsbereich, den er nutzen würde, gerade gelöscht wird. Er startet von selbst, sobald Platz frei wird. |
+| `started: true` | Der Lauf des Agenten wurde gestartet; `runId` nennt ihn. Mit `waitingReason` wartet der Lauf auf Platz, bevor er arbeitet: `org_limit`, wenn alle Agenten-Worker deiner Organisation belegt sind, `host`, wenn der Sandbox-Host voll ist, `destroy_pending`, wenn der Arbeitsbereich, den er nutzen würde, gerade gelöscht wird, `exec_limit`, wenn seine Sandbox noch einen früheren Prozess beendet. Er startet von selbst, sobald Platz frei wird. |
 | `already_running` | Der vorherige Lauf der Aufgabe arbeitet noch und trägt die Arbeit weiter. Es startet nichts Neues, und der Termin wartet nicht darauf, dass dieser Lauf endet. |
 | `in_review` | Mit `moveToInProgress: false` wartet die Karte auf ihren erfassten Prüfer, eine Person oder einen Agenten. Es wird nichts zugewiesen oder gestartet, und die Prüfung behält diesen Empfänger. |
 | `closed` | Mit `moveToInProgress: false` steht die Karte auf **Erledigt** oder **Abgebrochen** (`taskStatus`). Es wird nichts zugewiesen oder gestartet. |

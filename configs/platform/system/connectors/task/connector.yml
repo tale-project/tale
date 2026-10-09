@@ -151,9 +151,12 @@ actions:
       after the same agent's HTTP 429 adds no start; consecutive cooldowns
       still count. Honor the returned retryAfter and every other admission
       check. An agent working other tasks is started all the same, in a
-      worker of its own; when every agent worker of the organization is in
-      use the run waits and starts by itself, and waitingReason says why. A
-      step delivered again answers the run its first delivery started.
+      worker of its own; a run that finds no room waits and starts by itself,
+      and waitingReason says why: org_limit (every agent worker of the
+      organization is in use), host (the sandbox host is full),
+      destroy_pending (its workspace is being deleted) or exec_limit (its
+      sandbox is still ending an earlier process). A step delivered again
+      answers the run its first delivery started.
     effects: write
     input:
       type: object
