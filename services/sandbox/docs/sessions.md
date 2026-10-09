@@ -198,6 +198,26 @@ nowhere. `SANDBOX_TOKEN` is required (the spawner refuses to boot without it —
 `loadConfig` fails closed), so every session carries a real token and runnerd
 always verifies; there is no unsigned mode.
 
+The Docker backend also launches each session container with
+`TALE_RUNNERD_INCARNATION` set to its creation stamp, the value of its
+`tale.created` label; the env patch route refuses the reserved `TALE_RUNNERD_`
+prefix, so session code cannot rename it. runnerd names that stamp as
+`incarnation` in `/healthz` and in every activity answer (release ticket,
+acquire, release, reclaim, pin). An activity request whose
+`x-tale-runnerd-incarnation` header names another stamp is refused with
+`409 incarnation_mismatch`, naming runnerd's own, before anything changes, so a
+replacement under the session's name is never acquired, released, claimed or
+pinned for a stale registry entry. Once runnerd has named the registered stamp
+(in the create's readiness answer, an activity answer or a sweep probe),
+acquire, release ticket and release skip the backend's `sessionExists` check (a
+`docker inspect`), and a session read asks `/healthz` instead. The sweep of a
+pinned session asks `/healthz` first and needs no backend check when the answer
+names the registered stamp; both probes are bounded at 1.5 s. An answer naming
+another stamp evicts the stale entry and keeps its workspace. A failed runnerd
+call, or an answer naming no stamp (an older runtime image), falls back to the
+backend check. Kubernetes keeps the backend check throughout: a terminating Pod
+still answers through its IP after the backend counts it gone.
+
 Image warming runs beside control startup and session adoption. While a cold
 runtime image is being pulled, new local creates return `429 runtime_image`
 with `Retry-After: 5`; health, limits and existing-session operations remain
@@ -254,7 +274,10 @@ metadata and endpoint together. Late probes and cleanup from the old incarnation
 cannot launch an exec or clear the replacement's activity or exec state. Liveness
 checks distinguish the
 registered incarnation from another running object under its name, while an
-unreadable identity remains unknown. Linger stops also use the creation fence.
+unreadable identity remains unknown. On Docker a runnerd answer naming the
+registered creation stamp counts as such a check, and one naming another stamp
+shows the registered incarnation is gone. Linger stops also use the creation
+fence.
 A maintenance pass every minute
 (`SessionRoutes.maintain`: adoption, then the reaper `sweepExpired`; a pass
 still running is joined, never stacked) **stops**:

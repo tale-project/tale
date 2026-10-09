@@ -22,6 +22,7 @@
 #   HTTPS_PROXY / HTTP_PROXY  -> http://sandbox-egress:3128
 #   TALE_DIND / TALE_TRANSPARENT_EGRESS  -> feature signals
 #   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env
+#   TALE_RUNNERD_INCARNATION  -> creation stamp runnerd names in its answers
 #
 # Conventions:
 #   - The session workspace is /agent (host bind / PVC). HOME and the

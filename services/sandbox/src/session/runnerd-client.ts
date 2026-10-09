@@ -9,6 +9,7 @@ import { operationSignal } from '../operation-budget.ts';
 import {
   RUNNERD_CHECKPOINT_MAX_BYTES,
   isRunnerdExecEvent,
+  RUNNERD_INCARNATION_HEADER,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
@@ -20,6 +21,9 @@ interface RunnerdClientOptions {
   baseUrl: string;
   /** Per-session token (deriveRunnerdToken), or '' in unsigned dev mode. */
   token: string;
+  /** Creation stamp of the incarnation an activity request is meant for:
+   * runnerd refuses the request when it serves another one. */
+  incarnation?: number;
 }
 
 function authHeaders(token: string): Record<string, string> {
@@ -133,9 +137,52 @@ export class RunnerdActivityError extends Error {
   constructor(
     readonly status: number,
     path: string,
+    /** The incarnation runnerd serves, when it refused a request meant for
+     * another one. */
+    readonly incarnation?: string,
   ) {
     super(`runnerd /${path} ${status}`);
   }
+}
+
+/** The incarnation a 409 `incarnation_mismatch` refusal names, if it is one. */
+async function refusedIncarnation(res: Response): Promise<string | undefined> {
+  if (res.status !== 409) return undefined;
+  let value: unknown;
+  try {
+    value = await res.json();
+  } catch (error) {
+    console.warn('[sandbox.session] runnerd 409 answer is not JSON:', error);
+    return undefined;
+  }
+  if (
+    value === null ||
+    typeof value !== 'object' ||
+    !('error' in value) ||
+    value.error !== 'incarnation_mismatch' ||
+    !('incarnation' in value) ||
+    typeof value.incarnation !== 'string'
+  )
+    return undefined;
+  return value.incarnation;
+}
+
+/** A creation stamp as runnerd names it: a millisecond epoch in decimal. */
+const INCARNATION_RE = /^[0-9]{1,16}$/;
+
+/** Which incarnation a runnerd answer names, against the creation stamp of
+ * the one the caller registered: `registered` when it names that one,
+ * `replaced` when it names another (a replacement under the same name
+ * answered), `unnamed` when it names none — an older runtime image, a
+ * container launched without the stamp, or a malformed value — which proves
+ * nothing either way. */
+export function answeringIncarnation(
+  createdAtMs: number,
+  named: unknown,
+): 'registered' | 'replaced' | 'unnamed' {
+  if (typeof named !== 'string' || !INCARNATION_RE.test(named))
+    return 'unnamed';
+  return named === String(createdAtMs) ? 'registered' : 'replaced';
 }
 
 export async function runnerdActivity(
@@ -149,11 +196,22 @@ export async function runnerdActivity(
   const path = action === 'ticket' ? 'release' : action;
   const res = await fetch(`${opts.baseUrl}/${path}`, {
     method: action === 'ticket' ? 'GET' : 'POST',
-    headers: { ...authHeaders(opts.token), 'content-type': 'application/json' },
+    headers: {
+      ...authHeaders(opts.token),
+      'content-type': 'application/json',
+      ...(opts.incarnation === undefined
+        ? {}
+        : { [RUNNERD_INCARNATION_HEADER]: String(opts.incarnation) }),
+    },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     signal: AbortSignal.timeout(RUNNERD_HEALTH_TIMEOUT_MS),
   });
-  if (!res.ok) throw new RunnerdActivityError(res.status, path);
+  if (!res.ok)
+    throw new RunnerdActivityError(
+      res.status,
+      path,
+      await refusedIncarnation(res),
+    );
   const value: unknown = await res.json();
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`runnerd /${path} invalid response`);

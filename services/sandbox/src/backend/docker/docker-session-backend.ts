@@ -45,7 +45,10 @@ import {
   runnerdEnvPatch,
   runnerdHealth,
 } from '../../session/runnerd-client.ts';
-import { RUNNERD_PORT } from '../../session/runnerd-protocol.ts';
+import {
+  RUNNERD_PORT,
+  type RunnerdHealth,
+} from '../../session/runnerd-protocol.ts';
 import {
   belongsToInstance,
   deriveRunnerdToken,
@@ -553,9 +556,10 @@ export class DockerSessionBackend implements SessionBackend {
 
     // Poll runnerd until ready; on failure tear down only this attempt's
     // container and preserve any workspace files already written.
+    let readiness: RunnerdHealth;
     try {
       const baseUrl = await this.resolveEndpoint(spec.sessionId);
-      await this.waitForRunnerdOrExit(
+      readiness = await this.waitForRunnerdOrExit(
         containerName,
         { baseUrl, token },
         this.cfg.session.createHealthTimeoutMs,
@@ -594,7 +598,15 @@ export class DockerSessionBackend implements SessionBackend {
       await this.cleanupCreateAttempt(spec.sessionId, createAttemptId);
       throw err;
     }
-    return { resumed: preexisting };
+    // The readiness answer came through the container of the session's name,
+    // launched just above with this create's stamp: the incarnation it names
+    // spares the session's first activity call a `docker inspect`.
+    return {
+      resumed: preexisting,
+      ...(readiness.incarnation === undefined
+        ? {}
+        : { incarnation: readiness.incarnation }),
+    };
   }
 
   /** A failed create owns only the container carrying its random attempt
@@ -648,6 +660,7 @@ export class DockerSessionBackend implements SessionBackend {
    * container's last log lines in the error instead. A null status (daemon
    * hiccup) is "unknown", never a death verdict; only a definitively dead
    * container (exited/dead — isReapableContainerStatus) aborts the wait.
+   * Returns the answer that found it ready.
    */
   private async waitForRunnerdOrExit(
     containerName: string,
@@ -658,7 +671,7 @@ export class DockerSessionBackend implements SessionBackend {
     // inspected for an early exit only every fifth miss.
     pollIntervalMs = 100,
     signal?: AbortSignal,
-  ): Promise<void> {
+  ): Promise<RunnerdHealth> {
     const start = Date.now();
     for (let miss = 1; ; miss += 1) {
       try {
@@ -666,7 +679,7 @@ export class DockerSessionBackend implements SessionBackend {
         signal?.throwIfAborted();
         if (health.dockerReady === false)
           throw new Error('runnerd is live but inner Docker is not ready');
-        return;
+        return health;
       } catch {
         signal?.throwIfAborted();
         const status =

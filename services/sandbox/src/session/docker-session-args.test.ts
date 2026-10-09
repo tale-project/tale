@@ -252,6 +252,9 @@ describe('buildDockerSessionRunArgs', () => {
     );
     // Runnerd token in env.
     expect(args).toContain(`TALE_RUNNERD_TOKEN=${'a'.repeat(64)}`);
+    // runnerd names the incarnation it serves: the `tale.created` stamp.
+    expect(args).toContain('tale.created=1700000000000');
+    expect(args).toContain('TALE_RUNNERD_INCARNATION=1700000000000');
     // Container + workspace mount.
     expect(args).toContain('tale-sbx-ses-ses-abc-123');
     expect(args).toContain(
