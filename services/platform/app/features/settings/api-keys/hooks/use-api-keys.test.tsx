@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -228,4 +228,77 @@ describe('the cached key views', () => {
     });
     expect(client.getQueryState(UNRELATED)?.isInvalidated).toBe(false);
   });
+});
+
+describe('account-wide key changes across organizations', () => {
+  it.each(['create', 'revoke'] as const)(
+    '%s refreshes active panels and inactive lists without unrelated refetches',
+    async (mutation) => {
+      client.setDefaultOptions({
+        queries: { retry: false, staleTime: 5 * 60 * 1000 },
+      });
+      let keys = mutation === 'create' ? [] : [key];
+      backendFetch.mockImplementation(async (route: string) => {
+        expect(route).toBe('/api-keys');
+        return { keys };
+      });
+      apiKey.create.mockImplementation(async () => {
+        keys = [key];
+        return { data: { key: 'synthetic-secret', id: key.id } };
+      });
+      apiKey.delete.mockImplementation(async () => {
+        keys = [];
+        return { data: { success: true } };
+      });
+      const orgA = renderHook(() => useApiKeys('org-a'), { wrapper });
+      await waitFor(() => expect(orgA.result.current.data).toEqual(keys));
+      orgA.unmount();
+      const orgB = renderHook(
+        () => ({
+          keys: useApiKeys('org-b'),
+          create: useCreateApiKey('org-b'),
+          revoke: useRevokeApiKey('org-b'),
+        }),
+        { wrapper },
+      );
+      const panel = renderHook(() => useApiKeys('org-c'), { wrapper });
+      await waitFor(() => expect(orgB.result.current.keys.data).toEqual(keys));
+      await waitFor(() => expect(panel.result.current.data).toEqual(keys));
+      const derivedKeys = ['org-a', 'org-b'].flatMap((org) => [
+        ['backend', org, 'api_key', 'org-list'],
+        ['backend', org, 'api_key', 'my-access'],
+      ]);
+      for (const queryKey of derivedKeys) client.setQueryData(queryKey, []);
+      const unrelated = ['backend', 'org-b', 'document', 'list'];
+      client.setQueryData(unrelated, ['unchanged']);
+
+      await act(async () => {
+        if (mutation === 'create') {
+          await orgB.result.current.create.mutateAsync({
+            name: key.name,
+            owner: { kind: 'self' },
+          });
+        } else {
+          await orgB.result.current.revoke.mutateAsync(key);
+        }
+      });
+
+      await waitFor(() => expect(panel.result.current.data).toEqual(keys));
+      expect(orgB.result.current.keys.data).toEqual(keys);
+      expect(
+        client.getQueryState(['backend', 'org-a', 'api_key', 'settings-list'])
+          ?.isInvalidated,
+      ).toBe(true);
+      // Only mounted lists refetch; the inactive A list waits for return.
+      expect(backendFetch).toHaveBeenCalledTimes(5);
+      for (const queryKey of derivedKeys) {
+        expect(client.getQueryState(queryKey)?.isInvalidated).toBe(true);
+      }
+      expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
+
+      const returnedA = renderHook(() => useApiKeys('org-a'), { wrapper });
+      await waitFor(() => expect(returnedA.result.current.data).toEqual(keys));
+      expect(backendFetch).toHaveBeenCalledTimes(6);
+    },
+  );
 });
