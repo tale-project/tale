@@ -146,13 +146,19 @@ export function splitTarget(
 /** The workers' latest snapshots with their full series, folded into one. */
 function foldSnapshots(
   workers: readonly WorkerState[],
+  /** Only windows starting at or after this; the totals are always whole.
+   * The 1 s control loop reads the last few windows, and merging the whole
+   * run's series there grew with every minute of the run. */
+  since = Number.NEGATIVE_INFINITY,
 ): MetricsSnapshot | null {
   const snapshots: MetricsSnapshot[] = [];
   for (const worker of workers) {
     if (worker.latest === null) continue;
     snapshots.push({
       ...worker.latest,
-      series: [...worker.series.values()].sort((a, b) => a.start - b.start),
+      series: [...worker.series.values()]
+        .filter((window) => window.start >= since)
+        .sort((a, b) => a.start - b.start),
     });
   }
   return snapshots.length === 0 ? null : mergeSnapshots(snapshots);
@@ -304,7 +310,7 @@ export async function runLoad(config: RunConfig): Promise<RunOutcome> {
   /** Judge a stage that just ended from the windows of its hold. */
   const closeStage = (index: number, endedAt: number): StageResult => {
     const stage = config.profile.stages[index];
-    const folded = foldSnapshots(workers);
+    const folded = foldSnapshots(workers, stageHoldFrom);
     const span = windowsBetween(folded, stageHoldFrom, endedAt);
     const errorRate = span.requests > 0 ? span.errors / span.requests : 0;
     const held =
@@ -421,10 +427,11 @@ function progressLine(
   stage: number,
 ): string {
   const active = workers.reduce((sum, w) => sum + w.active, 0);
-  const folded = foldSnapshots(workers);
-  // The last two complete windows, so the line reflects now, not the run.
-  const windowMs = folded?.windowMs ?? 5_000;
+  const windowMs =
+    workers.find((w) => w.latest !== null)?.latest?.windowMs ?? 5_000;
   const now = Date.now();
+  const folded = foldSnapshots(workers, now - windowMs * 3);
+  // The last two complete windows, so the line reflects now, not the run.
   const recent = windowsBetween(folded, now - windowMs * 3, now - windowMs);
   const seconds = (windowMs * 2) / 1000;
   const errorRate = recent.requests > 0 ? recent.errors / recent.requests : 0;
