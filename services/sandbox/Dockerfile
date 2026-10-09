@@ -109,11 +109,10 @@ ENV TALE_VERSION=${VERSION} \
 EXPOSE 8003
 
 # Healthcheck mirrors compose.yml's external probe so direct `docker run`
-# (without compose) gets the same liveness signal: a runc exec every 30 s
-# once healthy, every 2 s while the spawner boots (an engine older than
-# Docker 25 ignores the start interval and probes every 30 s from the start).
+# (without compose) gets the same liveness signal: a runc exec every 30 s. No
+# --start-interval: the Dockerfile frontend Docker Engine 24 bundles, the
+# oldest engine Tale supports, does not know the flag.
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=30s \
-  --start-interval=2s \
   CMD curl -fsS http://127.0.0.1:8003/health || exit 1
 
 # Root by design — see header comment. The docker socket is the boundary.

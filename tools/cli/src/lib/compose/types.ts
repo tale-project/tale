@@ -44,8 +44,6 @@ export interface ComposeService {
         timeout: string;
         retries: number;
         start_period?: string;
-        /** Probe cadence during `start_period` (Docker Engine 25+). */
-        start_interval?: string;
       }
     // A service with no HTTP surface (the job worker) disables the image's
     // baked healthcheck rather than reading permanently unhealthy.

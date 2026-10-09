@@ -50,10 +50,11 @@ runtime_image`. A pull that fails is retried after 30 s, 1, 2, 5 and then every
 5–60 s). `GET /health` reports `runtimeImage: { state, lastError,
 nextAttemptAtMs }` with `state` one of `unchecked`, `pulling`, `ready` or
 `missing`; a missing image never makes the spawner unhealthy. Docker probes
-`GET /health` with `curl` (a runc exec each time) every 30 s once the spawner
-is healthy and every 2 s during its first 30 s, so a deploy sees it ready
-within seconds of booting; the start interval needs Docker Engine 25 or later
-(compose.yml, the CLI generator and the image's `HEALTHCHECK` agree). Session lookups whose backend inventory or endpoint
+`GET /health` with `curl` (a runc exec each time) every 30 s, so a booting
+spawner reads healthy up to 30 s after it starts; failures in its first 30 s
+do not count. There is no faster start interval: Docker Compose refuses
+`start_interval` on Engine 24, the oldest engine Tale supports (compose.yml,
+the CLI generator and the image's `HEALTHCHECK` agree). Session lookups whose backend inventory or endpoint
 cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.

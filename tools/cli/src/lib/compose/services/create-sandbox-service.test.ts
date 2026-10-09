@@ -43,25 +43,31 @@ test('mount paths cannot inject another compose mount option', () => {
   expect(() => createSandboxService(config)).toThrow('mount separators');
 });
 
-test('the spawner is probed every 30 s once healthy and every 2 s while it boots, alike in every pipeline', () => {
+test('the spawner is probed every 30 s, alike in every pipeline, with nothing Docker Engine 24 refuses', () => {
   const repoRoot = fileURLToPath(
     new URL('../../../../../../', import.meta.url),
   );
-  const cadence = {
-    interval: '30s',
-    start_period: '30s',
-    start_interval: '2s',
-  };
-  expect(createSandboxService(config).healthcheck).toMatchObject(cadence);
-  // The generated stack file carries the field through to Compose.
+  const cadence = { interval: '30s', start_period: '30s' };
+  // Docker Compose refuses `start_interval` on an engine older than 25, and
+  // the Dockerfile frontend Engine 24 bundles does not know `--start-interval`.
+  const generatedCheck = createSandboxService(config).healthcheck;
+  expect(generatedCheck).toMatchObject(cadence);
+  expect(generatedCheck).not.toHaveProperty('start_interval');
+  // The generated stack file carries the cadence through to Compose.
   const generated = parse(generateStatefulCompose(config, 'localhost')) as {
     services: Record<string, { healthcheck?: Record<string, unknown> }>;
   };
   expect(generated.services['sandbox']?.healthcheck).toMatchObject(cadence);
+  expect(generated.services['sandbox']?.healthcheck).not.toHaveProperty(
+    'start_interval',
+  );
   const compose = parse(
     readFileSync(`${repoRoot}compose.yml`, 'utf8'),
   ) as typeof generated;
   expect(compose.services['sandbox']?.healthcheck).toMatchObject(cadence);
+  expect(compose.services['sandbox']?.healthcheck).not.toHaveProperty(
+    'start_interval',
+  );
   const dockerfile = readFileSync(
     `${repoRoot}services/sandbox/Dockerfile`,
     'utf8',
@@ -71,5 +77,5 @@ test('the spawner is probed every 30 s once healthy and every 2 s while it boots
     .find((line) => line.startsWith('HEALTHCHECK'));
   expect(directive).toContain('--interval=30s');
   expect(directive).toContain('--start-period=30s');
-  expect(directive).toContain('--start-interval=2s');
+  expect(directive).not.toContain('--start-interval');
 });
