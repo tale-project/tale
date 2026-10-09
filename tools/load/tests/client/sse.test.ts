@@ -298,8 +298,9 @@ describe('openEventStream', () => {
       },
     });
     expect(await handle.done).toBe('closed');
-    // Without `retry: 20` the default 1 s base would allow up to 999 ms.
-    expect(reconnects).toEqual([{ attempt: 1, delayMs: 19, reason: 'ended' }]);
+    // A healthy stream comes back after exactly the server's `retry:`, as a
+    // browser's EventSource does (the default would be 3 s).
+    expect(reconnects).toEqual([{ attempt: 1, delayMs: 20, reason: 'ended' }]);
   });
 
   test('a silent stream trips the idle watchdog and reconnects', async () => {

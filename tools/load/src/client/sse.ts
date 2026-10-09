@@ -36,7 +36,11 @@ export interface StreamEvent {
 export interface ReconnectOptions {
   /** Default true. */
   enabled?: boolean;
-  /** First backoff ceiling. Default 1 s. */
+  /**
+   * Delay after a healthy stream drops when the server sent no `retry:`
+   * (EventSource's default, 3 s), and the first ceiling of the full-jitter
+   * backoff of a stream that keeps failing.
+   */
   baseMs?: number;
   /** Largest backoff ceiling. Default 60 s. */
   maxMs?: number;
@@ -113,6 +117,8 @@ export interface EventStreamHandle {
 /** HTTP refusals that end a stream instead of scheduling a reconnect. */
 const REFUSALS: ReadonlySet<number> = new Set([401, 403, 404]);
 const DEFAULT_STOP_EVENTS: readonly string[] = ['forbidden'];
+/** EventSource's reconnection time when the server sent no `retry:`. */
+const BROWSER_DEFAULT_RETRY_MS = 3_000;
 const SAMPLE_CHARS = 300;
 
 /**
@@ -190,7 +196,7 @@ class EventStream implements EventStreamHandle {
     this.#reconnectsName = `${options.name}.reconnects`;
     this.#options = options;
     this.#reconnectEnabled = options.reconnect?.enabled ?? true;
-    this.#baseMs = options.reconnect?.baseMs ?? 1_000;
+    this.#baseMs = options.reconnect?.baseMs ?? BROWSER_DEFAULT_RETRY_MS;
     this.#maxMs = options.reconnect?.maxMs ?? 60_000;
     this.#stopOn = new Set(options.stopOnEvents ?? DEFAULT_STOP_EVENTS);
     this.#idleTimeoutMs = options.idleTimeoutMs ?? 45_000;
@@ -263,7 +269,15 @@ class EventStream implements EventStreamHandle {
       }
       const base = this.#retryMs ?? this.#baseMs;
       const max = Math.max(this.#maxMs, this.#retryMs ?? 0);
-      const delayMs = fullJitterDelay(this.#attempt, base, max, this.#random);
+      // A stream that was healthy comes back the way a browser's EventSource
+      // does — after the server's `retry:` (the platform jitters it per
+      // stream), else the browser's default — so a deploy that drops every
+      // stream does not see them all back within a second. Only a stream
+      // that keeps failing backs off with full jitter.
+      const delayMs =
+        opened && this.#attempt === 0
+          ? base
+          : fullJitterDelay(this.#attempt, base, max, this.#random);
       this.#attempt += 1;
       this.#reconnects += 1;
       this.#metrics.counter(this.#reconnectsName);
