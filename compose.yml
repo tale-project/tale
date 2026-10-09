@@ -851,7 +851,7 @@ services:
       # generator (create-sandbox-service.ts) — R2-B11 lockstep.
       SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
       SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
-      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373}
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:

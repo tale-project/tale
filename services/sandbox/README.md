@@ -288,8 +288,11 @@ ships with; the floor low disk space never prunes below is a tenth of the cap,
 at most 2 GiB. The spawner passes both in bytes, and they are part of the
 builder's stamp.
 
-The mirrors enable registry storage deletion so the registry can expire cached
-image layers after its seven-day lifetime. Without this setting, its expiry
+The mirrors run distribution v3, whose pull-through proxy takes a configurable
+lifetime, set to 48 hours (`REGISTRY_PROXY_TTL`): a blob an organization stopped
+pulling goes two days later instead of a week, and BuildKit's own cache keeps
+the base layers its builds reuse. They enable registry storage deletion so the
+registry can expire those layers at all. Without this setting, its expiry
 scheduler forgets failed deletions and the layers remain on disk. A spawner
 upgrade replaces older mirrors once no build is running, preserving their cache
 volumes. Layers whose expiry already failed are not scheduled again by the

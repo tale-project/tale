@@ -849,7 +849,7 @@ export function loadConfig(): SpawnerConfig {
     // a mirrored ref in fenced deploys.
     buildkitdMirrorImage:
       process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ??
-      'registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373',
+      'registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8',
     ...(buildkitdCpus !== undefined ? { buildkitdCpus } : {}),
     buildkitdProvisionTimeoutMs: numEnv(
       'SANDBOX_BUILDKITD_PROVISION_TIMEOUT_MS',
