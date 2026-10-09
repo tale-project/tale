@@ -1,5 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+import { CAPTURE_LOCALES } from '../../docs-screenshots/capture-options';
+import { DEMO_PROJECTS } from '../../docs-screenshots/demo-content';
+import { t as captureT, withCaptureLocale } from '../../docs-screenshots/i18n';
+import { SHOTS } from '../../docs-screenshots/manifest';
 import {
   projectFileRow,
   settleList,
@@ -13,6 +17,64 @@ import { t } from '../helpers/i18n';
 // signing in or changing organization data. Chromium belongs to this E2E lane.
 test.use({ storageState: { cookies: [], origins: [] } });
 const LIST_RESPONSE_DELAY_MS = 500;
+
+for (const locale of CAPTURE_LOCALES) {
+  test(`task detail capture waits for the activity response in ${locale}`, async ({
+    page,
+  }) => {
+    await withCaptureLocale(locale, async () => {
+      const shot = SHOTS.find(({ name }) => name === 'project-task-detail');
+      if (!shot) throw new Error('Task detail capture is not registered');
+      const activity = captureT('tasks.detail.activity');
+      const context = {
+        orgId: 'synthetic-capture',
+        threads: new Map<string, string>(),
+        projects: new Map<string, string>(),
+      };
+      let releaseResponse: () => void = () => {};
+      let markRequested: () => void = () => {};
+      const responseAllowed = new Promise<void>((resolve) => {
+        releaseResponse = resolve;
+      });
+      const requested = new Promise<void>((resolve) => {
+        markRequested = resolve;
+      });
+      await page.route('https://capture.example/activity', async (route) => {
+        markRequested();
+        await responseAllowed;
+        await route.fulfill({
+          contentType: 'application/json',
+          headers: { 'access-control-allow-origin': '*' },
+          body: JSON.stringify({ heading: activity }),
+        });
+      });
+      await page.setContent(`
+        <h3>${activity}</h3>
+        <div role="dialog" aria-labelledby="task-title">
+          <h2 id="task-title">${DEMO_PROJECTS[0].tasks[0].title}</h2>
+          <p>The native task brief and saved comment have loaded.</p>
+          <section id="history"></section>
+        </div>
+        <script>
+          fetch('https://capture.example/activity')
+            .then(response => response.json())
+            .then(({ heading }) => {
+              const title = document.createElement('h3');
+              title.textContent = heading;
+              document.querySelector('#history').append(title);
+            });
+        </script>
+      `);
+      await requested;
+      await expect(page.getByRole('dialog')).toBeVisible();
+      // A dialog-only gate, or a namesake heading outside it, admits an
+      // incomplete screenshot while the independent native query is held.
+      expect(await shot.readyWhen(page, context).count()).toBe(0);
+      releaseResponse();
+      await expect(shot.readyWhen(page, context)).toBeVisible();
+    });
+  });
+}
 
 for (const kind of ['list', 'list-or-empty']) {
   test(`screenshot seeding waits for existing rows in ${kind}`, async ({

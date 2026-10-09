@@ -25,6 +25,7 @@ vi.mock('../hooks/mutations', () => ({
   useAssignTask: () => ({ mutate: mutations.assign, isPending: false }),
   useUpdateTask: () => ({ mutate: mutations.update, isPending: false }),
   useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
+  useCreateTask: () => ({ mutateAsync: vi.fn() }),
 }));
 vi.mock('@tanstack/react-router', async (original) => ({
   ...(await original<typeof import('@tanstack/react-router')>()),

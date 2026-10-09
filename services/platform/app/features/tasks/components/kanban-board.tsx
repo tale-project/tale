@@ -12,9 +12,10 @@ import {
   resolveTaskOwnership,
   useTaskContractAutomations,
 } from '../hooks/use-task-subject-contract';
-import { BOARD_TASK_STATUSES } from '../lib/display';
+import { BOARD_TASK_STATUSES, type TaskStatus } from '../lib/display';
 import { partitionSubtasks } from '../lib/subtasks';
 import { BoardColumn } from './board-column';
+import type { LaneQuickAddConfig } from './lane-quick-add';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { useTaskBoardContext } from './task-board-context';
 import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
@@ -37,6 +38,8 @@ export const KanbanBoard = memo(function KanbanBoard({
   onOpenTask,
   projectKey,
   canWorkTask = readOnlyBoard,
+  onAddTask,
+  quickAdd,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
@@ -44,6 +47,11 @@ export const KanbanBoard = memo(function KanbanBoard({
   /** Whether the viewer may work a task (`useTaskAccess`) — gates its
    * drag-reorder and inline pickers. Absent, every card is read-only. */
   canWorkTask?: (task: TaskRow) => boolean;
+  /** A lane's "+": the create dialog with that lane's status. Absent for a
+   * viewer who may not create here. Must be stable (the board is memoized). */
+  onAddTask?: (status: TaskStatus) => void;
+  /** Where each lane's "Add task" row creates. Absent with `onAddTask`. */
+  quickAdd?: LaneQuickAddConfig;
 }) {
   const { t } = useT('tasks');
   const { confirmCancel, dialog } = useRunCancelConfirm();
@@ -131,6 +139,8 @@ export const KanbanBoard = memo(function KanbanBoard({
             projectKey={projectKey}
             canWorkTask={canWorkTask}
             dropHint={dropHints?.get(status) ?? null}
+            {...(onAddTask !== undefined ? { onAddTask } : {})}
+            {...(quickAdd !== undefined ? { quickAdd } : {})}
           />
         ))}
       </Row>

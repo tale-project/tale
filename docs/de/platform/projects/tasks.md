@@ -21,6 +21,8 @@ Eine Aufgabe hält zusammen, worum es bei einer Arbeit geht: Ziel, Zuständigkei
 
 Um mehrere Aufgaben nacheinander zu erstellen, schalte vor dem Erstellen unten links im Dialog **Weitere erstellen** ein. Der Dialog bleibt dann offen: Titel, Beschreibung und Anhänge werden für die nächste Aufgabe geleert, Status, Priorität, Zuständig, Daten, Wiederholung und Labels bleiben, wie du sie gesetzt hast. Tale merkt sich den Schalter in diesem Browser.
 
+Auf dem **Board** erstellt jede Spalte in ihrem eigenen Status: Das **+** neben dem Spaltennamen öffnet denselben Dialog mit diesem Status, und **Aufgabe hinzufügen** am Ende der Spalte braucht nur einen Titel. Tippe ihn und drücke **Enter**, um die Aufgabe mit Priorität **Mittel**, heute als Start und mit der Priorität oder Zuständigkeit, nach der das Board gefiltert ist, in diese Spalte zu legen; das Feld bleibt für die nächste offen, **Esc** schließt es.
+
 Ein Titel darf bis zu 200 Zeichen lang sein, eine Beschreibung bis zu 20.000; die meisten Emojis zählen doppelt. Eine längere Beschreibung, ob eingefügt oder von einem früheren Import in der Aufgabe hinterlassen, wird nicht gekürzt: Das Feld nennt die Grenze und zählt die Länge, und **Aufgabe erstellen** oder **Speichern** bleibt nicht verfügbar, bis du sie kürzt.
 
 Tale vergibt eine Kennung aus dem Projektkürzel, etwa `WEB-1`. Verwende sie in Verweisen auf die Arbeit, damit ähnlich benannte Aufgaben unterscheidbar bleiben.
