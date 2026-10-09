@@ -385,6 +385,15 @@ model, baked skills, process cleanup, and lazy browser startup. These checks
 need no provider credentials; live subscription authentication still requires
 verification after rollout. CI runs the image conformance gate on amd64.
 
+Claude Code runs under the image's managed settings (`managed-settings.json`,
+installed as `/etc/claude-code/managed-settings.json`, which no repository or
+user setting overrides). They keep transcripts for 60 days (`cleanupPeriodDays`;
+the CLI's own default is 30): Claude Code deletes older ones when it starts, so
+the store on the organization's `/agent` volume holds two months of
+conversations rather than a year. A task resumed after its transcript is gone
+restarts fresh on its preserved files. `daemon/src/managed-settings.test.ts`
+holds the period.
+
 Hermes keeps SDK diagnostics on stderr so stdout remains NDJSON and disables
 the SDK's artificial delay between tool calls. Provider retry and backoff stay
 enabled. OpenClaw's wrapper treats a structured error as a failed execution

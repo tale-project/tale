@@ -639,9 +639,11 @@ COPY --from=exec-shim-build /tale-exec-shim /usr/local/bin/tale-exec-shim
 # (includeCoAuthoredBy:false — the byline is appended by the CLI at
 # commit/PR time and a cloned repo's CLAUDE.md can't override a harness
 # default; managed scope so a cloned app repo / BYO user can't re-enable
-# it), keep transcripts a year (cleanupPeriodDays — the CLI's ~30-day
-# janitor would silently break `--resume` on a standing session's older
-# tasks; the store lives on the org's own /agent volume), and register the
+# it), keep transcripts 60 days (cleanupPeriodDays — twice the CLI's 30-day
+# default, so a standing session's recent tasks still `--resume`, while the
+# store on the org's own /agent volume holds two months of conversations
+# rather than a year; a task resumed after its transcript is pruned restarts
+# fresh on its preserved files), and register the
 # steer hook (mid-turn message injection — hooks merge across settings
 # sources, so /agent configs can't shadow it). Two opt-outs keep what newer
 # CLIs added out of the sandbox: crossSessionInbound:"refuse" (2.1.224+
