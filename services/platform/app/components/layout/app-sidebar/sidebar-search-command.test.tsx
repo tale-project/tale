@@ -14,8 +14,9 @@ import {
 import { SidebarProvider, useSidebar } from './sidebar-context';
 import { SidebarSearchCommand } from './sidebar-search-command';
 
-const { mockNavigate } = vi.hoisted(() => ({
+const { mockNavigate, authState } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
+  authState: { user: { userId: 'user-1' } as { userId: string } | undefined },
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -27,7 +28,17 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 vi.mock('@/app/hooks/use-session-user', () => ({
-  useAuth: () => ({ user: { userId: 'user-1' } }),
+  useAuth: () => authState,
+}));
+
+vi.mock('./platform-search-source', () => ({
+  createPlatformSearchSource: () => (query: string) => ({
+    status: 'ready',
+    results:
+      query === 'Acquisition Atlas confidential'
+        ? [{ id: 'chat-1', title: 'Private deal plan', data: { kind: 'chat' } }]
+        : [],
+  }),
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
@@ -53,20 +64,25 @@ function OpenChatsButton() {
   );
 }
 
-function renderPalette() {
-  return render(
+function palette(organizationId = 'org-1') {
+  return (
     <AbilityContext.Provider value={MEMBER_ABILITY}>
       <SidebarProvider>
         <OpenChatsButton />
-        <SidebarSearchCommand organizationId="org-1" />
+        <SidebarSearchCommand organizationId={organizationId} />
       </SidebarProvider>
-    </AbilityContext.Provider>,
+    </AbilityContext.Provider>
   );
+}
+
+function renderPalette() {
+  return render(palette());
 }
 
 describe('SidebarSearchCommand', () => {
   beforeEach(() => {
     mockNavigate.mockClear();
+    authState.user = { userId: 'user-1' };
     window.localStorage.clear();
   });
   afterEach(() => {
@@ -84,6 +100,181 @@ describe('SidebarSearchCommand', () => {
       { timeout: 5000 },
     );
   };
+
+  const openScope = async (
+    user: ReturnType<typeof render>['user'],
+    scope: string,
+  ) => {
+    if (scope === 'chats') {
+      await user.click(screen.getByRole('button', { name: 'open-chats' }));
+      return screen.findByPlaceholderText(
+        enMessages.chat.searchPalette.placeholder,
+      );
+    }
+    return openSearch(user);
+  };
+
+  it.each(['everything', 'chats'])(
+    'isolates %s history across organizations and accounts',
+    async (scope) => {
+      const { user, rerender } = renderPalette();
+      const input = await openScope(user, scope);
+      await user.type(input, 'Acquisition Atlas confidential');
+      await user.click(await screen.findByText('Private deal plan'));
+      await waitFor(() =>
+        expect(screen.queryByRole('combobox')).not.toBeInTheDocument(),
+      );
+      await openScope(user, scope);
+      expect(
+        await screen.findByText('Acquisition Atlas confidential'),
+      ).toBeInTheDocument();
+
+      rerender(palette('org-2'));
+      await waitFor(() =>
+        expect(
+          screen.queryByText('Acquisition Atlas confidential'),
+        ).not.toBeInTheDocument(),
+      );
+      expect(screen.queryByText('Private deal plan')).not.toBeInTheDocument();
+
+      rerender(palette('org-1'));
+      expect(
+        await screen.findByText('Acquisition Atlas confidential'),
+      ).toBeInTheDocument();
+      authState.user = { userId: 'user-2' };
+      rerender(palette());
+      await waitFor(() =>
+        expect(
+          screen.queryByText('Acquisition Atlas confidential'),
+        ).not.toBeInTheDocument(),
+      );
+      authState.user = { userId: 'user-1' };
+      rerender(palette());
+      expect(
+        await screen.findByText('Acquisition Atlas confidential'),
+      ).toBeInTheDocument();
+      authState.user = undefined;
+      rerender(palette());
+      expect(
+        screen.queryByText('Acquisition Atlas confidential'),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it('keeps the two palette histories separate within the same identity', async () => {
+    const { user } = renderPalette();
+    await user.type(await openSearch(user), 'Acquisition Atlas confidential');
+    await user.click(await screen.findByText('Private deal plan'));
+    await waitFor(() =>
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument(),
+    );
+    await openSearch(user);
+    expect(
+      await screen.findByText('Acquisition Atlas confidential'),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', {
+        name: enMessages.dialogs.search.scopeChats,
+      }),
+    );
+    expect(
+      screen.queryByText('Acquisition Atlas confidential'),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', {
+        name: enMessages.dialogs.search.scopeEverything,
+      }),
+    );
+    expect(
+      await screen.findByText('Acquisition Atlas confidential'),
+    ).toBeInTheDocument();
+  });
+
+  it.each(['everything', 'chats'])(
+    'never imports legacy %s history',
+    async (scope) => {
+      for (const key of [
+        'tale.platform.search.recentSearches.v1',
+        'tale.platform.chat.searchPalette.recentSearches.v1',
+      ]) {
+        window.localStorage.setItem(
+          key,
+          JSON.stringify([
+            {
+              query: 'Acquisition Atlas confidential',
+              title: 'Private deal plan',
+              savedAt: 1,
+            },
+          ]),
+        );
+      }
+      const { user } = renderPalette();
+      await openScope(user, scope);
+      expect(
+        screen.queryByText('Acquisition Atlas confidential'),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText('Private deal plan')).not.toBeInTheDocument();
+    },
+  );
+
+  it('clears live input and result titles when identity changes', async () => {
+    const { user, rerender } = renderPalette();
+    await user.type(await openSearch(user), 'Acquisition Atlas confidential');
+    await screen.findByText('Private deal plan');
+    rerender(palette('org-2'));
+    expect(screen.getByRole('combobox')).toHaveValue('');
+    expect(screen.queryByText('Private deal plan')).not.toBeInTheDocument();
+  });
+
+  it.each(['organization', 'account', 'sign-out'])(
+    'keeps keyboard focus in the open palette after an %s change',
+    async (change) => {
+      const { user, rerender } = renderPalette();
+      const opener = screen.getByRole('button', { name: 'open-chats' });
+      await user.click(opener);
+      await user.type(
+        await screen.findByRole('combobox'),
+        'Acquisition Atlas confidential',
+      );
+      await screen.findByText('Private deal plan');
+
+      if (change === 'account') authState.user = { userId: 'user-2' };
+      if (change === 'sign-out') authState.user = undefined;
+      rerender(palette(change === 'organization' ? 'org-2' : 'org-1'));
+      const input = screen.getByRole('combobox');
+      expect(input).toHaveValue('');
+      expect(screen.queryByText('Private deal plan')).not.toBeInTheDocument();
+      // Keyboard input yields past the old FocusScope's delayed unmount
+      // callback, which used to restore the surviving opener behind the modal.
+      await user.keyboard('x');
+      expect(input).toHaveFocus();
+      expect(input).toHaveValue('x');
+      await user.tab();
+      expect(screen.getByRole('dialog').contains(document.activeElement)).toBe(
+        true,
+      );
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      await waitFor(() => expect(opener).toHaveFocus());
+    },
+  );
+
+  it('disables history while the current account is unresolved', async () => {
+    authState.user = undefined;
+    const { user } = renderPalette();
+    await user.type(await openSearch(user), 'Acquisition Atlas confidential');
+    await user.click(await screen.findByText('Private deal plan'));
+    await waitFor(() =>
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument(),
+    );
+    await openSearch(user);
+    expect(
+      screen.queryByText('Acquisition Atlas confidential'),
+    ).not.toBeInTheDocument();
+    expect(window.localStorage.length).toBe(0);
+  });
 
   it('opens the palette with Ctrl+K and closes it with Escape', async () => {
     const { user } = renderPalette();
@@ -134,6 +325,7 @@ describe('SidebarSearchCommand', () => {
         name: enMessages.chat.searchPalette.placeholder,
       }),
     ).toBeInTheDocument();
+    await user.type(screen.getByRole('combobox'), 'budget');
 
     await user.click(
       screen.getByRole('button', {
@@ -146,7 +338,7 @@ describe('SidebarSearchCommand', () => {
       await screen.findByRole('combobox', {
         name: enMessages.dialogs.search.placeholder,
       }),
-    ).toBeInTheDocument();
+    ).toHaveValue('budget');
     expect(
       screen.getByRole('button', {
         name: enMessages.dialogs.search.scopeEverything,
