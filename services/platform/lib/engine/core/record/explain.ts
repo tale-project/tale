@@ -42,6 +42,7 @@ import { summaryOf, type ValueSummary } from '@tale/ui/data/value-summary';
 import type { ChainExpression, Identifier, Node } from 'estree';
 import { walk } from 'zimmerframe';
 
+import { cutText } from '../../../shared/utils/storable-text';
 import { foldConstant } from '../syntax/constant';
 import { parseExpressionIn } from '../syntax/parse';
 import {
@@ -775,8 +776,5 @@ function clampRange(
  * character that takes two. */
 function clip(text: string): string {
   if (text.length <= EXPLAIN_SOURCE_LENGTH) return text;
-  let head = text.slice(0, EXPLAIN_SOURCE_LENGTH - 1);
-  const last = head.charCodeAt(head.length - 1);
-  if (last >= 0xd800 && last <= 0xdbff) head = head.slice(0, -1);
-  return `${head}…`;
+  return `${cutText(text, EXPLAIN_SOURCE_LENGTH - 1)}…`;
 }

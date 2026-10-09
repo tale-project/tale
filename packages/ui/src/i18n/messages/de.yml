@@ -449,6 +449,8 @@ codeEditor:
   tabFocusOff: Tab rückt jetzt ein.
   expand: Editor vergrößern
   collapse: Zurück zum Feld
+  loadFailed: 'Der Editor wurde nicht geladen. Du kannst hier als reiner Text weiterbearbeiten.'
+  retry: 'Editor erneut laden'
   diagnostics:
     atCursor: '{severity} in Zeile {line}: {message}'
     severity:
@@ -524,6 +526,99 @@ schemaTree:
   maybeEmpty: kann leer sein
   more: '{count, plural, one {# weiteres Feld} other {# weitere Felder}}'
   asTypeScript: Als TypeScript zeigen
+  inItems: '{total, plural, one {in {count} von # Element} other {in {count} von # Elementen}}'
+  mark:
+    added: nicht in der erwarteten Struktur
+    removed: erwartet, aber nicht vorhanden
+    typeChanged: anderer Typ als erwartet
+    optional: nicht immer vorhanden
+
+valueTree:
+  label: Wert
+  name: '{key}, {value}'
+  markedName: '{mark}: {name}'
+  keyboardHelp: Mit den Pfeiltasten bewegst du dich und öffnest Einträge. Tippe einen Feldnamen, um dorthin zu springen.
+  summary:
+    list: '{count, plural, =0 {eine leere Liste} one {eine Liste mit # Element} other {eine Liste mit # Elementen}}'
+    object: '{count, plural, =0 {ein leeres Objekt} one {ein Objekt mit # Feld} other {ein Objekt mit # Feldern}}'
+    longText: '{count, plural, one {ein Text mit # Zeichen} other {ein Text mit # Zeichen}}'
+    quote: '„{text}“'
+    'true': wahr
+    'false': falsch
+    'null': leer
+    missing: fehlt
+    redacted: ein verborgenes Geheimnis
+    elided: '{size} nicht gespeichert'
+  showAllText: Alle {count} Zeichen zeigen
+  showMore: '{count} weitere zeigen'
+  elided:
+    string: '{count, plural, one {+# Zeichen nicht gespeichert} other {+# Zeichen nicht gespeichert}}'
+    items: '{count, plural, one {+# Element nicht gespeichert} other {+# Elemente nicht gespeichert}}'
+    depth: Tiefere Ebenen nicht gespeichert
+    whole: Zu groß zum Speichern ({size})
+  redacted: Verborgenes Geheimnis
+  redactedHint: Tale verbirgt Geheimnisse in aufgezeichneten Werten.
+  missing: '{key}: fehlt'
+  copyValue: Wert kopieren
+  copyPath: Pfad kopieren
+  copied: Kopiert
+  mark:
+    added: Hinzugefügt
+    removed: Entfernt
+    changed: Geändert, vorher {before}
+    changedPlain: Geändert
+    typeChanged: Typ geändert, vorher {before}
+    typeChangedPlain: Typ geändert
+
+dataView:
+  values: Werte
+  shape: Struktur
+  modeLabel: Anzeigen als
+  copy: JSON kopieren
+  download: JSON herunterladen
+  fullScreen: Im Vollbild öffnen
+  closeFullScreen: Vollbild schließen
+  expected:
+    matches: Entspricht der erwarteten Struktur
+    differs: '{count, plural, one {Weicht in # Feld von der erwarteten Struktur ab} other {Weicht in # Feldern von der erwarteten Struktur ab}}'
+    compare: Vergleichen
+  empty: Nichts aufgezeichnet
+  size: '{size} aufgezeichnet'
+
+dataDiff:
+  none: Keine Änderungen
+  count:
+    added: '{count, plural, one {# hinzugefügt} other {# hinzugefügt}}'
+    removed: '{count, plural, one {# entfernt} other {# entfernt}}'
+    changed: '{count, plural, one {# geändert} other {# geändert}}'
+    typeChanged: '{count, plural, one {# mit neuem Typ} other {# mit neuem Typ}}'
+    reordered: '{count, plural, one {# umsortiert} other {# umsortiert}}'
+    unknown: '{count, plural, one {# nicht verglichen} other {# nicht verglichen}}'
+  row:
+    added: '{path} wurde hinzugefügt: {after}'
+    removed: '{path} wurde entfernt (vorher {before})'
+    changed: '{path} wurde von {before} auf {after} geändert'
+    typeChanged: '{path} wurde von {beforeKind} zu {afterKind} geändert: {after}'
+    reordered: '{path}: dieselben Elemente in anderer Reihenfolge'
+    unknown: '{path}: nicht verglichen, weil ein Teil nicht gespeichert wurde'
+  shape:
+    added: '{path} kam hinzu ({kind})'
+    removed: '{path} ist verschwunden'
+    typeChanged: '{path}: aus {beforeKind} wurde {afterKind}'
+    optional: '{path} ist nicht mehr immer vorhanden'
+    required: '{path} ist jetzt immer vorhanden'
+  layout:
+    label: Darstellung
+    list: Liste
+    split: Nebeneinander
+  before: Vorher
+  after: Nachher
+  unrelated: Die beiden haben keine gemeinsame Struktur, deshalb gibt es nichts Feld für Feld zu vergleichen.
+  wholeValue: der ganze Wert
+  showValue: Wert zeigen
+  hideValue: Wert ausblenden
+  unchanged: '{count, plural, one {# unverändertes Feld} other {# unveränderte Felder}}'
+  more: '{count, plural, one {# weitere Änderung} other {# weitere Änderungen}}'
 
 flow:
   canvas:
@@ -598,6 +693,30 @@ flow:
     valueText: '{position} – {events}'
     live: Live
     followLive: Live folgen
+  timeline:
+    label: Schritte
+    empty: Noch keine Schritte
+    keyboardHelp: Mit den Pfeiltasten nach oben und unten wechselst du zwischen den Schritten. Mit den Pfeiltasten nach rechts und links zeigst oder verbirgst du die Elemente eines Schritts, mit der Eingabetaste springst du zu einem Schritt.
+    columns:
+      step: Schritt
+      duration: Dauer
+    showItems: Elemente zeigen
+    hideItems: Elemente ausblenden
+    showAll: Alle {count} zeigen
+    item: Element {index}
+    pass: Durchgang {index}
+    itemOf: Element {index} von {total}
+    passOf: Durchgang {index} von {total}
+  compare:
+    a: A
+    b: B
+    side: '{label}: {state}'
+    differs: Unterschiedlich
+    only: Nur in {label}
+    absent: Nicht in der Version von {label}
+    legend:
+      differs: 'Ring: unterscheidet sich zwischen den Läufen'
+      onlyOne: 'Etikett auf einer Linie: nur ein Lauf nahm diesen Weg'
 mentions:
   listboxLabel: Jemanden erwähnen
   empty: Keine Treffer

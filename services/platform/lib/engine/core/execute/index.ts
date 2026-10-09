@@ -578,9 +578,12 @@ export async function execute(
               .map((e) => `input${e.instancePath} ${e.message}`)
               .join('; ');
             const first = errors[0];
+            // The sentence names the action and what is wrong, never the
+            // input itself: the step's record shows that, with its secrets
+            // withheld, where this text would have carried them whole.
             throw new ExprError(
               n.type,
-              `resolved input does not match the ${n.type} schema: ${msg}. Resolved input was: ${JSON.stringify(resolved)}`,
+              `resolved input does not match the ${n.type} schema: ${msg}`,
               {
                 reason: 'CONNECTOR_INPUT_REFUSED',
                 params: {

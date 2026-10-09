@@ -66,8 +66,29 @@ function exitState(
   return { state: 'succeeded' };
 }
 
-/** A node's state from its spans at `t`; `null` when none has started. */
-function stateFromSpans(
+/**
+ * Whether what a span came to — its duration, a failure's words — shows at
+ * `t`: once the replay reaches its end, never while it still plays. A live
+ * span with no end yet carries the host's words for now.
+ */
+const cameToAt = (span: FlowNodeSpan, t: number): boolean =>
+  span.end === undefined || span.end <= t;
+
+/** Whether a span's reason or explanation shows at `t`: what it came to,
+ *  or — on a wait — what it waits for, while it waits. */
+const saysAt = (span: FlowNodeSpan, t: number): boolean =>
+  cameToAt(span, t) || span.outcome === 'waiting';
+
+/**
+ * A node's state from its spans at `t` — the rules the canvas, the List
+ * view and the Steps view share; `null` when none has started.
+ *
+ * Spans with an `item` or a `pass` are the node's work on one item or in
+ * one pass; a span with neither is the node's own (its whole stretch of
+ * work, or its one stretch when it neither iterates nor repeats), whose
+ * `total` says how many items or passes there are while the run is live.
+ */
+export function flowSpanStateAt(
   spans: readonly FlowNodeSpan[],
   t: number,
   live: boolean,
@@ -110,26 +131,34 @@ function stateFromSpans(
       ? started.find((span) => span.outcome === 'failed')
       : undefined;
   const words = failing ?? latest;
-  if (words.reason !== undefined) info.reason = words.reason;
-  // A recorded span's detail ("1.2 s") is what it came to: shown once the
-  // replay reaches its end, never while it still plays. A live span with
-  // no end yet carries the host's words for now.
-  if (words.detail !== undefined && (words.end === undefined || words.end <= t))
+  if (words.reason !== undefined && saysAt(words, t))
+    info.reason = words.reason;
+  if (words.detail !== undefined && cameToAt(words, t))
     info.detail = words.detail;
+  if (words.explanation !== undefined && saysAt(words, t))
+    info.explanation = words.explanation;
   const decided = [...started]
     .reverse()
     .find((span) => span.decision !== undefined);
   if (decided?.decision !== undefined) info.decision = decided.decision;
+  // The node's own span knows how many items or passes there are, even
+  // before every one was recorded (or when not all were kept).
+  const total = spans.find(
+    (span) =>
+      span.item === undefined &&
+      span.pass === undefined &&
+      span.total !== undefined,
+  )?.total;
   if (itemSpans.length > 0) {
     const ended = itemSpans.filter(
       (span) => span.end !== undefined && span.end <= t,
     );
     const failed = ended.filter((span) => span.outcome === 'failed').length;
+    const known =
+      total ?? (live ? undefined : new Set(itemSpans.map((s) => s.item)).size);
     info.items = {
       done: new Set(ended.map((span) => span.item)).size,
-      ...(live
-        ? {}
-        : { total: new Set(itemSpans.map((span) => span.item)).size }),
+      ...(known === undefined ? {} : { total: known }),
       ...(failed > 0 ? { failed } : {}),
     };
   }
@@ -138,14 +167,12 @@ function stateFromSpans(
     const current = started
       .filter((span) => span.pass !== undefined)
       .reduce((max, span) => Math.max(max, span.pass ?? 0), 0);
-    info.pass = {
-      current,
-      ...(live
-        ? {}
-        : {
-            max: passes.reduce((max, span) => Math.max(max, span.pass ?? 0), 0),
-          }),
-    };
+    const max =
+      total ??
+      (live
+        ? undefined
+        : passes.reduce((most, span) => Math.max(most, span.pass ?? 0), 0));
+    info.pass = { current, ...(max === undefined ? {} : { max }) };
   }
   return info;
 }
@@ -239,13 +266,13 @@ export function flowStateAt(
   for (const node of graph.nodes) {
     if (node.kind === 'exit') continue;
     nodes[node.id] =
-      stateFromSpans(spansOf.get(node.id) ?? [], t, live) ??
+      flowSpanStateAt(spansOf.get(node.id) ?? [], t, live) ??
       untouched(node, finished);
   }
   for (const node of graph.nodes) {
     if (node.kind !== 'exit') continue;
     nodes[node.id] =
-      stateFromSpans(spansOf.get(node.id) ?? [], t, live) ??
+      flowSpanStateAt(spansOf.get(node.id) ?? [], t, live) ??
       exitState(nodes, finished);
   }
 

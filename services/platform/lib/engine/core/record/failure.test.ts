@@ -180,6 +180,27 @@ describe('classifyStepFailure', () => {
     expect(failure.params.list).toEqual(['z']);
   });
 
+  // REGRESSION: a cut through an emoji left half of it, Postgres refused
+  // the failure's jsonb, and the run's finishing write failed on every try.
+  it('keeps every text it stores storable', () => {
+    const callee = `${'a'.repeat(79)}😀.go`;
+    const cause = exprFailureOf(`${callee} is not a function`, 'x', at);
+    expect(cause.reason).toBe('EXPR_NOT_FUNCTION');
+    const notFunction = classifyStepFailure(
+      { failure: cause },
+      { code: 'node_error', message: `${callee} is not a function` },
+    );
+    expect(String(notFunction.params.callee).isWellFormed()).toBe(true);
+    const broken = classifyStepFailure(new Error('odd'), {
+      code: 'node_error',
+      message: `half \ud83d and nul \u0000 ${'m'.repeat(5000)}`,
+    });
+    expect(broken.message.isWellFormed()).toBe(true);
+    expect(broken.message).not.toContain('\u0000');
+    expect(broken.message.length).toBeLessThanOrEqual(4096);
+    expect(String(broken.params.detail).isWellFormed()).toBe(true);
+  });
+
   it('reads no cause from a value that does not carry one', () => {
     expect(failureCauseOf({ failure: 'text' })).toBeUndefined();
     expect(failureCauseOf(null)).toBeUndefined();

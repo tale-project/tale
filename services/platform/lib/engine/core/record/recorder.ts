@@ -117,6 +117,9 @@ export interface RecorderOptions {
   budget?: RecordBudget;
   /** Rows an earlier turn left running or waiting. */
   open?: readonly NodeRunRecord[];
+  /** Rows the run already stores, so {@link RECORD_MAX_ROWS} holds for the
+   * whole run rather than for each turn. */
+  rowsKept?: number;
 }
 
 /** The key's text, one per unit. */
@@ -127,6 +130,12 @@ export function unitKeyOf(key: UnitKey): string {
 /** Whether a key names one item or one pass of a step. */
 function isUnitRow(key: UnitKey): boolean {
   return key.item >= 0 || key.pass >= 0;
+}
+
+/** Whether a key names a step of a subautomation an item or a pass walked
+ * (`batch[2:-1]/send`): such steps multiply with the items that walk them. */
+function isNestedStep(key: UnitKey): boolean {
+  return key.path.includes('/');
 }
 
 /** The step row an item or pass row belongs to: the item's row for a pass
@@ -164,7 +173,7 @@ export function createRecorder(options: RecorderOptions): RunRecorder {
   for (const record of options.open ?? []) {
     open.set(unitKeyOf(record.key), record);
   }
-  let rows = 0;
+  let rows = options.rowsKept ?? 0;
 
   const slotOf = (key: UnitKey): Slot | undefined => slots.get(unitKeyOf(key));
 
@@ -271,7 +280,14 @@ export function createRecorder(options: RecorderOptions): RunRecorder {
         }
         record.status = 'running';
       }
-      const kept = stored !== undefined || !isUnitRow(key) || admit(parent);
+      // A step of the automation itself is always kept; an item or a pass,
+      // and a step a subautomation walk ran for one, only while the run's
+      // rows last — past them, the step's counts still say what happened.
+      const kept =
+        stored !== undefined ||
+        (isUnitRow(key)
+          ? admit(parent)
+          : !isNestedStep(key) || rows < RECORD_MAX_ROWS);
       const slot: Slot = {
         record,
         activeSince: clock(),
@@ -283,7 +299,8 @@ export function createRecorder(options: RecorderOptions): RunRecorder {
       };
       slots.set(id, slot);
       if (kept) {
-        rows++;
+        // A row an earlier turn stored is counted in `rowsKept` already.
+        if (stored === undefined) rows++;
         if (parent !== undefined && isUnitRow(key)) parent.keptUnits++;
       }
     },

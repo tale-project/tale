@@ -56,6 +56,8 @@ Sur le canevas, la ligne du bas de chaque nœud indique comment il s’est termi
 
 **Ce qui a été lu** liste chaque valeur que l’étape a prise dans l’entrée ou dans d’autres étapes, en mots et avec la valeur lue, par exemple « items de Inbox : 3 éléments ». **Reçu** montre l’entrée de l’étape après évaluation de ses expressions, et **Renvoyé** ce qu’elle a produit. Ensemble, ils distinguent une mauvaise référence d’une défaillance du service. Une valeur qui contenait un secret est masquée et le signale, et une valeur trop volumineuse indique qu’une partie seulement a été conservée.
 
+Une valeur se lit comme un arbre que tu ouvres avec les flèches. **Valeurs** et **Structure** passent des valeurs aux champs et à leurs types, et les boutons copient une valeur, en téléchargent une volumineuse ou l’ouvrent en plein écran. Quand l’entrée et la sortie d’une étape sont toutes deux des objets ou toutes deux des listes, **Ce qu’elle a changé** liste les champs que l’étape a ajoutés, retirés et modifiés.
+
 Une étape exécutée une fois par élément liste ses éléments, chacun avec son issue et, en cas d’échec, sa raison. **Seulement en échec** restreint la liste, et sélectionner un élément montre ce qu’il a lu, reçu et renvoyé. Tale conserve les 200 premiers éléments et chaque élément en échec. Une étape qui a demandé plus d’une tentative, ou dont une tentative a été interrompue par un redémarrage, liste ses **Tentatives**. Une étape qui a appelé un service indique si l’appel est terminé, en échec ou a peut-être déjà été exécuté, et ce qu’une personne a choisi à son sujet.
 
 Par exemple, un rappel peut recevoir le nom du client mais un identifiant de facture vide. Examine ce qu’il a lu dans l’étape précédente. Si le champ a été renommé, corrige la référence plutôt que les identifiants de messagerie. Vérifie ensuite l’entrée corrigée dans un nouvel essai.
@@ -63,6 +65,8 @@ Par exemple, un rappel peut recevoir le nom du client mais un identifiant de fac
 ## Rejouer l’exécution {#play}
 
 La barre sous le canevas rejoue l’exécution : chaque étape s’allume pendant qu’elle travaille, les valeurs circulent le long des liaisons vers les étapes qui les lisent, et chaque condition montre sa décision. Elle s’ouvre sur la fin de l’exécution, pour que tu voies d’abord l’ensemble. **Lire** repart du début, **Événement précédent** et **Événement suivant** avancent pas à pas, et le curseur mène à n’importe quel moment ; l’horloge indique depuis combien de temps l’exécution tournait réellement, et la vitesse change le rythme de lecture. Les longues attentes sont raccourcies pour ne pas bloquer la lecture. Tant qu’une exécution est en cours, la barre la suit ; si tu reviens en arrière, **Suivre en direct** ramène à sa fin.
+
+**Étapes**, à côté de **Graphique**, présente la même exécution comme ses étapes dans l’ordre du temps : combien de temps chacune a travaillé, une barre pour le moment où elle a travaillé, chaque condition avec sa décision, ainsi que les attentes et les redémarrages. La vue suit la même horloge. Choisir une étape l’ouvre et place l’horloge à son début, et **Graphique** montre le canevas à ce moment.
 
 ## Relancer l’exécution {#run-again}
 
@@ -85,7 +89,7 @@ Tale refuse une relance qu’il ne peut pas exécuter fidèlement et dit pourquo
 
 ## Comparer deux exécutions {#compare}
 
-**Comparer avec elle** sur une relance, **Comparer avec l’exécution précédente** dans le menu de **Relancer**, ou deux exécutions sélectionnées dans l’onglet **Exécutions** puis **Comparer** affichent deux exécutions côte à côte. **Ce qui diffère** nomme, le plus parlant d’abord, les versions exécutées, le nombre de champs d’entrée qui diffèrent, l’étape où elles divergent et pourquoi, par exemple une condition qui n’a pas donné le même résultat, comment chacune s’est terminée, ainsi que leur sortie et leurs écritures. Le tableau liste chaque étape, comment chaque exécution l’a laissée et si ses données sont identiques. **Échanger A et B** inverse les deux exécutions.
+**Comparer avec elle** sur une relance, **Comparer avec l’exécution précédente** dans le menu de **Relancer**, ou deux exécutions sélectionnées dans l’onglet **Exécutions** puis **Comparer** affichent deux exécutions côte à côte. **Ce qui diffère** nomme, le plus parlant d’abord, les versions exécutées, le nombre de champs d’entrée qui diffèrent, l’étape où elles divergent et pourquoi, par exemple une condition qui n’a pas donné le même résultat, comment chacune s’est terminée, ainsi que leur sortie et leurs écritures. Le tableau liste chaque étape, comment chaque exécution l’a laissée et si ses données sont identiques. **Échanger A et B** inverse les deux exécutions. Quand leur entrée ou leur sortie diffère, **Entrée : A → B** et **Sortie : A → B** les montrent côte à côte, chaque champ modifié marqué. **Les deux exécutions sur le graphique** les dessine sur le graphique de la version de B : chaque étape dit comment A et B l’ont laissée, l’étape où elles divergent est entourée, et une étape absente de la version de A est en pointillés.
 
 ## Vérifier les changements déjà effectués
 

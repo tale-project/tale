@@ -50,15 +50,21 @@ export function credentialKind(
   return undefined;
 }
 
-/** Shapes the recorder withholds beyond the document check's. */
+/**
+ * Shapes the recorder withholds beyond the document check's. Every one is
+ * linear in the text it reads — they run on whatever a run receives, a
+ * webhook body included: a JSON web token is only looked for where a run of
+ * token characters starts (not at every `eyJ` inside one, which scanned a
+ * long run once per start), and a URL scheme is at most 32 characters.
+ */
 const RECORDED_SECRET_PATTERNS: readonly RegExp[] = [
   /\b[rs]k_(?:live|test)_[A-Za-z0-9]{16,}/,
   /\bgh[opsur]_[A-Za-z0-9]{20,}/,
   /\bgithub_pat_[A-Za-z0-9_]{20,}/,
   /\bglpat-[A-Za-z0-9_-]{20,}/,
   /\bAIza[0-9A-Za-z_-]{35}/,
-  /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
-  /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i,
+  /(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
+  /\b[a-z][a-z0-9+.-]{0,31}:\/\/[^/\s:@]+:[^/\s@]+@/i,
   /[?&](?:api[_-]?key|access[_-]?token|token|secret|password|sig|signature)=[^&\s]{8,}/i,
 ];
 

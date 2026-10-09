@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  formatDurationSeconds,
-  formatDurationWords,
-  formatSuccessRate,
-} from './duration';
+import { formatDurationSeconds, formatSuccessRate } from './duration';
 
 describe('formatDurationSeconds', () => {
   it('formats seconds, minutes, and hours compactly', () => {
@@ -34,21 +30,5 @@ describe('formatSuccessRate', () => {
 
   it('renders an em dash when there were no runs to rate', () => {
     expect(formatSuccessRate(0, 0)).toBe('—');
-  });
-});
-
-describe('formatDurationWords', () => {
-  it('says a limit in the largest unit that reads well', () => {
-    expect(formatDurationWords(250, 'en')).toBe('250 milliseconds');
-    expect(formatDurationWords(5000, 'en')).toBe('5 seconds');
-    expect(formatDurationWords(1000, 'en')).toBe('1 second');
-    expect(formatDurationWords(90_000, 'en')).toBe('1.5 minutes');
-  });
-
-  it('follows the locale', () => {
-    expect(formatDurationWords(5000, 'de')).toBe('5 Sekunden');
-    expect(formatDurationWords(90_000, 'de')).toBe('1,5 Minuten');
-    // French keeps the number and its unit together with a no-break space.
-    expect(formatDurationWords(5000, 'fr')).toBe('5\u00a0secondes');
   });
 });

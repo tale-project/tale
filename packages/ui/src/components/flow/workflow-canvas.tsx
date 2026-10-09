@@ -31,6 +31,7 @@ import type { IssueCounts } from '../feedback/issue-summary';
 import { SkeletonBox } from '../feedback/skeleton';
 import { Skeletonize } from '../feedback/skeleton-context';
 import { Button } from '../primitives/button';
+import { flowCompareFaces, flowCompareLabels } from './compare/compare';
 import { describeFlowGraph, flowListFormat } from './describe';
 import {
   easeOutQuint,
@@ -66,7 +67,11 @@ import {
   type FlowPath,
 } from './paths/highlight';
 import { flowStateAt, flowStateFromOverlay } from './playback/derive-state';
-import type { FlowPlayback, FlowRunOverlay } from './playback/types';
+import type {
+  FlowCompareOverlay,
+  FlowPlayback,
+  FlowRunOverlay,
+} from './playback/types';
 import { FlowEdgeMarkers } from './render/edge-markers';
 import { FlowEntryNodeView } from './render/entry-node';
 import { FlowExitNodeView } from './render/exit-node';
@@ -108,6 +113,13 @@ export interface WorkflowCanvasProps {
   overlay?: FlowRunOverlay;
   /** A run with time, at the host's moment `t`; wins over `overlay`. */
   playback?: FlowPlayback;
+  /**
+   * Two runs on one chart, in place of a run: each box's foot shows how it
+   * went in each ("A ✓ 1.2 s · B ✕ Failed"), a box where they differ is
+   * ringed with a "Differs" glyph, one a run's version lacks is dashed, and
+   * a line only one run took says so. Wins over `overlay` and `playback`.
+   */
+  compare?: FlowCompareOverlay;
   /**
    * When a run failed, bring the way it took to the first failure
    * forward and step back from the rest, until a highlight takes over.
@@ -447,7 +459,8 @@ function WorkflowCanvasInner({
   issues = NO_ISSUES,
   controlsId,
   overlay,
-  playback,
+  playback: playbackProp,
+  compare,
   focusFailure = true,
   paths,
   highlight,
@@ -488,6 +501,21 @@ function WorkflowCanvasInner({
       console.error('WorkflowCanvas was given a graph it cannot draw', error);
     }
   }, [graph]);
+  const twoRuns =
+    compare !== undefined &&
+    (overlay !== undefined || playbackProp !== undefined);
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'production' || !twoRuns) return;
+    console.warn(
+      'WorkflowCanvas shows a comparison in place of a run: leave out `overlay` and `playback` with `compare`.',
+    );
+  }, [twoRuns]);
+  // A comparison takes the place of a run.
+  const playback = compare === undefined ? playbackProp : undefined;
+  const compareLabels = useMemo(
+    () => (compare === undefined ? null : flowCompareLabels(compare, t)),
+    [compare, t],
+  );
 
   // The view: the host's, else the reader's last choice, else the chart
   // (the list on a phone too narrow for one).
@@ -506,14 +534,26 @@ function WorkflowCanvasInner({
     onViewChange?.(next);
   };
 
+  // A Yes or No line only one compared run took says which on its pill,
+  // so the layout leaves the room for those words.
   const edgeLabel = useCallback(
-    (edge: FlowEdge) =>
-      edge.kind === 'branch-yes'
-        ? t('branch.yes')
-        : edge.kind === 'branch-no'
-          ? t('branch.no')
-          : undefined,
-    [t],
+    (edge: FlowEdge) => {
+      const branch =
+        edge.kind === 'branch-yes'
+          ? t('branch.yes')
+          : edge.kind === 'branch-no'
+            ? t('branch.no')
+            : undefined;
+      const only = compare?.edges[edge.id];
+      if (
+        branch === undefined ||
+        compareLabels === null ||
+        (only !== 'a' && only !== 'b')
+      )
+        return branch;
+      return `${branch} · ${t('compare.only', { label: compareLabels[only] })}`;
+    },
+    [t, compare, compareLabels],
   );
   const {
     layout,
@@ -539,16 +579,35 @@ function WorkflowCanvasInner({
     if (layout) onLayoutRef.current?.(layout);
   }, [layout]);
 
-  // The run shown, at the host's moment.
+  // The run shown, at the host's moment; none while two are compared.
   const run = useMemo(
     () =>
-      playback
-        ? flowStateAt(shown, playback.timeline, playback.t)
-        : overlay
-          ? flowStateFromOverlay(shown, overlay)
-          : null,
-    [shown, playback, overlay],
+      compare !== undefined
+        ? null
+        : playback
+          ? flowStateAt(shown, playback.timeline, playback.t)
+          : overlay
+            ? flowStateFromOverlay(shown, overlay)
+            : null,
+    [shown, playback, overlay, compare],
   );
+  const compareFaces = useMemo(
+    () => (compare === undefined ? null : flowCompareFaces(shown, compare, t)),
+    [shown, compare, t],
+  );
+  // A line only one compared run took, with no pill to say so, says it
+  // when a pointer rests on it.
+  const edgeNotes = useMemo(() => {
+    const notes = new Map<string, string>();
+    if (compare === undefined || compareLabels === null) return notes;
+    for (const edge of shown.edges) {
+      const only = compare.edges[edge.id];
+      if (only !== 'a' && only !== 'b') continue;
+      if (edge.kind === 'branch-yes' || edge.kind === 'branch-no') continue;
+      notes.set(edge.id, t('compare.only', { label: compareLabels[only] }));
+    }
+    return notes;
+  }, [shown, compare, compareLabels, t]);
 
   // The canvas's own highlight: a pointer or the keyboard on a node (its
   // lines only), or a pointer resting on a condition or a branch (its
@@ -594,10 +653,11 @@ function WorkflowCanvasInner({
         list: flowListFormat(locale),
         issues,
         run,
+        compare: compare ?? null,
         stoppedAt: failure?.nodeId ?? null,
         reasons,
       }),
-    [shown, t, tIssues, locale, issues, run, failure, reasons],
+    [shown, t, tIssues, locale, issues, run, compare, failure, reasons],
   );
   const words = useStable(
     computedWords,
@@ -605,7 +665,35 @@ function WorkflowCanvasInner({
       [...computedWords.names],
       [...computedWords.descriptions],
       [...computedWords.strips],
+      [...computedWords.explanations],
     ]),
+  );
+  const compareContext = useMemo(
+    () =>
+      compareLabels === null || compareFaces === null
+        ? null
+        : { labels: compareLabels, faces: compareFaces },
+    [compareLabels, compareFaces],
+  );
+  // The legend says what a comparison's marks mean.
+  const legendEntries = useMemo<readonly FlowLegendEntry[] | undefined>(
+    () =>
+      compare === undefined
+        ? legend
+        : [
+            ...(legend ?? []),
+            {
+              id: 'compare:differs',
+              swatch: { node: 'differs' },
+              label: t('compare.legend.differs'),
+            },
+            {
+              id: 'compare:only',
+              swatch: { edgeLabel: true },
+              label: t('compare.legend.onlyOne'),
+            },
+          ],
+    [legend, compare, t],
   );
 
   const computedLooks = useMemo(
@@ -613,11 +701,12 @@ function WorkflowCanvasInner({
       flowLooks({
         graph: shown,
         run,
+        compare: compare ?? null,
         primary,
         incident,
         ringPrimary: primary !== failureHighlight,
       }),
-    [shown, run, primary, incident, failureHighlight],
+    [shown, run, compare, primary, incident, failureHighlight],
   );
   const looks = useStable(
     computedLooks.nodes,
@@ -799,6 +888,9 @@ function WorkflowCanvasInner({
       stripSettle: forward && !reduced,
       ring,
       branchHover: paths !== undefined,
+      explanations: words.explanations,
+      compare: compareContext,
+      edgeNotes,
       onActivate: (id) => onSelect?.(selectedId === id ? null : id),
       onKeyDown: (id, event: KeyboardEvent<HTMLButtonElement>) => {
         const key = FLOW_NAVIGATION_KEYS[event.key];
@@ -867,6 +959,8 @@ function WorkflowCanvasInner({
       forward,
       reduced,
       ring,
+      compareContext,
+      edgeNotes,
       paths,
       onSelect,
       layout,
@@ -966,6 +1060,7 @@ function WorkflowCanvasInner({
             issues={issues}
             controlsId={controlsId}
             run={run}
+            {...(compare === undefined ? {} : { compare })}
             highlight={primary}
             stoppedAt={failure?.nodeId ?? null}
           />
@@ -1037,9 +1132,11 @@ function WorkflowCanvasInner({
                   topStartActions={topStart}
                   topEndActions={topEnd}
                   cornerActions={
-                    viewToggle || legend || cornerActions ? (
+                    viewToggle || legendEntries || cornerActions ? (
                       <>
-                        {legend && <FlowLegend entries={legend} />}
+                        {legendEntries && (
+                          <FlowLegend entries={legendEntries} />
+                        )}
                         {viewToggle}
                         {cornerActions}
                       </>

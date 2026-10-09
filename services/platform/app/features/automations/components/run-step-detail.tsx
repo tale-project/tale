@@ -13,7 +13,7 @@ import type {
 } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
-import type { NodeRunView } from '../lib/run-view';
+import { shortRunId, type NodeRunView } from '../lib/run-view';
 import { EffectList } from './effect-list';
 import { RunStatusBadge } from './run-status-badge';
 import { RunStepAttempts } from './run-step-attempts';
@@ -99,7 +99,12 @@ export function RunStepDetail({
           {runView.note}
         </Text>
       )}
-      {record?.detail !== undefined && <RunStepData detail={record.detail} />}
+      {record?.detail !== undefined && (
+        <RunStepData
+          detail={record.detail}
+          fileStem={`run-${shortRunId(record.runId)}-${record.detail.nodeId}`}
+        />
+      )}
       {record?.detail === undefined && runView.input !== undefined && (
         <div>
           <Text as="p" className="mb-1 text-xs font-medium">

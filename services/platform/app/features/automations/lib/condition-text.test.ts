@@ -90,9 +90,30 @@ describe('conditionText', () => {
       'a of the run input is set, b of the run input is set, or c of the run input is set',
     ],
     ['nodes.check.output.ok', 'ok of Check is set'],
+    [
+      '{{ input.a && (input.b || input.c) }}',
+      'a of the run input is set and (b of the run input is set or c of the run input is set)',
+    ],
+    [
+      '{{ (input.a && input.b) || input.c }}',
+      '(a of the run input is set and b of the run input is set) or c of the run input is set',
+    ],
   ])('says %s', (text, words) => {
     expect(say(text)).toBe(words);
   });
+
+  it.each(['en', 'de', 'fr', 'de-CH'])(
+    'tells %s readers which way a mixed condition groups',
+    (locale) => {
+      const inner = say('{{ input.a && (input.b || input.c) }}', locale);
+      const outer = say('{{ (input.a && input.b) || input.c }}', locale);
+      expect(inner).not.toBeNull();
+      expect(outer).not.toBeNull();
+      expect(inner).not.toBe(outer);
+      expect(inner).toContain('(');
+      expect(outer?.startsWith('(')).toBe(true);
+    },
+  );
 
   it.each([
     ['{{ input.a && input.b && input.c && input.d }}'],

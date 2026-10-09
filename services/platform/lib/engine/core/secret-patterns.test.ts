@@ -59,3 +59,34 @@ describe('the document check and the recorder', () => {
     }
   });
 });
+
+// REGRESSION: two of the recorder's shapes scanned a long run of token
+// characters once per place a match could start there — quadratic, about
+// nine seconds for 128 KB — and they run on whatever a run receives, a
+// webhook body included, in the API process.
+describe('the recorder reads any text in linear time', () => {
+  const quarterMegabyte = 256 * 1024;
+  it.each([
+    ['a word boundary every other character', 'a-'],
+    ['a token start every four characters', 'eyJ-'],
+    ['a scheme-like run', 'a+'],
+    ['a dotted token-like run', 'eyJabc.'],
+  ])('reads 256 KB with %s quickly', (_shape, unit) => {
+    const text = unit.repeat(Math.ceil(quarterMegabyte / unit.length));
+    const started = performance.now();
+    looksLikeCredential(text);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+
+  it('still finds a web token and a password in a URL, after a long run', () => {
+    const run = 'a-'.repeat(50_000);
+    expect(
+      looksLikeCredential(
+        `${run} Bearer-less eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.c2lnbmF0dXJlLXZhbHVl`,
+      ),
+    ).toBe(true);
+    expect(
+      looksLikeCredential(`${run} postgres://admin:hunter22@db.internal/app`),
+    ).toBe(true);
+  });
+});

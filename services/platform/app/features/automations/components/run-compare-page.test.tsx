@@ -84,6 +84,34 @@ const DIFF: RunDiff = {
   effects: { count: { a: 0, b: 0 }, onlyA: [], onlyB: [], changed: [] },
 };
 
+/** The two runs' own reads, for the input and output diffs. */
+const RUNS: Record<string, Record<string, unknown>> = {
+  '/api/app/automations/runs/run-a-1': {
+    id: 'run-a-1',
+    name: 'triage',
+    version: 4,
+    status: 'success',
+    mode: 'mock',
+    startedBy: 'user:ada',
+    startedAt: 1,
+    agentAutoRetryMax: 0,
+    input: { amount: 250, currency: 'CHF' },
+    output: null,
+  },
+  '/api/app/automations/runs/run-b-2': {
+    id: 'run-b-2',
+    name: 'triage',
+    version: 4,
+    status: 'failed',
+    mode: 'mock',
+    startedBy: 'user:ada',
+    startedAt: 2,
+    agentAutoRetryMax: 0,
+    input: { amount: 2500, currency: 'CHF' },
+    output: null,
+  },
+};
+
 let answer: () => Response;
 
 beforeEach(() => {
@@ -99,6 +127,8 @@ beforeEach(() => {
     if (url.pathname === '/api/app/automations/runs/run-a-1/compare/run-b-2') {
       return answer();
     }
+    const run = RUNS[url.pathname];
+    if (run !== undefined) return Response.json({ run });
     return Response.json({ error: 'NOT_FOUND' }, { status: 404 });
   });
 });
@@ -130,6 +160,17 @@ function renderPage(props: { a?: string; b?: string } = {}) {
 }
 
 describe('RunComparePage', () => {
+  it("shows how the two runs' inputs differ, field by field", async () => {
+    renderPage();
+    const heading = await screen.findByRole('heading', {
+      name: 'Input: A → B',
+    });
+    const section = heading.closest('section');
+    expect(section).toHaveTextContent(/amount/);
+    // The output did not differ: no diff for it.
+    expect(screen.queryByRole('heading', { name: 'Output: A → B' })).toBeNull();
+  });
+
   it('says what differs, and lists every step as each run left it', async () => {
     const { user, onSwap } = renderPage();
 

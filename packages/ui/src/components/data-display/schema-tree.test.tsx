@@ -174,3 +174,68 @@ describe('SchemaTree', () => {
     await checkAccessibility(container);
   });
 });
+
+describe('SchemaTree marks and counts', () => {
+  it('says how each marked field differs, in words beside its kind', () => {
+    render(
+      <SchemaTree
+        schema={ISSUES}
+        marks={(path) =>
+          path.join('.') === 'owner'
+            ? 'type-changed'
+            : path.join('.') === 'repo'
+              ? 'removed'
+              : path.join('.') === 'issues.score'
+                ? 'optional'
+                : path.join('.') === 'limit'
+                  ? 'added'
+                  : undefined
+        }
+      />,
+    );
+    expect(screen.getByText('owner').nextElementSibling?.textContent).toBe(
+      'text · required · not the expected kind',
+    );
+    expect(screen.getByText('repo').nextElementSibling?.textContent).toBe(
+      'text · required · expected, but not there',
+    );
+    expect(screen.getByText('limit').nextElementSibling?.textContent).toBe(
+      'a whole number · optional · not in the expected shape',
+    );
+    expect(screen.getByText('score').nextElementSibling?.textContent).toBe(
+      'a number or empty · optional · not always there',
+    );
+  });
+
+  it('says in how many items a field was there, when asked', () => {
+    const schema = {
+      type: 'array' as const,
+      items: {
+        type: 'object' as const,
+        required: ['id'],
+        properties: {
+          id: { type: 'integer' as const },
+          tag: { type: 'string' as const, 'x-count': { present: 9, of: 12 } },
+        },
+      },
+    };
+    const { rerender } = render(<SchemaTree schema={schema} counts />);
+    expect(screen.getByText('tag').nextElementSibling?.textContent).toBe(
+      'text · optional · in 9 of 12 items',
+    );
+    rerender(<SchemaTree schema={schema} />);
+    expect(screen.getByText('tag').nextElementSibling?.textContent).toBe(
+      'text · optional',
+    );
+  });
+
+  it('passes axe audit with marks', async () => {
+    const { container } = render(
+      <SchemaTree
+        schema={ISSUES}
+        marks={(path) => (path[0] === 'owner' ? 'added' : undefined)}
+      />,
+    );
+    await checkAccessibility(container);
+  });
+});

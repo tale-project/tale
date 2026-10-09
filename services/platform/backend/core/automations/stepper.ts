@@ -2418,6 +2418,7 @@ async function stepClaimedRun(
       now: () => Date.now(),
       budget: recordBudget(loaded.recordBytes ?? 0),
       open: loaded.openNodeRuns ?? [],
+      rowsKept: loaded.recordRows ?? 0,
     });
     const run: RunContext = {
       ctx,

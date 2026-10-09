@@ -678,6 +678,7 @@ problems:
   emptyFiltered: '{filter, select, errors {Aucune erreur} warnings {Aucun avertissement} other {Aucun problème}}'
   fieldPart: '{part} : {message}'
 condition:
+  group: '({parts})'
   gt: '{a} est supérieur à {b}'
   gte: '{a} vaut au moins {b}'
   lt: '{a} est inférieur à {b}'

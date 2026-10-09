@@ -5,7 +5,10 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
-import type { CodeEditorDiagnosticsStatus } from '@tale/ui/code-editor';
+import {
+  preloadCodeEditor,
+  type CodeEditorDiagnosticsStatus,
+} from '@tale/ui/code-editor';
 import { locateYamlPointer } from '@tale/ui/code-editor/locate';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -54,6 +57,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -217,6 +221,11 @@ function usePausedDraft(draft: Automation | null): Automation | null {
  * canvas is the route's search, so it already belongs to the new URL — while
  * the shared dirty guard still confirms navigation before these props change. */
 export function AutomationEditor(props: AutomationEditorProps) {
+  // The inspector's fields are code: start loading the editor with the page,
+  // so the first node opened finds it ready.
+  useEffect(() => {
+    preloadCodeEditor();
+  }, []);
   return (
     // "Go to" a problem: the Problems list asks, the inspector's controls
     // answer — one registry for the page, the node sheet included.
@@ -544,12 +553,15 @@ function AutomationEditorScope({
     () => issueViews.map((view) => view.item),
     [issueViews],
   );
+  // Read against the document the canvas draws, which settles at a pause
+  // like the check does: a keystroke gives the canvas no new counts, so it
+  // never redraws every node per keystroke.
   const countsByNode = useMemo(
     () =>
-      automation === null
+      canvasDocument === null
         ? new Map<string, IssueCounts>()
-        : issueCountsByNode([...shownErrors, ...shownWarnings], automation),
-    [automation, shownErrors, shownWarnings],
+        : issueCountsByNode([...shownErrors, ...shownWarnings], canvasDocument),
+    [canvasDocument, shownErrors, shownWarnings],
   );
 
   // ── The canvas ────────────────────────────────────────────────────────
@@ -621,6 +633,12 @@ function AutomationEditorScope({
 
   /** A box picked on the canvas: a node, Start or End opens its inspector,
    * a condition opens its node at the condition's field. */
+  // The document as typed, read when a box is picked rather than closed
+  // over: the canvas keeps one handler however many keystrokes land.
+  const automationRef = useRef(automation);
+  useLayoutEffect(() => {
+    automationRef.current = automation;
+  });
   const selectOnCanvas = useCallback(
     (id: string | null) => {
       if (id === null) {
@@ -634,10 +652,12 @@ function AutomationEditorScope({
       }
       setSelectedId(target.nodeId);
       const index =
-        automation?.nodes.findIndex((node) => node.id === target.nodeId) ?? -1;
+        automationRef.current?.nodes.findIndex(
+          (node) => node.id === target.nodeId,
+        ) ?? -1;
       if (index >= 0) requestIssueFocus(ptr('nodes', index, 'when'));
     },
-    [automation, requestIssueFocus],
+    [requestIssueFocus],
   );
 
   // ── The inspector ────────────────────────────────────────────────────
@@ -1570,7 +1590,13 @@ function AutomationEditorScope({
     return place === 'panel' ? (
       <NodeInspector id={inspectorId} variant="panel" {...props} />
     ) : (
-      <NodeFields headingId={inspectorId} {...props} />
+      <NodeFields
+        // As in the panel: each node opens on its own fields, so no
+        // half-typed text follows the reader to the next node.
+        key={selectedNode.id}
+        headingId={inspectorId}
+        {...props}
+      />
     );
   };
 

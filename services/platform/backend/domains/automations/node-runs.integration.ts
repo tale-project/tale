@@ -182,6 +182,32 @@ export async function checkAutomationNodeRuns(
     `one=${JSON.stringify(afterLate)}`,
   );
 
+  // ---- what jsonb refuses never fails the write: half an emoji and a NUL
+  // character in a step's output are kept as U+FFFD, and the write commits.
+  const odd = createRecorder({ now: () => Date.now(), budget: recordBudget() });
+  const oddKey = { path: 'odd', item: -1, pass: -1 };
+  odd.unitStarted(oddKey, { nodeId: 'odd', nodeType: 'transform' });
+  odd.unitFinished(oddKey, {
+    status: 'ok',
+    output: { value: 'cut \ud83d and nul \u0000' },
+  });
+  await sql.begin(async (tx) => {
+    await writeNodeRunsInTx(tx, {
+      organizationId: orgId,
+      runId,
+      epoch: 2,
+      rows: odd.drain(),
+    });
+  });
+  const storable = (await rowsOf(runId)).find((r) => r.path === 'odd');
+  record(
+    'a step output jsonb would refuse is stored as it can be, never failing the write',
+    JSON.stringify(storable?.output ?? null).includes(
+      'cut \ufffd and nul \ufffd',
+    ),
+    `odd=${JSON.stringify(storable)}`,
+  );
+
   // ---- the start write is fenced by the run row itself.
   const startedStale = await recordNodeRunsStarted(sql, {
     organizationId: orgId,
@@ -594,6 +620,51 @@ export async function checkAutomationNodeRuns(
     'erasing a person removes their runs and the runs that replay them [ERASE-R10]',
     erased.deleted === 2 && left.length === 0,
     `deleted=${erased.deleted} left=${left.length}`,
+  );
+
+  // ---- and finds a replay whose source was deleted first.
+  const orphanSubject = `itest-erased-first-${Date.now()}`;
+  const orphanSource = await beginRun(sql, {
+    organizationId: orgId,
+    name,
+    input: { who: 'noah' },
+    mode: 'mock',
+    startedBy: `user:${orphanSubject}`,
+    requireOrgScope: true,
+  });
+  await sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    await tx`
+      UPDATE app.automation_runs SET status = 'failed',
+        finished_at_ms = ${Date.now()}
+      WHERE id = ${orphanSource?.runId ?? ''}
+    `;
+  });
+  const orphanReplay = await sql.begin((tx) =>
+    replayRunInTx(tx, {
+      organizationId: orgId,
+      sourceRunId: orphanSource?.runId ?? '',
+      request: { kind: 'again' },
+      startedBy: userId,
+      canStartLive: false,
+    }),
+  );
+  await sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    await tx`DELETE FROM app.automation_runs WHERE id = ${orphanSource?.runId ?? ''}`;
+  });
+  const erasedLate = await eraseSubjectAutomationRuns(
+    sql,
+    orgId,
+    orphanSubject,
+  );
+  const orphanLeft = await sql<{ id: string }[]>`
+    SELECT id FROM app.automation_runs WHERE id = ${orphanReplay?.runId ?? ''}
+  `;
+  record(
+    "an erasure finds a replay of the person's run after that run was deleted [ERASE-R10]",
+    erasedLate.deleted === 1 && orphanLeft.length === 0,
+    `deleted=${erasedLate.deleted} left=${orphanLeft.length}`,
   );
 
   // ---- the rows leave with their run; a replay keeps how it came to be.

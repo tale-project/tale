@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 151 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 154 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1023,6 +1023,27 @@ output:
       and says `automationRuns.list.noMatch` when nothing fits; selecting two
       rows enables `automationRuns.list.compare`, which opens their
       comparison, and a row opens its run.
+- [ ] `AUTO-F117` · **On a finished run, choose `automationRuns.view.steps`**
+      → the canvas gives way to the run's steps in time order, each with how
+      long it worked (none for a skipped step) and a bar for when, each
+      condition with its decision; the playback bar stays, and a run of under
+      a minute reads its clock in seconds or milliseconds; choosing a step
+      opens it in the inspector and moves the clock to its start;
+      `automationRuns.view.chart` shows the canvas at that moment.
+- [ ] `AUTO-F118` · **Select a step that returned an object or a list** →
+      Received and Returned read as trees that open with the arrow keys;
+      **Shape** shows the fields and their kinds for both at once; copy puts
+      the JSON on the clipboard, full screen opens it large, and a value over
+      8 KB offers a download; for a transform whose input and output are both
+      objects, `automationRuns.data.changes` lists what it added, removed
+      and changed.
+- [ ] `AUTO-F119` · **Compare two runs whose input differs** →
+      `automationRuns.compare.diff.input` shows A and B side by side (a list
+      on a narrow window) with each changed field marked; when the outputs
+      differ too, `automationRuns.compare.diff.output` appears above it; two
+      runs with the same input show neither. `automationRuns.compare.canvas`
+      draws both runs on B's version: each strip reads "A … · B …", the
+      step where they part is ringed.
 
 ## Boundary & error tests
 

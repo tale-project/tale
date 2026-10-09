@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { EmptyState } from '@tale/ui/empty-state';
+import { flowCompareFromOverlays } from '@tale/ui/flow/compare';
 import type { FlowLegendEntry } from '@tale/ui/flow/flow-legend';
 import type { FlowHighlight } from '@tale/ui/flow/paths';
 import {
@@ -9,13 +10,20 @@ import {
   usePlaybackClock,
 } from '@tale/ui/flow/playback';
 import { FlowPlaybackBar, formatFlowClock } from '@tale/ui/flow/playback-bar';
+import {
+  FlowRunTimeline,
+  type FlowTimelineRow,
+} from '@tale/ui/flow/run-timeline';
 import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
 import {
   WorkflowCanvas,
   type FlowView,
   type WorkflowCanvasProps,
 } from '@tale/ui/flow/workflow-canvas';
+import { formatDuration } from '@tale/ui/format-duration';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import type { IssueCounts } from '@tale/ui/issue-summary';
+import { SegmentedControl } from '@tale/ui/segmented-control';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { AlertTriangle, Hand, Workflow } from 'lucide-react';
 import {
@@ -63,6 +71,14 @@ export interface CanvasRun {
   live?: boolean;
 }
 
+/** Two runs on one chart: how each left every step, side by side. */
+export interface CanvasCompare {
+  a: CanvasRun;
+  b: CanvasRun;
+  /** Steps of the document drawn (B's version) that A's version lacks. */
+  absentInA?: readonly string[];
+}
+
 export interface AutomationCanvasProps {
   /** The document on screen. */
   automation: Automation;
@@ -87,9 +103,12 @@ export interface AutomationCanvasProps {
   /** The open box: a node, a condition, Start or End. */
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  /** Id of the inspector region a box opens. */
-  inspectorId: string;
+  /** Id of the inspector region a box opens; without one, a box opens
+   * nothing (a comparison's chart). */
+  inspectorId?: string;
   run?: CanvasRun;
+  /** Two runs of this document side by side; wins over `run`. */
+  compare?: CanvasCompare;
   /** Bring this box into view. */
   revealId?: string | null;
   /** Nodes another window or a coding agent changed, ringed once. */
@@ -144,6 +163,7 @@ export function AutomationCanvas({
   onSelect,
   inspectorId,
   run,
+  compare,
   revealId,
   changed,
   framed = true,
@@ -201,7 +221,7 @@ export function AutomationCanvas({
 
   const overlay = useMemo(
     () =>
-      run === undefined
+      run === undefined || compare !== undefined
         ? undefined
         : runOverlay({
             graph,
@@ -211,8 +231,29 @@ export function AutomationCanvas({
             t,
             ...(run.startedBy !== undefined && { startedBy: run.startedBy }),
           }),
-    [run, graph, t],
+    [run, compare, graph, t],
   );
+  // Two runs: each as one run's overlay, then how each left every step.
+  const compared = useMemo(() => {
+    if (compare === undefined) return undefined;
+    const overlayOf = (side: CanvasRun) =>
+      runOverlay({
+        graph,
+        statusByNode: side.statusByNode,
+        projection: side.projection,
+        status: side.status,
+        t,
+      });
+    return flowCompareFromOverlays(
+      graph,
+      overlayOf(compare.a),
+      overlayOf(compare.b),
+      {
+        labels: { a: 'A', b: 'B' },
+        absent: { a: [...(compare.absentInA ?? [])] },
+      },
+    );
+  }, [compare, graph, t]);
 
   const legend = useMemo<FlowLegendEntry[]>(
     () => [
@@ -306,10 +347,11 @@ export function AutomationCanvas({
     layoutKey,
     selectedId,
     onSelect,
-    controlsId: inspectorId,
+    ...(inspectorId !== undefined && { controlsId: inspectorId }),
     ...(revealId !== undefined && { revealId }),
     ...(issueCounts !== undefined && { issues: issueCounts }),
     ...(overlay !== undefined && { overlay }),
+    ...(compared !== undefined && { compare: compared }),
     ...(paths !== null && { paths: paths.flowPaths }),
     highlight,
     ...(changed !== undefined && { changed }),
@@ -355,10 +397,12 @@ export function AutomationCanvas({
   return (
     <>
       <RunCanvas
-        record={record}
+        record={compare === undefined ? record : undefined}
         words={run?.words ?? NO_WORDS}
         live={run?.live === true}
         canvasProps={canvasProps}
+        selectedId={selectedId}
+        onSelect={onSelect}
       />
       {listProps !== null && compact && (
         <AutomationPathsSheet
@@ -396,13 +440,20 @@ function RunCanvas({
   words,
   live,
   canvasProps,
+  selectedId,
+  onSelect,
 }: {
   record: RunRecordView | undefined;
   words: TimelineWords;
   live: boolean;
   canvasProps: WorkflowCanvasProps;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
 }) {
+  const { t } = useT('automationRuns');
+  const { locale } = useLocale();
   const { graph } = canvasProps;
+  const [view, setView] = useState<'chart' | 'steps'>('chart');
   const timeline = useMemo(
     () =>
       record === undefined
@@ -421,24 +472,87 @@ function RunCanvas({
     if (!live) setT(timeline.duration);
   }, [record, live, timeline.duration, setT]);
   if (record === undefined) return <WorkflowCanvas {...canvasProps} />;
+  // A run of under a minute reads in seconds ("0.4s"), a longer one on a
+  // clock face ("03:12").
+  const short = (record.finishedAt ?? Date.now()) - record.startedAt < 60_000;
+  const formatTime = (at: number) => {
+    const elapsed = Math.max(0, timeline.toReal(at) - record.startedAt);
+    return short
+      ? formatDuration(elapsed, locale, { style: 'narrow', maxUnits: 1 })
+      : formatFlowClock(elapsed);
+  };
+  // How long each step worked; a step that never ran has no duration.
+  const activeOf = new Map(
+    record.nodes
+      .filter((step) => step.status !== 'skipped')
+      .map((step) => [step.path, step.activeMs]),
+  );
+  const rowDuration = (row: FlowTimelineRow): string | undefined => {
+    if (row.kind !== 'node') return undefined;
+    const active = activeOf.get(row.nodeId);
+    return active === undefined
+      ? undefined
+      : formatDuration(active, locale, { style: 'narrow', maxUnits: 1 });
+  };
+  const bar = (
+    <FlowPlaybackBar
+      timeline={timeline}
+      t={clock.t}
+      onTChange={setT}
+      playing={clock.playing}
+      onPlayingChange={clock.setPlaying}
+      speed={clock.speed}
+      onSpeedChange={clock.setSpeed}
+      formatTime={formatTime}
+      {...(live && !clock.following && { onFollowLive: clock.follow })}
+    />
+  );
+  // The run as a chart or as its steps in time order: one clock, so both
+  // show the same moment, and switching keeps where the reader was.
+  const switcher = (
+    <SegmentedControl
+      aria-label={t('view.label')}
+      value={view}
+      onValueChange={(next) => {
+        if (next === 'chart' || next === 'steps') setView(next);
+      }}
+      options={[
+        { value: 'chart', label: t('view.chart') },
+        { value: 'steps', label: t('view.steps') },
+      ]}
+    />
+  );
+  if (view === 'steps') {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {switcher}
+          <div className="min-w-0 flex-1">{bar}</div>
+        </div>
+        <FlowRunTimeline
+          graph={graph}
+          timeline={timeline}
+          t={clock.t}
+          onSeek={setT}
+          selectedId={selectedId}
+          onSelect={(row) => onSelect(row.nodeId ?? null)}
+          formatTime={formatTime}
+          formatDuration={rowDuration}
+          live={live}
+          className="min-h-0 flex-1"
+        />
+      </div>
+    );
+  }
   return (
     <WorkflowCanvas
       {...canvasProps}
       playback={{ timeline, t: clock.t }}
       toolbar={
-        <FlowPlaybackBar
-          timeline={timeline}
-          t={clock.t}
-          onTChange={setT}
-          playing={clock.playing}
-          onPlayingChange={clock.setPlaying}
-          speed={clock.speed}
-          onSpeedChange={clock.setSpeed}
-          formatTime={(t) =>
-            formatFlowClock(timeline.toReal(t) - record.startedAt)
-          }
-          {...(live && !clock.following && { onFollowLive: clock.follow })}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {switcher}
+          {bar}
+        </div>
       }
     />
   );

@@ -62,6 +62,10 @@ conditions:
     no: Non
     notChecked: Non vérifié
 compare:
+  canvas: 'Les deux exécutions sur le graphique'
+  diff:
+    output: 'Sortie : A → B'
+    input: 'Entrée : A → B'
   title: Comparer des exécutions
   swap: Échanger A et B
   same: Choisis deux exécutions différentes.
@@ -97,6 +101,7 @@ data:
   readValue: '{operand} : {value}'
   received: Reçu
   returned: Renvoyé
+  changes: 'Ce qu’elle a changé'
   elided: Certaines valeurs étaient trop volumineuses pour être conservées en entier.
   redacted: Les secrets sont masqués.
   call:
@@ -477,3 +482,7 @@ replay:
   tryAgain: Réessayer
   refused: Impossible de lancer l’exécution. {detail}
   cancel: Annuler
+view:
+  label: 'Afficher l’exécution en'
+  chart: 'Graphique'
+  steps: 'Étapes'

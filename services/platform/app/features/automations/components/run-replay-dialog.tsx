@@ -163,7 +163,11 @@ export function RunReplayDialog({
         runId: run.id,
         kind: 'from',
         from,
-        version: version === 'same' ? 'same' : (targetOf(version) ?? 'same'),
+        // The version the plan showed, as a number: a deploy landing
+        // between the plan and the click never starts what was not shown.
+        version:
+          data?.version.target ??
+          (version === 'same' ? 'same' : (targetOf(version) ?? 'same')),
         mode,
         requestId,
       },

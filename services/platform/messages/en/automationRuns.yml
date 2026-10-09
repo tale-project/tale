@@ -62,6 +62,10 @@ conditions:
     no: No
     notChecked: Not checked
 compare:
+  canvas: 'Both runs on the chart'
+  diff:
+    output: 'Output: A → B'
+    input: 'Input: A → B'
   title: Compare runs
   swap: Swap A and B
   same: Choose two different runs.
@@ -97,6 +101,7 @@ data:
   readValue: '{operand}: {value}'
   received: Received
   returned: Returned
+  changes: 'What it changed'
   elided: Some values were too large to keep in full.
   redacted: Secrets are hidden.
   call:
@@ -477,3 +482,7 @@ replay:
   tryAgain: Try again
   refused: Couldn't start the run. {detail}
   cancel: Cancel
+view:
+  label: 'Show the run as'
+  chart: 'Chart'
+  steps: 'Steps'

@@ -62,6 +62,10 @@ conditions:
     no: Nein
     notChecked: Nicht geprüft
 compare:
+  canvas: 'Beide Läufe im Diagramm'
+  diff:
+    output: 'Ausgabe: A → B'
+    input: 'Eingabe: A → B'
   title: Läufe vergleichen
   swap: A und B tauschen
   same: Wähle zwei verschiedene Läufe.
@@ -97,6 +101,7 @@ data:
   readValue: '{operand}: {value}'
   received: Erhalten
   returned: Zurückgegeben
+  changes: 'Was er geändert hat'
   elided: Manche Werte waren zu umfangreich, um sie vollständig zu speichern.
   redacted: Geheimnisse sind ausgeblendet.
   call:
@@ -477,3 +482,7 @@ replay:
   tryAgain: Erneut versuchen
   refused: Der Lauf konnte nicht gestartet werden. {detail}
   cancel: Abbrechen
+view:
+  label: 'Lauf anzeigen als'
+  chart: 'Diagramm'
+  steps: 'Schritte'

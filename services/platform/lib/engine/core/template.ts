@@ -21,6 +21,7 @@
 
 import type { ValueSummary } from '@tale/ui/data/value-summary';
 
+import { cutText, storableText } from '../../shared/utils/storable-text';
 import {
   exprFailureOf,
   type ExprWhere,
@@ -474,7 +475,10 @@ async function evalUnitTraced(
       timeoutMs: EXPR_TIMEOUT_MS,
     });
   } catch (error) {
-    if (error instanceof RunnerStopped) {
+    // A probed evaluation the runner stopped at its deadline is evaluated
+    // plainly on the fresh process, like one that timed out inside it:
+    // probing never fails what the plain evaluation passes.
+    if (error instanceof RunnerStopped && !error.timedOut) {
       throw runnerFailure(expr, error, where);
     }
     return await evalExpr(expr, scope, where);
@@ -740,23 +744,48 @@ export async function explainFailure(
         exprFailureOf(result.error.message, expr, at, readsOf).reason ===
           failure.reason;
   if (!failedAgain) return false;
+  const secrets = secretTextsIn(pruned);
   failure.trace = {
     pointer: at.pointer,
     units: [
       {
         range: [range[0], range[1]],
-        probes: unitProbes(
-          result.probes,
-          plan.specs,
-          range[0],
-          secretTextsIn(pruned),
-        ),
-        error: { message: error.message },
+        probes: unitProbes(result.probes, plan.specs, range[0], secrets),
+        error: { message: traceMessage(error.message, secrets) },
         probed: plan.capped ? 'partial' : 'full',
       },
     ],
   };
   return true;
+}
+
+/** The longest evaluator sentence a trace keeps: a run detail's length. */
+const TRACE_MESSAGE_LENGTH = 4096;
+
+/**
+ * The evaluator's sentence as a failure's trace keeps it: every secret the
+ * unit's scope holds left out (a message may quote what it read), cut to a
+ * run detail's length, and storable.
+ */
+function traceMessage(message: string, secrets: readonly string[]): string {
+  let text = message;
+  for (const secret of secrets) {
+    if (secret === '') continue;
+    if (text.includes(secret)) {
+      text = text.replaceAll(secret, '[withheld]');
+      continue;
+    }
+    // The engine quotes long text cut to its start (`"sk-abcdef"...`):
+    // the longest start of a secret it shows is left out too.
+    for (let length = Math.min(secret.length - 1, 64); length >= 8; length--) {
+      const start = secret.slice(0, length);
+      if (text.includes(start)) {
+        text = text.replaceAll(start, '[withheld]');
+        break;
+      }
+    }
+  }
+  return storableText(cutText(text, TRACE_MESSAGE_LENGTH));
 }
 
 /** Transform-code budget: room for real reshaping over large arrays while

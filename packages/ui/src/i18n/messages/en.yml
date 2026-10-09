@@ -449,6 +449,8 @@ codeEditor:
   tabFocusOff: Tab now indents.
   expand: Expand editor
   collapse: Back to the field
+  loadFailed: 'The editor didn''t load. You can keep editing here as plain text.'
+  retry: 'Try the editor again'
   diagnostics:
     atCursor: '{severity} on line {line}: {message}'
     severity:
@@ -524,6 +526,99 @@ schemaTree:
   maybeEmpty: may be empty
   more: '{count, plural, one {# more field} other {# more fields}}'
   asTypeScript: Show as TypeScript
+  inItems: '{total, plural, one {in {count} of # item} other {in {count} of # items}}'
+  mark:
+    added: not in the expected shape
+    removed: expected, but not there
+    typeChanged: not the expected kind
+    optional: not always there
+
+valueTree:
+  label: Value
+  name: '{key}, {value}'
+  markedName: '{mark}: {name}'
+  keyboardHelp: Arrow keys move and open. Type a field name to jump to it.
+  summary:
+    list: '{count, plural, =0 {an empty list} one {a list of # item} other {a list of # items}}'
+    object: '{count, plural, =0 {an empty object} one {an object with # field} other {an object with # fields}}'
+    longText: '{count, plural, one {a text of # character} other {a text of # characters}}'
+    quote: '"{text}"'
+    'true': 'true'
+    'false': 'false'
+    'null': empty
+    missing: missing
+    redacted: a hidden secret
+    elided: '{size} not kept'
+  showAllText: Show all {count} characters
+  showMore: Show {count} more
+  elided:
+    string: '{count, plural, one {+# character not kept} other {+# characters not kept}}'
+    items: '{count, plural, one {+# item not kept} other {+# items not kept}}'
+    depth: Deeper levels not kept
+    whole: Too large to keep ({size})
+  redacted: Hidden secret
+  redactedHint: Tale hides secrets in recorded values.
+  missing: '{key}: missing'
+  copyValue: Copy value
+  copyPath: Copy path
+  copied: Copied
+  mark:
+    added: Added
+    removed: Removed
+    changed: Changed from {before}
+    changedPlain: Changed
+    typeChanged: Type changed from {before}
+    typeChangedPlain: Type changed
+
+dataView:
+  values: Values
+  shape: Shape
+  modeLabel: Show as
+  copy: Copy JSON
+  download: Download JSON
+  fullScreen: Open full screen
+  closeFullScreen: Close full screen
+  expected:
+    matches: Matches the expected shape
+    differs: '{count, plural, one {Differs from the expected shape in # field} other {Differs from the expected shape in # fields}}'
+    compare: Compare
+  empty: Nothing recorded
+  size: '{size} recorded'
+
+dataDiff:
+  none: No changes
+  count:
+    added: '{count, plural, one {# added} other {# added}}'
+    removed: '{count, plural, one {# removed} other {# removed}}'
+    changed: '{count, plural, one {# changed} other {# changed}}'
+    typeChanged: '{count, plural, one {# changed type} other {# changed type}}'
+    reordered: '{count, plural, one {# reordered} other {# reordered}}'
+    unknown: '{count, plural, one {# not compared} other {# not compared}}'
+  row:
+    added: 'Added {path}: {after}'
+    removed: 'Removed {path} (was {before})'
+    changed: '{path} changed from {before} to {after}'
+    typeChanged: '{path} changed from {beforeKind} to {afterKind}: {after}'
+    reordered: '{path}: the same items in a different order'
+    unknown: "{path}: not compared, part of it wasn't kept"
+  shape:
+    added: '{path} appeared ({kind})'
+    removed: '{path} disappeared'
+    typeChanged: '{path}: {beforeKind} became {afterKind}'
+    optional: '{path} is no longer always there'
+    required: '{path} is now always there'
+  layout:
+    label: Layout
+    list: List
+    split: Side by side
+  before: Before
+  after: After
+  unrelated: They don't share a structure, so there's nothing to compare field by field.
+  wholeValue: the whole value
+  showValue: Show value
+  hideValue: Hide value
+  unchanged: '{count, plural, one {# unchanged field} other {# unchanged fields}}'
+  more: '{count, plural, one {# more change} other {# more changes}}'
 
 flow:
   canvas:
@@ -598,6 +693,30 @@ flow:
     valueText: '{position} — {events}'
     live: Live
     followLive: Follow live
+  timeline:
+    label: Steps
+    empty: No steps yet
+    keyboardHelp: Use the up and down arrow keys to move between steps, the right and left arrow keys to show or hide a step's items, and Enter to go to a step.
+    columns:
+      step: Step
+      duration: Duration
+    showItems: Show items
+    hideItems: Hide items
+    showAll: Show all {count}
+    item: Item {index}
+    pass: Pass {index}
+    itemOf: Item {index} of {total}
+    passOf: Pass {index} of {total}
+  compare:
+    a: A
+    b: B
+    side: '{label}: {state}'
+    differs: Differs
+    only: Only in {label}
+    absent: Not in {label}'s version
+    legend:
+      differs: 'Ring: differs between the runs'
+      onlyOne: 'Label on a line: only one run went this way'
 mentions:
   listboxLabel: Mention someone
   empty: No matches
