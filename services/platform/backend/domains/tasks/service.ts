@@ -5232,8 +5232,8 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
 }
 
 /**
- * Every dependency edge in a project (bounded) — the board derives which
- * loaded tasks are blocked without a per-task walk.
+ * Every dependency edge in a project (bounded), with blocker resolution
+ * independent of the board's search and visibility filters.
  */
 export async function listProjectDependencies(
   sql: Sql,
@@ -5243,10 +5243,15 @@ export async function listProjectDependencies(
   const project = await loadProjectOrThrow(sql, projectId);
   assertTaskReadable(project, auth);
   return sql<TaskDependencyRow[]>`
-    SELECT blocker_task_id AS "blockerTaskId",
-           blocked_task_id AS "blockedTaskId"
-    FROM app.task_dependencies
-    WHERE project_id = ${projectId}
+    SELECT d.blocker_task_id AS "blockerTaskId",
+           d.blocked_task_id AS "blockedTaskId",
+           (t.id IS NULL OR t.archived_at_ms IS NOT NULL
+             OR t.status IN ('done', 'cancelled')) AS "blockerResolved"
+    FROM app.task_dependencies d
+    LEFT JOIN app.tasks t ON t.id = d.blocker_task_id
+      AND t.project_id = d.project_id
+      AND t.org_id = ${auth.organizationId}
+    WHERE d.project_id = ${projectId}
     LIMIT ${TASK_BOARD_CAP}
   `;
 }
@@ -5254,6 +5259,7 @@ export async function listProjectDependencies(
 export interface TaskDependencyRow {
   blockerTaskId: string;
   blockedTaskId: string;
+  blockerResolved: boolean;
 }
 
 /**
