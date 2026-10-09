@@ -2,7 +2,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { createRecorder, noRecorder, RECORD_MAX_UNIT_ROWS } from './recorder';
+import {
+  createRecorder,
+  noRecorder,
+  RECORD_MAX_ROWS,
+  RECORD_MAX_UNIT_ROWS,
+} from './recorder';
 import type { NodeRunRecord } from './types';
 import { recordBudget, RECORD_RUN_BUDGET } from './value';
 
@@ -147,6 +152,33 @@ describe('createRecorder', () => {
     expect(rows.at(-1)?.key.item).toBe(total - 1);
   });
 
+  it('keeps every step’s row, and item rows up to the run’s cap', () => {
+    const rec = createRecorder(clocks());
+    const steps = 6;
+    for (let n = 0; n < steps; n++) {
+      const step = { path: `s${n}`, item: -1, pass: -1 };
+      rec.unitStarted(step, { nodeId: step.path, nodeType: 'transform' });
+      for (let item = 0; item < RECORD_MAX_UNIT_ROWS; item++) {
+        const key = { path: step.path, item, pass: -1 };
+        rec.unitStarted(key, { nodeId: step.path, nodeType: 'transform' });
+        rec.unitFinished(key, { status: 'ok', output: item });
+      }
+      rec.unitFinished(step, { status: 'ok' });
+    }
+    const rows = rec.snapshot();
+    const stepRows = rows.filter((r) => r.key.item === -1);
+    expect(stepRows.map((r) => r.key.path)).toEqual(
+      Array.from({ length: steps }, (_, n) => `s${n}`),
+    );
+    // Rows stop at the cap; a step's row is kept past it, with its counts.
+    expect(rows.length - 1).toBe(RECORD_MAX_ROWS);
+    expect(stepRows.at(-1)?.counts).toMatchObject({
+      items: RECORD_MAX_UNIT_ROWS,
+      ok: RECORD_MAX_UNIT_ROWS,
+      kept: 0,
+    });
+  });
+
   it('counts passes on the step row', () => {
     const rec = createRecorder(clocks());
     rec.unitStarted(node, { nodeId: 'fetch', nodeType: 'transform' });
@@ -261,6 +293,21 @@ describe('createRecorder', () => {
     expect(record?.attempt).toBe(1);
     expect(record?.waits).toEqual([
       { kind: 'approval', since: 600, ref: 'ap', until: 1_000 },
+    ]);
+  });
+
+  it('keeps the rendered spans of each field', () => {
+    const rec = createRecorder(clocks());
+    rec.unitStarted(node, { nodeId: 'fetch', nodeType: 'llm' });
+    rec.meta(node, {
+      rendered: { '/nodes/0/prompt': [{ unit: [3, 10], out: [0, 4] }] },
+    });
+    rec.meta(node, {
+      rendered: { '/nodes/0/system': [{ unit: [0, 5], out: [2, 3] }] },
+    });
+    expect(Object.keys(rec.snapshot()[0]?.meta.rendered ?? {})).toEqual([
+      '/nodes/0/prompt',
+      '/nodes/0/system',
     ]);
   });
 

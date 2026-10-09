@@ -28,14 +28,18 @@ import { recordBudget } from '../../../lib/engine/core/record/value';
 import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import {
   evalTemplates,
+  evalTemplatesRendered,
+  explainFailure,
   ExprError,
   runCode,
 } from '../../../lib/engine/core/template';
-import type {
-  Effect,
-  NodeDef,
-  NodeTrace,
-  Automation,
+import {
+  type Automation,
+  type Effect,
+  effectPlace,
+  nestedEffectPlace,
+  type NodeDef,
+  type NodeTrace,
 } from '../../../lib/engine/core/types';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
@@ -533,6 +537,44 @@ async function noteInput(
 }
 
 /**
+ * {@link evalTemplates} for text a step sends (a prompt, a connector's
+ * input), keeping in the unit's record where each `{{ }}` unit landed in it.
+ */
+async function renderedTemplates(
+  run: RunContext,
+  unit: UnitKey,
+  value: unknown,
+  scope: Record<string, unknown>,
+  pointer: string,
+): Promise<unknown> {
+  if (!run.recorder.enabled) return await evalTemplates(value, scope, pointer);
+  const answer = await evalTemplatesRendered(value, scope, pointer);
+  if (Object.keys(answer.rendered).length > 0) {
+    run.recorder.meta(unit, { rendered: answer.rendered });
+  }
+  return answer.value;
+}
+
+/** {@link runNodeBody}, where a failing expression is evaluated once more
+ * with probes, so the run's record says which value was missing. */
+async function explainedBody(
+  run: RunContext,
+  input: unknown,
+  outputs: Record<string, { output: unknown }>,
+  extra: Record<string, unknown>,
+  args: BodyArgs,
+): Promise<unknown> {
+  try {
+    return await runNodeBody(args);
+  } catch (error) {
+    if (run.recorder.enabled) {
+      await explainFailure(error, makeScope(input, outputs, extra));
+    }
+    throw error;
+  }
+}
+
+/**
  * Run one node once, for one scope. Every branch delegates: transform code and
  * templates to the engine's evaluator, connector actions to the platform's
  * connector door, a subautomation to a nested walk.
@@ -541,6 +583,8 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   const { run, node, extra, outputs, input, record, trace, effects } = args;
   const scope = () => makeScope(input, outputs, extra);
   const at = args.pointer;
+  const resolve = (value: unknown, pointer: string) =>
+    renderedTemplates(run, args.unit, value, scope(), pointer);
 
   if (node.type === 'transform') {
     const resolved = await evalTemplates(
@@ -574,10 +618,10 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   if (node.type === 'llm') {
     const model = node.model ?? '';
     const prompt = asPromptText(
-      await evalTemplates(node.prompt ?? '', scope(), `${at}/prompt`),
+      await resolve(node.prompt ?? '', `${at}/prompt`),
     );
     const system = node.system
-      ? asPromptText(await evalTemplates(node.system, scope(), `${at}/system`))
+      ? asPromptText(await resolve(node.system, `${at}/system`))
       : undefined;
     const llmInput = {
       model,
@@ -586,7 +630,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     };
     if (record) trace.input = llmInput;
     await noteInput(args, llmInput, { model });
-    effects.push({ node: node.id, connector: 'llm', input: llmInput });
+    effects.push({
+      node: node.id,
+      connector: 'llm',
+      input: llmInput,
+      ...effectPlace(args.unit),
+    });
     if (run.mode === 'live') {
       // A model call reaches nothing outside the run but the provider's
       // meter: one a resumed run cannot account for is simply made again,
@@ -645,10 +694,10 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   if (node.type === 'agent') {
     const model = node.model ?? '';
     const prompt = asPromptText(
-      await evalTemplates(node.prompt ?? '', scope(), `${at}/prompt`),
+      await resolve(node.prompt ?? '', `${at}/prompt`),
     );
     const system = node.system
-      ? asPromptText(await evalTemplates(node.system, scope(), `${at}/system`))
+      ? asPromptText(await resolve(node.system, `${at}/system`))
       : undefined;
     const files =
       node.files === undefined
@@ -670,7 +719,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
     };
     if (record) trace.input = agentInput;
     await noteInput(args, agentInput, { model });
-    effects.push({ node: node.id, connector: 'agent', input: agentInput });
+    effects.push({
+      node: node.id,
+      connector: 'agent',
+      input: agentInput,
+      ...effectPlace(args.unit),
+    });
     if (run.mode === 'live') {
       // Unreachable: stepNode routes live agent nodes to stepAgentNode before
       // any body runs. Kept as a guard so a future path cannot silently mock
@@ -763,6 +817,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         node: `${node.id}/${effect.node}`,
         connector: effect.connector,
         input: effect.input,
+        ...nestedEffectPlace(effect),
       });
     }
     if (result.kind === 'failed') {
@@ -806,11 +861,7 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   }
   const connector = node.type.slice(0, separator);
   const action = node.type.slice(separator + 1);
-  const resolved = await evalTemplates(
-    node.input ?? {},
-    scope(),
-    `${at}/input`,
-  );
+  const resolved = await resolve(node.input ?? {}, `${at}/input`);
   if (record) trace.input = resolved;
   const reach = nodeEffect(node.type);
   await noteInput(args, resolved, {
@@ -866,7 +917,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
   // call, change nothing outside the run and simply run again — at the top
   // level, where the outputs a node reads are checkpointed.
   if (run.mode === 'live' && nodeEffect(node.type) === 'write') {
-    const effect = { node: node.id, connector: node.type, input: resolved };
+    const effect = {
+      node: node.id,
+      connector: node.type,
+      input: resolved,
+      ...effectPlace(args.unit),
+    };
     let output: unknown;
     try {
       output = await callThroughLedger(
@@ -923,7 +979,12 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         )
       : await dispatch();
   if (result.effects === 'write') {
-    effects.push({ node: node.id, connector: node.type, input: resolved });
+    effects.push({
+      node: node.id,
+      connector: node.type,
+      input: resolved,
+      ...effectPlace(args.unit),
+    });
   }
   return result.output;
 }
@@ -1042,6 +1103,7 @@ async function walkAutomation(args: WalkArgs): Promise<WalkResult> {
   } catch (error) {
     const message = `failed to evaluate automation "output": ${error instanceof Error ? error.message : String(error)}`;
     if (outermost) {
+      await explainFailure(error, makeScope(input, outputsFrom(checkpoints)));
       run.recorder.unitFinished(endKey, {
         status: 'failed',
         failure: stepFailureOf(error, {
@@ -1441,7 +1503,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         openPass = { path, item: items === null ? -1 : index, pass: passes };
         rec.unitStarted(openPass, { nodeId: node.id, nodeType: node.type });
       }
-      const output = await runNodeBody({
+      const output = await explainedBody(run, input, outputs, extra, {
         run,
         node,
         extra,
@@ -1768,10 +1830,24 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     const scope = makeScope(args.input, outputs);
     const model = node.model ?? '';
     const prompt = asPromptText(
-      await evalTemplates(node.prompt ?? '', scope, `${at}/prompt`),
+      await renderedTemplates(
+        run,
+        args.unit,
+        node.prompt ?? '',
+        scope,
+        `${at}/prompt`,
+      ),
     );
     const system = node.system
-      ? asPromptText(await evalTemplates(node.system, scope, `${at}/system`))
+      ? asPromptText(
+          await renderedTemplates(
+            run,
+            args.unit,
+            node.system,
+            scope,
+            `${at}/system`,
+          ),
+        )
       : undefined;
     const files =
       node.files === undefined

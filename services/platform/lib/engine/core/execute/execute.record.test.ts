@@ -235,4 +235,79 @@ describe('execute with a recorder', () => {
       },
     });
   });
+
+  it('explains a failing expression with the values it read', async () => {
+    const result = await execute(
+      doc([
+        transform('a', 'return { items: null };'),
+        transform('b', 'return input.n;', {
+          input: { n: '{{ nodes.a.output.items.length }}' },
+        }),
+      ]),
+      { input: {}, recorder: recorder() },
+    );
+    const failure = row(result.record, 'b')?.failure;
+    expect(failure).toMatchObject({
+      reason: 'EXPR_READ_MISSING',
+      params: { chain: 'nodes.a.output.items', source: 'a' },
+      at: { pointer: '/nodes/1/input/n' },
+    });
+    const unit = failure?.trace?.units[0];
+    expect(unit?.probed).toBe('full');
+    // The step it read from returned `items: null`.
+    expect(unit?.probes).toEqual([
+      {
+        range: [3, 17],
+        v: expect.objectContaining({ kind: 'object', names: ['items'] }),
+      },
+    ]);
+  });
+
+  it('keeps where each unit of a prompt landed in the text it sent', async () => {
+    const result = await execute(
+      doc([
+        {
+          id: 'ask',
+          type: 'llm',
+          model: 'm',
+          prompt: 'Hello {{ input.name }}, you have {{ input.n }} tasks',
+        },
+      ]),
+      { input: { name: 'Ada', n: 3 }, recorder: recorder() },
+    );
+    const ask = row(result.record, 'ask');
+    expect(ask?.input?.value).toMatchObject({
+      prompt: 'Hello Ada, you have 3 tasks',
+    });
+    expect(ask?.meta.rendered).toEqual({
+      '/nodes/0/prompt': [
+        { unit: [9, 19], out: [6, 9] },
+        { unit: [36, 43], out: [20, 21] },
+      ],
+    });
+  });
+
+  it('places each effect at the item it was made for', async () => {
+    const result = await execute(
+      doc([
+        {
+          id: 'ask',
+          type: 'llm',
+          model: 'm',
+          prompt: 'item {{ item }}',
+          forEach: '{{ input.list }}',
+        },
+        { id: 'once', type: 'llm', model: 'm', prompt: 'once' },
+      ]),
+      { input: { list: ['a', 'b'] } },
+    );
+    expect(
+      result.effects.map(({ node, item, pass }) => ({ node, item, pass })),
+    ).toEqual([
+      { node: 'ask', item: 0, pass: undefined },
+      { node: 'ask', item: 1, pass: undefined },
+      { node: 'once', item: undefined, pass: undefined },
+    ]);
+    expect(result.effects[2]).not.toHaveProperty('item');
+  });
 });

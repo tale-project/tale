@@ -410,7 +410,17 @@ export function createRecorder(options: RecorderOptions): RunRecorder {
     meta(key, meta) {
       const slot = slotOf(key);
       if (slot === undefined) return;
-      slot.record.meta = { ...slot.record.meta, ...meta };
+      const before = slot.record.meta;
+      slot.record.meta = {
+        ...before,
+        ...meta,
+        // Each field's spans arrive on their own: a prompt's, then a
+        // system text's.
+        ...(meta.rendered !== undefined &&
+          before.rendered !== undefined && {
+            rendered: { ...before.rendered, ...meta.rendered },
+          }),
+      };
       touch(slot);
     },
 

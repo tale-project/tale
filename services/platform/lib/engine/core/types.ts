@@ -219,6 +219,31 @@ export interface Effect {
   node: string;
   connector: string;
   input: unknown;
+  /** The item of a `forEach` step, and the pass of a `repeatUntil` step,
+   * the call was made for; absent for a step that does not iterate. */
+  item?: number;
+  pass?: number;
+}
+
+/** Where in a step an effect happened: its item and pass, when it iterates. */
+export function effectPlace(unit: {
+  item: number;
+  pass: number;
+}): Pick<Effect, 'item' | 'pass'> {
+  return {
+    ...(unit.item >= 0 && { item: unit.item }),
+    ...(unit.pass >= 0 && { pass: unit.pass }),
+  };
+}
+
+/** A nested effect's own place, kept as its calling step folds it in. */
+export function nestedEffectPlace(
+  effect: Pick<Effect, 'item' | 'pass'>,
+): Pick<Effect, 'item' | 'pass'> {
+  return {
+    ...(effect.item !== undefined && { item: effect.item }),
+    ...(effect.pass !== undefined && { pass: effect.pass }),
+  };
 }
 
 export interface RunError {

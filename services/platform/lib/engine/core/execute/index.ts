@@ -28,8 +28,22 @@ import type {
   StoreAdapter,
 } from '../slots';
 import { agentService, llmService, nodeTypes } from '../slots';
-import { evalTemplates, ExprError, runCode } from '../template';
-import type { Automation, Effect, NodeTrace, RunResult } from '../types';
+import {
+  evalTemplates,
+  evalTemplatesRendered,
+  explainFailure,
+  ExprError,
+  type RenderedSpan,
+  runCode,
+} from '../template';
+import {
+  type Automation,
+  type Effect,
+  effectPlace,
+  nestedEffectPlace,
+  type NodeTrace,
+  type RunResult,
+} from '../types';
 import { MAX_SUBAUTOMATION_DEPTH } from '../typing/children';
 import { compileSchema } from '../validate/schema';
 import { maxRepeatsOf, topoSort } from './controlflow';
@@ -248,7 +262,26 @@ export async function execute(
 
       /** Run the node's behavior once for one scope (per item under
        * forEach). */
+      /** Run the node once for one scope; a recorded run's failing
+       * expression is evaluated once more with probes, so the failure says
+       * which value was missing. */
       const runOnce = async (
+        extra: Record<string, unknown>,
+        record: boolean,
+        pass: number,
+        unit: UnitKey,
+      ): Promise<unknown> => {
+        try {
+          return await runBody(extra, record, pass, unit);
+        } catch (error) {
+          if (rec.enabled) {
+            await explainFailure(error, makeScope(input, nodeOutputs, extra));
+          }
+          throw error;
+        }
+      };
+
+      const runBody = async (
         extra: Record<string, unknown>,
         record: boolean,
         pass: number,
@@ -263,6 +296,21 @@ export async function execute(
           );
         }
         const scope = () => makeScope(input, nodeOutputs, extra);
+        // Where each `{{ }}` unit landed in the text a step sends: a recorded
+        // run keeps it beside the text.
+        const rendered: Record<string, RenderedSpan[]> = {};
+        const resolve = async (
+          value: unknown,
+          at: string,
+        ): Promise<unknown> => {
+          if (!rec.enabled) return await evalTemplates(value, scope(), at);
+          const answer = await evalTemplatesRendered(value, scope(), at);
+          Object.assign(rendered, answer.rendered);
+          return answer.value;
+        };
+        const noteRendered = (): void => {
+          if (Object.keys(rendered).length > 0) rec.meta(unit, { rendered });
+        };
         // A pass's input is also its item's or step's: the row shows what
         // its latest pass worked on.
         const noteInput = (at: UnitKey, value: unknown): void => {
@@ -309,13 +357,12 @@ export async function execute(
         } else if (n.type === 'llm') {
           const model = n.model ?? '';
           const prompt = asPromptText(
-            await evalTemplates(n.prompt ?? '', scope(), `${pointer}/prompt`),
+            await resolve(n.prompt ?? '', `${pointer}/prompt`),
           );
           const system = n.system
-            ? asPromptText(
-                await evalTemplates(n.system, scope(), `${pointer}/system`),
-              )
+            ? asPromptText(await resolve(n.system, `${pointer}/system`))
             : undefined;
+          noteRendered();
           const llmInput = {
             model,
             prompt,
@@ -360,17 +407,21 @@ export async function execute(
                 ? stubFromSchema(n.outputSchema)
                 : { text: mockLlmText(model, prompt) };
           }
-          effects.push({ node: n.id, connector: 'llm', input: llmInput });
+          effects.push({
+            node: n.id,
+            connector: 'llm',
+            input: llmInput,
+            ...effectPlace(unit),
+          });
         } else if (n.type === 'agent') {
           const model = n.model ?? '';
           const prompt = asPromptText(
-            await evalTemplates(n.prompt ?? '', scope(), `${pointer}/prompt`),
+            await resolve(n.prompt ?? '', `${pointer}/prompt`),
           );
           const system = n.system
-            ? asPromptText(
-                await evalTemplates(n.system, scope(), `${pointer}/system`),
-              )
+            ? asPromptText(await resolve(n.system, `${pointer}/system`))
             : undefined;
+          noteRendered();
           const files =
             n.files === undefined
               ? undefined
@@ -421,7 +472,12 @@ export async function execute(
               status: 'ok',
             };
           }
-          effects.push({ node: n.id, connector: 'agent', input: agentInput });
+          effects.push({
+            node: n.id,
+            connector: 'agent',
+            input: agentInput,
+            ...effectPlace(unit),
+          });
         } else if (n.type === 'subautomation') {
           const ref = n.automation ?? '';
           const store = opts.store;
@@ -502,15 +558,13 @@ export async function execute(
               node: `${n.id}/${ef.node}`,
               connector: ef.connector,
               input: ef.input,
+              ...nestedEffectPlace(ef),
             });
           }
           out = sub.output;
         } else if (def.connector && connectorCheck) {
-          const resolved = await evalTemplates(
-            n.input ?? {},
-            scope(),
-            `${pointer}/input`,
-          );
+          const resolved = await resolve(n.input ?? {}, `${pointer}/input`);
+          noteRendered();
           if (record) entry.input = resolved;
           noteInput(unit, resolved);
           rec.meta(unit, {
@@ -584,7 +638,12 @@ export async function execute(
             out = await def.connector.mock(resolved);
           }
           if (def.connector.hasEffect) {
-            effects.push({ node: n.id, connector: n.type, input: resolved });
+            effects.push({
+              node: n.id,
+              connector: n.type,
+              input: resolved,
+              ...effectPlace(unit),
+            });
           }
         } else {
           throw new ExprError(
@@ -724,6 +783,9 @@ export async function execute(
     return withRecord({ status: 'success', output, trace, effects });
   } catch (e) {
     const message = `failed to evaluate automation "output": ${e instanceof Error ? e.message : String(e)}`;
+    if (outermost && rec.enabled) {
+      await explainFailure(e, makeScope(input, nodeOutputs));
+    }
     if (outermost) {
       rec.unitFinished(endKey, {
         status: 'failed',
