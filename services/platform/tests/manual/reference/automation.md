@@ -102,6 +102,14 @@ organization defaults and successful saves remain covered by
 `app/features/settings/personalization/components/preferences-settings.test.tsx`.
 Live backend recovery and screen-reader announcements remain manual.
 
+Custom instructions immediate-save failures show one localized destructive toast,
+retain the persisted switch value and instructions, and allow a successful retry.
+The real React Query mutation hook and adapter, rendered toast, EN/DE/FR/de-CH
+failure copy, safe refusal details, fault-payload suppression and single success
+notification are covered by
+`app/features/settings/personalization/components/preferences-settings.toggle.test.tsx`.
+Live backend failures and screen-reader announcements remain manual.
+
 Availability regressions cover validated API/database readiness, HTML proxy
 errors, bounded and idle probes, recovery of failed reads without replaying
 writes, and deferred recovery of memoized chunk failures in
