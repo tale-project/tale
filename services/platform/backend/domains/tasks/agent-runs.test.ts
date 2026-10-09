@@ -1,10 +1,8 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  memberSessionIdForProjectAgent,
-  standingWorkerSessionId,
-} from '../../core/sandbox/session_naming.ts';
+import { standingWorkerSessionId } from '../../core/sandbox/session_naming.test-helpers.ts';
+import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
@@ -17,6 +15,8 @@ import {
   kickAgentRun,
   launchAgentRun,
   listTaskAgentRunSummaries,
+  parkedRunSql,
+  parkedWaitingReasonSql,
   settleAgentRun,
   wakeAgentParkedAgentRun,
   wakeOrganizationParkedAgentRun,
@@ -62,8 +62,9 @@ function fakeTx(answer: (text: string) => Row[]): {
     calls.push({ text, values });
     return Promise.resolve(answer(text));
   };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
-  return { tx: tag as unknown as TransactionSql, statements, calls };
+  const tx = Object.assign(tag, { unsafe: (text: string) => text });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+  return { tx: tx as unknown as TransactionSql, statements, calls };
 }
 
 const KEYS = { organizationId: 'org-1', runId: 'run-1', taskId: 'task-1' };
@@ -789,8 +790,9 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       });
       return Promise.resolve([]);
     };
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
-    return { sql: tag as unknown as Sql, statements };
+    const sql = Object.assign(tag, { unsafe: (text: string) => text });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js template function
+    return { sql: sql as unknown as Sql, statements };
   }
 
   it('walks the tie-free creation order, newest first, from before a page', async () => {
@@ -849,9 +851,10 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       expect(selected).not.toMatch(new RegExp(`\\b${column}\\b`));
     }
     expect(selected).toContain('left(feedback, ?) AS feedback');
-    // A cancelled run keeps its park stamp; only a queued one is waiting.
-    expect(selected).toContain(
-      "(status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)",
+    // A cancelled run keeps its park stamp; only a queued one is waiting,
+    // and only a waiting one shows why.
+    expect(statements[0]?.values).toEqual(
+      expect.arrayContaining([parkedRunSql(), parkedWaitingReasonSql()]),
     );
     expect(statements[0]?.values).toContain(AGENT_RUN_FEEDBACK_EXCERPT_CHARS);
   });
@@ -1378,6 +1381,25 @@ describe('the worker a run reads as working in [TASK-R24]', () => {
     );
     const card = await getLatestAgentRunCardForTask(sql, 'org-1', 'task-1');
     expect(card?.worker).toBe(3);
+  });
+});
+
+describe('what every read shows of a waiting run [TASK-R25]', () => {
+  const collapse = (text: string) => text.replaceAll(/\s+/g, ' ');
+  const PARKED =
+    "(status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)";
+
+  it('reads a run as waiting, and why, only while it is queued and parked', () => {
+    expect(collapse(parkedRunSql())).toBe(PARKED);
+    expect(collapse(parkedWaitingReasonSql())).toBe(
+      `CASE WHEN ${PARKED} THEN waiting_reason END`,
+    );
+  });
+
+  it('keeps the same rule behind the alias of a read that joins another table', () => {
+    expect(collapse(parkedWaitingReasonSql('r'))).toBe(
+      "CASE WHEN (r.status = 'queued' AND r.waiting_for_capacity_at_ms IS NOT NULL) THEN r.waiting_reason END",
+    );
   });
 });
 

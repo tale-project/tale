@@ -32,6 +32,7 @@ import { SANDBOX_SESSION_HELD_REASON } from '../../core/tasks/run_park_reason.ts
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
+  parkedRunSql,
   wakeAgentParkedAgentRun,
   wakeParkedAgentRuns,
 } from '../tasks/agent-runs.ts';
@@ -1031,8 +1032,7 @@ export async function countWaitingAgentRuns(
   const rows = await sql<{ reason: string | null; count: number }[]>`
     SELECT waiting_reason AS reason, count(*)::int AS count
     FROM app.project_agent_runs
-    WHERE org_id = ${organizationId} AND status = 'queued'
-      AND waiting_for_capacity_at_ms IS NOT NULL
+    WHERE org_id = ${organizationId} AND ${sql.unsafe(parkedRunSql())}
     GROUP BY waiting_reason
   `;
   const byReason: Record<AgentRunWaitingReason | 'unknown', number> = {

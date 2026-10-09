@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   memberWorkerSessionId,
   standingWorkerSessionId,
-} from '../../core/sandbox/session_naming.ts';
+} from '../../core/sandbox/session_naming.test-helpers.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   agentRunWorkDeadline,

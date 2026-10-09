@@ -133,11 +133,26 @@ export interface AgentRunRow {
   startedViaAgentId: string | null;
 }
 
+/** The read's name for `app.project_agent_runs`: none, or its alias `r`. A
+ * closed list, so no identifier ever reaches the SQL text from a caller. */
+type RunTableAlias = '' | 'r';
+
+/** Whether a run is parked — queued, and stamped as waiting for room — as
+ * SQL over `app.project_agent_runs`: the predicate every read of a waiting
+ * run shares, nested through `sql.unsafe`. */
+export function parkedRunSql(alias: RunTableAlias = ''): string {
+  const column = alias === '' ? '' : `${alias}.`;
+  return `(${column}status = 'queued'
+    AND ${column}waiting_for_capacity_at_ms IS NOT NULL)`;
+}
+
 /** A run's waiting reason as every read shows it: only while the run is
- * parked. A reason left on a row a wake has since restarted (an image that
- * does not clear it) is never shown. */
-const PARKED_WAITING_REASON_SQL = `CASE WHEN status = 'queued'
-    AND waiting_for_capacity_at_ms IS NOT NULL THEN waiting_reason END`;
+ * parked ({@link parkedRunSql}). A reason left on a row a wake has since
+ * restarted (an image that does not clear it) is never shown. */
+export function parkedWaitingReasonSql(alias: RunTableAlias = ''): string {
+  const column = alias === '' ? '' : `${alias}.`;
+  return `CASE WHEN ${parkedRunSql(alias)} THEN ${column}waiting_reason END`;
+}
 
 const RUN_COLUMNS = `
   id, org_id AS "organizationId", project_id AS "projectId",
@@ -147,7 +162,7 @@ const RUN_COLUMNS = `
   result_text AS "resultText",
   result_message_id AS "resultMessageId", trigger, feedback,
   waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
-  ${PARKED_WAITING_REASON_SQL} AS "waitingReason",
+  ${parkedWaitingReasonSql()} AS "waitingReason",
   session_claimed_at_ms::float8 AS "sessionClaimedAt",
   agent_session_id AS "agentSessionId", started_by AS "startedBy",
   started_at_ms::float8 AS "startedAt", launched_at_ms::float8 AS "launchedAt",
@@ -1179,9 +1194,7 @@ export async function getLatestAgentRunCardForTask(
            r.harness, r.model, r.error, r.failure_code AS "failureCode",
            r.result_text AS "resultText",
            r.waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
-           CASE WHEN r.status = 'queued'
-             AND r.waiting_for_capacity_at_ms IS NOT NULL
-             THEN r.waiting_reason END AS "waitingReason",
+           ${sql.unsafe(parkedWaitingReasonSql('r'))} AS "waitingReason",
            r.session_id AS "sessionId",
            r.session_claimed_at_ms::float8 AS "sessionClaimedAt",
            r.trigger, r.auto_retry_attempt AS "autoRetryAttempt",
@@ -1317,11 +1330,8 @@ export async function listTaskAgentRunSummaries(
            started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt",
            settled_at_ms::float8 AS "settledAt",
-           (status = 'queued' AND waiting_for_capacity_at_ms IS NOT NULL)
-             AS "waitingForCapacity",
-           CASE WHEN status = 'queued'
-             AND waiting_for_capacity_at_ms IS NOT NULL
-             THEN waiting_reason END AS "waitingReason",
+           ${sql.unsafe(parkedRunSql())} AS "waitingForCapacity",
+           ${sql.unsafe(parkedWaitingReasonSql())} AS "waitingReason",
            failure_code AS "failureCode",
            EXISTS (
              SELECT 1 FROM app.project_agents a

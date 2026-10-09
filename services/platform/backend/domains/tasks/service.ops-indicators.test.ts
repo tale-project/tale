@@ -2,7 +2,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { standingWorkerSessionId } from '../../core/sandbox/session_naming.ts';
+import { standingWorkerSessionId } from '../../core/sandbox/session_naming.test-helpers.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 
 const { loadProjectOrThrow, listProjects } = vi.hoisted(() => ({
@@ -16,6 +16,9 @@ vi.mock('../projects/service.ts', async (importOriginal) => ({
   listProjects,
 }));
 
+// After the service: imported first, it leaves the service bound to the
+// project service without the mock above.
+import { parkedRunSql, parkedWaitingReasonSql } from './agent-runs.ts';
 import {
   getTaskOpsIndicators,
   getTaskOpsIndicatorsForAccessibleProjects,
@@ -35,7 +38,8 @@ interface LiveRunRow {
   agentId: string;
   status: 'queued' | 'running';
   sessionId: string;
-  claimed: boolean;
+  sessionClaimedAt: number | null;
+  waitingForCapacityAt: number | null;
   waiting: boolean;
   waitingReason: string | null;
   startedAt: number;
@@ -49,7 +53,8 @@ function liveRun(n: number, fields: Partial<LiveRunRow> = {}): LiveRunRow {
     agentId: AGENT,
     status: 'queued',
     sessionId: standingWorkerSessionId(AGENT, 1),
-    claimed: false,
+    sessionClaimedAt: null,
+    waitingForCapacityAt: null,
     waiting: false,
     waitingReason: null,
     startedAt: n,
@@ -96,19 +101,23 @@ describe('the board reads every live agent run with its worker and wait', () => 
       liveRun(1, {
         status: 'running',
         sessionId: standingWorkerSessionId(AGENT, 2),
-        claimed: true,
+        sessionClaimedAt: 4,
         launchedAt: 5,
       }),
       liveRun(2, {
+        waitingForCapacityAt: 6,
         waiting: true,
         waitingReason: 'org_limit',
-        // A reason kept on a row a wake restarted is never shown.
       }),
       liveRun(3, {
-        claimed: true,
+        sessionClaimedAt: 7,
         sessionId: standingWorkerSessionId(AGENT, 3),
       }),
-      liveRun(4, { waiting: true, waitingReason: null }),
+      liveRun(4, {
+        waitingForCapacityAt: 8,
+        waiting: true,
+        waitingReason: null,
+      }),
     ]);
     const ops = await getTaskOpsIndicators(sql, auth, 'p0');
     expect(ops.runs).toEqual([
@@ -155,7 +164,15 @@ describe('the board reads every live agent run with its worker and wait', () => 
     expect(read?.text).toContain(
       "ORDER BY (status = 'running') DESC, started_at_ms, seq",
     );
-    expect(read?.values).toEqual([auth.organizationId, ['p0'], 51]);
+    // Whether a run waits, and why, is read through the predicate every
+    // read of a waiting run shares.
+    expect(read?.values).toEqual([
+      parkedRunSql(),
+      parkedWaitingReasonSql(),
+      auth.organizationId,
+      ['p0'],
+      51,
+    ]);
   });
 
   it('says when more runs live than the board is sent', async () => {
@@ -173,6 +190,6 @@ describe('the board reads every live agent run with its worker and wait', () => 
     expect(ops.runs.map((run) => run.runId)).toEqual(['run-1']);
     expect(ops.runsTruncated).toBe(false);
     expect(reads).toHaveLength(1);
-    expect(reads[0]?.values[1]).toEqual(['p0', 'p1']);
+    expect(reads[0]?.values.at(-2)).toEqual(['p0', 'p1']);
   });
 });

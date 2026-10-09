@@ -37,10 +37,8 @@ import { randomUUID } from 'node:crypto';
 import type { Sql } from 'postgres';
 
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
-import {
-  memberSessionIdForProjectAgent,
-  standingWorkerSessionId,
-} from '../../core/sandbox/session_naming.ts';
+import { standingWorkerSessionId } from '../../core/sandbox/session_naming.test-helpers.ts';
+import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import { getProjectAuthContext } from '../projects/service.ts';
 import {
   countWaitingAgentRuns,

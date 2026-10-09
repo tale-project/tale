@@ -7,10 +7,12 @@ import type { Sql } from 'postgres';
 
 import type { SandboxWorkspaceInventory } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
-  memberSessionIdForProjectAgent,
   memberWorkerSessionId,
-  standingSessionIdForProjectAgent,
   standingWorkerSessionId,
+} from '../../core/sandbox/session_naming.test-helpers.ts';
+import {
+  memberSessionIdForProjectAgent,
+  standingSessionIdForProjectAgent,
 } from '../../core/sandbox/session_naming.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { scheduleOrganizationSandboxRetirement } from './retirement-schedule.ts';

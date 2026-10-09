@@ -4,16 +4,18 @@ import {
   isProjectAgentSession,
   isStandingProjectAgentSession,
   memberSessionIdForProjectAgent,
-  memberWorkerSessionId,
   projectAgentWorker,
   sessionIdForRender,
   sessionIdForWorkflowExecution,
   standingSessionIdForProjectAgent,
-  standingWorkerSessionId,
   workerFamilyBase,
   workerSessionId,
   workflowExecutionOwnerId,
 } from './session_naming';
+import {
+  memberWorkerSessionId,
+  standingWorkerSessionId,
+} from './session_naming.test-helpers';
 
 // Mirrors the spawner's sessionId validator (services/sandbox/src/wire.ts).
 const ID_ALPHABET_RE = /^[a-zA-Z0-9_-]{1,64}$/;

@@ -117,31 +117,6 @@ export function workerSessionId(
   return `pa-${fnv1a64Hex(agentId)}${rest}${suffix}`;
 }
 
-/** Worker `worker` of the agent's standing family. */
-export function standingWorkerSessionId(
-  agentId: string,
-  worker: number,
-): string {
-  return workerSessionId(
-    agentId,
-    standingSessionIdForProjectAgent(agentId),
-    worker,
-  );
-}
-
-/** Worker `worker` of one member's family with the agent. */
-export function memberWorkerSessionId(
-  agentId: string,
-  memberKey: string,
-  worker: number,
-): string {
-  return workerSessionId(
-    agentId,
-    memberSessionIdForProjectAgent(agentId, memberKey),
-    worker,
-  );
-}
-
 /** Which of the agent's workspace families a session id belongs to — its
  * standing one (`agent`) or one member's (`member`) — which worker of it the
  * id names, and the family's base (its worker 1); null when the id is none

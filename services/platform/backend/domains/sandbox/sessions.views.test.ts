@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 import { describe, expect, test } from 'vitest';
 
+import { parkedRunSql } from '../tasks/agent-runs.ts';
 import {
   countWaitingAgentRuns,
   listSandboxViewsForOrg,
@@ -242,9 +243,10 @@ describe('agent workers on the Sandboxes page', () => {
   });
 
   test('counts every waiting run by its reason, a park without one as unknown [SBX-R17]', async () => {
-    const query = (strings: TemplateStringsArray) => {
+    const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?');
-      expect(text).toContain('waiting_for_capacity_at_ms IS NOT NULL');
+      // A run waits while it is parked, as every read of one tells it.
+      expect(values).toContain(parkedRunSql());
       expect(text).not.toContain('LIMIT');
       return Promise.resolve([
         { reason: 'org_limit', count: 4 },
@@ -252,8 +254,9 @@ describe('agent workers on the Sandboxes page', () => {
         { reason: 'host', count: 2 },
       ]);
     };
+    const sql = Object.assign(query, { unsafe: (text: string) => text });
     await expect(
-      countWaitingAgentRuns(query as unknown as Sql, 'org-1'),
+      countWaitingAgentRuns(sql as unknown as Sql, 'org-1'),
     ).resolves.toEqual({
       total: 7,
       byReason: {

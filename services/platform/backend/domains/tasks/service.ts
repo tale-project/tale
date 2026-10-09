@@ -29,7 +29,6 @@ import {
   checkProjectAccess,
   EDITOR_ROLES,
 } from '../../core/projects/access.ts';
-import { projectAgentWorker } from '../../core/sandbox/session_naming.ts';
 import {
   canWorkTask,
   TASK_ANCESTRY_DEPTH_MAX,
@@ -88,9 +87,12 @@ import {
 } from '../projects/service.ts';
 import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
 import {
+  agentRunWorkerNumber,
   cancelAgentRunInTx,
   isStandardAgentRefusal,
   kickAgentRun,
+  parkedRunSql,
+  parkedWaitingReasonSql,
   withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
@@ -5000,7 +5002,8 @@ async function readLiveAgentRuns(
       agentId: string;
       status: 'queued' | 'running';
       sessionId: string;
-      claimed: boolean;
+      sessionClaimedAt: number | null;
+      waitingForCapacityAt: number | null;
       waiting: boolean;
       waitingReason: string | null;
       startedAt: number;
@@ -5009,10 +5012,10 @@ async function readLiveAgentRuns(
   >`
     SELECT id AS "runId", task_id AS "taskId", agent_id AS "agentId", status,
            session_id AS "sessionId",
-           session_claimed_at_ms IS NOT NULL AS claimed,
-           waiting_for_capacity_at_ms IS NOT NULL AS waiting,
-           CASE WHEN waiting_for_capacity_at_ms IS NOT NULL
-             THEN waiting_reason END AS "waitingReason",
+           session_claimed_at_ms::float8 AS "sessionClaimedAt",
+           waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+           ${sql.unsafe(parkedRunSql())} AS waiting,
+           ${sql.unsafe(parkedWaitingReasonSql())} AS "waitingReason",
            started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt"
     FROM app.project_agent_runs
@@ -5022,22 +5025,16 @@ async function readLiveAgentRuns(
     LIMIT ${TASK_OPS_INDICATOR_CAP + 1}
   `;
   const runs = rows.slice(0, TASK_OPS_INDICATOR_CAP).map((row): TaskOpsRun => {
-    const waiting = row.status === 'queued' && row.waiting;
-    // A worker is the run's only once it holds one: running, or claimed
-    // and not given back by a park.
-    const worker =
-      row.status === 'running' || (row.claimed && !waiting)
-        ? projectAgentWorker(row.agentId, row.sessionId)?.worker
-        : undefined;
+    const worker = agentRunWorkerNumber(row);
     const run: TaskOpsRun = {
       taskId: row.taskId,
       runId: row.runId,
       agentId: row.agentId,
       status: row.status,
-      waiting,
+      waiting: row.waiting,
       startedAt: row.startedAt,
     };
-    if (waiting && isAgentRunWaitingReason(row.waitingReason)) {
+    if (row.waiting && isAgentRunWaitingReason(row.waitingReason)) {
       run.waitingReason = row.waitingReason;
     }
     if (row.launchedAt !== null) run.launchedAt = row.launchedAt;
