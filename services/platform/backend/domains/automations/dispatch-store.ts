@@ -49,6 +49,11 @@ import {
   runControlAccess,
 } from './project-visibility.ts';
 import {
+  readNodeDetail,
+  readRunComparison,
+  readRunRecord,
+} from './run-record.ts';
+import {
   AutomationError,
   assertAutomationName,
   type AutomationWriteVia,
@@ -243,6 +248,11 @@ function runPosition(raw: string | null): { at: number; id: string } | null {
   return Number.isSafeInteger(at) ? { at, id: raw.slice(split + 1) } : null;
 }
 
+/** A read model's answer as the plain object the engine's door passes on. */
+function asJsonObject(value: object | null): Record<string, unknown> | null {
+  return value === null ? null : Object.fromEntries(Object.entries(value));
+}
+
 export function pgAutomationStore(
   sql: Sql,
   scope: PgStoreScope,
@@ -264,6 +274,25 @@ export function pgAutomationStore(
       return { auth, readable: new Set(await readableProjectIds(sql, auth)) };
     })();
     return viewer;
+  };
+  /** Whether the actor may read the run, as `getRun` reads it: in the
+   * store's project scope, and in a project they can read. */
+  const readableRun = async (runId: string): Promise<boolean> => {
+    const auth = await authorizeActorRun(
+      sql,
+      organizationId,
+      actor,
+      'membership',
+    );
+    const row = await getRun(sql, organizationId, runId);
+    if (row === null) return false;
+    if (scope.projectId !== undefined && row.projectId !== scope.projectId) {
+      return false;
+    }
+    return (
+      row.projectId === null ||
+      (await readableProject(sql, auth, row.projectId)) !== null
+    );
   };
   /** Whether a read of `name` answers "not found" for this actor. */
   const hidden = async (name: string): Promise<boolean> => {
@@ -733,6 +762,40 @@ export function pgAutomationStore(
         })
       ).map(toRunSummary);
     },
+    getRunRecord: async (runId, options) =>
+      (await readableRun(runId))
+        ? asJsonObject(
+            await readRunRecord(sql, {
+              organizationId,
+              runId,
+              travels: options.travels,
+            }),
+          )
+        : null,
+    getRunNode: async (runId, unit) => {
+      if (!(await readableRun(runId))) return null;
+      const node = await readNodeDetail(sql, {
+        organizationId,
+        runId,
+        path: unit.node,
+        ...(unit.item !== undefined && { item: unit.item }),
+        ...(unit.pass !== undefined && { pass: unit.pass }),
+      });
+      if (node === null) {
+        throw new AutomationError(
+          'NODE_RUN_NOT_FOUND',
+          `the run has no record of "${unit.node}" at item ${unit.item ?? -1}, pass ${unit.pass ?? -1}`,
+          404,
+        );
+      }
+      return asJsonObject(node);
+    },
+    compareRuns: async (runId, otherRunId) =>
+      (await readableRun(runId)) && (await readableRun(otherRunId))
+        ? asJsonObject(
+            await readRunComparison(sql, { organizationId, runId, otherRunId }),
+          )
+        : null,
     getRun: async (runId): Promise<RunDetail | null> => {
       const auth = await authorizeActorRun(
         sql,

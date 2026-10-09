@@ -684,6 +684,22 @@ Listings answer summaries — identity, scope, status and timing, each row namin
 
 `GET /api/v1/runs` is the cross-cutting view: every run the key holder can see, organization runs and the runs of visible projects alike, each row naming its `projectId`. For an automation with no bindings, `POST /api/v1/automations/{name}/runs` starts a non-project run; a bound automation returns **409** there. `GET /api/v1/automations/{name}/runs` and `/api/v1/runs/{runId}` expose only non-project runs. A project run requires its project URL for reading, cancellation and deletion. `DELETE /api/v1/projects/{id}/runs/{runId}` (or `/api/v1/runs/{runId}`) removes a finished run — stored input and output included — under the developer capability; a run still in flight returns **409** `RUN_ACTIVE`, so cancel it first.
 
+### Read a run step by step
+
+`GET /api/v1/runs/{runId}/record` (or the project form) answers the run's record: every step in the order it runs — the run input as `__start`, the version's steps, the document output as `__end` — with its status, times and attempts, the decisions that ran or skipped it (each condition explained with the values it read), why it produced no output, followed back to the cause, why it failed (a `reason` from a fixed list, with the `params` it is worded with), and glimpses of what it received and returned. The values themselves stay out of the record: read one step whole at `…/record/node?node=<path>`, and add `item` or `pass` for one of its items or passes. `…/record/items?node=<path>` pages a step's items and passes; `status=failed` keeps the ones that failed. `…/compare/{otherRunId}` compares two runs of the same automation step by step and names the first step where they went different ways; runs of different automations return **400** `RUN_COMPARE_MISMATCH`. Each read takes the same access as reading the run, and secrets are withheld everywhere.
+
+To follow a run while it works, pass the record's `cursor` back as `since`: the answer then carries only the steps written since and the events since — merge steps by `path` and events by `id`. A record stays under 512 KiB and one step under 256 KiB; `truncated` says what was left out to fit. These reads need API contract 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "format": 1, "nodes": [{ "path": "__start", "status": "succeeded", … },
+#   { "path": "triage", "status": "skipped", "skip": { "reason": "when", … },
+#     "decisions": [{ "kind": "when", "result": false, "explanation": [ … ] }] }, …],
+#   "cursor": 1758210000000 }
+```
+
 ## Act for a member: answer a run’s question, decide a task’s review
 
 A run parked on `waitingFor: "ask"` waits on a person; a task in `in_review` can wait on a person or a designated agent. These two REST doors relay a person's gesture from another application and name that person as `actor`, so Tale records the person rather than the key. Both doors need API contract 1.16.0; contract 3.11.0 adds the explicit refusal of human approval while a task review belongs to an agent.

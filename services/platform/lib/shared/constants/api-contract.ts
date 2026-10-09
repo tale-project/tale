@@ -537,5 +537,27 @@
  * recorded with the call and on the versions and audit rows it writes.
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
+ *
+ * 3.29.0 — 2026-10-09: a run reads step by step. `GET …/runs/{runId}/record`
+ * answers the run's record (`RunRecord`): every step in the order it runs,
+ * with its status, times, attempts, the decisions that ran or skipped it
+ * (each condition explained with the values it read, `ExplainNode`), why it
+ * produced no output followed back to the cause (`skip.chain`), why it
+ * failed (`StepFailure`, a `reason` from a fixed list with its `params`),
+ * glimpses of its values, the run's events a reader may see, the path it
+ * took and, with `include=travels`, the data that travelled between steps;
+ * `since` answers only what changed after a `cursor`. `…/record/node`
+ * reads one step — or one of its items or passes — whole (`RunNode`: its
+ * stored values with every cut and withheld place, where its templates'
+ * text landed, what it read, how its output differs from its input, its
+ * ledger call); `…/record/items` pages a step's items and passes
+ * (`RunUnitPage`, keyset); `…/compare/{otherRunId}` compares two runs of
+ * one automation (`RunDiff`). Each has its project twin and reads the run
+ * as `GET …/runs/{runId}` does. New codes: `NODE_RUN_NOT_FOUND` (404) and
+ * `RUN_COMPARE_MISMATCH` (400). A run's `effects` carry the `item` and
+ * `pass` they were made for. The MCP `get_run` takes `include`
+ * (`["record"]`, `["travels"]`) and answers `record` beside `run`; new
+ * read tools `get_run_node` and `compare_runs` answer the same unit and
+ * comparison. Additive otherwise.
  */
-export const API_CONTRACT_VERSION = '3.27.0';
+export const API_CONTRACT_VERSION = '3.29.0';

@@ -755,6 +755,15 @@
             "type": "string",
             "enum": ["input", "output", "trace", "effects"]
           }
+        },
+        "include": {
+          "description": "What to add: \"record\" answers the run step by step under record — each step's status, why it ran or was skipped (each condition explained with the values it read), why it failed (failure.reason and its explanation), glimpses of its values; \"travels\" adds the data that travelled between steps.",
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["record", "travels"]
+          }
         }
       },
       "required": ["runId"],
@@ -788,9 +797,163 @@
           },
           "required": ["runId", "status"],
           "additionalProperties": {}
+        },
+        "record": {
+          "type": "object",
+          "properties": {
+            "format": {
+              "type": "number"
+            },
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path", "status"],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": ["format", "nodes"],
+          "additionalProperties": {}
         }
       },
       "required": ["run"],
+      "additionalProperties": {}
+    }
+  },
+  "get_run_node": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The run handle start_run and list_runs return."
+        },
+        "node": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "\\S",
+          "description": "The step's path, as record.nodes lists it: its id, or parent[item:pass]/id inside a subautomation; __start and __end for the run input and output."
+        },
+        "item": {
+          "description": "The item of a step that runs per item; left out (-1) for the step itself.",
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 9007199254740991
+        },
+        "pass": {
+          "description": "The pass of a step that repeats; left out (-1) for the step itself.",
+          "type": "integer",
+          "minimum": -1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": ["runId", "node"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "item": {
+              "type": "number"
+            },
+            "pass": {
+              "type": "number"
+            },
+            "status": {
+              "type": "string"
+            }
+          },
+          "required": ["path", "item", "pass", "status"],
+          "additionalProperties": {}
+        }
+      },
+      "required": ["node"],
+      "additionalProperties": {}
+    }
+  },
+  "compare_runs": {
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The earlier run: its runId."
+        },
+        "b": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "The later run of the same automation: steps are compared in the order its version runs them."
+        }
+      },
+      "required": ["a", "b"],
+      "additionalProperties": false
+    },
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "diff": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              },
+              "required": ["id"],
+              "additionalProperties": {}
+            },
+            "b": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                }
+              },
+              "required": ["id"],
+              "additionalProperties": {}
+            },
+            "nodes": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  }
+                },
+                "required": ["path"],
+                "additionalProperties": {}
+              }
+            }
+          },
+          "required": ["a", "b", "nodes"],
+          "additionalProperties": {}
+        }
+      },
+      "required": ["diff"],
       "additionalProperties": {}
     }
   },

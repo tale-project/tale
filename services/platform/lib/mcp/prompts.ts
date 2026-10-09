@@ -176,7 +176,7 @@ const debugFailedRun: McpPromptSpec = {
   embeds: ({ runId = '' }) => [{ uri: runResourceUri(runId), required: true }],
   lines: ({ runId = '' }) => [
     {
-      text: `Explain in plain words why the run ${quoted(runId)} failed. Its record is attached; get_run reads it again. Read its status, its error and the trace: the failing node's input and error, and why nodes were skipped.`,
+      text: `Explain in plain words why the run ${quoted(runId)} failed. Its record is attached; get_run with include ["record"] reads it step by step: the failed step's failure.reason and the explanation of the expression it failed on, and why steps were skipped (skip.chain).`,
       tools: ['get_run'],
     },
     {

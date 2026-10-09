@@ -1216,6 +1216,26 @@ export function readKeysetCursor(
 }
 
 /**
+ * The `cursor` query of a list whose position is a token of its own (a
+ * run's units, `item:pass`): null for the first page, the position the
+ * list signed, or the 400 for anything else — the same posture as
+ * `readKeysetCursor`. The list's own reader still refuses a position it
+ * cannot read.
+ */
+export function readSignedCursor(
+  c: Context<RestEnv>,
+  list: string,
+): string | null | Response {
+  const raw = c.req.query('cursor');
+  if (raw === undefined) return null;
+  if (raw.trim() === '') return blankParameterResponse(c, 'cursor');
+  return (
+    verifyCursor(c, list, raw) ??
+    invalidQueryResponse(c, 'INVALID_CURSOR', CURSOR_MESSAGE, [CURSOR_ISSUE])
+  );
+}
+
+/**
  * The `cursor` query of a list whose position is one whole number (a
  * message order, an entry sequence): null for the first page, the number,
  * or the 400 for anything else — the same posture as `readKeysetCursor`.

@@ -249,6 +249,8 @@ describe('tools/list', () => {
     'start_run',
     'list_runs',
     'get_run',
+    'get_run_node',
+    'compare_runs',
     'cancel_run',
     'answer_run_ask',
     'list_versions',

@@ -114,7 +114,9 @@ const MAX_RESULT_CHARS: Readonly<Record<string, number>> = {
   run_automation: 200_000,
   get_automation: 200_000,
   run_deployed: 200_000,
-  get_run: 250_000,
+  get_run: 500_000,
+  get_run_node: 300_000,
+  compare_runs: 500_000,
 };
 
 const RESULTS: ReadonlyMap<string, z.ZodObject> = new Map(
@@ -261,6 +263,8 @@ const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
   start_run: EXECUTE_LIVE,
   list_runs: READ,
   get_run: READ,
+  get_run_node: READ,
+  compare_runs: READ,
   cancel_run: REPLACE,
   answer_run_ask: ANSWER,
   list_versions: READ,
@@ -299,7 +303,11 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   list_runs:
     'Recent runs the caller can read, newest first — of one automation or of the current scope; filter by mode and statuses, and page with nextCursor.',
   get_run:
-    'One run in full: status, output, trace and effects (detail: [] answers the status alone — poll with it). A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
+    'One run in full: status, output, trace and effects (detail: [] answers the status alone — poll with it). include: ["record"] adds the run step by step — why each step ran, was skipped or failed, each condition explained with the values it read. A run waiting on a person\'s answer (waitingFor: "ask") names the question under ask: its askId and the question, for answer_run_ask.',
+  get_run_node:
+    "One step of a run read whole — or one of its items or passes: what it received and returned (secrets withheld), where its templates' text landed, what it read from earlier steps, how its output differs from its input, and its call to a connector or a model.",
+  compare_runs:
+    'Two runs of one automation side by side, step by step: what changed in the version, how input and output differ, and the first step where the runs went different ways — the decision that flipped and the values that flipped it.',
   cancel_run: 'Stop a run at its next node boundary.',
   answer_run_ask:
     'Answer the question a waiting run asked a person (get_run answers it as run.ask: askId and question); the run resumes on the answer. The answer speaks for the person: ask them first.',
@@ -335,6 +343,8 @@ const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
   start_run: 'management',
   list_runs: 'management',
   get_run: 'management',
+  get_run_node: 'management',
+  compare_runs: 'management',
   cancel_run: 'management',
   answer_run_ask: 'management',
   list_versions: 'management',

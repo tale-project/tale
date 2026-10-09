@@ -391,6 +391,27 @@ export interface DispatchStore extends StoreAdapter {
     cursor?: string;
   }): Promise<RunPage | null>;
   getRun?(runId: string): Promise<RunDetail | null>;
+  /** A run step by step — the host's run record (the REST
+   * `GET …/runs/{runId}/record`); null when the run does not exist or the
+   * caller cannot read it. */
+  getRunRecord?(
+    runId: string,
+    options: { travels: boolean },
+  ): Promise<Record<string, unknown> | null>;
+  /** One unit of a run read whole: a step, or one of its items or passes.
+   * Null when the run does not exist or is hidden; a unit the record does
+   * not hold is refused (`NODE_RUN_NOT_FOUND`). */
+  getRunNode?(
+    runId: string,
+    unit: { node: string; item?: number; pass?: number },
+  ): Promise<Record<string, unknown> | null>;
+  /** Two runs of one automation side by side. Null when either does not
+   * exist or is hidden; runs of different automations are refused
+   * (`RUN_COMPARE_MISMATCH`). */
+  compareRuns?(
+    runId: string,
+    otherRunId: string,
+  ): Promise<Record<string, unknown> | null>;
   /** Stop a run. `cancelled: false` with a terminal `status` is a run that
    * had already finished; `cancelled: false` with NO `status` is a run that
    * does not exist (answered RUN_NOT_FOUND, like `get_run` and REST). */
@@ -510,6 +531,10 @@ const RUN_ID_HINT =
  * wins.
  */
 const HOST_REFUSAL_HINTS: Readonly<Record<string, string>> = {
+  NODE_RUN_NOT_FOUND:
+    'get_run {runId, include: ["record"]} lists the steps under record.nodes; a step’s items and passes carry item and pass',
+  RUN_COMPARE_MISMATCH:
+    'compare two runs of the same automation: list_runs {name} lists them',
   AUTOMATION_NAME_TAKEN:
     'the name is in use, perhaps by an automation you cannot see: pick another name. To change one get_automation reads, save without create and with its version as baseVersion',
   AUTOMATION_NAME_RESERVED:
@@ -775,6 +800,33 @@ function detailParam(
 /** What `get_run` can answer beside the run's status, each the size of the
  * run's own data. */
 const RUN_DETAIL = ['input', 'output', 'trace', 'effects'] as const;
+
+/** What `get_run` can add: the run's record, step by step, and the data
+ * that travelled between its steps (which brings the record with it). */
+const RUN_INCLUDES = ['record', 'travels'] as const;
+
+function runIncludeParam(
+  v: unknown,
+):
+  | { value: ReadonlySet<string> }
+  | { error: string; code: 'INVALID_PARAMS'; hint: string } {
+  if (v === undefined) return { value: new Set() };
+  const known = new Set<unknown>(RUN_INCLUDES);
+  if (Array.isArray(v) && v.every((d) => known.has(d))) {
+    return { value: new Set(v.map(String)) };
+  }
+  return {
+    error: `params.include must list some of ${RUN_INCLUDES.map((d) => `"${d}"`).join(', ')} — got ${JSON.stringify(v)}`,
+    code: 'INVALID_PARAMS',
+    hint: 'pass include: ["record"] to read the run step by step',
+  };
+}
+
+/** A unit's item or pass: -1 for the step itself. */
+function unitIndexParam(v: unknown): number | undefined | null {
+  if (v === undefined) return undefined;
+  return typeof v === 'number' && Number.isInteger(v) && v >= -1 ? v : null;
+}
 
 /**
  * Read `params.detail` of get_run: which of the run's own data to answer.
@@ -1703,6 +1755,11 @@ export async function dispatch(
       }
       const detail = runDetailParam(p.detail);
       if ('error' in detail) return detail;
+      const include = runIncludeParam(p.include);
+      if ('error' in include) return include;
+      if (include.value.size > 0 && !store.getRunRecord) {
+        return notSupported('a run’s record is');
+      }
       const run = await store.getRun(runId);
       if (!run) {
         return {
@@ -1714,13 +1771,87 @@ export async function dispatch(
       // The run's own data the caller left out of `detail` is dropped; its
       // status, its scope and the question it waits on always stay.
       const dropped = RUN_DETAIL.filter((key) => !detail.value.has(key));
-      return {
+      const answer: Record<string, unknown> = {
         run: Object.fromEntries(
           Object.entries(run).filter(
             ([key]) => !(dropped as readonly string[]).includes(key),
           ),
         ),
       };
+      if (include.value.size > 0 && store.getRunRecord) {
+        const record = await store.getRunRecord(runId, {
+          travels: include.value.has('travels'),
+        });
+        if (record !== null) answer.record = record;
+      }
+      return answer;
+    }
+
+    case 'get_run_node': {
+      if (!store.getRunNode) return notSupported('a run’s record is');
+      const runId = asString(p.runId);
+      const node = asString(p.node);
+      if (!runId || !node) {
+        return {
+          error: !runId ? 'missing params.runId' : 'missing params.node',
+          code: 'INVALID_PARAMS',
+          hint: !runId
+            ? RUN_ID_HINT
+            : 'name a step by its path, as get_run {runId, include: ["record"]} lists it under record.nodes',
+        };
+      }
+      const item = unitIndexParam(p.item);
+      const pass = unitIndexParam(p.pass);
+      if (item === null || pass === null) {
+        return {
+          error: 'params.item and params.pass are whole numbers from -1',
+          code: 'INVALID_PARAMS',
+          hint: 'leave them out (or -1) for the step itself',
+        };
+      }
+      try {
+        const unit = await store.getRunNode(runId, {
+          node,
+          ...(item !== undefined && { item }),
+          ...(pass !== undefined && { pass }),
+        });
+        if (unit === null) {
+          return {
+            error: `no run "${runId}"`,
+            code: 'RUN_NOT_FOUND',
+            hint: RUN_ID_HINT,
+          };
+        }
+        return { node: unit };
+      } catch (e) {
+        return refusalFrom(e);
+      }
+    }
+
+    case 'compare_runs': {
+      if (!store.compareRuns) return notSupported('comparing runs is');
+      const a = asString(p.a);
+      const b = asString(p.b);
+      if (!a || !b) {
+        return {
+          error: !a ? 'missing params.a' : 'missing params.b',
+          code: 'INVALID_PARAMS',
+          hint: 'name two runs of one automation, as list_runs lists them',
+        };
+      }
+      try {
+        const diff = await store.compareRuns(a, b);
+        if (diff === null) {
+          return {
+            error: `no run "${a}" or "${b}" to compare`,
+            code: 'RUN_NOT_FOUND',
+            hint: RUN_ID_HINT,
+          };
+        }
+        return { diff };
+      } catch (e) {
+        return refusalFrom(e);
+      }
     }
 
     case 'cancel_run': {

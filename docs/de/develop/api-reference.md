@@ -711,6 +711,22 @@ Listen antworten mit Zusammenfassungen — Identität, Geltungsbereich, Status u
 
 `GET /api/v1/runs` ist die Sicht quer über alles: jeder Lauf, den der Schlüsselbesitzer sehen darf, Organisationsläufe wie Läufe sichtbarer Projekte, jede Zeile mit ihrer `projectId`. Eine Automatisierung ohne Bindungen kannst du mit `POST /api/v1/automations/{name}/runs` ohne Projekt starten; eine gebundene Automatisierung ergibt dort **409**. `GET /api/v1/automations/{name}/runs` und `/api/v1/runs/{runId}` zeigen ausschließlich Läufe ohne Projekt. Zum Lesen, Abbrechen und Löschen eines Projektlaufs brauchst du dessen Projekt-URL. `DELETE /api/v1/projects/{id}/runs/{runId}` (oder `/api/v1/runs/{runId}`) entfernt einen beendeten Lauf — samt gespeicherter Eingabe und Ausgabe — unter der Entwickler-Fähigkeit; ein Lauf, der noch in Arbeit ist, ergibt **409** `RUN_ACTIVE`, brich ihn also zuerst ab.
 
+### Einen Lauf Schritt für Schritt lesen
+
+`GET /api/v1/runs/{runId}/record` (oder die Projektform) liefert die Aufzeichnung des Laufs: jeden Schritt in der Reihenfolge, in der er läuft – die Eingabe des Laufs als `__start`, die Schritte der Version, die Dokumentausgabe als `__end` – mit Status, Zeiten und Versuchen, den Entscheidungen, die ihn laufen ließen oder übersprangen (jede Bedingung erklärt mit den Werten, die sie gelesen hat), warum er keine Ausgabe lieferte, bis zur Ursache zurückverfolgt, warum er fehlschlug (ein `reason` aus einer festen Liste, mit den `params`, mit denen er formuliert ist), und Einblicken in das, was er erhielt und zurückgab. Die Werte selbst bleiben außerhalb der Aufzeichnung: Lies einen Schritt ganz unter `…/record/node?node=<path>` und füge `item` oder `pass` für eines seiner Elemente oder einen seiner Durchläufe hinzu. `…/record/items?node=<path>` blättert durch die Elemente und Durchläufe eines Schritts; `status=failed` behält die fehlgeschlagenen. `…/compare/{otherRunId}` vergleicht zwei Läufe derselben Automatisierung Schritt für Schritt und nennt den ersten Schritt, an dem sie auseinandergingen; Läufe verschiedener Automatisierungen liefern **400** `RUN_COMPARE_MISMATCH`. Jedes Lesen braucht denselben Zugriff wie das Lesen des Laufs, und Geheimnisse bleiben überall zurückgehalten.
+
+Um einen Lauf zu verfolgen, während er arbeitet, gib den `cursor` der Aufzeichnung als `since` zurück: Die Antwort enthält dann nur die seither geschriebenen Schritte und die seitherigen Ereignisse – führe Schritte nach `path` und Ereignisse nach `id` zusammen. Eine Aufzeichnung bleibt unter 512 KiB und ein Schritt unter 256 KiB; `truncated` sagt, was weggelassen wurde, damit sie passt. Diese Lesezugriffe brauchen API-Vertrag 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "format": 1, "nodes": [{ "path": "__start", "status": "succeeded", … },
+#   { "path": "triage", "status": "skipped", "skip": { "reason": "when", … },
+#     "decisions": [{ "kind": "when", "result": false, "explanation": [ … ] }] }, …],
+#   "cursor": 1758210000000 }
+```
+
 ## Für ein Mitglied handeln: Frage eines Laufs beantworten, Prüfung einer Aufgabe entscheiden
 
 Ein Lauf mit `waitingFor: "ask"` wartet auf eine Person; eine Aufgabe in `in_review` kann auf eine Person oder einen benannten Agenten warten. Diese beiden REST-Endpunkte reichen die Handlung einer Person aus einer anderen Anwendung weiter und nennen sie als `actor`. Tale hält die Person fest, nicht den Schlüssel. Beide Endpunkte brauchen API-Vertrag 1.16.0; Vertrag 3.11.0 ergänzt die ausdrückliche Ablehnung einer menschlichen Freigabe, solange das Review einem Agenten gehört.

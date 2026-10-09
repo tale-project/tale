@@ -380,6 +380,43 @@ export const ENGINE_TOOL_ARGS = {
       .describe(
         'What to answer beside the status: "input", "output", "trace", "effects". Left out, all of them; [] the status alone (and the question a waiting run asks) — poll a run with [], then read it whole once it finished.',
       ),
+    include: z
+      .array(z.enum(['record', 'travels']))
+      .max(2)
+      .optional()
+      .describe(
+        'What to add: "record" answers the run step by step under record — each step\'s status, why it ran or was skipped (each condition explained with the values it read), why it failed (failure.reason and its explanation), glimpses of its values; "travels" adds the data that travelled between steps.',
+      ),
+  }),
+  get_run_node: z.strictObject({
+    runId,
+    node: nonBlank()
+      .max(512)
+      .describe(
+        "The step's path, as record.nodes lists it: its id, or parent[item:pass]/id inside a subautomation; __start and __end for the run input and output.",
+      ),
+    item: z
+      .number()
+      .int()
+      .min(-1)
+      .optional()
+      .describe(
+        'The item of a step that runs per item; left out (-1) for the step itself.',
+      ),
+    pass: z
+      .number()
+      .int()
+      .min(-1)
+      .optional()
+      .describe(
+        'The pass of a step that repeats; left out (-1) for the step itself.',
+      ),
+  }),
+  compare_runs: z.strictObject({
+    a: nonBlank().describe('The earlier run: its runId.'),
+    b: nonBlank().describe(
+      'The later run of the same automation: steps are compared in the order its version runs them.',
+    ),
   }),
   cancel_run: z.strictObject({ runId }),
   answer_run_ask: z.strictObject({

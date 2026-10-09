@@ -2,12 +2,12 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.27.0",
+    "version": "3.29.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
     },
-    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). Each of the three refusals lists the slugs you may\nsend under `data.organizations`; `GET /api/v1/me` lists them too, as its\ntop-level `organizations`. The slug is matched without regard to case; a\nblank or whitespace-only header reads as absent.\n\nA key an Owner or Admin made for a member, a team, a project or the\norganization itself works in that one organization only, so it needs no\n`X-Organization-Slug` (one naming another organization answers 403\n`ORG_FORBIDDEN`). A team's, a project's or the organization's key is not a\nperson: it acts with the role it was made with, a team's key sees what that\nteam sees, and a project's key reaches its own project alone — the model\nendpoints, `GET /me`, `GET /projects` and the routes under\n`/projects/{projectId}` — while any other route answers 403\n`API_KEY_SCOPE_FORBIDDEN`. `GET /api/v1/me` names whose key it is, as\n`key.owner`.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. The\ncompatible model endpoints are the exception — see below: they relay the\nvendors' own bodies (a NUL included) and ignore query parameters. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation (a compatible model endpoint asked for `stream: true`\nanswers `text/event-stream`). Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}` — except on the compatible model endpoints, which answer every\nrefusal, the door's own included, in their vendor wire's shape with the same\n`code` (see below). Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a 503\n`DATABASE_UNAVAILABLE`, a body-size 413 and a URL-size 414 add\n`requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\nUTF-16 code units`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `API_KEY_SCOPE_FORBIDDEN` (a project's key outside its\nproject), `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON), `DATABASE_UNAVAILABLE` (503 with `Retry-After`, answered\nby the platform while its database restarts or cannot be reached — retry\nwith backoff) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{conversations, …}`, `{comments, …}`,\n  `{projects, …}`, `{files, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`, `{teams}`; search answers `{hits, diagnostics}`; the\n  OpenAI-compatible model list answers `{data, object}` in OpenAI's shape.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA call to a compatible model endpoint draws from the reads bucket like any\nother request. A 429 carries `Retry-After` in whole seconds.\n\n## Compatible model endpoints\n\nThe organization's approved models, callable from a key holder's own tools\nover the two wires those tools already speak — so an OpenAI SDK, opencode,\nan Anthropic SDK or Claude Code uses Tale as its model provider:\n\n- **OpenAI** — base URL `https://<host>/api/v1/openai`:\n  `POST /chat/completions` (streamed or not, with tools and images) and\n  `GET /models`.\n- **Anthropic** — base URL `https://<host>/api/v1/anthropic`:\n  `POST /v1/messages` (streamed or not, with tools and images). Claude Code\n  takes it as `ANTHROPIC_BASE_URL`, the key as `ANTHROPIC_AUTH_TOKEN`\n  (an SDK: `authToken`), and the organization header, when the key needs\n  one, in `ANTHROPIC_CUSTOM_HEADERS`; leave `ANTHROPIC_API_KEY` unset, since\n  the `x-api-key` it sends is refused.\n\nBoth sit inside this door — the same Bearer key, `X-Organization-Slug`,\nrequest budget and `X-Request-Id` — and both are governed: an organization\nturns them on in its model access policy (off until then: 403\n`MODEL_API_DISABLED`); owners, administrators and developers may call them,\nany other member only with a live `tale:models.api` grant (403\n`MODEL_API_FORBIDDEN`; `capabilities.modelApi` on `GET /api/v1/me`\nanswers both gates). A model id is `<provider>/<model>` — the connector's\nslug and the model's id in its catalog — on both wires, and only a model the\nkey holder's model access and the provider credential's allowlist admit\nanswers (403 `MODEL_API_MODEL_FORBIDDEN`, 404 `MODEL_API_MODEL_UNKNOWN`).\nThe organization's input guardrails judge every text the caller wrote into\nthe request — every role, tool calls and results, tool definitions — before a\ncall (400 `MODEL_API_GUARDRAIL_BLOCKED`; a mask rewrites what the model\nreceives; 403 `MODEL_API_GUARDRAIL_UNSUPPORTED` for a PII policy that\ntokenizes; 503 `MODEL_API_GUARDRAIL_UNAVAILABLE` when a fail-closed step\ncannot judge or a policy cannot be read; 413 `MODEL_API_TEXT_TOO_LARGE`\npast 2 MB of text) — the answer is relayed unfiltered. A call's worst case\nis held whole against every budget that binds the key holder, their teams,\nthe organization and the key (429 `BUDGET_EXCEEDED` with `Retry-After`,\nnaming the output cap that would fit when the worst case does not), at most\n8 calls of a key holder or a key run at once (429\n`MODEL_API_CONCURRENCY_EXCEEDED`), and its spend is booked under the person\nand the key. A tool the vendor would\nrun (400 `MODEL_API_VENDOR_TOOL_UNSUPPORTED`), images for a model without\nvision (400 `MODEL_API_VISION_UNSUPPORTED`) and tools for a model without\nthem (400 `MODEL_API_TOOLS_UNSUPPORTED`) are refused before the call; a\ngateway that cannot serve the model answers 503 `MODEL_API_UNAVAILABLE`,\nand a vendor's own refusal is relayed as `MODEL_API_UPSTREAM_ERROR`.\nBodies and answers are the vendors' own shapes, and so is every refusal:\nOpenAI `{\"error\": {\"message\", \"type\", \"param\", \"code\"}}`, Anthropic\n`{\"type\": \"error\", \"error\": {\"type\", \"message\", \"code\"}, \"request_id\"}`.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\nProject resources use `/api/v1/projects/{id}/...`: tasks, agents, files,\nchats, installed automations, runs and project document search. Their project\ncomes from the URL; request bodies refuse projectId. Global chat and run URLs\nserve only resources without a project. Global document URLs serve the\nKnowledge Hub; global knowledge search excludes projects and conversations.\n\n## Caching and compression\n\nEvery JSON read (a `GET` answering 200) carries an `ETag` over its bytes\nand `Cache-Control: private, no-cache`: keep the answer, and send the tag\nback as `If-None-Match` on the next read — an unchanged resource answers\n**304** with no body. File content (`GET .../files/{documentId}/content`)\nhonours `If-None-Match` and `If-Modified-Since` against the `ETag` and\n`Last-Modified` it issues, the same way. A 304 still counts against the\nrequest budget; a read that only needs a few keys of a large resource should\nname them where the operation offers `fields` (run reads do). Responses are\ncompressed with `gzip` or `zstd` when the request offers one in\n`Accept-Encoding` (`curl --compressed`), above a floor of about 512\nbytes; `br` is not served. A\ncompressed answer's `Content-Length`, when present, is the compressed size\n(a large answer streams without one) and its `ETag` carries the\n`-gzip`/`-zstd` suffix; a HEAD is never compressed and reports the\nuncompressed length.\n\n## Authentication\n\nEvery `/api/v1` request carries an organization API key (create one in\nSettings → API; a key starts with `tale` and carries no separator — treat\nthe whole string as opaque):\n\n```\nAuthorization: Bearer <api-key>\n```\n\nInbound automation webhooks authenticate with their URL token. The key is\nread from `Authorization` alone: a request that carries one as\n`x-api-key` — the header the platform's own door uses internally — is\nrefused with 401 whatever else it carries; a valid `Authorization` header\nalongside it does not rescue it.\n\nIf you belong to several organizations, send `X-Organization-Slug` on\nevery request, reads included — without it the request answers 400\n`ORG_SLUG_REQUIRED`; a slug that names no organization answers 404\n`ORG_SLUG_INVALID`, one you are no member of 403 `ORG_FORBIDDEN` — told\napart on purpose: a slug is the public path segment of every app URL, not a\nsecret, and the probe is already authenticated and rate-limited; resource ids\nnever get this treatment (an id you cannot see answers the same 404 as one\nthat does not exist). Each of the three refusals lists the slugs you may\nsend under `data.organizations`; `GET /api/v1/me` lists them too, as its\ntop-level `organizations`. The slug is matched without regard to case; a\nblank or whitespace-only header reads as absent.\n\nA key an Owner or Admin made for a member, a team, a project or the\norganization itself works in that one organization only, so it needs no\n`X-Organization-Slug` (one naming another organization answers 403\n`ORG_FORBIDDEN`). A team's, a project's or the organization's key is not a\nperson: it acts with the role it was made with, a team's key sees what that\nteam sees, and a project's key reaches its own project alone — the model\nendpoints, `GET /me`, `GET /projects` and the routes under\n`/projects/{projectId}` — while any other route answers 403\n`API_KEY_SCOPE_FORBIDDEN`. `GET /api/v1/me` names whose key it is, as\n`key.owner`.\n\n## Requests\n\nBodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole\nnumber beyond 2^53 − 1 is refused rather than rounded (send such an id as a\nstring). Every body schema is strict — an unknown key answers 400\n`INVALID_BODY` naming it, and a key given twice keeps its last value — and\nso is every query string: a parameter a\nroute does not take, one given twice, or a named filter left blank answers\n400 `INVALID_QUERY`, and writes take no query parameters at all. The\ncompatible model endpoints are the exception — see below: they relay the\nvendors' own bodies (a NUL included) and ignore query parameters. An\nout-of-range number is handled by where it travels: a query parameter\n(`limit`) is clamped into its range, while a body field (a search\n`limit`, `maxOutputTokens`) is refused with 400 `INVALID_BODY` naming it.\nA body is capped at 1 MiB unless the operation says otherwise (a document's inline\ncontent 32 MiB, the contacts bulk import 8 MiB, a conversation snapshot 8\nMiB, a staged conversation upload 30 MiB, a skill save 4 MiB, a delivery\nclaim, failure report or acknowledgement 64 KiB); past the cap\nthe answer is 413 `BODY_TOO_LARGE`, before a byte is read when the length\nis declared — the platform reads none of it, though over HTTP/1.1 the edge\nmay still drain up to 256 KiB of it before the refusal reaches you — and at\nthe first chunk past the cap when it is not: an oversized body is never\nread in full. A body that ends before its declared length is a malformed\nrequest: over HTTP/2 the edge answers 400 `BODY_LENGTH_MISMATCH` (the\nplatform's 413 instead when the declared length was over the cap and its\nrefusal won the race); over HTTP/1.1 the missing bytes are waited for until\nthe 15-minute arrival deadline. An HTTP/1.1 chunked body whose framing is\nmalformed — a chunk size that is not hexadecimal, a bare LF, a missing CRLF —\nis refused at the edge with 400 `BODY_CHUNK_MALFORMED`, a client error that\nno retry can fix (it used to read as a 502 outage with retry advice). A request must finish arriving within 15\nminutes, headers and\nbody together — a 30 MiB upload needs roughly 35 KB/s; slower answers 408\n`REQUEST_TIMEOUT` in the envelope (with a fresh `requestId`) and the\nconnection closes. Every answer is JSON whatever `Accept` says — `application/xml`,\n`text/plain`, even `application/json;q=0` — there is no 406: the surface has\none representation (a compatible model endpoint asked for `stream: true`\nanswers `text/event-stream`). Bodies are read as JSON whatever Content-Type says; there is no\n415. Every served path answers HEAD (for a GET, with the `Content-Length`\nthe uncompressed GET would carry — a HEAD is never compressed) and OPTIONS\n(204 with `Allow`, no key needed); a\nmethod a path does not take answers 405 `METHOD_NOT_ALLOWED` with\n`Allow`; one trailing slash on a path is tolerated. The surface is\nserver-to-server: no response on this surface carries CORS headers (the\nstatus page's JSON is the one keyless exception), so a browser page cannot\ncall it — keep the key behind your own backend. A request URL (path\nand query) above 32 KiB answers 414 `URI_TOO_LONG` in the envelope, before\nany route is looked up. Request headers as a whole are budgeted at 64 KiB\nat the edge: HTTP/1.1 allows a few KiB of slack before its bare 431 without\nthe envelope, so a URL or header just past 64 KiB may still reach the\nplatform and be judged by its rules (a 66 KiB URL still answers 414); on\nHTTP/2 the budget is exact and the connection is closed without a response\n— carry data in the body, never in a header. A header value carrying a\ncontrol character — below 0x20\nother than tab, or DEL — never reaches the platform either: HTTP/1.1 answers\na bare text 400 at the edge, HTTP/2 resets the stream or, on a request with\na body, closes the connection. Every response from this surface carries an\n`X-Request-Id` — send your own to correlate: up to 255 characters of\nletters, digits, `_`, `-` and `=`; anything else is replaced by a\nfresh UUID — replaced rather than refused because a correlation id is\nbest-effort: the call goes through even when the id cannot be logged, and the\nid the platform did use is on the response for you to record. An\n`Idempotency-Key` is the opposite kind of value, a promise the platform\nkeeps byte for byte, so one it cannot keep is refused (400 `INVALID_HEADER`) — on the operations that declare the header (a run start, a chat send; the webhook doors read it as a delivery id under their own rule); an operation that does not declare it ignores the header, its at-most-once guard being the natural key its body names\ninstead. Every response the platform answers also names the contract it\nimplements in `X-Tale-Api-Version`; a refusal answered at the edge — a\ndot-segment 404, a body shorter than its declared length (400\n`BODY_LENGTH_MISMATCH`), a malformed HTTP/1.1 chunked body (400\n`BODY_CHUNK_MALFORMED`), a 502/503/504 while the platform restarts\n(`UPSTREAM_UNAVAILABLE`) — carries a fresh id of its own and no version\nheader: only the platform knows the contract it implements.\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<sentence>\", \"code\":\n\"<CODE>\"}` — except on the compatible model endpoints, which answer every\nrefusal, the door's own included, in their vendor wire's shape with the same\n`code` (see below). Every refusal carries a stable `code` — the `Error.code` enum\nbelow, additive, so treat a value you do not know as a generic refusal of\nthe status you got. A 429 carries a sentence in `error` like every other\nrefusal, with the wait in `data.retryAfterMs` (milliseconds) and\n`Retry-After` (whole seconds); a 429, a 500, a 503\n`DATABASE_UNAVAILABLE`, a body-size 413 and a URL-size 414 add\n`requestId`; a refused body or query\nlists every problem under `data.issues`, each naming the field (`path`)\nand the reason as a short phrase you can show a person — `is required`,\n`must be a string`, `must not be blank`, `must be at most 200\nUTF-16 code units`, `must be one of \"a\", \"b\"` — and a refused `limit` or\n`cursor` (`INVALID_LIMIT`, `INVALID_CURSOR`) names its parameter there\ntoo, so branch on `path` and the `code`, never on the sentence. The door's own refusals are\n`UNAUTHORIZED`, `ORG_SLUG_REQUIRED`, `ORG_SLUG_INVALID`,\n`ORG_FORBIDDEN`, `API_KEY_SCOPE_FORBIDDEN` (a project's key outside its\nproject), `INVALID_URL` (a NUL in the URL), `URI_TOO_LONG`,\n`INVALID_QUERY`, `INVALID_LIMIT`, `INVALID_CURSOR`, `INVALID_BODY`,\n`BODY_TOO_LARGE`, `METHOD_NOT_ALLOWED`, `NOT_FOUND`, `RATE_LIMITED`,\n`REQUEST_TIMEOUT` (408 — the request did not finish arriving within 15\nminutes; the connection closes), `HTTP_ERROR` (a refusal a middleware or\nthe listener itself raised — bytes that are not HTTP, a header block past\nthe budget), `BODY_LENGTH_MISMATCH` (400, answered at the edge — an HTTP/2\nbody that ended before its declared Content-Length), `BODY_CHUNK_MALFORMED`\n(400, answered at the edge — an HTTP/1.1 chunked body whose framing is\nmalformed), `UPSTREAM_UNAVAILABLE`\n(502, 503 or 504, answered at the edge with `Retry-After` while the\nplatform restarts or cannot be reached — the maintenance page a browser\ngets, as JSON), `DATABASE_UNAVAILABLE` (503 with `Retry-After`, answered\nby the platform while its database restarts or cannot be reached — retry\nwith backoff) and `INTERNAL_ERROR`.\n\n## Pagination\n\nOne rule: a paginated list takes `cursor` + `limit` and answers `isDone`\nwith a `continueCursor` — pass `continueCursor` back as `cursor`,\nunchanged, until `isDone` (it is empty then). Every list's 200 schema\nnames its family in `x-tale-pagination`, so a generated client picks the\nloop from the document rather than from this prose:\n\n- **keyset** — the rows sit under `page` on the knowledge and chat lists\n  (contacts, products, documents, knowledge entries, threads, messages,\n  websites) and under the resource's own key elsewhere: `{runs, …}`,\n  `{deliveries, …}`, `{conversations, …}`, `{comments, …}`,\n  `{projects, …}`, `{files, …}`, and a run step's items and passes\n  under `{units, …}`.\n  The last two also answer `cursor` — the same token under its pre-1.5.0\n  name, present only while more pages remain, deprecated and served for at\n  least two more minor versions; a project lookup by `externalItemId` is\n  one whole page and says so.\n- **offset** — website pages alone: `{pages, total, offset, hasMore}`,\n  with `isDone` and a `continueCursor` (the next `offset`, signed)\n  beside them, so the same loop walks it; `cursor` and `offset` together\n  are refused (400 `INVALID_QUERY`).\n- **none** — a named array alone is the complete set (or the bounded roster\n  the operation names), never a cursor walk — no `isDone`, no cursor, no\n  `cursor` or `limit` parameter: `{automations}`, `{agents}`,\n  `{skills}`, `{folders}`, `{models}`, `{sessions}`, `{versions}`,\n  `{triggers}`, `{teams}`; search answers `{hits, diagnostics}`; the\n  OpenAI-compatible model list answers `{data, object}` in OpenAI's shape.\n\nEvery cursor is an opaque signed token: one this list never answered is\nrefused with 400 `INVALID_CURSOR`, never read as the first page — and a\nblank `cursor` (the empty `continueCursor` the last page answers) is\nrefused like any blank parameter (400 `INVALID_QUERY`), so a pager that\nsends the last page's cursor back stops instead of starting over.\n\n## Rate limits\n\nBudgets are keyed on the key holder — the user the key acts as — never on a\nnetwork address: reads and CRUD share one bucket (120/min, burst 200);\nstarting an automation run, sending a chat message and starting a task\nworkflow share a tighter one (20/min, burst 40); the project upload flow has\nits own (240/min, burst 300). A key that fails to authenticate is throttled\nper source IP instead (20/min, burst 40), so strangers never draw from a key\nholder's budget; the inbound webhook door, which carries no key, is budgeted\nper sender address (120/min, burst 240) and per trigger (20/min, burst 40).\nA call to a compatible model endpoint draws from the reads bucket like any\nother request. A 429 carries `Retry-After` in whole seconds.\n\n## Compatible model endpoints\n\nThe organization's approved models, callable from a key holder's own tools\nover the two wires those tools already speak — so an OpenAI SDK, opencode,\nan Anthropic SDK or Claude Code uses Tale as its model provider:\n\n- **OpenAI** — base URL `https://<host>/api/v1/openai`:\n  `POST /chat/completions` (streamed or not, with tools and images) and\n  `GET /models`.\n- **Anthropic** — base URL `https://<host>/api/v1/anthropic`:\n  `POST /v1/messages` (streamed or not, with tools and images). Claude Code\n  takes it as `ANTHROPIC_BASE_URL`, the key as `ANTHROPIC_AUTH_TOKEN`\n  (an SDK: `authToken`), and the organization header, when the key needs\n  one, in `ANTHROPIC_CUSTOM_HEADERS`; leave `ANTHROPIC_API_KEY` unset, since\n  the `x-api-key` it sends is refused.\n\nBoth sit inside this door — the same Bearer key, `X-Organization-Slug`,\nrequest budget and `X-Request-Id` — and both are governed: an organization\nturns them on in its model access policy (off until then: 403\n`MODEL_API_DISABLED`); owners, administrators and developers may call them,\nany other member only with a live `tale:models.api` grant (403\n`MODEL_API_FORBIDDEN`; `capabilities.modelApi` on `GET /api/v1/me`\nanswers both gates). A model id is `<provider>/<model>` — the connector's\nslug and the model's id in its catalog — on both wires, and only a model the\nkey holder's model access and the provider credential's allowlist admit\nanswers (403 `MODEL_API_MODEL_FORBIDDEN`, 404 `MODEL_API_MODEL_UNKNOWN`).\nThe organization's input guardrails judge every text the caller wrote into\nthe request — every role, tool calls and results, tool definitions — before a\ncall (400 `MODEL_API_GUARDRAIL_BLOCKED`; a mask rewrites what the model\nreceives; 403 `MODEL_API_GUARDRAIL_UNSUPPORTED` for a PII policy that\ntokenizes; 503 `MODEL_API_GUARDRAIL_UNAVAILABLE` when a fail-closed step\ncannot judge or a policy cannot be read; 413 `MODEL_API_TEXT_TOO_LARGE`\npast 2 MB of text) — the answer is relayed unfiltered. A call's worst case\nis held whole against every budget that binds the key holder, their teams,\nthe organization and the key (429 `BUDGET_EXCEEDED` with `Retry-After`,\nnaming the output cap that would fit when the worst case does not), at most\n8 calls of a key holder or a key run at once (429\n`MODEL_API_CONCURRENCY_EXCEEDED`), and its spend is booked under the person\nand the key. A tool the vendor would\nrun (400 `MODEL_API_VENDOR_TOOL_UNSUPPORTED`), images for a model without\nvision (400 `MODEL_API_VISION_UNSUPPORTED`) and tools for a model without\nthem (400 `MODEL_API_TOOLS_UNSUPPORTED`) are refused before the call; a\ngateway that cannot serve the model answers 503 `MODEL_API_UNAVAILABLE`,\nand a vendor's own refusal is relayed as `MODEL_API_UPSTREAM_ERROR`.\nBodies and answers are the vendors' own shapes, and so is every refusal:\nOpenAI `{\"error\": {\"message\", \"type\", \"param\", \"code\"}}`, Anthropic\n`{\"type\": \"error\", \"error\": {\"type\", \"message\", \"code\"}, \"request_id\"}`.\n\n## Versioning\n\n`info.version` is the contract's own semver: a minor bump for an additive\nchange (a new operation, field, header or error code), a major one for a\nremoval or a changed meaning. Every response carries the version the\ninstance implements as `X-Tale-Api-Version`; each release's notes list\nthe changes under **API contract changes**. The build (`GET /api/health`)\nand the `/api/v1` prefix are separate numbers: the prefix is the\ncompatibility line, retired only with notice.\n\n## Quick start\n\n```bash\n# 0. Find a project (the id every project URL takes)\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects\"\n\n# 1. List the automations installed in it\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations\"\n\n# 2. Start one that is deployed (spell a \"/\" in its name as \"__\"); the 202\n#    answers {\"runId\": …}\ncurl -X POST -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/automations/<automationName>/runs\"\n\n# 3. Poll it with that runId\ncurl -H \"Authorization: Bearer <api-key>\" \\\n  -H \"X-Organization-Slug: <orgSlug>\" \\\n  \"https://your-instance.com/api/v1/projects/<projectId>/runs/<runId>\"\n```"
   },
   "servers": [
     {
@@ -25570,6 +25570,1073 @@
         }
       }
     },
+    "/api/v1/runs/{runId}/record": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Read a run step by step",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. The run’s record: every step in the order it runs — the run input as `__start`, the version’s steps, the document output as `__end`, then steps inside subautomations — each with its status, times, attempts, the decisions that ran or skipped it with an explanation of each condition, why it produced no output (followed back to the cause), why it failed, and glimpses of what it received and returned (never the values: read one step at `…/record/node`). Also the run’s events a reader may see, the path it took, and with `include=travels` the data that travelled between steps. Pass `cursor` back as `since` to read only what changed: steps whose record was written at or after it and events since, merged by step path and by event id. A run recorded before step records were kept reads `source: \"trace\"`. The answer stays under 512 KiB: past it, shapes keep one level, then explanations and travels are left out, then steps inside subautomations and from the end (`truncated` says which).",
+        "operationId": "getRunRecord",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "A `cursor` an earlier read answered: only what changed at or after it"
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "What else to answer: `travels`, the data that travelled between steps"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run’s record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{runId}/record/node": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Read one step of a run whole",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. One unit of the run — a step, or one of its items or passes — with what the step summary has and its stored input and output (secrets withheld, cut to their bounds, every cut and withheld place listed), where each templated field’s text landed in the input, what it read from other steps and the run input and when, how its output differs from its input, and its call to a connector or a model as the run’s ledger keeps it. The answer stays under 256 KiB.",
+        "operationId": "getRunNode",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "node",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The step’s path: its id, or `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output"
+          },
+          {
+            "name": "item",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": -1,
+              "default": -1
+            },
+            "description": "The item of a step that runs per item; -1 (the default) for the step itself"
+          },
+          {
+            "name": "pass",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": -1,
+              "default": -1
+            },
+            "description": "The pass of a step that repeats; -1 (the default) for the step itself"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The unit, read whole",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNode"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); the record holds no such unit (`NODE_RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{runId}/record/items": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "List the items and passes of a run’s step",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. A step’s items and passes in item, then pass order, each read like a step: its status, times, attempts, decisions, failure and value glimpses. `status=failed` keeps the units that failed. A run recorded before step records were kept has none.",
+        "operationId": "listRunNodeUnits",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "node",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The step’s path, as `…/record/node` takes it"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["all", "failed"]
+            },
+            "description": "Which units: `all` (the default) or `failed`"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "description": "Page size, 1..200 (default 50; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of the step’s units",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunUnitPage"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{runId}/compare/{otherRunId}": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Compare two runs of one automation",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. The same holds for `otherRunId`. The two runs side by side, step by step in the order the second run’s version runs them: what changed in the version, how their input and output differ, each step’s status, decisions and the values that flipped them, its values and items, the first step where the runs went different ways, and the side effects only one had or both had with different input. Values are told apart by their hashes, exact past what was stored; a place either run cut or withheld reads `unknown`, never `changed`. The answer stays under 512 KiB: value changes go first, then steps from the end, never the first divergence (`truncated` says which).",
+        "operationId": "compareRuns",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "otherRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The run to compare with"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How the two runs differ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDiff"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`); or two runs of different automations (`RUN_COMPARE_MISMATCH`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Either run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/runs/{runId}/ask": {
       "get": {
         "tags": ["Runs"],
@@ -27133,6 +28200,1109 @@
               },
               "X-Tale-Api-Version": {
                 "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/runs/{runId}/record": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Read a run step by step",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. The run’s record: every step in the order it runs — the run input as `__start`, the version’s steps, the document output as `__end`, then steps inside subautomations — each with its status, times, attempts, the decisions that ran or skipped it with an explanation of each condition, why it produced no output (followed back to the cause), why it failed, and glimpses of what it received and returned (never the values: read one step at `…/record/node`). Also the run’s events a reader may see, the path it took, and with `include=travels` the data that travelled between steps. Pass `cursor` back as `since` to read only what changed: steps whose record was written at or after it and events since, merged by step path and by event id. A run recorded before step records were kept reads `source: \"trace\"`. The answer stays under 512 KiB: past it, shapes keep one level, then explanations and travels are left out, then steps inside subautomations and from the end (`truncated` says which).",
+        "operationId": "getProjectRunRecord",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "description": "A `cursor` an earlier read answered: only what changed at or after it"
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "What else to answer: `travels`, the data that travelled between steps"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run’s record",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunRecord"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/runs/{runId}/record/node": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Read one step of a run whole",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. One unit of the run — a step, or one of its items or passes — with what the step summary has and its stored input and output (secrets withheld, cut to their bounds, every cut and withheld place listed), where each templated field’s text landed in the input, what it read from other steps and the run input and when, how its output differs from its input, and its call to a connector or a model as the run’s ledger keeps it. The answer stays under 256 KiB.",
+        "operationId": "getProjectRunNode",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "node",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The step’s path: its id, or `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output"
+          },
+          {
+            "name": "item",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": -1,
+              "default": -1
+            },
+            "description": "The item of a step that runs per item; -1 (the default) for the step itself"
+          },
+          {
+            "name": "pass",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": -1,
+              "default": -1
+            },
+            "description": "The pass of a step that repeats; -1 (the default) for the step itself"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The unit, read whole",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunNode"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); the record holds no such unit (`NODE_RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/runs/{runId}/record/items": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "List the items and passes of a run’s step",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. A step’s items and passes in item, then pass order, each read like a step: its status, times, attempts, decisions, failure and value glimpses. `status=failed` keeps the units that failed. A run recorded before step records were kept has none.",
+        "operationId": "listProjectRunNodeUnits",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "node",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The step’s path, as `…/record/node` takes it"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["all", "failed"]
+            },
+            "description": "Which units: `all` (the default) or `failed`"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The previous page’s `continueCursor`, unchanged — opaque; omit for the first page. A value this list did not answer is refused with 400 `INVALID_CURSOR` rather than read as the first page"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "description": "Page size, 1..200 (default 50; out-of-range numbers are clamped, a value that is not a number answers 400 `INVALID_LIMIT`)"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of the step’s units",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunUnitPage"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/runs/{runId}/compare/{otherRunId}": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Compare two runs of one automation",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. The same holds for `otherRunId`. The two runs side by side, step by step in the order the second run’s version runs them: what changed in the version, how their input and output differ, each step’s status, decisions and the values that flipped them, its values and items, the first step where the runs went different ways, and the side effects only one had or both had with different input. Values are told apart by their hashes, exact past what was stored; a place either run cut or withheld reads `unknown`, never `changed`. The answer stays under 512 KiB: value changes go first, then steps from the end, never the first divergence (`truncated` says which).",
+        "operationId": "compareProjectRuns",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "otherRunId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The run to compare with"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "How the two runs differ",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunDiff"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`); or two runs of different automations (`RUN_COMPARE_MISMATCH`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Either run missing or outside the visible URL scope (`RUN_NOT_FOUND`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
               }
             }
           },
@@ -39477,7 +41647,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.27.0"
+          "example": "3.29.0"
         }
       },
       "Location": {
@@ -39700,6 +41870,7 @@
                   "MODEL_API_UPSTREAM_ERROR",
                   "MODEL_API_VENDOR_TOOL_UNSUPPORTED",
                   "MODEL_API_VISION_UNSUPPORTED",
+                  "NODE_RUN_NOT_FOUND",
                   "NOT_FOUND",
                   "OBJECT_STORE_UNAVAILABLE",
                   "OBJECT_STORE_UNCONFIGURED",
@@ -39741,6 +41912,7 @@
                   "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
                   "ROLE_FORBIDDEN",
                   "RUN_ACTIVE",
+                  "RUN_COMPARE_MISMATCH",
                   "RUN_NOT_FOUND",
                   "RUN_QUARANTINED",
                   "RUN_QUARANTINE_CHANGED",
@@ -39932,6 +42104,7 @@
                   "MODEL_API_UPSTREAM_ERROR",
                   "MODEL_API_VENDOR_TOOL_UNSUPPORTED",
                   "MODEL_API_VISION_UNSUPPORTED",
+                  "NODE_RUN_NOT_FOUND",
                   "NOT_FOUND",
                   "OBJECT_STORE_UNAVAILABLE",
                   "OBJECT_STORE_UNCONFIGURED",
@@ -39973,6 +42146,7 @@
                   "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
                   "ROLE_FORBIDDEN",
                   "RUN_ACTIVE",
+                  "RUN_COMPARE_MISMATCH",
                   "RUN_NOT_FOUND",
                   "RUN_QUARANTINED",
                   "RUN_QUARANTINE_CHANGED",
@@ -40155,6 +42329,7 @@
               "MODEL_API_UPSTREAM_ERROR",
               "MODEL_API_VENDOR_TOOL_UNSUPPORTED",
               "MODEL_API_VISION_UNSUPPORTED",
+              "NODE_RUN_NOT_FOUND",
               "NOT_FOUND",
               "OBJECT_STORE_UNAVAILABLE",
               "OBJECT_STORE_UNCONFIGURED",
@@ -40196,6 +42371,7 @@
               "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
               "ROLE_FORBIDDEN",
               "RUN_ACTIVE",
+              "RUN_COMPARE_MISMATCH",
               "RUN_NOT_FOUND",
               "RUN_QUARANTINED",
               "RUN_QUARANTINE_CHANGED",
@@ -44037,6 +46213,2236 @@
           }
         },
         "additionalProperties": false
+      },
+      "ValueSummary": {
+        "type": "object",
+        "description": "A value told without the value itself: its kind, a short text, its length or key count, its first names or items. A secret reads `redacted`; a value the record cut away reads `elided`.",
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "string",
+              "number",
+              "boolean",
+              "null",
+              "undefined",
+              "array",
+              "object",
+              "redacted",
+              "elided"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "At most 80 characters: a string (cut), a number (`NaN` and `Infinity` as text) or a boolean"
+          },
+          "length": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "A string’s full length, or a list’s"
+          },
+          "keys": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "An object’s key count"
+          },
+          "names": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            },
+            "description": "An object’s first key names"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "$ref": "#/components/schemas/ValueSummary"
+            },
+            "description": "A list’s first items, one level deep"
+          },
+          "cut": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The text was cut"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The value’s size as JSON text, in UTF-8 bytes"
+          }
+        }
+      },
+      "ValueShape": {
+        "type": "object",
+        "description": "The shape a value was read to have, as a JSON Schema subset. `x-count` says in how many of several objects a field was present, `x-omitted` how many fields were left out; a shape with neither `type` nor `anyOf` is any value — its depth or size ran out.",
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "string",
+                  "number",
+                  "integer",
+                  "boolean",
+                  "object",
+                  "array",
+                  "null"
+                ]
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ValueShape"
+            }
+          },
+          "required": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "items": {
+            "$ref": "#/components/schemas/ValueShape"
+          },
+          "enum": {
+            "type": "array",
+            "items": {}
+          },
+          "anyOf": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueShape"
+            }
+          },
+          "description": {
+            "type": "string"
+          },
+          "x-count": {
+            "type": "object",
+            "required": ["present", "of"],
+            "properties": {
+              "present": {
+                "type": "integer"
+              },
+              "of": {
+                "type": "integer"
+              }
+            }
+          },
+          "x-omitted": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "ValueGlimpse": {
+        "type": "object",
+        "description": "A recorded value as a step summary shows it: never the value itself.",
+        "required": ["summary", "shape", "bytes", "elided", "redactions"],
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "shape": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValueShape"
+              }
+            ],
+            "description": "Read from the whole value, three levels deep"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The whole value’s size as JSON, in UTF-8 bytes"
+          },
+          "elided": {
+            "type": "boolean",
+            "description": "The stored copy was cut somewhere"
+          },
+          "redactions": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Places a secret was withheld from"
+          }
+        }
+      },
+      "ValueRecord": {
+        "type": "object",
+        "description": "A recorded value: secrets withheld first (a withheld place reads `null`), then summarized, shaped and hashed from the whole withheld value, then cut to its bounds — every cut and withheld place listed beside it.",
+        "required": ["summary", "shape", "bytes", "hash"],
+        "properties": {
+          "value": {
+            "description": "The stored value; absent when the run’s budget for stored values was spent, or there was no value"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/ValueShape"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The whole value’s size as JSON, in UTF-8 bytes"
+          },
+          "hash": {
+            "type": "string",
+            "nullable": true,
+            "description": "A hash of the whole value, to tell two values apart past what was stored; null above 4 MiB"
+          },
+          "elided": {
+            "type": "array",
+            "description": "Each place the stored value was cut",
+            "items": {
+              "type": "object",
+              "required": ["pointer", "kind", "dropped"],
+              "properties": {
+                "pointer": {
+                  "type": "string",
+                  "description": "RFC 6901 pointer into the value"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": ["string", "items", "depth", "whole"],
+                  "description": "`string`: characters dropped from its end; `items`: list entries dropped; `depth`: a value past the depth bound, now null; `whole`: nothing of the value was kept"
+                },
+                "dropped": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "redacted": {
+            "type": "array",
+            "description": "Each place a secret was withheld",
+            "items": {
+              "type": "object",
+              "required": ["pointer", "why"],
+              "properties": {
+                "pointer": {
+                  "type": "string"
+                },
+                "why": {
+                  "type": "string",
+                  "enum": ["key", "pattern", "name"],
+                  "description": "`key`: its name marks a secret; `pattern`: the text looked like a credential; `name`: a member was left out because its own name looked like one"
+                }
+              }
+            }
+          },
+          "elidedTotal": {
+            "type": "integer",
+            "description": "How many places were cut, when more than `elided` lists"
+          },
+          "redactedTotal": {
+            "type": "integer",
+            "description": "How many places were withheld, when more than `redacted` lists"
+          }
+        }
+      },
+      "EvalTrace": {
+        "type": "object",
+        "description": "One evaluation of a condition or a template field: per `{{ }}` unit (or the bare expression), the value of each sub-expression it evaluated, by its range in the field’s text.",
+        "required": ["pointer", "units"],
+        "properties": {
+          "pointer": {
+            "type": "string",
+            "description": "RFC 6901 pointer to the field in the version’s document"
+          },
+          "units": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["range", "probes", "probed"],
+              "properties": {
+                "range": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "probes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["range", "v"],
+                    "properties": {
+                      "range": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "v": {
+                        "$ref": "#/components/schemas/ValueSummary"
+                      }
+                    }
+                  }
+                },
+                "error": {
+                  "type": "object",
+                  "required": ["message"],
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "probed": {
+                  "type": "string",
+                  "enum": ["full", "partial", "none"],
+                  "description": "`full`: every sub-expression worth a value was read; `partial`: some were not; `none`: only the result is known"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ExplainNode": {
+        "type": "object",
+        "description": "One part of a condition and what it came to: the tree a step’s decision is explained with, operands in source order.",
+        "required": ["range", "source", "kind", "evaluated", "children"],
+        "properties": {
+          "range": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "The part’s text; a longer one ends in `…`"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "logical",
+              "compare",
+              "not",
+              "arith",
+              "conditional",
+              "call",
+              "ref",
+              "literal",
+              "other"
+            ]
+          },
+          "op": {
+            "type": "string",
+            "description": "The operator (`&&`, `>=`), `!`, `?:`, the function a call names, or `typeof`/`void`/`delete`/`[]`"
+          },
+          "ref": {
+            "type": "object",
+            "description": "What a reference reads",
+            "required": ["root", "path"],
+            "properties": {
+              "root": {
+                "type": "string",
+                "enum": ["input", "nodes", "item", "index", "output"]
+              },
+              "nodeId": {
+                "type": "string",
+                "description": "The step whose output it reads"
+              },
+              "path": {
+                "type": "array",
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "value": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "evaluated": {
+            "type": "boolean"
+          },
+          "unknown": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "Whether it was evaluated cannot be told"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExplainNode"
+            }
+          }
+        }
+      },
+      "Decision": {
+        "type": "object",
+        "description": "Why a step ran, was skipped, or ran as often as it did — the latest of each kind. `when`, `forEach` and `repeatUntil` carry the condition’s value, its trace, its text (`source`) and its explanation; `else` its partner; `upstream` the skipped steps it reads; `onError` the policy that let the run go on.",
+        "required": ["kind", "at"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "when",
+              "else",
+              "upstream",
+              "forEach",
+              "repeatUntil",
+              "onError"
+            ]
+          },
+          "at": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "result": {
+            "type": "boolean",
+            "description": "`when`, `else`, `repeatUntil`"
+          },
+          "value": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "trace": {
+            "$ref": "#/components/schemas/EvalTrace"
+          },
+          "count": {
+            "type": "integer",
+            "description": "`forEach`: how many items"
+          },
+          "pass": {
+            "type": "integer",
+            "description": "`repeatUntil`: the pass it ended"
+          },
+          "capped": {
+            "type": "boolean",
+            "description": "`repeatUntil`: the pass limit stopped it"
+          },
+          "partner": {
+            "type": "string",
+            "description": "`else`: the step it is the alternative of"
+          },
+          "partnerSkippedByWhen": {
+            "type": "boolean"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`upstream`: the skipped steps it reads"
+          },
+          "policy": {
+            "type": "string",
+            "enum": ["continue"]
+          },
+          "source": {
+            "type": "string",
+            "description": "The condition’s text in the version’s document"
+          },
+          "explanation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExplainNode"
+            },
+            "description": "One tree per evaluated unit of the condition"
+          }
+        }
+      },
+      "StepFailure": {
+        "type": "object",
+        "description": "Why a step failed: the run’s failure family, a reason from a fixed list (a newer server may answer one this list lacks — read it as a reason not known), and the parameters it is worded with.",
+        "required": ["code", "reason", "params", "message"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The run-level family, as `Run.failureCode` names it"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "EXPR_SYNTAX",
+              "EXPR_READ_MISSING",
+              "EXPR_NAME_UNKNOWN",
+              "EXPR_NOT_FUNCTION",
+              "EXPR_FAILED",
+              "EXPR_TIMEOUT",
+              "TEMPLATE_VALUE_MISSING",
+              "FOREACH_NOT_LIST",
+              "CODE_NO_RESULT",
+              "CODE_FAILED",
+              "CODE_TIMEOUT",
+              "CONNECTOR_CREDENTIAL_MISSING",
+              "CONNECTOR_INPUT_REFUSED",
+              "CONNECTOR_AUTH",
+              "CONNECTOR_NOT_FOUND",
+              "CONNECTOR_RATE_LIMITED",
+              "CONNECTOR_UNREACHABLE",
+              "CONNECTOR_FAILED",
+              "LLM_OUTPUT_INVALID",
+              "LLM_PROVIDER",
+              "AGENT_FAILED",
+              "SUBAUTOMATION_FAILED",
+              "SUBAUTOMATION_INPUT_REFUSED",
+              "SUBAUTOMATION_NOT_FOUND",
+              "SUBAUTOMATION_TOO_DEEP",
+              "APPROVAL_REJECTED",
+              "EXECUTION_LIMIT",
+              "EFFECT_IN_DOUBT_FAILED",
+              "UNKNOWN"
+            ]
+          },
+          "params": {
+            "type": "object",
+            "description": "What the reason is worded with — secrets withheld, each at most 200 characters",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "nullable": true
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              ],
+              "description": "A text, a number, a yes/no, a list of texts, or null"
+            }
+          },
+          "message": {
+            "type": "string",
+            "description": "The engine’s English, for technical detail only"
+          },
+          "hint": {
+            "type": "string"
+          },
+          "at": {
+            "type": "object",
+            "required": ["pointer"],
+            "properties": {
+              "pointer": {
+                "type": "string"
+              },
+              "range": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "trace": {
+            "$ref": "#/components/schemas/EvalTrace"
+          },
+          "explanation": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExplainNode"
+            }
+          }
+        }
+      },
+      "WaitRecord": {
+        "type": "object",
+        "required": ["kind", "since"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["approval", "ask", "room", "repeat", "in_doubt"]
+          },
+          "since": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "until": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds; absent while it waits"
+          },
+          "ref": {
+            "type": "string",
+            "description": "The approval or attempt it waited for"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "approved",
+              "rejected",
+              "answered",
+              "expired",
+              "retry",
+              "skip",
+              "fail"
+            ]
+          },
+          "by": {
+            "type": "string",
+            "description": "The member who decided"
+          }
+        }
+      },
+      "AttemptRecord": {
+        "type": "object",
+        "required": ["n", "startedAt", "outcome"],
+        "properties": {
+          "n": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "endedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": ["interrupted", "retried", "failed", "ok"]
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "SkipCause": {
+        "type": "object",
+        "description": "One link of a skip chain: why the step at `path` produced no output. `upstream` and `else` go on with the step they name.",
+        "required": ["kind", "nodeId", "path"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["when", "else", "error", "upstream", "not_run"]
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/Decision"
+          },
+          "partner": {
+            "type": "string"
+          },
+          "failure": {
+            "$ref": "#/components/schemas/StepFailure"
+          },
+          "via": {
+            "type": "string"
+          },
+          "stoppedAt": {
+            "type": "string"
+          },
+          "runStatus": {
+            "type": "string",
+            "enum": ["failed", "cancelled"]
+          }
+        }
+      },
+      "RunStep": {
+        "type": "object",
+        "description": "One step of a run as its record reads: the shared status words, times, attempts, decisions, skip chain, failure and value glimpses — never the values themselves.",
+        "required": [
+          "path",
+          "nodeId",
+          "type",
+          "status",
+          "activeMs",
+          "waitedMs",
+          "attempt",
+          "attempts",
+          "decisions",
+          "waits",
+          "meta"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The step’s id; `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "parentPath": {
+            "type": "string"
+          },
+          "parentItem": {
+            "type": "integer",
+            "minimum": -1
+          },
+          "parentPass": {
+            "type": "integer",
+            "minimum": -1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "skipped",
+              "stopped",
+              "not_run",
+              "reused"
+            ]
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "endedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "activeMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "waitedMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttemptRecord"
+            }
+          },
+          "skip": {
+            "type": "object",
+            "required": ["reason", "chain"],
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["when", "else", "upstream", "error"]
+              },
+              "via": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              },
+              "chain": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SkipCause"
+                }
+              }
+            }
+          },
+          "notRun": {
+            "type": "object",
+            "required": ["runStatus"],
+            "properties": {
+              "stoppedAt": {
+                "type": "string"
+              },
+              "runStatus": {
+                "type": "string",
+                "enum": ["failed", "cancelled"]
+              }
+            }
+          },
+          "failure": {
+            "$ref": "#/components/schemas/StepFailure"
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Decision"
+            }
+          },
+          "waits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WaitRecord"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "required": ["items", "ok", "failed", "skipped", "kept"],
+            "properties": {
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ok": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "skipped": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "passes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "kept": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "How many of its items and passes have a record of their own"
+              }
+            }
+          },
+          "input": {
+            "$ref": "#/components/schemas/ValueGlimpse"
+          },
+          "output": {
+            "$ref": "#/components/schemas/ValueGlimpse"
+          },
+          "reused": {
+            "type": "object",
+            "required": ["runId"],
+            "properties": {
+              "runId": {
+                "type": "string"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "connector": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              },
+              "effect": {
+                "type": "string",
+                "enum": ["read", "write"]
+              },
+              "execId": {
+                "type": "string"
+              },
+              "docRef": {
+                "type": "string"
+              },
+              "pins": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              },
+              "bench": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "RunEvent": {
+        "type": "object",
+        "description": "What happened to a run between its steps — a hand-off, a lease that ran out, a write in doubt and its decision — as a reader may see it: never the server that saw it.",
+        "required": ["id", "at", "kind"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable across reads"
+          },
+          "at": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "taken_over",
+              "handed_off",
+              "lease_expired",
+              "node_interrupted",
+              "in_doubt",
+              "in_doubt_resolved",
+              "engine_deferred",
+              "legacy_stop_requested"
+            ]
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "itemIndex": {
+            "type": "integer"
+          },
+          "pass": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["retry", "skip", "fail"]
+          },
+          "by": {
+            "type": "string"
+          }
+        }
+      },
+      "Travel": {
+        "type": "object",
+        "description": "A value that travelled into a step: where it came from, the field that read it, when, and what it was.",
+        "required": ["from", "to", "refPath", "at", "edge"],
+        "properties": {
+          "from": {
+            "type": "object",
+            "required": ["kind"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["input", "node"]
+              },
+              "nodeId": {
+                "type": "string"
+              }
+            }
+          },
+          "to": {
+            "type": "object",
+            "required": ["path", "field", "pointer", "range"],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string",
+                "enum": [
+                  "input",
+                  "prompt",
+                  "system",
+                  "files",
+                  "code",
+                  "forEach",
+                  "when",
+                  "repeatUntil",
+                  "output"
+                ]
+              },
+              "pointer": {
+                "type": "string"
+              },
+              "range": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "refPath": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "at": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "item": {
+            "type": "integer"
+          },
+          "pass": {
+            "type": "integer"
+          },
+          "value": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "edge": {
+            "type": "object",
+            "required": ["source", "target", "kind"],
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["data", "order", "entry"]
+              }
+            }
+          }
+        }
+      },
+      "RunRecord": {
+        "type": "object",
+        "description": "A run step by step. `format` names the shape; a reader that does not know a format shows the run as it showed runs before.",
+        "required": [
+          "format",
+          "runId",
+          "status",
+          "version",
+          "mode",
+          "startedAt",
+          "source",
+          "nodes",
+          "events",
+          "eventsTotal",
+          "cursor"
+        ],
+        "properties": {
+          "format": {
+            "type": "integer",
+            "enum": [1]
+          },
+          "runId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "quarantined",
+              "success",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["mock", "live"]
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "finishedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["record", "trace"],
+            "description": "`trace`: recorded before step records were kept, read from the run’s trace"
+          },
+          "nodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RunStep"
+            }
+          },
+          "events": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/components/schemas/RunEvent"
+            },
+            "description": "Oldest first, at most 200"
+          },
+          "eventsTotal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "travels": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/Travel"
+            },
+            "description": "With `include=travels`"
+          },
+          "travelsTotal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "path": {
+            "type": "object",
+            "description": "The path the run took through its conditions and tolerated failures, when the document’s paths can be told apart",
+            "required": ["id", "assignment"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "assignment": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "boolean"
+                }
+              },
+              "stoppedAt": {
+                "type": "string"
+              }
+            }
+          },
+          "cursor": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The latest write the answer reflects; pass it back as `since`"
+          },
+          "truncated": {
+            "type": "object",
+            "description": "What was left out to hold the answer to 512 KiB",
+            "properties": {
+              "shapes": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "explanations": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "travels": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "nodes": {
+                "type": "boolean",
+                "enum": [true]
+              }
+            }
+          }
+        }
+      },
+      "RunCall": {
+        "type": "object",
+        "description": "A step’s call to a connector or a model, as the run’s ledger keeps it: never the server that made it.",
+        "required": ["kind", "type", "attempt", "status", "startedAt"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["connector", "llm"]
+          },
+          "type": {
+            "type": "string"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "status": {
+            "type": "string",
+            "enum": ["started", "done", "failed"]
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "finishedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "resolution": {
+            "type": "string",
+            "enum": ["retry", "skip", "fail"],
+            "description": "A person’s decision about a call whose outcome was not known"
+          },
+          "resolvedBy": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ValueRecord"
+          },
+          "output": {
+            "$ref": "#/components/schemas/ValueRecord"
+          }
+        }
+      },
+      "RunNode": {
+        "type": "object",
+        "description": "One unit of a run read whole: a step (`item` and `pass` -1), or one of its items or passes.",
+        "required": [
+          "path",
+          "item",
+          "pass",
+          "nodeId",
+          "type",
+          "status",
+          "activeMs",
+          "waitedMs",
+          "attempt",
+          "attempts",
+          "decisions",
+          "waits",
+          "meta",
+          "reads",
+          "readsTotal"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "The step’s id; `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "parentPath": {
+            "type": "string"
+          },
+          "parentItem": {
+            "type": "integer",
+            "minimum": -1
+          },
+          "parentPass": {
+            "type": "integer",
+            "minimum": -1
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "waiting",
+              "succeeded",
+              "failed",
+              "skipped",
+              "stopped",
+              "not_run",
+              "reused"
+            ]
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "endedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "activeMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "waitedMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttemptRecord"
+            }
+          },
+          "skip": {
+            "type": "object",
+            "required": ["reason", "chain"],
+            "properties": {
+              "reason": {
+                "type": "string",
+                "enum": ["when", "else", "upstream", "error"]
+              },
+              "via": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Epoch milliseconds"
+              },
+              "chain": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SkipCause"
+                }
+              }
+            }
+          },
+          "notRun": {
+            "type": "object",
+            "required": ["runStatus"],
+            "properties": {
+              "stoppedAt": {
+                "type": "string"
+              },
+              "runStatus": {
+                "type": "string",
+                "enum": ["failed", "cancelled"]
+              }
+            }
+          },
+          "failure": {
+            "$ref": "#/components/schemas/StepFailure"
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Decision"
+            }
+          },
+          "waits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WaitRecord"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "required": ["items", "ok", "failed", "skipped", "kept"],
+            "properties": {
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ok": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "skipped": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "passes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "kept": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "How many of its items and passes have a record of their own"
+              }
+            }
+          },
+          "input": {
+            "$ref": "#/components/schemas/ValueRecord"
+          },
+          "output": {
+            "$ref": "#/components/schemas/ValueRecord"
+          },
+          "reused": {
+            "type": "object",
+            "required": ["runId"],
+            "properties": {
+              "runId": {
+                "type": "string"
+              }
+            }
+          },
+          "meta": {
+            "type": "object",
+            "properties": {
+              "model": {
+                "type": "string"
+              },
+              "connector": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              },
+              "effect": {
+                "type": "string",
+                "enum": ["read", "write"]
+              },
+              "execId": {
+                "type": "string"
+              },
+              "docRef": {
+                "type": "string"
+              },
+              "pins": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer"
+                }
+              },
+              "bench": {
+                "type": "string"
+              }
+            }
+          },
+          "item": {
+            "type": "integer",
+            "minimum": -1
+          },
+          "pass": {
+            "type": "integer",
+            "minimum": -1
+          },
+          "rendered": {
+            "type": "object",
+            "description": "Each templated text field, by its pointer in the document: where its text sits in `input`, and where each `{{ }}` unit’s text landed in it",
+            "additionalProperties": {
+              "type": "object",
+              "required": ["at", "spans"],
+              "properties": {
+                "at": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Pointer into `input`; null when the text is not there"
+                },
+                "spans": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["unit", "out"],
+                    "properties": {
+                      "unit": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "out": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  }
+                },
+                "cut": {
+                  "type": "boolean",
+                  "enum": [true],
+                  "description": "The stored text was cut; spans past the cut are left out"
+                }
+              }
+            }
+          },
+          "reads": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Travel"
+            },
+            "description": "What it read from other steps and the run input"
+          },
+          "readsTotal": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "change": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ValueComparison"
+              }
+            ],
+            "description": "How its output differs from its input, when both are objects or both lists"
+          },
+          "call": {
+            "$ref": "#/components/schemas/RunCall"
+          },
+          "truncated": {
+            "type": "object",
+            "description": "What was left out to hold the answer to 256 KiB",
+            "properties": {
+              "reads": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "call": {
+                "type": "boolean",
+                "enum": [true]
+              }
+            }
+          }
+        }
+      },
+      "RunUnitPage": {
+        "type": "object",
+        "x-tale-pagination": "keyset",
+        "required": ["path", "units", "isDone", "continueCursor"],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "units": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "item",
+                "pass",
+                "nodeId",
+                "type",
+                "status",
+                "activeMs",
+                "waitedMs",
+                "attempt",
+                "attempts",
+                "decisions",
+                "waits",
+                "meta"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "The step’s id; `parent[item:pass]/id` inside a subautomation; `__start` and `__end` for the run input and output"
+                },
+                "nodeId": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "parentPath": {
+                  "type": "string"
+                },
+                "parentItem": {
+                  "type": "integer",
+                  "minimum": -1
+                },
+                "parentPass": {
+                  "type": "integer",
+                  "minimum": -1
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "running",
+                    "waiting",
+                    "succeeded",
+                    "failed",
+                    "skipped",
+                    "stopped",
+                    "not_run",
+                    "reused"
+                  ]
+                },
+                "startedAt": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Epoch milliseconds"
+                },
+                "endedAt": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Epoch milliseconds"
+                },
+                "activeMs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "waitedMs": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "attempt": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "attempts": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttemptRecord"
+                  }
+                },
+                "skip": {
+                  "type": "object",
+                  "required": ["reason", "chain"],
+                  "properties": {
+                    "reason": {
+                      "type": "string",
+                      "enum": ["when", "else", "upstream", "error"]
+                    },
+                    "via": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "at": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Epoch milliseconds"
+                    },
+                    "chain": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/SkipCause"
+                      }
+                    }
+                  }
+                },
+                "notRun": {
+                  "type": "object",
+                  "required": ["runStatus"],
+                  "properties": {
+                    "stoppedAt": {
+                      "type": "string"
+                    },
+                    "runStatus": {
+                      "type": "string",
+                      "enum": ["failed", "cancelled"]
+                    }
+                  }
+                },
+                "failure": {
+                  "$ref": "#/components/schemas/StepFailure"
+                },
+                "decisions": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Decision"
+                  }
+                },
+                "waits": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WaitRecord"
+                  }
+                },
+                "counts": {
+                  "type": "object",
+                  "required": ["items", "ok", "failed", "skipped", "kept"],
+                  "properties": {
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "ok": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "failed": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "skipped": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "passes": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "kept": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "How many of its items and passes have a record of their own"
+                    }
+                  }
+                },
+                "input": {
+                  "$ref": "#/components/schemas/ValueGlimpse"
+                },
+                "output": {
+                  "$ref": "#/components/schemas/ValueGlimpse"
+                },
+                "reused": {
+                  "type": "object",
+                  "required": ["runId"],
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "meta": {
+                  "type": "object",
+                  "properties": {
+                    "model": {
+                      "type": "string"
+                    },
+                    "connector": {
+                      "type": "string"
+                    },
+                    "action": {
+                      "type": "string"
+                    },
+                    "effect": {
+                      "type": "string",
+                      "enum": ["read", "write"]
+                    },
+                    "execId": {
+                      "type": "string"
+                    },
+                    "docRef": {
+                      "type": "string"
+                    },
+                    "pins": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      }
+                    },
+                    "bench": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "item": {
+                  "type": "integer",
+                  "minimum": -1
+                },
+                "pass": {
+                  "type": "integer",
+                  "minimum": -1
+                }
+              }
+            }
+          },
+          "isDone": {
+            "type": "boolean"
+          },
+          "continueCursor": {
+            "type": "string",
+            "description": "Pass back as `cursor` for the next page; empty when `isDone`"
+          }
+        }
+      },
+      "ValueChange": {
+        "type": "object",
+        "description": "One place two values differ, each side as a summary.",
+        "required": ["pointer", "path", "kind"],
+        "properties": {
+          "pointer": {
+            "type": "string"
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            }
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "added",
+              "removed",
+              "changed",
+              "type-changed",
+              "reordered",
+              "unknown"
+            ],
+            "description": "`unknown`: the place was cut or withheld on a side, so how it differs cannot be told"
+          },
+          "before": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "after": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "shape": {
+            "type": "object",
+            "description": "Set when the change was read from the two shapes: each side’s type, or `required`/`optional`",
+            "properties": {
+              "before": {
+                "type": "string"
+              },
+              "after": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ValueComparison": {
+        "type": "object",
+        "required": [
+          "equal",
+          "changes",
+          "counts",
+          "total",
+          "truncated",
+          "basis"
+        ],
+        "properties": {
+          "equal": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Whether the values are the same, exact past what was stored; null when it cannot be told"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ValueChange"
+            }
+          },
+          "counts": {
+            "type": "object",
+            "description": "Exact counts, also past the changes listed",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "basis": {
+            "type": "string",
+            "enum": ["value", "shape", "none"],
+            "description": "What the changes were read from: the stored values, their shapes (a value was not stored), or nothing"
+          }
+        }
+      },
+      "RunDiff": {
+        "type": "object",
+        "description": "Two runs of one automation side by side.",
+        "required": [
+          "a",
+          "b",
+          "version",
+          "input",
+          "output",
+          "nodes",
+          "effects"
+        ],
+        "properties": {
+          "a": {
+            "$ref": "#/components/schemas/RunDiffRef"
+          },
+          "b": {
+            "$ref": "#/components/schemas/RunDiffRef"
+          },
+          "version": {
+            "type": "object",
+            "required": ["same", "changed", "added", "removed"],
+            "properties": {
+              "same": {
+                "type": "boolean"
+              },
+              "changed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "added": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "removed": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "input": {
+            "$ref": "#/components/schemas/ValueComparison"
+          },
+          "output": {
+            "$ref": "#/components/schemas/ValueComparison"
+          },
+          "nodes": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "$ref": "#/components/schemas/RunStepDiff"
+            }
+          },
+          "firstDivergence": {
+            "type": "object",
+            "required": ["path", "why"],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string",
+                "enum": ["missing", "status", "decision", "input", "output"]
+              }
+            }
+          },
+          "effects": {
+            "type": "object",
+            "required": ["count", "onlyA", "onlyB", "changed"],
+            "properties": {
+              "count": {
+                "type": "object",
+                "required": ["a", "b"],
+                "properties": {
+                  "a": {
+                    "type": "integer"
+                  },
+                  "b": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "onlyA": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "$ref": "#/components/schemas/RunEffectDiff"
+                }
+              },
+              "onlyB": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "$ref": "#/components/schemas/RunEffectDiff"
+                }
+              },
+              "changed": {
+                "type": "array",
+                "maxItems": 200,
+                "items": {
+                  "$ref": "#/components/schemas/RunEffectDiff"
+                }
+              }
+            }
+          },
+          "truncated": {
+            "type": "object",
+            "description": "`nodes`: steps past the cap or the size were left out, never the first divergence; `effects`: effects past the cap; `values`: value changes and operands were left out for size",
+            "properties": {
+              "nodes": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "effects": {
+                "type": "boolean",
+                "enum": [true]
+              },
+              "values": {
+                "type": "boolean",
+                "enum": [true]
+              }
+            }
+          }
+        }
+      },
+      "RunDiffRef": {
+        "type": "object",
+        "required": ["id", "version", "mode", "status", "startedAt"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "startedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "finishedAt": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Epoch milliseconds"
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "RunStepDiff": {
+        "type": "object",
+        "required": ["path", "nodeId", "decisions", "input", "output"],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "nodeId": {
+            "type": "string"
+          },
+          "a": {
+            "$ref": "#/components/schemas/RunStepFacts"
+          },
+          "b": {
+            "$ref": "#/components/schemas/RunStepFacts"
+          },
+          "differs": {
+            "type": "string",
+            "enum": ["missing", "status", "decision", "input", "output"]
+          },
+          "decisions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "operands"],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "when",
+                    "else",
+                    "upstream",
+                    "forEach",
+                    "repeatUntil",
+                    "onError"
+                  ]
+                },
+                "pass": {
+                  "type": "integer"
+                },
+                "a": {
+                  "$ref": "#/components/schemas/RunDecisionFacts"
+                },
+                "b": {
+                  "$ref": "#/components/schemas/RunDecisionFacts"
+                },
+                "sameSource": {
+                  "type": "boolean"
+                },
+                "operands": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": ["range"],
+                    "properties": {
+                      "range": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 2,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "a": {
+                        "$ref": "#/components/schemas/ValueSummary"
+                      },
+                      "b": {
+                        "$ref": "#/components/schemas/ValueSummary"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "input": {
+            "$ref": "#/components/schemas/ValueComparison"
+          },
+          "output": {
+            "$ref": "#/components/schemas/ValueComparison"
+          },
+          "items": {
+            "type": "object",
+            "required": ["a", "b", "differing"],
+            "properties": {
+              "a": {
+                "type": "integer"
+              },
+              "b": {
+                "type": "integer"
+              },
+              "differing": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "RunStepFacts": {
+        "type": "object",
+        "required": ["status", "activeMs", "attempt"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["running", "waiting", "ok", "skipped", "failed"]
+          },
+          "skip": {
+            "type": "string",
+            "enum": ["when", "else", "upstream", "error"]
+          },
+          "durationMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "activeMs": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempt": {
+            "type": "integer"
+          },
+          "failureReason": {
+            "type": "string"
+          },
+          "reused": {
+            "type": "boolean",
+            "enum": [true]
+          }
+        }
+      },
+      "RunDecisionFacts": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "boolean"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "capped": {
+            "type": "boolean"
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "value": {
+            "$ref": "#/components/schemas/ValueSummary"
+          }
+        }
+      },
+      "RunEffectDiff": {
+        "type": "object",
+        "required": ["node", "connector", "n"],
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "connector": {
+            "type": "string"
+          },
+          "item": {
+            "type": "integer"
+          },
+          "pass": {
+            "type": "integer"
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Which of the effects at the same place it is, in the order the run made them"
+          },
+          "a": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "b": {
+            "$ref": "#/components/schemas/ValueSummary"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ValueComparison"
+          }
+        }
       },
       "KnowledgeHit": {
         "type": "object",

@@ -5,6 +5,10 @@ import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
 import { RUN_STATUSES } from '../../lib/engine/api/run-statuses.ts';
+import {
+  NODE_PAGE_DEFAULT,
+  NODE_PAGE_MAX,
+} from '../../lib/engine/core/record/read.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
@@ -14,6 +18,12 @@ import {
   automationVisible,
   readableProjectIds,
 } from '../domains/automations/project-visibility.ts';
+import {
+  readNodeDetail,
+  readNodePage,
+  readRunComparison,
+  readRunRecord,
+} from '../domains/automations/run-record.ts';
 import {
   AutomationError,
   automationExists,
@@ -71,6 +81,7 @@ import {
   readKeysetCursor,
   readPageLimit,
   readQuery,
+  readSignedCursor,
   requireDeveloper,
   restApiKeyId,
   type RestEnv,
@@ -156,6 +167,27 @@ void RUN_FIELDS_COMPLETE;
 
 /** The query a run read takes: the fields to keep, or all of them. */
 const RUN_READ_QUERY = { fields: queryFilter(256).optional() };
+
+/** The query of a run's record: a delta since a cursor, and what to add. */
+const RUN_RECORD_QUERY = {
+  since: queryFilter(16).optional(),
+  include: queryFilter(64).optional(),
+};
+const RUN_RECORD_INCLUDES = ['travels'] as const;
+
+/** The query of one unit of a run's record. */
+const RUN_NODE_QUERY = {
+  node: queryFilter(512),
+  item: queryFilter(10).optional(),
+  pass: queryFilter(10).optional(),
+};
+
+/** The query of a page of a step's items and passes. */
+const RUN_ITEMS_QUERY = {
+  ...PAGE_QUERY,
+  node: queryFilter(512),
+  status: queryFilter(16).optional(),
+};
 
 /** The most an answer may carry — the store clamps at the same figure. */
 const ASK_ANSWER_MAX = 20_000;
@@ -1017,6 +1049,180 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
   app.get('/runs/:runId', readRun);
   app.get('/projects/:id/runs/:runId', readRun);
+
+  // ---- a run step by step ---------------------------------------------------
+  /** Whether the run the URL names is readable on this path, as `readRun`
+   * reads it: on the global path a run outside every project, on a
+   * project's path that project's run. */
+  const restRunVisible = async (
+    c: Context<RestEnv>,
+    runId: string,
+  ): Promise<boolean> => {
+    const projectId = c.req.param('id');
+    if (projectId !== undefined) {
+      const auth = await restProjectAuth(deps.sql, c);
+      await loadRestProject(deps.sql, auth, projectId);
+    }
+    const run = await getRun(deps.sql, c.get('organizationId'), runId);
+    return run !== null && run.projectId === (projectId ?? null);
+  };
+
+  /** A whole number in a query parameter, at least `min`; the 400 naming
+   * it otherwise. */
+  const readWholeQuery = (
+    c: Context<RestEnv>,
+    name: string,
+    raw: string | undefined,
+    min: number,
+  ): number | undefined | Response => {
+    if (raw === undefined) return undefined;
+    const value = /^-?\d{1,15}$/.test(raw) ? Number(raw) : Number.NaN;
+    if (Number.isSafeInteger(value) && value >= min) return value;
+    return invalidQueryResponse(
+      c,
+      'INVALID_QUERY',
+      `invalid query: "${name}" takes a whole number from ${min}`,
+      [{ path: name, message: `is not a whole number from ${min}` }],
+    );
+  };
+
+  const readRecordRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, RUN_RECORD_QUERY);
+    if (query instanceof Response) return query;
+    const since = readWholeQuery(c, 'since', query.since, 0);
+    if (since instanceof Response) return since;
+    const include = readSetQuery(
+      c,
+      'include',
+      query.include,
+      RUN_RECORD_INCLUDES,
+    );
+    if (include instanceof Response) return include;
+    try {
+      const runId = c.req.param('runId') ?? '';
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const record = await readRunRecord(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        ...(since !== undefined && { since }),
+        travels: include?.includes('travels') === true,
+      });
+      return record === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(record);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/record', readRecordRoute);
+  app.get('/projects/:id/runs/:runId/record', readRecordRoute);
+
+  const readNodeRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, RUN_NODE_QUERY);
+    if (query instanceof Response) return query;
+    const item = readWholeQuery(c, 'item', query.item, -1);
+    if (item instanceof Response) return item;
+    const pass = readWholeQuery(c, 'pass', query.pass, -1);
+    if (pass instanceof Response) return pass;
+    try {
+      const runId = c.req.param('runId') ?? '';
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const node = await readNodeDetail(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        path: query.node,
+        ...(item !== undefined && { item }),
+        ...(pass !== undefined && { pass }),
+      });
+      return node === null
+        ? notFound(
+            c,
+            'The run has no record of that step',
+            'NODE_RUN_NOT_FOUND',
+          )
+        : c.json(node);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/record/node', readNodeRoute);
+  app.get('/projects/:id/runs/:runId/record/node', readNodeRoute);
+
+  /** A step's items and passes, a page at a time: `{path, units, isDone,
+   * continueCursor}`, the cursor signed for this run's step. */
+  const readItemsRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, RUN_ITEMS_QUERY);
+    if (query instanceof Response) return query;
+    const limit = readPageLimit(c, {
+      fallback: NODE_PAGE_DEFAULT,
+      max: NODE_PAGE_MAX,
+    });
+    if (limit instanceof Response) return limit;
+    const status = readSetQuery(c, 'status', query.status, ['all', 'failed']);
+    if (status instanceof Response) return status;
+    const runId = c.req.param('runId') ?? '';
+    const list = `run-units:${runId}:${query.node}`;
+    const after = readSignedCursor(c, list);
+    if (after instanceof Response) return after;
+    try {
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const page = await readNodePage(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        path: query.node,
+        ...(after !== null && { cursor: after }),
+        limit,
+        ...(status?.includes('failed') === true && { status: 'failed' }),
+      });
+      if (page === null) return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      return c.json({
+        path: page.path,
+        units: page.units,
+        isDone: page.next === null,
+        continueCursor:
+          page.next === null ? '' : mintCursor(c, list, page.next),
+      });
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/record/items', readItemsRoute);
+  app.get('/projects/:id/runs/:runId/record/items', readItemsRoute);
+
+  const compareRoute = async (c: Context<RestEnv>) => {
+    try {
+      const runId = c.req.param('runId') ?? '';
+      const otherRunId = c.req.param('otherRunId') ?? '';
+      if (
+        !(await restRunVisible(c, runId)) ||
+        !(await restRunVisible(c, otherRunId))
+      ) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const diff = await readRunComparison(deps.sql, {
+        organizationId: c.get('organizationId'),
+        runId,
+        otherRunId,
+      });
+      return diff === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(diff);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/compare/:otherRunId', noQuery, compareRoute);
+  app.get(
+    '/projects/:id/runs/:runId/compare/:otherRunId',
+    noQuery,
+    compareRoute,
+  );
 
   /** Stop a run at its next node boundary. A run that is not there is a
    * 404 — `{cancelled: false}` is reserved for a run that exists and had

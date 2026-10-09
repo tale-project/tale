@@ -10,7 +10,9 @@
  * `startRun` executes the deployed version inline and records the run, so
  * `get_run`/`list_runs`/`cancel_run` have something real to read and the
  * selftest proves the round trip without a database. Run ids are deterministic
- * (`run_1`, `run_2`, …) so a test can assert on them.
+ * (`run_1`, `run_2`, …) so a test can assert on them. A run it starts keeps
+ * its record, so a run reads step by step through the engine's one read
+ * model (`core/record/read.ts`), as on a real host.
  */
 
 import type {
@@ -23,8 +25,12 @@ import type {
 } from '../api/dispatch';
 import { execute } from '../core/execute';
 import { cloneData } from '../core/execute/scope';
+import { type CompareRun, compareRuns } from '../core/record/compare';
+import { nodeDetail, recordView, runFactsOf } from '../core/record/read';
+import { createRecorder } from '../core/record/recorder';
+import type { NodeRunRecord } from '../core/record/types';
 import type { OrgFacts, OrgFactsQuery, StoreAdapter } from '../core/slots';
-import type { Automation, RunResult } from '../core/types';
+import type { Automation, Effect, RunResult } from '../core/types';
 
 /** The trigger kinds a host accepts. `api-key` is deliberately absent: a
  * programmatic call is what the API itself is for, so the kind carried no
@@ -60,6 +66,18 @@ export interface MemoryStore extends StoreAdapter {
   ): Promise<{ runId: string; version: number } | null>;
   listRuns(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun(runId: string): Promise<RunDetail | null>;
+  getRunRecord(
+    runId: string,
+    options: { travels: boolean },
+  ): Promise<Record<string, unknown> | null>;
+  getRunNode(
+    runId: string,
+    unit: { node: string; item?: number; pass?: number },
+  ): Promise<Record<string, unknown> | null>;
+  compareRuns(
+    runId: string,
+    otherRunId: string,
+  ): Promise<Record<string, unknown> | null>;
   cancelRun(runId: string): Promise<{ cancelled: boolean; status?: string }>;
   recordRun(
     name: string,
@@ -77,6 +95,11 @@ const MEMORY_ACTOR = 'memory-store';
  * bare `Error` is a fault, and dispatch throws it on (`api/refusal.ts`). */
 function refusal(code: string, message: string, status: 400 | 404): Error {
   return Object.assign(new Error(message), { code, status });
+}
+
+/** An answer of the read model as the plain object the dispatch passes on. */
+function plain(value: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value));
 }
 
 export function memoryStore(
@@ -98,11 +121,39 @@ export function memoryStore(
   const deployed = new Map<string, number>();
   const triggers = new Map<string, TriggerView>();
   const runs: RunDetail[] = [];
+  /** Each run's record and side effects, by run id. */
+  const records = new Map<string, NodeRunRecord[]>();
+  const effects = new Map<string, Effect[]>();
   let runSeq = 0;
 
   const record = (run: RunDetail): void => {
     runs.push(run);
   };
+
+  /** A run with the document of the version it executed and its record. */
+  const recorded = (runId: string) => {
+    const run = runs.find((entry) => entry.runId === runId);
+    if (run === undefined) return null;
+    const doc = versions.get(run.name)?.[run.version - 1]?.automation;
+    return {
+      run,
+      doc: doc ?? { name: run.name, nodes: [] },
+      records: records.get(runId) ?? [],
+    };
+  };
+  const factsOf = (
+    run: RunDetail,
+    runRecords: readonly NodeRunRecord[],
+  ): ReturnType<typeof runFactsOf> =>
+    runFactsOf(
+      {
+        status: run.status,
+        ...(run.detail !== undefined && { detail: run.detail }),
+        ...(run.finishedAt !== undefined && { finishedAt: run.finishedAt }),
+      },
+      runRecords,
+      Date.now(),
+    );
 
   return {
     save(name, automation, message) {
@@ -270,7 +321,13 @@ export function memoryStore(
       runSeq += 1;
       const runId = `run_${runSeq}`;
       const startedAt = Date.now();
-      const result = await execute(entry.automation, { input, mode });
+      const result = await execute(entry.automation, {
+        input,
+        mode,
+        recorder: createRecorder({ now: () => Date.now() }),
+      });
+      records.set(runId, result.record ?? []);
+      effects.set(runId, result.effects);
       record({
         id: runId,
         runId,
@@ -318,6 +375,77 @@ export function memoryStore(
     async getRun(runId) {
       return runs.find((run) => run.runId === runId) ?? null;
     },
+    async getRunRecord(runId, options) {
+      const found = recorded(runId);
+      if (found === null) return null;
+      const { run, doc } = found;
+      return plain(
+        recordView({
+          run: {
+            id: run.runId,
+            status: run.status,
+            version: run.version,
+            mode: run.mode === 'live' ? 'live' : 'mock',
+            startedAt: run.startedAt,
+            ...(run.finishedAt !== undefined && { finishedAt: run.finishedAt }),
+          },
+          source: 'record',
+          doc,
+          records: found.records,
+          facts: factsOf(run, found.records),
+          events: [],
+          eventsTotal: 0,
+          cursor: run.finishedAt ?? run.startedAt,
+          travels: options.travels,
+        }),
+      );
+    },
+    async getRunNode(runId, unit) {
+      const found = recorded(runId);
+      if (found === null) return null;
+      const detail = nodeDetail({
+        doc: found.doc,
+        records: found.records,
+        facts: factsOf(found.run, found.records),
+        path: unit.node,
+        item: unit.item ?? -1,
+        pass: unit.pass ?? -1,
+      });
+      if (detail === null) {
+        throw refusal(
+          'NODE_RUN_NOT_FOUND',
+          `the run has no record of "${unit.node}"`,
+          404,
+        );
+      }
+      return plain(detail);
+    },
+    async compareRuns(runId, otherRunId) {
+      const a = recorded(runId);
+      const b = recorded(otherRunId);
+      if (a === null || b === null) return null;
+      if (a.run.name !== b.run.name) {
+        throw refusal(
+          'RUN_COMPARE_MISMATCH',
+          'only two runs of the same automation can be compared',
+          400,
+        );
+      }
+      const side = (found: NonNullable<typeof a>): CompareRun => ({
+        id: found.run.runId,
+        version: found.run.version,
+        mode: found.run.mode,
+        status: found.run.status,
+        startedAt: found.run.startedAt,
+        ...(found.run.finishedAt !== undefined && {
+          finishedAt: found.run.finishedAt,
+        }),
+        document: found.doc,
+        records: found.records,
+        effects: effects.get(found.run.runId) ?? [],
+      });
+      return plain(compareRuns(side(a), side(b)));
+    },
     async cancelRun(runId) {
       const run = runs.find((entry) => entry.runId === runId);
       if (!run) throw refusal('RUN_NOT_FOUND', `no run "${runId}"`, 404);
@@ -342,6 +470,8 @@ export function memoryStore(
       runSeq += 1;
       const now = Date.now();
       const runId = `run_${runSeq}`;
+      records.set(runId, result.record ?? []);
+      effects.set(runId, result.effects);
       record({
         id: runId,
         runId,
