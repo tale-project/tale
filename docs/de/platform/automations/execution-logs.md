@@ -56,6 +56,8 @@ Im Canvas sagt die unterste Zeile jeder Node, wie sie endete: **Erfolgreich**, *
 
 **Was gelesen wurde** listet jeden Wert, den der Schritt aus der Laufeingabe oder aus anderen Schritten las, in Worten und mit dem gelesenen Wert, etwa „items von Inbox: 3 Elemente“. **Erhalten** zeigt die Eingabe des Schritts nach dem Auswerten seiner Vorlagen, **Zurückgegeben** sein Ergebnis. Zusammen unterscheiden sie einen falschen Verweis von einem Dienstausfall. Ein Wert mit einem Geheimnis ist ausgeblendet und sagt das, und ein zu umfangreicher Wert sagt, dass nur ein Teil davon gespeichert wurde.
 
+Ein Wert erscheint als Baum, den du mit den Pfeiltasten aufklappst. **Werte** und **Struktur** wechseln zwischen den Werten und den Feldern mit ihren Arten, und die Schaltflächen kopieren einen Wert, laden einen grossen herunter oder öffnen ihn im Vollbild. Sind Eingabe und Ausgabe eines Schritts beide Objekte oder beide Listen, listet **Was er geändert hat** die Felder, die der Schritt hinzugefügt, entfernt und geändert hat.
+
 Ein Schritt, der einmal pro Element läuft, listet seine Elemente, jedes mit seinem Ergebnis und bei einem fehlgeschlagenen mit dem Grund. **Nur fehlgeschlagene** grenzt die Liste ein, und ein gewähltes Element zeigt, was es gelesen, erhalten und zurückgegeben hat. Tale speichert die ersten 200 Elemente und jedes fehlgeschlagene. Ein Schritt, der mehr als einen Versuch brauchte oder dessen Versuch ein Neustart unterbrach, listet seine **Versuche**. Ein Schritt, der einen Dienst aufrief, sagt, ob der Aufruf erledigt, fehlgeschlagen oder vielleicht schon gelaufen ist, und was eine Person dazu entschieden hat.
 
 Beispielsweise kann eine Erinnerungs-Node den Kundennamen, aber eine leere Rechnungs-ID erhalten. Prüfe, was sie aus dem Schritt davor gelesen hat. Verwendet der Datensatz inzwischen ein anderes Feld, korrigiere den Verweis statt der Mail-Zugangsdaten. Prüfe die korrigierte Eingabe danach in einem neuen Testlauf.
@@ -63,6 +65,8 @@ Beispielsweise kann eine Erinnerungs-Node den Kundennamen, aber eine leere Rechn
 ## Den Lauf abspielen {#play}
 
 Die Leiste unter dem Canvas des Laufs spielt den Lauf ab: Jeder Schritt leuchtet, während er arbeitet, Werte wandern entlang der Linien zu den Schritten, die sie lesen, und jede Bedingung zeigt ihre Entscheidung. Sie öffnet sich am Ende des Laufs, damit du zuerst den ganzen Ablauf siehst. **Abspielen** startet von vorn, **Vorheriges Ereignis** und **Nächstes Ereignis** springen schrittweise, und der Regler geht zu jedem Zeitpunkt; die Uhr zeigt, wie lange der Lauf tatsächlich schon lief, und die Geschwindigkeit ändert das Abspieltempo. Lange Wartezeiten werden verkürzt, damit sie die Wiedergabe nicht aufhalten. Solange ein Lauf noch läuft, folgt ihm die Leiste; springst du zurück, bringt dich **Live folgen** an sein Ende.
+
+**Schritte** neben **Diagramm** zeigt denselben Lauf als seine Schritte in zeitlicher Reihenfolge: wie lange jeder arbeitete, einen Balken dafür, wann er arbeitete, jede Bedingung mit ihrer Entscheidung sowie Wartezeiten und Neustarts. Die Ansicht läuft mit derselben Uhr. Wählst du einen Schritt, öffnet er sich und die Uhr springt an seinen Beginn, und **Diagramm** zeigt den Canvas zu diesem Zeitpunkt.
 
 ## Erneut ausführen {#run-again}
 
@@ -85,7 +89,7 @@ Tale lehnt eine Wiederholung ab, die es nicht getreu ausführen kann, und sagt w
 
 ## Zwei Läufe vergleichen {#compare}
 
-**Damit vergleichen** bei einer Wiederholung, **Mit dem vorherigen Lauf vergleichen** im Menü von **Erneut ausführen** oder zwei im Tab **Läufe** ausgewählte Läufe und **Vergleichen** zeigen zwei Läufe nebeneinander. **Was sich unterscheidet** nennt, das Aufschlussreichste zuerst, die ausgeführten Versionen, wie viele Felder ihrer Eingabe sich unterscheiden, den Schritt, an dem sie sich trennten, und warum, etwa eine Bedingung, die anders ausging, wie jeder endete sowie Ausgabe und Schreibvorgänge. Die Tabelle darunter zeigt jeden Schritt, wie jeder Lauf ihn hinterließ und ob seine Daten gleich sind. **A und B tauschen** vertauscht die beiden Läufe.
+**Damit vergleichen** bei einer Wiederholung, **Mit dem vorherigen Lauf vergleichen** im Menü von **Erneut ausführen** oder zwei im Tab **Läufe** ausgewählte Läufe und **Vergleichen** zeigen zwei Läufe nebeneinander. **Was sich unterscheidet** nennt, das Aufschlussreichste zuerst, die ausgeführten Versionen, wie viele Felder ihrer Eingabe sich unterscheiden, den Schritt, an dem sie sich trennten, und warum, etwa eine Bedingung, die anders ausging, wie jeder endete sowie Ausgabe und Schreibvorgänge. Die Tabelle darunter zeigt jeden Schritt, wie jeder Lauf ihn hinterließ und ob seine Daten gleich sind. **A und B tauschen** vertauscht die beiden Läufe. Unterscheiden sich ihre Eingabe oder Ausgabe, zeigen **Eingabe: A → B** und **Ausgabe: A → B** beide nebeneinander, jedes geänderte Feld markiert.
 
 ## Bereits erfolgte Änderungen prüfen
 

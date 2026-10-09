@@ -56,6 +56,8 @@ On the canvas, each node’s bottom line says how it ended: **Succeeded**, **Fai
 
 **What was read** lists each value the step took from the run input or from other steps, in words and with the value it read, such as “items of Inbox: 3 items”. **Received** shows the step’s input after its templates were filled in, and **Returned** what it produced. Together they tell a bad reference from a service failure. A value that held a secret is hidden and says so, and a value too large to keep in full says that only part of it was kept.
 
+A value reads as a tree you open with the arrow keys. **Values** and **Shape** switch between the values and the fields and kinds they hold, and the buttons copy a value, download a large one or open it full screen. When a step’s input and output are both objects or both lists, **What it changed** lists the fields the step added, removed and changed.
+
 A step that runs once per item lists its items, each with how it ended and, for a failed one, why. **Failed only** narrows the list, and selecting an item shows what that item read, received and returned. Tale keeps the first 200 items and every failed one. A step that needed more than one try, or whose try a restart cut short, lists its **Attempts**. A step that called a service says whether the call was done, failed or may already have run, and what a person chose about it.
 
 For example, a reminder node may receive a customer name but an empty invoice ID. Inspect what it read from the step before it: if the record now uses another field, correct the reference there rather than replacing the mail credential. Verify the corrected input in a new test run.
@@ -63,6 +65,8 @@ For example, a reminder node may receive a customer name but an empty invoice ID
 ## Play the run {#play}
 
 The bar under the run’s canvas plays the run back: each step lights up while it works, values travel along the lines to the steps that read them, and each condition shows its decision. It opens on the run’s end, so you see the whole story first. **Play** runs it from the start, **Previous event** and **Next event** step through it, and the slider moves to any moment; the clock shows how long the run had really been going, and the speed changes how fast it plays. Long waits are shortened so they do not stall the replay. While a run is still going, the bar follows it; after you move back, **Follow live** returns to its end.
+
+**Steps**, beside **Chart**, lists the same run as its steps in time order: how long each worked, a bar for when it worked, each condition with its decision, and waits and restarts. It plays on the same clock. Choosing a step opens it and moves the clock to where it started, and **Chart** shows the canvas at that moment.
 
 ## Run it again {#run-again}
 
@@ -85,7 +89,7 @@ Tale refuses a retry it cannot do faithfully and says why: the version to run ch
 
 ## Compare two runs {#compare}
 
-**Compare with it** on a replay, **Compare with the previous run** in the **Run again** menu, or two runs selected in the **Runs** tab and **Compare** opens two runs side by side. **What differs** names, most telling first, the versions they ran, how many fields of their input differ, the step where they split and why, such as a condition that went the other way, how each ended, and their output and writes. The table below lists each step with how each run left it and whether its data is the same. **Swap A and B** swaps the two runs.
+**Compare with it** on a replay, **Compare with the previous run** in the **Run again** menu, or two runs selected in the **Runs** tab and **Compare** opens two runs side by side. **What differs** names, most telling first, the versions they ran, how many fields of their input differ, the step where they split and why, such as a condition that went the other way, how each ended, and their output and writes. The table below lists each step with how each run left it and whether its data is the same. **Swap A and B** swaps the two runs. When their input or output differs, **Input: A → B** and **Output: A → B** show the two side by side, each changed field marked.
 
 ## Check what the run changed
 
