@@ -8,6 +8,7 @@ import {
   storeAgentTextBlob,
   upsertAgentDocument,
 } from '../documents/agent-write.ts';
+import { upsertKnowledgeEntryByTopic } from '../knowledge_entries/service.ts';
 import { readAgentTaskReviewSummaries } from '../tasks/agent-review-discovery.ts';
 import { readAgentTaskReviewFiles } from '../tasks/agent-review-files.ts';
 import {
@@ -27,7 +28,8 @@ import {
 
 /**
  * The WRITE half of the workspace-tool bridge: the task family (the agent's
- * comment included), plus the three calls `document_create` makes — and the
+ * comment included), the three calls `document_create` makes and the one
+ * `knowledge_entry_write` makes — and the
  * two task reads only this bridge makes, `task_find`'s page and `task_get`'s
  * run state (the task and its discussion come from the chat map's
  * `getTaskContextForAgent`, which the chat assistant reads too).
@@ -291,6 +293,16 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
         }),
       );
       return null;
+    },
+
+    // ------------------------------------------------ knowledge_entry_write
+    'knowledge_entries/internal_mutations:upsertEntryForAgent': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the bridge passes exactly this shape
+      const args = raw as Parameters<typeof upsertKnowledgeEntryByTopic>[1];
+      // A refusal the agent can merge from (a stale version) is an answer,
+      // not a throw; what throws is a refused argument (4xx, coded) or an
+      // object store that did not take the text (503, stays an error).
+      return coded(() => upsertKnowledgeEntryByTopic(sql, args));
     },
   };
 }

@@ -236,6 +236,9 @@ interface HandlerNames {
     };
   };
   knowledge_entries: FunctionRef & {
+    internal_mutations: FunctionRef & {
+      upsertEntryForAgent: FunctionRef;
+    };
     internal_queries: FunctionRef & {
       listEntriesForAgent: FunctionRef;
     };

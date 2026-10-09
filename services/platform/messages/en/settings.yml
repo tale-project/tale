@@ -1254,6 +1254,8 @@ logs:
       document.trashed: Document moved to trash
       document.deleted: Document deleted
       folder.deleted: Folder deleted
+      knowledge_entry.created: Knowledge entry created
+      knowledge_entry.updated: Knowledge entry updated
       branding.updated: Branding updated
       branding.image_uploaded: Branding image uploaded
       branding.image_deleted: Branding image removed
@@ -1459,6 +1461,7 @@ logs:
       conversationMessage: Conversation message
       document: Document
       folder: Folder
+      knowledge_entry: Knowledge entry
       agent: Agent
       workflow: Automation
       workflow_run: Automation run

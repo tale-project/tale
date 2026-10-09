@@ -151,7 +151,7 @@ const RELAYED_MESSAGE_MAX_CHARS = 400;
  * it is left behind. Anything else (a transient failure) reads as its
  * message, truncated — these carry validator prose, never secrets.
  */
-function toolResultFromError(error: unknown): ToolResult {
+export function toolResultFromError(error: unknown): ToolResult {
   if (error instanceof AppError) {
     const data: unknown = error.data;
     const code =
@@ -752,7 +752,7 @@ async function loadTaskInScope(
 /** The one blocker a run a member started answers for a write beyond its
  * own task: the model is told what it may still do, and what an editor
  * would have to do instead. */
-function memberRunRefusal(guidance: string): ToolResult {
+export function memberRunRefusal(guidance: string): ToolResult {
   return {
     status: 'unavailable',
     blockers: [

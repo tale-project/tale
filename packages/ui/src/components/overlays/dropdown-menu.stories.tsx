@@ -221,3 +221,64 @@ export const DestructiveItem: Story = {
     },
   },
 };
+
+function SearchableMenu() {
+  const [tools, setTools] = useState<readonly string[]>(['task_find']);
+  const toggle = (name: string) => (next: boolean) =>
+    setTools((current) =>
+      next ? [...current, name] : current.filter((tool) => tool !== name),
+    );
+  const row = (name: string, label: string, description?: string) => ({
+    type: 'checkbox' as const,
+    label,
+    ...(description !== undefined ? { description } : {}),
+    checked: tools.includes(name),
+    onCheckedChange: toggle(name),
+  });
+  return (
+    <DropdownMenu
+      trigger={<Button variant="secondary">Equipment</Button>}
+      search={{
+        label: 'Search equipment',
+        placeholder: 'Search skills, connectors and tools',
+        emptyText: 'Nothing matches your search.',
+      }}
+      items={[
+        [
+          { type: 'label', content: 'Tasks' },
+          row('task_find', 'Find tasks'),
+          row('task_create', 'Create tasks', 'Writes data'),
+        ],
+        [
+          { type: 'label', content: 'Knowledge' },
+          {
+            type: 'checkbox',
+            label: 'Search the knowledge base',
+            description: 'Always on for every agent',
+            checked: true,
+            locked: true,
+            onCheckedChange: () => {},
+          },
+          row('knowledge_entry_find', 'Find knowledge entries'),
+          row(
+            'knowledge_entry_write',
+            'Add and edit knowledge entries',
+            'Writes data',
+          ),
+        ],
+      ]}
+    />
+  );
+}
+
+export const Searchable: Story = {
+  render: () => <SearchableMenu />,
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'A `search` field narrows long menus as you type; a group label stays while a row under it matches, and Arrow Down moves into the rows. A `locked` checkbox row is always on: shown checked at full strength and announced as unavailable to switch.',
+      },
+    },
+  },
+};

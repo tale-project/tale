@@ -70,7 +70,7 @@ Für Automatisierungen gilt eine engere Regel, denn eine Automatisierung handelt
 Ein Lauf, den jemand ohne Bearbeitungsrecht für das Projekt startet, etwa ein Mitglied, bleibt bei seiner Aufgabe:
 
 - Seine Plattform-Tools ändern nur diese Aufgabe und die Teilaufgaben darunter: Der Agent legt neue Aufgaben nur als Teilaufgaben dieser Aufgabe an, verwendet nur Labels, die das Projekt schon hat, und kann keine Einträge aus anderen Systemen ins Projekt synchronisieren.
-- Er kann keine Dokumente im Projekt speichern. Die Dateien, die er erzeugt, landen trotzdem unter **Ergebnisdateien** an der Aufgabe.
+- Er kann keine Dokumente im Projekt speichern und keine Wissenseinträge schreiben. Die Dateien, die er erzeugt, landen trotzdem unter **Ergebnisdateien** an der Aufgabe.
 - Der Lauf erhält weder die **Secrets** des Agenten noch das Token eines zugeordneten GitHub-Zugangs. Der Agent erfährt, welche Zugangsdaten zurückgehalten wurden, und soll in seinem Bericht darauf hinweisen, wenn die Arbeit sie braucht; dann muss ein Redakteur oder eine höhere Rolle ihn starten. Die Connectors des Agenten funktionieren weiter und handeln im Namen der Person, die den Lauf gestartet hat.
 - Er arbeitet in einem eigenen Arbeitsbereich, der für die Läufe dieser Person mit diesem Agenten bestehen bleibt: Dateien aus Läufen, die Redakteure gestartet haben, liegen dort nicht, und was dieser Lauf hinterlässt, erreicht jene Läufe nie. Spätere Läufe derselben Person mit dem Agenten finden ihn wieder, bis Tale ihn löscht: wenn die Person die Organisation verlässt, wenn der Agent gelöscht wird oder sobald ihn so viele Tage kein Lauf genutzt hat, wie die Organisation unter [**Tage ohne Nutzung**](/de/platform/admin/sandboxes#delete-unused-workspaces-automatically) festlegt.
 

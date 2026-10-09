@@ -1272,11 +1272,15 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as {
         organizationId: string;
         topic?: string;
+        /** The agents' `knowledge_entry_find` also looks in the content;
+         * the chat legs match topics only. */
+        matchContent?: boolean;
         paginationOpts: { numItems: number; cursor: string | null };
       };
       return listEntriesForAgent(sql, {
         organizationId: args.organizationId,
         ...(args.topic !== undefined ? { topic: args.topic } : {}),
+        ...(args.matchContent === true ? { matchContent: true } : {}),
         matchWords: true,
         numItems: args.paginationOpts.numItems,
         cursor: args.paginationOpts.cursor,

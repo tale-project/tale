@@ -105,6 +105,9 @@ import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integr
 import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import {
+  checkAgentWriteBudget,
+  checkConcurrentAgentAndPersonEdits,
+  checkConcurrentAgentCreates,
   checkConcurrentEntryCreation,
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
@@ -41242,6 +41245,8 @@ async function checkAutomationRunToolLane(
     'task_upsert_by_external_ref',
     'document_create',
     'document_find',
+    'knowledge_entry_find',
+    'knowledge_entry_write',
   ];
   // The step-scoped owner spelling (`${runId}:<suffix>`) is what the agent
   // host mints — the resolver must split it back to the run.
@@ -41655,6 +41660,123 @@ async function checkAutomationRunToolLane(
       orgScopeProjects.has(boundProjectId) &&
       orgScopeProjects.has(otherProjectId),
     `orgFind=${orgDocFind.status} (a=${orgDocFind.raw.includes('run-tools-bound-a.md')}, b=${orgDocFind.raw.includes('run-tools-bound-b.md')}, unboundLeak=${orgDocFind.raw.includes('run-tools-unbound-c.md')}), pinnedFind=${pinnedDocFind.status} (a=${pinnedDocFind.raw.includes('run-tools-bound-a.md')}, bLeak=${pinnedDocFind.raw.includes('run-tools-bound-b.md')}), scope=${orgKnowledgeScope.success ? [...orgScopeProjects].length : 'ERR'} project(s)`,
+  );
+
+  // knowledge_entry_write through the same door: an org-wide entry keyed by
+  // its topic, written as the run's automation with `source: agent`. The
+  // first save creates; the same text again writes nothing; a change that
+  // names no version, or a version replaced since, is refused with the
+  // current text; naming the version read writes a new one. The agents'
+  // find lists the entry by its content, with the version id a next save
+  // names.
+  const entryTopic = `Run tools hours ${randomUUID().slice(0, 8)}`;
+  const entryAnswer = z
+    .object({
+      status: z.literal('ok'),
+      output: z
+        .object({
+          outcome: z.string(),
+          versionId: z.string().optional(),
+          reason: z.string().optional(),
+          current: z
+            .object({ versionId: z.string(), content: z.string() })
+            .loose()
+            .nullable()
+            .optional(),
+        })
+        .loose(),
+    })
+    .loose();
+  const saveEntry = async (
+    content: string,
+    expectedVersionId?: string,
+  ): Promise<z.infer<typeof entryAnswer>['output'] | undefined> => {
+    const answer = await dispatch(pinnedToken, 'knowledge_entry_write', {
+      topic: entryTopic,
+      content,
+      ...(expectedVersionId !== undefined ? { expectedVersionId } : {}),
+    });
+    const parsed = entryAnswer.safeParse(JSON.parse(answer.raw));
+    return parsed.success ? parsed.data.output : undefined;
+  };
+  const entryCreated = await saveEntry('Mon–Fri 9–17');
+  const firstVersion = entryCreated?.versionId ?? '';
+  const entryRepeated = await saveEntry('Mon–Fri 9–17');
+  const entryBlind = await saveEntry('Mon–Fri 8–18');
+  const entryUpdated = await saveEntry('Mon–Fri 8–18', firstVersion);
+  const entryStale = await saveEntry('Mon–Fri 7–19', firstVersion);
+  const entryFound = await dispatch(pinnedToken, 'knowledge_entry_find', {
+    topic: 'Mon–Fri 8–18',
+  });
+  const entryListed = z
+    .object({
+      output: z
+        .object({
+          page: z.array(
+            z
+              .object({
+                id: z.string(),
+                topic: z.string(),
+                source: z.string(),
+                updatedAt: z.number(),
+              })
+              .loose(),
+          ),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(JSON.parse(entryFound.raw));
+  const listedEntry = entryListed.success
+    ? entryListed.data.output.page.find((entry) => entry.topic === entryTopic)
+    : undefined;
+  const entryRows = await sql<
+    { status: string; source: string; createdBy: string; content: string }[]
+  >`
+    SELECT status, source, created_by AS "createdBy", content
+    FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = ${entryTopic.toLowerCase()}
+      AND deleted_at_ms IS NULL
+    ORDER BY seq
+  `;
+  const entryAudits = await sql<{ action: string; actorId: string }[]>`
+    SELECT action, actor_id AS "actorId" FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'knowledge_entry'
+      AND resource_name = ${entryTopic}
+    ORDER BY ts
+  `;
+  const runActor = 'automation:itest-run-tools-pinned';
+  record(
+    'knowledge_entry_write through /api/tools/execute (create, repeat, refusals, new version, find)',
+    entryCreated?.outcome === 'created' &&
+      firstVersion !== '' &&
+      entryRepeated?.outcome === 'unchanged' &&
+      entryRepeated.versionId === firstVersion &&
+      entryBlind?.outcome === 'refused' &&
+      entryBlind.reason === 'version_required' &&
+      entryBlind.current?.versionId === firstVersion &&
+      entryBlind.current.content === 'Mon–Fri 9–17' &&
+      entryUpdated?.outcome === 'updated' &&
+      entryUpdated.versionId !== undefined &&
+      entryUpdated.versionId !== firstVersion &&
+      entryStale?.outcome === 'refused' &&
+      entryStale.reason === 'version_conflict' &&
+      entryStale.current?.versionId === entryUpdated.versionId &&
+      entryStale.current.content === 'Mon–Fri 8–18' &&
+      listedEntry?.id === entryUpdated.versionId &&
+      listedEntry.source === 'agent' &&
+      entryRows.length === 2 &&
+      entryRows.every(
+        (row) => row.source === 'agent' && row.createdBy === runActor,
+      ) &&
+      entryRows[0]?.status === 'superseded' &&
+      entryRows[1]?.status === 'active' &&
+      entryRows[1].content === 'Mon–Fri 8–18' &&
+      entryAudits.length === 2 &&
+      entryAudits[0]?.action === 'knowledge_entry.created' &&
+      entryAudits[1]?.action === 'knowledge_entry.updated' &&
+      entryAudits.every((row) => row.actorId === runActor),
+    `create=${entryCreated?.outcome}, repeat=${entryRepeated?.outcome}, blind=${entryBlind?.outcome}/${entryBlind?.reason}, update=${entryUpdated?.outcome}, stale=${entryStale?.outcome}/${entryStale?.reason}, find=${entryFound.status} (listed=${listedEntry?.id === entryUpdated?.versionId}, source=${listedEntry?.source}), rows=${entryRows.map((row) => `${row.status}:${row.source}`).join(',')}, audits=${entryAudits.map((row) => row.action).join(',')}`,
   );
 
   // Hand back the workflow session budget — the org's cap is small, and the
@@ -61470,6 +61592,14 @@ async function main(): Promise<void> {
             'knowledge entries: concurrent creates, corrections and renames',
             true,
             'real transaction interleavings; one winner, normal 409, coherent history and backing bytes',
+          );
+          await checkConcurrentAgentCreates(sql, writer);
+          await checkConcurrentAgentAndPersonEdits(sql, writer);
+          await checkAgentWriteBudget(sql, writer);
+          record(
+            'knowledge entries: agent writes race agents and people, on a budget of their own',
+            true,
+            'two agents on one new topic: one creates, the other is refused with its text; agent vs person either order: the second is refused; a spent agent budget writes nothing and leaves people’s untouched',
           );
         },
       ],

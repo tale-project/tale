@@ -81,7 +81,7 @@ which tools it has, it is told the granted ones and no others.
 
 A run that an editor of the project started can change any task of the project. A run that a
 member started can change only its own task and the subtasks under it, and can save no
-document to the project; anything else is refused (`member_run`). It stays limited when an
+document to the project and no knowledge entry; anything else is refused (`member_run`). It stays limited when an
 editor steers it later, and a starter who loses the editor role during the run is treated as
 a member from then on. Reading the project's tasks stays possible. Once a run has ended, its
 tools act for nobody (`run_ended`).

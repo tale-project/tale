@@ -1,12 +1,12 @@
 /**
  * A project agent's run that a member started — someone who may work their
  * own tasks but not edit the project — is confined to its own task: the
- * tool door hands its dispatch a `confinedToTaskId`, and the task family and
- * `document_create` hold every write to it. The run still reads the
+ * tool door hands its dispatch a `confinedToTaskId`, and the task family,
+ * `document_create` and `knowledge_entry_write` hold every write to it. The run still reads the
  * project's board; it changes only its task and the subtasks under it,
  * creates subtasks only there and with labels the catalog already has, and
- * neither syncs external items nor saves project documents. A run an editor
- * started keeps the agent's reach.
+ * neither syncs external items, saves project documents nor writes
+ * knowledge entries. A run an editor started keeps the agent's reach.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -198,6 +198,17 @@ describe('a run a member started, confined to its own task [SBX-R7]', () => {
     ).toEqual(refusedAsMemberRun);
     expect(writes()).toEqual([]);
     expect(ctx.runAction).not.toHaveBeenCalled();
+  });
+
+  it('writes no knowledge entries, which the whole organization reads [KENTRY-R11]', async () => {
+    const { ctx, writes } = createCtx('task-own');
+    expect(
+      await call(ctx, 'knowledge_entry_write', {
+        topic: 'Support hours',
+        content: 'Mon–Fri 8–18',
+      }),
+    ).toEqual(refusedAsMemberRun);
+    expect(writes()).toEqual([]);
   });
 
   it('still reads the board', async () => {
