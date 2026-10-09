@@ -44,6 +44,7 @@ import type {
 import {
   RunnerdActivityError,
   RunnerdAttachBusyError,
+  RunnerdMemoryBusyError,
   RunnerdOutputGapError,
   RunnerdProtocolError,
   RunnerdStageBusyError,
@@ -53,11 +54,11 @@ import {
   runnerdCancelExec,
   runnerdDeleteFiles,
   runnerdEnvPatch,
-  runnerdExec,
   runnerdExecStatus,
   runnerdExecCheckpoint,
   runnerdHealth,
   runnerdListDir,
+  runnerdOpenExec,
   runnerdReadFile,
   runnerdStageFiles,
   runnerdWriteStdin,
@@ -3231,6 +3232,58 @@ export class SessionRoutes {
     const collect = execReq.collectOutput ?? true;
     const binaryOutput =
       req.headers.get('accept')?.includes('tale-output=base64') === true;
+    const opts = { baseUrl: session.endpoint, token };
+    // Start the exec before the stream answers: a session short of memory
+    // refuses it before it starts, and the caller hears that as a 429 it
+    // waits out like any other "not now", never as a failed exec. Any other
+    // failure is reported on the stream, as before. The stream's consumer
+    // leaving detaches from the exec, never ends it.
+    const consumer = new AbortController();
+    const opened = replayOnly
+      ? undefined
+      : runnerdOpenExec(
+          opts,
+          {
+            execId: execReq.execId,
+            ...(execReq.command ? { command: execReq.command } : {}),
+            ...(execReq.shell ? { shell: execReq.shell } : {}),
+            ...(execReq.cwd ? { cwd: execReq.cwd } : {}),
+            ...(execReq.env ? { env: execReq.env } : {}),
+            ...(execReq.stdinBase64
+              ? { stdinBase64: execReq.stdinBase64 }
+              : {}),
+            ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
+            timeoutMs: execReq.timeoutMs,
+            // 0 = unlimited for streaming execs (collect=false): runnerd never
+            // truncates the live stream; memory stays bounded by replay and consumer queues.
+            stdoutMaxBytes: collect ? this.cfg.stdoutMaxBytes : 0,
+            stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
+          },
+          AbortSignal.any([ac.signal, consumer.signal]),
+        );
+    try {
+      await opened;
+    } catch (error) {
+      // Any other failure surfaces where the stream awaits the exec below.
+      if (error instanceof RunnerdMemoryBusyError) {
+        if (this.registry.get(sessionId) === session)
+          this.registry.unregisterExec(sessionId, execReq.execId);
+        req.signal.removeEventListener('abort', abortHandler);
+        return jsonResponse(
+          {
+            error: 'session_memory_busy',
+            code: 'SESSION_MEMORY_BUSY',
+            message: error.message,
+          },
+          429,
+          {
+            'retry-after': String(
+              Math.max(1, Math.ceil(error.retryAfterMs / 1000)),
+            ),
+          },
+        );
+      }
+    }
     return sseResponse(async ({ send, signal }) => {
       // Terminal-state accumulation so the SSE `result` event matches the
       // one-shot ExecuteResponse contract (the runnerd `exit` carries
@@ -3324,34 +3377,21 @@ export class SessionRoutes {
             break;
         }
       };
+      const detach = () => consumer.abort();
+      signal.addEventListener('abort', detach, { once: true });
+      if (signal.aborted) detach();
       try {
-        const opts = { baseUrl: session.endpoint, token };
         const execSignal = AbortSignal.any([ac.signal, signal]);
-        if (replayOnly) {
+        if (opened === undefined) {
           if (!(await runnerdAttach(opts, execReq.execId, onEvent, execSignal)))
             throw new Error(`exec ${execReq.execId} not found`);
         } else {
-          await runnerdExec(
-            opts,
-            {
-              execId: execReq.execId,
-              ...(execReq.command ? { command: execReq.command } : {}),
-              ...(execReq.shell ? { shell: execReq.shell } : {}),
-              ...(execReq.cwd ? { cwd: execReq.cwd } : {}),
-              ...(execReq.env ? { env: execReq.env } : {}),
-              ...(execReq.stdinBase64
-                ? { stdinBase64: execReq.stdinBase64 }
-                : {}),
-              ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
-              timeoutMs: execReq.timeoutMs,
-              // 0 = unlimited for streaming execs (collect=false): runnerd never
-              // truncates the live stream; memory stays bounded by replay and consumer queues.
-              stdoutMaxBytes: collect ? this.cfg.stdoutMaxBytes : 0,
-              stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
-            },
-            onEvent,
-            execSignal,
-          );
+          const stream = await opened;
+          try {
+            await stream.pump(onEvent);
+          } finally {
+            stream.close();
+          }
         }
         // An acknowledged-prefix gap asks the platform to restore a newer
         // checkpoint. It is not evidence that the daemon or session died.
@@ -3401,6 +3441,8 @@ export class SessionRoutes {
         )
           await this.evictIfBackendGone(sessionId);
       } finally {
+        signal.removeEventListener('abort', detach);
+        consumer.abort();
         if (this.registry.get(sessionId) === session)
           this.registry.unregisterExec(sessionId, execReq.execId);
         req.signal.removeEventListener('abort', abortHandler);

@@ -456,6 +456,12 @@ export function buildSessionPod(
               name: 'TALE_EXEC_STALL_MS',
               value: String(cfg.session.execStallMs),
             },
+            // The share of the memory limit past which runnerd refuses to
+            // start another exec.
+            {
+              name: 'TALE_EXEC_ADMISSION_MEMORY_PERCENT',
+              value: String(cfg.session.execAdmissionMemoryPercent),
+            },
             // DinD signal + tier for the entrypoint (sysbox/kata only).
             ...(dind
               ? [

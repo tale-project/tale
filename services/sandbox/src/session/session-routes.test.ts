@@ -371,6 +371,17 @@ beforeAll(() => {
             { headers: { 'content-type': 'application/x-ndjson' } },
           );
         }
+        if (text.includes('__memory_busy__')) {
+          // runnerd's memory admission (session-memory.ts): nothing ran.
+          return Response.json(
+            {
+              error: 'session_memory_busy',
+              code: 'SESSION_MEMORY_BUSY',
+              message: 'the session is using 90% or more of its memory limit',
+            },
+            { status: 429, headers: { 'retry-after': '5' } },
+          );
+        }
         if (text.includes('__stalled__')) {
           // runnerd's stall watch ended the exec (exec-stall.ts); the
           // command caught the SIGTERM and exited 0.
@@ -1420,6 +1431,36 @@ describe('SessionRoutes (fake runnerd)', () => {
       durationMs: 0,
       errorCode: 'EXEC_LIMIT',
       errorMessage: 'live exec cap 4 reached',
+    });
+  });
+
+  test('a session short of memory refuses the exec as a 429 before any stream, and admits the next', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_mem', organizationId: 'org_f' }),
+    );
+    const refused = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_mem/exec', { method: 'POST' }),
+      'sess_mem',
+      JSON.stringify({ execId: 'e7', command: ['echo', '__memory_busy__'] }),
+    );
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toEqual({
+      error: 'session_memory_busy',
+      code: 'SESSION_MEMORY_BUSY',
+      message: 'the session is using 90% or more of its memory limit',
+    });
+    // The refused id is free again: a retry under it runs.
+    const admitted = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_mem/exec', { method: 'POST' }),
+      'sess_mem',
+      JSON.stringify({ execId: 'e7', command: ['echo', 'hi'] }),
+    );
+    expect(admitted.status).toBe(200);
+    const { events } = await readSse(admitted);
+    expect(events.find((e) => e.event === 'result')?.data).toMatchObject({
+      status: 'completed',
     });
   });
 
@@ -3723,7 +3764,9 @@ describe('SessionRoutes (fake runnerd)', () => {
             execId: 'hang-peer',
             command: ['sleep', '60'],
           });
-          const oldExec = await f.routes.handleExec(
+          // The spawner answers once runnerd has taken the exec, so the old
+          // exec's answer waits on its runnerd.
+          const oldExec = f.routes.handleExec(
             new Request('http://x'),
             'peer-replaced',
             body,
@@ -3752,7 +3795,7 @@ describe('SessionRoutes (fake runnerd)', () => {
               ]),
             ),
           );
-          await readSse(oldExec);
+          await readSse(await oldExec);
           expect(
             await f.routes.sweepExpired(
               Date.now() + cfg.session.maxLifetimeMs + 1,

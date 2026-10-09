@@ -233,6 +233,11 @@ export interface SessionConfig {
    * (SANDBOX_EXEC_STALL_MINUTES, passed as `TALE_EXEC_STALL_MS`); 0 turns
    * the watch off. */
   execStallMs: number;
+  /** The share of a session's memory limit its working set may reach
+   * before runnerd refuses to start another exec in it (passed as
+   * `TALE_EXEC_ADMISSION_MEMORY_PERCENT`); running execs are never
+   * touched. */
+  execAdmissionMemoryPercent: number;
   /** Docker's total provisioning/readiness/seed-environment budget. On K8s,
    * the runtime readiness budget includes a cold image pull. */
   createHealthTimeoutMs: number;

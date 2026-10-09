@@ -556,6 +556,10 @@ describe('loadConfig — docker-in-container gating', () => {
       expect(loadConfig().session.execStallMs).toBe(0);
     });
 
+    test('admits new execs up to 90% of a session’s memory', () => {
+      expect(loadConfig().session.execAdmissionMemoryPercent).toBe(90);
+    });
+
     test('refuses a window that is no whole number of minutes up to a day', () => {
       for (const bad of ['-1', '1.5', 'soon', '1441']) {
         process.env.SANDBOX_EXEC_STALL_MINUTES = bad;

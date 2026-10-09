@@ -14,6 +14,7 @@ export const TEST_SESSION_CONFIG: SessionConfig = {
   execDefaultTimeoutMs: 600_000,
   execMaxTimeoutMs: 7_200_000,
   execStallMs: 2_700_000,
+  execAdmissionMemoryPercent: 90,
   createHealthTimeoutMs: 180_000,
   agentProfile: {
     cpus: 2,

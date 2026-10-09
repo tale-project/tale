@@ -959,6 +959,9 @@ export function loadConfig(): SpawnerConfig {
       // (an agent CLI waiting on a socket that never answers): runnerd ends
       // it so it stops holding the session. Whole minutes; 0 turns it off.
       execStallMs: stallMinutesEnv('SANDBOX_EXEC_STALL_MINUTES', 45) * 60_000,
+      // Past 90% of its memory limit a session starts no new exec: one more
+      // would make the kernel kill a running one, most often the agent.
+      execAdmissionMemoryPercent: 90,
       createHealthTimeoutMs: numEnv(
         'SANDBOX_SESSION_CREATE_TIMEOUT_MS',
         180_000,

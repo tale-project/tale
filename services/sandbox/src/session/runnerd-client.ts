@@ -10,6 +10,7 @@ import {
   RUNNERD_CHECKPOINT_MAX_BYTES,
   isRunnerdExecEvent,
   RUNNERD_INCARNATION_HEADER,
+  RUNNERD_MEMORY_BUSY_ERROR,
   RUNNERD_TOKEN_HEADER,
   type RunnerdExecEvent,
   type RunnerdExecRequest,
@@ -254,19 +255,55 @@ export async function waitForRunnerd(
   }
 }
 
+/** runnerd refused to start an exec because its session's memory is
+ * nearly spent (HTTP 429 `session_memory_busy`). Nothing started; the
+ * caller asks again after `retryAfterMs`. */
+export class RunnerdMemoryBusyError extends Error {
+  constructor(
+    message: string,
+    readonly retryAfterMs: number,
+  ) {
+    super(message);
+    this.name = 'RunnerdMemoryBusyError';
+  }
+}
+
+/** How long a refusal's `retry-after` header (seconds) asks to wait, or
+ * `fallbackMs` when it names no whole number of seconds. */
+function retryAfterMsOf(res: Response, fallbackMs: number): number {
+  const seconds = Number(res.headers.get('retry-after'));
+  return Number.isSafeInteger(seconds) && seconds > 0
+    ? seconds * 1000
+    : fallbackMs;
+}
+
+/** An exec runnerd accepted: its NDJSON stream, read once. */
+export interface RunnerdExecStream {
+  /** Stream the events to `onEvent` in order; resolves when the stream
+   * ends. */
+  pump(
+    onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
+  ): Promise<void>;
+  /** Detach from the stream, never the command behind it. */
+  close(): void;
+}
+
 /**
- * POST /execs and stream the NDJSON response, invoking `onEvent` per parsed
- * daemon event in order. Resolves when the stream ends. The caller's abort
- * signal (SSE-client disconnect) aborts the fetch, which detaches the daemon's
+ * POST /execs and answer once runnerd has accepted the exec, before a single
+ * event is read: a session short of memory refuses it as
+ * {@link RunnerdMemoryBusyError} before it starts. The caller's abort signal
+ * (SSE-client disconnect) aborts the fetch, which detaches the daemon's
  * response consumer. The exec keeps running for a later attach.
  */
-export async function runnerdExec(
+export async function runnerdOpenExec(
   opts: RunnerdClientOptions,
   req: RunnerdExecRequest,
-  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
   signal?: AbortSignal,
-): Promise<void> {
+): Promise<RunnerdExecStream> {
   const consumer = new AbortController();
+  // Cancelling a body reader alone can leave Bun's HTTP fetch connected.
+  // End this subscription, never the detached command behind it.
+  const close = () => consumer.abort();
   try {
     const res = await fetch(`${opts.baseUrl}/execs`, {
       method: 'POST',
@@ -279,14 +316,49 @@ export async function runnerdExec(
         ? AbortSignal.any([signal, consumer.signal])
         : consumer.signal,
     });
-    if (!res.ok || !res.body) {
+    if (res.status === 429) {
+      const body: unknown = await res.json().catch(() => null);
+      if (
+        body !== null &&
+        typeof body === 'object' &&
+        'error' in body &&
+        body.error === RUNNERD_MEMORY_BUSY_ERROR
+      )
+        throw new RunnerdMemoryBusyError(
+          'message' in body && typeof body.message === 'string'
+            ? body.message
+            : 'the session is short of memory',
+          retryAfterMsOf(res, 5_000),
+        );
+    }
+    const stream = res.body;
+    if (!res.ok || !stream) {
       throw new Error(`runnerd /execs ${res.status}`);
     }
-    await pumpNdjson(res.body, onEvent);
+    return { pump: (onEvent) => pumpNdjson(stream, onEvent), close };
+  } catch (error) {
+    close();
+    throw error;
+  }
+}
+
+/**
+ * POST /execs and stream the NDJSON response, invoking `onEvent` per parsed
+ * daemon event in order. Resolves when the stream ends. The caller's abort
+ * signal (SSE-client disconnect) aborts the fetch, which detaches the daemon's
+ * response consumer. The exec keeps running for a later attach.
+ */
+export async function runnerdExec(
+  opts: RunnerdClientOptions,
+  req: RunnerdExecRequest,
+  onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
+  signal?: AbortSignal,
+): Promise<void> {
+  const stream = await runnerdOpenExec(opts, req, signal);
+  try {
+    await stream.pump(onEvent);
   } finally {
-    // Cancelling a body reader alone can leave Bun's HTTP fetch connected.
-    // End this subscription, never the detached command behind it.
-    consumer.abort();
+    stream.close();
   }
 }
 

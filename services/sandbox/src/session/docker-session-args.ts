@@ -484,6 +484,10 @@ export function buildDockerSessionRunArgs(
     // stalled (exec-stall.ts in the runtime daemon); 0 turns the watch off.
     '--env',
     `TALE_EXEC_STALL_MS=${cfg.session.execStallMs}`,
+    // The share of the memory limit past which runnerd refuses to start
+    // another exec (session-memory.ts in the runtime daemon).
+    '--env',
+    `TALE_EXEC_ADMISSION_MEMORY_PERCENT=${cfg.session.execAdmissionMemoryPercent}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
     ...dindEnv,
     // Transparent egress signal + drop-uid for the entrypoint (empty when off).

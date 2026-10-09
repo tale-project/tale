@@ -109,21 +109,27 @@ describe('buildSessionPod', () => {
     expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
   });
 
-  test('every runner carries the exec stall window', () => {
+  test('every runner carries the exec stall window and memory admission share', () => {
     for (const docker of [true, false]) {
       const pod = buildSessionPod(
         {
           ...cfg,
           dockerInContainer: true,
-          session: { ...cfg.session, execStallMs: 600_000 },
+          session: {
+            ...cfg.session,
+            execStallMs: 600_000,
+            execAdmissionMemoryPercent: 85,
+          },
         },
         { ...input, docker },
       );
+      const env = pod.spec?.containers[0]?.env ?? [];
+      expect(env.find((e) => e.name === 'TALE_EXEC_STALL_MS')?.value).toBe(
+        '600000',
+      );
       expect(
-        pod.spec?.containers[0]?.env?.find(
-          (env) => env.name === 'TALE_EXEC_STALL_MS',
-        )?.value,
-      ).toBe('600000');
+        env.find((e) => e.name === 'TALE_EXEC_ADMISSION_MEMORY_PERCENT')?.value,
+      ).toBe('85');
     }
   });
 

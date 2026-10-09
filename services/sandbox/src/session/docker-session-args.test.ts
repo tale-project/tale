@@ -257,6 +257,8 @@ describe('buildDockerSessionRunArgs', () => {
     expect(args).toContain('TALE_RUNNERD_INCARNATION=1700000000000');
     // runnerd's stall window, from SANDBOX_EXEC_STALL_MINUTES.
     expect(args).toContain('TALE_EXEC_STALL_MS=2700000');
+    // runnerd refuses new execs past this share of the memory limit.
+    expect(args).toContain('TALE_EXEC_ADMISSION_MEMORY_PERCENT=90');
     // Container + workspace mount.
     expect(args).toContain('tale-sbx-ses-ses-abc-123');
     expect(args).toContain(
