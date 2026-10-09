@@ -111,9 +111,10 @@ describe('beginRun with a projectId', () => {
     expect(fake.writes).toEqual([]);
   });
 
-  // An event dispatch starts every listening automation inside one
-  // savepoint without a per-trigger catch: a refusal here would roll back
-  // the runs of every other automation listening for the same event.
+  // A schedule's start infers its sole installation unchecked (whether a
+  // schedule should start a run in an archived project is undecided, see
+  // the spec's Not yet). An event dispatch names the project instead, so an
+  // archived one refuses it (`triggers.webhook.test.ts`).
   it('keeps a trigger start in its inferred sole binding without refusing it', async () => {
     const fake = fakeStore({ archivedAt: 1, bound: true });
     const { projectId: _projectId, ...unscoped } = args;

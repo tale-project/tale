@@ -163,16 +163,20 @@ to no project.
   read. Mia's API key starts a test run of it at the organization's address → refused, and the
   answer names Billing only.
 
-### AUTO-R8 · An archived project takes no new runs from people, API keys or webhooks
+### AUTO-R8 · An archived project takes no new runs from people, API keys, webhooks or events
 
 Starting a run in an archived project is refused (`PROJECT_ARCHIVED`), and so is choosing an
 archived project in an automation's project settings. A webhook sent to an archived project's
 address gets the same refusal as for a project that does not exist
-(`AUTOMATION_PROJECT_FORBIDDEN`), so the address tells nothing about the project. The runs the
-project already has stay readable.
+(`AUTOMATION_PROJECT_FORBIDDEN`), so the address tells nothing about the project. An event
+that would start a run in an archived project, its own or the only one the automation is
+installed in, starts none, and the trigger records the refusal (`start_refused`, with
+`PROJECT_ARCHIVED`). The runs the project already has stay readable.
 
 - **Example**: The project Billing was archived. Noah, a developer, starts a run of an
   automation installed only in Billing → refused, and no run is created.
+- **Example**: An automation installed only in the archived Billing listens for "contact
+  created". Mia adds a contact → no run starts, and the trigger says its project is archived.
 
 ### AUTO-R9 · A repeated webhook delivery or keyed API start starts no second run
 
@@ -200,7 +204,7 @@ it starts receives; the trigger's own fields are set over it:
 | --- | --- | --- |
 | Schedule | its repeat rule or cron expression comes due in its time zone | `{ …input, trigger: "schedule", firedAt }` |
 | Webhook | a request reaches its address | `{ …input, trigger: "webhook", payload }` |
-| Platform event | the named event happens in the organization | `{ …input, trigger: "event", event, payload }` |
+| Platform event | the named event happens in the organization, in a project it is installed in when it has one (`AUTO-R30`) | `{ …input, trigger: "event", event, payload }` |
 
 ### AUTO-R10 · A trigger that could never start a run is refused when it is saved
 
@@ -246,6 +250,24 @@ a loop. Events a person, an import or the platform raise start every listening a
   events too → they start no automation.
 - **Example**: An automation listens for "task created", and its run creates a task → that
   event starts no run of it.
+
+### AUTO-R30 · An event of a project starts only automations installed there or nowhere
+
+Task, comment and project events belong to a project; contact and conversation events belong
+to none. An event of a project starts the automations installed in that project and those
+installed in no project, and their runs start in that project; an automation installed only
+in other projects does not hear it. An event of no project starts an automation installed in
+exactly one project in that project. Each automation starts on its own: one whose start is
+refused, because its inputs refuse the event or its project cannot take a run, records why on
+its trigger (`start_refused`), and the runs of the others start as if it had not been
+listening.
+
+- **Example**: An automation installed in the project Billing listens for "task created". Mia
+  creates a task in Sales → it starts nothing. She creates one in Billing → a run starts in
+  Billing.
+- **Example**: Two automations listen for "contact created", and the inputs of one require a
+  field the event does not carry. Mia adds a contact → the other one's run starts, and the
+  first one's trigger says its input was refused.
 
 ### AUTO-R13 · A schedule turns itself off after five failures in a row a retry cannot fix
 
@@ -515,15 +537,16 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   again (`docs/en/platform/automations/concepts.md`), and that a version whose saved tests
   failed needs a new version (`docs/en/platform/automations/editor.md`). `AUTO-R4` holds under
   both.
-- **Undecided: should a schedule or a platform event start a run in an archived project?**
-  `AUTO-R8` refuses people, API keys and webhooks. A schedule or an event still starts a run of
-  an automation installed in exactly one project when that project is archived, and a test
-  holds that (`resolveRunProject` in `store.ts`). `TASK-R7` says nothing in an archived project
-  can be changed.
-- **Undecided: where does a schedule or an event run an automation installed in several
-  projects?** `AUTO-R7` refuses that start over the API and by webhook. A schedule or an event
-  starts it as a run of the organization, in no project (`resolveRunProject` in `store.ts`). No
-  test and no page of the docs says which is meant.
+- **Undecided: should a schedule start a run in an archived project?** `AUTO-R8` refuses
+  people, API keys, webhooks and events. A schedule still starts a run of an automation
+  installed in exactly one project when that project is archived, and a test holds that
+  (`resolveRunProject` in `store.ts`). `TASK-R7` says nothing in an archived project can be
+  changed.
+- **Undecided: where does a schedule, or an event of no project, run an automation installed
+  in several projects?** `AUTO-R7` refuses that start over the API and by webhook. A schedule,
+  or an event that belongs to no project, starts it as a run of the organization, in no project
+  (`resolveRunProject` in `store.ts`, `dispatchAutomationEvent` in `triggers.ts`). An event of a
+  project starts it in that project (`AUTO-R30`). No page of the docs says which is meant.
 - **Undecided: can a new automation be created inside an archived project, or one its author
   cannot read?** Creating an automation with a project, and uploading a package into one,
   check only that the project belongs to the organization (`saveVersion` and `bindProject` in

@@ -70,6 +70,7 @@ import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
 import { checkDeletedOrgDoors } from './domains/automations/deleted-org-doors.integration.ts';
 import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-schedules.integration.ts';
+import { checkEventScopeAndIsolation } from './domains/automations/event-scope.integration.ts';
 import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
 import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
 import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
@@ -61689,6 +61690,10 @@ async function main(): Promise<void> {
       [
         'checkTriggerStreakLockOrder',
         () => checkTriggerStreakLockOrder(sql, authCtx, record),
+      ],
+      [
+        'checkEventScopeAndIsolation',
+        () => checkEventScopeAndIsolation(sql, authCtx, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [

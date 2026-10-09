@@ -15,6 +15,10 @@ import {
   scheduleOfTrigger,
 } from '../../../lib/automations/schedule/occurrences.ts';
 import { triggerRunInput } from '../../../lib/engine/core/slots.ts';
+import {
+  eventProjectId,
+  isEmittedEventType,
+} from '../../../lib/shared/event-types.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
@@ -735,9 +739,14 @@ async function raisingRun(
  * automation run raised starts other automations, but never the one whose
  * run raised it, and nothing at all when that run was itself started by an
  * event (AUTO-R12): a chain of event starts is one long, so no automation
- * loops on itself or with another. An event of an organization that no
- * longer exists starts nothing either: its listening triggers are disabled
- * instead (`refused` answers that and a loop-held event).
+ * loops on itself or with another. An event of a project starts only the
+ * automations installed in it or in none, and their runs start in that
+ * project (AUTO-R30). Each trigger starts in a savepoint of its own, so a
+ * start one refuses — its inputs, its project — is stamped `start_refused`
+ * on that trigger and leaves the others' runs in place. An event of an
+ * organization that no longer exists starts nothing either: its listening
+ * triggers are disabled instead (`refused` answers that and a loop-held
+ * event).
  *
  * Before it stamps a trigger, the dispatch takes the organization's audit
  * chain (`lockAuditChain`): a run of that trigger landing meanwhile holds
@@ -808,33 +817,94 @@ export async function dispatchAutomationEvent(
     }
     return { started: [], refused: true };
   }
+  const eventProject = isEmittedEventType(args.event)
+    ? eventProjectId(args.event, args.payload)
+    : null;
+  const installs = await installedProjects(
+    tx,
+    args.organizationId,
+    triggers.map((trigger) => trigger.name),
+  );
   const started: string[] = [];
+  const refusals: string[] = [];
   for (const trigger of triggers) {
-    // The producer's transaction carries the run AND the stamp that names
-    // it; a binding whose automation has nothing deployed records the
-    // skip instead of a "fire" that started nothing.
-    const run = await beginRunInTx(tx, {
-      organizationId: args.organizationId,
-      name: trigger.name,
-      input: triggerRunInput(
-        { kind: 'event', event: args.event, payload: args.payload },
-        trigger.runInput,
-      ),
-      mode: 'live',
-      startedBy: `trigger:${trigger.id}`,
-    });
+    const bound = installs.get(trigger.name) ?? [];
+    // An event of a project starts the automations installed there or
+    // nowhere (AUTO-R30); one installed only elsewhere does not hear it.
+    if (eventProject !== null && bound.length > 0) {
+      if (!bound.includes(eventProject)) continue;
+    }
+    // Where the run goes: the event's project, else the automation's sole
+    // installation. Named either way, so a project that cannot take a run
+    // (archived, AUTO-R8) refuses it here instead of taking it unchecked.
+    const projectId =
+      eventProject ?? (bound.length === 1 ? bound[0] : undefined);
     const now = Date.now();
-    if (run) {
-      await stampFired(tx, trigger.id, now, run.runId);
-      started.push(run.runId);
-    } else {
-      await stampSkipped(tx, trigger.id, now, {
-        reason: 'not_deployed',
-        occurrence: now,
+    try {
+      // Each trigger starts in a savepoint of its own: a start this
+      // trigger's version or project refuses rolls back its work alone,
+      // and the other automations listening for the event keep their runs.
+      const runId = await tx.savepoint(async (sp) => {
+        // The producer's transaction carries the run AND the stamp that
+        // names it; a binding whose automation has nothing deployed
+        // records the skip instead of a "fire" that started nothing.
+        const run = await beginRunInTx(sp, {
+          organizationId: args.organizationId,
+          name: trigger.name,
+          input: triggerRunInput(
+            { kind: 'event', event: args.event, payload: args.payload },
+            trigger.runInput,
+          ),
+          mode: 'live',
+          startedBy: `trigger:${trigger.id}`,
+          ...(projectId !== undefined ? { projectId } : {}),
+        });
+        if (run === null) {
+          await stampSkipped(sp, trigger.id, now, {
+            reason: 'not_deployed',
+            occurrence: now,
+          });
+          return null;
+        }
+        await stampFired(sp, trigger.id, now, run.runId);
+        return run.runId;
       });
+      if (runId !== null) started.push(runId);
+    } catch (error) {
+      // Only the store's coded refusal is this trigger's alone; a fault of
+      // the database is the dispatch's, and `emitEvent` rolls it back.
+      if (!(error instanceof AutomationError)) throw error;
+      await stampSkipped(tx, trigger.id, now, refusalDetail(error, now));
+      refusals.push(`${trigger.name} (${error.code})`);
     }
   }
+  if (refusals.length > 0) {
+    console.warn(
+      `[automations] event "${args.event}": ${refusals.length} trigger(s) could not start a run: ${namedList(refusals.length, refusals.slice(0, NAMES_IN_LOG))}`,
+    );
+  }
   return { started, refused: false };
+}
+
+/** The projects each named automation is installed in — none for an
+ * automation of the organization. One read for every listening trigger. */
+async function installedProjects(
+  tx: TransactionSql,
+  organizationId: string,
+  names: string[],
+): Promise<Map<string, string[]>> {
+  const rows = await tx<{ name: string; projectId: string }[]>`
+    SELECT automation_name AS name, project_id AS "projectId"
+    FROM app.automation_project_bindings
+    WHERE org_id = ${organizationId} AND automation_name = ANY(${names}::text[])
+  `;
+  const installs = new Map<string, string[]>();
+  for (const row of rows) {
+    const list = installs.get(row.name) ?? [];
+    list.push(row.projectId);
+    installs.set(row.name, list);
+  }
+  return installs;
 }
 
 /** Thrown inside the delivery transaction when the automation has no deployed

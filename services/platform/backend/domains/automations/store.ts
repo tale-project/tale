@@ -2530,9 +2530,10 @@ export async function resolveRunProject(
   }
   const inferred = bindings.length === 1 ? bindings[0] : undefined;
   // A person's app start holds an inferred sole binding to the same checks
-  // as a named project. Trusted trigger callers keep their inferred scope
-  // unchecked: an event dispatch starts every listening automation in one
-  // savepoint, so one refusal there would roll back the others' runs.
+  // as a named project. A schedule keeps its inferred scope unchecked
+  // (whether it may start in an archived project is undecided); an event
+  // dispatch names the project it starts in, so it meets these checks, in
+  // a savepoint of its own per trigger.
   const projectId =
     args.projectId ??
     (args.visibleProjectIds !== undefined ? inferred : undefined);

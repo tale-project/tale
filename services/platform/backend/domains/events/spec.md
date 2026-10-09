@@ -19,7 +19,9 @@ together or not at all.
 ### EVENT-R2 · A save never fails because an automation could not start
 
 The failure is written to the server log, the automation's start is undone, and the record is
-saved as if no automation had been listening.
+saved as if no automation had been listening. A start one automation refuses, because its
+inputs refuse the event or its project cannot take a run, is recorded on that automation's
+trigger instead, and the other automations listening still start (`AUTO-R30`).
 
 - **Example**: Mia creates a contact. An automation that runs on new contacts fails to start →
   the contact is saved, and the failed start is in the server log.
@@ -29,5 +31,5 @@ saved as if no automation had been listening.
 - **Which events exist and what each carries** (`lib/shared/event-types.ts`).
 - **Which automations an event starts**, and what a trigger refuses: that is decided by the
   automations domain (`automations/triggers.ts`).
-- Nothing tells a person that an automation failed to start on their save; the server log is
-  the only record (`EVENT-R2`).
+- Nothing tells the person who saved that an automation failed to start; the server log, and
+  the trigger for a start the automation refused, are the only records (`EVENT-R2`).

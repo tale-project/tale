@@ -85,6 +85,8 @@ The URL authorizes a run. Store it as a credential and share it only with the se
 
 Choose **Platform event**, select **Event name**, then save and enable when ready. Match the workflow’s schema to the `trigger`, `event` and `payload` wrapper in the table. An event that an automation’s run raises never starts that same automation, and a run that an event started doesn’t start other automations, so a workflow cannot keep starting itself, or another one, through its own changes.
 
+Task, comment and project events belong to a project; contact and conversation events don’t. An event of a project starts the automations installed in that project and those installed in none, and their runs belong to that project. An automation installed only in other projects doesn’t react to it. An event without a project starts an automation installed in exactly one project in that project. When that project is archived, or the automation’s inputs refuse the event, no run starts and the trigger shows why. The other automations listening for the event still start.
+
 A workflow expecting required top-level fields such as `owner` and `repo` cannot accept schedule metadata or a wrapped webhook unchanged. Adapt its input schema and references, or use an API-started run that supplies those fields. The trigger settings do not provide arbitrary saved input fields.
 
 ## Start a project agent on a schedule
