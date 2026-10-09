@@ -336,11 +336,12 @@ export function mailboxConfigFromCredential(
   // pair (tls + 587, or starttls + 465) is exactly OpenSSL's
   // `wrong version number`. Defaults match the connector's declared defaults.
   const configuredSecure = configString(ctx, 'security', 'tls') !== 'starttls';
-  const imapPort = configPort(ctx, 'imapPort', IMAPS_PORT);
+  const imapPort = configPort(ctx, 'imapPort', IMAPS_PORT, action);
   const smtpPort = configPort(
     ctx,
     'smtpPort',
     configuredSecure ? SMTPS_PORT : SUBMISSION_PORT,
+    action,
   );
   const pinnedSent = configString(ctx, 'sentMailbox');
 
@@ -378,16 +379,23 @@ function configString(
   return typeof value === 'string' ? value.trim() : fallback;
 }
 
-/** Read a config field as a port number, falling back to `fallback` when it is
- * absent or not a usable port. */
+/** Read a config field as a port number; absent values use the declared default. */
 function configPort(
   ctx: NativeConnectorContext,
   key: string,
   fallback: number,
+  action: string,
 ): number {
   const value = ctx.config[key];
+  if (value === undefined) return fallback;
   const port = typeof value === 'number' ? value : Number(value);
-  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : fallback;
+  if (Number.isInteger(port) && port > 0 && port <= 65535) return port;
+  throw refuse(
+    'CREDENTIAL_UNRESOLVED',
+    action,
+    `the mailbox ${key} must be an integer port between 1 and 65535`,
+    'correct the mailbox port in Settings → Connectors',
+  );
 }
 
 /**

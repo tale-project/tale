@@ -395,6 +395,7 @@ connectors:
     und unterstützten Plattform-Werkzeugen deiner Organisation.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Gib eine ganze Zahl zwischen 1 und 65535 ein.
   catalog:
     emptyBody: >-
       Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das

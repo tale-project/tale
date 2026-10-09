@@ -127,6 +127,148 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+const MAILBOX_HOSTS = { imapHost: '127.0.0.1', smtpHost: '127.0.0.1' };
+
+describe.each(['create', 'update'] as const)(
+  '%s mailbox credentials — config validation before writes',
+  (operation) => {
+    function mailboxSql() {
+      return fakeSql((statement) => {
+        if (
+          statement.text.startsWith('INSERT INTO app.connector_credentials')
+        ) {
+          return [{ id: 'cred-new' }];
+        }
+        if (statement.text.includes('WHERE id = ? AND org_id = ? LIMIT 1')) {
+          return [
+            {
+              ...ROW,
+              connectorSlug: 'imap-smtp',
+              authMethod: 'basic',
+              config: MAILBOX_HOSTS,
+            },
+          ];
+        }
+        return undefined;
+      });
+    }
+
+    async function save(
+      sql: Sql,
+      config: Record<string, string | number | boolean>,
+    ) {
+      if (operation === 'create') {
+        await createCredential(sql, {
+          organizationId: 'org-1',
+          connectorSlug: 'imap-smtp',
+          authMethod: 'basic',
+          name: 'Local mailbox',
+          secret: { username: 'ada@example.test', password: 'test-password' },
+          config,
+          createdBy: 'user-1',
+          actor: ACTOR,
+        });
+      } else {
+        await updateCredential(sql, {
+          organizationId: 'org-1',
+          credentialId: 'cred-1',
+          config,
+          actor: ACTOR,
+        });
+      }
+    }
+
+    it.each([
+      ['imapPort', 65536],
+      ['imapPort', 1.5],
+      ['imapPort', 0],
+      ['imapPort', '65536'],
+      ['imapPort', '1.5'],
+      ['imapPort', 'abc'],
+      ['smtpPort', 65536],
+      ['smtpPort', 1.5],
+      ['smtpPort', 0],
+      ['smtpPort', '65536'],
+      ['smtpPort', '1.5'],
+      ['smtpPort', 'abc'],
+    ])('refuses %s=%s without a write, audit or hint', async (key, value) => {
+      const { sql, statements } = mailboxSql();
+      await expect(
+        save(sql, { ...MAILBOX_HOSTS, [key]: value }),
+      ).rejects.toMatchObject({
+        code: 'CREDENTIAL_CONFIG_INVALID',
+        status: 400,
+      });
+      expect(
+        statements.filter((statement) =>
+          /^(INSERT|UPDATE|DELETE)\b/.test(statement.text),
+        ),
+      ).toEqual([]);
+      if (operation === 'create') expect(statements).toEqual([]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+      expect(hints(statements)).toEqual([]);
+    });
+
+    it.each([
+      { imapPort: 1993, smtpPort: 1587 },
+      { imapPort: '1993', smtpPort: '1587' },
+      { imapPort: 1, smtpPort: 65535 },
+    ])('stores valid custom ports unchanged: %j', async (ports) => {
+      const { sql, statements } = mailboxSql();
+      await save(sql, { ...MAILBOX_HOSTS, ...ports });
+      const write = statements.find((statement) =>
+        statement.text.startsWith(
+          `${operation === 'create' ? 'INSERT INTO' : 'UPDATE'} app.connector_credentials`,
+        ),
+      );
+      expect(write?.values).toContainEqual({
+        ...MAILBOX_HOSTS,
+        imapPort: Number(ports.imapPort),
+        smtpPort: Number(ports.smtpPort),
+        security: 'tls',
+        sentMailbox: 'Sent',
+        ...(operation === 'create' ? { fromAddress: 'ada@example.test' } : {}),
+      });
+      expect(hints(statements)).toEqual([
+        hintFor(operation === 'create' ? 'cred-new' : 'cred-1'),
+      ]);
+    });
+
+    it('stores the declared port and Sent-folder defaults when omitted', async () => {
+      const { sql, statements } = mailboxSql();
+      await save(sql, MAILBOX_HOSTS);
+      const write = statements.find((statement) =>
+        statement.text.startsWith(
+          `${operation === 'create' ? 'INSERT INTO' : 'UPDATE'} app.connector_credentials`,
+        ),
+      );
+      expect(write?.values).toContainEqual({
+        ...MAILBOX_HOSTS,
+        imapPort: 993,
+        smtpPort: 465,
+        security: 'tls',
+        sentMailbox: 'Sent',
+        ...(operation === 'create' ? { fromAddress: 'ada@example.test' } : {}),
+      });
+    });
+
+    it('still refuses a missing required host before any write', async () => {
+      const { sql, statements } = mailboxSql();
+      await expect(
+        save(sql, { smtpHost: MAILBOX_HOSTS.smtpHost }),
+      ).rejects.toMatchObject({
+        code: 'CREDENTIAL_CONFIG_REQUIRED',
+      });
+      expect(
+        statements.filter((statement) =>
+          /^(INSERT|UPDATE|DELETE)\b/.test(statement.text),
+        ),
+      ).toEqual([]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+    });
+  },
+);
+
 describe('connector credential writes — realtime hints', () => {
   it('hints a creation to the whole organization, inside its transaction', async () => {
     const { sql, statements } = fakeSql((s) =>
