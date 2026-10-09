@@ -811,10 +811,25 @@ export async function eraseSubjectAutomationRuns(
   ];
   return sql.begin(async (tx) => {
     await markAutomationWriterInTx(tx);
+    // The person's runs and every run that carries theirs: a replay names
+    // the starters of its whole lineage (0192), which still finds it when
+    // its source was deleted first; the link walk covers the rest.
     const [held] = await tx<{ count: number }[]>`
       SELECT count(*)::int AS count FROM app.automation_runs
-      WHERE org_id = ${organizationId} AND started_by = ANY(${starters})
-        AND legacy_quarantine IS NOT NULL
+      WHERE org_id = ${organizationId} AND legacy_quarantine IS NOT NULL
+        AND id IN (
+          WITH RECURSIVE lineage AS (
+            SELECT id FROM app.automation_runs
+            WHERE org_id = ${organizationId}
+              AND (started_by = ANY(${starters})
+                   OR replay_lineage_started_by && ${starters}::text[])
+            UNION
+            SELECT r.id FROM app.automation_runs r
+            JOIN lineage l ON r.replay_of_run_id = l.id
+            WHERE r.org_id = ${organizationId}
+          )
+          SELECT id FROM lineage
+        )
     `;
     const removed = await tx<{ id: string }[]>`
       DELETE FROM app.automation_runs
@@ -822,7 +837,9 @@ export async function eraseSubjectAutomationRuns(
         AND id IN (
           WITH RECURSIVE lineage AS (
             SELECT id FROM app.automation_runs
-            WHERE org_id = ${organizationId} AND started_by = ANY(${starters})
+            WHERE org_id = ${organizationId}
+              AND (started_by = ANY(${starters})
+                   OR replay_lineage_started_by && ${starters}::text[])
             UNION
             SELECT r.id FROM app.automation_runs r
             JOIN lineage l ON r.replay_of_run_id = l.id
