@@ -1049,9 +1049,10 @@ output:
       are read, then each item joins under it with how it ended and how long
       it worked (past 20, `flow.timeline.showAll`); choosing one opens it in
       the inspector with that item picked in its list, and moves the clock
-      to its start. The URL now carries `?view=steps`, the step and the item:
-      a reload or the same link in a new tab opens the same view, step and
-      item; `automationRuns.view.chart` takes `view` out of the URL.
+      to its start. The URL now carries `?view=steps`, the step, the item and
+      `t` (where the clock rests): a reload or the same link in a new tab
+      opens the same view, step, item and moment; `automationRuns.view.chart`
+      takes `view` out of the URL, and playing on to the end takes `t`.
 
 ## Boundary & error tests
 

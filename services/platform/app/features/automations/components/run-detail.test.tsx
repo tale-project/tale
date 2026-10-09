@@ -173,6 +173,8 @@ vi.mock('./automation-canvas', () => ({
     onSelect,
     runView,
     onRunViewChange,
+    runMoment,
+    onRunMomentChange,
   }: {
     automation: { nodes: Array<{ id: string; type: string }> };
     layoutKey: string;
@@ -187,6 +189,8 @@ vi.mock('./automation-canvas', () => ({
     onSelect?: (id: string | null, unit?: { item?: number }) => void;
     runView?: string;
     onRunViewChange?: (view: 'chart' | 'steps') => void;
+    runMoment?: number;
+    onRunMomentChange?: (moment: number | null) => void;
   }) => (
     <>
       <ul
@@ -202,6 +206,7 @@ vi.mock('./automation-canvas', () => ({
             : JSON.stringify(selectedUnit)
         }
         data-run-view={runView}
+        data-run-moment={runMoment}
       >
         {automation.nodes.map((node) => (
           <li key={node.id}>
@@ -214,6 +219,12 @@ vi.mock('./automation-canvas', () => ({
       </button>
       <button type="button" onClick={() => onRunViewChange?.('chart')}>
         Show the chart
+      </button>
+      <button type="button" onClick={() => onRunMomentChange?.(1200)}>
+        Rest at 1.2 s
+      </button>
+      <button type="button" onClick={() => onRunMomentChange?.(null)}>
+        Rest at the end
       </button>
     </>
   ),
@@ -1263,5 +1274,40 @@ describe('RunDetail link', () => {
       item: 2,
       pass: null,
     });
+  });
+
+  it('opens on the moment its URL names, and writes where the playback rests', async () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [{ node: 'send', type: 'imap-smtp.send', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [{ id: 'send', type: 'imap-smtp.send' }],
+    };
+    const onSearchChange = vi.fn();
+    const { user } = render(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+        search={{ t: 900 }}
+        onSearchChange={onSearchChange}
+      />,
+    );
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-run-moment',
+      '900',
+    );
+    await user.click(screen.getByRole('button', { name: 'Rest at 1.2 s' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ t: 1200 });
+    // Resting where it already rests writes nothing again.
+    await user.click(screen.getByRole('button', { name: 'Rest at 1.2 s' }));
+    expect(
+      onSearchChange.mock.calls.filter(([change]) => 't' in change),
+    ).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Rest at the end' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ t: null });
   });
 });

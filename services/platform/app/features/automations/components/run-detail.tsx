@@ -198,6 +198,17 @@ function RunDetailBody({
       pass: selectedUnit?.pass ?? null,
     });
   }, [selectedNodeId, selectedUnit, runView, onSearchChange]);
+  // The moment the playback rests on follows too: a link opens there.
+  const [openedMoment] = useState(search?.t);
+  const writtenMoment = useRef<number | null>(openedMoment ?? null);
+  const onRunMomentChange = useCallback(
+    (moment: number | null) => {
+      if (writtenMoment.current === moment) return;
+      writtenMoment.current = moment;
+      onSearchChange?.({ t: moment });
+    },
+    [onSearchChange],
+  );
   const selectStep = useCallback(
     (id: string | null, unit: RunUnitRef | null = null) => {
       setSelectedNodeId(id);
@@ -818,6 +829,8 @@ function RunDetailBody({
               onSelect={selectOnCanvas}
               runView={runView}
               onRunViewChange={setRunView}
+              {...(openedMoment !== undefined && { runMoment: openedMoment })}
+              onRunMomentChange={onRunMomentChange}
               revealId={selectedNodeId ?? failedNode}
               inspectorId={inspectorId}
               {...(canvasRun !== null && { run: canvasRun })}

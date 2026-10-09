@@ -72,6 +72,8 @@ export interface RunSearchChange {
   node?: string | null;
   item?: number | null;
   pass?: number | null;
+  /** Real milliseconds since the run started. */
+  t?: number | null;
 }
 
 /** The search after a change, keeping every key the change leaves out. */
@@ -88,6 +90,8 @@ export function applyRunSearchChange(
   else if (change.item !== undefined) next.item = change.item;
   if (change.pass === null) delete next.pass;
   else if (change.pass !== undefined) next.pass = change.pass;
+  if (change.t === null) delete next.t;
+  else if (change.t !== undefined) next.t = change.t;
   return next;
 }
 

@@ -368,4 +368,60 @@ describe('AutomationCanvas playing a recorded run in Chromium', () => {
     expect(line('score#loading')).toBeNull();
     expect(line('score#item:2')).not.toBeNull();
   });
+
+  it('opens on the moment a link names, and says where the playback rests', async () => {
+    await page.viewport(1280, 1600);
+    const moments: (number | null)[] = [];
+    render(
+      <div style={{ width: 1180, height: 1500 }}>
+        <AutomationCanvas
+          automation={TRIAGE}
+          layoutKey="triage:run-1"
+          catalog={CATALOG}
+          selectedId={null}
+          onSelect={() => undefined}
+          inspectorId="inspector"
+          run={RUN}
+          runView="steps"
+          runMoment={1_500}
+          onRunMomentChange={(moment) => moments.push(moment)}
+        />
+      </div>,
+    );
+    const steps = await screen.findByRole('tree', { name: 'Steps' });
+    // It rests where the link said, 1.5 s into the run.
+    await waitFor(() => expect(moments.at(-1)).toBe(1_500));
+    // Choosing a step moves the clock to where it started, and that is
+    // where it rests next.
+    const third = TRIAGE.nodes[2]?.id ?? '';
+    const row = steps.querySelector<HTMLElement>(
+      `[data-flow-timeline-line="${CSS.escape(third)}"]`,
+    );
+    if (row === null) throw new Error('no row for the third step');
+    await userEvent.click(row);
+    await waitFor(() => expect(moments.at(-1)).toBe(2_000));
+  });
+
+  it('says nothing of a moment while the playback rests on the run’s end', async () => {
+    await page.viewport(1280, 1600);
+    const moments: (number | null)[] = [];
+    render(
+      <div style={{ width: 1180, height: 1500 }}>
+        <AutomationCanvas
+          automation={TRIAGE}
+          layoutKey="triage:run-1"
+          catalog={CATALOG}
+          selectedId={null}
+          onSelect={() => undefined}
+          inspectorId="inspector"
+          run={RUN}
+          runView="steps"
+          onRunMomentChange={(moment) => moments.push(moment)}
+        />
+      </div>,
+    );
+    await screen.findByRole('tree', { name: 'Steps' });
+    await waitFor(() => expect(moments).toContain(null));
+    expect(moments.every((moment) => moment === null)).toBe(true);
+  });
 });
