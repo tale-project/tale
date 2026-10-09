@@ -85,6 +85,8 @@ Un processus de sortie sain ne prouve pas la disponibilité de l’hôte distant
 
 Quand de nombreuses sessions installent des paquets ou chargent des pages en même temps et que des connexions échouent sur des réinitialisations alors que le proxy reste sain, il a peut-être atteint `SANDBOX_EGRESS_MAX_CLIENTS`, les connexions qu’il sert en même temps pour toutes les sessions réunies. Son journal indique alors que le nombre maximal de connexions est atteint. Augmente la valeur, avec les limites de processus et de fichiers ouverts du conteneur de sortie, puis recrée le service de sortie.
 
+Quand les connexions d’une seule session échouent sur des réinitialisations alors que d’autres sessions atteignent encore les mêmes hôtes, cette session détient peut-être déjà `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connexions (256 par défaut), et le proxy refuse les suivantes jusqu’à ce que certaines se ferment. Augmente la valeur, ou mets `0` pour désactiver la limite, puis recrée le service de sortie.
+
 ## Les écritures échouent ou le stockage se remplit
 
 Vérifie connexion à la base applicative, espace libre, usage des connexions et verrous. Arrête la croissance évitable et récupère de la capacité selon ta procédure de base. Ne supprime pas le contenu des volumes, ne remplace pas les clés de chiffrement et ne suppose pas que les écritures échouées seront rejouées après redémarrage. Vérifie si l’opération a persisté avant de la relancer.

@@ -46,6 +46,20 @@ container's pids (4096) and open files (8192/16384) for it; a higher value
 needs those raised with it. On Kubernetes the threads count against the
 node's `podPidsLimit`. The idle tunnel `Timeout` stays at 600 s.
 
+`SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` (256 by default) caps what one
+client address holds open on the proxy port at once, so a single session
+cannot take that whole pool from the others: `docker-entrypoint.sh` adds one
+`iptables` rule on `INPUT` for new TCP connections to port 3128
+(`-m connlimit --connlimit-above N --connlimit-mask 32 -j REJECT --reject-with tcp-reset`),
+only when the rule is not there yet. With transparent egress every connection
+of a session, its nested containers' included, comes from the session's one
+address, and each build helper has an address of its own; a connection past
+the cap is reset at once instead of waiting out a timeout. `0` turns the cap
+off, and a value that is no whole number refuses the start. The cap is
+fairness, not a security boundary, so it fails open: a kernel without the
+`connlimit` match, or a development run without `NET_ADMIN`, starts the proxy
+without it and logs a warning.
+
 ```bash
 bun run --filter @tale/sandbox-egress serve         # docker compose up sandbox-egress
 bun run --filter @tale/sandbox-egress docker:build

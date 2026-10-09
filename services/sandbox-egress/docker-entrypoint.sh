@@ -2,7 +2,8 @@
 # services/sandbox-egress/docker-entrypoint.sh
 #
 # Container-level bootstrap for the sandbox egress proxy. Installs the
-# IP-layer SSRF firewall (requires NET_ADMIN), then hands off to
+# IP-layer SSRF firewall (requires NET_ADMIN) and the per-session connection
+# cap, then hands off to
 # `entrypoint.sh` which renders the tinyproxy config and supervises the
 # foreground proxy and DNS forwarder.
 #
@@ -33,6 +34,16 @@ set -e
 # compose generator. Missing tooling/capability refuses boot; only an explicit
 # development opt-out skips the firewall.
 SKIP_FIREWALL="${TALE_SKIP_SSRF_FIREWALL:-0}"
+
+# Connections one client address may hold open to the proxy at once; read
+# before anything is installed so a bad value refuses the start, as
+# SANDBOX_EGRESS_MAX_CLIENTS does in entrypoint.sh. 0 turns the cap off.
+SESSION_CONNECTIONS="${SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:-256}"
+case "$SESSION_CONNECTIONS" in
+  '' | *[!0-9]* | 0?*)
+    echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION must be a whole number of connections, or 0 for no cap; got '${SESSION_CONNECTIONS}'"
+    exit 1 ;;
+esac
 
 install_dns_resolver_rules() {
   # Kubernetes resolvers are often private Service IPs. Keep that necessary
@@ -199,6 +210,44 @@ else
   if ! install_dns_resolver_rules; then
     exit 1
   fi
+fi
+
+# ----------------------------------------------------------------------------
+# Per-session connection cap (fairness)
+# ----------------------------------------------------------------------------
+# tinyproxy's MaxClients (SANDBOX_EGRESS_MAX_CLIENTS) is one pool for every
+# session and build helper on the host, so a single session that opens
+# connections without end (a runaway crawler, an install fanning out) could
+# hold all of them and leave every other session with resets. Cap what each
+# client address holds open on the proxy port: with transparent egress all of
+# a session's traffic, its nested containers' included, reaches the proxy from
+# the session's one address, and each build helper has an address of its own.
+# A connection past the cap is refused with a TCP reset at once, so its client
+# fails fast instead of waiting out a timeout. tinyproxy listens on IPv4 only,
+# so there is no IPv6 rule. The rule goes in only when it is not there yet: a
+# Kubernetes container restart keeps its Pod's network namespace, and with it
+# the rule. This is fairness, not a security boundary, so it fails open: a
+# kernel without the connlimit match (or a development run without NET_ADMIN)
+# starts the proxy without the cap and says so.
+install_session_connection_cap() {
+  if [ "$SESSION_CONNECTIONS" = "0" ]; then
+    echo "[sandbox-egress] no per-session connection cap (SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION=0)"
+    return 0
+  fi
+  set -- INPUT -p tcp --syn --dport 3128 -m connlimit \
+    --connlimit-above "$SESSION_CONNECTIONS" --connlimit-mask 32 \
+    -j REJECT --reject-with tcp-reset
+  if iptables -C "$@" 2>/dev/null || iptables -I "$@"; then
+    echo "[sandbox-egress] each session holds at most ${SESSION_CONNECTIONS} proxy connections at once"
+  else
+    echo "[sandbox-egress] WARN: per-session connection cap unavailable (no connlimit match in this kernel, or no NET_ADMIN); starting without it, so one session can hold every proxy connection"
+  fi
+}
+
+if command -v iptables >/dev/null 2>&1; then
+  install_session_connection_cap
+else
+  echo "[sandbox-egress] WARN: iptables missing; starting without the per-session connection cap"
 fi
 
 exec /entrypoint.sh "$@"

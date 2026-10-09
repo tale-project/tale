@@ -56,6 +56,11 @@ export function createSandboxEgressService(
       // every outbound TCP connection of every session goes through it, and
       // a host's capacity reaches 256 sessions. Match compose.yml.
       SANDBOX_EGRESS_MAX_CLIENTS: '${SANDBOX_EGRESS_MAX_CLIENTS:-2000}',
+      // Connections one session (one client address) may hold open to the
+      // proxy at once, so no session takes the whole pool above; 0 turns the
+      // cap off. Match compose.yml.
+      SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:
+        '${SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:-256}',
     },
     restart: 'unless-stopped',
     // Match compose.yml: IPv4-only networks need no IPv6 kernel firewall.

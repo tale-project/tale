@@ -85,6 +85,8 @@ A healthy egress process does not prove that the remote host, DNS, certificate, 
 
 When many sessions install packages or load pages at once and connections fail with resets while the proxy stays healthy, the proxy may have reached `SANDBOX_EGRESS_MAX_CLIENTS`, the connections it serves at once for all sessions together. Its log then reports that the maximum number of connections was reached. Raise the value, together with the egress container's process and open-file limits, and recreate the egress service.
 
+When one session's connections fail with resets while other sessions still reach the same hosts, that session may already hold `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connections (256 by default), and the proxy refuses its next ones until some close. Raise the value, or set `0` to turn the cap off, and recreate the egress service.
+
 ## Writes fail or storage fills up
 
 Check application-database connectivity, free space, connection usage, and locks. Stop avoidable growth and follow your database procedure to recover capacity. Do not delete volume contents, reset encryption keys, or assume failed writes will replay after a restart. Retry the original operation only after checking whether it persisted.
