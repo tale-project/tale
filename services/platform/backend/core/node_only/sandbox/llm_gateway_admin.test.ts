@@ -2511,7 +2511,7 @@ describe('setVirtualKeyBudget', () => {
 });
 
 describe('applyGatewayConfig', () => {
-  it('GET-merges the full client_config, flips enforcement, clamps log retention', async () => {
+  it('GET-merges the full client_config, flips enforcement, keeps the request log for 3 days', async () => {
     const calls = stubGateway({
       clientConfig: {
         enable_logging: true,
@@ -2527,7 +2527,7 @@ describe('applyGatewayConfig', () => {
     expect(put?.body).toEqual({
       client_config: {
         enable_logging: true,
-        log_retention_days: 30,
+        log_retention_days: 3,
         max_request_body_size_mb: 100,
         enforce_auth_on_inference: true,
         disable_content_logging: true,
@@ -2602,6 +2602,70 @@ describe('applyGatewayConfig', () => {
     );
   });
 
+  it('moves a gateway that keeps its request log for another span to 3 days, its posture otherwise intact', async () => {
+    const calls = stubGateway({
+      authEnabled: true,
+      clientConfig: {
+        log_retention_days: 30,
+        enforce_auth_on_inference: true,
+        disable_content_logging: true,
+      },
+    });
+    const mod = await loadModule();
+    await mod.applyGatewayConfig();
+    const put = calls.find(
+      (c) => c.method === 'PUT' && c.url.endsWith('/api/config'),
+    );
+    expect(put?.body?.client_config).toEqual({
+      log_retention_days: 3,
+      enforce_auth_on_inference: true,
+      disable_content_logging: true,
+      drop_excess_requests: false,
+    });
+  });
+
+  it("keeps the request log for the operator's SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS, and leaves a gateway already there alone", async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS', '14');
+    const posture = {
+      enforce_auth_on_inference: true,
+      disable_content_logging: true,
+    };
+    const moved = stubGateway({
+      authEnabled: true,
+      clientConfig: { ...posture, log_retention_days: 3 },
+    });
+    await (await loadModule()).applyGatewayConfig();
+    expect(
+      moved.find((c) => c.method === 'PUT')?.body?.client_config,
+    ).toMatchObject({ log_retention_days: 14 });
+
+    vi.unstubAllGlobals();
+    const kept = stubGateway({
+      authEnabled: true,
+      clientConfig: { ...posture, log_retention_days: 14 },
+    });
+    await (await loadModule()).applyGatewayConfig();
+    expect(kept.map((c) => c.method)).toEqual(['GET']);
+  });
+
+  it.each(['0', '-2', '2.5', 'three'])(
+    'warns and keeps 3 days for an operator retention of %s, which the gateway would refuse',
+    async (configured) => {
+      vi.stubEnv('SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS', configured);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const calls = stubGateway({ authEnabled: true });
+      await (await loadModule()).applyGatewayConfig();
+      expect(
+        calls.find((c) => c.method === 'PUT')?.body?.client_config,
+      ).toMatchObject({ log_retention_days: 3 });
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS=${configured}`,
+        ),
+      );
+    },
+  );
+
   it('fails closed before touching the gateway when the admin password is unset', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
@@ -2619,7 +2683,7 @@ describe('applyGatewayConfig — a request-scoped key reuses a recent apply', ()
     const calls = stubGateway({
       authEnabled: true,
       clientConfig: {
-        log_retention_days: 30,
+        log_retention_days: 3,
         enforce_auth_on_inference: true,
         disable_content_logging: true,
       },
@@ -2634,7 +2698,7 @@ describe('applyGatewayConfig — a request-scoped key reuses a recent apply', ()
     const calls = stubGateway({
       authEnabled: true,
       clientConfig: {
-        log_retention_days: 30,
+        log_retention_days: 3,
         enforce_auth_on_inference: true,
         disable_content_logging: true,
         drop_excess_requests: true,
@@ -2646,7 +2710,7 @@ describe('applyGatewayConfig — a request-scoped key reuses a recent apply', ()
       (c) => c.method === 'PUT' && c.url.endsWith('/api/config'),
     );
     expect(put?.body?.client_config).toEqual({
-      log_retention_days: 30,
+      log_retention_days: 3,
       enforce_auth_on_inference: true,
       disable_content_logging: true,
       drop_excess_requests: false,
