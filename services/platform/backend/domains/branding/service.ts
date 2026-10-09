@@ -4,6 +4,7 @@ import path from 'node:path';
 import { brandingJsonSchema } from '@tale/shared/schemas/branding';
 import type { Sql } from 'postgres';
 
+import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import {
   buildBrandingImageUrl,
   MAX_FILE_SIZE_BYTES,
@@ -98,6 +99,22 @@ export class BrandingError extends Error {
     this.name = 'BrandingError';
     this.code = code;
     this.status = status;
+  }
+}
+
+/**
+ * Who may change the organization's branding — read it for editing, save
+ * it, upload or delete its images: a role with the org-settings
+ * capability, which owners and admins hold. Anyone else is refused, with
+ * the capability named, before anything is read or written.
+ */
+export function assertBrandingWriter(role: string): void {
+  if (defineAbilityFor(role).cannot('write', 'orgSettings')) {
+    throw new BrandingError(
+      'ORG_FORBIDDEN',
+      `Role "${role}" lacks the org-settings capability required to modify branding.`,
+      403,
+    );
   }
 }
 
