@@ -84,6 +84,13 @@ function outboxWorld() {
       const ids = values[0] as string[];
       return ids.filter((id) => world.sessions.has(id)).map((id) => ({ id }));
     }
+    if (text.includes('min(id)')) {
+      const min = world.rows.reduce(
+        (m, row) => (m === null || row.id < m ? row.id : m),
+        null as number | null,
+      );
+      return [{ oldest: min === null ? null : String(min) }];
+    }
     if (text.includes('max(id)')) {
       const max = world.rows.reduce((m, row) => Math.max(m, row.id), 0);
       return [{ max: String(max) }];
@@ -315,8 +322,46 @@ describe('the shared hint tail', () => {
     expect(resumed.text).not.toContain('event: resync');
     expect(world.count('AS id, org_id, entity, entity_id')).toBe(0);
     expect(world.count('exists(')).toBe(0);
+    // One shared read of the oldest retained id, not a per-stream catch-up.
+    expect(world.count('min(id)')).toBe(1);
     await first.close();
     await resumed.close();
+  });
+
+  test('a ring resume whose cursor left retention still says resync, and a crowd shares one check', async () => {
+    const { world, sql } = outboxWorld();
+    world.members.set('o1/u1', 'member');
+    const app = appFor(sql, FAST);
+    const first = collect(await app.request('/events?orgId=o1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const gone = world.insert('o1', 'task');
+    const kept = world.insert('o1', 'document');
+    expect(await first.until((read) => read.includes(`id: ${kept}`))).toBe(
+      true,
+    );
+    // The cursor's row was reclaimed by another process; the ring still
+    // holds what followed it.
+    world.rows = world.rows.filter((row) => row.id > gone);
+    const crowd = await Promise.all(
+      [0, 1, 2].map(async () =>
+        collect(
+          await app.request('/events?orgId=o1', {
+            headers: { 'Last-Event-ID': String(gone) },
+          }),
+        ),
+      ),
+    );
+    for (const resumed of crowd) {
+      expect(
+        await resumed.until((read) => read.includes('event: resync')),
+      ).toBe(true);
+      // The replay still came from memory.
+      expect(hintIds(resumed.text)).toEqual([String(kept)]);
+    }
+    expect(world.count('min(id)')).toBe(1);
+    expect(world.count('AS id, org_id, entity, entity_id')).toBe(0);
+    await first.close();
+    await Promise.all(crowd.map((resumed) => resumed.close()));
   });
 
   test('a resume older than the ring reads the database and says resync when the cursor is gone', async () => {

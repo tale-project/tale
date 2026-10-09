@@ -43,9 +43,13 @@ import {
  *
  * Resume is served from memory where it can be: the hub keeps the newest
  * outbox rows in a ring, so a browser reconnecting after a deploy (with its
- * `Last-Event-ID`) replays from the ring without a query. Only a cursor
- * older than the ring takes the database path the per-stream loop used —
- * read, then check the cursor is still retained.
+ * `Last-Event-ID`) replays from the ring without a per-stream read. Only a
+ * cursor older than the ring takes the database path the per-stream loop
+ * used — read, then check the cursor is still retained. A ring resume still
+ * answers whether the database retains its cursor (a client whose cursor
+ * fell out of retention is told to `resync`, whichever process it reaches),
+ * from one read of the oldest retained id that every resume within
+ * `OLDEST_RETAINED_TTL_MS` shares — a reconnect storm costs a few reads.
  */
 
 /** Newest outbox rows the hub keeps for in-memory resume. */
@@ -56,6 +60,8 @@ const DEFAULT_TAIL_PAGE = 2_000;
 const CATCH_UP_PAGE = 500;
 /** Pairs one batched authorization query checks. */
 const RECHECK_CHUNK = 500;
+/** How long resumes share one read of the oldest retained outbox id. */
+const OLDEST_RETAINED_TTL_MS = 250;
 /**
  * How long the loop keeps reading after its last stream left. Zero by
  * default: a process without streams stops polling (the worker's reclaim
@@ -182,8 +188,15 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
   const tailPage = options.tailPage ?? DEFAULT_TAIL_PAGE;
   const lingerMs = options.lingerMs ?? DEFAULT_LINGER_MS;
   const outage = createOutageWatch(options.outageReportAfterMs);
+  /** The last read of the oldest retained id, shared by resumes. */
+  let oldestRead: { at: number; value: Promise<bigint | null> } | null = null;
   const reclaimer = createOutboxReclaimer({
-    reclaim: () => reclaimOutbox(sql),
+    reclaim: async () => {
+      const reclaimed = await reclaimOutbox(sql);
+      // A prefix just went: the next resume reads the oldest id afresh.
+      if (reclaimed > 0) oldestRead = null;
+      return reclaimed;
+    },
   });
 
   const byOrg = new Map<string, Set<Subscriber>>();
@@ -577,6 +590,48 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     }
   }
 
+  /**
+   * The oldest id the outbox still holds (null: none). Reclaim removes a
+   * strict id-prefix, so a cursor below it is one the database no longer
+   * retains — the verdict `outboxRetainsCursor` gives, for every resume at
+   * once.
+   */
+  function oldestRetained(): Promise<bigint | null> {
+    const now = Date.now();
+    if (oldestRead !== null && now - oldestRead.at < OLDEST_RETAINED_TTL_MS) {
+      return oldestRead.value;
+    }
+    const value = sql<{ oldest: string | null }[]>`
+      SELECT min(id)::text AS oldest FROM app_realtime.outbox
+    `.then((rows) => {
+      const oldest = rows[0]?.oldest;
+      return oldest === null || oldest === undefined ? null : toBigInt(oldest);
+    });
+    const read = { at: now, value };
+    oldestRead = read;
+    // A failed read is not shared: the next resume asks again.
+    value.catch(() => {
+      if (oldestRead === read) oldestRead = null;
+    });
+    return value;
+  }
+
+  /** Tell a ring-resumed stream to resync when its cursor left retention. */
+  function verifyRingResume(subscriber: Subscriber, resumeAt: bigint): void {
+    oldestRetained()
+      .then((oldest) => {
+        if (subscriber.ended) return;
+        if (oldest === null || oldest > resumeAt) {
+          subscriber.writer.write(frameEvent({ event: 'resync', data: '' }));
+        }
+      })
+      .catch((error: unknown) => {
+        // The replay already happened; only the resync verdict is lost, and
+        // the next reconnect asks again.
+        console.warn('[backend] /events resume retention check failed:', error);
+      });
+  }
+
   /** Whether the ring alone can replay everything after `resumeCursor`. */
   function ringCovers(resumeCursor: bigint): boolean {
     if (cursor === null) return false;
@@ -651,6 +706,7 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
           subscriber.cursor = resumeAt;
           deliver(subscriber, ring);
           subscriber.live = true;
+          verifyRingResume(subscriber, resumeAt);
           return;
         }
         void catchUp(subscriber, resume);
