@@ -20,6 +20,7 @@ import { useT } from '@/lib/i18n/client';
 import { useRunItems, useRunNode } from '../hooks/queries';
 import { nodeTitle } from '../lib/node-face';
 import { stepFailureText } from '../lib/run-failure';
+import { isUnit, type RunUnitRef, unitRefOf } from '../lib/run-timeline';
 import { RunStepData } from './run-step-data';
 
 type Unit = NodeRunPage['units'][number];
@@ -53,7 +54,7 @@ function UnitPage({
   node: string;
   cursor: string | undefined;
   failedOnly: boolean;
-  selected: Unit | null;
+  selected: RunUnitRef | null;
   onSelect: (unit: Unit) => void;
   /** The cursor of the page after this one, when it is the last shown. */
   onMore?: (next: string) => void;
@@ -78,10 +79,7 @@ function UnitPage({
           unit.failure === undefined
             ? undefined
             : stepFailureText(unit.failure, { t, locale }).title;
-        const isSelected =
-          selected !== null &&
-          selected.item === unit.item &&
-          selected.pass === unit.pass;
+        const isSelected = selected !== null && isUnit(selected, unit);
         return (
           <li key={`${unit.item}:${unit.pass}`}>
             <button
@@ -124,23 +122,34 @@ function UnitPage({
 /**
  * The items of a step that ran once per item, or the passes of one that
  * repeated: each with how it ended and, when it failed, why — failed ones
- * alone on request — and the one picked read whole below.
+ * alone on request — and the one picked read whole below. The page may
+ * choose the one shown (the Steps view, a link); the list chooses on its
+ * own otherwise.
  */
 export function RunStepItems({
   organizationId,
   runId,
   step,
+  unit,
+  onUnitChange,
 }: {
   organizationId: string;
   runId: string;
   step: RecordedStep;
+  unit?: RunUnitRef | null;
+  onUnitChange?: (unit: RunUnitRef | null) => void;
 }) {
   const { t } = useT('automationRuns');
   const filterId = useId();
   const [failedOnly, setFailedOnly] = useState(false);
   // The cursors of the pages shown after the first.
   const [cursors, setCursors] = useState<string[]>([]);
-  const [selected, setSelected] = useState<Unit | null>(null);
+  const [chosen, setChosen] = useState<RunUnitRef | null>(null);
+  const selected = unit === undefined ? chosen : unit;
+  const select = (next: RunUnitRef | null) => {
+    setChosen(next);
+    onUnitChange?.(next);
+  };
   const detail = useRunNode(
     organizationId,
     selected === null ? undefined : runId,
@@ -148,8 +157,8 @@ export function RunStepItems({
       ? undefined
       : {
           node: step.path,
-          ...(selected.item >= 0 && { item: selected.item }),
-          ...(selected.pass >= 0 && { pass: selected.pass }),
+          ...(selected.item !== undefined && { item: selected.item }),
+          ...(selected.pass !== undefined && { pass: selected.pass }),
         },
   );
   const counts = step.counts;
@@ -173,7 +182,7 @@ export function RunStepItems({
               onCheckedChange={(checked) => {
                 setFailedOnly(checked === true);
                 setCursors([]);
-                setSelected(null);
+                select(null);
               }}
             />
             <label htmlFor={filterId} className="text-xs">
@@ -200,7 +209,7 @@ export function RunStepItems({
             cursor={cursor}
             failedOnly={failedOnly}
             selected={selected}
-            onSelect={setSelected}
+            onSelect={(picked) => select(unitRefOf(picked))}
             {...(index === pages.length - 1 && {
               onMore: (next: string) => setCursors((all) => [...all, next]),
             })}

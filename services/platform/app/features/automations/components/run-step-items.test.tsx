@@ -159,6 +159,21 @@ describe('RunStepItems', () => {
     expect(screen.getByText('"second"')).toBeVisible();
   });
 
+  it('shows the item the page chose, and tells the page about the one picked', async () => {
+    const picked = vi.fn();
+    renderItems({ unit: { item: 1 }, onUnitChange: picked });
+    const list = screen.getByRole('list', {
+      name: 'Items and passes of Score',
+    });
+    const second = await within(list).findByRole('button', { name: /Item 2/ });
+    expect(second).toHaveAttribute('aria-pressed', 'true');
+    // The chosen item is read whole below the list.
+    expect(await screen.findByText(/second/)).toBeVisible();
+    const third = within(list).getByRole('button', { name: /Item 3/ });
+    third.click();
+    expect(picked).toHaveBeenCalledWith({ item: 2 });
+  });
+
   it('counts a repeat’s passes from 1', async () => {
     vi.mocked(globalThis.fetch).mockImplementation(async () =>
       Response.json({

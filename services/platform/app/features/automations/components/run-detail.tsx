@@ -51,7 +51,7 @@ import {
   nodeTitle,
 } from '../lib/node-face';
 import { stepFailureText } from '../lib/run-failure';
-import type { TimelineWords } from '../lib/run-timeline';
+import type { RunUnitRef, TimelineWords } from '../lib/run-timeline';
 import {
   cursorNodeStatus,
   isRunFinished,
@@ -141,15 +141,25 @@ function RunDetailBody({
   const inspectorId = useId();
   const effectsHeadingId = useId();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // One of the selected step's items or passes, chosen in the Steps view
+  // or in its list; any other choice of step clears it.
+  const [selectedUnit, setSelectedUnit] = useState<RunUnitRef | null>(null);
+  const selectStep = useCallback(
+    (id: string | null, unit: RunUnitRef | null = null) => {
+      setSelectedNodeId(id);
+      setSelectedUnit(id === null ? null : unit);
+    },
+    [],
+  );
   const deselectNode = useCallback(() => {
     const id = selectedNodeId;
-    setSelectedNodeId(null);
+    selectStep(null);
     if (id !== null) {
       queueMicrotask(() => {
         focusAutomationNode(id);
       });
     }
-  }, [selectedNodeId]);
+  }, [selectedNodeId, selectStep]);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
   /** The step a retry is being planned from, while its dialog is open. */
@@ -358,6 +368,7 @@ function RunDetailBody({
                 record: recordQuery.data,
                 words: timelineWords,
                 live: !isRunFinished(readRunStatus(run.status)),
+                items: { organizationId, runId },
               }),
           },
     [
@@ -367,6 +378,8 @@ function RunDetailBody({
       starterLabel,
       recordQuery.data,
       timelineWords,
+      organizationId,
+      runId,
     ],
   );
   // A failed run opens on its failure: the node that failed comes into
@@ -379,16 +392,19 @@ function RunDetailBody({
   );
   /** A condition opens its node; Start and End have no inspector of their
    * own yet. */
-  const selectOnCanvas = useCallback((id: string | null) => {
-    if (id === null) {
-      setSelectedNodeId(null);
-      return;
-    }
-    const target = flowGraphTarget(id);
-    if (target.kind === 'node' || target.kind === 'gate') {
-      setSelectedNodeId(target.nodeId);
-    }
-  }, []);
+  const selectOnCanvas = useCallback(
+    (id: string | null, unit?: RunUnitRef) => {
+      if (id === null) {
+        selectStep(null);
+        return;
+      }
+      const target = flowGraphTarget(id);
+      if (target.kind === 'node' || target.kind === 'gate') {
+        selectStep(target.nodeId, unit ?? null);
+      }
+    },
+    [selectStep],
+  );
 
   // What the inspector reads besides the node: no check runs on a run's
   // page, so it opens on what the run did and has no Shape tab.
@@ -689,7 +705,7 @@ function RunDetailBody({
                   search: { node: failedId, version: run.version },
                 },
                 onShowStep: () => {
-                  setSelectedNodeId(failedId);
+                  selectStep(failedId);
                 },
                 onRetryFromStep: () => {
                   setRetryFrom(failedId);
@@ -744,6 +760,7 @@ function RunDetailBody({
               layoutKey={`${automationSlug}:run:${runId}`}
               catalog={catalog}
               selectedId={selectedNodeId}
+              selectedUnit={selectedUnit}
               onSelect={selectOnCanvas}
               revealId={selectedNodeId ?? failedNode}
               inspectorId={inspectorId}
@@ -780,6 +797,8 @@ function RunDetailBody({
                     runId,
                     ...(step !== undefined && { step }),
                     ...(detail !== undefined && { detail }),
+                    unit: selectedUnit,
+                    onUnitChange: setSelectedUnit,
                   };
                 })(),
               })}
@@ -815,7 +834,7 @@ function RunDetailBody({
           canStartLive={canStartLive}
           onStarted={openRun}
           onSelectStep={(id) => {
-            setSelectedNodeId(id);
+            selectStep(id);
           }}
         />
       )}
