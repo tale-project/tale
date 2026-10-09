@@ -62,6 +62,9 @@ conditions:
     no: No
     notChecked: Not checked
 compare:
+  diff:
+    output: 'Output: A → B'
+    input: 'Input: A → B'
   title: Compare runs
   swap: Swap A and B
   same: Choose two different runs.

@@ -4,6 +4,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Card } from '@tale/ui/card';
 import { ContentArea } from '@tale/ui/content-area';
+import { DataDiff } from '@tale/ui/data-diff';
 import { IconButton } from '@tale/ui/icon-button';
 import { SectionHeader } from '@tale/ui/section-header';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -16,7 +17,7 @@ import { ArrowLeftRight } from 'lucide-react';
 import type { RunDiff } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
-import { useRunCompare } from '../hooks/queries';
+import { useAutomationRun, useRunCompare } from '../hooks/queries';
 import { automationErrorCode } from '../lib/errors';
 import { nodeTitle } from '../lib/node-face';
 import { compareSummary } from '../lib/run-compare';
@@ -124,6 +125,9 @@ export function RunComparePage({
     sameRun ? undefined : b,
   );
   const diff = compare.data;
+  // The two runs' input and output, for the diffs a reader can open.
+  const runA = useAutomationRun(organizationId, sameRun ? undefined : a);
+  const runB = useAutomationRun(organizationId, sameRun ? undefined : b);
 
   let body;
   if (a === undefined || b === undefined || sameRun) {
@@ -173,6 +177,25 @@ export function RunComparePage({
                 ))}
               </ul>
             </section>
+            {(['output', 'input'] as const).map((side) => {
+              const before = runA.data?.[side];
+              const after = runB.data?.[side];
+              if (diff[side].equal !== false) return null;
+              if (before === undefined || after === undefined) return null;
+              const title = t(`compare.diff.${side}`);
+              return (
+                <section key={side} className="flex flex-col gap-2">
+                  <SectionHeader as="h3" size="sm" title={title} />
+                  <DataDiff
+                    before={before}
+                    after={after}
+                    layout="split"
+                    labels={{ before: 'A', after: 'B' }}
+                    aria-label={title}
+                  />
+                </section>
+              );
+            })}
             <table className="w-full text-left text-sm">
               <caption className="sr-only">{t('compare.table.label')}</caption>
               <thead className="text-muted-foreground text-xs">

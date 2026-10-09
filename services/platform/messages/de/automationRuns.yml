@@ -62,6 +62,9 @@ conditions:
     no: Nein
     notChecked: Nicht geprüft
 compare:
+  diff:
+    output: 'Ausgabe: A → B'
+    input: 'Eingabe: A → B'
   title: Läufe vergleichen
   swap: A und B tauschen
   same: Wähle zwei verschiedene Läufe.
