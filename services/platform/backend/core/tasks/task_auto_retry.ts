@@ -31,7 +31,7 @@ export const MODEL_CAPACITY_RETRY_DELAY_MS = 60_000;
  * the attempt the failed run showed: 2, then 10, then 30 minutes. A re-run
  * at once would meet the same memory limit; the pause lets the session's
  * other work settle and gives an Admin time to raise the limit. */
-export const RESOURCE_EXHAUSTED_RETRY_DELAYS_MS = [
+const RESOURCE_EXHAUSTED_RETRY_DELAYS_MS = [
   2 * 60_000,
   10 * 60_000,
   30 * 60_000,
