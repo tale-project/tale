@@ -429,3 +429,31 @@ export function nodeStatusMap(
 export function shortRunId(runId: string): string {
   return runId.replaceAll('-', '').slice(0, 6);
 }
+
+/** A run as a canvas draws it: how it went, and each step's last state. */
+export interface RunOnCanvas {
+  projection: RunProjection;
+  statusByNode: ReadonlyMap<string, NodeRunStatus>;
+  status: RunStatus;
+}
+
+/**
+ * What a canvas needs to draw `run` over a document whose nodes are
+ * `nodeIds` — the run page draws one run so, a comparison two.
+ */
+export function runOnCanvas(
+  run: RunLike & { stalled?: unknown; waitingFor?: unknown },
+  nodeIds: readonly string[],
+): RunOnCanvas {
+  const projection = projectRun(run);
+  return {
+    projection,
+    statusByNode: nodeStatusMap(
+      projection,
+      nodeIds,
+      readRunCursorNode(run),
+      cursorNodeStatus(run),
+    ),
+    status: readRunStatus(run.status),
+  };
+}

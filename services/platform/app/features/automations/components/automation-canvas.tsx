@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { EmptyState } from '@tale/ui/empty-state';
+import { flowCompareFromOverlays } from '@tale/ui/flow/compare';
 import type { FlowLegendEntry } from '@tale/ui/flow/flow-legend';
 import type { FlowHighlight } from '@tale/ui/flow/paths';
 import {
@@ -70,6 +71,14 @@ export interface CanvasRun {
   live?: boolean;
 }
 
+/** Two runs on one chart: how each left every step, side by side. */
+export interface CanvasCompare {
+  a: CanvasRun;
+  b: CanvasRun;
+  /** Steps of the document drawn (B's version) that A's version lacks. */
+  absentInA?: readonly string[];
+}
+
 export interface AutomationCanvasProps {
   /** The document on screen. */
   automation: Automation;
@@ -94,9 +103,12 @@ export interface AutomationCanvasProps {
   /** The open box: a node, a condition, Start or End. */
   selectedId: string | null;
   onSelect: (id: string | null) => void;
-  /** Id of the inspector region a box opens. */
-  inspectorId: string;
+  /** Id of the inspector region a box opens; without one, a box opens
+   * nothing (a comparison's chart). */
+  inspectorId?: string;
   run?: CanvasRun;
+  /** Two runs of this document side by side; wins over `run`. */
+  compare?: CanvasCompare;
   /** Bring this box into view. */
   revealId?: string | null;
   /** Nodes another window or a coding agent changed, ringed once. */
@@ -151,6 +163,7 @@ export function AutomationCanvas({
   onSelect,
   inspectorId,
   run,
+  compare,
   revealId,
   changed,
   framed = true,
@@ -208,7 +221,7 @@ export function AutomationCanvas({
 
   const overlay = useMemo(
     () =>
-      run === undefined
+      run === undefined || compare !== undefined
         ? undefined
         : runOverlay({
             graph,
@@ -218,8 +231,29 @@ export function AutomationCanvas({
             t,
             ...(run.startedBy !== undefined && { startedBy: run.startedBy }),
           }),
-    [run, graph, t],
+    [run, compare, graph, t],
   );
+  // Two runs: each as one run's overlay, then how each left every step.
+  const compared = useMemo(() => {
+    if (compare === undefined) return undefined;
+    const overlayOf = (side: CanvasRun) =>
+      runOverlay({
+        graph,
+        statusByNode: side.statusByNode,
+        projection: side.projection,
+        status: side.status,
+        t,
+      });
+    return flowCompareFromOverlays(
+      graph,
+      overlayOf(compare.a),
+      overlayOf(compare.b),
+      {
+        labels: { a: 'A', b: 'B' },
+        absent: { a: [...(compare.absentInA ?? [])] },
+      },
+    );
+  }, [compare, graph, t]);
 
   const legend = useMemo<FlowLegendEntry[]>(
     () => [
@@ -313,10 +347,11 @@ export function AutomationCanvas({
     layoutKey,
     selectedId,
     onSelect,
-    controlsId: inspectorId,
+    ...(inspectorId !== undefined && { controlsId: inspectorId }),
     ...(revealId !== undefined && { revealId }),
     ...(issueCounts !== undefined && { issues: issueCounts }),
     ...(overlay !== undefined && { overlay }),
+    ...(compared !== undefined && { compare: compared }),
     ...(paths !== null && { paths: paths.flowPaths }),
     highlight,
     ...(changed !== undefined && { changed }),
@@ -362,7 +397,7 @@ export function AutomationCanvas({
   return (
     <>
       <RunCanvas
-        record={record}
+        record={compare === undefined ? record : undefined}
         words={run?.words ?? NO_WORDS}
         live={run?.live === true}
         canvasProps={canvasProps}

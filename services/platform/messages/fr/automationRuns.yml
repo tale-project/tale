@@ -62,6 +62,7 @@ conditions:
     no: Non
     notChecked: Non vérifié
 compare:
+  canvas: 'Les deux exécutions sur le graphique'
   diff:
     output: 'Sortie : A → B'
     input: 'Entrée : A → B'

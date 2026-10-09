@@ -22,6 +22,7 @@ function CompareRunsPage() {
   return (
     <RunComparePage
       organizationId={organizationId}
+      automationSlug={paramToAutomationSlug(automationSlug)}
       runsPath={`${automationDetailPathname({
         organizationId,
         automationSlug: paramToAutomationSlug(automationSlug),

@@ -13,15 +13,24 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 import { ArrowLeftRight } from 'lucide-react';
+import { useMemo } from 'react';
 
 import type { RunDiff } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
-import { useAutomationRun, useRunCompare } from '../hooks/queries';
+import { mergeNodeTypes } from '../hooks/backend';
+import {
+  useAutomation,
+  useAutomationRun,
+  useNodeTypeCatalog,
+  useRunCompare,
+} from '../hooks/queries';
+import { readDocument } from '../lib/document';
 import { automationErrorCode } from '../lib/errors';
-import { nodeTitle } from '../lib/node-face';
+import { nodeCatalogView, nodeTitle } from '../lib/node-face';
 import { compareSummary } from '../lib/run-compare';
-import { readRunStatus, shortRunId } from '../lib/run-view';
+import { readRunStatus, runOnCanvas, shortRunId } from '../lib/run-view';
+import { AutomationCanvas } from './automation-canvas';
 import { RunBadge } from './run-status-badge';
 
 type NodeDiff = RunDiff['nodes'][number];
@@ -98,11 +107,81 @@ function RunCard({
 
 export interface RunComparePageProps {
   organizationId: string;
+  /** The automation the runs belong to: with it, the page draws both runs
+   * on its chart. */
+  automationSlug?: string;
   /** The automation's runs, where each run's page hangs. */
   runsPath: string;
   a?: string;
   b?: string;
   onSwap: () => void;
+}
+
+type RunRead = NonNullable<ReturnType<typeof useAutomationRun>['data']>;
+
+/**
+ * Both runs on the chart of B's version: each step's strip says how A and
+ * how B left it, a step where they part is marked, and a step A's version
+ * lacks is drawn dashed.
+ */
+function RunCompareCanvas({
+  organizationId,
+  automationSlug,
+  diff,
+  runA,
+  runB,
+}: {
+  organizationId: string;
+  automationSlug: string;
+  diff: RunDiff;
+  runA: RunRead;
+  runB: RunRead;
+}) {
+  const { t } = useT('automationRuns');
+  const versionQuery = useAutomation(
+    organizationId,
+    automationSlug,
+    diff.b.version,
+  );
+  const catalogQuery = useNodeTypeCatalog(organizationId);
+  const automation = useMemo(
+    () => readDocument(versionQuery.data?.document),
+    [versionQuery.data?.document],
+  );
+  const catalog = useMemo(
+    () =>
+      nodeCatalogView(
+        mergeNodeTypes(catalogQuery.data?.nodeTypes),
+        catalogQuery.data?.connectors ?? [],
+      ),
+    [catalogQuery.data?.nodeTypes, catalogQuery.data?.connectors],
+  );
+  const compare = useMemo(() => {
+    if (automation === null) return undefined;
+    const ids = automation.nodes.map((node) => node.id);
+    return {
+      a: runOnCanvas(runA, ids),
+      b: runOnCanvas(runB, ids),
+      absentInA: diff.version.added,
+    };
+  }, [automation, runA, runB, diff.version.added]);
+  if (automation === null || compare === undefined) return null;
+  return (
+    <section className="flex flex-col gap-2">
+      <SectionHeader as="h3" size="sm" title={t('compare.canvas')} />
+      <div className="h-[28rem]">
+        <AutomationCanvas
+          automation={automation}
+          layoutKey={`compare:${diff.a.id}:${diff.b.id}`}
+          catalog={catalog}
+          // Nothing opens from here: the steps table below says the rest.
+          selectedId={null}
+          onSelect={() => undefined}
+          compare={compare}
+        />
+      </div>
+    </section>
+  );
 }
 
 /**
@@ -112,6 +191,7 @@ export interface RunComparePageProps {
  */
 export function RunComparePage({
   organizationId,
+  automationSlug,
   runsPath,
   a,
   b,
@@ -196,6 +276,19 @@ export function RunComparePage({
                 </section>
               );
             })}
+            {automationSlug !== undefined &&
+              runA.data !== undefined &&
+              runA.data !== null &&
+              runB.data !== undefined &&
+              runB.data !== null && (
+                <RunCompareCanvas
+                  organizationId={organizationId}
+                  automationSlug={automationSlug}
+                  diff={diff}
+                  runA={runA.data}
+                  runB={runB.data}
+                />
+              )}
             <table className="w-full text-left text-sm">
               <caption className="sr-only">{t('compare.table.label')}</caption>
               <thead className="text-muted-foreground text-xs">
