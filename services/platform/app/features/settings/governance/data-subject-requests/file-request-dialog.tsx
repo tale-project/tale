@@ -1,18 +1,17 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert } from '@tale/ui/alert';
-import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { FormSection } from '@tale/ui/form-section';
 import { Input } from '@tale/ui/input';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
 import { useNavigate } from '@tanstack/react-router';
-import { Loader2, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import * as z from 'zod';
 
@@ -49,62 +48,16 @@ interface FormValues {
   reason: string;
 }
 
-function MemberPickerReadFailure({
-  error,
-  retrying,
-  onRetry,
-}: {
-  error: unknown;
-  retrying: boolean;
-  onRetry: () => void;
-}) {
-  const { t } = useT('governance');
-  const { t: tCommon } = useT('common');
-  const detail = failureDetail(error);
-
-  return (
-    <Alert
-      variant="destructive"
-      description={
-        <>
-          <p>{t('dataSubjectRequests.dialogs.fileRequest.userPickerFailed')}</p>
-          {detail && <p>{detail}</p>}
-        </>
-      }
-    >
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        icon={retrying ? Loader2 : RefreshCw}
-        iconClassName={
-          retrying ? 'animate-spin motion-reduce:animate-none' : undefined
-        }
-        className="mt-3"
-        aria-busy={retrying || undefined}
-        aria-disabled={retrying || undefined}
-        onClick={() => {
-          if (!retrying) onRetry();
-        }}
-      >
-        {tCommon('actions.tryAgain')}
-      </Button>
-    </Alert>
-  );
-}
-
 export function FileRequestDialog({
   open,
   onOpenChange,
   organizationId,
 }: FileRequestDialogProps) {
   const { t } = useT('governance');
-  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const navigate = useNavigate();
   const { mutateAsync, isPending } = useRequestErasure();
   const members = useOrgMembersForErasurePicker(organizationId);
-  const membersFailed = members.isError || readStateOf(members).unavailable;
   const [confirmText, setConfirmText] = useState('');
   const [legalHoldBlock, setLegalHoldBlock] = useState<{
     requestId: string;
@@ -119,6 +72,17 @@ export function FileRequestDialog({
       })),
     [members.data],
   );
+
+  // A settled failure that survives the reset a retry makes
+  // (`readStateOf(...).unavailable`) counts as unavailable too, so the alert
+  // and its Try again stay mounted while the retry is in flight.
+  const membersUnavailable =
+    members.isError ||
+    readStateOf(members).unavailable ||
+    (!members.isSuccess && members.errorUpdatedAt > 0);
+  const membersFailureDetail = membersUnavailable
+    ? failureDetail(members.error)
+    : undefined;
 
   const reasonCodeOptions = useMemo(
     () =>
@@ -157,6 +121,10 @@ export function FileRequestDialog({
   const { handleSubmit, register, formState, reset, watch, setValue } = form;
   const targetUserId = watch('targetUserId');
   const reasonCode = watch('reasonCode');
+  const hasAvailableSubject =
+    members.isSuccess &&
+    !membersUnavailable &&
+    memberOptions.some((option) => option.value === targetUserId);
 
   // Reset the confirm-phrase + inline block panel whenever the dialog
   // closes — re-opening should always start from a clean state.
@@ -170,7 +138,7 @@ export function FileRequestDialog({
   const confirmed = confirmText.trim() === ERASURE_CONFIRM_PHRASE;
 
   const onSubmit = handleSubmit(async (values) => {
-    if (!confirmed || membersFailed || members.data === undefined) return;
+    if (!confirmed || !hasAvailableSubject) return;
     setLegalHoldBlock(null);
     try {
       const { requestId } = await mutateAsync({
@@ -225,48 +193,52 @@ export function FileRequestDialog({
       title={t('dataSubjectRequests.dialogs.fileRequest.title')}
       description={t('dataSubjectRequests.dialogs.fileRequest.description')}
       isSubmitting={isPending}
-      isValid={
-        formState.isValid && confirmed && !members.isLoading && !membersFailed
-      }
+      isValid={formState.isValid && confirmed && hasAvailableSubject}
       onSubmit={onSubmit}
       submitText={t('dataSubjectRequests.dialogs.fileRequest.submit')}
     >
       <FormSection>
-        <SearchableSelect
-          id="dsr-user-target"
-          label={t('dataSubjectRequests.dialogs.fileRequest.userPickerLabel')}
-          placeholder={t(
-            'dataSubjectRequests.dialogs.fileRequest.userPickerPlaceholder',
-          )}
-          required
-          value={targetUserId || null}
-          onValueChange={(value) =>
-            setValue('targetUserId', value, {
-              shouldDirty: true,
-              shouldValidate: true,
-            })
-          }
-          options={memberOptions}
-          disabled={members.isLoading || membersFailed}
-          description={
-            members.isLoading && !membersFailed
-              ? tCommon('actions.loading')
-              : undefined
-          }
-          emptyText={t(
-            'dataSubjectRequests.dialogs.fileRequest.userPickerEmpty',
-          )}
-          error={!!formState.errors.targetUserId}
-        />
-        {membersFailed && (
-          <MemberPickerReadFailure
-            error={members.error}
-            retrying={members.isFetching}
-            onRetry={() => {
-              void members.refetch();
-            }}
+        {membersUnavailable && (
+          <CatalogLoadError
+            message={[
+              t('dataSubjectRequests.dialogs.fileRequest.userPickerFailed'),
+              membersFailureDetail,
+            ]
+              .filter(Boolean)
+              .join(' ')}
+            onRetry={() => void members.refetch()}
+            isRetrying={members.isFetching}
+            failureKey={members.errorUpdatedAt}
+            onFocusLost={() =>
+              document.getElementById('dsr-user-target')?.focus()
+            }
           />
         )}
+        <Skeletonize loading={members.isLoading && !membersUnavailable}>
+          <SearchableSelect
+            id="dsr-user-target"
+            label={t('dataSubjectRequests.dialogs.fileRequest.userPickerLabel')}
+            placeholder={t(
+              'dataSubjectRequests.dialogs.fileRequest.userPickerPlaceholder',
+            )}
+            required
+            value={targetUserId || null}
+            onValueChange={(value) =>
+              setValue('targetUserId', value, {
+                shouldDirty: true,
+                shouldValidate: true,
+              })
+            }
+            options={memberOptions}
+            disabled={members.data === undefined}
+            emptyText={
+              membersUnavailable
+                ? t('dataSubjectRequests.dialogs.fileRequest.userPickerFailed')
+                : t('dataSubjectRequests.dialogs.fileRequest.userPickerEmpty')
+            }
+            error={!!formState.errors.targetUserId}
+          />
+        </Skeletonize>
         <Select
           id="dsr-reason-code"
           label={t('dataSubjectRequests.dialogs.fileRequest.reasonCodeLabel')}

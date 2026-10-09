@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, within } from '@/tests/utils/render';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  within,
+  waitFor,
+} from '@/tests/utils/render';
 
 import { FileRequestDialog } from './file-request-dialog';
 
@@ -15,21 +22,24 @@ import { FileRequestDialog } from './file-request-dialog';
 // same open -> heading-visible -> Cancel -> closed flow the E2E asserted.
 
 const mockRequestErasure = vi.fn();
-const memberQuery = vi.hoisted(() => ({
-  data: [] as
-    | Array<{
-        userId: string;
-        displayName: string;
-        email: string;
-      }>
-    | undefined,
+const mockRefetch = vi.fn();
+const member = {
+  userId: 'user-1',
+  displayName: 'Ada Example',
+  email: 'ada@example.test',
+  role: 'member',
+};
+let memberQuery = {
+  data: [] as (typeof member)[] | undefined,
   isLoading: false,
   isError: false,
+  isSuccess: true,
   isFetching: false,
+  errorUpdatedAt: 0,
   errorUpdateCount: 0,
   error: undefined as unknown,
-  refetch: vi.fn(),
-}));
+  refetch: mockRefetch,
+};
 
 vi.mock('./hooks/mutations', () => ({
   useRequestErasure: () => ({
@@ -66,50 +76,265 @@ const TITLE = 'File erasure request';
 describe('FileRequestDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    memberQuery.data = [];
-    memberQuery.isLoading = false;
-    memberQuery.isError = false;
-    memberQuery.isFetching = false;
-    memberQuery.errorUpdateCount = 0;
-    memberQuery.error = undefined;
+    memberQuery = {
+      data: [],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      isFetching: false,
+      errorUpdatedAt: 0,
+      errorUpdateCount: 0,
+      error: undefined,
+      refetch: mockRefetch,
+    };
   });
 
-  it('shows a retryable read error instead of the empty state', async () => {
-    memberQuery.data = undefined;
-    memberQuery.isError = true;
-    memberQuery.errorUpdateCount = 1;
-
-    const { user } = render(
-      <FileRequestDialog
-        open={true}
-        onOpenChange={vi.fn()}
-        organizationId="org-1"
-      />,
+  it('distinguishes a failed read and retries without losing focus', async () => {
+    memberQuery = {
+      ...memberQuery,
+      data: undefined,
+      isError: true,
+      isSuccess: false,
+      errorUpdatedAt: 1,
+    };
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      organizationId: 'org-1',
+    };
+    const { user, rerender } = render(<FileRequestDialog {...props} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Members could not be loaded.',
     );
-
-    const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent('Members could not be loaded.');
-    expect(alert).not.toHaveTextContent('No matching members.');
-    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    expect(screen.queryByText('No matching members.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'File request' })).toBeDisabled();
-
-    await user.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(memberQuery.refetch).toHaveBeenCalledOnce();
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    await user.click(retry);
+    expect(mockRefetch).toHaveBeenCalledOnce();
+    memberQuery = {
+      ...memberQuery,
+      isError: false,
+      isLoading: true,
+      isFetching: true,
+    };
+    rerender(<FileRequestDialog {...props} />);
+    expect(retry).toHaveFocus();
+    expect(retry).toHaveAttribute('aria-busy', 'true');
+    await user.click(retry);
+    expect(mockRefetch).toHaveBeenCalledOnce();
+    memberQuery = {
+      ...memberQuery,
+      data: [member],
+      isLoading: false,
+      isFetching: false,
+      isSuccess: true,
+    };
+    rerender(<FileRequestDialog {...props} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Subject/ })).toHaveFocus(),
+    );
+    await user.click(screen.getByRole('button', { name: /Subject/ }));
+    expect(
+      screen.getByRole('option', { name: /Ada Example/ }),
+    ).toBeInTheDocument();
   });
 
-  it('keeps the normal empty state for a successful empty read', async () => {
-    const { user } = render(
-      <FileRequestDialog
-        open={true}
-        onOpenChange={vi.fn()}
-        organizationId="org-1"
-      />,
+  it('keeps the loaded subjects in an open picker after a failed refresh', async () => {
+    memberQuery.data = [member];
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      organizationId: 'org-1',
+    };
+    const { user, rerender } = render(<FileRequestDialog {...props} />);
+    await user.click(screen.getByRole('button', { name: /Subject/ }));
+    expect(
+      screen.getByRole('option', { name: /Ada Example/ }),
+    ).toBeInTheDocument();
+    memberQuery = {
+      ...memberQuery,
+      isError: true,
+      isSuccess: false,
+      errorUpdatedAt: 1,
+      errorUpdateCount: 1,
+    };
+    rerender(<FileRequestDialog {...props} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Members could not be loaded.',
     );
+    expect(
+      screen.getByRole('option', { name: /Ada Example/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No matching members.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'File request' })).toBeDisabled();
+  });
 
-    await user.click(screen.getByLabelText('Subject'));
+  it('returns Escape focus to Subject after an open picker refresh fails', async () => {
+    memberQuery.data = [member];
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      organizationId: 'org-1',
+    };
+    const { user, rerender } = render(<FileRequestDialog {...props} />);
+    const trigger = screen.getByRole('button', { name: /Subject/ });
+    await user.click(trigger);
+    memberQuery = {
+      ...memberQuery,
+      isError: true,
+      isSuccess: false,
+      errorUpdatedAt: 1,
+      errorUpdateCount: 1,
+    };
+    rerender(<FileRequestDialog {...props} />);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(props.onOpenChange).not.toHaveBeenCalled();
+  });
 
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  it('names a failed refresh of an empty answer instead of showing matching copy', async () => {
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      organizationId: 'org-1',
+    };
+    const { user, rerender } = render(<FileRequestDialog {...props} />);
+    await user.click(screen.getByRole('button', { name: /Subject/ }));
     expect(screen.getByText('No matching members.')).toBeInTheDocument();
+    memberQuery = {
+      ...memberQuery,
+      isError: true,
+      isSuccess: false,
+      errorUpdatedAt: 1,
+      errorUpdateCount: 1,
+    };
+    rerender(<FileRequestDialog {...props} />);
+    expect(
+      within(screen.getByRole('listbox')).getByText(
+        'Members could not be loaded.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('No matching members.')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Subject/ })).toBeEnabled();
+  });
+
+  it('gates direct form submission during a stale failure and permits recovered data', async () => {
+    memberQuery.data = [member];
+    mockRequestErasure.mockResolvedValue({ requestId: 'request-1' });
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      organizationId: 'org-1',
+    };
+    const { user, rerender } = render(<FileRequestDialog {...props} />);
+    await user.click(screen.getByRole('button', { name: /Subject/ }));
+    await user.click(screen.getByRole('option', { name: /Ada Example/ }));
+    await user.type(
+      screen.getByRole('textbox', { name: /Reason narrative/ }),
+      'Subject withdrew consent',
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: /Type ERASE/ }),
+      'ERASE',
+    );
+    const submit = screen.getByRole('button', { name: 'File request' });
+    expect(submit).toBeEnabled();
+    const form = submit.closest('form');
+    if (!form) throw new Error('Expected the actual erasure request form.');
+    memberQuery = {
+      ...memberQuery,
+      isError: true,
+      isSuccess: false,
+      errorUpdatedAt: 1,
+      errorUpdateCount: 1,
+    };
+    rerender(<FileRequestDialog {...props} />);
+    expect(submit).toBeDisabled();
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+    expect(mockRequestErasure).not.toHaveBeenCalled();
+    memberQuery = { ...memberQuery, isError: false, isSuccess: true };
+    rerender(<FileRequestDialog {...props} />);
+    expect(submit).toBeEnabled();
+    await act(async () => {
+      fireEvent.submit(form);
+    });
+    await waitFor(() => expect(mockRequestErasure).toHaveBeenCalledOnce());
+    expect(mockRequestErasure).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      userId: 'user-1',
+      reason: 'Subject withdrew consent',
+      reasonCode: 'no_longer_necessary',
+    });
+  });
+
+  it('keeps normal empty copy for a successful empty directory', async () => {
+    const { user } = render(
+      <FileRequestDialog open onOpenChange={vi.fn()} organizationId="org-1" />,
+    );
+    await user.click(screen.getByRole('button', { name: /Subject/ }));
+    expect(screen.getByText('No matching members.')).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('does not present loading as an empty directory', () => {
+    memberQuery = {
+      ...memberQuery,
+      data: undefined,
+      isLoading: true,
+      isFetching: true,
+      isSuccess: false,
+    };
+    render(
+      <FileRequestDialog open onOpenChange={vi.fn()} organizationId="org-1" />,
+    );
+    expect(screen.getByLabelText('Subject')).toBeDisabled();
+    expect(
+      screen.getByRole('status', { name: 'Loading content' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'File request' })).toBeDisabled();
+    expect(screen.queryByText('No matching members.')).not.toBeInTheDocument();
+  });
+
+  it('blocks a previously valid submission after a failed read or removed member', async () => {
+    memberQuery.data = [member];
+    const props = {
+      open: true,
+      onOpenChange: vi.fn(),
+      organizationId: 'org-1',
+    };
+    const { user, rerender } = render(<FileRequestDialog {...props} />);
+    await user.click(screen.getByRole('button', { name: /Subject/ }));
+    await user.click(screen.getByRole('option', { name: /Ada Example/ }));
+    await user.type(
+      screen.getByRole('textbox', { name: /Reason narrative/ }),
+      'Subject withdrew consent',
+    );
+    await user.type(
+      screen.getByRole('textbox', { name: /Type ERASE/ }),
+      'ERASE',
+    );
+    expect(screen.getByRole('button', { name: 'File request' })).toBeEnabled();
+    memberQuery = {
+      ...memberQuery,
+      isError: true,
+      isSuccess: false,
+      errorUpdatedAt: 1,
+    };
+    rerender(<FileRequestDialog {...props} />);
+    expect(screen.getByRole('button', { name: 'File request' })).toBeDisabled();
+    await user.keyboard('{Enter}');
+    expect(mockRequestErasure).not.toHaveBeenCalled();
+    await checkAccessibility(screen.getByRole('dialog'));
+    memberQuery = { ...memberQuery, isError: false, isSuccess: true };
+    rerender(<FileRequestDialog {...props} />);
+    expect(screen.getByRole('button', { name: 'File request' })).toBeEnabled();
+    memberQuery.data = [];
+    rerender(<FileRequestDialog {...props} />);
+    expect(screen.getByRole('button', { name: 'File request' })).toBeDisabled();
   });
 
   it('renders the dialog with its erasure-request heading when open', async () => {
