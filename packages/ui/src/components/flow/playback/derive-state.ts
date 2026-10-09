@@ -27,14 +27,20 @@ import type {
  * travelled when its source succeeded and its target started.
  */
 
-/** A node that has started, whatever came of it. */
+/** A node that has started, whatever came of it — or whose result an
+ * earlier run handed this one. */
 const STARTED: ReadonlySet<FlowNodeState> = new Set([
   'running',
   'waiting',
   'succeeded',
   'failed',
   'stopped',
+  'reused',
 ]);
+
+/** A node whose result its readers got: it ran, or an earlier run's
+ * result stood in for it. */
+const DELIVERED: ReadonlySet<FlowNodeState> = new Set(['succeeded', 'reused']);
 
 /** A node the run passed by. */
 const PASSED_BY: ReadonlySet<FlowNodeState> = new Set(['skipped', 'not-run']);
@@ -169,7 +175,8 @@ function edgeFromNodes(
   )
     return 'not-taken';
   if (
-    source?.state === 'succeeded' &&
+    source !== undefined &&
+    DELIVERED.has(source.state) &&
     target !== undefined &&
     STARTED.has(target.state)
   )

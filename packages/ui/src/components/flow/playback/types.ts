@@ -53,7 +53,9 @@ export interface FlowNodeSpan {
     | 'skipped'
     | 'stopped'
     | 'waiting'
-    | 'not-run';
+    | 'not-run'
+    /** Taken from an earlier run (a zero-length span where the run began). */
+    | 'reused';
   reason?: string;
   detail?: string;
   /** A condition's decision (a zero-length span when it decides). */

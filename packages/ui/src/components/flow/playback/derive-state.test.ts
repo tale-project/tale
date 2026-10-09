@@ -161,6 +161,21 @@ describe('flowStateFromOverlay', () => {
     expect(frame.failure?.pathEdges.has('merge>notify')).toBe(true);
   });
 
+  it('lets a step an earlier run handed over feed its readers, and leads a failure back through it', () => {
+    const graph = triageFlowGraph();
+    const frame = flowStateFromOverlay(graph, {
+      finished: true,
+      nodes: {
+        issues: { state: 'reused' },
+        open_issues: { state: 'failed', reason: 'It failed again' },
+      },
+    });
+    expect(frame.nodes.issues?.state).toBe('reused');
+    expect(frame.edges['issues>open_issues']).toBe('travelled');
+    expect(frame.failure?.nodeId).toBe('open_issues');
+    expect(frame.failure?.pathNodes.has('issues')).toBe(true);
+  });
+
   it('takes the host’s lines when it gives them, and leaves unknown nodes not run', () => {
     const graph = triageFlowGraph();
     const frame = flowStateFromOverlay(graph, {

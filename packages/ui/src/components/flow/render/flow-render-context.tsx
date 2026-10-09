@@ -100,11 +100,13 @@ const PLAIN: FlowNodeLook = {
   highlighted: 'none',
 };
 
-/** The run states that mean "it did not run here": a dashed border. */
+/** The run states that mean "it did not run here": a dashed border. A
+ *  reused node's result came from an earlier run. */
 const PASSED_BY: ReadonlySet<FlowNodeState> = new Set([
   'skipped',
   'stopped',
   'not-run',
+  'reused',
 ]);
 
 /** The id of a node's hidden description. */

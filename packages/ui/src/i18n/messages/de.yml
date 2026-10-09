@@ -577,6 +577,7 @@ flow:
     skipped: Übersprungen
     stopped: Hier gestoppt
     notRun: Nicht ausgeführt
+    reused: Wiederverwendet
     decidedYes: Bedingung traf zu
     decidedNo: Bedingung traf nicht zu
     failedHere: Der Lauf endete hier
