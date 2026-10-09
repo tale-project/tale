@@ -22,6 +22,9 @@ const ENGINE_ROOT = path.join(
   '..',
 );
 
+/** The platform workspace, which sanctioned modules are named from. */
+const PLATFORM_ROOT = path.resolve(ENGINE_ROOT, '..', '..');
+
 const PURE_DIRS = ['core', 'api'];
 const PURE_SHARED_HELPERS = [
   path.resolve(
@@ -115,8 +118,10 @@ describe('engine purity', () => {
           const resolved = path
             .resolve(path.dirname(f), s)
             .replace(/\.ts$/, '');
-          const insideEngine = resolved.startsWith(ENGINE_ROOT);
-          const sanctioned = allowedModules.some((m) => resolved.endsWith(m));
+          const insideEngine = resolved.startsWith(ENGINE_ROOT + path.sep);
+          const sanctioned = allowedModules.some(
+            (m) => resolved === path.join(PLATFORM_ROOT, m),
+          );
           if (!insideEngine && !sanctioned) offenders.push(`${f} → ${s}`);
         } else if (!allowedPackages.has(s)) {
           offenders.push(`${f} → ${s}`);

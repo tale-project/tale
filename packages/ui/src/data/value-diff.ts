@@ -464,7 +464,10 @@ function leafValues(value: unknown): Set<string> {
       return;
     }
     if (isRecord(node)) {
-      for (const entry of Object.values(node)) walk(entry, depth + 1);
+      // Sorted, so which leaves fit under the cap does not depend on the
+      // order the keys were written in.
+      for (const key of Object.keys(node).toSorted())
+        walk(node[key], depth + 1);
       return;
     }
     if (node !== null && node !== undefined && node !== '') {

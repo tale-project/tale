@@ -85,25 +85,28 @@ const encoder = new TextEncoder();
  * Bound `value` to `limits` as {@link boundJson} does, without writing a
  * marker into it: a long string is cut (never inside a character that takes
  * two UTF-16 units), a long list keeps its first entries, and a value past
- * the depth limit becomes `null`. Each cut is listed in `cuts`, in document
- * order, up to `maxCuts`. `undefined` stays `undefined`; the value must
- * already be plain JSON (see `jsonNormalize`).
+ * the depth limit becomes `null`. Each cut is listed in `cuts`, up to
+ * `maxCuts`; `total` counts them all. `undefined` stays `undefined`; the
+ * value must already be plain JSON (see `jsonNormalize`).
  */
 export function boundJsonOutOfBand(
   value: unknown,
   limits: BoundJsonLimits,
   maxCuts = 100,
-): { value: unknown; cuts: BoundJsonCut[] } {
+): { value: unknown; cuts: BoundJsonCut[]; total: number } {
   const cuts: BoundJsonCut[] = [];
+  let total = 0;
   const path: Array<string | number> = [];
   const cut = (kind: BoundJsonCut['kind'], dropped: number): void => {
+    total++;
     if (cuts.length < maxCuts) {
       cuts.push({ pointer: pointerOf(path), kind, dropped });
     }
   };
   const walk = (entry: unknown, depth: number): unknown => {
     if (depth > limits.maxDepth) {
-      if (entry === undefined) return undefined;
+      // Nothing is lost where there was nothing.
+      if (entry === undefined || entry === null) return entry;
       cut('depth', encoder.encode(JSON.stringify(entry) ?? '').length);
       return null;
     }
@@ -129,14 +132,20 @@ export function boundJsonOutOfBand(
       const out: Record<string, unknown> = {};
       for (const [key, member] of Object.entries(entry)) {
         path.push(key);
-        out[key] = walk(member, depth + 1);
+        // A member named `__proto__` stays a member, not a prototype.
+        Object.defineProperty(out, key, {
+          value: walk(member, depth + 1),
+          enumerable: true,
+          writable: true,
+          configurable: true,
+        });
         path.pop();
       }
       return out;
     }
     return entry;
   };
-  return { value: walk(value, 0), cuts };
+  return { value: walk(value, 0), cuts, total };
 }
 
 /** The first `max` UTF-16 units of `text`, one fewer when the cut would

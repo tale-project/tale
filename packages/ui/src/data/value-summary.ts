@@ -25,7 +25,8 @@ export interface ValueSummary {
   text?: string;
   /** A string's full length, or a list's. */
   length?: number;
-  /** An object's key count, and its first {@link SUMMARY_KEY_NAMES} names. */
+  /** An object's key count, and its first {@link SUMMARY_KEY_NAMES} names,
+   *  each cut to {@link SUMMARY_TEXT_LENGTH} characters. */
   keys?: number;
   names?: string[];
   /** A list's first {@link SUMMARY_ITEMS} items, summarized one level deep. */
@@ -100,7 +101,9 @@ function shallowSummary(value: unknown): ValueSummary {
       return {
         kind,
         keys: names.length,
-        names: names.slice(0, SUMMARY_KEY_NAMES),
+        names: names
+          .slice(0, SUMMARY_KEY_NAMES)
+          .map((name) => cutText(name, SUMMARY_TEXT_LENGTH)),
       };
     }
     default:

@@ -10,7 +10,9 @@ import {
   RECORD_LIMITS,
   RECORD_RUN_BUDGET,
   recordBudget,
+  recordedSummary,
   recordValue,
+  redactSummary,
   redactValue,
   unlimitedBudget,
 } from './value';
@@ -29,6 +31,7 @@ describe('redactValue', () => {
         { pointer: '/password', why: 'key' },
         { pointer: '/auth', why: 'key' },
       ],
+      total: 2,
     });
   });
 
@@ -39,6 +42,7 @@ describe('redactValue', () => {
     ).toEqual({
       value: { notes: ['plain', null], header: 'x' },
       redacted: [{ pointer: '/notes/1', why: 'pattern' }],
+      total: 1,
     });
   });
 
@@ -46,6 +50,7 @@ describe('redactValue', () => {
     expect(redactValue({ list: [{ secret: 'abcdefghijklmnop' }] })).toEqual({
       value: { list: [{ secret: null }] },
       redacted: [{ pointer: '/list/0/secret', why: 'key' }],
+      total: 1,
     });
   });
 
@@ -54,6 +59,7 @@ describe('redactValue', () => {
     expect(redactValue({ usage, token: null })).toEqual({
       value: { usage, token: null },
       redacted: [],
+      total: 0,
     });
   });
 
@@ -61,6 +67,101 @@ describe('redactValue', () => {
     expect(redactValue({ 'a/b': { 'x~token': 'abc' } }).redacted).toEqual([
       { pointer: '/a~1b/x~0token', why: 'key' },
     ]);
+  });
+
+  it('withholds a numeric secret under a name that marks one', () => {
+    expect(
+      redactValue({ pin: 1234, password: 123_456, totpCode: 1 }).value,
+    ).toEqual({
+      pin: null,
+      password: null,
+      totpCode: null,
+    });
+  });
+
+  it('withholds text under a name that only mentions a token, and reads the rest', () => {
+    expect(
+      redactValue({
+        nextPageToken: 'CAEQAA',
+        prompt_tokens_details: { cached_tokens: 0 },
+        tokenizer: 'cl100k',
+      }),
+    ).toEqual({
+      value: {
+        nextPageToken: null,
+        prompt_tokens_details: { cached_tokens: 0 },
+        tokenizer: 'cl100k',
+      },
+      redacted: [{ pointer: '/nextPageToken', why: 'key' }],
+      total: 1,
+    });
+  });
+
+  it('withholds names the audit list misses', () => {
+    const headers = {
+      'x-api-key': 'k_live_1',
+      cookie: 'sid=1',
+      'set-cookie': 'sid=2',
+      'proxy-authorization': 'Basic abc',
+      passwd: 'hunter2',
+      pwd: 'x',
+      'api-key': 'short',
+    };
+    const { value } = redactValue({ headers });
+    expect(Object.values((value as { headers: object }).headers)).toEqual(
+      Object.values(headers).map(() => null),
+    );
+  });
+
+  it('withholds credential shapes beyond the document check', () => {
+    for (const text of [
+      `sk_live_${'a'.repeat(24)}`,
+      `gho_${'b'.repeat(30)}`,
+      `github_pat_${'c'.repeat(30)}`,
+      `AIza${'d'.repeat(35)}`,
+      'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTYifQ.c2lnbmF0dXJlLXZhbHVl',
+      'https://ada:s3cret@example.com/path',
+      'https://example.com/x?api_key=abcdefghijk&y=1',
+    ]) {
+      expect(redactValue({ note: text }).value, text).toEqual({ note: null });
+    }
+  });
+
+  it('leaves out a member whose name is a credential, and says where', () => {
+    const name = `ghp_${'a'.repeat(30)}`;
+    const record = recordValue(
+      { [name]: { password: 'p' }, kept: 1 },
+      'node',
+      unlimitedBudget(),
+    );
+    expect(record.value).toEqual({ kept: 1 });
+    expect(record.redacted).toEqual([{ pointer: '', why: 'name' }]);
+    expect(JSON.stringify(record)).not.toContain(name);
+  });
+
+  it('leaves out a member name too long to show', () => {
+    const name = 'n'.repeat(300);
+    const record = recordValue({ [name]: 1 }, 'unit', unlimitedBudget());
+    expect(record.value).toEqual({});
+    expect(JSON.stringify(record)).not.toContain(name);
+  });
+
+  it('keeps a member named __proto__ as a member', () => {
+    const value: unknown = JSON.parse('{"__proto__":{"x":1},"y":2}');
+    expect(JSON.stringify(redactValue(value).value)).toBe(
+      '{"__proto__":{"x":1},"y":2}',
+    );
+  });
+
+  it('counts every place it withheld past the listed ones', () => {
+    const many = Object.fromEntries(
+      Array.from({ length: 150 }, (_, i) => [`password${i}`, 'x']),
+    );
+    const { redacted, total } = redactValue(many);
+    expect(redacted).toHaveLength(100);
+    expect(total).toBe(150);
+    const record = recordValue(many, 'transient', unlimitedBudget());
+    expect(record.redactedTotal).toBe(150);
   });
 
   it('reads the value as JSON first', () => {
@@ -74,6 +175,7 @@ describe('redactValue', () => {
     expect(redactValue(undefined)).toEqual({
       value: undefined,
       redacted: [],
+      total: 0,
     });
   });
 
@@ -103,6 +205,7 @@ describe('boundRecorded', () => {
         { pointer: '/list', kind: 'items', dropped: 1 },
         { pointer: '/deep/a/b', kind: 'depth', dropped: 3 },
       ],
+      total: 3,
     });
   });
 
@@ -123,6 +226,7 @@ describe('boundRecorded', () => {
           dropped: JSON.stringify(big).length,
         },
       ],
+      total: 1,
     });
   });
 
@@ -192,6 +296,61 @@ describe('recordValue', () => {
       shape: {},
       bytes: 0,
       hash: null,
+    });
+  });
+});
+
+describe('a record stays small however large the value', () => {
+  it('bounds the shape of a wide object', () => {
+    const wide = Object.fromEntries(
+      Array.from({ length: 20_000 }, (_, i) => [`k${i}`, i]),
+    );
+    const record = recordValue(wide, 'unit', unlimitedBudget());
+    expect(record.value).toBeNull();
+    expect(Object.keys(record.shape.properties ?? {})).toHaveLength(50);
+    expect(record.shape['x-omitted']).toBe(19_950);
+    expect(JSON.stringify(record).length).toBeLessThan(8192);
+  });
+
+  it('counts bytes as UTF-8', () => {
+    const record = recordValue('ééé', 'node', unlimitedBudget());
+    expect(record.bytes).toBe(8);
+  });
+
+  it('reads a withheld value as withheld, not as nothing', () => {
+    const token = `ghp_${'a'.repeat(30)}`;
+    const record = recordValue(token, 'node', unlimitedBudget());
+    expect(record.summary).toEqual({ kind: 'redacted' });
+    expect(record.shape).toEqual({});
+    expect(record.value).toBeNull();
+  });
+});
+
+describe('summaries of values seen without their names', () => {
+  it('withholds text that looks like a credential', () => {
+    const token = `ghp_${'a'.repeat(30)}`;
+    expect(redactSummary({ kind: 'string', text: token, length: 34 })).toEqual({
+      kind: 'redacted',
+    });
+    expect(
+      redactSummary({
+        kind: 'array',
+        length: 2,
+        items: [
+          { kind: 'string', text: token },
+          { kind: 'number', text: '1' },
+        ],
+      }).items,
+    ).toEqual([{ kind: 'redacted' }, { kind: 'number', text: '1' }]);
+  });
+
+  it('summarizes a value with its secrets withheld', () => {
+    expect(recordedSummary({ password: 'x', n: 1 })).toMatchObject({
+      kind: 'object',
+      keys: 2,
+    });
+    expect(recordedSummary(`sk-${'a'.repeat(20)}`)).toEqual({
+      kind: 'redacted',
     });
   });
 });

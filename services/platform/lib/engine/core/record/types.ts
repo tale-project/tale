@@ -37,17 +37,21 @@ export interface ValueElision {
   pointer: string;
   /** `string`: characters dropped from its end; `items`: list entries
    * dropped; `depth`: a value past the depth limit, now `null`, with its size
-   * as UTF-8 JSON; `whole`: the whole value was too large to keep. */
+   * as UTF-8 JSON; `whole`: even cut, the value was past its tier's ceiling,
+   * so nothing of it was kept — `dropped` is the cut value's size (the whole
+   * value's is the record's `bytes`). */
   kind: 'string' | 'items' | 'depth' | 'whole';
   dropped: number;
 }
 
-/** A value a secret was withheld from: the value at `pointer` is `null`. */
+/** A place a secret was withheld from. */
 export interface ValueRedaction {
   pointer: string;
-  /** `key`: its member name marks a secret; `pattern`: the text looks like
-   * a credential. */
-  why: 'key' | 'pattern';
+  /** `key`: its member name marks a secret, and the value there is `null`;
+   * `pattern`: the text looked like a credential, and is `null`; `name`: a
+   * member of the object there was left out, because its name looked like
+   * a credential or was too long to show. */
+  why: 'key' | 'pattern' | 'name';
 }
 
 /**
@@ -69,6 +73,11 @@ export interface ValueRecord {
   hash: string | null;
   elided?: ValueElision[];
   redacted?: ValueRedaction[];
+  /** How many places were cut or withheld when there were more than the
+   * lists keep: a reader cannot tell which values past the listed ones are
+   * real, so it reads the value as partly unknown. */
+  elidedTotal?: number;
+  redactedTotal?: number;
 }
 
 /** Values above this size as JSON are not hashed: 4 MiB. */

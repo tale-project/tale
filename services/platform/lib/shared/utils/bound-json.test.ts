@@ -90,13 +90,18 @@ describe('boundJson', () => {
 describe('boundJsonOutOfBand', () => {
   it('leaves a value inside the limits as it was, with no cuts', () => {
     const value = { a: 'short', list: [1, 2, 3], nested: { b: null } };
-    expect(boundJsonOutOfBand(value, LIMITS)).toEqual({ value, cuts: [] });
+    expect(boundJsonOutOfBand(value, LIMITS)).toEqual({
+      value,
+      cuts: [],
+      total: 0,
+    });
   });
 
   it('cuts a long string without a marker and says how much it dropped', () => {
     expect(boundJsonOutOfBand({ s: '0123456789abcde' }, LIMITS)).toEqual({
       value: { s: '0123456789' },
       cuts: [{ pointer: '/s', kind: 'string', dropped: 5 }],
+      total: 1,
     });
   });
 
@@ -113,6 +118,7 @@ describe('boundJsonOutOfBand', () => {
     expect(boundJsonOutOfBand([1, 2, 3, 4, 5], LIMITS)).toEqual({
       value: [1, 2, 3],
       cuts: [{ pointer: '', kind: 'items', dropped: 2 }],
+      total: 1,
     });
   });
 
@@ -149,8 +155,24 @@ describe('boundJsonOutOfBand', () => {
     });
   });
 
-  it('lists at most maxCuts cuts', () => {
+  it('lists at most maxCuts cuts, and counts them all', () => {
     const value = Array.from({ length: 3 }, () => 'y'.repeat(20));
-    expect(boundJsonOutOfBand(value, LIMITS, 2).cuts).toHaveLength(2);
+    const { cuts, total } = boundJsonOutOfBand(value, LIMITS, 2);
+    expect(cuts).toHaveLength(2);
+    expect(total).toBe(3);
+  });
+
+  it('lists no cut where a null sat past the depth limit', () => {
+    expect(boundJsonOutOfBand({ a: { b: { c: null } } }, LIMITS)).toEqual({
+      value: { a: { b: { c: null } } },
+      cuts: [],
+      total: 0,
+    });
+  });
+
+  it('keeps a member named __proto__ as a member', () => {
+    const value: unknown = JSON.parse('{"__proto__":{"x":1},"y":2}');
+    const { value: kept } = boundJsonOutOfBand(value, LIMITS);
+    expect(JSON.stringify(kept)).toBe('{"__proto__":{"x":1},"y":2}');
   });
 });

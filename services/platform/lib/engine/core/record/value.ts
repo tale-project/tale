@@ -10,15 +10,14 @@
  * whole.
  */
 
-import { valueHash } from '@tale/ui/data/hash';
+import { cyrb53 } from '@tale/ui/data/hash';
 import { inferSchema } from '@tale/ui/data/infer-schema';
 import { pointerOf } from '@tale/ui/data/json-pointer';
 import { jsonNormalize, stableStringify } from '@tale/ui/data/stable-stringify';
-import { summaryOf } from '@tale/ui/data/value-summary';
+import { summaryOf, type ValueSummary } from '@tale/ui/data/value-summary';
 
-import { isSensitiveKey } from '../../../shared/audit-redaction';
 import { boundJsonOutOfBand } from '../../../shared/utils/bound-json';
-import { credentialKind } from '../secret-patterns';
+import { looksLikeCredential, secretMemberName } from '../secret-patterns';
 import type { Json } from '../types';
 import {
   RECORD_HASH_MAX_BYTES,
@@ -36,6 +35,9 @@ export interface RecordLimits {
   readonly maxDepth: number;
   /** UTF-8 bytes of the cut value as JSON; past it nothing is kept. */
   readonly ceiling: number;
+  /** Shapes kept in the value's shape, so the shape stays small however
+   * wide the value is. */
+  readonly shapeNodes: number;
 }
 
 /**
@@ -44,13 +46,26 @@ export interface RecordLimits {
  * a test of a single step).
  */
 export const RECORD_LIMITS = {
-  node: { maxString: 4096, maxItems: 50, maxDepth: 10, ceiling: 32_768 },
-  unit: { maxString: 1024, maxItems: 20, maxDepth: 8, ceiling: 8192 },
+  node: {
+    maxString: 4096,
+    maxItems: 50,
+    maxDepth: 10,
+    ceiling: 32_768,
+    shapeNodes: 400,
+  },
+  unit: {
+    maxString: 1024,
+    maxItems: 20,
+    maxDepth: 8,
+    ceiling: 8192,
+    shapeNodes: 100,
+  },
   transient: {
     maxString: 65_536,
     maxItems: 1000,
     maxDepth: 12,
     ceiling: 262_144,
+    shapeNodes: 2000,
   },
 } as const satisfies Record<string, RecordLimits>;
 
@@ -62,9 +77,17 @@ export const RECORD_RUN_BUDGET = 2_097_152;
 /** Entries kept in a record's `redacted` and `elided` lists. */
 const RECORD_MAX_MARKS = 100;
 
+/** Member names longer than this are left out: no reader needs the name
+ * whole, and it would ride along in every pointer below it. */
+const MAX_MEMBER_NAME = 256;
+
 /** How shapes are read for a record: lists by their first 20 items, six
- * levels deep. */
-const SHAPE_OPTIONS = { sampleItems: 20, maxDepth: 6 } as const;
+ * levels deep, fifty fields per object. */
+const SHAPE_OPTIONS = {
+  sampleItems: 20,
+  maxDepth: 6,
+  maxProperties: 50,
+} as const;
 
 /** What a run may still store, in UTF-8 bytes; spent as values are kept. */
 export interface RecordBudget {
@@ -87,21 +110,40 @@ function utf8Bytes(text: string): number {
   return encoder.encode(text).length;
 }
 
+/** Set `key` on `target` as its own member, `__proto__` included. */
+function setOwn(target: Record<string, Json>, key: string, value: Json): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
 /**
- * `value` as plain JSON with every secret withheld: a member whose name
- * marks a secret (`password`, `apiKey`, `accessToken`, …) and a string that
- * looks like a credential become `null`, each listed with why. Numbers and
- * booleans under a secret's name stay — a count such as `inputTokens` is
- * not a credential, and a flag such as `hasPassword` says nothing of one.
- * Up to {@link RECORD_MAX_MARKS} places are listed; every one is withheld.
+ * `value` as plain JSON with every secret withheld:
+ *  - a member whose name marks a secret outright (`password`, `apiKey`,
+ *    `pin`, …) holds `null` unless it held a flag or nothing — a numeric
+ *    PIN is a secret too;
+ *  - a member whose name only mentions a token (`nextPageToken`) holds
+ *    `null` when it held text, and is read member by member otherwise
+ *    (`prompt_tokens_details`); a count such as `inputTokens` stays;
+ *  - text that looks like a credential is `null`, wherever it sits;
+ *  - a member whose name looks like a credential, or is longer than any
+ *    reader needs, is left out.
+ * Each place is listed, up to {@link RECORD_MAX_MARKS}; `total` counts them
+ * all.
  */
 export function redactValue(value: unknown): {
   value: Json | undefined;
   redacted: ValueRedaction[];
+  total: number;
 } {
   const redacted: ValueRedaction[] = [];
+  let total = 0;
   const path: Array<string | number> = [];
   const mark = (why: ValueRedaction['why']): null => {
+    total++;
     if (redacted.length < RECORD_MAX_MARKS) {
       redacted.push({ pointer: pointerOf(path), why });
     }
@@ -109,7 +151,7 @@ export function redactValue(value: unknown): {
   };
   const walk = (entry: Json, key?: string): Json => {
     if (typeof entry === 'string') {
-      return credentialKind(entry, key) === undefined ? entry : mark('pattern');
+      return looksLikeCredential(entry, key) ? mark('pattern') : entry;
     }
     if (Array.isArray(entry)) {
       return entry.map((item, index) => {
@@ -121,23 +163,67 @@ export function redactValue(value: unknown): {
     }
     if (entry !== null && typeof entry === 'object') {
       const out: Record<string, Json> = {};
+      let leftOut = false;
       for (const [member, item] of Object.entries(entry)) {
+        if (member.length > MAX_MEMBER_NAME || looksLikeCredential(member)) {
+          leftOut = true;
+          continue;
+        }
         path.push(member);
-        out[member] =
-          isSensitiveKey(member) &&
-          item !== null &&
-          typeof item !== 'number' &&
-          typeof item !== 'boolean'
-            ? mark('key')
-            : walk(item, member);
+        setOwn(
+          out,
+          member,
+          withheld(member, item) ? mark('key') : walk(item, member),
+        );
         path.pop();
       }
+      if (leftOut) mark('name');
       return out;
     }
     return entry;
   };
   const plain = toJson(value);
-  return { value: plain === undefined ? undefined : walk(plain), redacted };
+  return {
+    value: plain === undefined ? undefined : walk(plain),
+    redacted,
+    total,
+  };
+}
+
+/** Whether the member `name` holding `item` is withheld whole. */
+function withheld(name: string, item: Json): boolean {
+  if (item === null || typeof item === 'boolean') return false;
+  const kind = secretMemberName(name);
+  if (kind === 'strong') return true;
+  return kind === 'weak' && typeof item === 'string';
+}
+
+/**
+ * A summary safe to keep: text that looks like a credential reads
+ * `redacted`, and object member names that look like one are left out.
+ * For a value seen without its member name — a sub-expression's value in a
+ * condition — where only its text can say it is a secret.
+ */
+export function redactSummary(summary: ValueSummary): ValueSummary {
+  if (summary.text !== undefined && looksLikeCredential(summary.text)) {
+    return { kind: 'redacted' };
+  }
+  const out: ValueSummary = { ...summary };
+  if (summary.names !== undefined) {
+    out.names = summary.names.filter((name) => !looksLikeCredential(name));
+  }
+  if (summary.items !== undefined) out.items = summary.items.map(redactSummary);
+  return out;
+}
+
+/** The summary of `value` with its secrets withheld, as a record keeps it:
+ * for a value a decision read (`forEach`'s list, a condition's result). */
+export function recordedSummary(value: unknown): ValueSummary {
+  const { value: plain, redacted } = redactValue(value);
+  if (redacted.some((mark) => mark.pointer === '' && mark.why !== 'name')) {
+    return { kind: 'redacted' };
+  }
+  return summaryOf(plain);
 }
 
 /**
@@ -147,8 +233,8 @@ export function redactValue(value: unknown): {
  */
 export function boundRecorded(
   value: Json,
-  limits: RecordLimits,
-): { value: Json; elided: ValueElision[] } {
+  limits: Omit<RecordLimits, 'shapeNodes'>,
+): { value: Json; elided: ValueElision[]; total: number } {
   const bounded = boundJsonOutOfBand(value, limits, RECORD_MAX_MARKS);
   // Cutting JSON leaves JSON: strings, shorter lists and nulls.
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- bounded from a Json value
@@ -158,9 +244,10 @@ export function boundRecorded(
     return {
       value: null,
       elided: [{ pointer: '', kind: 'whole', dropped: bytes }],
+      total: 1,
     };
   }
-  return { value: kept, elided: [...bounded.cuts] };
+  return { value: kept, elided: [...bounded.cuts], total: bounded.total };
 }
 
 /**
@@ -173,22 +260,36 @@ export function recordValue(
   tier: RecordTier,
   budget: RecordBudget,
 ): ValueRecord {
-  const { value: withheld, redacted } = redactValue(value);
-  const summary = summaryOf(withheld);
-  const bytes = summary.bytes ?? 0;
+  const limits = RECORD_LIMITS[tier];
+  const { value: withheldValue, redacted, total } = redactValue(value);
+  const rootWithheld = redacted.some(
+    (mark) => mark.pointer === '' && mark.why !== 'name',
+  );
+  const text =
+    withheldValue === undefined ? undefined : stableStringify(withheldValue);
+  const bytes = text === undefined ? 0 : utf8Bytes(text);
   const record: ValueRecord = {
-    summary,
-    shape: inferSchema(withheld, SHAPE_OPTIONS),
+    summary: rootWithheld ? { kind: 'redacted' } : summaryOf(withheldValue),
+    shape: rootWithheld
+      ? {}
+      : inferSchema(withheldValue, {
+          ...SHAPE_OPTIONS,
+          maxNodes: limits.shapeNodes,
+        }),
     bytes,
     hash:
-      withheld !== undefined && bytes <= RECORD_HASH_MAX_BYTES
-        ? valueHash(withheld)
+      text !== undefined && bytes <= RECORD_HASH_MAX_BYTES
+        ? cyrb53(text)
         : null,
   };
   if (redacted.length > 0) record.redacted = redacted;
-  if (withheld === undefined) return record;
-  const bounded = boundRecorded(withheld, RECORD_LIMITS[tier]);
+  if (total > redacted.length) record.redactedTotal = total;
+  if (withheldValue === undefined) return record;
+  const bounded = boundRecorded(withheldValue, limits);
   if (bounded.elided.length > 0) record.elided = bounded.elided;
+  if (bounded.total > bounded.elided.length) {
+    record.elidedTotal = bounded.total;
+  }
   const cost = utf8Bytes(stableStringify(bounded.value));
   if (cost <= budget.left) {
     budget.left -= cost;

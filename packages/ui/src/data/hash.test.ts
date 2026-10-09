@@ -11,6 +11,7 @@ describe('cyrb53', () => {
 
   it('keeps the value it always had, so stored hashes stay comparable', () => {
     expect(cyrb53('')).toBe('wvjl67o803');
+    expect(cyrb53('automation')).toBe('8nv8byoq1q');
   });
 });
 

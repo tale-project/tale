@@ -61,6 +61,11 @@ describe('summaryOf', () => {
     expect(summaryOf(false)).toMatchObject({ kind: 'boolean', text: 'false' });
   });
 
+  it('cuts a long member name like a long string', () => {
+    const name = 'n'.repeat(200);
+    expect(summaryOf({ [name]: 1 }).names).toEqual(['n'.repeat(80)]);
+  });
+
   it('counts an object’s keys and names the first few', () => {
     const value = Object.fromEntries(
       Array.from({ length: 12 }, (_, index) => [`k${index}`, index]),

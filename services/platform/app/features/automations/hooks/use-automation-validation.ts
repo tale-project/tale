@@ -1,6 +1,6 @@
 'use client';
 
-import { cyrb53 } from '@tale/ui/data/hash';
+import { valueHash } from '@tale/ui/data/hash';
 import { useDebounce } from '@tale/ui/use-debounce';
 import {
   keepPreviousData,
@@ -20,7 +20,6 @@ import type {
   AnalysisView,
   TypesView,
 } from '@/lib/shared/schemas/automation-issues';
-import { stableStringify } from '@/lib/shared/utils/stable-stringify';
 
 import type { RawDocument } from '../lib/draft-document';
 import { withIssueIds, type AutomationIssue } from '../lib/issues';
@@ -101,7 +100,7 @@ export function useInvalidateAutomationValidation(
  * in. It names a document in a query key and says which document a shown
  * result belongs to. */
 export function documentHash(document: RawDocument): string {
-  return cyrb53(stableStringify(document));
+  return valueHash(document);
 }
 
 export type AutomationValidationStatus =

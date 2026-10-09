@@ -112,6 +112,44 @@ describe('inferSchema', () => {
     });
   });
 
+  it('keeps the first maxProperties fields and counts the rest', () => {
+    const shape = inferSchema({ a: 1, b: 2, c: 3 }, { maxProperties: 2 });
+    expect(Object.keys(shape.properties ?? {})).toEqual(['a', 'b']);
+    expect(shape.required).toEqual(['a', 'b']);
+    expect(shape['x-omitted']).toBe(1);
+  });
+
+  it('makes at most maxNodes shapes, reading the rest as any value', () => {
+    const shape = inferSchema({ a: { b: 1 }, c: { d: 2 } }, { maxNodes: 3 });
+    expect(shape).toEqual({
+      type: 'object',
+      properties: {
+        a: {
+          type: 'object',
+          properties: { b: { type: 'integer' } },
+          required: ['b'],
+        },
+        c: {},
+      },
+      required: ['a', 'c'],
+    });
+  });
+
+  it('reads a wide object quickly', () => {
+    const wide = Object.fromEntries(
+      Array.from({ length: 20_000 }, (_, i) => [`k${i}`, i]),
+    );
+    const started = performance.now();
+    inferSchema(wide);
+    expect(performance.now() - started).toBeLessThan(1000);
+  });
+
+  it('keeps a field named __proto__ as a field', () => {
+    const shape = inferSchema(JSON.parse('{"__proto__":{"x":1},"y":2}'));
+    expect(Object.keys(shape.properties ?? {})).toEqual(['__proto__', 'y']);
+    expect(Object.hasOwn(shape.properties ?? {}, '__proto__')).toBe(true);
+  });
+
   it('describes every value it reads (2 000 seeded values)', () => {
     const random = seeded(20261009);
     for (let index = 0; index < 2000; index += 1) {

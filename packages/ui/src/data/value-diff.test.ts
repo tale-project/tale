@@ -295,6 +295,17 @@ describe('suggestDiffRoot', () => {
     expect(suggestion).toEqual({ candidateId: 'fetch', score: 2 / 3 });
   });
 
+  it('answers the same whatever order the keys were written in', () => {
+    const leaves = Array.from({ length: 1200 }, (_, i) => [`k${i}`, `v${i}`]);
+    const forward = Object.fromEntries(leaves);
+    const backward = Object.fromEntries(leaves.toReversed());
+    const candidates = [{ id: 'src', label: 'Source', value: forward }];
+    expect(suggestDiffRoot(backward, candidates)).toEqual(
+      suggestDiffRoot(forward, candidates),
+    );
+    expect(suggestDiffRoot(backward, candidates)?.score).toBe(1);
+  });
+
   it('answers null when no candidate shares half', () => {
     expect(
       suggestDiffRoot({ a: 1, b: 2, c: 3 }, [
