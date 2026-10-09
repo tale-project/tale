@@ -7,6 +7,7 @@ import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
 import {
   managedTaskInstructionsSchema,
   managedTaskReviewContextSchema,
+  managedTaskReviewContextProvisionSchema,
 } from '@tale/shared/schemas/managed-configuration';
 import { externalStatusRequestBodySchema } from '@tale/shared/schemas/task-external-status';
 import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
@@ -416,6 +417,18 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         taskId: c.req.param('taskId'),
       });
     if (!target.success) return invalidBodyResponse(c, target.error);
+    const creation = z
+      .literal('true')
+      .optional()
+      .safeParse(c.req.query('createIfMissing'));
+    if (!creation.success) return invalidBodyResponse(c, creation.error);
+    if (
+      creation.data !== undefined &&
+      !z.uuid().safeParse(target.data.taskId).success
+    )
+      return invalidBodyIssuesResponse(c, [
+        { path: 'taskId', message: 'Creation requires a stable UUID task ID' },
+      ]);
     try {
       return c.json(
         await readTaskReviewContextConfiguration(
@@ -423,6 +436,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           await authCtx(c),
           target.data.projectId,
           target.data.taskId,
+          creation.data === 'true',
         ),
       );
     } catch (error) {
@@ -431,9 +445,8 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.post('/:taskId/configuration/review-context', async (c) => {
-    const body = z
-      .strictObject({
-        config: managedTaskReviewContextSchema,
+    const body = managedTaskReviewContextProvisionSchema
+      .safeExtend({
         expectedHash: expectedConfigurationHashSchema,
       })
       .safeParse(await c.req.json());
@@ -456,6 +469,7 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           auth,
           body.data.config,
           body.data.expectedHash,
+          body.data.createIfMissing === true,
         ),
       );
       return c.json({ ok: true });

@@ -18,6 +18,7 @@ import {
 } from './delegated-start.integration.ts';
 import { retireTasksInTx } from './retire.ts';
 import { projectReviewBatch, readReviewBatch } from './review-batch-store.ts';
+import { checkReviewContextBootstrap } from './review-context-bootstrap.integration.ts';
 import { checkReviewContextRaces } from './review-context-races.integration.ts';
 import { updateTaskReviewContextConfiguration } from './review-context.ts';
 import { getPendingReviewForTask, requestTaskReview } from './reviews.ts';
@@ -31,6 +32,8 @@ const output = (value: Body): Body =>
 
 interface Fixture {
   sql: Sql;
+  base: string;
+  cookie: string;
   orgId: string;
   projectId: string;
   implementerId: string;
@@ -88,6 +91,17 @@ export async function checkReviewBatches(f: Fixture): Promise<void> {
     await fx.insertAgent(reviewer, projectId, 'Review batch reviewer');
     await sql`UPDATE app.project_agents SET tools = ARRAY['task_review','task_start_agent','task_get']::text[] WHERE id = ${manager}`;
     await sql`UPDATE app.project_agents SET tools = ARRAY['task_review','task_get']::text[] WHERE id = ${reviewer}`;
+    await checkReviewContextBootstrap({
+      sql,
+      base: f.base,
+      cookie: f.cookie,
+      orgId,
+      projectId,
+      reviewerAgentId: reviewer,
+      auth: f.auth,
+      fx,
+      record,
+    });
     await checkReviewContextRaces({
       sql,
       orgId,

@@ -8,6 +8,7 @@ import {
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
+import { z } from 'zod';
 
 import {
   isAgentRunWaitingReason,
@@ -1413,7 +1414,11 @@ export async function createTask(
   tx: TransactionSql,
   auth: ProjectAuthContext,
   args: CreateTaskArgs,
+  /** Internal managed provisioning only; no generic task input exposes IDs. */
+  identity?: { taskId: string },
 ): Promise<string> {
+  const explicitId =
+    identity === undefined ? undefined : z.uuid().parse(identity.taskId);
   const project = await loadProjectOrThrow(tx, args.projectId);
   assertTaskCreatable(project, auth);
 
@@ -1507,7 +1512,7 @@ export async function createTask(
       label_ids, assignee_type, assignee_id, parent_task_id, start_date_ms,
       start_notified_at_ms, due_date_ms, repeat_rule, rank, number, created_by,
       created_by_type, created_at_ms, updated_at_ms, status_changed_at_ms,
-      completed_at_ms, source_thread_id
+      completed_at_ms, source_thread_id, id
     ) VALUES (
       ${auth.organizationId}, ${args.projectId}, ${title},
       ${description ?? null},
@@ -1521,7 +1526,7 @@ export async function createTask(
       ${repeat !== null ? tx.json(toJson(repeat)) : null}, ${rank}, ${number},
       ${auth.userId}, 'user', ${now}, ${now}, ${now},
       ${TERMINAL_STATUSES.has(status) ? now : null},
-      ${args.sourceThreadId ?? null}
+      ${args.sourceThreadId ?? null}, ${explicitId ?? tx`DEFAULT`}
     )
     RETURNING id
   `;

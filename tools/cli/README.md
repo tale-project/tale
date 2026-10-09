@@ -451,6 +451,15 @@ Its reviewer and purpose remain fixed when disabled. A runtime without the
 native facet refuses planning; interrupted application reconciles the same
 native hash before writing again.
 
+To provision a new context, add `createIfMissing: true` beside `kind` and `config`
+and declare a stable UUID as `config.taskId`. The same editor-only transaction
+creates a backlog task assigned to the reviewer and enrolls it; a failed
+enrollment leaves neither the task nor its audit/count changes. The flag never
+changes the stored configuration hash. Existing tasks still pass the pristine
+checks, and an occupied identity is never overwritten. Keep the ID and pending
+receipt when retrying. Omit the flag for adoption only. Disabling a context keeps
+its identity and purpose; it does not delete the task or grant tools.
+
 A live project manager with `task_review` and `task_start_agent` starts an
 occurrence through `task_review` operation `start_batch`, supplying a request
 UUID, `contextTaskId`, and one to twenty exact `{taskId, expected}` targets copied

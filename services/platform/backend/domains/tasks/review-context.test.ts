@@ -4,10 +4,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { managedConfigurationHash } from '../../core/lib/config_store/value_hash.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
-import { updateTaskReviewContextConfiguration } from './review-context.ts';
+import { TaskError } from './errors.ts';
+import {
+  readTaskReviewContextConfiguration,
+  updateTaskReviewContextConfiguration,
+} from './review-context.ts';
 import { agentReviewerEligibility } from './reviews.ts';
 import { lockAgentForStart } from './run-start.ts';
-import { loadTaskOrThrow, type TaskRow } from './service.ts';
+import { createTask, loadTaskOrThrow, type TaskRow } from './service.ts';
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../projects/service.ts', () => ({ loadProjectOrThrow: vi.fn() }));
@@ -17,6 +21,7 @@ vi.mock('./run-start.ts', async (original) => ({
 }));
 vi.mock('./reviews.ts', () => ({ agentReviewerEligibility: vi.fn() }));
 vi.mock('./service.ts', () => ({
+  createTask: vi.fn(),
   loadTaskOrThrow: vi.fn(),
   assertTaskNotArchived: vi.fn(),
   assertTaskReadable: vi.fn(),
@@ -141,6 +146,137 @@ beforeEach(() => {
 });
 
 describe('explicit pristine managed review context [TASK-R29]', () => {
+  const creation = {
+    ...config,
+    taskId: '2045dc63-4934-40fc-89f8-f66b82a30152',
+  };
+  const absent = () => new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
+
+  it('creates the exact declared UUID through the existing creator before enrollment', async () => {
+    vi.mocked(loadTaskOrThrow)
+      .mockRejectedValueOnce(absent())
+      .mockRejectedValueOnce(absent())
+      .mockResolvedValue(task({ id: creation.taskId }));
+    const db = database();
+    await updateTaskReviewContextConfiguration(
+      db.tx,
+      auth,
+      creation,
+      null,
+      true,
+    );
+    expect(createTask).toHaveBeenCalledExactlyOnceWith(
+      db.tx,
+      auth,
+      {
+        projectId: creation.projectId,
+        title: 'Independent review context',
+        status: 'backlog',
+        assigneeType: 'agent',
+        assigneeId: creation.reviewerAgentId,
+      },
+      { taskId: creation.taskId },
+    );
+    expect(db.order).toEqual(['agent', 'task', 'enroll']);
+    expect(
+      db.statements.some((sql) =>
+        sql.startsWith('INSERT INTO app.task_review_contexts'),
+      ),
+    ).toBe(true);
+  });
+
+  it('keeps omitted creation adoption-only and does not conceal storage errors', async () => {
+    vi.mocked(loadTaskOrThrow).mockRejectedValue(absent());
+    const db = database();
+    await expect(
+      updateTaskReviewContextConfiguration(db.tx, auth, creation, null),
+    ).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
+    await expect(
+      readTaskReviewContextConfiguration(
+        db.tx,
+        auth,
+        creation.projectId,
+        creation.taskId,
+      ),
+    ).rejects.toMatchObject({ code: 'TASK_NOT_FOUND' });
+    expect(
+      await readTaskReviewContextConfiguration(
+        db.tx,
+        auth,
+        creation.projectId,
+        creation.taskId,
+        true,
+      ),
+    ).toEqual({ config: null, hash: null });
+    vi.mocked(loadTaskOrThrow).mockRejectedValue(
+      new Error('storage unavailable'),
+    );
+    await expect(
+      readTaskReviewContextConfiguration(
+        db.tx,
+        auth,
+        creation.projectId,
+        creation.taskId,
+        true,
+      ),
+    ).rejects.toThrow('storage unavailable');
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
+  it('refuses stale absent preimages and malformed creation IDs before creating', async () => {
+    vi.mocked(loadTaskOrThrow).mockRejectedValue(absent());
+    const db = database();
+    await expect(
+      updateTaskReviewContextConfiguration(
+        db.tx,
+        auth,
+        creation,
+        '0'.repeat(64),
+        true,
+      ),
+    ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
+    await expect(
+      updateTaskReviewContextConfiguration(db.tx, auth, config, null, true),
+    ).rejects.toThrow('stable UUID');
+    expect(createTask).not.toHaveBeenCalled();
+  });
+
+  it('returns an opaque refusal for a globally occupied ID and never overwrites it', async () => {
+    vi.mocked(loadTaskOrThrow).mockRejectedValue(absent());
+    vi.mocked(createTask).mockRejectedValueOnce({
+      code: '23505',
+      detail: 'private foreign row',
+    });
+    const db = database();
+    await expect(
+      updateTaskReviewContextConfiguration(db.tx, auth, creation, null, true),
+    ).rejects.toMatchObject({
+      code: 'TASK_REVIEW_INVALID',
+      message: 'The declared task identity is unavailable',
+    });
+    expect(db.order).toEqual(['agent', 'task']);
+    expect(
+      db.statements.some((sql) =>
+        sql.startsWith('INSERT INTO app.task_review_contexts'),
+      ),
+    ).toBe(false);
+  });
+
+  it('reconciles an existing identical context without creating or writing it again', async () => {
+    vi.mocked(loadTaskOrThrow).mockResolvedValue(task({ id: creation.taskId }));
+    const db = database(creation);
+    await updateTaskReviewContextConfiguration(
+      db.tx,
+      auth,
+      creation,
+      managedConfigurationHash(creation),
+      true,
+    );
+    expect(createTask).not.toHaveBeenCalled();
+    expect(db.order).toEqual(['agent', 'task']);
+    expect(db.statements.some((sql) => sql.startsWith('INSERT'))).toBe(false);
+  });
+
   it('enrolls only after agent then actual task UPDATE fencing and actual history', async () => {
     const db = database();
     await updateTaskReviewContextConfiguration(db.tx, auth, config, null);

@@ -11,8 +11,8 @@ import {
   PROJECT_INSTRUCTIONS_MAX_CHARS,
 } from './projects';
 
-/** Explicit adoption: these resources never find a target by display name or
- * create a second project, agent or standing task. Native writers retain the
+/** Explicit identities: these resources never find a target by display name.
+ * Review contexts alone may explicitly create their declared UUID. Native writers retain the
  * authority, occupancy, audit and validation rules of those resources. */
 const identity = z
   .string()
@@ -82,6 +82,23 @@ export type ManagedTaskReviewContext = z.infer<
   typeof managedTaskReviewContextSchema
 >;
 
+/** Creation is an explicit apply policy, not part of the stored config/hash.
+ * Existing adoption-only identities remain compatible. */
+export const managedTaskReviewContextProvisionSchema = z
+  .strictObject({
+    config: managedTaskReviewContextSchema,
+    createIfMissing: z.literal(true).optional(),
+  })
+  .refine(
+    (value) =>
+      value.createIfMissing !== true ||
+      z.uuid().safeParse(value.config.taskId).success,
+    {
+      path: ['config', 'taskId'],
+      message: 'Creation requires a stable UUID task ID',
+    },
+  );
+
 /** The native authoring dispatcher validates documents and runs their tests.
  * Metadata is explicit: null clears it; an omitted field must never silently
  * erase a value that an existing automation owns. */
@@ -131,9 +148,8 @@ export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
     kind: z.literal('task-instructions'),
     config: managedTaskInstructionsSchema,
   }),
-  z.strictObject({
+  managedTaskReviewContextProvisionSchema.safeExtend({
     kind: z.literal('task-review-context'),
-    config: managedTaskReviewContextSchema,
   }),
   z.strictObject({
     kind: z.literal('automation-definition'),

@@ -400,6 +400,11 @@ gates. A context runs only through its native batch admission and cannot itself
 acquire a report-review gate. Its evidence follows the existing legal-hold and
 retirement rules.
 
+Managed provisioning may explicitly create an absent UUID task and enroll it in
+one transaction through the native task creator. Omission remains adoption-only.
+Failed enrollment rolls back creation, counters and audit; retry keeps the same
+identity and hash precondition. Tenant collisions never overwrite existing work.
+
 - **Example**: An editor tries to enroll an implementation card already awaiting
   review → refused. A new managed review context accepts batches instead, while
   each implementation card keeps its own independent captured gate.
