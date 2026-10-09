@@ -1268,6 +1268,8 @@ logs:
       folder.deleted: Folder deleted
       knowledge_entry.created: Knowledge entry created
       knowledge_entry.updated: Knowledge entry updated
+      knowledge_embedding.saved: Embedding model saved
+      knowledge_embedding.removed: Embedding model removed
       branding.updated: Branding updated
       branding.image_uploaded: Branding image uploaded
       branding.image_deleted: Branding image removed
@@ -1481,6 +1483,7 @@ logs:
       document: Document
       folder: Folder
       knowledge_entry: Knowledge entry
+      knowledge_embedding: Embedding model
       agent: Agent
       workflow: Automation
       workflow_run: Automation run

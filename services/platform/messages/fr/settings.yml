@@ -1355,6 +1355,8 @@ logs:
       folder.deleted: Dossier supprimé
       knowledge_entry.created: Entrée de connaissances créée
       knowledge_entry.updated: Entrée de connaissances mise à jour
+      knowledge_embedding.saved: Modèle d’embedding enregistré
+      knowledge_embedding.removed: Modèle d’embedding supprimé
       branding.updated: Branding mis à jour
       branding.image_uploaded: Image de branding chargée
       branding.image_deleted: Image de branding retirée
@@ -1568,6 +1570,7 @@ logs:
       document: Document
       folder: Dossier
       knowledge_entry: Entrée de connaissances
+      knowledge_embedding: Modèle d’embedding
       agent: Agent
       workflow: Automatisation
       workflow_run: Exécution d'automatisation

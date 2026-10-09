@@ -3,7 +3,11 @@ import type { Sql } from 'postgres';
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
 import { websitesAfterEmbeddingChange } from '../websites/service.ts';
-import { deleteKnowledgeEmbedding, writeKnowledgeEmbedding } from './admin.ts';
+import {
+  deleteKnowledgeEmbedding,
+  writeKnowledgeEmbedding,
+  type KnowledgeAuditActor,
+} from './admin.ts';
 import {
   requeueDocumentsWithoutVectors,
   requeueEmbeddingBlockedDocuments,
@@ -100,18 +104,18 @@ async function documentsFollowEmbedding(
 
 /**
  * Save the organization's embedding model — compare-and-set on the hash a
- * change names, when it names one — and have the corpus follow it.
- * Answers how many documents went back in the queue.
+ * change names, when it names one, and audited under the person who saved
+ * it — and have the corpus follow it. Answers how many documents went back
+ * in the queue.
  */
 export async function saveKnowledgeEmbedding(
   sql: Sql,
   org: EmbeddingOrganization,
   config: unknown,
-  expectedHash?: string | null,
+  expectedHash: string | null | undefined,
+  actor: KnowledgeAuditActor,
 ): Promise<{ requeued: number }> {
-  if (expectedHash === undefined)
-    await writeKnowledgeEmbedding(sql, org.orgSlug, config);
-  else await writeKnowledgeEmbedding(sql, org.orgSlug, config, expectedHash);
+  await writeKnowledgeEmbedding(sql, org.orgSlug, config, expectedHash, actor);
   // Configuring a model is only half the fix: every document that failed
   // while there was none stays `failed` until something re-queues it, and
   // the failure text tells the operator to configure one "then retry
@@ -131,11 +135,13 @@ export async function saveKnowledgeEmbedding(
   return { requeued: requeued + reembedded };
 }
 
-/** Remove the organization's embedding model; the websites follow. */
+/** Remove the organization's embedding model, audited under the person
+ * who removed it; the websites follow. */
 export async function removeKnowledgeEmbedding(
   sql: Sql,
   org: EmbeddingOrganization,
+  actor: KnowledgeAuditActor,
 ): Promise<void> {
-  await deleteKnowledgeEmbedding(sql, org.orgSlug);
+  await deleteKnowledgeEmbedding(sql, org.orgSlug, actor);
   await websitesFollowEmbedding(sql, org, 'removed');
 }

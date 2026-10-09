@@ -193,6 +193,15 @@ export function createKnowledgeRoutes(deps: {
   };
   const orgSlugOf = async (c: Context<OrgEnv>): Promise<string | null> =>
     resolveOrgSlug(deps.sql, c.get('orgId'));
+  /** The admin a change of the knowledge configuration is recorded under. */
+  const actorOf = (c: Context<OrgEnv>) => {
+    const user = c.get('sessionBundle').user;
+    return {
+      organizationId: c.get('orgId'),
+      userId: user.id,
+      ...(user.email !== undefined ? { email: user.email } : {}),
+    };
+  };
   const handleAdminError = (c: Context<OrgEnv>, error: unknown): Response => {
     if (
       error instanceof KnowledgeAdminError ||
@@ -336,6 +345,7 @@ export function createKnowledgeRoutes(deps: {
         { organizationId: c.get('orgId'), orgSlug },
         config,
         expectedHash,
+        actorOf(c),
       );
       return c.json({ ok: true, requeued });
     } catch (error) {
@@ -348,10 +358,11 @@ export function createKnowledgeRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    await removeKnowledgeEmbedding(deps.sql, {
-      organizationId: c.get('orgId'),
-      orgSlug,
-    });
+    await removeKnowledgeEmbedding(
+      deps.sql,
+      { organizationId: c.get('orgId'), orgSlug },
+      actorOf(c),
+    );
     return c.json({ ok: true });
   });
 
