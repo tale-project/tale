@@ -92,7 +92,7 @@ describe('mcpHost', () => {
     );
   });
 
-  it('dispatches a capability method as the key holder', async () => {
+  it('dispatches a capability method as the key holder, with the key its spend is booked to', async () => {
     const answer = await mcpHost(sql).capability(
       caller('key-laptop'),
       'search_capabilities',
@@ -103,8 +103,20 @@ describe('mcpHost', () => {
     expect(dispatchCapabilityAs).toHaveBeenCalledWith(sql, {
       organizationId: 'org-acme',
       userId: 'user-ada',
+      apiKeyId: 'key-laptop',
       method: 'search_capabilities',
       params: { query: 'send an invoice' },
+    });
+  });
+
+  it('names no key for a capability call the credential carries none for', async () => {
+    await mcpHost(sql).capability(caller(), 'search_capabilities', {});
+
+    expect(dispatchCapabilityAs).toHaveBeenLastCalledWith(sql, {
+      organizationId: 'org-acme',
+      userId: 'user-ada',
+      method: 'search_capabilities',
+      params: {},
     });
   });
 });

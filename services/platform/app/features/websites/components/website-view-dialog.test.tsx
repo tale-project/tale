@@ -416,6 +416,32 @@ describe('WebsiteViewDialog', () => {
     });
   });
 
+  it('says a usage limit stopped the last scan before every page was embedded', () => {
+    render(
+      <WebsiteViewDialog
+        isOpen
+        onClose={vi.fn()}
+        website={{
+          ...WEBSITE,
+          metadata: {
+            embeddingLimitedAt: Date.parse('2026-10-08T09:00:00'),
+            embeddingLimitReason:
+              'Usage limit reached. Your monthly cost limit is used up until 2026-11-01T00:00:00.000Z.',
+          },
+        }}
+      />,
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Website details' });
+    expect(
+      within(dialog).getByText(/A usage limit stopped the last scan/),
+    ).toBeInTheDocument();
+    // The stored English sentence stays in the record, not on screen.
+    expect(
+      within(dialog).queryByText(/Your monthly cost limit/),
+    ).not.toBeInTheDocument();
+  });
+
   it('falls back to the domain when the site has no title', () => {
     render(
       <WebsiteViewDialog

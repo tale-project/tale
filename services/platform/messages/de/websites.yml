@@ -65,6 +65,10 @@ viewDialog:
   scanPausedNotice: Die Scans sind pausiert, weil die Wissensdatenbank
     mehrfach nicht erreichbar war. Prüfe die Verbindung unter Einstellungen →
     Datenresidenz und setze die Scans danach fort.
+  embeddingLimitNotice: Ein Nutzungslimit hat den letzten Scan gestoppt, bevor
+    alle Seiten nach Bedeutung durchsuchbar waren. Diese Seiten sind
+    gespeichert, und der Scan holt sie von selbst nach, sobald das Limit
+    zurückgesetzt oder erhöht ist.
   scanError:
     runtime: Der Scan ist nicht gelaufen.
     notInCorpus: Diese URL-Liste ist nicht im Crawler. Lösche sie und füge sie

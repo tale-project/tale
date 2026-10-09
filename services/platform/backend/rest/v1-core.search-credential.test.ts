@@ -6,7 +6,10 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../lib/shared/errors/app-error.ts';
-import { EmbeddingNotConfigured } from '../core/knowledge/embedding.ts';
+import {
+  EmbeddingBudgetExceeded,
+  EmbeddingNotConfigured,
+} from '../core/knowledge/embedding.ts';
 import { searchKnowledge } from '../core/knowledge/search.ts';
 import {
   KnowledgeError,
@@ -79,6 +82,7 @@ describe('knowledge search with a credential that does not resolve', () => {
 
     const caught = await searchKnowledgeForOrg(fakeSql(), {
       organizationId: 'org-1',
+      spender: { userId: 'user-1', agentSlug: '__embedding__' },
       query: 'refunds',
     }).catch((error: unknown) => error);
 
@@ -216,4 +220,50 @@ describe('knowledge search when the embedding provider fails', () => {
       expect(await res.json()).toMatchObject({ code });
     },
   );
+});
+
+describe('knowledge search at a usage limit', () => {
+  it('answers the 429 every budget refusal answers, with the cap and its wait [GOV-R4] [KNOW-R18]', async () => {
+    const resetsAt = Date.now() + 3_600_000;
+    vi.mocked(searchKnowledge).mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.', resetsAt, {
+        scope: 'apiKey',
+        code: 'REQUEST_LIMIT',
+        period: 'daily',
+        used: 50,
+        limit: 50,
+        reason: 'x',
+        resetsAt,
+      }),
+    );
+
+    const res = await search();
+
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get('retry-after'))).toBeGreaterThan(3_500);
+    expect(await res.json()).toEqual({
+      error: expect.stringContaining('Usage limit reached'),
+      code: 'BUDGET_EXCEEDED',
+      data: {
+        scope: 'apiKey',
+        period: 'daily',
+        limitCode: 'REQUEST_LIMIT',
+        used: 50,
+        limit: 50,
+        resetsAt,
+      },
+    });
+  });
+
+  it('meters the query as the key holder’s spend [GOV-R5]', async () => {
+    vi.mocked(searchKnowledge).mockResolvedValueOnce({
+      hits: [],
+      diagnostics: {},
+    } as never);
+    await search();
+    expect(searchKnowledge).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter: expect.any(Object) }),
+    );
+  });
 });

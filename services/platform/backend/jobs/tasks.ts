@@ -40,6 +40,8 @@ export interface TaskPayloads {
   'watchdog.transcriptions': Record<string, never>;
   /** Reconcile stalled RAG rows against the knowledge corpus. */
   'watchdog.rag_indexing': Record<string, never>;
+  /** Resume the knowledge work a usage limit parked, once it may run. */
+  'knowledge.resume_usage_limited': Record<string, never>;
   /** Fail erasure runs whose processor never finished. */
   'watchdog.erasures': Record<string, never>;
   /** Revoke sessions idle past their org's policy window. */
@@ -364,6 +366,9 @@ export interface TaskPayloads {
     continuation?: number;
     scanStartedAt?: string;
     takeover?: string;
+    /** Who asked for the scan: its embeddings are their spend. A scan the
+     * scheduler started names nobody. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Register a website (or URL list) in the corpus + kick its first scan
    * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */
@@ -373,6 +378,8 @@ export interface TaskPayloads {
     scanInterval: string;
     organizationId: string;
     urls?: string[];
+    /** Who added the site: its first scan is their spend. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Push the corpus-side truth onto one (orgSlug, domain) websites row. */
   'websites.row_sync': { orgSlug: string; domain: string };
@@ -469,6 +476,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // next schedule — piling up retries of a sweep just delays the sweep.
   'watchdog.transcriptions': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.rag_indexing': { retryLimit: 1, expireInSeconds: 600 },
+  'knowledge.resume_usage_limited': { retryLimit: 1, expireInSeconds: 600 },
   'watchdog.erasures': { retryLimit: 1, expireInSeconds: 300 },
   'governance.revoke_idle_sessions': { retryLimit: 1, expireInSeconds: 300 },
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },

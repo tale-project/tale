@@ -442,7 +442,14 @@
  * task_get agentRuns carry `waitingReason` while a run waits. No REST
  * operation changes.
  *
- * 3.26.0 — 2026-10-09: the MCP endpoint speaks protocol revision 2025-11-25
+ * 3.26.0 — 2026-10-09: embeddings are counted and held to the budget caps.
+ * A knowledge search answers 429 `BUDGET_EXCEEDED` (with `data` and
+ * `Retry-After`) when a cap that binds the key holder, the key or the
+ * searched project is reached; a document's indexing `errorCode` gains
+ * `usage_limit` — a `failed` file whose indexing waits for such a cap and
+ * resumes by itself. Additive.
+ *
+ * 3.27.0 — 2026-10-09: the MCP endpoint speaks protocol revision 2025-11-25
  * beside 2025-06-18 and 2025-03-26, answers an `MCP-Protocol-Version` it
  * does not speak with -32022 naming the `supported` revisions, answers
  * `initialize` with `instructions`, and reports this contract version as
@@ -531,4 +538,4 @@
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */
-export const API_CONTRACT_VERSION = '3.26.0';
+export const API_CONTRACT_VERSION = '3.27.0';

@@ -315,6 +315,7 @@ export async function checkEmailedAttachments(
     ): Promise<{ found: boolean; conversationId: string | null }> => {
       const result = await searchKnowledgeForOrg(sql, {
         organizationId: orgId,
+        spender: { userId, agentSlug: '__embedding__' },
         query: phrase,
         corpus: 'documents',
         limit: 10,

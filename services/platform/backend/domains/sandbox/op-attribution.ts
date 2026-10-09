@@ -176,8 +176,10 @@ function automationRunAttribution(
     row.projectId != null ? [row.projectId] : row.boundProjectIds,
   );
   switch (starter.kind) {
+    // A run started with an API key is the key's spend too, whichever door
+    // started it: the REST and MCP doors write `api-key:`, the capability
+    // an MCP call invokes writes `user:` beside the key it came with.
     case 'user':
-      return { userId: starter.userId, agentSlug: row.name, ...projects };
     case 'api-key':
       return {
         userId: starter.userId,

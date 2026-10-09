@@ -10,6 +10,7 @@ import {
   budgetPolicyActive,
   type BudgetViolation,
   findBudgetViolation,
+  resolveTurnAllowance,
 } from './budget-gate.ts';
 import { budgetRefusalMessage } from './budget-refusal.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
@@ -19,7 +20,7 @@ import { incrementUsageLedger } from './service.ts';
 /**
  * A call the platform makes straight to a provider, with no gateway key in
  * between — an automation's `llm` step, a chat title, the Inbox's Improve, a
- * transcription — held against the caps that bind whoever it is for, the way a managed turn
+ * transcription, an embedding request — held against the caps that bind whoever it is for, the way a managed turn
  * holds its allowance:
  *
  *  1. OPEN — before the call, its worst case is measured against every cap
@@ -103,6 +104,16 @@ export interface DirectCallWorstCase {
   tokens: number;
 }
 
+/** The cents a worst case holds: whole cents, never less than one. */
+function holdCents(worstCase: DirectCallWorstCase): number {
+  return Math.max(1, Math.ceil(worstCase.cents));
+}
+
+/** The tokens a worst case holds. */
+function holdTokens(worstCase: DirectCallWorstCase): number {
+  return Math.max(0, Math.ceil(worstCase.tokens));
+}
+
 export async function openDirectCall(
   sql: Sql,
   args: {
@@ -136,7 +147,7 @@ export async function openDirectCall(
     sessionId: lease.sessionId,
     execId: lease.execId,
     kind: DIRECT_CALL_OP_KIND,
-    defaultBudgetCents: Math.max(1, Math.ceil(args.worstCase.cents)),
+    defaultBudgetCents: holdCents(args.worstCase),
     ...(args.modelRef !== undefined ? { modelRef: args.modelRef } : {}),
     subject: {
       userId: args.subject.userId,
@@ -149,7 +160,7 @@ export async function openDirectCall(
         ? { projectIds: args.subject.projectIds }
         : {}),
     },
-    whole: { prospectiveTokens: Math.max(0, Math.ceil(args.worstCase.tokens)) },
+    whole: { prospectiveTokens: holdTokens(args.worstCase) },
     deadlineAtMs,
   });
   if (allowance.allowed) return { allowed: true, lease };
@@ -268,10 +279,20 @@ export async function settleTokenCall(
  * The early answer before work that would only be refused: whether a
  * limit that binds `subject` is already reached, counting what the work in
  * flight holds. Holds nothing — the calls the work makes hold their own.
+ *
+ * With `worstCase`, the answer is the one the work's first call will get:
+ * whether a hold of that worst case would be admitted whole
+ * (`openDirectCall`), so a cap with less than a cent, or fewer tokens than
+ * one request, left reads as blocked too — the room every hold needs, which
+ * calls costing a fraction of a cent can never use up on their own.
  */
 export async function directCallBlocked(
   sql: Sql,
-  args: { organizationId: string; subject: DirectCallSubject },
+  args: {
+    organizationId: string;
+    subject: DirectCallSubject;
+    worstCase?: DirectCallWorstCase;
+  },
 ): Promise<BudgetViolation | null> {
   if (!(await budgetPolicyActive(sql, args.organizationId))) return null;
   const subject = await loadAttributedBudgetSubject(
@@ -279,9 +300,17 @@ export async function directCallBlocked(
     args.organizationId,
     args.subject,
   );
-  return findBudgetViolation(sql, subject, {
-    reservations: await readInFlightReservations(sql, subject),
+  const reservations = await readInFlightReservations(sql, subject);
+  if (args.worstCase === undefined) {
+    return findBudgetViolation(sql, subject, { reservations });
+  }
+  const allowance = await resolveTurnAllowance(sql, {
+    ...subject,
+    defaultCents: holdCents(args.worstCase),
+    reservations,
+    whole: { prospectiveTokens: holdTokens(args.worstCase) },
   });
+  return allowance.allowed ? null : (allowance.violation ?? null);
 }
 
 /** What a call cost, as the provider reported it and the catalog priced it. */

@@ -122,3 +122,27 @@ export async function scanCycleStartedAt(
   `;
   return rows[0]?.startedAt ?? null;
 }
+
+/**
+ * Who the domain's latest scan job for this organization named as its
+ * requester, other than `jobId` — the payload's raw value, null when it
+ * named none or the queue holds no such job. A link that takes a scan over
+ * carries on the scan that requester asked for.
+ */
+export async function previousScanRequester(
+  sql: Sql,
+  args: { domain: string; organizationId: string; jobId?: string },
+): Promise<unknown> {
+  const jobId = args.jobId ?? null;
+  const rows = await sql<{ requestedBy: unknown }[]>`
+    SELECT data->'requestedBy' AS "requestedBy"
+    FROM pgboss.job
+    WHERE name = 'websites.scan'
+      AND data->>'domain' = ${args.domain}
+      AND data->>'organizationId' = ${args.organizationId}
+      AND (${jobId}::uuid IS NULL OR id <> ${jobId}::uuid)
+    ORDER BY created_on DESC
+    LIMIT 1
+  `;
+  return rows[0]?.requestedBy ?? null;
+}

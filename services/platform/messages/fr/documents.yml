@@ -463,6 +463,7 @@ rag:
     unsupported: Non pris en charge
     notIndexed: Non indexé
     needsReindex: Réindexation nécessaire
+    usageLimit: En attente d'une limite d'utilisation
     unknown: Inconnu
   retryIndexing: Relancer l'indexation
   toast:
@@ -476,6 +477,12 @@ rag:
       title: Document indexé
       description: Ce document est indexé et disponible pour la recherche RAG.
       indexedOn: 'Indexé le :'
+    usageLimit:
+      title: En attente d'une limite d'utilisation
+      description:
+        Une limite d'utilisation qui s'applique à l'indexation de ce document
+        a été atteinte. L'indexation reprend d'elle-même dans l'heure qui suit
+        la réinitialisation ou le relèvement de la limite.
     failed:
       title: Échec de l'indexation
       description: Le document n'a pas pu être indexé pour la recherche RAG.

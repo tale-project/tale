@@ -74,10 +74,15 @@ export function mcpHost(sql: Sql): McpHost {
       dispatchEngineMethod(sql, caller, method, params),
     platform: (caller, method, params) =>
       dispatchPlatformTool(sql, caller, method, params),
+    // What a capability spends (a search's embedding, a run it starts) is
+    // booked to the key the call came with, as well as to its holder.
     capability: (caller, method, params) =>
       dispatchCapabilityAs(sql, {
         organizationId: caller.organizationId,
         userId: caller.userId,
+        ...(caller.credential.apiKeyId !== undefined
+          ? { apiKeyId: caller.credential.apiKeyId }
+          : {}),
         method,
         params,
       }),
