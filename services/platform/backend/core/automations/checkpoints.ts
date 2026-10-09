@@ -62,6 +62,8 @@ export interface AgentTurnResult {
   /** HTTP status of a turn-terminating API error the harness reported
    * (429, 401, …), carried for display — never branched on for retry. */
   apiErrorStatus?: number;
+  /** Typed refusal from the terminal provider envelope, never model text. */
+  providerErrorKind?: 'subscription_access_disabled';
   /** The harness's conversation handle of an errored turn, when it had
    * announced one — the auto-retry resumes that conversation over the
    * preserved workspace instead of starting the node's reasoning again. */

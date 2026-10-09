@@ -2147,6 +2147,9 @@ async function continueOrSettle(
     ...(errored && ended?.apiErrorStatus !== undefined
       ? { apiErrorStatus: ended.apiErrorStatus }
       : {}),
+    ...(errored && ended?.providerErrorKind === 'subscription_access_disabled'
+      ? { providerErrorKind: ended.providerErrorKind }
+      : {}),
     ...(ended?.usageTotals !== undefined
       ? { usageTotals: ended.usageTotals }
       : {}),
@@ -2270,6 +2273,8 @@ async function settleTaskAgentTurn(
     failureCode?: TaskRunFailureCode;
     /** The harness-reported provider HTTP status, when there was one. */
     apiErrorStatus?: number;
+    /** Typed refusal from the terminal provider envelope, never model text. */
+    providerErrorKind?: 'subscription_access_disabled';
     /** No retry can start before this, epoch ms: the subscription broker's
      * every account was cooling down after a rate limit
      * (`classifyStartFailure`). */
@@ -2347,13 +2352,21 @@ async function settleTaskAgentTurn(
   }
 
   if (result.errored) {
-    if (result.apiErrorStatus === 429 && current.brokerTokenHash) {
+    if (
+      current.brokerTokenHash &&
+      (result.apiErrorStatus === 429 ||
+        (result.apiErrorStatus === 403 &&
+          result.providerErrorKind === 'subscription_access_disabled'))
+    ) {
       await ctx.runMutation(
         internal.provider_credentials.mutations.recordBrokerFailureInternal,
         {
           organizationId: args.organizationId,
           brokerTokenHash: current.brokerTokenHash,
           apiErrorStatus: result.apiErrorStatus,
+          ...(result.providerErrorKind !== undefined
+            ? { providerErrorKind: result.providerErrorKind }
+            : {}),
         },
       );
     }
