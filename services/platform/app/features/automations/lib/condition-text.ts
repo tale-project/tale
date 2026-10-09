@@ -523,7 +523,13 @@ export function renderCondition(
       for (const part of phrase.parts) {
         const text = renderCondition(part, ctx);
         if (text === null) return null;
-        parts.push(text);
+        // A group of the other kind inside reads in brackets, so
+        // `a && (b || c)` and `(a && b) || c` never read alike.
+        parts.push(
+          part.kind === 'and' || part.kind === 'or'
+            ? t('condition.group', { parts: text })
+            : text,
+        );
       }
       return new Intl.ListFormat(ctx.locale, {
         type: phrase.kind === 'and' ? 'conjunction' : 'disjunction',
