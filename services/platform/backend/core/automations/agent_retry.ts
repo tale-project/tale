@@ -30,8 +30,8 @@ export type WorkflowAgentFailureCode =
   | 'turn_stalled'
   /** The sandbox ran out of memory and the kernel's OOM killer ended the
    * harness or its session. Re-kicked like any failure, but only after
-   * `resourceExhaustedRetryDelayMs` for the node's attempt: at once it
-   * would meet the same limit. */
+   * {@link RESOURCE_EXHAUSTED_REKICK_DELAY_MS}: at once it would meet the
+   * same limit. */
   | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
@@ -75,6 +75,12 @@ export const SANDBOX_ROOM_MAX_WAIT_MS = 2 * 60 * 60_000;
 /** The longest one start of a node waiting for sandbox room is held back:
  * past it, a node still waiting asks about once a minute on average. */
 export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
+
+/** How long the re-kick of a node whose sandbox ran out of memory is held:
+ * as long as the kick may hold a start (its op row must stay inside the
+ * stalled-turn sweep's window), so the 10 and 30 minutes a task run waits
+ * are not available here. */
+export const RESOURCE_EXHAUSTED_REKICK_DELAY_MS = SANDBOX_ROOM_RETRY_CEILING_MS;
 
 /** The most a start that holds a place in the spawner's line comes back
  * after its hint: enough to keep waiters refused together apart. */

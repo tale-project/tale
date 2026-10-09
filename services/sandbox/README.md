@@ -155,10 +155,12 @@ An exec the kernel's OOM killer ended reads `failed` with the error code
 `OOM_KILLED` (runnerd saw its SIGKILL while the session counted a new OOM
 kill), and an exec whose session container died with it reads `SESSION_OOM`
 instead of `SESSION_LOST` when Docker recorded that the OOM killer hit the
-container (`State.OOMKilled`, read by the inspect that evicts the dead
-session). The platform settles such a run as `resource_exhausted` and retries
-it after 2, 10, then 30 minutes rather than at once. Kubernetes restarts an
-OOM-killed runner inside its Pod, so a session there ends as `SESSION_LOST`.
+container (`State.OOMKilled`, read by the eviction's inspect — on the exec's
+first stream and on every later attach). The platform settles such a run as
+`resource_exhausted` and retries it after a pause rather than at once: a task
+run 2, 10, then 30 minutes later, an automation's agent node 2 minutes later
+(the longest a start may be held). Kubernetes restarts an OOM-killed runner
+inside its Pod, so a session there ends as `SESSION_LOST`.
 
 Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
 CPU for the `default` profile) and a CPU weight below the control plane's:

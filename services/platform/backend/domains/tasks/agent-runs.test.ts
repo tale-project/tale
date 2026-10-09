@@ -315,6 +315,48 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
       );
     });
 
+    it.each([
+      [undefined, 2 * 60_000],
+      [1, 10 * 60_000],
+      [2, 30 * 60_000],
+      [5, 30 * 60_000],
+    ])(
+      'holds the retry decision of a run out of memory (attempt %p) for %p ms',
+      async (autoRetryAttempt, waitMs) => {
+        const { sql } = fakeSql((text) =>
+          text.startsWith('UPDATE app.project_agent_runs')
+            ? [
+                {
+                  organizationId: 'org-1',
+                  taskId: 'task-1',
+                  agentId: 'agent-1',
+                  autoRetryAttempt: autoRetryAttempt ?? null,
+                },
+              ]
+            : [],
+        );
+        await failAgentRunFromTurn(sql, {
+          runId: 'run-1',
+          execId: 'exec-1',
+          error: "the agent's sandbox ran out of memory",
+          failureCode: 'resource_exhausted',
+        });
+        // The job itself waits: no queued run sits out the wait for the
+        // stranded-queued-run sweep to start early.
+        expect(addJobInTx).toHaveBeenCalledExactlyOnceWith(
+          expect.anything(),
+          'task.agent_retry',
+          {
+            organizationId: 'org-1',
+            taskId: 'task-1',
+            agentId: 'agent-1',
+            expectedRunId: 'run-1',
+          },
+          { startAfter: new Date(NOW + waitMs) },
+        );
+      },
+    );
+
     it('starts the model-capacity floor after a terminal-update lock wait, not before it', async () => {
       const { sql } = fakeSql((text) => {
         if (!text.startsWith('UPDATE app.project_agent_runs')) return [];

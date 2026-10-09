@@ -706,18 +706,30 @@ export async function failAgentRunFromTurn(
       const startAfterMs =
         args.failureCode === 'model_capacity'
           ? Date.now() + MODEL_CAPACITY_RETRY_DELAY_MS
-          : args.failureCode === 'resource_exhausted'
-            ? Date.now() + resourceExhaustedRetryDelayMs(run.autoRetryAttempt)
-            : args.retryAtMs !== undefined && args.retryAtMs > now
-              ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
-              : undefined;
-      await addJobInTx(tx, 'task.agent_retry', {
+          : args.retryAtMs !== undefined && args.retryAtMs > now
+            ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+            : undefined;
+      // A run its sandbox's memory limit ended waits 2, 10, then 30
+      // minutes — longer than the stranded-queued-run sweep lets a queued
+      // run wait, so the retry DECISION is held instead: no queued run
+      // exists meanwhile, the failed run shows its retry pending, and every
+      // guard is re-derived when the wait ends.
+      const decideAfter =
+        args.failureCode === 'resource_exhausted'
+          ? new Date(
+              Date.now() + resourceExhaustedRetryDelayMs(run.autoRetryAttempt),
+            )
+          : undefined;
+      const retry = {
         organizationId: run.organizationId,
         taskId: run.taskId,
         agentId: run.agentId,
         expectedRunId: args.runId,
         ...(startAfterMs !== undefined && { startAfterMs }),
-      });
+      };
+      await (decideAfter !== undefined
+        ? addJobInTx(tx, 'task.agent_retry', retry, { startAfter: decideAfter })
+        : addJobInTx(tx, 'task.agent_retry', retry));
     } else {
       await announceAgentRunFailed(tx, {
         organizationId: run.organizationId,

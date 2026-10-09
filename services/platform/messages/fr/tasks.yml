@@ -122,7 +122,7 @@ agentRun:
     model: Le modèle d’IA derrière cet agent a échoué avant la fin du travail. Relance l’agent — s’il échoue encore, demande à un admin de vérifier le fournisseur d’IA.
     start: L’exécution n’a pas pu démarrer. Réessaie — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
     interrupted: L’exécution a été interrompue avant que l’agent ait terminé. Relance l’agent.
-    out_of_memory: La sandbox de l’agent a manqué de mémoire, son travail a donc été arrêté. Tale réessaie après une pause — si cela se reproduit, demande à un admin de donner plus de mémoire aux agents.
+    out_of_memory: La sandbox de l’agent a manqué de mémoire, son travail a donc été arrêté. Relance l’agent — si cela se reproduit, demande à un admin de donner plus de mémoire aux agents.
     stalled: L’agent ne répondait plus — il n’a rien affiché et n’a presque rien fait pendant longtemps —, sa sandbox l’a donc arrêté. Relance l’agent — s’il s’arrête encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
     unknown: L’exécution a échoué. Relance l’agent — si elle échoue encore, montre à un admin ce que l’exécution a signalé dans « Détails ».
   standardAgent:
