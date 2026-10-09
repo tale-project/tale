@@ -1234,8 +1234,12 @@ run.
   With an agent whose **Worker 1** and **Worker 2** are both **Stopped**,
   stop the sandbox service (`docker stop tale-sandbox`) and **Destroy**
   Worker 1 → while its row reads **Destroying**, start the agent on a task →
-  the run does not wait: it works in Worker 2. Start the service again → the
-  Worker 1 row leaves. With a one-worker agent, `SET-B30` still holds.
+  its Run row never reads **Waiting for a workspace**
+  (`tasks.agentRun.waiting.destroy_pending`): the run is headed for Worker 2,
+  which can only start once the service is back. Start the service again →
+  the run works in Worker 2 (its task under **Current tasks** on the Worker 2
+  row), no fresh workspace opens, and the Worker 1 row leaves. With a
+  one-worker agent, `SET-B30` still holds.
 - [ ] `SET-B36` · **A worker gives its quota back when its own run ends** —
   With an agent on two tasks, let the task on **Worker 1** finish while
   **Worker 2** still works → within a minute the Worker 1 row reads **Quota
