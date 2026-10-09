@@ -290,6 +290,9 @@ trigger:
   events:
     search: 'Ereignisse suchen'
     empty: 'Kein passendes Ereignis'
+    scopeOrg: 'Startet bei passenden Ereignissen in allen Projekten und bei Ereignissen, die zu keinem Projekt gehören.'
+    scopeProjects: 'Startet bei passenden Ereignissen in {projects} und bei Ereignissen, die zu keinem Projekt gehören, etwa Kontakten.'
+    loopBounded: 'Ihre eigenen Läufe starten sie nie erneut, und ein Lauf, den ein Ereignis gestartet hat, startet keine weiteren Automatisierungen.'
     group:
       tasks: 'Aufgaben'
       comments: 'Kommentare'

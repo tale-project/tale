@@ -47,6 +47,10 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     isError: false,
   }),
   useAgentSecrets: () => ({ data: [] }),
+  useProjects: () => ({
+    projects: [{ _id: 'proj-7', name: 'Billing' }],
+    isLoading: false,
+  }),
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -373,6 +377,26 @@ describe('BlankAutomationDialog webhook URL', () => {
     expect(
       screen.getByText(
         'Keep the URL in TALE_WEBHOOK_URL in the sending system; it works like a password.',
+      ),
+    ).toBeVisible();
+  });
+
+  // Created from Billing's page, an event trigger hears Billing's events
+  // and those of no project, and says so before the automation exists.
+  it('says which events reach an event trigger created in a project [AUTO-R30]', async () => {
+    const { user } = render(
+      <BlankAutomationDialog
+        organizationId="org-1"
+        projectId="proj-7"
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await reachTriggerStep(user);
+    await user.click(screen.getByRole('radio', { name: /^Platform event/ }));
+    expect(
+      screen.getByText(
+        'Starts for matching events in Billing, and for events that belong to no project, such as contacts.',
       ),
     ).toBeVisible();
   });

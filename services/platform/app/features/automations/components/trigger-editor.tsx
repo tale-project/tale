@@ -149,6 +149,22 @@ export function TriggerEditor({
   // A trigger names no project: a sole installation is where its runs act,
   // and otherwise they act organization-wide.
   const [soleProject] = boundProjects.length === 1 ? boundProjects : [];
+  // Which projects' events reach an event trigger: none bound is the
+  // organization's; while the bindings, or the names of bound projects,
+  // are not read yet (or name only archived ones), the field says nothing
+  // rather than something wrong.
+  const boundCount = boundQuery.data?.length;
+  const installedIn = useMemo(
+    () =>
+      boundCount === undefined
+        ? undefined
+        : boundCount === 0
+          ? []
+          : boundProjects.length > 0
+            ? boundProjects.map((project) => project.name)
+            : undefined,
+    [boundCount, boundProjects],
+  );
   const runScopeText =
     soleProject === undefined
       ? t('detail.runScope.confirmOrgWide')
@@ -409,6 +425,7 @@ export function TriggerEditor({
               }}
               onChange={update}
               scheduleFieldId={scheduleFieldId}
+              installedIn={installedIn}
               after={
                 <>
                   <TriggerFixedInput

@@ -47,6 +47,7 @@ export function TriggerForm({
   onChange,
   webhookDetails,
   scheduleFieldId,
+  installedIn,
   after,
 }: {
   surface: TriggerSurface;
@@ -60,6 +61,10 @@ export function TriggerForm({
   webhookDetails?: ReactNode;
   /** The id the schedule's control carries. */
   scheduleFieldId?: string;
+  /** The names of the projects the automation is installed in (none: the
+   * organization's); undefined while unknown. An event trigger says which
+   * events reach it. */
+  installedIn?: readonly string[] | undefined;
   /** What follows the kind's fields: the fixed input and what a run
    * receives. */
   after?: ReactNode;
@@ -147,6 +152,7 @@ export function TriggerForm({
             onChange={(event) => onChange({ event })}
             canEdit={canEdit}
             modal={wizard}
+            installedIn={installedIn}
           />
         )}
         {draft.kind === 'webhook' &&

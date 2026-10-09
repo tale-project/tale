@@ -290,6 +290,9 @@ trigger:
   events:
     search: 'Rechercher un événement'
     empty: 'Aucun événement ne correspond'
+    scopeOrg: 'Démarre pour les événements correspondants de tous les projets et pour ceux qui n’appartiennent à aucun projet.'
+    scopeProjects: 'Démarre pour les événements correspondants de {projects} et pour ceux qui n’appartiennent à aucun projet, comme les contacts.'
+    loopBounded: 'Ses propres exécutions ne la relancent jamais, et une exécution lancée par un événement ne lance pas d’autres automatisations.'
     group:
       tasks: 'Tâches'
       comments: 'Commentaires'

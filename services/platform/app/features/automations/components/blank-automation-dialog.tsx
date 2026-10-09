@@ -34,6 +34,7 @@ import { AgentSecretsField } from '@/app/features/projects/components/agent-secr
 import {
   useAgentSecrets,
   useProjectHarnesses,
+  useProjects,
 } from '@/app/features/projects/hooks/queries';
 import {
   findSelectedModel,
@@ -120,6 +121,14 @@ export function BlankAutomationDialog({
   const { data: orgSecrets } = useAgentSecrets(
     open ? organizationId : undefined,
   );
+  // Created in a project, the automation is installed there: an event
+  // trigger says that project's events reach it, once its name is read.
+  const { projects } = useProjects(organizationId);
+  const installedIn = useMemo(() => {
+    if (projectId === undefined) return [];
+    const project = projects.find((candidate) => candidate._id === projectId);
+    return project === undefined ? undefined : [project.name];
+  }, [projectId, projects]);
   const { mutateAsync: saveAutomation } = useSaveAutomation();
   const { mutateAsync: setTrigger } = useSetAutomationTrigger();
 
@@ -546,6 +555,7 @@ export function BlankAutomationDialog({
             canEdit
             viewerZone={viewerZone}
             runState={{ clean: false, deployed: false, nextRunAt: null }}
+            installedIn={installedIn}
             onChange={(patch) =>
               setTriggerDraft((current) => ({ ...current, ...patch }))
             }

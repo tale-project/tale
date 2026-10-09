@@ -24,6 +24,9 @@ function renderField(
 
 const fieldButton = () => screen.getByRole('button', { name: /^Event name/ });
 
+const LOOP =
+  "Its own runs never start it again, and a run that an event started doesn't start other automations.";
+
 describe('TriggerEventField', () => {
   // Nadia builds a triage automation: she looks for "when a task is
   // created" by what happens, not by the id the API uses — and still sees
@@ -95,13 +98,40 @@ describe('TriggerEventField', () => {
       screen.getByText('A task comment mentions someone with @.'),
     ).toBeVisible();
     expect(fieldButton()).toHaveAccessibleDescription(
-      'A task comment mentions someone with @.',
+      `A task comment mentions someone with @. ${LOOP}`,
     );
   });
 
-  it('describes nothing for a stored event the platform does not raise', () => {
+  it('says only the loop rule for a stored event the platform does not raise, while the projects are unknown', () => {
     renderField({ value: 'invoice.paid' });
-    expect(fieldButton()).not.toHaveAccessibleDescription(/./);
+    expect(fieldButton()).toHaveAccessibleDescription(LOOP);
+  });
+
+  // Ada's triage automation belongs to the organization: a task created in
+  // any project starts it, and so does a contact, which has no project.
+  it('says an automation of the organization hears every project’s events [AUTO-R30]', () => {
+    renderField({ value: 'task.created', installedIn: [] });
+    expect(
+      screen.getByText(
+        'Starts for matching events in every project, and for events that belong to no project.',
+      ),
+    ).toBeVisible();
+  });
+
+  // Noah installed it in Billing and Sales only: a task in Support starts
+  // nothing, a contact still does.
+  it('names the projects whose events reach an installed automation [AUTO-R30]', () => {
+    renderField({ value: 'task.created', installedIn: ['Billing', 'Sales'] });
+    expect(fieldButton()).toHaveAccessibleDescription(
+      `A task is created on a board, through the API or by an import. Starts for matching events in Billing and Sales, and for events that belong to no project, such as contacts. ${LOOP}`,
+    );
+  });
+
+  // Mia's sync files a task the triage automation hears; the triage run's
+  // own writes start nothing.
+  it('says its own runs never start it again, and an event-started run starts nothing else [AUTO-R12]', () => {
+    renderField({ value: '', installedIn: [] });
+    expect(screen.getByText(LOOP)).toBeVisible();
   });
 
   it('cannot be changed by a member', () => {

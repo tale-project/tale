@@ -287,6 +287,9 @@ trigger:
   events:
     search: 'Search events'
     empty: 'No events match'
+    scopeOrg: 'Starts for matching events in every project, and for events that belong to no project.'
+    scopeProjects: 'Starts for matching events in {projects}, and for events that belong to no project, such as contacts.'
+    loopBounded: 'Its own runs never start it again, and a run that an event started doesn''t start other automations.'
     group:
       tasks: 'Tasks'
       comments: 'Comments'

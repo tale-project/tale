@@ -737,6 +737,31 @@ describe('TriggerEditor', () => {
   // A webhook installed in projects answers on each project's door; its
   // token, once shown, stays hidden, and the deliveries it started are
   // listed with how the door recognised each.
+  describe('an event trigger', () => {
+    const EVENT_ROW = row({ kind: 'event', event: 'task.created' });
+
+    it('names the projects whose events reach it, once the bindings are read [AUTO-R30]', () => {
+      triggersData = [EVENT_ROW];
+      boundProjectIds = ['proj-1', 'proj-2'];
+      renderTrigger('gmail-triage-inbox', true, 2);
+      expect(
+        screen.getByText(
+          'Starts for matching events in Document desk and Support, and for events that belong to no project, such as contacts.',
+        ),
+      ).toBeVisible();
+    });
+
+    it('says an automation of the organization hears every project [AUTO-R30]', () => {
+      triggersData = [EVENT_ROW];
+      renderTrigger('gmail-triage-inbox', true, 2);
+      expect(
+        screen.getByText(
+          'Starts for matching events in every project, and for events that belong to no project.',
+        ),
+      ).toBeVisible();
+    });
+  });
+
   describe('a webhook installed in projects', () => {
     const WEBHOOK_ROW = row({ kind: 'webhook', hasToken: true });
 
