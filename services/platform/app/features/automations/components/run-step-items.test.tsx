@@ -113,14 +113,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderItems() {
+function renderItems(props: Partial<Parameters<typeof RunStepItems>[0]> = {}) {
   return render(
     <QueryClientProvider
       client={
         new QueryClient({ defaultOptions: { queries: { retry: false } } })
       }
     >
-      <RunStepItems organizationId={ORG} runId={RUN} step={STEP} />
+      <RunStepItems organizationId={ORG} runId={RUN} step={STEP} {...props} />
     </QueryClientProvider>,
   );
 }
@@ -157,5 +157,35 @@ describe('RunStepItems', () => {
     expect(only).toHaveAttribute('aria-pressed', 'true');
     expect(await screen.findByText('Returned')).toBeVisible();
     expect(screen.getByText('"second"')).toBeVisible();
+  });
+
+  it('counts a repeat’s passes from 1', async () => {
+    vi.mocked(globalThis.fetch).mockImplementation(async () =>
+      Response.json({
+        page: {
+          path: 'score',
+          units: [
+            unit(-1, 'succeeded', { pass: 0 }),
+            unit(-1, 'succeeded', { pass: 1 }),
+          ],
+          next: null,
+        },
+      }),
+    );
+    renderItems({
+      step: {
+        ...STEP,
+        status: 'succeeded',
+        counts: { items: 0, ok: 2, failed: 0, skipped: 0, passes: 2, kept: 2 },
+      },
+    });
+    const list = screen.getByRole('list', {
+      name: 'Items and passes of Score',
+    });
+    expect(
+      await within(list).findByRole('button', { name: /Pass 1/ }),
+    ).toBeVisible();
+    expect(within(list).getByRole('button', { name: /Pass 2/ })).toBeVisible();
+    expect(within(list).queryByRole('button', { name: /Pass 0/ })).toBeNull();
   });
 });

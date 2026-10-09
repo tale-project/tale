@@ -69,10 +69,11 @@ function UnitPage({
   return (
     <>
       {units.map((unit) => {
+        // People count both from 1; the record counts from 0.
         const label =
           unit.item >= 0
             ? t('items.item', { index: unit.item + 1 })
-            : t('items.pass', { index: unit.pass });
+            : t('items.pass', { index: unit.pass + 1 });
         const failure =
           unit.failure === undefined
             ? undefined
