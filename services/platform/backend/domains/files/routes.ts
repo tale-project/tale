@@ -587,7 +587,9 @@ export function createFileRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         { organizationId: orgId },
         meta.storageRef,
         publicOrigin(c.req.raw),
+        c.req.query('filename') ? { filename: c.req.query('filename') } : {},
       );
+      if (c.req.query('redirect') === '1') return c.redirect(url, 302);
       return c.json({ url });
     } catch (error) {
       return handleError(c, error);
