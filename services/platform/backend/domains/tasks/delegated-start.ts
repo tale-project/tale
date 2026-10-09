@@ -45,7 +45,7 @@ import {
   lockTaskRunStart,
   lockAgentForStart,
 } from './run-start.ts';
-export { lockAgentForStart, type LockedAgent } from './run-start.ts';
+export { type LockedAgent } from './run-start.ts';
 import {
   agentAssignTaskToAgentTrusted,
   agentHandTaskToInProgressTrusted,
@@ -414,7 +414,7 @@ function taskOutOfScope(): TaskError {
   return new TaskError('TASK_NOT_FOUND', 'Task not found', 404);
 }
 
-export async function assertDelegatingRun(
+async function assertDelegatingRun(
   tx: TransactionSql,
   args: {
     organizationId: string;
