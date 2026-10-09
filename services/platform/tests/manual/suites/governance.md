@@ -331,8 +331,8 @@ agent.
   tab** — rows are auto-purged at the end of their grace window
   (`governance.trash.empty` describes this)
 - [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
-  **Organization limits** (`sandboxes.limits.title`) → change **Project agent
-  sessions**, **Workflow sessions**, and **Render sessions**
+  **Organization limits** (`sandboxes.limits.title`) → change **Agent
+  workers**, **Workflow sessions**, and **Render sessions**
   (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) within the
   displayed deployment capacity → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
@@ -790,7 +790,7 @@ agent.
   scope row; no rule row is added (reload confirms). The same guard already
   covers the user/team/role scopes.
 - [ ] `GOV-B7` · **Sandbox quota bounds** — `/dashboard/{org}/settings/sandboxes` →
-  **Project agent sessions** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
+  **Agent workers** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
   Save → Validation message **"Must be a whole number between 1 and 500."**
   (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
   workflow and render limits.

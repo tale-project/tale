@@ -154,6 +154,10 @@ export async function checkRenderFailedCreate(
             : { destroyed: false, busy: true },
         );
       },
+      // Agent sessions' leftovers lose their compute alone; this lane has
+      // none, and other lanes' rows answer busy.
+      stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+        Promise.resolve({ stopped: false, busy: true }),
     };
     let collected = await readRows();
     let passes = 0;

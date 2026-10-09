@@ -213,3 +213,41 @@ it('preserves localized workflow comments through native readback', async () => 
     bodyByLocale: bodies,
   });
 });
+
+it('reads each comment as stored and as text with current names [COLLAB-R10]', async () => {
+  vi.mocked(getProjectAuthContext).mockResolvedValue({
+    organizationId: 'org-1',
+    userId: 'system',
+    role: 'owner',
+    teamIds: [],
+  });
+  const body = '[@Ada](mention:user/u-1) please check';
+  vi.mocked(listTaskComments).mockResolvedValue({
+    comments: [
+      {
+        messageId: 'm-1',
+        authorType: 'user',
+        authorId: 'u-2',
+        body,
+        bodyByLocale: null,
+        createdAt: 3,
+        editedAt: null,
+        mentions: [{ type: 'user', id: 'u-1' }],
+      },
+    ],
+    hasMore: false,
+    nextCursor: null,
+  });
+  // The one read the store makes here: the current name of who is named.
+  const store = pgTaskStore(
+    sqlStub({ rows: [{ id: 'u-1', name: 'Ada Lovelace', email: null }] }),
+  );
+  const result = await store.listComments({
+    organizationId: 'org-1',
+    taskId: 'task-1',
+  });
+  expect(result.comments[0]).toMatchObject({
+    body,
+    bodyText: '@Ada Lovelace please check',
+  });
+});

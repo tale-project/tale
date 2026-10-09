@@ -1,5 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { loadOwnedThread, loadProjectSharedThread } from '../chat/threads.ts';
@@ -66,8 +67,10 @@ export interface ThreadTaskRow {
     failureCode?: string;
     /** A failed run the platform is about to retry by itself. */
     retryPending?: boolean;
-    /** Queued while the organization's sandbox slots are full. */
+    /** Queued while no worker or no room is free for it. */
     waitingForCapacity?: boolean;
+    /** Why it waits, when the park kept a reason. */
+    waitingReason?: AgentRunWaitingReason;
   };
 }
 
@@ -134,6 +137,9 @@ export async function listTasksFromThread(
               ...(card.retryPending === true ? { retryPending: true } : {}),
               ...(card.waitingForCapacity === true
                 ? { waitingForCapacity: true }
+                : {}),
+              ...(card.waitingReason !== undefined
+                ? { waitingReason: card.waitingReason }
                 : {}),
             },
           }

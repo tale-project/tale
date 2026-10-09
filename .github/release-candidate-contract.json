@@ -616,7 +616,7 @@
         {
           "path": ["jobs", "build", "if"],
           "kind": "value",
-          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
         },
         {
           "path": ["jobs", "build", "name"],
@@ -1162,7 +1162,8 @@
           "path": ["jobs", "integration-scope", "steps", 2, "with"],
           "kind": "value",
           "expected": {
-            "filter": "integration"
+            "filter": "integration",
+            "queue-only": "true"
           }
         },
         {
@@ -1395,7 +1396,7 @@
         {
           "path": ["jobs", "performance", "if"],
           "kind": "value",
-          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
         },
         {
           "path": ["jobs", "performance", "name"],
@@ -1625,7 +1626,7 @@
         {
           "path": ["jobs", "test-browser", "if"],
           "kind": "value",
-          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
         },
         {
           "path": ["jobs", "test-browser", "name"],
@@ -2026,7 +2027,7 @@
         {
           "path": ["jobs", "test-ui", "if"],
           "kind": "value",
-          "expected": "always() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+          "expected": "github.event_name != 'pull_request' && always() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
         },
         {
           "path": ["jobs", "test-ui", "name"],
@@ -2087,7 +2088,7 @@
         {
           "path": ["jobs", "test-ui-shards", "if"],
           "kind": "value",
-          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
         },
         {
           "path": ["jobs", "test-ui-shards", "name"],
@@ -4072,7 +4073,8 @@
           "path": ["jobs", "pr-scope", "steps", 1, "with"],
           "kind": "value",
           "expected": {
-            "filter": "e2e"
+            "filter": "e2e",
+            "queue-only": "true"
           }
         },
         {
@@ -4504,12 +4506,15 @@
                 "services/platform/backend/auth/oidc.ts",
                 "services/platform/backend/db/sql.ts",
                 "services/platform/backend/db/ssl.ts",
+                "services/platform/backend/domains/api_keys/owners.ts",
+                "services/platform/backend/domains/api_keys/retire.ts",
                 "services/platform/backend/domains/audit_logs/**",
                 "services/platform/backend/domains/sandbox/retirement-schedule.ts",
                 "services/platform/backend/domains/two_factor/service.ts",
                 "services/platform/backend/jobs/enqueue.ts",
                 "services/platform/backend/jobs/tasks.ts",
                 "services/platform/backend/lib/org-config.ts",
+                "services/platform/backend/realtime/outbox.ts",
                 "services/platform/lib/**",
                 "configs/platform/**",
                 "packages/shared/**",
@@ -5223,7 +5228,8 @@
           "path": ["jobs", "pr-scope", "steps", 1, "with"],
           "kind": "value",
           "expected": {
-            "filter": "cli"
+            "filter": "cli",
+            "queue-only": "true"
           }
         },
         {

@@ -18,7 +18,10 @@ import {
   stageAgentReviewFile,
 } from '../tasks/agent-review-files.ts';
 import { reviewAgentTask } from '../tasks/agent-review.ts';
-import { startDelegatedAgentRun } from '../tasks/delegated-start.ts';
+import {
+  startDelegatedAgentRun,
+  withStartWait,
+} from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
 import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import {
@@ -749,7 +752,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         const projectId = binding.projectId;
         const agentId = binding.actorId;
         const execId = args.taskRunExecId;
-        return transactSerializable(sql, async (tx) => {
+        const outcome = await transactSerializable(sql, async (tx) => {
           const runs = await tx<
             { id: string; startedBy: string; apiKeyId: string | null }[]
           >`
@@ -786,6 +789,10 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
               : {}),
           });
         });
+        // Whether the run it started waits for a worker, read once the
+        // start has committed: the manager learns the agent is not working
+        // yet.
+        return withStartWait(sql, args.organizationId, outcome);
       });
     },
 

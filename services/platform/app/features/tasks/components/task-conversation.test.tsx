@@ -1,9 +1,20 @@
-import { act, render, screen } from '@testing-library/react';
+import { TooltipProvider } from '@tale/ui/tooltip';
+import {
+  act,
+  render as renderWithoutShell,
+  screen,
+  type RenderOptions,
+} from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { useSyncExternalStore } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow } from '../utils/task-timeline';
 import { TaskConversation } from './task-conversation';
+
+/** The app shell provides tooltips; a comment's icon actions carry one. */
+const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
+  renderWithoutShell(ui, { wrapper: TooltipProvider, ...options });
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOON = new Date(2026, 8, 23, 12, 0, 0).getTime();
@@ -18,7 +29,8 @@ const data: {
   }>;
   hasEarlier: boolean;
   activity: TaskActivityRow[];
-} = { comments: [], hasEarlier: false, activity: [] };
+  loadEarlier: ReturnType<typeof vi.fn>;
+} = { comments: [], hasEarlier: false, activity: [], loadEarlier: vi.fn() };
 
 const discussionListeners = new Set<() => void>();
 
@@ -34,12 +46,13 @@ function getDiscussionSnapshot() {
 }
 
 vi.mock('../hooks/queries', () => ({
+  TASK_DISCUSSION_PAGE_SIZE: 30,
   // The discussion arrives newest first, like the backend's page walk.
   useTaskDiscussion: () => ({
     comments: useSyncExternalStore(subscribeDiscussion, getDiscussionSnapshot),
     hasEarlier: data.hasEarlier,
     isLoadingEarlier: false,
-    loadEarlier: vi.fn(),
+    loadEarlier: data.loadEarlier,
   }),
   useTaskActivity: () => ({ activity: data.activity }),
   useTaskAgentRuns: () => ({ runs: [] }),
@@ -109,6 +122,7 @@ beforeEach(() => {
   data.comments = [];
   data.hasEarlier = false;
   data.activity = [];
+  data.loadEarlier.mockClear();
 });
 
 function renderConversation() {
@@ -261,5 +275,63 @@ describe('TaskConversation', () => {
   it('invites the first comment on an empty thread', () => {
     renderConversation();
     expect(screen.getByText('detail.conversationEmpty')).toBeInTheDocument();
+  });
+});
+
+describe('TaskConversation opening page', () => {
+  // Newest first, an hour apart: nothing continues the comment before it.
+  const cached = (count: number) =>
+    Array.from({ length: count }, (_entry, index) => ({
+      messageId: `m${index}`,
+      authorType: 'user' as const,
+      authorId: 'u1',
+      body: `Comment ${index}`,
+      createdAt: NOON - index * 60 * 60_000,
+    }));
+  const showEarlier = () =>
+    screen.getByRole('button', { name: 'detail.showEarlierComments' });
+
+  it('opens on the newest page, and shows earlier comments already here without a fetch', () => {
+    data.comments = cached(45);
+    renderConversation();
+    expect(screen.getByText('Comment 29')).toBeInTheDocument();
+    expect(screen.queryByText('Comment 30')).toBeNull();
+
+    act(() => showEarlier().click());
+    expect(screen.getByText('Comment 44')).toBeInTheDocument();
+    expect(data.loadEarlier).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole('button', { name: 'detail.showEarlierComments' }),
+    ).toBeNull();
+  });
+
+  it('asks for another page once nothing earlier is waiting', () => {
+    data.comments = cached(20);
+    data.hasEarlier = true;
+    renderConversation();
+
+    act(() => showEarlier().click());
+    expect(data.loadEarlier).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps its oldest comment in view when a new one arrives', () => {
+    data.comments = cached(45);
+    renderConversation();
+
+    act(() => {
+      data.comments = [
+        {
+          messageId: 'fresh',
+          authorType: 'user',
+          authorId: 'u1',
+          body: 'Just now',
+          createdAt: NOON + 60_000,
+        },
+        ...data.comments,
+      ];
+      for (const listener of discussionListeners) listener();
+    });
+    expect(screen.getByText('Just now')).toBeInTheDocument();
+    expect(screen.getByText('Comment 29')).toBeInTheDocument();
   });
 });

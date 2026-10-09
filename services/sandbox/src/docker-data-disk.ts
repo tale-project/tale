@@ -314,6 +314,16 @@ export class SandboxDiskProbe implements HostDiskSource {
     return headroom(docker) < headroom(workspace) ? docker : workspace;
   }
 
+  byFilesystem(): {
+    workspace: HostDisk | null;
+    dockerData: HostDisk | null | undefined;
+  } {
+    return {
+      workspace: this.workspace.latest(),
+      dockerData: this.dockerData?.latest(),
+    };
+  }
+
   read(fresh = false): Promise<HostDisk | null> {
     this.reading ??= Promise.all([
       this.workspace.read(fresh),

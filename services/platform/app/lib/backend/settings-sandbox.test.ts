@@ -192,11 +192,44 @@ describe('sandbox workspace list', () => {
       throw new Error('the list decides its poll from its answer');
     }
     expect(
-      interval([{ destroyState: 'pending' }, { destroyState: null }]),
+      interval({
+        sessions: [{ destroyState: 'pending' }, { destroyState: null }],
+      }),
     ).toBe(2_000);
-    expect(interval([{ destroyState: 'failed' }, {}])).toBe(15_000);
+    expect(interval({ sessions: [{ destroyState: 'failed' }, {}] })).toBe(
+      15_000,
+    );
     expect(interval(null)).toBe(15_000);
     expect(interval(undefined)).toBe(15_000);
+  });
+
+  it('answers the workspaces and the count of agent runs waiting for room together', async () => {
+    const answer = {
+      sessions: [
+        { sessionId: 'pa-agent-1-w2', worker: { number: 2, scope: 'agent' } },
+      ],
+      waitingRuns: {
+        total: 3,
+        byReason: {
+          org_limit: 2,
+          host: 1,
+          destroy_pending: 0,
+          exec_limit: 0,
+          unknown: 0,
+        },
+      },
+    };
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json(answer));
+    const adapter = settingsReadAdapters[
+      'sandbox/session_queries_public:listSandboxesForOrg'
+    ]?.({ organizationId: 'org-a' }, {});
+    await expect(adapter?.queryFn()).resolves.toEqual(answer);
+    expect(fetch.mock.calls[0]?.[0]).toBe(
+      '/api/app/sandbox/sessions/view?orgId=org-a',
+    );
+    fetch.mockRestore();
   });
 
   it('queues a Destroy and refreshes this organization’s sandbox reads', async () => {

@@ -726,10 +726,9 @@ services:
     #   NET_ADMIN     — install the iptables OUTPUT REJECT rules for IMDS
     #                   (169.254.169.254) + RFC1918 (the only hostname-
     #                   independent egress fence; fail-closed without it).
-    #   DAC_OVERRIDE  — entrypoint.sh (root) touches/creates the tinyproxy log
-    #                   inside /var/log/tinyproxy, which the image owns by
-    #                   `nobody`; without it the touch fails Permission denied.
-    #   CHOWN         — chown that log file to nobody.
+    #   DAC_OVERRIDE / CHOWN — part of the live-verified set. tinyproxy logs
+    #                   to stdout, so no entrypoint step is known to need them;
+    #                   drop them only once a live boot without them passes.
     #   SETUID/SETGID — tinyproxy drops privileges to nobody after bind.
     #   NET_BIND_SERVICE — dnsmasq binds privileged port 53 to serve external
     #                   DNS to the internal-only sandbox network (dnsmasq checks
@@ -754,7 +753,10 @@ services:
       # `-f`. NOT `nc -z`: tinyproxy logs every connect-and-close at ERROR
       # ("read_request_line: Client … closed socket before read."), which
       # wrote one error line per interval into the log an operator reads to
-      # find real failures.
+      # find real failures. Then one DNS query to dnsmasq on 127.0.0.1 for the
+      # name it answers from its own `--host-record`: nested containers and
+      # BuildKit RUN steps resolve only through it, and busybox `nslookup`
+      # exits non-zero when it does not answer within a second.
       # We intentionally do NOT CONNECT-probe an external host (pypi/npm)
       # — flapping that probe against a transient upstream outage flips
       # the spawner's `depends_on: service_healthy` gate to false and
@@ -765,7 +767,7 @@ services:
       test:
         [
           'CMD-SHELL',
-          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1",
+          "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1",
         ]
       interval: 10s
       timeout: 5s
@@ -849,7 +851,7 @@ services:
       # generator (create-sandbox-service.ts) — R2-B11 lockstep.
       SANDBOX_DOCKER_BUILD_CACHE: ${SANDBOX_DOCKER_BUILD_CACHE:-}
       SANDBOX_BUILDKITD_IMAGE: ${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}
-      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: ${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373}
       SANDBOX_EGRESS_NETWORK: tale-sandbox-net
       SANDBOX_EGRESS_PROXY: http://sandbox-egress:3128
     volumes:
@@ -882,12 +884,16 @@ services:
       nofile:
         soft: 4096
         hard: 8192
+    # Each probe is a runc exec of curl, every 30 s, so a booting spawner
+    # reads healthy up to 30 s after it starts. No `start_interval`: Docker
+    # Compose refuses it on Engine 24, the oldest engine Tale supports.
+    # Mirrors the CLI generator and the image's HEALTHCHECK.
     healthcheck:
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health']
-      interval: 10s
+      interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 15s
+      start_period: 30s
     depends_on:
       sandbox-egress:
         condition: service_healthy

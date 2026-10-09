@@ -38,7 +38,9 @@ filters = [
 # 20 GB — and smaller while the disk it shares with every session has less
 # than 5% free, but never below 2 GB: every organization's builder prunes its
 # own cache by the whole shortfall, so without that floor a disk that other
-# data filled would wipe each building organization's cache.
+# data filled would wipe each building organization's cache. The spawner
+# replaces both sizes at boot (TALE_BUILDKITD_MAX_USED, TALE_BUILDKITD_RESERVED,
+# in bytes) with ones sized from the disk.
 [[worker.oci.gcpolicy]]
 all = true
 maxUsedSpace = "20GB"

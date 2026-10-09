@@ -8,13 +8,20 @@
  *  - a `turn-ended` whose background-task ledger is still open is a lingering
  *    turn, not a finished one — the process stays alive until the ledger
  *    settles (the `types.ts` `task-started`/`task-settled` contract);
- *  - a real exit still finalizes a held result, and a plain hold-stdin turn
- *    with no background work is still cut and reaped after the grace.
+ *  - a real exit still finalizes a held result;
+ *  - a hold-stdin turn with no background work gets its stdin closed and
+ *    ends on the CLI's own exit, and is cut and reaped after the grace only
+ *    when it does not exit.
  *
  * And how a terminal window classifies: a turn that ended cleanly with
  * nothing at all from the model (live: a serving cluster that failed
  * mid-prefill answered an empty 200) is a failure, while a turn that only
  * called tools, only reasoned, or only reported output tokens is not.
+ *
+ * And how a window meets a spawner it cannot reach: it ends `running` with
+ * the outage's start rather than failing the turn, keeps an outage that
+ * outlasts it measured from where it began, and clears it once the stream
+ * flows again.
  */
 
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -28,6 +35,7 @@ import {
   ReplayBudget,
 } from '../../../../sandbox-runtime/daemon/src/exec-replay';
 import { readFixture } from '../../../lib/harnesses/test-helpers';
+import type { HarnessExec } from '../../../lib/harnesses/types';
 
 const transport = vi.hoisted(() => ({
   replayComplete: true,
@@ -55,14 +63,45 @@ const transport = vi.hoisted(() => ({
     }
   },
   resumedAt: [] as number[],
+  stdinWrites: [] as Array<{ execId: string; eof?: boolean }>,
+  /** How the live exec answers a stdin EOF: by exiting, by ignoring it, or
+   * the write itself failing. */
+  onEof: 'exit' as 'exit' | 'ignore' | 'fail',
+  exitOnEof: undefined as (() => void) | undefined,
+  /** Every session operation in order, as `verb:detail` lines. */
+  sessionOps: [] as string[],
+  deleteFailure: undefined as Error | undefined,
+  deleteSkips: [] as Array<{ path: string; reason: string }>,
+  /** A failure the checkpoint read throws instead of answering. */
+  checkpointFailure: undefined as Error | undefined,
+  /** What the drain tells the window about its stream before it follows
+   * the exec: nothing, a stream lost to the transport, or one that flows. */
+  contactEvent: 'none' as 'none' | 'lost' | 'attached',
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   SessionNotFoundError: class SessionNotFoundError extends Error {},
+  // The real classifier reads its own error classes; this transport marks
+  // an unreachable spawner by name.
+  isSpawnerTransportFailure: (error: unknown) =>
+    error instanceof Error && error.name === 'SpawnerUnreachableError',
   ExecReplayGapError: transport.Gap,
   ExecStreamProtocolError: class ExecStreamProtocolError extends Error {},
-  sessionStageFiles: async () => ({ staged: [], skipped: [] }),
+  sessionStageFiles: async (
+    _sessionId: string,
+    files: Array<{ path: string }>,
+  ) => {
+    transport.sessionOps.push(`stage:${files.map((f) => f.path).join(',')}`);
+    return { staged: [], skipped: [] };
+  },
+  sessionDeleteFiles: async (_sessionId: string, paths: string[]) => {
+    transport.sessionOps.push(`delete:${paths.join(',')}`);
+    if (transport.deleteFailure !== undefined) throw transport.deleteFailure;
+    return { deleted: paths, skipped: transport.deleteSkips };
+  },
   sessionGetExecCheckpoint: async () => {
+    if (transport.checkpointFailure !== undefined)
+      throw transport.checkpointFailure;
     if (transport.checkpointAfterGap !== 'none') {
       await new Promise((resolve) => setTimeout(resolve, 1600));
       if (transport.checkpointAfterGap === 'failed')
@@ -86,6 +125,20 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     transport.cancelled.push(execId);
     return true;
   },
+  sessionWriteExecStdin: async (
+    _sessionId: string,
+    execId: string,
+    write: { dataBase64?: string; eof?: boolean },
+  ) => {
+    transport.stdinWrites.push({ execId, eof: write.eof });
+    if (transport.onEof === 'fail') throw new Error('spawner unreachable');
+    // Only the exec live at the write exits; a write after the drain ended
+    // must not end the next test's exec.
+    const exit = transport.exitOnEof;
+    if (write.eof === true && transport.onEof === 'exit' && exit !== undefined)
+      setTimeout(exit, 20);
+    return { ok: true };
+  },
   drainSessionExecResilient: async (
     _sessionId: string,
     _body: unknown,
@@ -96,9 +149,17 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
       onReplayStarted?: () => void;
       onReplayComplete?: () => void;
     },
-    opts: { cursor: { lastSeq: number }; resumeSinceSeq?: number },
+    opts: {
+      cursor: { lastSeq: number };
+      resumeSinceSeq?: number;
+      contact?: { onAttached(): void; onLost(error: unknown): void };
+    },
   ) => {
     if (signal.aborted) throw signal.reason;
+    if (opts.resumeSinceSeq === undefined) transport.sessionOps.push('launch');
+    if (transport.contactEvent === 'lost')
+      opts.contact?.onLost(new Error('connect ECONNREFUSED'));
+    if (transport.contactEvent === 'attached') opts.contact?.onAttached();
     callbacks.onReplayStarted?.();
     if (opts.resumeSinceSeq !== undefined)
       transport.resumedAt.push(opts.resumeSinceSeq);
@@ -133,13 +194,19 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
     }
     if (transport.exitAfterStdout)
       return { exitCode: transport.exitCode, errorCode: transport.errorCode };
-    // A live exec: the drain only ends when the window (or the cut) aborts.
-    await new Promise<never>((_resolve, reject) => {
-      signal.addEventListener('abort', () => reject(signal.reason), {
-        once: true,
+    // A live exec: the drain only ends when the window (or the cut) aborts,
+    // or when the process exits on a stdin EOF.
+    try {
+      await new Promise<void>((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), {
+          once: true,
+        });
+        transport.exitOnEof = resolve;
       });
-    });
-    throw new Error('unreachable');
+    } finally {
+      transport.exitOnEof = undefined;
+    }
+    return { exitCode: 0 };
   },
 }));
 
@@ -148,8 +215,11 @@ const {
   classifyHarnessEnd,
   harnessOutputTail,
   isSpendRefusal,
+  removeStagedSubscription,
   spendRefusalReason,
 } = await import('./external_turn_shared');
+const { SessionNotFoundError } =
+  await import('../node_only/sandbox/helpers/session_client');
 
 /** One NDJSON stream from event objects. */
 function ndjson(lines: Array<Record<string, unknown>>): string {
@@ -220,6 +290,12 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.exitCode = 0;
     transport.errorCode = undefined;
     transport.protocolFailure = false;
+    transport.stdinWrites = [];
+    transport.onEof = 'exit';
+    transport.exitOnEof = undefined;
+    transport.sessionOps = [];
+    transport.deleteFailure = undefined;
+    transport.deleteSkips = [];
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -263,7 +339,11 @@ describe('drainHarnessWindow end-of-turn rules', () => {
     transport.stdout = ndjson([CLAUDE_TASK_SETTLED]);
     const terminal = await drainHarnessWindow({ ...args, windowMs: 2000 });
     expect(terminal.kind).toBe('terminal');
-    expect(transport.cancelled).toEqual(['checkpoint-bg']);
+    // Stdin closes only once the restored ledger settles; the CLI exits.
+    expect(transport.stdinWrites).toEqual([
+      { execId: 'checkpoint-bg', eof: true },
+    ]);
+    expect(transport.cancelled).toEqual([]);
   });
 
   it.each(['missing', 'failed'] as const)(
@@ -963,7 +1043,10 @@ describe('drainHarnessWindow end-of-turn rules', () => {
         windowMs: 10000,
       });
       expect(terminal.kind).toBe('terminal');
-      expect(transport.cancelled).toEqual(['replay-background']);
+      expect(transport.stdinWrites).toEqual([
+        { execId: 'replay-background', eof: true },
+      ]);
+      expect(transport.cancelled).toEqual([]);
     } finally {
       await replay.dispose();
       await rm(directory, { recursive: true, force: true });
@@ -977,6 +1060,7 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       CLAUDE_RESULT,
       CLAUDE_TASK_SETTLED,
     ]);
+    transport.onEof = 'ignore';
 
     const result = await drainHarnessWindow({
       sessionId: 'sandbox',
@@ -992,12 +1076,15 @@ describe('drainHarnessWindow end-of-turn rules', () => {
       expect(result.ended?.status).toBe('completed');
       expect(classifyHarnessEnd(result).errored).toBe(false);
     }
-    // The lingering hold-stdin process is reaped exactly once.
+    // Stdin closes only once the ledger is empty, and the lingering
+    // hold-stdin process is reaped exactly once.
+    expect(transport.stdinWrites).toEqual([{ execId: 'bg-claude', eof: true }]);
     expect(transport.cancelled).toEqual(['bg-claude']);
   });
 
-  it('cuts and reaps a plain hold-stdin turn with no background work', async () => {
+  it('closes the stdin of a plain hold-stdin turn and ends on its own exit, without the grace or a reap', async () => {
     transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+    const started = Date.now();
 
     const result = await drainHarnessWindow({
       sessionId: 'sandbox',
@@ -1008,12 +1095,162 @@ describe('drainHarnessWindow end-of-turn rules', () => {
 
     expect(result.kind).toBe('terminal');
     if (result.kind === 'terminal') {
-      expect(result.exited).toBe(false);
+      expect(result.exited).toBe(true);
+      expect(result.execResult?.exitCode).toBe(0);
       expect(result.ended?.finalText).toBe(
         'The report is being generated in the background.',
       );
+      expect(classifyHarnessEnd(result).errored).toBe(false);
     }
-    expect(transport.cancelled).toEqual(['plain-claude']);
+    expect(transport.stdinWrites).toEqual([
+      { execId: 'plain-claude', eof: true },
+    ]);
+    expect(transport.cancelled).toEqual([]);
+    // Well inside the 1.5 s grace the turn used to sit out on every reply.
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
+  it.each(['ignore', 'fail'] as const)(
+    'cuts and reaps a hold-stdin turn after the grace when its stdin EOF is %sed',
+    async (onEof) => {
+      transport.stdout = ndjson([CLAUDE_INIT, CLAUDE_RESULT]);
+      transport.onEof = onEof;
+
+      const result = await drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'plain-claude',
+        harness: 'claude-code',
+        windowMs: 10_000,
+      });
+
+      expect(result.kind).toBe('terminal');
+      if (result.kind === 'terminal') {
+        expect(result.exited).toBe(false);
+        expect(result.ended?.finalText).toBe(
+          'The report is being generated in the background.',
+        );
+      }
+      expect(transport.stdinWrites).toEqual([
+        { execId: 'plain-claude', eof: true },
+      ]);
+      expect(transport.cancelled).toEqual(['plain-claude']);
+    },
+  );
+
+  it('never closes stdin while a background task is open, nor on a close-stdin harness', async () => {
+    transport.stdout = ndjson([
+      CLAUDE_INIT,
+      CLAUDE_TASK_STARTED,
+      CLAUDE_RESULT,
+    ]);
+    const lingering = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'bg-claude',
+      harness: 'claude-code',
+      windowMs: 50,
+    });
+    expect(lingering.kind).toBe('running');
+
+    // Another exec: the stand-in keeps one checkpoint for all of them.
+    transport.checkpoint = null;
+    transport.stdout = readFixture('pi', 'shell-turn');
+    transport.exitAfterStdout = true;
+    const closed = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'pi-turn',
+      harness: 'pi',
+    });
+    expect(closed.kind).toBe('terminal');
+
+    expect(transport.stdinWrites).toEqual([]);
+  });
+});
+
+/** Where the Gemini harness stages a member's Google sign-in. */
+const GEMINI_CREDENTIAL = '.runtime/home/.gemini/oauth_creds.json';
+
+describe('a staged subscription credential', () => {
+  beforeEach(() => {
+    transport.replayComplete = true;
+    transport.stdout = '';
+    transport.cancelled = [];
+    transport.exitAfterStdout = true;
+    transport.checkpoint = null;
+    transport.sessionOps = [];
+    transport.deleteFailure = undefined;
+    transport.deleteSkips = [];
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  const geminiStart = (
+    stagedFiles: Array<{ path: string; content: string }>,
+  ): HarnessExec => ({
+    argv: ['gemini'],
+    env: {},
+    cwd: '/agent/workspace',
+    stagedFiles,
+  });
+
+  it('is removed before a Gemini turn that runs without it can start', async () => {
+    await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'gemini-managed',
+      harness: 'gemini',
+      start: geminiStart([
+        { path: '.runtime/home/.gemini/settings.json', content: '{}' },
+      ]),
+    });
+    expect(transport.sessionOps).toEqual([
+      `delete:${GEMINI_CREDENTIAL}`,
+      'stage:.runtime/home/.gemini/settings.json',
+      'launch',
+    ]);
+  });
+
+  it('stays for the Gemini turn that stages it', async () => {
+    await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'gemini-subscription',
+      harness: 'gemini',
+      start: geminiStart([
+        { path: GEMINI_CREDENTIAL, content: '{"refresh_token":"member"}' },
+      ]),
+    });
+    expect(transport.sessionOps).toEqual([
+      `stage:${GEMINI_CREDENTIAL}`,
+      'launch',
+    ]);
+  });
+
+  it('is never looked for on a harness that takes its subscription through the environment', async () => {
+    transport.stdout = readFixture('pi', 'shell-turn');
+    await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'claude-turn',
+      harness: 'claude-code',
+      start: { argv: ['claude'], env: {}, cwd: '/agent/workspace' },
+    });
+    await removeStagedSubscription('sandbox', 'codex');
+    expect(transport.sessionOps).toEqual(['launch']);
+  });
+
+  it('is removed at a settle, and a failed removal is logged, never thrown', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    warn.mockClear();
+    await removeStagedSubscription('sandbox', 'gemini');
+    expect(transport.sessionOps).toEqual([`delete:${GEMINI_CREDENTIAL}`]);
+
+    transport.deleteSkips = [{ path: GEMINI_CREDENTIAL, reason: 'EACCES' }];
+    await removeStagedSubscription('sandbox', 'gemini');
+    transport.deleteSkips = [];
+    transport.deleteFailure = new Error('spawner unreachable');
+    await removeStagedSubscription('sandbox', 'gemini');
+    expect(warn).toHaveBeenCalledTimes(2);
+
+    // A session that is gone took the credential with it: nothing to log.
+    transport.deleteFailure = new SessionNotFoundError('sandbox');
+    await removeStagedSubscription('sandbox', 'gemini');
+    expect(warn).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -1070,6 +1307,12 @@ describe('classifyHarnessEnd', () => {
     transport.exitCode = 0;
     transport.errorCode = undefined;
     transport.protocolFailure = false;
+    transport.stdinWrites = [];
+    transport.onEof = 'exit';
+    transport.exitOnEof = undefined;
+    transport.sessionOps = [];
+    transport.deleteFailure = undefined;
+    transport.deleteSkips = [];
     vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
@@ -1143,18 +1386,19 @@ describe('classifyHarnessEnd', () => {
   });
 
   it('fails a turn whose model answered nothing (the live empty 200)', async () => {
-    // As it ran: the held-stdin CLI lingers after its result, so the turn
-    // ends on the grace cut, not on an exit.
+    // The held-stdin CLI lingers after its result until the window closes
+    // its stdin; the turn then ends on the CLI's own exit, which is clean.
     const result = await drainCapture('empty-answer-turn', { exits: false });
 
-    expect(result.exited).toBe(false);
+    expect(result.exited).toBe(true);
+    expect(result.execResult?.exitCode).toBe(0);
     expect(result.ended?.isError).toBe(false);
     expect(classifyHarnessEnd(result)).toEqual({
       errored: true,
       reason: EMPTY_ANSWER,
       emptyAnswer: true,
     });
-    expect(transport.cancelled).toEqual(['exec-empty-answer-turn']);
+    expect(transport.cancelled).toEqual([]);
   });
 
   it('keeps a reasoning-only turn: the result counts its tokens', async () => {
@@ -1455,4 +1699,125 @@ describe('incomplete replay refusal', () => {
       expect(result.reason).toContain('replay');
     },
   );
+});
+
+describe('a window that cannot reach the spawner', () => {
+  beforeEach(() => {
+    transport.replayComplete = true;
+    transport.stdout = '';
+    transport.stderr = '';
+    transport.replayTail = '';
+    transport.cancelled = [];
+    transport.exitAfterStdout = false;
+    transport.checkpoint = null;
+    transport.gapCheckpoint = null;
+    transport.gapAfterStdout = false;
+    transport.checkpointAfterGap = 'none';
+    transport.stdoutDelayMs = 0;
+    transport.resumedAt = [];
+    transport.protocolFailure = false;
+    transport.sessionOps = [];
+    transport.checkpointFailure = undefined;
+    transport.contactEvent = 'none';
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+
+  const unreachable = () =>
+    Object.assign(new Error('sandbox spawner unreachable'), {
+      name: 'SpawnerUnreachableError',
+    });
+
+  it('ends running from the outage when the checkpoint read finds no spawner, leaving the exec alone', async () => {
+    transport.checkpointFailure = unreachable();
+    const before = Date.now();
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'checkpoint-refused',
+      harness: 'pi',
+      windowMs: 60_000,
+    });
+
+    expect(result.kind).toBe('running');
+    if (result.kind !== 'running') return;
+    expect(result.spawnerOutageSince).toBeGreaterThanOrEqual(before);
+    expect(transport.resumedAt).toEqual([]);
+    expect(transport.cancelled).toEqual([]);
+  });
+
+  it('keeps measuring an outage from the window that saw it begin', async () => {
+    transport.checkpointFailure = unreachable();
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'still-away',
+      harness: 'pi',
+      windowMs: 60_000,
+      spawnerOutageSince: 1_234,
+    });
+
+    expect(result).toMatchObject({
+      kind: 'running',
+      spawnerOutageSince: 1_234,
+    });
+  });
+
+  it('still fails on a checkpoint read refused for another reason', async () => {
+    transport.checkpointFailure = new Error(
+      'Invalid SANDBOX_URL configuration',
+    );
+
+    await expect(
+      drainHarnessWindow({
+        sessionId: 'sandbox',
+        execId: 'misconfigured',
+        harness: 'pi',
+        windowMs: 60_000,
+      }),
+    ).rejects.toThrow('Invalid SANDBOX_URL configuration');
+  });
+
+  it('ends running from the outage when its stream is lost until the window ends', async () => {
+    transport.contactEvent = 'lost';
+    const before = Date.now();
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'stream-lost',
+      harness: 'pi',
+      windowMs: 50,
+    });
+
+    expect(result.kind).toBe('running');
+    if (result.kind !== 'running') return;
+    expect(result.spawnerOutageSince).toBeGreaterThanOrEqual(before);
+    expect(transport.cancelled).toEqual([]);
+  });
+
+  it('clears a carried outage once the stream flows again', async () => {
+    transport.contactEvent = 'attached';
+
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'back-again',
+      harness: 'pi',
+      windowMs: 50,
+      spawnerOutageSince: 1_234,
+    });
+
+    expect(result.kind).toBe('running');
+    expect(result).not.toHaveProperty('spawnerOutageSince');
+  });
+
+  it('reports no outage for a window that neither lost nor found the stream', async () => {
+    const result = await drainHarnessWindow({
+      sessionId: 'sandbox',
+      execId: 'quiet',
+      harness: 'pi',
+      windowMs: 50,
+    });
+
+    expect(result.kind).toBe('running');
+    expect(result).not.toHaveProperty('spawnerOutageSince');
+  });
 });

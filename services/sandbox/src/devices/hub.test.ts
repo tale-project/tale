@@ -772,6 +772,50 @@ describe('DeviceHub placement', () => {
     ]);
   });
 
+  // The cleanup after a failed create stops a session and keeps its
+  // workspace on the device: its id must still reach that device.
+  test('a stop that kept the workspace leaves the placement as it was', async () => {
+    const { hub } = await makeHub();
+    const device = connectDevice(hub, 'dev-1', (stream) =>
+      stream.respond(
+        { status: stream.head.method === 'DELETE' ? 200 : 201, headers: [] },
+        new Response(
+          JSON.stringify(
+            stream.head.method === 'DELETE'
+              ? { stopped: true, busy: false, workspaceKept: true }
+              : {},
+          ),
+        ).body,
+      ),
+    );
+    await device.hello();
+    const create = createRequest('pa-kept', 'device');
+    await (await hub.maybeForward(create.req, create.url, create.body))?.text();
+    const stop = callRequest(
+      'DELETE',
+      '/v1/sessions/pa-kept?if_idle=1&keep_workspace=1',
+    );
+    const answer = await hub.maybeForward(stop.req, stop.url, '');
+    expect(await answer?.json()).toEqual({
+      stopped: true,
+      busy: false,
+      workspaceKept: true,
+    });
+    expect(
+      device.served.some(
+        (call) =>
+          call.method === 'DELETE' &&
+          call.path === '/v1/sessions/pa-kept?if_idle=1&keep_workspace=1',
+      ),
+    ).toBe(true);
+    expect(hub.capacityOverlay(ORG).placements).toEqual([
+      { sessionId: 'pa-kept', deviceId: 'dev-1' },
+    ]);
+    // The next call for the id still goes to the device.
+    const again = callRequest('GET', '/v1/sessions/pa-kept');
+    expect(await hub.maybeForward(again.req, again.url, '')).not.toBeNull();
+  });
+
   test('a destroyed session keeps its route to the device until the device confirms the bytes are gone', async () => {
     const { hub } = await makeHub();
     // What the device answers each destroy: an older device's answer with no

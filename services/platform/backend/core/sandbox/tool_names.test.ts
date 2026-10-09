@@ -77,7 +77,7 @@ describe('normalizeToolGrants', () => {
 });
 
 describe('the catalog', () => {
-  it('classifies task_* creates and document_create as writes', () => {
+  it('classifies task_* creates, document_create and knowledge_entry_write as writes', () => {
     for (const name of [
       'task_create',
       'task_comment',
@@ -85,6 +85,7 @@ describe('the catalog', () => {
       'task_start_agent',
       'task_upsert_by_external_ref',
       'document_create',
+      'knowledge_entry_write',
     ]) {
       expect(WRITE_EFFECT_TOOLS).toContain(name);
     }
@@ -119,6 +120,15 @@ describe('grantedToolsGuidance', () => {
     const guidance = grantedToolsGuidance(['task_find', 'task_create']);
     expect(guidance).toContain('task_find');
     expect(guidance).toContain('task_create');
+    expect(guidance).toContain('change real organization data');
+  });
+
+  it('warns that a knowledge entry write changes real organization data', () => {
+    const guidance = grantedToolsGuidance([
+      'knowledge_entry_find',
+      'knowledge_entry_write',
+    ]);
+    expect(guidance).toContain('knowledge_entry_write');
     expect(guidance).toContain('change real organization data');
   });
 

@@ -79,6 +79,7 @@ import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
@@ -95,6 +96,7 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkImmutableBudgetProjects } from './domains/governance/immutable-projects.integration.ts';
 import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
 import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
@@ -104,6 +106,9 @@ import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integr
 import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import {
+  checkAgentWriteBudget,
+  checkConcurrentAgentAndPersonEdits,
+  checkConcurrentAgentCreates,
   checkConcurrentEntryCreation,
   checkConcurrentEntryRenameAndCreate,
   checkConcurrentEntryUpdates,
@@ -132,6 +137,7 @@ import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routin
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkAgentRunApiKeys } from './domains/tasks/agent-run-keys.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts';
 import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
@@ -160,6 +166,7 @@ import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.i
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
+import { checkTtsBudgetReservations } from './domains/tts/budget.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
@@ -12354,7 +12361,12 @@ async function checkAutomations(
           JSON.stringify({
             object: 'list',
             data: [
-              { id: 'itest-llm', object: 'model', context_length: 32_768 },
+              {
+                id: 'itest-llm',
+                object: 'model',
+                context_length: 32_768,
+                pricing: { prompt: '0.000001', completion: '0.000002' },
+              },
             ],
           }),
         );
@@ -24205,7 +24217,7 @@ async function checkTasksCollabIntegrity(
   // leg failing rejects (MENTION_DIRECTORY_UNAVAILABLE, 503) instead of
   // answering a partial directory that turns `@teammate` into plain text;
   // the healthy resolution still names the teammate.
-  const { MentionDirectoryError, resolveSurfaceMentions } =
+  const { MentionDirectoryError, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const instanceLegDown = Object.assign(
     (strings: TemplateStringsArray, ...values: unknown[]): unknown => {
@@ -24221,18 +24233,26 @@ async function checkTasksCollabIntegrity(
     },
     { json: sql.json.bind(sql), unsafe: sql.unsafe.bind(sql) },
   );
-  const degraded: unknown = await resolveSurfaceMentions(
+  const degraded: unknown = await prepareSurfaceText(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tag + json/unsafe stand-in over the real handle
     instanceLegDown as unknown as Sql,
-    { organizationId: orgId, body: `@${reviewer} please look`, projectId },
+    {
+      organizationId: orgId,
+      body: `@${reviewer} please look`,
+      projectId,
+      cap: 10_000,
+      mode: 'full',
+    },
   ).then(
     () => 'resolved',
     (error: unknown) => error,
   );
-  const healthy = await resolveSurfaceMentions(sql, {
+  const healthy = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: `@${reviewer} please look`,
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   // Typed against the module's export so the probe stays a plain FAIL (not
   // a crash) on a tree that has no `MentionDirectoryError` yet.
@@ -24314,26 +24334,25 @@ async function checkCollabMentions(
   `;
   const agentInstanceId = agentRows[0]?.id ?? '';
 
-  const { buildMentionDirectory, resolveSurfaceMentions } =
+  const { buildMentionDirectory, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const directory = await buildMentionDirectory(sql, {
     organizationId: orgId,
     projectId,
   });
-  const handleOwners = new Map<string, string>();
-  for (const entry of directory.entries) {
-    for (const handle of entry.handles) {
-      handleOwners.set(handle, `${entry.type}:${entry.id}`);
-    }
-  }
-  // The instance goes LAST so its handle wins a clash.
+  // The agent answers to its older name form as well as its handle.
+  const resolvedReviewer = directory.index.resolve('pr.reviewer');
   const instanceShadows =
-    handleOwners.get('pr.reviewer') === `agent:${agentInstanceId}`;
+    resolvedReviewer !== null &&
+    `${resolvedReviewer.kind}:${resolvedReviewer.id}` ===
+      `agent:${agentInstanceId}`;
 
-  const resolved = await resolveSurfaceMentions(sql, {
+  const resolved = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: '@mention-teammate-1 and @pr.reviewer please look; @nobody-here too',
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   const mentionKeys = resolved.mentions.map(
     (mention) => `${mention.type}:${mention.id}`,
@@ -24341,7 +24360,7 @@ async function checkCollabMentions(
   record(
     'mentions: the directory scopes to the project and resolves agent instances',
     directory.entries.some(
-      (entry) => entry.type === 'user' && entry.id === teammate,
+      (entry) => entry.kind === 'user' && entry.id === teammate,
     ) &&
       instanceShadows &&
       mentionKeys.includes(`user:${teammate}`) &&
@@ -41323,6 +41342,8 @@ async function checkAutomationRunToolLane(
     'task_upsert_by_external_ref',
     'document_create',
     'document_find',
+    'knowledge_entry_find',
+    'knowledge_entry_write',
   ];
   // The step-scoped owner spelling (`${runId}:<suffix>`) is what the agent
   // host mints — the resolver must split it back to the run.
@@ -41736,6 +41757,123 @@ async function checkAutomationRunToolLane(
       orgScopeProjects.has(boundProjectId) &&
       orgScopeProjects.has(otherProjectId),
     `orgFind=${orgDocFind.status} (a=${orgDocFind.raw.includes('run-tools-bound-a.md')}, b=${orgDocFind.raw.includes('run-tools-bound-b.md')}, unboundLeak=${orgDocFind.raw.includes('run-tools-unbound-c.md')}), pinnedFind=${pinnedDocFind.status} (a=${pinnedDocFind.raw.includes('run-tools-bound-a.md')}, bLeak=${pinnedDocFind.raw.includes('run-tools-bound-b.md')}), scope=${orgKnowledgeScope.success ? [...orgScopeProjects].length : 'ERR'} project(s)`,
+  );
+
+  // knowledge_entry_write through the same door: an org-wide entry keyed by
+  // its topic, written as the run's automation with `source: agent`. The
+  // first save creates; the same text again writes nothing; a change that
+  // names no version, or a version replaced since, is refused with the
+  // current text; naming the version read writes a new one. The agents'
+  // find lists the entry by its content, with the version id a next save
+  // names.
+  const entryTopic = `Run tools hours ${randomUUID().slice(0, 8)}`;
+  const entryAnswer = z
+    .object({
+      status: z.literal('ok'),
+      output: z
+        .object({
+          outcome: z.string(),
+          versionId: z.string().optional(),
+          reason: z.string().optional(),
+          current: z
+            .object({ versionId: z.string(), content: z.string() })
+            .loose()
+            .nullable()
+            .optional(),
+        })
+        .loose(),
+    })
+    .loose();
+  const saveEntry = async (
+    content: string,
+    expectedVersionId?: string,
+  ): Promise<z.infer<typeof entryAnswer>['output'] | undefined> => {
+    const answer = await dispatch(pinnedToken, 'knowledge_entry_write', {
+      topic: entryTopic,
+      content,
+      ...(expectedVersionId !== undefined ? { expectedVersionId } : {}),
+    });
+    const parsed = entryAnswer.safeParse(JSON.parse(answer.raw));
+    return parsed.success ? parsed.data.output : undefined;
+  };
+  const entryCreated = await saveEntry('Mon–Fri 9–17');
+  const firstVersion = entryCreated?.versionId ?? '';
+  const entryRepeated = await saveEntry('Mon–Fri 9–17');
+  const entryBlind = await saveEntry('Mon–Fri 8–18');
+  const entryUpdated = await saveEntry('Mon–Fri 8–18', firstVersion);
+  const entryStale = await saveEntry('Mon–Fri 7–19', firstVersion);
+  const entryFound = await dispatch(pinnedToken, 'knowledge_entry_find', {
+    topic: 'Mon–Fri 8–18',
+  });
+  const entryListed = z
+    .object({
+      output: z
+        .object({
+          page: z.array(
+            z
+              .object({
+                id: z.string(),
+                topic: z.string(),
+                source: z.string(),
+                updatedAt: z.number(),
+              })
+              .loose(),
+          ),
+        })
+        .loose(),
+    })
+    .loose()
+    .safeParse(JSON.parse(entryFound.raw));
+  const listedEntry = entryListed.success
+    ? entryListed.data.output.page.find((entry) => entry.topic === entryTopic)
+    : undefined;
+  const entryRows = await sql<
+    { status: string; source: string; createdBy: string; content: string }[]
+  >`
+    SELECT status, source, created_by AS "createdBy", content
+    FROM app.knowledge_entries
+    WHERE org_id = ${orgId} AND topic_key = ${entryTopic.toLowerCase()}
+      AND deleted_at_ms IS NULL
+    ORDER BY seq
+  `;
+  const entryAudits = await sql<{ action: string; actorId: string }[]>`
+    SELECT action, actor_id AS "actorId" FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'knowledge_entry'
+      AND resource_name = ${entryTopic}
+    ORDER BY ts
+  `;
+  const runActor = 'automation:itest-run-tools-pinned';
+  record(
+    'knowledge_entry_write through /api/tools/execute (create, repeat, refusals, new version, find)',
+    entryCreated?.outcome === 'created' &&
+      firstVersion !== '' &&
+      entryRepeated?.outcome === 'unchanged' &&
+      entryRepeated.versionId === firstVersion &&
+      entryBlind?.outcome === 'refused' &&
+      entryBlind.reason === 'version_required' &&
+      entryBlind.current?.versionId === firstVersion &&
+      entryBlind.current.content === 'Mon–Fri 9–17' &&
+      entryUpdated?.outcome === 'updated' &&
+      entryUpdated.versionId !== undefined &&
+      entryUpdated.versionId !== firstVersion &&
+      entryStale?.outcome === 'refused' &&
+      entryStale.reason === 'version_conflict' &&
+      entryStale.current?.versionId === entryUpdated.versionId &&
+      entryStale.current.content === 'Mon–Fri 8–18' &&
+      listedEntry?.id === entryUpdated.versionId &&
+      listedEntry.source === 'agent' &&
+      entryRows.length === 2 &&
+      entryRows.every(
+        (row) => row.source === 'agent' && row.createdBy === runActor,
+      ) &&
+      entryRows[0]?.status === 'superseded' &&
+      entryRows[1]?.status === 'active' &&
+      entryRows[1].content === 'Mon–Fri 8–18' &&
+      entryAudits.length === 2 &&
+      entryAudits[0]?.action === 'knowledge_entry.created' &&
+      entryAudits[1]?.action === 'knowledge_entry.updated' &&
+      entryAudits.every((row) => row.actorId === runActor),
+    `create=${entryCreated?.outcome}, repeat=${entryRepeated?.outcome}, blind=${entryBlind?.outcome}/${entryBlind?.reason}, update=${entryUpdated?.outcome}, stale=${entryStale?.outcome}/${entryStale?.reason}, find=${entryFound.status} (listed=${listedEntry?.id === entryUpdated?.versionId}, source=${listedEntry?.source}), rows=${entryRows.map((row) => `${row.status}:${row.source}`).join(',')}, audits=${entryAudits.map((row) => row.action).join(',')}`,
   );
 
   // Hand back the workflow session budget — the org's cap is small, and the
@@ -57992,6 +58130,8 @@ async function checkWatchdogs(
           : { destroyed: false, busy: true },
       );
     },
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: true }),
   };
   const tick1 = await sandboxWatchdogs.runSandboxWatchdog(sql, {
     reconcileBatch: 2,
@@ -58161,6 +58301,8 @@ async function checkWatchdogs(
             : { destroyed: true, busy: false },
         );
       },
+      stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+        Promise.resolve({ stopped: false, busy: true }),
     },
   });
   const releaseRows = await sql<
@@ -58253,6 +58395,8 @@ async function checkWatchdogs(
     },
     destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
       Promise.resolve({ destroyed: false, busy: false }),
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: false }),
   };
   const orgLaneRows = [
     'wd-org-phantom',
@@ -58333,12 +58477,13 @@ async function checkWatchdogs(
   `;
 
   // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
-  // session is still live is destroyed and stamped by primary key, keeping
-  // `failed`; a failed row whose deterministic id a newer, hibernated
-  // incarnation carries is stamped WITHOUT a spawner call, and that
-  // incarnation's row and token stay untouched; a busy session and a failure
-  // inside the grace wait. The scripted spawner answers busy for every
-  // session outside this lane, so rows other lanes left are not disturbed.
+  // session is still live is removed (an agent session's compute alone, its
+  // workspace kept) and stamped by primary key, keeping `failed`; a failed
+  // row whose deterministic id a newer, hibernated incarnation carries is
+  // stamped WITHOUT a spawner call, and that incarnation's row and token
+  // stay untouched; a busy session and a failure inside the grace wait. The
+  // scripted spawner answers busy for every session outside this lane, so
+  // rows other lanes left are not disturbed.
   const collectAt = now - 2 * 3_600_000;
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -58372,6 +58517,17 @@ async function checkWatchdogs(
     )
   `;
   const collectAsked: string[] = [];
+  // These lanes' failed rows are automation runs' agent sessions, whose
+  // leftovers lose their compute alone (`stopIfIdle`); a render's would be
+  // destroyed whole. Both answer the same script.
+  const collectAnswer = (
+    sessionId: string,
+  ): { removed: boolean; busy: boolean } => {
+    collectAsked.push(sessionId);
+    return sessionId === 'wd-collect-live'
+      ? { removed: true, busy: false }
+      : { removed: false, busy: true };
+  };
   const collectSpawner = {
     isAlive: (): Promise<boolean> => Promise.resolve(true),
     setPinned: (): Promise<boolean> => Promise.resolve(true),
@@ -58379,12 +58535,14 @@ async function checkWatchdogs(
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
-      collectAsked.push(sessionId);
-      return Promise.resolve(
-        sessionId === 'wd-collect-live'
-          ? { destroyed: true, busy: false }
-          : { destroyed: false, busy: true },
-      );
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ destroyed: removed, busy });
+    },
+    stopIfIdle: (
+      sessionId: string,
+    ): Promise<{ stopped: boolean; busy: boolean }> => {
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ stopped: removed, busy });
     },
   };
   const readCollectRows = () => sql<
@@ -58520,6 +58678,12 @@ async function checkWatchdogs(
         refusedAsked.push(sessionId);
         return Promise.resolve({ destroyed: false, busy: true });
       },
+      stopIfIdle: (
+        sessionId: string,
+      ): Promise<{ stopped: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ stopped: false, busy: true });
+      },
     },
   });
   const refusedAfter = await sql<
@@ -58542,7 +58706,11 @@ async function checkWatchdogs(
 
   // What waiting for room leaves behind goes: the op rows of refused starts
   // an hour after they ended — the session's newest kept, the run view
-  // reads it — and failed session rows a day after they were collected.
+  // reads it — and failed session rows a day after they were collected,
+  // except the newest row of a project agent's id: a collected failed
+  // create of an agent session keeps its workspace, and that row is what
+  // the unused, member and agent cleanup find it by. A first create that
+  // failed leaves such a row alone; an automation run's goes all the same.
   const waitSession = `wf-wd-wait-${randomUUID()}`;
   const hourAgo = now - 2 * 60 * 60 * 1000;
   for (const [execId, startedAt] of [
@@ -58571,16 +58739,27 @@ async function checkWatchdogs(
     )
   `;
   const day = 24 * 60 * 60 * 1000;
-  const collectedRows = await sql<{ id: string; old: boolean }[]>`
+  const collectedRows = await sql<{ id: string; label: string }[]>`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms, destroyed_at_ms
     ) VALUES
       (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 180_000}, ${now}, ${now - day - 150_000}),
+      (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
+      (${orgId}, 'pa-wd-collected-lone', 'failed', 'project_agent',
+       'agent-wd', 'itest', ${now - day - 120_000}, ${now},
+       ${now - day - 60_000}),
+      (${orgId}, 'wf-wd-collected-lone', 'failed', 'workflow_run', 'run-wd',
        'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
       (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
        'itest', ${now - 120_000}, ${now}, ${now - 60_000})
-    RETURNING id, destroyed_at_ms < ${now - day} AS old
+    RETURNING id,
+      session_id || CASE
+        WHEN session_id = 'pa-wd-collected-old'
+          AND created_at_ms = ${now - day - 180_000}
+        THEN ':older' ELSE '' END AS label
   `;
   const { sweepRoomWaitLeftovers } =
     await import('./domains/sandbox/wait-retention.ts');
@@ -58591,17 +58770,25 @@ async function checkWatchdogs(
       WHERE session_id = ${waitSession} ORDER BY started_at_ms
     `
   ).map((row) => row.execId);
-  const collectedLeft = await sql<{ id: string }[]>`
-    SELECT id FROM app.sandbox_sessions
-    WHERE id = ANY(${collectedRows.map((row) => row.id)})
-  `;
-  const keptRecent = collectedRows.find((row) => !row.old)?.id;
+  const collectedLeft = new Set(
+    (
+      await sql<{ id: string }[]>`
+        SELECT id FROM app.sandbox_sessions
+        WHERE id = ANY(${collectedRows.map((row) => row.id)})
+      `
+    ).map((row) => row.id),
+  );
+  const collectedKept = collectedRows
+    .filter((row) => collectedLeft.has(row.id))
+    .map((row) => row.label)
+    .sort()
+    .join(',');
+  const wantKept =
+    'pa-wd-collected-lone,pa-wd-collected-new,pa-wd-collected-old';
   record(
-    'what waiting for room leaves behind is deleted past its retention, the newest op and a keyed one kept',
-    waitOpsLeft.join(',') === 'wait-keyed,wait-3' &&
-      collectedLeft.length === 1 &&
-      collectedLeft[0]?.id === keptRecent,
-    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions=${collectedLeft.length}/1 recent kept=${String(collectedLeft[0]?.id === keptRecent)}`,
+    "what waiting for room leaves behind is deleted past its retention, the newest op, a keyed one and a project agent's newest row kept",
+    waitOpsLeft.join(',') === 'wait-keyed,wait-3' && collectedKept === wantKept,
+    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions kept=${collectedKept} (want ${wantKept})`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
@@ -61552,6 +61739,14 @@ async function main(): Promise<void> {
             true,
             'real transaction interleavings; one winner, normal 409, coherent history and backing bytes',
           );
+          await checkConcurrentAgentCreates(sql, writer);
+          await checkConcurrentAgentAndPersonEdits(sql, writer);
+          await checkAgentWriteBudget(sql, writer);
+          record(
+            'knowledge entries: agent writes race agents and people, on a budget of their own',
+            true,
+            'two agents on one new topic: one creates, the other is refused with its text; agent vs person either order: the second is refused; a spent agent budget writes nothing and leaves people’s untouched',
+          );
         },
       ],
       ['checkCollabEmitters', () => checkCollabEmitters(sql, baseUrl, authCtx)],
@@ -61817,6 +62012,24 @@ async function main(): Promise<void> {
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
       [
+        'checkMentionHandles',
+        async () =>
+          checkMentionHandles(
+            sql,
+            {
+              ...authCtx,
+              base: baseUrl,
+              orgSlug: `itest-${orgSuffix}`,
+              restKey: await mintRestKey(
+                baseUrl,
+                authCtx.cookie,
+                'Mention handles proof',
+              ),
+            },
+            record,
+          ),
+      ],
+      [
         'checkTaskDescriptionMentions',
         () => checkTaskDescriptionMentions(sql, authCtx, record),
       ],
@@ -62007,6 +62220,7 @@ async function main(): Promise<void> {
         'checkExecLimitPark',
         () => checkExecLimitPark(sql, baseUrl, authCtx, record),
       ],
+      ['checkAgentWorkers', () => checkAgentWorkers(sql, authCtx, record)],
       [
         'checkTaskRunConnectorCaller',
         () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),
@@ -62371,6 +62585,14 @@ async function main(): Promise<void> {
       [
         'checkProjectBudgets',
         () => checkProjectBudgets(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkImmutableBudgetProjects',
+        () => checkImmutableBudgetProjects(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTtsBudgetReservations',
+        () => checkTtsBudgetReservations(sql, baseUrl, authCtx, record),
       ],
       [
         'checkOrphanedOrgRowsBackfill',

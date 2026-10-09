@@ -229,6 +229,24 @@ describe('POST /api/tools/execute — the turn a token serves', () => {
     expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
   });
 
+  it('refuses knowledge_entry_write when the token was granted only the entry find [SBX-R6]', async () => {
+    getSessionTokenByHash.mockResolvedValue({
+      ...TOKEN_ROW,
+      scope: { toolGrants: ['knowledge_entry_find'] },
+    });
+    const res = await post(
+      JSON.stringify({
+        tool: 'knowledge_entry_write',
+        args: { topic: 'Support hours', content: 'Mon–Fri 8–18' },
+      }),
+    );
+    expect(await res.json()).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'not_granted' }],
+    });
+    expect(dispatchWorkspaceToolImpl).not.toHaveBeenCalled();
+  });
+
   it('acts as the organization, session and person the token names, whatever the body claims [SBX-R5]', async () => {
     getSessionTokenByHash.mockResolvedValue(TOKEN_ROW);
     const res = await post(

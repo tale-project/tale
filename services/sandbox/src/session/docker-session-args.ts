@@ -12,7 +12,7 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
-import { buildkitdEndpoint } from '../buildkitd.ts';
+import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
 import { ipv4Subnet, parseDindInnerPool } from '../network-address.ts';
 import {
   dindCapabilityOf,
@@ -21,6 +21,7 @@ import {
 } from '../runtime-tier.ts';
 import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
+import { RUNNERD_INCARNATION_ENV } from './runnerd-protocol.ts';
 import {
   SESSION_INSTANCE_LABEL,
   sessionContainerName,
@@ -64,6 +65,12 @@ interface DockerSessionRunInput {
    * Undefined ⇒ no TALE_BUILDKITD_ENDPOINT env (argv byte-identical).
    */
   buildkitdEndpoint?: string;
+  /**
+   * The organization's docker.io pull-through mirror (`host:port`), set only
+   * with an endpoint and only when that mirror came up. Undefined ⇒ the inner
+   * engine pulls docker.io from Docker Hub directly.
+   */
+  dockerHubMirror?: string;
   /** Inspected org bridge subnets, required with an endpoint because the bridge
    * attaches after runtime readiness and is not in the initial route table. */
   buildkitNetworkSubnets?: readonly string[];
@@ -76,6 +83,8 @@ const NETWORK_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 // `tcp://host:port` for the shared buildkitd endpoint — the only injection
 // surface a new env value adds, so validate it like every other interpolation.
 const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
+// `host:port` of the organization's docker.io pull-through mirror.
+const MIRROR_RE = /^[a-z0-9][a-z0-9.-]{0,127}:[0-9]{1,5}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 // Hex token from deriveRunnerdToken (SHA256 → 64 hex chars). The builder
 // validates shape only; the spawner always derives one (SANDBOX_TOKEN is
@@ -83,6 +92,7 @@ const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 const TOKEN_RE = /^[a-f0-9]{0,128}$/;
 const USER_RE = /^[0-9]{1,10}:[0-9]{1,10}$/;
 const MEM_RE = /^[0-9]+[bkmg]?$/i;
+const SHARES_RE = /^[0-9]{1,6}$/;
 
 function assertSafe(name: string, value: string, re: RegExp): void {
   if (!re.test(value)) {
@@ -103,9 +113,13 @@ function assertSafe(name: string, value: string, re: RegExp): void {
  * another renderer after two or three such pages: every later navigation of
  * the batch died `net::ERR_ABORTED` and the site's pages were recorded as
  * render failures. 512 — the agent profile's default — leaves the browser
- * room and is still a fork-bomb guard. */
+ * room and is still a fork-bomb guard.
+ *
+ * Its CPU weight is half an agent's: a page render or a run_code call is
+ * background work that yields first, to agents and to the control plane. */
 const DEFAULT_PROFILE: SessionAgentProfileConfig = {
   cpus: 1,
+  cpuShares: 128,
   memory: '1500m',
   pidsLimit: 512,
   nofileSoft: 1024,
@@ -140,6 +154,7 @@ export function buildDockerSessionRunArgs(
   assertSafe('profile.memory', profile.memory, MEM_RE);
   assertSafe('profile.tmpfsSize', profile.tmpfsSize, MEM_RE);
   assertSafe('profile.shmSize', profile.shmSize, MEM_RE);
+  assertSafe('profile.cpuShares', String(profile.cpuShares), SHARES_RE);
 
   // Docker-in-container mode. The inner dockerd needs a rootful init, so the
   // container starts as uid 0 (the entrypoint drops back to uid 10001 for
@@ -312,6 +327,22 @@ export function buildDockerSessionRunArgs(
         '--env',
         `TALE_BUILDKIT_NETWORK_SUBNETS=${JSON.stringify(subnets)}`,
       );
+      // The inner dockerd pulls docker.io images through the same
+      // organization mirror the builder uses, on the same private network —
+      // only when that mirror is up, or every docker.io pull would first try
+      // a name that does not resolve.
+      if (inp.dockerHubMirror !== undefined) {
+        assertSafe('dockerHubMirror', inp.dockerHubMirror, MIRROR_RE);
+        if (
+          inp.dockerHubMirror !==
+          buildkitdMirrorRef(inp.organizationId, 'docker.io')
+        ) {
+          throw new Error(
+            "docker-session-args: refusing another organization's docker.io mirror",
+          );
+        }
+        dindEnv.push('--env', `TALE_DOCKER_HUB_MIRROR=${inp.dockerHubMirror}`);
+      }
     }
   }
 
@@ -383,6 +414,11 @@ export function buildDockerSessionRunArgs(
   return [
     'run',
     '-d',
+    // Never pull here: an implicit pull of the multi-gigabyte runtime image
+    // cannot finish inside the run's 30 s budget, so every create on a host
+    // that lost the image would hold a Docker CLI slot and fail slowly. A
+    // missing image fails at once instead; the warmup pulls it.
+    '--pull=never',
     `--runtime=${dockerRuntimeFor(cfg.runtimeTier)}`,
     '--name',
     containerName,
@@ -439,11 +475,22 @@ export function buildDockerSessionRunArgs(
     // required, so deriveRunnerdToken has something to derive from.
     '--env',
     `TALE_RUNNERD_TOKEN=${inp.runnerdToken}`,
+    // The incarnation runnerd names in its answers: the `tale.created` stamp
+    // above, so a runnerd answer can prove this container is the one the
+    // spawner registered without a `docker inspect`.
+    '--env',
+    `${RUNNERD_INCARNATION_ENV}=${inp.createdAtMs}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
     ...dindEnv,
     // Transparent egress signal + drop-uid for the entrypoint (empty when off).
     ...transparentEgressEnv,
     `--cpus=${profile.cpus}`,
+    // The quota caps a session on an idle host; the weight decides who runs
+    // when the host is saturated. Every control-plane container keeps the
+    // default 1024 (cgroup v2 weight 100), so sessions — 256 or 128, about 10
+    // or 5 in cgroup v2 terms — yield the CPU to the database, backend and
+    // spawner instead of stalling them.
+    `--cpu-shares=${profile.cpuShares}`,
     `--memory=${profile.memory}`,
     `--memory-swap=${profile.memory}`,
     `--pids-limit=${pidsLimitValue}`,

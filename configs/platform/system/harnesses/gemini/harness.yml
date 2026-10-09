@@ -139,7 +139,9 @@ exec:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
 # A subscription-key credential (the Gemini CLI's Google-account sign-in /
 # Code Assist license) is the CLI's OAuth credentials blob, staged verbatim
-# as its credentials file under the session HOME (/agent/.runtime/home).
+# as its credentials file under the session HOME (/agent/.runtime/home). The
+# platform removes the file when the turn settles, and before a turn that
+# runs without the subscription, so no later exec in the session reads it.
 subscription:
   kind: staged-file
   path: .runtime/home/.gemini/oauth_creds.json

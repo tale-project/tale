@@ -28,8 +28,8 @@ test('non-activating Docker health under production Node', async () => {
       },
     );
     expect(result.stderr).toBe('');
-    expect(result.stdout).toContain('# tests 10');
-    expect(result.stdout).toContain('# pass 10');
+    expect(result.stdout).toContain('# tests 12');
+    expect(result.stdout).toContain('# pass 12');
     expect(result.status).toBe(0);
   } finally {
     await rm(dir, { recursive: true, force: true });

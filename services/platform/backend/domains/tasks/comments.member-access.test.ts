@@ -21,7 +21,13 @@ const project = vi.hoisted(() => ({
 }));
 
 vi.mock('../collab/mention-directory.ts', () => ({
-  resolveSurfaceMentions: vi.fn().mockResolvedValue({ mentions: [] }),
+  prepareSurfaceText: vi.fn(async (_sql: unknown, args: { body: string }) => ({
+    text: args.body,
+    mentions: [],
+    added: [],
+    unresolvedMentionTokens: [],
+    invalidTokens: [],
+  })),
 }));
 vi.mock('../collab/service.ts', () => ({ notifyTaskComment: vi.fn() }));
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));

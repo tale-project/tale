@@ -234,6 +234,7 @@ agents:
   dialogEditTitle: Edit agent
   nameLabel: Name
   namePlaceholder: e.g. PR reviewer
+  handleHint: Mention it with @{handle}. Renaming the agent changes this.
   harnessLabel: Agent runtime
   harnessPlaceholder: Choose the agent runtime
   modelLabel: Model
@@ -273,6 +274,9 @@ agents:
     task_upsert_by_external_ref: Sync an external item to a task
     document_find: Find documents
     knowledge_entry_find: Find knowledge entries
+    knowledge_entry_write: Add and edit knowledge entries
+    knowledge_search: Search the knowledge base
+    alwaysOn: Always on — no grant needed
     contact_find: Find contacts
     product_find: Find products
     website_find: List websites

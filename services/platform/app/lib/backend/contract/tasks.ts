@@ -9,6 +9,8 @@ import type {
 
 import type { TaskStatusSnapshot } from '@/backend/domains/tasks/external-status';
 import type { PendingTaskReview } from '@/backend/domains/tasks/reviews';
+import type { TaskOpsRun } from '@/backend/domains/tasks/service';
+import type { AgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
 /**
@@ -75,6 +77,10 @@ export interface TaskPendingReviewIndicator {
   /** Captured recipient; an agent never falls back to a human designation. */
   reviewer?: TaskReviewRecipient | null;
 }
+
+/** One live agent run on the board's ops read: running, queued, or waiting
+ * for a worker with its reason (`TaskOpsRun`). */
+export type TaskOpsRunIndicator = TaskOpsRun;
 
 /** The board and Home only read task metadata. Full descriptions and files
  * are loaded by the task detail read before its editor mounts. */
@@ -354,6 +360,8 @@ export interface TasksContract {
         failureCode?: string;
         retryPending?: boolean;
         waitingForCapacity?: boolean;
+        /** Why it waits, while it waits and the park kept a reason. */
+        waitingReason?: AgentRunWaitingReason;
       };
     }>;
   };
@@ -370,6 +378,11 @@ export interface TasksContract {
       autoRetryAttempt?: number;
       trigger?: 'manual' | 'mention' | 'auto_retry';
       waitingForCapacity?: boolean;
+      /** Why it waits, while it waits and the park kept a reason. */
+      waitingReason?: AgentRunWaitingReason;
+      /** The worker it works in, while it holds one: its number among its
+       * agent's workers (or the member's, for a run a member started). */
+      worker?: number;
       resultText?: string;
       error?: string;
       /** The producer's classification of a failed run; the card words its
@@ -548,6 +561,12 @@ export interface TasksContract {
       runningTaskIds: string[];
       askingTaskIds: string[];
       pendingReviews: TaskPendingReviewIndicator[];
+      /** Live agent runs, running first, then queued ones oldest first; at
+       * most 50. */
+      runs: TaskOpsRunIndicator[];
+      /** More live runs exist than `runs` lists: a task missing from it may
+       * still have one, so read it as unknown, never as idle. */
+      runsTruncated: boolean;
     };
   };
   'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects': {
@@ -557,6 +576,8 @@ export interface TasksContract {
       runningTaskIds: string[];
       askingTaskIds: never[];
       pendingReviews: TaskPendingReviewIndicator[];
+      runs: TaskOpsRunIndicator[];
+      runsTruncated: boolean;
     };
   };
   'tasks/queries:listProjectDependencies': {
@@ -675,6 +696,12 @@ export interface TasksContract {
       status: 'running' | 'failed' | 'completed' | 'timed_out';
       error: undefined | string;
       failureCode: undefined | string;
+      /** Queued while no worker or no room is free for it. */
+      waitingForCapacity?: boolean;
+      /** Why it waits, while it waits and the park kept a reason. */
+      waitingReason?: AgentRunWaitingReason;
+      /** The worker it works in, while it holds one. */
+      worker?: number;
       startedAt: number;
       durationMs: undefined | number;
       costCents: number;

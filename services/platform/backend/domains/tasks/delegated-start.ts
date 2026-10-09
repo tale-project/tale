@@ -2,20 +2,24 @@ import type {
   TaskAgentRepairReceipt,
   TaskAgentResumeFrom,
 } from '@tale/shared/schemas/task-review';
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
+import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
-import { standingSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
 import {
   freeCooldownWaits,
   type AutoRetryRunFacts,
 } from '../../core/tasks/task_auto_retry.ts';
 import { loadProjectOrThrow } from '../projects/service.ts';
-import { kickAgentRun, type StartedVia } from './agent-runs.ts';
+import {
+  kickAgentRun,
+  withdrawWaitingAgentRunInTx,
+  type StartedVia,
+} from './agent-runs.ts';
+import { predictWorkerWait } from './agent-workers.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
-import { markAutoRetryRetired } from './kick-plan.ts';
 import {
   prepareRepair,
   readRepairDecision,
@@ -90,14 +94,8 @@ import {
  *   rejected native decision, latest source, assignee or untouched task
  *   history. Its durable admission receipt admits at most one repair and
  *   can be replayed by a later authorized live run of the same manager;
- * - `agent_busy` — the agent is working another task in its standing
- *   workspace, which every run it is started for here shares: one active
- *   piece of work per agent workspace. The automatic retry of such a run
- *   keeps the rule under the same lock and probe ({@link lockAgentForStart},
- *   {@link findAgentBusyRun}): it waits for the workspace instead
- *   (`task.agent_retry_recheck`, bounded by `planAgentBusyWait`) and, past
- *   that wait, is refused on the task's timeline and retired for good
- *   ({@link retireBusyRetry});
+ * - `self_start` — an agent asked to start itself on another task: a run
+ *   works its own task, and a manager hands other tasks to other agents;
  * - `blocked` — a task this one depends on is still open;
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
@@ -107,6 +105,12 @@ import {
  *   task in a loop, and failing retries cannot stretch the budget. The refusal
  *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start, and its retries, are
  *   never counted or refused by it.
+ *
+ * An agent busy on other tasks is started all the same: each of its runs
+ * works in a worker of its own, and a run no worker can take yet waits for
+ * one and starts by itself (`agent-workers.ts`). The started answer says so
+ * (`waiting`, {@link withStartWait}), so the requester knows the agent it
+ * chose is not working yet.
  *
  * The slot receipt: an automation step starts a task at most once per
  * automation run (the 0139 unique index) — a step the engine delivers again
@@ -239,16 +243,15 @@ export interface LockedAgent {
 }
 
 /**
- * Take the agent row that two starts of one agent queue on, so the busy
- * probe after it ({@link findAgentBusyRun}) cannot miss a run another start
- * is minting. A write rather than a SELECT FOR UPDATE, as `lockTaskRunStart`
- * does for the task: an overlapping SERIALIZABLE snapshot is invalidated
- * too, and its retry sees the winner. Every start that locks both takes the
- * agent first, then the task — the delegated start and the automatic retry
- * alike; never the task first. `projectId` confines it to one project's
- * agents. Null when no such agent exists (nothing is locked then).
+ * Take the agent row that two delegated starts of one agent queue on, and
+ * read what the kick needs to run it. A write rather than a SELECT FOR
+ * UPDATE, as `lockTaskRunStart` does for the task: an overlapping
+ * SERIALIZABLE snapshot is invalidated too, and its retry sees the winner.
+ * A start that locks both takes the agent first, then the task; never the
+ * task first. `projectId` confines it to one project's agents. Null when no
+ * such agent exists (nothing is locked then).
  */
-export async function lockAgentForStart(
+async function lockAgentForStart(
   tx: TransactionSql,
   args: { organizationId: string; agentId: string; projectId?: string },
 ): Promise<LockedAgent | null> {
@@ -261,71 +264,6 @@ export async function lockAgentForStart(
               model_provider AS "modelProvider"
   `;
   return agents[0] ?? null;
-}
-
-/**
- * The agent's live run on another task in `sessionId` — the workspace a new
- * run of it would share — or null when that workspace is free. Judge it
- * holding the agent row ({@link lockAgentForStart}). Only this
- * organization's runs of this agent in that workspace count: its run in
- * another workspace (a member's own), or another agent's, never makes it
- * busy there.
- */
-export async function findAgentBusyRun(
-  tx: TransactionSql,
-  args: {
-    organizationId: string;
-    agentId: string;
-    sessionId: string;
-    taskId: string;
-  },
-): Promise<{ id: string; taskId: string } | null> {
-  const busy = await tx<{ id: string; taskId: string }[]>`
-    SELECT id, task_id AS "taskId" FROM app.project_agent_runs
-    WHERE org_id = ${args.organizationId} AND agent_id = ${args.agentId}
-      AND session_id = ${args.sessionId}
-      AND status IN ('queued', 'running') AND task_id <> ${args.taskId}
-    ORDER BY seq DESC
-    LIMIT 1
-  `;
-  return busy[0] ?? null;
-}
-
-/**
- * Retire the automatic retry of one failed run for good — it waited for its
- * busy agent as long as it may (`planAgentBusyWait`) — and say so on the
- * task's timeline as the refused agent (`agent_run.refused`, `agent_busy`:
- * "<agent> could not start: agent is working on another task"), the circuit
- * breaker's convention. The mark sits on the failed run
- * (`auto_retry_refused_at_ms`, migration 0141): every later delivery of
- * that retry — the arm, a check queued before this one, this very job
- * again, whether the agent is busy or free by then — stands down on it
- * under the same locks, so the refusal is final. Only the call that sets
- * it writes the timeline row. Nothing is queued behind it: whoever manages
- * the task decides again, and a newer run is theirs to start.
- */
-export async function retireBusyRetry(
-  tx: TransactionSql,
-  args: {
-    task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>;
-    agentId: string;
-    failedRunId: string;
-  },
-): Promise<boolean> {
-  const retired = await markAutoRetryRetired(tx, {
-    organizationId: args.task.organizationId,
-    taskId: args.task.id,
-    failedRunId: args.failedRunId,
-  });
-  if (!retired) return false;
-  await recordActivity(tx, {
-    task: args.task,
-    actorType: 'agent',
-    actorId: args.agentId,
-    action: 'agent_run.refused',
-    toValue: 'agent_busy',
-  });
-  return true;
 }
 
 /** The actor an automation's writes are recorded as on the task timeline —
@@ -384,6 +322,9 @@ export type DelegatedAgentStart =
       replayed?: true;
       /** Durable source/manager binding for a guarded repair admission. */
       repairReceipt?: TaskAgentRepairReceipt;
+      /** The run waits for a worker instead of working yet, and why
+       * ({@link withStartWait}); absent when it found one. */
+      waiting?: { reason: AgentRunWaitingReason };
     }
   | {
       outcome: 'already_running';
@@ -414,10 +355,8 @@ export type DelegatedAgentStart =
       taskStatus: string;
     }
   | {
-      outcome: 'agent_busy';
-      /** The agent's live run on the other task. */
-      runId: string;
-      busyTaskId: string;
+      /** An agent asked to start itself on another task. */
+      outcome: 'self_start';
       taskId: string;
       agentId: string;
     }
@@ -755,9 +694,8 @@ export async function startDelegatedAgentRun(
     if (args.agentId !== undefined && args.agentId !== agentId)
       return staleRepair(task.id, 'assignee_changed', agentId);
   }
-  // One active piece of work per agent workspace: the agent row is the
-  // lock two starts of the same agent queue on (`lockAgentForStart`), taken
-  // before any task row.
+  // The agent row is the lock two starts of the same agent queue on
+  // (`lockAgentForStart`), taken before any task row.
   const agent =
     agentId === null
       ? null
@@ -835,12 +773,30 @@ export async function startDelegatedAgentRun(
 
   // The task's own live run carries the work: a schedule's occurrence that
   // finds its role still working, or a request for work already under way.
-  const live = await tx<{ id: string; agentId: string }[]>`
-    SELECT id, agent_id AS "agentId" FROM app.project_agent_runs
+  const live = await tx<
+    { id: string; agentId: string; withdrawable: boolean }[]
+  >`
+    SELECT id, agent_id AS "agentId",
+           (waiting_for_capacity_at_ms IS NOT NULL AND launched_at_ms IS NULL)
+             AS withdrawable
+    FROM app.project_agent_runs
     WHERE task_id = ${task.id} AND status IN ('queued', 'running')
     LIMIT 1
   `;
-  const liveRun = live[0];
+  let liveRun: (typeof live)[number] | undefined = live[0];
+  // Another agent's run that still waits for a worker and never launched
+  // has done nothing yet: handing the task to this agent withdraws it, as a
+  // person's reassignment does — once every check below has admitted the
+  // start, so a start refused for another reason leaves it waiting.
+  let withdraw = false;
+  if (
+    liveRun !== undefined &&
+    liveRun.agentId !== agent.id &&
+    liveRun.withdrawable
+  ) {
+    withdraw = true;
+    liveRun = undefined;
+  }
   if (liveRun !== undefined) {
     if (liveRun.agentId !== agent.id) {
       throw new TaskError(
@@ -880,20 +836,10 @@ export async function startDelegatedAgentRun(
     }
   }
 
-  const busyRun = await findAgentBusyRun(tx, {
-    organizationId: args.organizationId,
-    agentId: agent.id,
-    sessionId: standingSessionIdForProjectAgent(agent.id),
-    taskId: task.id,
-  });
-  if (busyRun !== null) {
-    return {
-      outcome: 'agent_busy',
-      runId: busyRun.id,
-      busyTaskId: busyRun.taskId,
-      taskId: task.id,
-      agentId: agent.id,
-    };
+  // A run works its own task: an agent that wants more work done hands it
+  // to another agent, and is not put to work on another task beside its own.
+  if (args.via.kind === 'agent' && args.via.agentId === agent.id) {
+    return { outcome: 'self_start', taskId: task.id, agentId: agent.id };
   }
 
   const blockers = await openTaskBlockerIds(tx, task.id);
@@ -916,6 +862,14 @@ export async function startDelegatedAgentRun(
     };
   }
 
+  if (withdraw && !(await withdrawWaitingAgentRunInTx(tx, task))) {
+    // A wake took it a moment ago: it is about to work.
+    throw new TaskError(
+      'TASK_HAS_LIVE_RUN',
+      'Another agent is working this task; it cannot pass to a different agent until that run ends',
+      409,
+    );
+  }
   if (task.assigneeType !== 'agent' || task.assigneeId !== agent.id) {
     await agentAssignTaskToAgentTrusted(tx, {
       task,
@@ -976,4 +930,23 @@ export async function startDelegatedAgentRun(
     agentId: agent.id,
     ...(repairReceipt !== undefined ? { repairReceipt } : {}),
   };
+}
+
+/**
+ * A started answer with the wait its run faces: no free agent worker and no
+ * slot left, or only a worker being destroyed (`predictWorkerWait`). Read
+ * after the start's transaction commits, outside it, so the answer never
+ * holds the start up. Every other answer passes through unchanged.
+ */
+export async function withStartWait(
+  sql: Sql,
+  organizationId: string,
+  outcome: DelegatedAgentStart,
+): Promise<DelegatedAgentStart> {
+  if (outcome.outcome !== 'started') return outcome;
+  const reason = await predictWorkerWait(sql, {
+    organizationId,
+    runId: outcome.runId,
+  });
+  return reason === null ? outcome : { ...outcome, waiting: { reason } };
 }

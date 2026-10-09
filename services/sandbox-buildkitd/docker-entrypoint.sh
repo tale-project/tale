@@ -33,8 +33,8 @@ REDSOCKS_PORT=12346
 REDSOCKS_UID=10002
 EGRESS_IP=""
 EGRESS_PORT=""
-# Marker the spawner (services/sandbox/src/buildkitd.ts) probes via
-# `docker exec test -f` to decide whether a RUNNING daemon still has its egress
+# Marker the spawner (services/sandbox/src/buildkitd.ts) probes via a
+# `docker exec` `[ -f ]` test to decide whether a RUNNING daemon still has its egress
 # fence. Removed at the start of every run; written only after egress is fully
 # installed (or in TALE_SKIP_EGRESS dev mode). Absent on a running daemon ⇒ it
 # restarted while sandbox-egress was unreachable and is serving builds with no
@@ -100,7 +100,22 @@ init_base_config() {
   _parallelism="${TALE_BUILDKITD_MAX_PARALLELISM:-2}"
   case "$_parallelism" in '' | *[!0-9]*) log "invalid solver parallelism"; exit 1 ;; esac
   [ "$_parallelism" -ge 1 ] || { log "invalid solver parallelism"; exit 1; }
-  sed "s/^max-parallelism = .*/max-parallelism = $_parallelism/" "$BASE_TOML" >"$LIVE_TOML"
+  _sed="s/^max-parallelism = .*/max-parallelism = $_parallelism/"
+  # The cache cap and its pressure floor in bytes, sized by the spawner from
+  # the disk; unset keeps the shipped values.
+  _max_used="${TALE_BUILDKITD_MAX_USED:-}"
+  _reserved="${TALE_BUILDKITD_RESERVED:-}"
+  for _bytes in "$_max_used" "$_reserved"; do
+    case "$_bytes" in *[!0-9]*) log "invalid cache bound"; exit 1 ;; esac
+    if [ -n "$_bytes" ] && [ "$_bytes" -lt 1 ]; then log "invalid cache bound"; exit 1; fi
+  done
+  if [ -n "$_max_used" ]; then
+    _sed="$_sed;s/^maxUsedSpace = .*/maxUsedSpace = \"$_max_used\"/"
+  fi
+  if [ -n "$_reserved" ]; then
+    _sed="$_sed;s/^reservedSpace = .*/reservedSpace = \"$_reserved\"/"
+  fi
+  sed "$_sed" "$BASE_TOML" >"$LIVE_TOML"
 }
 
 # Append the dynamic [registry] mirrors + [dns] block to the freshly-materialized

@@ -1537,6 +1537,7 @@ dataSubjectRequests:
     wfExecutionsErased: Exécutions d'automatisation effacées
     startedAt: Démarré
     completedAt: Terminé
+    legacyAutomationHold: Certaines exécutions d'automatisation ont été conservées car leurs actions externes antérieures n'ont pas encore été vérifiées. Réessayer ne lève pas ces blocages.
     errorMessage: Erreur
     errorState:
       title: Impossible de charger cette demande
@@ -1570,6 +1571,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Rejetée
     gdpr_erasure_cancelled: Annulée
   categories:
+    modelApiRequests: Requêtes aux modèles
     userMemories: Mémoires personnelles
     userPreferences: Préférences utilisateur
     messageFeedback: Retours sur messages
