@@ -6,7 +6,11 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
-import { checkOrganizationRateLimit } from '../../lib/rate-limit.ts';
+import { rateLimitedResponse } from '../../lib/rate-limit-response.ts';
+import {
+  checkOrganizationRateLimit,
+  RateLimitExceededError,
+} from '../../lib/rate-limit.ts';
 import { projectChatAccess } from '../chat/threads.ts';
 import {
   bindCompletedJobsToMessage,
@@ -118,6 +122,9 @@ export function createVideoLinkRoutes(deps: {
       });
       return c.json({ jobId });
     } catch (error) {
+      if (error instanceof RateLimitExceededError) {
+        return rateLimitedResponse(c, error);
+      }
       return handleError(c, error);
     }
   });
