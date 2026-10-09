@@ -407,6 +407,7 @@ errors:
   PROJECT_INSTRUCTIONS_TOO_LONG: Les instructions dépassent la limite de {cap}
     caractères. Raccourcis-les avant d'enregistrer.
   PROJECT_AGENT_NAME_INVALID: Le nom de l'agent doit faire entre 1 et 120 caractères.
+  PROJECT_AGENT_STALE: Cet agent a changé depuis que tu l'as ouvert. Tes modifications sont toujours là. Copie-les avant de fermer, puis rouvre l'agent et intègre-les aux paramètres actuels.
   PROJECT_AGENT_NAME_TAKEN: Un autre agent de ce projet porte déjà ce nom.
   PROJECT_AGENT_HARNESS_INVALID: Cet environnement d'agent ne peut pas être utilisé pour les agents de projet.
   PROJECT_AGENT_MODEL_INVALID: Choisis un modèle pour cet agent.

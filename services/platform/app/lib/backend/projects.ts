@@ -11,6 +11,7 @@ import { setProjectTaskReviewerInputSchema } from '@tale/shared/schemas/task-rev
 import type { QueryClient } from '@tanstack/react-query';
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import type {
   AdaptedReadOptions,
@@ -720,6 +721,8 @@ export const projectWriteAdapters: Record<string, WriteAdapter> = {
       return null;
     },
     invalidate: projectWriteInvalidate,
+    refusalInvalidates: (error) =>
+      backendErrorCode(error) === 'PROJECT_AGENT_STALE',
   },
   'projects/mutations:deleteProjectAgent': {
     run: async (args, ctx) => {
