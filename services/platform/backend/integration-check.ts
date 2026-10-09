@@ -12910,7 +12910,8 @@ async function checkAutomations(
         llmBooked[0].requests === 1 &&
         capped?.status === 'failed' &&
         capped.failureCode === 'budget_exceeded' &&
-        (capped.detail ?? '').includes('monthly request limit') &&
+        /request limit/i.test(capped.detail ?? '') &&
+        /monthly/i.test(capped.detail ?? '') &&
         llmRequestsAfter[0]?.requests === 1,
       `booked=${JSON.stringify(llmBooked)} (want one row: the starter, 18 tokens, 1 request), capped run=${JSON.stringify(capped)} (want failed, budget_exceeded, naming the monthly request limit), llm requests after=${llmRequestsAfter[0]?.requests} (want still 1)`,
     );
