@@ -13,6 +13,7 @@ import {
   flowEdgeDash,
   flowEdgeTone,
 } from './edge-palette';
+import { FLOW_NODE_DASHED, FLOW_TOUCH_TARGET } from './render/chrome';
 import type { FlowEdgeKind } from './types';
 
 /** One line of the legend: what a mark looks like and what it means. */
@@ -52,10 +53,11 @@ function Swatch({ swatch }: { swatch: FlowLegendEntry['swatch'] }) {
     <span
       aria-hidden="true"
       className={cn(
-        'border-muted-foreground bg-card inline-block h-3 w-8 shrink-0 border',
-        swatch.node === 'dashed' && 'rounded-sm border-dashed',
-        swatch.node === 'gate' && 'rounded-full',
-        swatch.node === 'frame' && 'bg-muted/30 rounded-sm border-dashed',
+        'bg-card inline-block h-3 w-8 shrink-0 border',
+        swatch.node === 'dashed' && cn('rounded-sm', FLOW_NODE_DASHED),
+        swatch.node === 'gate' && 'border-muted-foreground rounded-full',
+        swatch.node === 'frame' &&
+          'border-muted-foreground bg-muted/30 rounded-sm border-dashed',
       )}
     />
   );
@@ -89,7 +91,7 @@ export function FlowLegend({
           variant="secondary"
           title={t('controls.legend')}
           tooltipSide="right"
-          className={className}
+          className={cn(FLOW_TOUCH_TARGET, className)}
         >
           <CircleHelp className="size-4" />
         </Button>

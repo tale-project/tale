@@ -11,6 +11,7 @@ import { SKELETON_PULSE } from '../../feedback/skeleton';
 import { FlowNodeIssueMarker } from '../node-issue-marker';
 import { FlowNodeStatusIcon } from '../node-status';
 import type { FlowChip, FlowIcon, FlowStepNode } from '../types';
+import { FLOW_ICON_TILE } from './chrome';
 import {
   FlowNodeButton,
   FlowNodeStrip,
@@ -49,24 +50,33 @@ function FlowChipPill({ chip }: { chip: FlowChip }) {
 }
 
 /** The title row every box shares: icon tile, title, glyphs, problems and,
- *  in a run, the state's glyph. */
+ *  in a run, the state's glyph. Start and End (`terminal`) wear the accent
+ *  tile. */
 export function FlowNodeTitleRow({
   id,
   icon: Icon,
   title,
   trailing,
+  terminal = false,
 }: {
   id: string;
   icon: FlowIcon;
   title: string;
   trailing?: ReactNode;
+  terminal?: boolean;
 }) {
   const { issues, looks } = useFlowRender();
   const counts = issues.get(id);
   const state = looks.get(id)?.state ?? 'idle';
   return (
     <span className="flex h-5 items-center gap-2">
-      <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-md">
+      <span
+        data-slot="flow-node-tile"
+        className={cn(
+          'flex size-5 shrink-0 items-center justify-center rounded-md',
+          FLOW_ICON_TILE[terminal ? 'terminal' : 'plain'],
+        )}
+      >
         <Icon className="size-3.5" />
       </span>
       <span className="min-w-0 flex-1 truncate text-sm leading-5 font-medium">

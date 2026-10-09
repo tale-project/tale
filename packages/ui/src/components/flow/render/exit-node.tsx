@@ -34,6 +34,7 @@ export const FlowExitNodeView = memo(function FlowExitNodeView({
           id={node.id}
           icon={Flag}
           title={flowNodeTitle(node, t)}
+          terminal
         />
         <FlowNodeSection
           heading={t('node.outputs')}

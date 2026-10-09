@@ -190,9 +190,9 @@ describe('WorkflowCanvas live relayout', () => {
       return element;
     });
     const style = getComputedStyle(ring);
-    expect(style.animationName).toBe('flow-ring-out');
-    expect(style.animationDelay).toBe('0.3s');
-    expect(style.animationDuration).toBe('0.4s');
+    expect(style.animationName).toBe('flow-ring');
+    expect(style.animationDelay).toBe('0s');
+    expect(style.animationDuration).toBe('1.2s');
     await waitFor(
       () =>
         expect(

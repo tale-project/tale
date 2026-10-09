@@ -22,6 +22,7 @@ import {
 import { FlowNodeStatusIcon, type FlowNodeState } from './node-status';
 import type { FlowHighlight } from './paths/highlight';
 import type { FlowFrameState } from './playback/types';
+import { FLOW_ICON_TILE, FLOW_NODE_DASHED } from './render/chrome';
 import type { FlowGraph, FlowGroup, FlowNode } from './types';
 
 export interface FlowStepListProps {
@@ -265,13 +266,22 @@ function FlowListRow({
         data-flow-quiet={quiet || undefined}
         className={cn(
           'hover:bg-muted/60 flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left',
-          quiet && 'border-border border-dashed',
+          quiet && FLOW_NODE_DASHED,
           'ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
           flowNodeIssueFrameClass(counts),
           selected && 'bg-muted ring-ring ring-2',
         )}
       >
-        <span className="bg-muted text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-md">
+        <span
+          className={cn(
+            'flex size-5 shrink-0 items-center justify-center rounded-md',
+            FLOW_ICON_TILE[
+              node.kind === 'entry' || node.kind === 'exit'
+                ? 'terminal'
+                : 'plain'
+            ],
+          )}
+        >
           <Icon aria-hidden="true" className="size-3.5" />
         </span>
         <span className="min-w-0 flex-1">

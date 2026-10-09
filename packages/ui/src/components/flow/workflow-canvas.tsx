@@ -34,6 +34,7 @@ import { Button } from '../primitives/button';
 import { describeFlowGraph, flowListFormat } from './describe';
 import {
   easeOutQuint,
+  FLOW_TOUCH_TARGET,
   FLOW_VIEWPORT_DURATION,
   FlowCanvas,
   type FlowFitPolicy,
@@ -905,6 +906,7 @@ function WorkflowCanvasInner({
       <Button
         size="icon"
         variant="secondary"
+        className={FLOW_TOUCH_TARGET}
         title={t(view === 'chart' ? 'controls.showList' : 'controls.showChart')}
         tooltipSide="right"
         onClick={() => changeView(view === 'chart' ? 'list' : 'chart')}
@@ -946,7 +948,10 @@ function WorkflowCanvasInner({
       {announcer}
       {view === 'list' ? (
         <div ref={swapRef} className={cn(frameClass, 'overflow-y-auto')}>
-          <div className="flex items-center gap-1 px-3 pt-3">
+          {/* The corners line up along their tops: a pill or a panel the
+              host stacks under its view switch never pulls the other
+              corner's buttons down to its middle. */}
+          <div className="flex items-start gap-1 px-3 pt-3">
             {topStart}
             <span className="ml-auto flex items-center gap-1">
               {topEnd}

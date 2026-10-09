@@ -29,6 +29,9 @@ import {
 } from 'react';
 
 import { usePrefersReducedMotion } from '../../hooks/use-prefers-reduced-motion';
+import { FLOW_TOUCH_TARGET } from './render/chrome';
+
+export { FLOW_TOUCH_TARGET };
 
 /** The `--ease-out-quint` curve, for viewport moves run from script. */
 export const easeOutQuint = (t: number) => 1 - (1 - t) ** 5;
@@ -48,6 +51,10 @@ export type FlowFitPolicy = 'all' | 'auto';
 const READABLE_ZOOM = 0.5;
 /** Room an `auto` fit leaves above the graph's top. */
 const TOP_MARGIN = 24;
+/** Room the top corners' controls take — the panels' 15 px inset, a 36 px
+ *  control and a 12 px gap, on the 4-px grid: a fit never puts the first
+ *  box under a view switch or a toolbar. */
+const TOP_CONTROLS_INSET = 64;
 
 /**
  * The ONE base React Flow canvas every graph editor in the app builds on
@@ -103,8 +110,14 @@ const sameView = (a: Viewport, b: Viewport) =>
   Math.abs(a.y - b.y) < 0.5 &&
   Math.abs(a.zoom - b.zoom) < 0.001;
 
-/** Fit by the policy, then remember where the fit left the view. */
-function useFitAndRemember(memo: FitMemo, policy: FlowFitPolicy) {
+/** Fit by the policy, then remember where the fit left the view. With
+ *  `topInset`, the fit keeps the graph's top at least that far below the
+ *  canvas's top edge. */
+function useFitAndRemember(
+  memo: FitMemo,
+  policy: FlowFitPolicy,
+  topInset: number,
+) {
   const { fitView, getViewport, setViewport, getNodes, getNodesBounds } =
     useReactFlow();
   const store = useStoreApi();
@@ -116,17 +129,28 @@ function useFitAndRemember(memo: FitMemo, policy: FlowFitPolicy) {
       const { width, height } = store.getState();
       const minZoom = options?.minZoom ?? store.getState().minZoom;
       const nodes = getNodes();
+      const padding =
+        typeof options?.padding === 'number' ? options.padding : 0.1;
+      // React Flow reads a bare number as a share of each side; the top
+      // takes whichever is more, that share or the controls' room.
+      const fitPadding =
+        topInset > 0 && height > 0
+          ? {
+              top: `${Math.max(topInset, Math.floor((height - height / (1 + padding)) * 0.5))}px` as const,
+              right: padding,
+              bottom: padding,
+              left: padding,
+            }
+          : padding;
       if (policy === 'auto' && nodes.length > 0 && width > 0 && height > 0) {
         const bounds = getNodesBounds(nodes);
-        const padding =
-          typeof options?.padding === 'number' ? options.padding : 0.1;
         const whole = getViewportForBounds(
           bounds,
           width,
           height,
           0,
           Number.POSITIVE_INFINITY,
-          padding,
+          fitPadding,
         );
         if (whole.zoom < READABLE_ZOOM) {
           // Too big to read whole: show its top at a readable zoom, centred
@@ -150,7 +174,7 @@ function useFitAndRemember(memo: FitMemo, policy: FlowFitPolicy) {
           await setViewport(
             {
               x: width / 2 - centreX * zoom,
-              y: TOP_MARGIN - bounds.y * zoom,
+              y: Math.max(TOP_MARGIN, topInset) - bounds.y * zoom,
               zoom,
             },
             { duration, ease: easeOutQuint, interpolate: 'linear' },
@@ -161,6 +185,7 @@ function useFitAndRemember(memo: FitMemo, policy: FlowFitPolicy) {
       }
       await fitView({
         ...options,
+        padding: fitPadding,
         duration,
         ease: easeOutQuint,
         interpolate: 'linear',
@@ -170,6 +195,7 @@ function useFitAndRemember(memo: FitMemo, policy: FlowFitPolicy) {
     [
       memo,
       policy,
+      topInset,
       reduced,
       store,
       fitView,
@@ -197,17 +223,19 @@ function FlowAutoFit({
   memo,
   fitViewOptions,
   policy,
+  topInset,
   fitKey,
   refitDuration = 0,
 }: {
   memo: FitMemo;
   fitViewOptions?: FitViewOptions;
   policy: FlowFitPolicy;
+  topInset: number;
   fitKey: unknown;
   refitDuration?: number;
 }) {
   const { getViewport, getNodes, getNodesBounds } = useReactFlow();
-  const fitAndRemember = useFitAndRemember(memo, policy);
+  const fitAndRemember = useFitAndRemember(memo, policy, topInset);
   const minZoom = useStore((state) => state.minZoom);
   const width = useStore((state) => state.width);
   const height = useStore((state) => state.height);
@@ -269,18 +297,20 @@ function FlowAutoFit({
 function FlowCornerControls({
   memo,
   policy,
+  topInset,
   fitViewOptions,
   children,
 }: {
   memo: FitMemo;
   policy: FlowFitPolicy;
+  topInset: number;
   fitViewOptions?: FitViewOptions;
   children?: ReactNode;
 }) {
   const { t } = useT('common');
   const { zoomIn, zoomOut } = useReactFlow();
   const reduced = usePrefersReducedMotion();
-  const fitAndRemember = useFitAndRemember(memo, policy);
+  const fitAndRemember = useFitAndRemember(memo, policy, topInset);
   const zoom = {
     duration: reduced ? 0 : FLOW_VIEWPORT_DURATION.zoom,
     ease: easeOutQuint,
@@ -288,11 +318,12 @@ function FlowCornerControls({
   return (
     <Panel
       position="bottom-left"
-      className="mb-[max(1rem,var(--mobile-nav-clearance-live,0px))]! flex flex-col gap-1"
+      className="mb-[max(1rem,var(--mobile-nav-clearance-live,0px))]! flex flex-col gap-1 pointer-coarse:gap-2"
     >
       <Button
         size="icon"
         variant="secondary"
+        className={FLOW_TOUCH_TARGET}
         title={t('flow.zoomIn')}
         tooltipSide="right"
         onClick={() => void zoomIn(zoom)}
@@ -302,6 +333,7 @@ function FlowCornerControls({
       <Button
         size="icon"
         variant="secondary"
+        className={FLOW_TOUCH_TARGET}
         title={t('flow.zoomOut')}
         tooltipSide="right"
         onClick={() => void zoomOut(zoom)}
@@ -311,6 +343,7 @@ function FlowCornerControls({
       <Button
         size="icon"
         variant="secondary"
+        className={FLOW_TOUCH_TARGET}
         title={t('flow.resetView')}
         tooltipSide="right"
         onClick={() =>
@@ -364,6 +397,7 @@ export function FlowCanvas({
   // The `auto` fit is the canvas's own: React Flow's built-in fit would show
   // a tall graph whole at an unreadable zoom first.
   const builtInFit = fitPolicy === 'all' && flowProps.fitView !== false;
+  const topInset = topStartActions || topEndActions ? TOP_CONTROLS_INSET : 0;
   return (
     <ReactFlow
       colorMode={resolvedTheme}
@@ -377,12 +411,13 @@ export function FlowCanvas({
           memo={fitMemo}
           fitViewOptions={flowProps.fitViewOptions}
           policy={fitPolicy}
+          topInset={topInset}
           fitKey={fitKey}
           refitDuration={refitDuration}
         />
       )}
       {topStartActions && (
-        <Panel position="top-left" className="flex items-center gap-1">
+        <Panel position="top-left" className="flex items-start gap-1">
           {topStartActions}
         </Panel>
       )}
@@ -394,6 +429,7 @@ export function FlowCanvas({
       <FlowCornerControls
         memo={fitMemo}
         policy={fitPolicy}
+        topInset={topInset}
         fitViewOptions={flowProps.fitViewOptions}
       >
         {cornerActions}

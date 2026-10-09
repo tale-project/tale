@@ -18,6 +18,7 @@ import { Tooltip } from '../../overlays/tooltip';
 import { FLOW_MOTION_CLASS, FLOW_STRIP_SETTLE } from '../motion/flow-motion';
 import { flowNodeIssueFrameClass } from '../node-issue-marker';
 import type { FlowNodeState } from '../node-status';
+import { FLOW_NODE_DASHED } from './chrome';
 
 /** How a box looks right now: its run state, and where it stands in a
  *  highlight. */
@@ -140,11 +141,14 @@ function RunChrome({ state }: { state: FlowNodeState }) {
       <span
         aria-hidden="true"
         data-slot="flow-node-running"
-        className="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden rounded-t-[inherit]"
+        className="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden rounded-t-[inherit] bg-[hsl(var(--info-foreground)/0.3)]"
       >
+        {/* A third of the track, fading out at both ends; under reduced
+            motion it stands still and fills the track. */}
         <span
           className={cn(
-            'block h-full w-full bg-[hsl(var(--info-foreground))] motion-reduce:animate-none',
+            'block h-full w-1/3 bg-linear-to-r from-transparent via-[hsl(var(--info-foreground))] to-transparent',
+            'motion-reduce:w-full motion-reduce:animate-none motion-reduce:bg-[hsl(var(--info-foreground))] motion-reduce:bg-none',
             FLOW_MOTION_CLASS.sweep,
           )}
         />
@@ -228,9 +232,12 @@ export function FlowNodeButton({
       onPointerLeave={() => context.onHoverNode(null)}
       className={cn(
         'relative block size-full cursor-pointer text-left',
+        // The kind's own look (card, border, shape) comes first: every state
+        // below overrides its border colour or surface, never the reverse.
+        className,
         FLOW_NODE_LIFT,
         FLOW_NODE_RING,
-        (dashed || look.quiet || PASSED_BY.has(look.state)) && 'border-dashed',
+        (dashed || look.quiet || PASSED_BY.has(look.state)) && FLOW_NODE_DASHED,
         // The frame takes the worst problem's colour; the selection ring
         // stays its own, so a picked node with a problem shows both. A run
         // state's frame wins over a problem's.
@@ -241,7 +248,6 @@ export function FlowNodeButton({
         selected && 'ring-ring ring-2 ring-offset-1',
         phase === 'enter' && FLOW_MOTION_CLASS.enter,
         leaving && FLOW_MOTION_CLASS.exit,
-        className,
         look.quiet && 'bg-muted/40',
       )}
     >

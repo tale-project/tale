@@ -297,6 +297,11 @@
      a line, so light mode takes amber-700 (5:1); the edge palette reads it
      through FLOW_EDGE_COLORS.negative. */
   --flow-edge-negative: #b45309;
+  /* A flow box's dashed border ("may not run", "did not run"): the dash is
+     the meaning, so it keeps 3:1 against the card and the muted surface of
+     a box stepping back from a highlight — the plain border (1.3:1) left the
+     dashes unreadable at half zoom. */
+  --flow-node-dashed: hsl(var(--muted-foreground) / 0.8);
 }
 
 .dark {
@@ -402,6 +407,7 @@
   --code-match: hsl(var(--info-foreground) / 0.25);
   --code-squiggle-warning: #f59e0b;
   --flow-edge-negative: #f59e0b;
+  --flow-node-dashed: hsl(var(--muted-foreground) / 0.6);
 }
 
 /* Windows contrast themes repaint text in their own colours; the selection
@@ -816,8 +822,9 @@
 /* Workflow canvas motion (components/flow/motion/flow-motion.ts names the
    timings; every one is skipped under reduced motion). A node that joins a
    relaid chart grows in from the exit scale, one that leaves shrinks back
-   to it, a re-routed line fades out, a changed node's ring fades away, and
-   a running node's top bar sweeps across. Opacity and transform only. */
+   to it, a re-routed line fades out, a changed node's ring fades in and
+   away, and a light glides along a running node's top bar. Opacity and
+   transform only. */
 @keyframes flow-enter {
   from {
     opacity: 0;
@@ -838,21 +845,31 @@
   }
 }
 
-@keyframes flow-ring-out {
-  from {
+/* In over 150 ms (`--duration-short` of 1.2 s), out over the last 400 ms
+   (`--duration-long`). */
+@keyframes flow-ring {
+  0% {
+    opacity: 0;
+  }
+  12.5% {
     opacity: 1;
   }
-  to {
+  66.667% {
+    opacity: 1;
+  }
+  100% {
     opacity: 0;
   }
 }
 
+/* The light is a third of the track: from just off its left end to just
+   off its right. */
 @keyframes flow-running-sweep {
   from {
     transform: translateX(-100%);
   }
   to {
-    transform: translateX(100%);
+    transform: translateX(300%);
   }
 }
 

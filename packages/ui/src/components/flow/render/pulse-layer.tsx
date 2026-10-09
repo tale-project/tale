@@ -15,6 +15,23 @@ export const FLOW_PULSE_DURATION = 1_000;
 const SAMPLE_STEP = 8;
 /** Half the dot, so its centre rides the line. */
 const DOT_HALF = 4;
+/** Over how much of its route a dot fades in, and dissolves into the box
+ *  it reaches: a fixed distance, so a dot on a short line does not blink
+ *  out and one on a long line does not fade from far away. */
+const FADE_PX = 16;
+/** The most of a route the two fades may take, together under half. */
+const FADE_MAX = 0.2;
+
+/** The share of a route each fade takes. */
+function fadeShare(points: readonly FlowPoint[]): number {
+  let length = 0;
+  for (let index = 1; index < points.length; index++) {
+    const a = points[index - 1];
+    const b = points[index];
+    if (a && b) length += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return length > 0 ? Math.min(FADE_MAX, FADE_PX / length) : FADE_MAX;
+}
 
 /**
  * Keyframe points every 8 px along the route the canvas draws (rounded
@@ -59,8 +76,8 @@ function pulsePoints(
  * A value on its way: an 8 px dot riding its line. The motion is a Web
  * Animation created paused — the host's time sets its `currentTime`, so
  * playing, scrubbing and stepping are the same thing, and a dot is exactly
- * where the travel's progress says. It fades in over the first 8 % and
- * dissolves into the box it reaches over the last 8 %.
+ * where the travel's progress says. It fades in over its first 16 px and,
+ * over its last 16 px, shrinks to half and fades into the box it reaches.
  */
 const FlowPulse = memo(function FlowPulse({
   edgeId,
@@ -90,12 +107,13 @@ const FlowPulse = memo(function FlowPulse({
       })),
       { duration: FLOW_PULSE_DURATION, fill: 'both', easing: 'linear' },
     );
+    const share = fadeShare(points);
     const fade = dot.animate(
       [
-        { opacity: 0, offset: 0 },
-        { opacity: 1, offset: 0.08 },
-        { opacity: 1, offset: 0.92 },
-        { opacity: 0, offset: 1 },
+        { opacity: 0, transform: 'scale(1)', offset: 0 },
+        { opacity: 1, transform: 'scale(1)', offset: share },
+        { opacity: 1, transform: 'scale(1)', offset: 1 - share },
+        { opacity: 0, transform: 'scale(0.5)', offset: 1 },
       ],
       { duration: FLOW_PULSE_DURATION, fill: 'both' },
     );

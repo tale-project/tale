@@ -143,7 +143,7 @@ describe('WorkflowCanvas with a run', () => {
     );
     if (travel === undefined) throw new Error('no travel');
     const t = travel.start + (travel.end - travel.start) * 0.25;
-    await renderRun({ graph, playback: { timeline, t } });
+    const { layout } = await renderRun({ graph, playback: { timeline, t } });
     const frame = flowStateAt(graph, timeline, t);
     for (const each of graph.nodes)
       expect(node(each.id)?.getAttribute('data-flow-state'), each.id).toBe(
@@ -164,6 +164,27 @@ describe('WorkflowCanvas with a run', () => {
       0.25 * FLOW_PULSE_DURATION,
       0,
     );
+    // It fades in over its first 16 px (a fifth of a line too short for
+    // that), and over its last 16 px shrinks to half and fades into the box
+    // it reaches.
+    const dot = pulses[0]?.firstElementChild;
+    const fade = dot?.getAnimations()[0]?.effect as KeyframeEffect | undefined;
+    const keyframes = fade?.getKeyframes() ?? [];
+    const points = layout.edges['issues>open_issues']?.points ?? [];
+    let length = 0;
+    for (let index = 1; index < points.length; index++)
+      length += Math.hypot(
+        (points[index]?.x ?? 0) - (points[index - 1]?.x ?? 0),
+        (points[index]?.y ?? 0) - (points[index - 1]?.y ?? 0),
+      );
+    expect(length).toBeGreaterThan(0);
+    const share = keyframes[1]?.computedOffset ?? 0;
+    expect(share).toBeCloseTo(Math.min(0.2, 16 / length), 5);
+    expect(keyframes.at(-1)).toMatchObject({
+      opacity: '0',
+      transform: 'scale(0.5)',
+    });
+    expect(keyframes.at(-2)?.computedOffset).toBeCloseTo(1 - share, 5);
   });
 
   it('moves the dot with the moment, and scrubbing back resets the states', async () => {
@@ -310,9 +331,23 @@ describe('WorkflowCanvas run motion', () => {
       node('issues')?.querySelector('[data-slot="flow-node-running"] > span');
     let style = getComputedStyle(bar() as Element);
     expect(style.animationName).toBe('flow-running-sweep');
-    expect(style.animationDuration).toBe('1.2s');
-    expect(style.animationTimingFunction).toBe('linear');
+    expect(style.animationDuration).toBe('1.6s');
+    expect(style.animationTimingFunction).toBe(
+      'cubic-bezier(0.42, 0, 0.58, 1)',
+    );
     expect(style.animationIterationCount).toBe('infinite');
+    // A soft light, a third of a faint track: calm beside other runners.
+    const track = node('issues')?.querySelector<HTMLElement>(
+      '[data-slot="flow-node-running"]',
+    );
+    expect(getComputedStyle(track as Element).backgroundColor).not.toBe(
+      'rgba(0, 0, 0, 0)',
+    );
+    expect(style.backgroundImage).toContain('linear-gradient');
+    expect(
+      (bar() as HTMLElement).getBoundingClientRect().width /
+        (track as HTMLElement).getBoundingClientRect().width,
+    ).toBeCloseTo(1 / 3, 1);
     unmount();
 
     await cdp().send('Emulation.setEmulatedMedia', {
@@ -320,9 +355,18 @@ describe('WorkflowCanvas run motion', () => {
     });
     await renderRun({ graph: triageFlowGraph(), overlay });
     style = getComputedStyle(bar() as Element);
-    // Still there, still blue — it only stops moving.
+    // Still there, still blue, the whole track — it only stops moving.
     expect(style.animationName).toBe('none');
+    expect(style.backgroundImage).toBe('none');
     expect(bar()).toBeVisible();
+    expect((bar() as HTMLElement).getBoundingClientRect().width).toBeCloseTo(
+      (
+        node('issues')?.querySelector(
+          '[data-slot="flow-node-running"]',
+        ) as Element
+      ).getBoundingClientRect().width,
+      0,
+    );
   });
 
   it('settles a strip softly as the run plays on, and swaps it when scrubbing back', async () => {

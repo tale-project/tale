@@ -85,7 +85,9 @@ export function FlowNodeSection({
         {heading}
       </span>
       {rows.length === 0 ? (
-        <span className="text-muted-foreground flex h-5 items-center text-xs">
+        // One line, like every row: words too long for it end in an
+        // ellipsis rather than wrapping over the next section.
+        <span className="text-muted-foreground h-5 truncate text-xs leading-5">
           {empty}
         </span>
       ) : (
@@ -142,6 +144,7 @@ export const FlowEntryNodeView = memo(function FlowEntryNodeView({
           id={node.id}
           icon={Play}
           title={flowNodeTitle(node, t)}
+          terminal
         />
         {node.triggers.length > 0 && (
           <FlowNodeSection

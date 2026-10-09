@@ -30,10 +30,13 @@ export const FLOW_EDGE_ENTER_DELAY = 250;
 export const FLOW_RELAYOUT_SETTLE =
   FLOW_EDGE_ENTER_DELAY + FLOW_DURATION.standard;
 
-/** How long a changed node's ring shows: visible through the glide, then
- *  fading over `long`. */
-export const FLOW_RING_DELAY = FLOW_DURATION.medium;
-export const FLOW_RING_TOTAL = FLOW_RING_DELAY + FLOW_DURATION.long;
+/**
+ * A changed node's ring: it fades in over `short` while the box glides —
+ * never switched on at full strength, which reads as a flash — holds while
+ * the relayout settles and a moment after, so the eye finds it, then fades
+ * out over `long`. Gone at 1.2 s.
+ */
+export const FLOW_RING_TOTAL = 1_200;
 
 /** The move of a relayout, on React Flow's node wrapper (which positions
  *  each node with a `transform`). */
@@ -53,10 +56,11 @@ export const FLOW_MOTION_CLASS = {
   /** A line that is gone or re-routed, a frame that changed size. */
   fadeOut:
     'animate-[flow-fade-out_var(--duration-short)_var(--ease-out-quint)_forwards]',
-  /** A changed node's ring: shows through the glide, then fades. */
-  ring: 'animate-[flow-ring-out_var(--duration-long)_var(--ease-default)_var(--duration-medium)_backwards]',
-  /** A running node's top bar. */
-  sweep: 'animate-[flow-running-sweep_1.2s_linear_infinite]',
+  /** A changed node's ring: fades in, holds, fades out (`flow-ring`). */
+  ring: 'animate-[flow-ring_1200ms_var(--ease-default)_both]',
+  /** A running node's top bar: a soft light gliding across its track,
+   *  slow and eased, so a chart with several nodes running stays calm. */
+  sweep: 'animate-[flow-running-sweep_1.6s_var(--ease-in-out)_infinite]',
 } as const;
 
 /** A strip whose words change while a run plays: a soft settle. */
