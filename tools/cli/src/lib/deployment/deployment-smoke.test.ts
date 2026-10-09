@@ -23,6 +23,8 @@ interface FakeOptions {
   hugeReady?: boolean;
   /** The smoke account's role: only owners and admins delete tasks. */
   role?: 'owner' | 'member';
+  /** A proxy in front of the backend refuses every DELETE with its page. */
+  proxyForbidsDelete?: boolean;
   /** The chat turn is still generating when cleanup runs. */
   turnStillRunning?: boolean;
   /** Sign-in sets its cookie, but the session read then finds none. */
@@ -154,6 +156,11 @@ function fakeDeployment(options: FakeOptions = {}) {
         return json({ taskId: id });
       }
       const task = /^\/api\/app\/tasks\/([^/]+)$/.exec(path)?.[1];
+      if (options.proxyForbidsDelete && request.method === 'DELETE')
+        return new Response('<html><body>403 Forbidden</body></html>', {
+          status: 403,
+          headers: { 'content-type': 'text/html' },
+        });
       if (task !== undefined && tasks.has(task)) {
         if (request.method === 'GET') return json({ task: { id: task } });
         if ((options.role ?? 'owner') !== 'owner')
@@ -407,6 +414,9 @@ describe('the full journey', () => {
       ),
     ).toBe(false);
     expect(deployment.signedOut()).toBe(true);
+    expect(report.checks.find((c) => c.name === 'sign-out')?.status).toBe(
+      'pass',
+    );
   });
 });
 
@@ -420,6 +430,16 @@ describe('cleanup the account is allowed', () => {
     );
     expect(deployment.tasks.size).toBe(0);
     expect(deployment.archived.size).toBe(1);
+  });
+
+  test('a proxy refusing the delete fails the cleanup instead of archiving', async () => {
+    const deployment = fakeDeployment({ proxyForbidsDelete: true });
+    const report = await smoke(deployment.url, { credentials: account });
+    expect(report.passed).toBe(false);
+    expect(report.checks.find((c) => c.name === 'cleanup-task')?.status).toBe(
+      'fail',
+    );
+    expect(deployment.archived.size).toBe(0);
   });
 
   test('a turn still generating is stopped, then trashed', async () => {
@@ -445,6 +465,10 @@ describe('cleanup the account is allowed', () => {
       'fail',
     );
     expect(deployment.signedOut()).toBe(true);
+    // The report is built after the cleanup, so it carries the sign-out.
+    expect(report.checks.find((c) => c.name === 'sign-out')?.status).toBe(
+      'pass',
+    );
   });
 });
 

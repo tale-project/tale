@@ -509,7 +509,10 @@ export async function runDeploymentSmoke(
   let closeStream = () => {};
   let signedIn = false;
 
-  try {
+  // A step the rest cannot stand on ends the journey early; the report is
+  // built only after the cleanup below, so the checks it adds (sign-out
+  // among them) are in it.
+  const runJourney = async (): Promise<void> => {
     signedIn = await check('sign-in', async () => {
       const reply = await client.call('POST', '/api/auth/sign-in/email', {
         json: {
@@ -532,7 +535,7 @@ export async function runDeploymentSmoke(
     });
     if (!signedIn) {
       skipRest('organization', 'Needs a signed-in session.');
-      return finish(base, 'full', version, checks);
+      return;
     }
 
     const scoped = await check('organization', async () => {
@@ -559,7 +562,7 @@ export async function runDeploymentSmoke(
     });
     if (!scoped) {
       skipRest('events', 'Needs an organization.');
-      return finish(base, 'full', version, checks);
+      return;
     }
     const orgQuery = { orgId: organizationId };
 
@@ -623,7 +626,7 @@ export async function runDeploymentSmoke(
     });
     if (!located) {
       skipRest('task', 'Needs a project.');
-      return finish(base, 'full', version, checks);
+      return;
     }
 
     const created = await check('task', async () => {
@@ -727,6 +730,9 @@ export async function runDeploymentSmoke(
           throw new SmokeFailure('The model turn completed without a reply.');
         return `${model.providerSlug}/${model.id} replied`;
       });
+  };
+  try {
+    await runJourney();
   } finally {
     closeStream();
     // A sign-in that set a session cookie but then failed its check still
@@ -755,7 +761,10 @@ async function cleanUp(
     await check('cleanup-task', async () => {
       const path = `/api/app/tasks/${encodeURIComponent(taskId)}`;
       const reply = await client.call('DELETE', path, { query });
-      if (reply.status !== 403) {
+      // Only the backend's own role refusal falls back: a 403 from a proxy
+      // or firewall in front of it is the broken lane this run exists to
+      // find.
+      if (reply.status !== 403 || !isRoleRefusal(reply)) {
         expectSuccess(reply, 'DELETE /api/app/tasks/:taskId');
         return 'the smoke task is deleted';
       }
@@ -771,10 +780,13 @@ async function cleanUp(
   if (threadId !== null)
     await check('cleanup-thread', async () => {
       const path = `/api/app/chat/threads/${encodeURIComponent(threadId)}`;
-      const trash = async (): Promise<boolean> => {
+      const trash = async (deadline?: number): Promise<boolean> => {
         const reply = await client.call('POST', `${path}/trash`, {
           query,
           json: {},
+          ...(deadline === undefined
+            ? {}
+            : { timeoutMs: Math.max(1, deadline - Date.now()) }),
         });
         expectSuccess(reply, 'POST /api/app/chat/threads/:id/trash');
         return parseJson(
@@ -793,8 +805,14 @@ async function cleanUp(
       expectSuccess(cancelled, 'POST /api/app/chat/threads/:id/cancel');
       const deadline = Date.now() + options.timeoutMs;
       while (Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        if (await trash())
+        await new Promise((resolve) =>
+          setTimeout(
+            resolve,
+            Math.min(500, Math.max(0, deadline - Date.now())),
+          ),
+        );
+        if (Date.now() >= deadline) break;
+        if (await trash(deadline))
           return 'the smoke conversation was stopped and is in the trash';
       }
       throw new SmokeFailure(
@@ -806,6 +824,22 @@ async function cleanUp(
     expectStatus(reply, 200, 'POST /api/auth/sign-out');
     return 'signed out';
   });
+}
+
+/** Whether a refusal is the backend's own "your role may not" answer. */
+function isRoleRefusal(reply: Reply): boolean {
+  try {
+    const body = parseJson(
+      reply,
+      z.object({ error: z.string() }).passthrough(),
+      'DELETE /api/app/tasks/:taskId',
+    );
+    return body.error === 'ROLE_FORBIDDEN';
+  } catch (error) {
+    // A body that is not the backend's JSON is no role refusal.
+    if (error instanceof SmokeFailure) return false;
+    throw error;
+  }
 }
 
 function finish(
