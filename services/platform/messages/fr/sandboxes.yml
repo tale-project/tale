@@ -20,6 +20,8 @@ limits:
   usageUnavailable: Allocation indisponible
   # Sous la limite des workers d'agent : les exécutions qu'une limite plus haute démarrerait tout de suite.
   waitingForWorkers: '{count, plural, one {# exécution d’agent attend un worker libre.} other {# exécutions d’agent attendent un worker libre.}}'
+  usageLoadFailed: Impossible de charger les données d'allocation des sandboxes
+  usageRetry: Réessayer
   invalidSessions: Saisis un nombre entier entre 1 et 500.
   total: Total des sessions de ton organisation
   totalValue: '{total} / {maxSessions}'

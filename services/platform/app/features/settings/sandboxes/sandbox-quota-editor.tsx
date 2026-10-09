@@ -4,11 +4,13 @@ import {
   sandboxQuotaTotal,
   type SandboxQuotaConfig,
 } from '@tale/shared/schemas/governance';
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { Button } from '@tale/ui/button';
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Input } from '@tale/ui/input';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useWatch } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -19,6 +21,7 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
@@ -66,9 +69,27 @@ export function SandboxQuotaEditor({
     { organizationId },
   );
 
+  // An initial failed query becomes pending again during refetch. Retain its
+  // failure until this retry settles so the recovery control stays visible.
+  const [retryFailure, setRetryFailure] = useState<{
+    detail: string | undefined;
+  } | null>(null);
+  const readFailed = usage.isError || retryFailure !== null;
+  const retrying = usage.isFetching || retryFailure !== null;
+  const retryUsage = async () => {
+    if (retrying) return;
+    setRetryFailure({ detail: failureDetail(usage.error) });
+    try {
+      await usage.refetch({ throwOnError: false });
+    } finally {
+      setRetryFailure(null);
+    }
+  };
+
   // The usage endpoint exposes the same saved limits to readers and editors.
   // A missing response never becomes an editable set of schema defaults.
   const savedConfig = useMemo<SandboxQuotaConfig | undefined>(() => {
+    if (readFailed) return undefined;
     const project = usage.data?.find((row) => row.budget === 'project');
     const workflow = usage.data?.find((row) => row.budget === 'workflow');
     const render = usage.data?.find((row) => row.budget === 'render');
@@ -78,7 +99,7 @@ export function SandboxQuotaEditor({
       maxWorkflowSessionsPerOrg: workflow.cap,
       maxRenderSessionsPerOrg: render.cap,
     };
-  }, [usage.data]);
+  }, [usage.data, readFailed]);
   const cannotManage = ability.cannot('write', 'orgSettings');
   const canEdit = !cannotManage;
   // The organization's connected devices add their own slots: the server
@@ -129,6 +150,9 @@ export function SandboxQuotaEditor({
     async (values: SandboxQuotaConfig) => {
       // The grouped controller disables Save immediately, and this guard also
       // covers native form submission and a capacity update during editing.
+      if (savedConfig === undefined) {
+        throw new Error(t('limits.usageLoadFailed'));
+      }
       const total = sandboxQuotaTotal(values);
       if (maxSessions === undefined) {
         // No readable ceiling: only a total that does not grow may be saved.
@@ -202,7 +226,10 @@ export function SandboxQuotaEditor({
   });
   const values = useWatch({ control: editor.form.control });
   const parsed = schema.safeParse(values);
-  const total = parsed.success ? sandboxQuotaTotal(parsed.data) : undefined;
+  const total =
+    savedConfig !== undefined && parsed.success
+      ? sandboxQuotaTotal(parsed.data)
+      : undefined;
   const exceedsDeployment =
     total !== undefined && maxSessions !== undefined && total > maxSessions;
   // Without a readable ceiling, a total that does not grow beyond the saved
@@ -239,21 +266,44 @@ export function SandboxQuotaEditor({
   } = editor.form;
 
   return (
-    <Skeletonize loading={usage.isLoading} label={t('limits.title')}>
+    <Skeletonize
+      loading={usage.isLoading && !readFailed}
+      label={t('limits.title')}
+    >
       <SettingsSection
         title={t('limits.title')}
         description={t('limits.description')}
       >
+        {readFailed && (
+          <Alert
+            variant="destructive"
+            title={t('limits.usageLoadFailed')}
+            description={
+              usage.isError ? failureDetail(usage.error) : retryFailure?.detail
+            }
+          >
+            <Button
+              type="button"
+              variant="secondary"
+              className="mt-3"
+              isLoading={retrying}
+              disabled={retrying}
+              onClick={() => void retryUsage()}
+            >
+              {t('limits.usageRetry')}
+            </Button>
+          </Alert>
+        )}
         <form id={FORM_ID} onSubmit={editor.submit}>
           <fieldset
-            disabled={!canEdit || editor.isLoading}
+            disabled={!canEdit || editor.isLoading || savedConfig === undefined}
             className="contents"
           >
             <SettingsFieldList>
               {QUOTA_FIELDS.map(({ field, budget }) => {
-                const current = usage.data?.find(
-                  (row) => row.budget === budget,
-                );
+                const current =
+                  !readFailed &&
+                  usage.data?.find((row) => row.budget === budget);
                 return (
                   <SettingsFieldRow
                     key={field}
@@ -292,11 +342,11 @@ export function SandboxQuotaEditor({
                             limit: current.cap,
                           })}
                         </Badge>
-                      ) : (
+                      ) : !readFailed ? (
                         <p className="text-muted-foreground text-xs">
                           {t('limits.usageUnavailable')}
                         </p>
-                      )}
+                      ) : null}
                       {budget === 'project' &&
                       waitingForWorkers !== undefined &&
                       waitingForWorkers > 0 ? (
