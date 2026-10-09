@@ -41,6 +41,28 @@ describe('references', () => {
     ]);
   });
 
+  test('an automation shard citing a dead box is a finding', () => {
+    const findings = references(
+      repo(
+        root({
+          automationShards: [
+            doc(
+              'smoke.md',
+              '| [smoke](../../suites/smoke.md) | `SMOKE-9` moved | ✅ | x |\n',
+              `${ROOT}/reference/automation`,
+            ),
+          ],
+        }),
+      ),
+    );
+    expect(findings).toEqual([
+      {
+        file: `${ROOT}/reference/automation/smoke.md`,
+        message: 'cites `SMOKE-9`, which no suite defines',
+      },
+    ]);
+  });
+
   test('a group citation resolves to the boxes inside it', () => {
     const base = root();
     base.suites[0].boxes.push({

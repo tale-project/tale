@@ -55,7 +55,7 @@ export const MIN_TTS_AUDIO_BYTES = 256;
 export const MAX_TTS_QUEUE_DEPTH = 50;
 
 /**
- * Slack added to `TTS_PENDING_STALE_MS` for the server-side watchdog scheduled
+ * Slack added to `PENDING_STALE_MS` for the server-side watchdog scheduled
  * by `reserveChunk`. If the action completes (mark-ready or mark-failed)
  * before the watchdog fires, the watchdog no-ops via the
  * `(chunkId, attemptCreatedAt)` identity gate. If the action crashes after
@@ -67,18 +67,12 @@ export const TTS_WATCHDOG_BUFFER_MS = 5_000;
 
 /**
  * Server-side upstream TTS fetch timeout. Sized for OpenAI tts-1 worst-
- * case latency on long inputs. The watchdog horizon
- * (`TTS_PENDING_STALE_MS` below) derives from this constant + a teardown
+ * case latency on long inputs. The watchdog horizon (`PENDING_STALE_MS`
+ * in `convex/tts/mutations.ts`) derives from this constant + a teardown
  * slack, so co-locating prevents the two from silently drifting on a
  * future tuning pass.
  */
 export const TTS_FETCH_TIMEOUT_MS = 60_000;
-
-/** How long a voice output chunk may stay pending before its attempt counts
- * as lost: the provider fetch's own timeout with room to settle. The voice
- * watchdog fails a chunk this long after its attempt started (plus its
- * buffer), and the budget reservations stop counting its hold. */
-export const TTS_PENDING_STALE_MS = TTS_FETCH_TIMEOUT_MS + 30_000;
 
 // ─── Client-side chunking + retry knobs ────────────────────────────────
 // These live next to the server bounds so a future bump (e.g. raising

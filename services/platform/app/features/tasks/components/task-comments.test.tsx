@@ -1,9 +1,21 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { TooltipProvider } from '@tale/ui/tooltip';
+import {
+  act,
+  fireEvent,
+  render as renderWithoutShell,
+  screen,
+  type RenderOptions,
+} from '@testing-library/react';
+import type { ReactElement } from 'react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { taskCommentDraftKey } from '../lib/draft-key';
 import { TaskCommentComposer, TaskComments } from './task-comments';
+
+/** The app shell provides tooltips; a comment's icon actions carry one. */
+const render = (ui: ReactElement, options?: Omit<RenderOptions, 'wrapper'>) =>
+  renderWithoutShell(ui, { wrapper: TooltipProvider, ...options });
 
 const localeState = { locale: 'en' };
 

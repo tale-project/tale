@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 
 import { layout } from '../../src/rules/layout';
-import { repo, root } from '../factories';
+import { doc, repo, root } from '../factories';
+
+const ROOT = 'services/app/tests/manual';
 
 describe('layout', () => {
   test('a complete tree is clean', () => {
@@ -39,6 +41,35 @@ describe('layout', () => {
     expect(findings.map((f) => f.message)).toContain(
       'no suite — a manual layer with no test is a directory',
     );
+  });
+
+  test('an automation shard named after a suite is clean', () => {
+    expect(
+      layout(
+        repo(
+          root({
+            automationShards: [
+              doc('smoke.md', '# Smoke\n', `${ROOT}/reference/automation`),
+            ],
+          }),
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  test('an automation shard that names no suite is a finding', () => {
+    const findings = layout(
+      repo(
+        root({
+          automationShards: [
+            doc('smoek.md', '# Typo\n', `${ROOT}/reference/automation`),
+          ],
+        }),
+      ),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0].file).toBe(`${ROOT}/reference/automation/smoek.md`);
+    expect(findings[0].message).toContain('names no suite');
   });
 
   test('names a missing register and a missing run fixture', () => {

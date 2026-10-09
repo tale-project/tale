@@ -148,8 +148,9 @@ describe('readInFlightReservations', () => {
       'project-2': { costCents: 40, tokens: 0, requests: 1 },
     });
     const read = statements[0]?.text ?? '';
-    // A chat turn is in its thread's project; an op in every project its
-    // reservation stamped, each counting it once.
+    // A new chat hold follows its immutable stamp. Legacy NULL still has
+    // the previous thread lookup; an empty stamp never falls back.
+    expect(read).toContain('coalesce(g.project_ids,');
     expect(read).toContain(
       'LEFT JOIN app.thread_metadata tm ON tm.thread_id = g.thread_id',
     );
@@ -220,6 +221,7 @@ describe('readInFlightReservations', () => {
       {
         threadId: 'thread-1',
         op: { sessionId: 'session-1', execId: 'exec-1' },
+        tts: { chunkId: 'chunk-1', attemptCreatedAt: 123 },
       },
     );
     expect(statements[0]?.text).toContain('thread_id <> ?');
@@ -227,7 +229,13 @@ describe('readInFlightReservations', () => {
       'AND NOT (session_id = ? AND exec_id = ?)',
     );
     expect(statements[0]?.values).toEqual(
-      expect.arrayContaining(['thread-1', 'session-1', 'exec-1']),
+      expect.arrayContaining([
+        'thread-1',
+        'session-1',
+        'exec-1',
+        'chunk-1',
+        123,
+      ]),
     );
   });
 });

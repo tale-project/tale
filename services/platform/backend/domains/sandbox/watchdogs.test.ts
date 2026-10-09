@@ -840,10 +840,16 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
     );
     // Two rows came back from a batch of 1,000: one statement drained it.
     expect(sweeps).toHaveLength(1);
-    expect(sweeps[0]?.values).toEqual([NOW - WEEK_MS, 1_000]);
+    expect(sweeps[0]?.values).toEqual([
+      NOW - WEEK_MS,
+      1_000,
+      NOW - WEEK_MS,
+      1_000,
+      1_000,
+    ]);
     const close = indexOf(statements, "status = 'failed', finished_at_ms");
     const sweep = indexOf(statements, "WHERE kind = 'model-api'");
-    const settle = indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL');
+    const settle = indexOf(statements, 'WHERE ((finalized_at_ms IS NOT NULL');
     expect(close).toBeGreaterThanOrEqual(0);
     expect(sweep).toBeGreaterThan(close);
     expect(settle).toBeGreaterThan(sweep);
@@ -887,7 +893,7 @@ describe('runSandboxWatchdog — settled model-endpoint request rows', () => {
       failure,
     );
     expect(
-      indexOf(statements, 'WHERE finalized_at_ms IS NOT NULL'),
+      indexOf(statements, 'WHERE ((finalized_at_ms IS NOT NULL'),
     ).toBeGreaterThan(
       indexOf(statements, 'DELETE FROM app.sandbox_session_ops'),
     );

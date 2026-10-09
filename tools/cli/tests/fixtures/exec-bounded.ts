@@ -77,7 +77,9 @@ if (mode === 'descendant') {
   try {
     const result = await exec(process.execPath, ['-e', scripts[mode]!], {
       silent: true,
-      timeout: 0.25,
+      // Only the timeout probe judges a short deadline. The other probes
+      // need room for the nested runtime to start on a busy CI worker.
+      timeout: mode === 'timeout' ? 0.25 : 5,
       maxOutputBytes: 3000,
       ...(mode === 'stdin' ? { stdin: 'literal $value\n' } : {}),
     });

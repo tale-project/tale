@@ -114,7 +114,7 @@ settings:
               label: Strict checklist
 ```
 
-Ist das Projekt noch nicht eingerichtet, erscheinen Pflichtformulare vor den Aufgabenfeldern. **Speichern und weiter** schreibt die Formulare und setzt die Aufgabenerstellung fort. Später öffnet **Einstellungen** sie als Tabs. Ein Punkt markiert ungespeicherte Änderungen; **Speichern** schreibt alle geänderten Formulare. Beim Schließen mit offenen Änderungen fragt Tale nach.
+Ist das Projekt noch nicht eingerichtet, erscheinen Pflichtformulare vor den Aufgabenfeldern. **Speichern und weiter** schreibt die Formulare und setzt die Aufgabenerstellung fort. Später öffnet **Einstellungen** sie als Tabs. Ein Punkt markiert ungespeicherte Änderungen; **Speichern** schreibt alle geänderten Formulare. Beim Schließen mit offenen Änderungen fragt Tale nach. Die `description` eines Formulars steht über seinen Feldern; ist sie länger als drei Zeilen, siehst du ihren Anfang, und **Weiterlesen** öffnet den Rest.
 
 Speichern ersetzt die flache YAML-Datei des Formulars, etwa `Setup/validation-policy.yaml`. Vorhandene Werte werden übernommen, auch aus einer manuell hochgeladenen Datei. Feldtypen sind `text`, `number`, `boolean` und `select`; gespeichert werden Zeichenketten. Textfelder können ein `pattern` vorgeben. Eintragsbezogene `i18n`-Blöcke übersetzen Titel, Beschriftungen, Hilfe und Optionen. Verschachtelte Daten und Listen gehören in separate Dateien, die der Workflow zusätzlich liest.
 

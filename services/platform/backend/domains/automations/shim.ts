@@ -25,10 +25,9 @@ import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
 import {
+  reserveLlmStepBudget,
   type LlmStepUsage,
-  openLlmStepCall,
-  releaseLlmStepCall,
-  settleLlmStepCall,
+  recordLlmStepUsage,
 } from './llm-metering.ts';
 import { beginNodeAttempt, finishNodeAttempt } from './node-attempts.ts';
 import {
@@ -231,24 +230,17 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       return finishNodeAttempt(sql, args);
     },
 
-    // An `llm` step's model call is its run's spend: its worst case held
-    // against the caps that bind the run while it runs, its cost booked in
-    // the hold's place after it.
-    'automations/mutations:openLlmStepCall': async (raw) => {
+    // An `llm` step's model call is its run's spend: measured against the
+    // caps that bind the run before the call, booked after it.
+    'automations/mutations:reserveLlmStepBudget': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
-      const args = raw as Parameters<typeof openLlmStepCall>[1];
-      return openLlmStepCall(sql, args);
+      const args = raw as Parameters<typeof reserveLlmStepBudget>[1];
+      return reserveLlmStepBudget(sql, args);
     },
-    'automations/mutations:settleLlmStepCall': async (raw) => {
+    'automations/mutations:recordLlmStepUsage': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
       const args = raw as LlmStepUsage;
-      await settleLlmStepCall(sql, args);
-      return null;
-    },
-    'automations/mutations:releaseLlmStepCall': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
-      const args = raw as Parameters<typeof releaseLlmStepCall>[1];
-      await releaseLlmStepCall(sql, args);
+      await recordLlmStepUsage(sql, args);
       return null;
     },
 

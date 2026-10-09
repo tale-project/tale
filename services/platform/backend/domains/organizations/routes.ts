@@ -19,6 +19,7 @@ import { hasAnyOrganizations } from './has-any-organizations.ts';
 import {
   deleteOrganization,
   getOrganization,
+  legacyAutomationHoldError,
   listUserOrganizations,
   OrganizationError,
   recordOrgSwitch,
@@ -187,6 +188,15 @@ export function createOrganizationRoutes(deps: {
       );
       return c.json(result);
     } catch (error) {
+      // A cutover can race the preflight. Its trigger rolls back the whole
+      // transaction; report the same conflict without exposing SQL details.
+      if (isRecord(error) && error.code === 'P7502') {
+        const blocked = legacyAutomationHoldError();
+        return c.json(
+          { error: blocked.code, message: blocked.message },
+          blocked.status,
+        );
+      }
       if (error instanceof OrganizationError) {
         return c.json(
           { error: error.code, message: error.message },

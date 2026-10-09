@@ -14,6 +14,7 @@ import {
   resolveAutomationRunAttribution,
   resolveSessionOpAttribution,
   splitModelRef,
+  withSessionOpBillingProjects,
 } from './op-attribution.ts';
 
 interface Statement {
@@ -39,6 +40,52 @@ const TASK_OP = {
   kind: 'task-agent',
 };
 const WORKFLOW_OP = { ...TASK_OP, sessionId: 'wf-1', kind: 'workflow-agent' };
+
+describe('admitted billing projects [GOV-R14]', () => {
+  it.each([{ projectIds: ['project-a', 'project-b'] }, { projectIds: [] }])(
+    'preserves a non-null stamp after live bindings change: $projectIds',
+    async ({ projectIds }) => {
+      const { sql, statements } = fakeSql([
+        { match: 'FROM app.sandbox_session_ops', rows: [{ projectIds }] },
+      ]);
+      const subject = {
+        userId: 'current-user',
+        apiKeyId: 'key-1',
+        agentSlug: 'automation',
+        projectIds: ['project-a', 'project-c'],
+      };
+      await expect(
+        withSessionOpBillingProjects(sql, WORKFLOW_OP, subject),
+      ).resolves.toEqual({ ...subject, projectIds });
+      expect(statements[0]?.values).toEqual(['org-1', 'wf-1', 'exec-1']);
+      expect(statements[0]?.text).toContain('WHERE org_id = ?');
+    },
+  );
+
+  it.each([null, undefined])(
+    'keeps legacy fallback for %j',
+    async (projectIds) => {
+      const { sql } = fakeSql([
+        {
+          match: 'FROM app.sandbox_session_ops',
+          rows: projectIds === undefined ? [] : [{ projectIds }],
+        },
+      ]);
+      const subject = { userId: 'user-1', projectIds: ['project-current'] };
+      await expect(
+        withSessionOpBillingProjects(sql, WORKFLOW_OP, subject),
+      ).resolves.toEqual(subject);
+    },
+  );
+
+  it('cannot turn missing attribution into an authorized subject', async () => {
+    const { sql, statements } = fakeSql([]);
+    await expect(
+      withSessionOpBillingProjects(sql, WORKFLOW_OP, null),
+    ).resolves.toBeNull();
+    expect(statements).toHaveLength(0);
+  });
+});
 /** The workflow session's owner: the automation run it executes. */
 const SESSION = {
   match: 'FROM app.sandbox_sessions s',

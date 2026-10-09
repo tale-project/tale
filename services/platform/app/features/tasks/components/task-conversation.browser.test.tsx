@@ -242,8 +242,9 @@ describe('TaskConversation long history (Chromium)', () => {
   it('retains an edit draft and its keyboard path across offscreen scrolling and earlier pages', async () => {
     const { scroller } = renderHistory();
     const newest = commentRow(0);
+    // The comment's icon action, named by its label.
     const edit = Array.from(newest.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Edit',
+      (button) => button.getAttribute('aria-label') === 'Edit',
     );
     if (edit === undefined) throw new Error('Edit control is missing');
     edit.focus();
@@ -306,10 +307,10 @@ describe('TaskConversation long history (Chromium)', () => {
         .toBeCloseTo(before, 0);
       expect(reads.markdown).toHaveBeenCalledTimes(parses + 600);
       const band = oldest.closest('ol')?.parentElement;
-      expect(band?.firstElementChild?.textContent).toContain('September 23');
-      expect(
-        band?.previousElementSibling?.firstElementChild?.textContent,
-      ).toContain('September 22');
+      const divider = (day: Element | null | undefined) =>
+        day?.querySelector('[data-slot="thread-day-divider"]')?.textContent;
+      expect(divider(band)).toContain('September 23');
+      expect(divider(band?.previousElementSibling)).toContain('September 22');
     },
   );
 

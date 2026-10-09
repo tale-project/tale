@@ -238,6 +238,9 @@ board:
   agentWorking: '{name} arbeitet daran'
   addTask: Aufgabe hinzufügen
   addToLane: 'Aufgabe zu {status} hinzufügen'
+  collapseLane: '{status} einklappen'
+  expandLane: '{status} ausklappen'
+  laneCount: '{count, plural, one {# Aufgabe} other {# Aufgaben}}'
   quickAddLabel: Titel der neuen Aufgabe
   quickAdded: '„{title}“ hinzugefügt'
   noTasks: Keine Aufgaben
@@ -325,6 +328,7 @@ detail:
   notFound: Wir konnten diese Aufgabe nicht finden. Sie wurde möglicherweise gelöscht.
 comment:
   edited: bearbeitet
+  agentBadge: Agent
   deleteConfirm: Diesen Kommentar löschen?
 assignee:
   unassigned: Nicht zugewiesen
@@ -486,6 +490,7 @@ agentRuns:
     completedTitle: '{agent} — Durchlauf-Details'
     noLiveDetail: Für diesen Durchlauf gibt es kein Live-Transkript.
 timeline:
+  updates: '{count, plural, one {# Änderung} other {# Änderungen}}'
   runLabel: Agentenlauf
   startedByAgent: gestartet von
   systemActor: System
