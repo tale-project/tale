@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 143 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 144 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -811,6 +811,13 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   it lists each one with its own glyph, and pressing again folds them. In
   German each change keeps its own casing, e.g. **Status geändert: …**, never
   lowercased.
+- [ ] `TASK-F85` · **One face per person** — Assign a task to a teammate,
+  have them comment on it, and open a customer conversation from a contact
+  with a name → the teammate's initials sit in the same tinted circle on the
+  board card, in **Assignee**, beside their comment and in Home; a task
+  assigned to you shows the filled primary circle; an agent shows its bot on
+  the soft primary tint and an unassigned slot a dashed outline, in light and
+  dark.
 
 - [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
   lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with

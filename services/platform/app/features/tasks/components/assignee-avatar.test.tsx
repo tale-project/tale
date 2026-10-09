@@ -34,17 +34,29 @@ describe('AssigneeAvatar', () => {
     ).toBeVisible();
   });
 
-  it('uses the muted chip for another human', () => {
-    render(
+  it('tints another person by their name, the same in every list', () => {
+    const { rerender } = render(
       <AssigneeAvatar
         assigneeType="user"
         assigneeId="user-2"
         name="Jordan Lee"
       />,
     );
-    const chip = screen.getByLabelText('Jordan Lee');
-    expect(chip.className).toContain('bg-muted');
-    expect(chip.className).not.toContain('bg-primary');
+    const tint = screen.getByLabelText('Jordan Lee').className;
+    expect(tint).not.toContain('bg-primary');
+    expect(screen.getByLabelText('Jordan Lee')).toHaveTextContent('JL');
+
+    rerender(
+      <AssigneeAvatar
+        assigneeType="user"
+        assigneeId="user-2"
+        name="Jordan Lee"
+        size="md"
+      />,
+    );
+    expect(screen.getByLabelText('Jordan Lee').className).toContain(
+      tint.split(' ').find((name) => name.startsWith('bg-')) ?? 'bg-',
+    );
   });
 
   it('uses the filled primary chip when the assignee is the current user', () => {
