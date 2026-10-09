@@ -50,9 +50,7 @@ export async function readReviewBatch(
   return row;
 }
 
-export function reviewBatchTargets(
-  batch: ReviewBatchRow,
-): TaskReviewBatchTarget[] {
+function reviewBatchTargets(batch: ReviewBatchRow): TaskReviewBatchTarget[] {
   const targets = taskReviewBatchTargetsSchema.safeParse(batch.targets);
   if (
     !targets.success ||

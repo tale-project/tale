@@ -259,7 +259,7 @@ function observe(
   };
 }
 
-export function decideMergeGroup(observation: Observation, now: number) {
+function decideMergeGroup(observation: Observation, now: number) {
   const { run, observedAt, activeHeads, refMissing } = observation;
   if (
     !Number.isFinite(now) ||

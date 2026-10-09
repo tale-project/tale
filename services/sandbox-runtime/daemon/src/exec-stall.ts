@@ -34,7 +34,7 @@ import { tracked } from './process-reaper.ts';
 /** The stall window when `TALE_EXEC_STALL_MS` is unset. */
 export const DEFAULT_EXEC_STALL_MS = 45 * 60_000;
 /** The share of one CPU an exec must stay under, over the whole window. */
-export const STALL_CPU_SHARE = 0.01;
+const STALL_CPU_SHARE = 0.01;
 /** The longest pause between two samples of the process table. */
 const MAX_SAMPLE_MS = 60_000;
 /** How long one scan of the process table may take before its sample is

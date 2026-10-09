@@ -13,7 +13,6 @@ import {
 import type { NativeJob } from './ci-tail-policy';
 export {
   FINISH_SOURCE,
-  FINISH_PATHS,
   finishPaths,
   isFinishPath,
 } from './ci-merge-group-profiles';
