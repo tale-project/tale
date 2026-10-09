@@ -21,7 +21,10 @@ import { loadRelease } from '../config/releases/manifest';
 import { stageRelease } from '../config/releases/stage';
 import { fixture, temporary } from '../config/releases/tests/fixture';
 import { nativeServer } from '../config/releases/tests/native-fixture';
-import { ObservationPhaseError } from './observation-errors';
+import {
+  nativeObservationFailure,
+  ObservationPhaseError,
+} from './observation-errors';
 import { observeNativeDeployment } from './observation-native';
 import { nativeDeploymentStateDirectory } from './provision-state';
 const testPosix = test.skipIf(process.platform === 'win32');
@@ -209,7 +212,7 @@ testPosix(
 );
 
 testPosix.each([
-  ['receipt', 'nativeRetained'],
+  ['receipt', 'nativeReceipt'],
   ['artifact', 'nativeArtifacts'],
   ['authentication', 'nativeAuthentication'],
   ['verification', 'nativeVerification'],
@@ -390,5 +393,84 @@ testPosix(
       }),
     ).rejects.toThrow('authentication session cleanup could not be verified');
     expect(f.server.requests.every((call) => call.method === 'GET')).toBe(true);
+  },
+);
+
+testPosix.each([
+  ['state directory custody', 'nativeState'],
+  ['configuration journal syntax', 'nativeJournal'],
+  ['pending configuration journal', 'nativeJournal'],
+  ['client inventory link', 'nativeInventory'],
+  ['receipt inventory shape', 'nativeReceiptInventory'],
+  ['receipt custody', 'nativeReceipt'],
+  ['receipt syntax', 'nativeReceipt'],
+  ['receipt schema', 'nativeReceipt'],
+  ['receipt target identity', 'nativeReceiptTarget'],
+] as const)(
+  'retained %s refusal identifies its boundary before native HTTP',
+  async (fault, phase) => {
+    const f = await retained();
+    if (fault === 'state directory custody') chmodSync(f.stateDirectory, 0o755);
+    if (fault === 'configuration journal syntax')
+      writeFileSync(
+        join(f.stateDirectory, 'configuration.json'),
+        'synthetic-private-journal',
+        { mode: 0o600 },
+      );
+    if (fault === 'pending configuration journal')
+      writeFileSync(
+        join(f.stateDirectory, 'configuration.json'),
+        JSON.stringify({ phase: 'pending' }),
+        { mode: 0o600 },
+      );
+    if (fault === 'client inventory link')
+      symlinkSync(f.receiptFile, join(f.stateDirectory, 'client-link'));
+    if (fault === 'receipt inventory shape')
+      writeFileSync(
+        join(f.stateDirectory, 'north-labs', 'unexpected.txt'),
+        'synthetic-private-inventory',
+        { mode: 0o600 },
+      );
+    if (fault === 'receipt custody') chmodSync(f.receiptFile, 0o644);
+    if (fault === 'receipt syntax')
+      writeFileSync(f.receiptFile, 'synthetic-private-receipt');
+    if (fault === 'receipt schema')
+      writeFileSync(
+        f.receiptFile,
+        JSON.stringify({
+          ...f.receipt,
+          schemaVersion: 99,
+          private: 'synthetic-private-schema',
+        }),
+      );
+    if (fault === 'receipt target identity')
+      writeFileSync(
+        f.receiptFile,
+        JSON.stringify({
+          ...f.receipt,
+          target: { ...f.receipt.target, orgId: 'foreign-organization' },
+        }),
+      );
+    const before = snapshot(f.dataDirectory);
+    const error = await observeNativeDeployment(f.input, {
+      dataDirectory: f.dataDirectory,
+      fetch: f.fetcher,
+    }).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(ObservationPhaseError);
+    expect((error as ObservationPhaseError).phase).toBe(phase);
+    expect((error as ObservationPhaseError).info.code).toBe(3);
+    expect((error as ObservationPhaseError).info.cause).toBeUndefined();
+    expect(JSON.stringify(error)).not.toContain('synthetic-private');
+    expect(JSON.stringify(error)).not.toContain('synthetic-password');
+    expect(f.auth).toEqual([]);
+    expect(f.server.requests).toEqual([]);
+    expect(snapshot(f.dataDirectory)).toEqual(before);
+    expect(
+      nativeObservationFailure({
+        ok: false,
+        command: 'tale',
+        error: (error as ObservationPhaseError).info,
+      }),
+    ).toBeInstanceOf(ObservationPhaseError);
   },
 );

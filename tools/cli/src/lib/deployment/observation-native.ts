@@ -98,7 +98,7 @@ async function readNativeDeployment(
   const input = nativeObservationInputSchema.parse(raw);
   const now = dependencies.now ?? performance.now.bind(performance);
   const started = now();
-  phase('nativeRetained');
+  phase('nativeState');
   let state: string;
   try {
     state = nativeDeploymentStateDirectory(
@@ -112,6 +112,7 @@ async function readNativeDeployment(
     throw error;
   }
   const stateNames = directoryEntries(state).map((entry) => entry.name);
+  phase('nativeJournal');
   const configuration = readProvisionStateProof(
     join(state, 'configuration.json'),
     z.object({ phase: z.enum(['pending', 'ready']) }),
@@ -123,7 +124,9 @@ async function readNativeDeployment(
     );
   const records = [];
   const receiptInventories = new Map<string, string[]>();
+  phase('nativeInventory');
   for (const entry of directoryEntries(state)) {
+    phase('nativeInventory');
     if (entry.isSymbolicLink())
       throw preconditionError(
         'Retained native inventory contains a symbolic link.',
@@ -135,6 +138,7 @@ async function readNativeDeployment(
     )
       continue;
     slug.parse(entry.name);
+    phase('nativeReceiptInventory');
     const receiptDirectory = join(state, entry.name);
     const entries = directoryEntries(receiptDirectory);
     receiptInventories.set(
@@ -142,17 +146,20 @@ async function readNativeDeployment(
       entries.map((file) => file.name),
     );
     for (const file of entries) {
+      phase('nativeReceiptInventory');
       if (!file.isFile() || !file.name.endsWith('.json'))
         throw preconditionError(
           'Retained configuration inventory is ambiguous.',
         );
       const name = slug.parse(file.name.slice(0, -5));
       const path = join(state, entry.name, file.name);
+      phase('nativeReceipt');
       const proof = readProvisionStateProof(
         path,
         retainedReceiptSchema,
         262_144,
       );
+      phase('nativeReceiptTarget');
       if (
         !proof ||
         proof.value.target.automationName !== name ||
@@ -162,6 +169,7 @@ async function readNativeDeployment(
         throw preconditionError(
           'Retained configuration differs from the observed native target.',
         );
+      phase('nativeReceiptInventory');
       records.push({ client: entry.name, path, proof });
       if (records.length > 64)
         throw preconditionError(
