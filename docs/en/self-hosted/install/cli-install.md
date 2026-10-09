@@ -14,8 +14,8 @@ For your first instance, use the [quickstart](/self-hosted/install/quickstart). 
 You need:
 
 - A workstation running macOS, Linux, or Windows with PowerShell.
-- For local container operations: Docker with Compose and a running Docker daemon.
-- For a remote workspace: access to its Docker daemon, usually through an SSH Docker context. The remote operator must be able to run Docker.
+- For local container operations: Docker Engine 24.0 or later with Compose and a running Docker daemon. Tale’s images have zstd-compressed layers, which Docker pulls from Engine 23.0 on; `tale doctor` reports an older engine, and `tale dev` and `tale deploy` refuse it before downloading images.
+- For a remote workspace: access to its Docker daemon, running Docker Engine 24.0 or later, usually through an SSH Docker context. The remote operator must be able to run Docker.
 
 The bundled object store currently ships only a `linux/amd64` image. On an ARM64 host, local development and workspace deployment need working amd64 emulation: Docker Desktop includes it; a standalone Linux Docker host needs [QEMU registered on the host](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale selects the amd64 image but does not install emulation. Managed bundles still require native images for their declared architecture, so an ARM64 managed deployment must wait for a native object-store image.
 
@@ -99,12 +99,12 @@ Commands exit `0` on success, `2` on a usage error, `3` on an unmet precondition
 
 ### Setup
 
-`tale doctor` — inspect local startup prerequisites without creating a project, installing software or changing configuration. It checks the Docker daemon, Compose support and Linux-container mode, reports the daemon architecture and checks local ports. A remote Docker context skips local port checks. ARM64 and occupied-port warnings require review; an existing instance may already own a port.
+`tale doctor` — inspect local startup prerequisites without creating a project, installing software or changing configuration. It checks the Docker daemon, its Docker Engine version, Compose support and Linux-container mode, reports the daemon architecture and checks local ports. A remote Docker context skips local port checks. ARM64 and occupied-port warnings require review; an existing instance may already own a port.
 
 - `-p, --port <port>` — HTTPS port to check (default `443`); the sandbox port `8003` is also checked.
 - `--json` — emit the checks as machine-readable JSON.
 
-Docker, Compose, unsupported container-mode failures or selecting HTTPS port `8003` exit `3`. Warnings alone exit `0`; this does not verify image downloads, storage capacity or a model provider. Check a different port with `tale doctor --port 8443`, then use the same port with `tale dev`.
+Docker, Compose, Docker Engine version or unsupported container-mode failures or selecting HTTPS port `8003` exit `3`. Warnings alone exit `0`; this does not verify image downloads, storage capacity or a model provider. Check a different port with `tale doctor --port 8443`, then use the same port with `tale dev`.
 
 `tale init [directory]` — create a project: it scaffolds the example configs, `AGENTS.md` + a `CLAUDE.md` pointer, and a local-default `.env` (localhost, self-signed certificate, generated secrets). No Docker is needed, and the production domain and TLS are chosen later, at `tale deploy`. In a terminal it asks for a project name when `directory` is omitted, confirms before overwriting an existing project, and asks once whether agents may run `docker` inside sandboxes (default: no — enabling it runs a privileged inner Docker); non-interactive runs skip all prompts. `directory` is optional (default: the current directory).
 

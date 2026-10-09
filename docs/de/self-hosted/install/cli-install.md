@@ -14,8 +14,8 @@ Für deine erste Instanz nutze den [Schnellstart](/de/self-hosted/install/quicks
 Du brauchst:
 
 - Einen Rechner mit macOS, Linux oder Windows mit PowerShell.
-- Für lokale Container: Docker mit Compose und einen laufenden Docker-Daemon.
-- Für einen entfernten Workspace: Zugriff auf dessen Docker-Daemon, üblicherweise über einen SSH-Docker-Kontext. Der Benutzer auf dem Zielhost muss Docker ausführen dürfen.
+- Für lokale Container: Docker Engine 24.0 oder neuer mit Compose und einen laufenden Docker-Daemon. Die Schichten der Tale-Images sind mit zstd komprimiert, und Docker lädt solche Schichten ab Engine 23.0. `tale doctor` meldet eine ältere Engine; `tale dev` und `tale deploy` brechen dann ab, bevor sie Images herunterladen.
+- Für einen entfernten Workspace: Zugriff auf dessen Docker-Daemon mit Docker Engine 24.0 oder neuer, üblicherweise über einen SSH-Docker-Kontext. Der Benutzer auf dem Zielhost muss Docker ausführen dürfen.
 
 Den mitgelieferten Objektspeicher gibt es derzeit nur als `linux/amd64`-Image. Auf ARM64-Hosts brauchen lokale Entwicklung und Workspace-Deployments deshalb eine funktionierende amd64-Emulation: Docker Desktop bringt sie mit; auf einem eigenständigen Linux-Docker-Host muss [QEMU auf dem Host registriert sein](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale wählt das amd64-Image aus, installiert aber keine Emulation. Verwaltete Bundles benötigen weiterhin native Images für ihre deklarierte Architektur. Ein verwaltetes ARM64-Deployment ist daher erst mit einem nativen Objektspeicher-Image möglich.
 
@@ -99,12 +99,12 @@ Befehle beenden mit `0` bei Erfolg, `2` bei einem Nutzungsfehler, `3` bei einer 
 
 ### Einrichtung
 
-`tale doctor` — prüft die Voraussetzungen für einen lokalen Start, ohne ein Projekt anzulegen, Software zu installieren oder Konfiguration zu ändern. Der Befehl prüft Docker-Daemon, Compose-Unterstützung und Linux-Container-Modus, meldet die Daemon-Architektur und untersucht lokale Ports. Bei einem entfernten Docker-Kontext entfällt die lokale Portprüfung. Prüfe Warnungen zu ARM64 oder belegten Ports; eine bestehende Instanz kann den Port bereits verwenden.
+`tale doctor` — prüft die Voraussetzungen für einen lokalen Start, ohne ein Projekt anzulegen, Software zu installieren oder Konfiguration zu ändern. Der Befehl prüft Docker-Daemon, die Version der Docker Engine, Compose-Unterstützung und Linux-Container-Modus, meldet die Daemon-Architektur und untersucht lokale Ports. Bei einem entfernten Docker-Kontext entfällt die lokale Portprüfung. Prüfe Warnungen zu ARM64 oder belegten Ports; eine bestehende Instanz kann den Port bereits verwenden.
 
 - `-p, --port <port>` — zu prüfender HTTPS-Port (Standard `443`); Sandbox-Port `8003` wird ebenfalls geprüft.
 - `--json` — gibt die Prüfergebnisse als maschinenlesbares JSON aus.
 
-Fehler bei Docker, Compose, einem nicht unterstützten Container-Modus oder die Wahl von HTTPS-Port `8003` führen zum Exit-Code `3`. Warnungen allein ergeben `0`; Image-Downloads, Speicherkapazität und Modellanbieter sind damit nicht geprüft. Prüfe einen anderen Port mit `tale doctor --port 8443` und verwende denselben Port bei `tale dev`.
+Fehler bei Docker, Compose, einer Docker Engine älter als 24.0, einem nicht unterstützten Container-Modus oder die Wahl von HTTPS-Port `8003` führen zum Exit-Code `3`. Warnungen allein ergeben `0`; Image-Downloads, Speicherkapazität und Modellanbieter sind damit nicht geprüft. Prüfe einen anderen Port mit `tale doctor --port 8443` und verwende denselben Port bei `tale dev`.
 
 `tale init [directory]` — ein Projekt anlegen: erzeugt die Beispiel-Configs, `AGENTS.md` + einen `CLAUDE.md`-Verweis sowie eine lokale Standard-`.env` (localhost, selbstsigniertes Zertifikat, generierte Secrets). Docker braucht es nicht; Produktiv-Domain und TLS werden später bei `tale deploy` gewählt. Im Terminal fragt es nach einem Projektnamen, wenn `directory` fehlt, bestätigt vor dem Überschreiben eines bestehenden Projekts und fragt einmal, ob Agents in Sandboxes `docker` ausführen dürfen (Standard: nein — die Freigabe startet einen privilegierten inneren Docker); nicht-interaktive Läufe überspringen alle Rückfragen. `directory` ist optional (Standard: das aktuelle Verzeichnis).
 
