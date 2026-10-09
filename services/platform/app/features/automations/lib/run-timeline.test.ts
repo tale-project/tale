@@ -188,6 +188,30 @@ describe('realRunOf', () => {
     ]);
   });
 
+  it('plays a step a replay took from the run it replays as reused', () => {
+    const run = realRunOf(
+      record({
+        nodes: [
+          step('__start', { startedAt: 1000, endedAt: 1000 }),
+          step('fetch', {
+            status: 'reused',
+            reused: { runId: 'run-0' },
+            startedAt: 1005,
+            endedAt: 1005,
+          }),
+        ],
+        travels: [],
+      }),
+      graph,
+    );
+    expect(run.spans.at(-1)).toEqual({
+      nodeId: 'fetch',
+      startedAt: 1005,
+      endedAt: 1005,
+      outcome: 'reused',
+    });
+  });
+
   it('draws nothing for a step that has not started', () => {
     const run = realRunOf(
       record({

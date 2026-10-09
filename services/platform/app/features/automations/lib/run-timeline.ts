@@ -44,8 +44,10 @@ const FINISHED = new Set(['success', 'failed', 'cancelled']);
 function spanOutcome(step: RecordedStep): FlowRealSpan['outcome'] | undefined {
   switch (step.status) {
     case 'succeeded':
-    case 'reused':
       return 'succeeded';
+    case 'reused':
+      // Taken from the run it replays: drawn as such, its result delivered.
+      return 'reused';
     case 'failed':
       return 'failed';
     case 'skipped':
