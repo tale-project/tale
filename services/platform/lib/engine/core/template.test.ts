@@ -2,7 +2,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { nodeVmRunner } from '../runners/node-vm';
 import { setCodeRunner } from './runner';
-import { evalCondition, evalTemplates, ExprError, runCode } from './template';
+import {
+  evalCondition,
+  evalConditionTraced,
+  evalTemplates,
+  evalTemplateTraced,
+  ExprError,
+  runCode,
+} from './template';
 
 beforeEach(() => {
   setCodeRunner(nodeVmRunner());
@@ -175,5 +182,124 @@ describe('runCode (transform bodies)', () => {
     await expect(
       runCode('const x = 1;', { input: {} }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('a failure says why and where', () => {
+  const scope = {
+    input: { n: 7, list: [1] },
+    nodes: { fetch: { output: { items: null } } },
+  };
+
+  async function failureOf(run: () => Promise<unknown>) {
+    try {
+      await run();
+    } catch (error) {
+      if (error instanceof ExprError) return error.failure;
+      throw error;
+    }
+    throw new Error('expected a failure');
+  }
+
+  it('names the chain that held nothing, at the unit that read it', async () => {
+    const field = 'Count: {{ nodes.fetch.output.items.length }}';
+    expect(
+      await failureOf(() => evalTemplates(field, scope, '/nodes/1/prompt')),
+    ).toEqual({
+      reason: 'EXPR_READ_MISSING',
+      params: {
+        field: 'prompt',
+        expr: 'nodes.fetch.output.items.length',
+        key: 'length',
+        base: 'null',
+        chain: 'nodes.fetch.output.items',
+        source: 'fetch',
+      },
+      at: { pointer: '/nodes/1/prompt', range: [10, 41] },
+    });
+  });
+
+  it('extends the pointer into a mapping', async () => {
+    const failure = await failureOf(() =>
+      evalTemplates({ q: ['x', '{{ nope }}'] }, scope, '/nodes/0/input'),
+    );
+    expect(failure?.reason).toBe('EXPR_NAME_UNKNOWN');
+    expect(failure?.at).toEqual({
+      pointer: '/nodes/0/input/q/1',
+      range: [3, 7],
+    });
+  });
+
+  it('says a value interpolated into text was missing', async () => {
+    expect(
+      await failureOf(() =>
+        evalTemplates('n={{ input.gone }}', scope, '/output/text'),
+      ),
+    ).toEqual({
+      reason: 'TEMPLATE_VALUE_MISSING',
+      params: { field: 'output.text', expr: 'input.gone', base: 'undefined' },
+      at: { pointer: '/output/text', range: [5, 15] },
+    });
+  });
+
+  it('places a bare condition by its text, whitespace aside', async () => {
+    const failure = await failureOf(() =>
+      evalCondition('  nope > 1 ', scope, '/nodes/2/when'),
+    );
+    expect(failure?.at).toEqual({ pointer: '/nodes/2/when', range: [2, 10] });
+  });
+
+  it('keeps the message it always had', async () => {
+    await expect(
+      evalTemplates('n={{ input.gone }}', scope, '/output/text'),
+    ).rejects.toThrow(/^template \{\{ input\.gone \}\} evaluated to undefined/);
+  });
+
+  it('reads a transform that threw', async () => {
+    expect(
+      await failureOf(() =>
+        runCode('throw new TypeError("no")', scope, 1000, '/nodes/3/code'),
+      ),
+    ).toMatchObject({
+      reason: 'CODE_FAILED',
+      params: { detail: expect.stringContaining('no') },
+      at: { pointer: '/nodes/3/code' },
+    });
+  });
+});
+
+describe('traced evaluation', () => {
+  const scope = { input: { n: 7 } };
+
+  it('answers the value evalCondition answers, with one unit per expression', async () => {
+    await expect(
+      evalConditionTraced(' input.n > 5 ', scope, '/nodes/0/when'),
+    ).resolves.toEqual({
+      value: true,
+      trace: {
+        pointer: '/nodes/0/when',
+        units: [{ range: [1, 12], probes: [], probed: 'none' }],
+      },
+    });
+    const forEach = await evalTemplateTraced(
+      '{{ [input.n, 1] }}',
+      scope,
+      '/nodes/0/forEach',
+    );
+    expect(forEach.value).toEqual([7, 1]);
+    expect(forEach.trace.units.map((u) => u.range)).toEqual([[3, 15]]);
+  });
+
+  it('throws when the plain evaluation would, carrying the trace', async () => {
+    const error = await evalConditionTraced(
+      '{{ input.n }} and {{ input.x.y }}',
+      scope,
+      '/nodes/0/when',
+    ).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ExprError);
+    const failure = (error as ExprError).failure;
+    expect(failure?.trace?.units).toHaveLength(2);
+    expect(failure?.trace?.units[1]?.error?.message).toMatch(/reading 'y'/);
+    expect(failure?.trace?.units[0]?.error).toBeUndefined();
   });
 });
