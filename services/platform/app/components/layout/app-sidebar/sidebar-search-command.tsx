@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, type ComponentType } from 'react';
 import { taskStatusIcon } from '@/app/features/tasks/components/task-status-glyph';
 import { TASK_VIEW_ROUTES, type TaskView } from '@/app/features/tasks/lib/view';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useAuth } from '@/app/hooks/use-session-user';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -159,6 +160,15 @@ export function SidebarSearchCommand({
   const location = useLocation();
   const isMac = useIsMac();
   const ability = useAbility();
+  const { user } = useAuth();
+  const historyIdentity = JSON.stringify([
+    organizationId,
+    user?.userId ?? null,
+  ]);
+  const recentsStorageKey =
+    organizationId && user?.userId
+      ? `tale.platform.search.recentSearches.v2:${JSON.stringify([organizationId, user.userId, searchScope])}`
+      : undefined;
   const { t: tDialogs } = useT('dialogs');
   const { t: tChat } = useT('chat');
 
@@ -290,16 +300,13 @@ export function SidebarSearchCommand({
 
   return (
     <SearchCommand
+      resetKey={historyIdentity}
       open={isSearchOpen}
       onOpenChange={setSearchOpen}
       source={searchSource}
       labels={searchLabels}
       getGroupLabel={getGroupLabel}
-      recentsStorageKey={
-        chatsOnly
-          ? 'tale.platform.chat.searchPalette.recentSearches.v1'
-          : 'tale.platform.search.recentSearches.v1'
-      }
+      recentsStorageKey={recentsStorageKey}
       minQueryLength={2}
       onSelect={handleSelect}
       resultIcon={platformResultIcon}
