@@ -59,6 +59,14 @@ proof through `tools/cli/scripts/check-deployment-acceptance.ts` against its
 normally migrated database fixture. Fresh production acceptance remains a
 deployment observation, separate from these tests.
 
+The maintained deployment observer has host/native transport, ownership, file
+custody and SQL boundary regressions in `tools/cli/src/lib/deployment/observation*.test.ts`
+and command/private-input coverage in `tools/cli/tests/observation.test.ts` and
+`tools/cli/src/commands/deploy/observe.test.ts`. They prove retained-byte verification,
+GET-only configuration access, existing-session cleanup, partial evidence on missing
+custody/ownership, exact local target binding and scoped temporary-tool cleanup.
+Production observations and Ready acceptance remain separate deployment evidence.
+
 Bun Docker builders, runtimes and the React service generator match the pinned
 workspace/CI version with immutable image digests. All production client builds
 share an awaited Vite helper; real subprocess fixtures prove service cwd, delayed
