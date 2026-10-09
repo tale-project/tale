@@ -332,16 +332,20 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     const head = rows[0];
     if (head === undefined) return;
     const floor = head.id - LATE_COMMIT_EMPTY_START_IDS - 1n;
+    const start = from > 0n || floor < 0n ? from : floor;
     const now = Date.now();
-    let expected = (from > 0n || floor < 0n ? from : floor) + 1n;
-    for (const row of rows) {
+    // Newest gaps first, each from its top down: a transaction still in
+    // flight took its id recently, so of more holes than the budget the
+    // oldest are the ones left out.
+    for (let index = rows.length - 1; index >= 0; index -= 1) {
+      const row = rows[index];
+      if (row === undefined) continue;
+      const below = index === 0 ? start : (rows[index - 1]?.id ?? start);
       const budget = BigInt(LATE_COMMIT_MAX_TRACKED - skipped.size);
       if (budget <= 0n) return;
-      // Of a jump bigger than the budget, keep the newest ids: a
-      // transaction still in flight took its id recently.
-      const first = row.id - expected > budget ? row.id - budget : expected;
+      const first =
+        row.id - (below + 1n) > budget ? row.id - budget : below + 1n;
       for (let id = first; id < row.id; id += 1n) skipped.set(id, now);
-      expected = row.id + 1n;
     }
   }
 
