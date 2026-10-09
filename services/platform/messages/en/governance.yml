@@ -1152,6 +1152,8 @@ legalHold:
       empty:
         title: No matters
         description: Create a matter to group holds by case number or eDiscovery scope.
+      loadFailed: Couldn't load the matters.
+      refreshFailed: Couldn't load the latest matters. What's listed may be out of date.
     history:
       title: Release history
       entityLabel: releases

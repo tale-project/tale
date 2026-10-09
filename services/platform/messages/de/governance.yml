@@ -1194,6 +1194,8 @@ legalHold:
         title: Keine Fälle
         description: Lege einen Fall an, um Holds nach Aktenzeichen oder
           eDiscovery-Umfang zu gruppieren.
+      loadFailed: Die Fälle konnten nicht geladen werden.
+      refreshFailed: Die neuesten Fälle konnten nicht geladen werden. Die Liste ist womöglich veraltet.
     history:
       title: Freigabeverlauf
       entityLabel: Freigaben
