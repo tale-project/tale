@@ -1594,7 +1594,6 @@ dataSubjectRequests:
     subscriptions: Tâches suivies
     feedback: Retours sur messages
     memories: Mémoires personnelles
-    modelApiRequests: Requêtes aux endpoints de modèles
     directCalls: Appels directs aux modèles
     videoLinks: Liens vidéo
     cloudGrants: "Autorisations d'importation cloud"
@@ -1604,6 +1603,7 @@ dataSubjectRequests:
     automationRuns: "Exécutions d'automatisation"
     agentRuns: "Exécutions d'agents"
     reviewDecisions: Décisions de relecture
+    mentions: Mentions dans le texte des tâches
     authState: Tentatives de connexion et de double authentification
     auditScrub: "Entrées du journal d'audit"
   legalHoldBlock:

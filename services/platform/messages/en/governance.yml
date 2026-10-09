@@ -1499,7 +1499,6 @@ dataSubjectRequests:
     subscriptions: Followed tasks
     feedback: Message feedback
     memories: Personal memories
-    modelApiRequests: Model endpoint requests
     directCalls: Direct model calls
     videoLinks: Video links
     cloudGrants: Cloud import authorizations
@@ -1509,6 +1508,7 @@ dataSubjectRequests:
     automationRuns: Automation runs
     agentRuns: Agent runs
     reviewDecisions: Review decisions
+    mentions: Mentions of them in task text
     authState: Sign-in and two-factor attempts
     auditScrub: Audit log entries
   legalHoldBlock:

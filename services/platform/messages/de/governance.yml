@@ -1553,7 +1553,6 @@ dataSubjectRequests:
     subscriptions: Gefolgte Aufgaben
     feedback: Nachrichten-Feedback
     memories: Persönliche Memos
-    modelApiRequests: Anfragen an die Modell-Endpunkte
     directCalls: Direkte Modellaufrufe
     videoLinks: Videolinks
     cloudGrants: Cloud-Import-Autorisierungen
@@ -1563,6 +1562,7 @@ dataSubjectRequests:
     automationRuns: Automatisierungsläufe
     agentRuns: Agentenläufe
     reviewDecisions: Prüfentscheidungen
+    mentions: Erwähnungen in Aufgabentexten
     authState: Anmelde- und Zwei-Faktor-Versuche
     auditScrub: Audit-Log-Einträge
   legalHoldBlock:
