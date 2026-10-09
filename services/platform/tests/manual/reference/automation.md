@@ -162,6 +162,8 @@ in EN/DE/FR that clear after correction:
 covers the component boundary and axe audit; real API persistence and browser
 layout remain manual.
 
+Project breadcrumb keeps the current project name and offers a localized Retry action when the project list read fails; retry recovery restores switching. `app/features/projects/components/project-breadcrumb-switcher.test.tsx` owns failure, retry, and recovery coverage.
+
 Website status sync records the five-minute throttle only after success. Failed
 syncs retry on remount, clear expired timestamps and expose an accessible Retry
 alert that stays visible during retry and clears on success. Organization-scoped
