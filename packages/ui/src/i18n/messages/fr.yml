@@ -645,6 +645,21 @@ codeDiff:
   loadFailed: La comparaison n'a pas pu être chargée.
   showRemaining: '{count, plural, one {Afficher la modification restante} many {Afficher les # modifications restantes} other {Afficher les # modifications restantes}}'
 
+changeList:
+  kind:
+    added: Ajouté
+    removed: Supprimé
+    changed: Modifié
+    renamed: Renommé
+  count:
+    added: '{count, plural, one {# ajouté} many {# ajoutés} other {# ajoutés}}'
+    removed: '{count, plural, one {# supprimé} many {# supprimés} other {# supprimés}}'
+    changed: '{count, plural, one {# modifié} many {# modifiés} other {# modifiés}}'
+    renamed: '{count, plural, one {# renommé} many {# renommés} other {# renommés}}'
+  before: Avant
+  after: Après
+  empty: Aucune modification
+
 flow:
   canvas:
     roleDescription: diagramme de flux

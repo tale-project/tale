@@ -645,6 +645,21 @@ codeDiff:
   loadFailed: The comparison didn't load.
   showRemaining: '{count, plural, one {Show the remaining change} other {Show the remaining # changes}}'
 
+changeList:
+  kind:
+    added: Added
+    removed: Removed
+    changed: Changed
+    renamed: Renamed
+  count:
+    added: '{count, plural, one {# added} other {# added}}'
+    removed: '{count, plural, one {# removed} other {# removed}}'
+    changed: '{count, plural, one {# changed} other {# changed}}'
+    renamed: '{count, plural, one {# renamed} other {# renamed}}'
+  before: Before
+  after: After
+  empty: No changes
+
 flow:
   canvas:
     roleDescription: flow chart

@@ -42,6 +42,7 @@
     "./catalog/catalog-view": "./src/components/catalog/catalog-view.tsx",
     "./catalog/config-icon": "./src/components/catalog/config-icon.tsx",
     "./catalog/use-catalog-search": "./src/components/catalog/use-catalog-search.ts",
+    "./change-list": "./src/components/data-display/change-list.tsx",
     "./chart-card": "./src/components/data-display/chart-card.tsx",
     "./chart-legend": "./src/components/data-display/chart-legend.tsx",
     "./chart-theme": "./src/lib/chart-theme.ts",

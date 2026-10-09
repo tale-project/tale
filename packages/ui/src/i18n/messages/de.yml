@@ -645,6 +645,21 @@ codeDiff:
   loadFailed: Der Vergleich konnte nicht geladen werden.
   showRemaining: '{count, plural, one {Restliche Änderung anzeigen} other {Restliche # Änderungen anzeigen}}'
 
+changeList:
+  kind:
+    added: Neu
+    removed: Entfernt
+    changed: Geändert
+    renamed: Umbenannt
+  count:
+    added: '{count, plural, one {# neu} other {# neu}}'
+    removed: '{count, plural, one {# entfernt} other {# entfernt}}'
+    changed: '{count, plural, one {# geändert} other {# geändert}}'
+    renamed: '{count, plural, one {# umbenannt} other {# umbenannt}}'
+  before: Vorher
+  after: Nachher
+  empty: Keine Änderungen
+
 flow:
   canvas:
     roleDescription: Ablaufdiagramm
