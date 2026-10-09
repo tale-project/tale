@@ -1074,6 +1074,16 @@ export function harnessOutputTail(stderr: string): string {
     : plain;
 }
 
+/** The exec result code the sandbox ends a hung exec with: it printed
+ * nothing and its processes used under 1% of one CPU for the whole stall
+ * window (`services/sandbox/src/wire.ts`). */
+const EXEC_STALLED_CODE = 'EXEC_STALLED';
+
+/** The reason a turn settles failed with when the sandbox ended its harness
+ * as stalled. */
+export const STALLED_TURN_REASON =
+  "The agent stopped making progress: it printed nothing and used almost no CPU for the sandbox's stall window (45 minutes unless the operator changed it), so the sandbox ended it.";
+
 /** The reason a turn settles failed with when its model answered nothing. */
 export const EMPTY_ANSWER_REASON =
   'The model returned an empty answer, so the agent did nothing this turn.';
@@ -1222,4 +1232,30 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
     return { errored: true, reason: EMPTY_ANSWER_REASON, emptyAnswer: true };
   }
   return { errored: false, emptyAnswer: false };
+}
+
+/**
+ * Whether the sandbox, not the harness, ended a terminal window's exec, with
+ * the reason such a turn settles with. Read beside {@link classifyHarnessEnd},
+ * whose crash reading it refines: `stalled` when runnerd ended the exec
+ * because it printed nothing and its processes used under 1% of one CPU for
+ * the whole stall window (`EXEC_STALLED`). A hang an immediate retry would
+ * most likely meet again, so each host settles it with a code of its own.
+ * Nothing while the exec still runs, and nothing when the harness ended its
+ * turn itself: its own end stands.
+ */
+export function sandboxEndOf(
+  window: HarnessEndWindow,
+): { failure: 'stalled'; reason: string } | undefined {
+  if (window.ended !== undefined || !window.exited) return undefined;
+  if (window.execResult?.errorCode !== EXEC_STALLED_CODE) return undefined;
+  // What it printed last is what it hung on.
+  const tail = window.stderrTail ?? '';
+  return {
+    failure: 'stalled',
+    reason:
+      tail !== ''
+        ? `${STALLED_TURN_REASON} Last output: ${tail}`
+        : STALLED_TURN_REASON,
+  };
 }

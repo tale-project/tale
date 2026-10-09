@@ -582,7 +582,12 @@
       "sourcePath": "services/platform/backend/core/automations/agent_retry.ts",
       "names": ["retryResumePrompt"],
       "blob": "7cf30af93a5ae880097e3ba4a520a28f2a190ea8",
-      "sha256": "4bb621f67e3d41a95fe4a7d471080e75d34167541a45f272d155bdbb54d0656f"
+      "sections": [
+        {
+          "name": "retryResumePrompt",
+          "sha256": "0366a702cdb5874fc86e1d8149ea97be91020d6deb3a75997b4ed532004d274c"
+        }
+      ]
     },
     {
       "sourcePath": "services/platform/backend/core/automations/ask_answer_carryover.ts",

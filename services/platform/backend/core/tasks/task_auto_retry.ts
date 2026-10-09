@@ -36,6 +36,12 @@ export type TaskRunFailureCode =
    * waits briefly, still counts, and keeps the prior account eligible. */
   | 'model_capacity'
   | 'turn_crashed'
+  /** The sandbox ended the harness because it stalled: it printed nothing
+   * and used almost no CPU for the sandbox's stall window (45 minutes by
+   * default). A hang, not a crash — a retry at once would most likely hang
+   * the same way and hold a worker for another window, so none follows; a
+   * person decides whether to start the agent again. */
+  | 'turn_stalled'
   | 'session_gone'
   | 'start_failed'
   | 'harvest_failed'
@@ -77,13 +83,15 @@ export type TaskRunFailureCode =
   | 'credential_cooldown';
 
 /** Failures where a retry is pure waste: the run burned its 12h window
- * (either executing or parked), or the agent configuration itself is gone.
+ * (either executing or parked), its harness hung until the sandbox ended it,
+ * or the agent configuration itself is gone.
  * Everything else — provider errors, crashes, vanished sessions, harvest
  * hiccups — retries by DEFAULT, including an absent code, so a future
  * failure producer inherits the retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
   'park_deadline',
+  'turn_stalled',
   'agent_deleted',
   'agent_model_missing',
   'equipment_missing',

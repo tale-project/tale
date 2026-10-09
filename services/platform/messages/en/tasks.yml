@@ -123,6 +123,7 @@ agentRun:
     model: The AI model behind this agent failed before the work was done. Start the agent again — if it fails again, ask an Admin to check the AI provider.
     start: The run couldn't start. Try again — if it fails again, show an Admin what the run reported under Details.
     interrupted: The run was interrupted before the agent finished. Start the agent again.
+    stalled: The agent stopped responding — it printed nothing and did almost no work for a long time — so its sandbox stopped it. Start the agent again; if it stops again, show an Admin what the run reported under Details.
     unknown: The run failed. Start the agent again — if it fails again, show an Admin what the run reported under Details.
   standardAgent:
     switchedOff: The organization's standard agent is switched off. Ask an Admin to switch it on under Governance.
