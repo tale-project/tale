@@ -85,7 +85,7 @@ describe('releaseProjectAgentSessionSlot', () => {
     expect(update?.values).toEqual(['agent-1', 'org-1']);
   });
 
-  it("stops a worker once its own run ended, whatever the agent's other workers do [SBX-R18]", async () => {
+  it("stops a worker once its own run ended, whatever the agent's other workers do [SBX-R19]", async () => {
     const { sql, statements } = fakeSql([{ id: 'row-1' }]);
 
     await releaseProjectAgentSessionSlot(sql, ARGS);

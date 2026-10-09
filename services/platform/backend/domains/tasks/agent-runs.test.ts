@@ -1419,7 +1419,7 @@ describe('what every read shows of a waiting run [TASK-R25]', () => {
   });
 });
 
-describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own family [SBX-R18]', () => {
+describe('wakeAgentParkedAgentRun — a worker that stays up wakes its own family [SBX-R19]', () => {
   const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
   const CANDIDATES =
     'SELECT id, session_id AS "sessionId" FROM app.project_agent_runs';

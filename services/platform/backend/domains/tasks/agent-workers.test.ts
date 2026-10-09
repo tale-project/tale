@@ -90,20 +90,20 @@ describe('which worker a run starts in', () => {
     ).toEqual({ sessionId: w(1), worker: 1 });
   });
 
-  it('takes a stopped worker before it opens a new one [SBX-R19]', () => {
+  it('takes a stopped worker before it opens a new one [SBX-R20]', () => {
     // Workers 1 and 2 are stopped: the run works in worker 1, no worker 3.
     expect(
       chooseWorker(facts({ workers: [worker(2), worker(1)], room: 2 })),
     ).toEqual({ sessionId: w(1), worker: 1 });
   });
 
-  it('takes a worker that is still up before a stopped one [SBX-R19]', () => {
+  it('takes a worker that is still up before a stopped one [SBX-R20]', () => {
     expect(
       chooseWorker(facts({ workers: [worker(1), worker(2, { warm: true })] })),
     ).toEqual({ sessionId: w(2), worker: 2 });
   });
 
-  it('opens the lowest free number, worker 1 again once it is gone [SBX-R19]', () => {
+  it('opens the lowest free number, worker 1 again once it is gone [SBX-R20]', () => {
     expect(chooseWorker(facts({ workers: [] }))).toEqual({
       sessionId: w(1),
       worker: 1,
@@ -118,13 +118,13 @@ describe('which worker a run starts in', () => {
     ).toEqual({ sessionId: w(2), worker: 2 });
   });
 
-  it('waits for a Destroy rather than opening a worker beside it [SBX-R19]', () => {
+  it('waits for a Destroy rather than opening a worker beside it [SBX-R20]', () => {
     expect(
       chooseWorker(facts({ workers: [worker(1, { destroyPending: true })] })),
     ).toEqual({ wait: 'destroy_pending' });
   });
 
-  it('opens and wakes no worker the organization has no slot for [SBX-R17]', () => {
+  it('opens and wakes no worker the organization has no slot for [SBX-R18]', () => {
     // Every slot is held: a stopped worker would need one, a new one too.
     expect(
       chooseWorker(
@@ -170,7 +170,7 @@ describe('which worker a run starts in', () => {
     ).toEqual({ sessionId: w(3), worker: 3 });
   });
 
-  it("names a member's workers within the member's family [SBX-R20]", () => {
+  it("names a member's workers within the member's family [SBX-R21]", () => {
     const base = memberWorkerSessionId(AGENT, 'user-mia', 1);
     expect(
       chooseWorker(
@@ -395,7 +395,7 @@ describe('claiming a worker', () => {
     );
   });
 
-  it("moves a run whose starter lost the editor role into the member's family [SBX-R20]", async () => {
+  it("moves a run whose starter lost the editor role into the member's family [SBX-R21]", async () => {
     const member = memberWorkerSessionId(AGENT, 'user-ada', 1);
     vi.mocked(sessionIdForAgentRun).mockResolvedValue(member);
     const { sql } = claimSql({
@@ -408,7 +408,7 @@ describe('claiming a worker', () => {
     });
   });
 
-  it('never moves a member run into the standing family [SBX-R20]', async () => {
+  it('never moves a member run into the standing family [SBX-R21]', async () => {
     const member = memberWorkerSessionId(AGENT, 'user-mia', 1);
     const { sql } = claimSql({
       run: { sessionId: member },
@@ -466,7 +466,7 @@ describe('a start that has not waited and a run woken for room [TASK-R25]', () =
     );
   });
 
-  it('still takes a worker that is up, which needs no room [SBX-R19]', async () => {
+  it('still takes a worker that is up, which needs no room [SBX-R20]', async () => {
     const { sql } = claimSql({
       family: [{ sessionId: w(1), status: 'active', pinned: false }],
       inFlight: 1,

@@ -128,7 +128,7 @@ limit, because what frees is an empty workspace, not room.
 Every run of a project agent that works at the same time as another works in a sandbox of its
 own, a worker. One agent working three tasks at once has three workers.
 
-### SBX-R17 · Every agent worker is one sandbox and holds one agent-worker slot
+### SBX-R18 · Every agent worker is one sandbox and holds one agent-worker slot
 
 The limit of agent workers counts workers, not agents: one agent working three tasks at once
 holds three slots. A run that would need one more worker than the limit allows waits for a
@@ -137,7 +137,7 @@ slot; a burst of starts opens no more workers than there are slots left.
 - **Example**: Ada's organization allows 2 agent workers. Scribe works two tasks → 2 of 2 are
   in use. Lector is started on a task → its run waits until one of Scribe's workers frees.
 
-### SBX-R18 · A worker gives its slot back as soon as its own run ends
+### SBX-R19 · A worker gives its slot back as soon as its own run ends
 
 A worker stops and frees its slot once no run of its own is left: none working in it, and none
 that has taken it and not started yet. The agent's other workers do not keep it up. A pinned
@@ -148,7 +148,7 @@ until that process has ended.
   another. "Release notes" finishes → its worker stops and its slot is free at once, while
   "Changelog" keeps working.
 
-### SBX-R19 · A run takes a free worker before a new one is opened
+### SBX-R20 · A run takes a free worker before a new one is opened
 
 A starting run takes, in order: its task's previous worker, a worker that is still up, a
 stopped worker (lowest number first), and only then a new one. When the only free worker is
@@ -158,7 +158,7 @@ it.
 - **Example**: Scribe's workers 1 and 2 are stopped. Ada starts Scribe on a new task → it
   works in worker 1, and no worker 3 is created.
 
-### SBX-R20 · A member's runs work in that member's own workers
+### SBX-R21 · A member's runs work in that member's own workers
 
 The runs a member starts work in workers kept for that member and the agent, apart from the
 workers of the runs editors start, and stay limited to their own task (`SBX-R7`) in whichever

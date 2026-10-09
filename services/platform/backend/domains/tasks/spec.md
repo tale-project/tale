@@ -308,7 +308,7 @@ on its day, also after it is moved.
 ## One agent on several tasks
 
 An agent is a configuration; each of its runs works in a worker, a sandbox of its own. The
-organization's limit of agent workers (`SBX-R17`) decides how many work at once.
+organization's limit of agent workers (`SBX-R18`) decides how many work at once.
 
 ### TASK-R24 · An agent works each of its running tasks in a worker of its own
 
