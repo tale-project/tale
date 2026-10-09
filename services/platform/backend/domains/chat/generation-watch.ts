@@ -39,6 +39,14 @@ import {
 const NAMED_READ_LIMIT = 500;
 /** The writer key of a progress snapshot: an unsent one is replaced. */
 const PROGRESS_FRAME = 'progress';
+/**
+ * Characters a progress lane may have queued before it is treated as gone.
+ * A snapshot replaces the one a tab has not taken, so a lane holds a few
+ * frames at most (one being sent, one waiting, the settled row); the
+ * ceiling only has to clear a few of the largest, which with a long
+ * agentic turn's parts pass a megabyte each.
+ */
+const PROGRESS_MAX_PENDING_BYTES = 16 * 1024 * 1024;
 
 export interface GenerationWatchOptions {
   pollIntervalMs: number;
@@ -77,6 +85,8 @@ interface ThreadSubscriber extends FanoutStream {
   lastSeenUpdate: number;
   /** The parts this tab was last sent (identity of `ThreadWatch.partsJson`). */
   lastPartsJson: string | null;
+  /** Whether the newest progress frame queued for this tab carries parts. */
+  progressCarriesParts: boolean;
   /** Whether this tab has seen the current turn (owes it a `settled`). */
   generating: boolean;
   finish: () => void;
@@ -170,19 +180,21 @@ export function createGenerationWatch(
         // that fell behind holds one snapshot, not every tick it missed.
         // Parts ride along only when they CHANGED for this tab (a tool
         // result can be large, a RAG page, and text ticks four times a
-        // second) — or when the frame replaces one that may have carried
-        // them.
+        // second) — or when the frame replaces one that carried them.
         if (
           watch.partsJson !== null &&
           (watch.partsJson !== subscriber.lastPartsJson ||
-            subscriber.writer.unsent(PROGRESS_FRAME))
+            (subscriber.progressCarriesParts &&
+              subscriber.writer.unsent(PROGRESS_FRAME)))
         ) {
           subscriber.lastPartsJson = watch.partsJson;
+          subscriber.progressCarriesParts = true;
           sharedWithParts ??= progressFrame(watch, true);
           subscriber.writer.write(sharedWithParts, {
             replaces: PROGRESS_FRAME,
           });
         } else {
+          subscriber.progressCarriesParts = false;
           shared ??= progressFrame(watch, false);
           subscriber.writer.write(shared, { replaces: PROGRESS_FRAME });
         }
@@ -191,6 +203,7 @@ export function createGenerationWatch(
         subscriber.generating = false;
         subscriber.lastSeenUpdate = 0;
         subscriber.lastPartsJson = null;
+        subscriber.progressCarriesParts = false;
         subscriber.writer.write(settledFrame);
       }
     }
@@ -442,6 +455,7 @@ export function createGenerationWatch(
         };
         const writer = createStreamWriter(state, {
           maxPendingWrites: options.maxPendingWrites,
+          maxPendingBytes: PROGRESS_MAX_PENDING_BYTES,
           onOverflow: () => {
             console.warn(
               '[chat] a progress lane stopped reading; ending it so it reconnects',
@@ -454,6 +468,7 @@ export function createGenerationWatch(
           watch: owned,
           lastSeenUpdate: 0,
           lastPartsJson: null,
+          progressCarriesParts: false,
           generating: false,
           writer,
           finish: () => {

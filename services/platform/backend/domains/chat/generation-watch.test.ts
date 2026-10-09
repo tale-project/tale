@@ -284,6 +284,34 @@ describe('the shared generation watch', () => {
     await tab.close();
   });
 
+  test('a tab that falls behind on text alone is not sent the parts again', async () => {
+    const { world, sql } = chatWorld();
+    const { app } = appFor(sql);
+    world.start('t8', 'o1', 'm8');
+    world.write('t8', 'A', [{ type: 'tool-call', toolName: 'rag_search' }]);
+    // The first snapshot, parts and all, is handed over; then nobody reads
+    // while the text alone moves on.
+    const response = await app.request('/stream/o1/t8');
+    for (const text of ['AB', 'ABC', 'ABCD']) {
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      world.write('t8', text);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const tab = collect(response);
+    expect(await tab.until((read) => read.includes('"text":"ABCD"'))).toBe(
+      true,
+    );
+    const progress = events(tab.text, 'progress') as {
+      text: string;
+      parts?: unknown[];
+    }[];
+    expect(progress[0]?.parts).toEqual([
+      { type: 'tool-call', toolName: 'rag_search' },
+    ]);
+    expect(progress.at(-1)?.parts).toBeUndefined();
+    await tab.close();
+  });
+
   test('a tab that arrives mid-turn is shown the turn and its parts at once', async () => {
     const { world, sql } = chatWorld();
     const { app } = appFor(sql);
