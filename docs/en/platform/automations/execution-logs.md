@@ -66,7 +66,7 @@ For example, a reminder node may receive a customer name but an empty invoice ID
 
 The bar under the run’s canvas plays the run back: each step lights up while it works, values travel along the lines to the steps that read them, and each condition shows its decision. It opens on the run’s end, so you see the whole story first. **Play** runs it from the start, **Previous event** and **Next event** step through it, and the slider moves to any moment; the clock shows how long the run had really been going, and the speed changes how fast it plays. Long waits are shortened so they do not stall the replay. While a run is still going, the bar follows it; after you move back, **Follow live** returns to its end.
 
-**Steps**, beside **Chart**, lists the same run as its steps in time order: how long each worked, a bar for when it worked, each condition with its decision, and waits and restarts. It plays on the same clock. Choosing a step opens it and moves the clock to where it started, and **Chart** shows the canvas at that moment.
+**Steps**, beside **Chart**, lists the same run as its steps in time order: how long each worked, a bar for when it worked, each condition with its decision, and waits and restarts. It plays on the same clock. Choosing a step opens it and moves the clock to where it started, and **Chart** shows the canvas at that moment. A step that ran once per item or repeated opens to its items or passes, each with how it ended and how long it worked, and choosing one opens it in the step’s **Last run** tab. The page’s address keeps the view (`?view=steps`), the step and the item you chose, so a link or a reload opens the run where you left it.
 
 ## Run it again {#run-again}
 
