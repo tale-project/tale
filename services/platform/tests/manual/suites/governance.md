@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 92 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 93 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -726,6 +726,13 @@ agent.
   receipt lists **Sandbox workspaces**
   (`governance.dataSubjectRequests.categories.sandboxWorkspaces`) with `1`,
   and the member's workspace is gone from Sandboxes.
+- [ ] `GOV-F63` · **A receipt names every category** — after an erasure
+  (`GOV-F8`), open its receipt's **Full breakdown across all data
+  categories** (`governance.dataSubjectRequests.drawer.fullBreakdownTitle`)
+  → every row
+  reads a name — **Chats**, **Agent runs**, **Audit log entries** and the
+  rest (`governance.dataSubjectRequests.categories.*`) — never a bare pass
+  name such as `agentRuns`; German and French too.
 - [ ] `GOV-F50` · **The standard agent is on, and automatic** — On
   `content-models` in a fresh organization, find **Standard agent**
   (`governance.standardAgent.title`) → its switch

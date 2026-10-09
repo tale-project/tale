@@ -1481,17 +1481,36 @@ dataSubjectRequests:
     userPreferences: User preferences
     messageFeedback: Message feedback
     fileMetadata: Chat-uploaded files
-    usageLedger: Token usage ledger
+    usageLedger: Usage records
     twoFactorAttempts: Two-factor attempts
     policyAcknowledgements: Policy acknowledgements
     onedrive: OneDrive sync configs
     googleDriveSync: Google Drive sync configs
     userCloudAuthorizations: Cloud import authorizations
     loginAttempts: Login attempts and lockouts
-    notifications: Security notifications
+    notifications: Notifications
     wfExecutions: Automation runs
     promptTemplates: Personal prompts
     sandboxWorkspaces: Sandbox workspaces
+    threads: Chats
+    documents: Documents
+    uploads: Uploaded files
+    preferences: Preferences
+    subscriptions: Followed tasks
+    feedback: Message feedback
+    memories: Personal memories
+    directCalls: Direct model calls
+    videoLinks: Video links
+    cloudGrants: Cloud import authorizations
+    syncConfigs: Cloud sync configurations
+    websiteScanNotes: Website scans they asked for
+    orgNotifications: Security notifications about them
+    automationRuns: Automation runs
+    agentRuns: Agent runs
+    reviewDecisions: Review decisions
+    mentions: Mentions of them in task text
+    authState: Sign-in and two-factor attempts
+    auditScrub: Audit log entries
   legalHoldBlock:
     title: Erasure blocked by legal hold
     orgHeld:

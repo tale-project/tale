@@ -1535,17 +1535,36 @@ dataSubjectRequests:
     userPreferences: Nutzereinstellungen
     messageFeedback: Nachrichten-Feedback
     fileMetadata: Im Chat hochgeladene Dateien
-    usageLedger: Token-Verbrauchsbuch
+    usageLedger: Nutzungseinträge
     twoFactorAttempts: 2FA-Versuche
     policyAcknowledgements: Richtlinien-Bestätigungen
     onedrive: OneDrive-Sync-Konfigurationen
     googleDriveSync: Google-Drive-Sync-Konfigurationen
     userCloudAuthorizations: Cloud-Import-Autorisierungen
     loginAttempts: Login-Versuche und Sperren
-    notifications: Sicherheitsbenachrichtigungen
+    notifications: Benachrichtigungen
     wfExecutions: Automatisierungsläufe
     promptTemplates: Persönliche Prompts
     sandboxWorkspaces: Sandbox-Arbeitsbereiche
+    threads: Chats
+    documents: Dokumente
+    uploads: Hochgeladene Dateien
+    preferences: Einstellungen
+    subscriptions: Gefolgte Aufgaben
+    feedback: Nachrichten-Feedback
+    memories: Persönliche Memos
+    directCalls: Direkte Modellaufrufe
+    videoLinks: Videolinks
+    cloudGrants: Cloud-Import-Autorisierungen
+    syncConfigs: Cloud-Sync-Konfigurationen
+    websiteScanNotes: Von der Person angeforderte Website-Scans
+    orgNotifications: Sicherheitsbenachrichtigungen über die Person
+    automationRuns: Automatisierungsläufe
+    agentRuns: Agentenläufe
+    reviewDecisions: Prüfentscheidungen
+    mentions: Erwähnungen in Aufgabentexten
+    authState: Anmelde- und Zwei-Faktor-Versuche
+    auditScrub: Audit-Log-Einträge
   legalHoldBlock:
     title: Löschung durch Legal Hold blockiert
     orgHeld: Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem
