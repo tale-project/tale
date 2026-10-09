@@ -25,6 +25,8 @@ export interface MarketingLinkComponentProps extends Omit<
    * `active` nav styling.
    */
   activeProps?: { className?: string };
+  /** Host-router matching options for current-page navigation styling. */
+  activeOptions?: { exact?: boolean; includeSearch?: boolean };
 }
 
 export type MarketingLinkComponent = ComponentType<MarketingLinkComponentProps>;

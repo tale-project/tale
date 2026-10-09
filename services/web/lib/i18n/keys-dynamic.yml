@@ -8,6 +8,9 @@
 # literals whose prefix is constant, are already covered by the wildcard scan.
 
 entries:
+  # Shared form schemas emit stable issue identifiers; the field-error helper
+  # translates the whitelisted key at render time so errors follow the locale.
+  - 'forms.validation'
   # Header nav labels are looked up via `t(item.key)` over a `NAV_ITEMS` table,
   # so the scanner cannot statically tie each key back to a call site.
   - 'nav.aboutUs'
