@@ -134,10 +134,15 @@ an automation of the organization answers to it, the agent gets the next free on
 
 A rename that changes only upper and lower case or punctuation keeps the handle, and so does
 every other save. The old handle is free for another agent. A mention names the agent itself,
-so what was written about it shows its new name.
+so what was written about it shows its new name. An agent whose handle a person or an automation
+of the organization comes to answer to later (a member joins, an automation is saved) moves on
+the same way: it answers to the next free handle at once, the Agents tab and the API show that
+one, and the project's next agent save stores it.
 
 - **Example**: Mia renames the agent Research Bot to QA Bot → it answers to `@qa-bot`, and
   `@research-bot` is free for a new agent.
+- **Example**: Ines's agent "Invoice checker" answers to `@invoice-checker`; Marco then saves
+  an automation named `invoice-checker` → the agent answers to `@invoice-checker-02`.
 
 ## Secrets
 

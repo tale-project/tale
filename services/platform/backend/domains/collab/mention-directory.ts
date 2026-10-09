@@ -10,7 +10,7 @@ import {
   type MentionActorEntry,
   type MentionHandleIndex,
   memberMentionEntry,
-  reservedAgentHandles,
+  organizationReservedHandles,
 } from '../../../lib/shared/mention-handles.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { hasProjectAccess } from '../../core/projects/access.ts';
@@ -85,10 +85,17 @@ function directoryUnavailable(leg: MentionDirectoryLeg, cause: unknown): Error {
   return new MentionDirectoryError(leg, cause);
 }
 
+/** The members who can be mentioned on a surface, and every member of the
+ * organization (by id and email), whose handles an agent handle may not be. */
+interface ListedMembers {
+  mentionable: MentionActorEntry[];
+  organization: { id: string; email: string | null }[];
+}
+
 async function accessibleMembers(
   sql: Sql | TransactionSql,
   args: { organizationId: string; projectId: string | null },
-): Promise<MentionActorEntry[]> {
+): Promise<ListedMembers> {
   const rows = await sql<
     {
       userId: string;
@@ -108,7 +115,13 @@ async function accessibleMembers(
       name: row.displayName,
       email: row.email,
     });
-  if (args.projectId === null) return rows.map(toEntry);
+  const organization = rows.map((row) => ({
+    id: row.userId,
+    email: row.email,
+  }));
+  if (args.projectId === null) {
+    return { mentionable: rows.map(toEntry), organization };
+  }
 
   // Project scoping through the SHARED access rule: an org-wide project
   // admits everyone, a team-scoped one admits its teams' members, and admins
@@ -122,7 +135,7 @@ async function accessibleMembers(
     LIMIT 1
   `;
   const project = projects[0];
-  if (project === undefined) return [];
+  if (project === undefined) return { mentionable: [], organization };
   const accessInput = { teamIds: project.teamIds ?? [] };
   // Memberships IN THIS ORGANIZATION only — a team another tenant granted
   // must never make a member mentionable on a project here.
@@ -139,15 +152,18 @@ async function accessibleMembers(
     if (list) list.push(row.teamId);
     else teamsByUser.set(row.userId, [row.teamId]);
   }
-  return rows
-    .filter((row) =>
-      hasProjectAccess(
-        accessInput,
-        teamsByUser.get(row.userId) ?? [],
-        row.role,
-      ),
-    )
-    .map(toEntry);
+  return {
+    mentionable: rows
+      .filter((row) =>
+        hasProjectAccess(
+          accessInput,
+          teamsByUser.get(row.userId) ?? [],
+          row.role,
+        ),
+      )
+      .map(toEntry),
+    organization,
+  };
 }
 
 export async function buildMentionDirectory(
@@ -155,11 +171,13 @@ export async function buildMentionDirectory(
   args: { organizationId: string; projectId: string | null },
 ): Promise<MentionDirectory> {
   const entries: MentionActorEntry[] = [];
+  let members: ListedMembers;
   try {
-    entries.push(...(await accessibleMembers(sql, args)));
+    members = await accessibleMembers(sql, args);
   } catch (error) {
     throw directoryUnavailable('members', error);
   }
+  entries.push(...members.mentionable);
   if (args.projectId === null) {
     // Org-wide surfaces (private agent chat) mention people only — agent
     // routing there is a different lane.
@@ -169,9 +187,11 @@ export async function buildMentionDirectory(
   // Deployed automations VISIBLE from this project (bound to it, or
   // org-level). Mentioning a task's owning automation is the comment-side
   // run trigger; elsewhere the mention is presentational.
+  const automationSlugs: string[] = [];
   try {
     const automations = await listAutomations(sql, args.organizationId);
     for (const automation of automations) {
+      automationSlugs.push(automation.name);
       // Only DEPLOYED automations are mentionable — a draft has no run to
       // trigger and no presence on the board.
       if (automation.deployedVersion === null) continue;
@@ -207,15 +227,20 @@ export async function buildMentionDirectory(
       ORDER BY created_at_ms, id
     `;
     // An agent the previous release added during a deploy has no handle
-    // yet: it answers to the one its project's next save will store, and to
-    // its name's older forms.
-    const derived = deriveAgentHandles(agents, reservedAgentHandles(entries));
+    // yet, and one whose handle a person or an automation has come to
+    // answer to since has lost it: each answers to the one its project's
+    // next save will store [PROJ-R19] (the agent reads derive it alike),
+    // and to its name's older forms.
+    const derived = deriveAgentHandles(
+      agents,
+      organizationReservedHandles(members.organization, automationSlugs),
+    );
     for (const agent of agents) {
       entries.push(
         agentMentionEntry({
           id: agent.id,
           name: agent.name,
-          handle: agent.handle ?? derived.get(agent.id) ?? null,
+          handle: derived.get(agent.id) ?? agent.handle ?? null,
           legacyHandles:
             agent.legacyHandles ?? agentLegacyHandleVariants(agent.name),
         }),

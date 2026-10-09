@@ -257,6 +257,25 @@ export function buildMentionHandleIndex(
   };
 }
 
+/**
+ * What an agent handle may not be in one organization: every member's id and
+ * email name (a disabled member's left out) and every automation's store
+ * name, deployed or not. The agent saves, the agent reads and the mention
+ * directory all read reserved handles through this, so an agent shows,
+ * stores and answers to one handle [PROJ-R19].
+ */
+export function organizationReservedHandles(
+  members: readonly { id: string; email: string | null | undefined }[],
+  automationSlugs: readonly string[],
+): Set<string> {
+  return reservedAgentHandles([
+    ...members.map((member) =>
+      memberMentionEntry({ id: member.id, name: null, email: member.email }),
+    ),
+    ...automationSlugs.map((slug) => automationMentionEntry({ slug })),
+  ]);
+}
+
 /** Handles an agent handle must not take: whatever the organization's people
  * and automations answer to ahead of a stored agent handle — a person's id
  * and email name, an automation's store name. An agent holding one would

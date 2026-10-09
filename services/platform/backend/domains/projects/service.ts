@@ -29,9 +29,7 @@ import {
 } from '../../../lib/shared/agent-handle.ts';
 import {
   agentLegacyHandleVariants,
-  automationMentionEntry,
-  memberMentionEntry,
-  reservedAgentHandles,
+  organizationReservedHandles,
 } from '../../../lib/shared/mention-handles.ts';
 import { canonicalExternalKey } from '../../../lib/shared/utils/external-key.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
@@ -1476,8 +1474,9 @@ export interface ProjectAgentRow {
   updatedAt: number;
   /** What a person types after `@` to find the agent (`agent-handle.ts`):
    * made from its current name, unique in the project. An agent the
-   * previous release added carries the handle it will get on the next save
-   * of its project's agents. */
+   * previous release added, and one whose handle a person or an automation
+   * has come to answer to, carries the handle it answers to now, which the
+   * next save of its project's agents stores [PROJ-R19]. */
   handle: string;
 }
 
@@ -1524,42 +1523,36 @@ async function projectAgentHandleRows(
 /**
  * What the organization's people answer to by id or email and its automations
  * by store name: an agent handle never takes one, so `@ops` keeps reaching the
- * person whose email starts with it [PROJ-R18]. Every member and every
- * automation counts, not only those of this project, so a later share does
- * not make a handle collide.
+ * person whose email starts with it [PROJ-R18], and an agent whose handle
+ * one of them comes to answer to later moves on to the next free one
+ * [PROJ-R19]. Every member and every automation counts, not only those of
+ * this project, so a later share does not make a handle collide.
  */
 async function reservedHandlesInTx(
   tx: Sql | TransactionSql,
   organizationId: string,
 ): Promise<Set<string>> {
-  const members = await tx<
-    { userId: string; email: string | null; name: string | null }[]
-  >`
-    SELECT m."userId", u."email", u."name"
+  const members = await tx<{ userId: string; email: string | null }[]>`
+    SELECT m."userId", u."email"
     FROM "member" m JOIN "user" u ON u."id" = m."userId"
     WHERE m."organizationId" = ${organizationId}
+      AND lower(m."role") <> 'disabled'
   `;
   const automations = await tx<{ name: string }[]>`
     SELECT DISTINCT name FROM app.automations WHERE org_id = ${organizationId}
   `;
-  return reservedAgentHandles([
-    ...members.map((member) =>
-      memberMentionEntry({
-        id: member.userId,
-        name: member.name,
-        email: member.email,
-      }),
-    ),
-    ...automations.map((automation) =>
-      automationMentionEntry({ slug: automation.name }),
-    ),
-  ]);
+  return organizationReservedHandles(
+    members.map((member) => ({ id: member.userId, email: member.email })),
+    automations.map((automation) => automation.name),
+  );
 }
 
 /**
  * Give the agents of a project that the previous release added (during a
  * deploy, after migration 0166 ran) their handle and the older forms they
- * answered to, oldest first, as 0166 did for the rest. Leaves `updated_at_ms`
+ * answered to, oldest first, as 0166 did for the rest, and move an agent
+ * whose handle a person or an automation has come to answer to on to the
+ * next free one [PROJ-R19]. Leaves `updated_at_ms`
  * alone: it is the precondition a full agent save holds. Answers the handles
  * the project's agents hold afterwards, `except` left out. Called only by a
  * save that writes anyway.
@@ -1576,6 +1569,8 @@ async function healProjectAgentHandles(
   const rows = (await projectAgentHandleRows(tx, args.projectId)).filter(
     (row) => row.id !== args.except,
   );
+  // Also the agents whose handle a person or an automation has come to
+  // answer to since: they move on to the next free one [PROJ-R19].
   const minted = deriveAgentHandles(rows, args.reserved);
   const fills = rows.flatMap((row) => {
     const handle = minted.get(row.id);
@@ -1594,7 +1589,7 @@ async function healProjectAgentHandles(
   if (fills.length > 0) {
     await tx`
       UPDATE app.project_agents a SET
-        handle = COALESCE(a.handle, NULLIF(v.handle, '')),
+        handle = COALESCE(NULLIF(v.handle, ''), a.handle),
         legacy_handles = COALESCE(
           a.legacy_handles,
           CASE WHEN v.legacy = 'null' THEN NULL ELSE
@@ -1607,13 +1602,12 @@ async function healProjectAgentHandles(
         ${fills.map((fill) => fill.legacy)}::text[]
       ) AS v(id, handle, legacy)
       WHERE a.id = v.id AND a.project_id = ${args.projectId}
-        AND (a.handle IS NULL OR a.legacy_handles IS NULL)
     `;
   }
   const taken = new Set<string>();
   for (const row of rows) {
-    const handle = row.handle ?? minted.get(row.id);
-    if (handle !== undefined) taken.add(handle);
+    const handle = minted.get(row.id) ?? row.handle;
+    if (handle !== null) taken.add(handle);
   }
   return { taken, healed: fills.length > 0 };
 }
@@ -1628,21 +1622,26 @@ function isHandleConflict(error: unknown): boolean {
   );
 }
 
-/** Rows read with the handle an agent without one shows until its project's
- * next save stores it. */
+/** Rows read with the handle each agent answers to: the one stored, or,
+ * for an agent without one or whose handle a person or an automation has
+ * come to answer to, the one its project's next save stores [PROJ-R19] —
+ * the same derivation the mention directory makes. */
 function withDerivedHandles<Row extends StoredProjectAgentRow>(
   rows: Row[],
+  reserved: ReadonlySet<string>,
   siblings: readonly AgentHandleSibling[] = rows.map((row) => ({
     ...row,
     legacyHandles: null,
   })),
 ): Array<Omit<Row, 'handle'> & { handle: string }> {
-  const derived = rows.some((row) => row.handle === null)
-    ? deriveAgentHandles(siblings)
+  const derived = rows.some(
+    (row) => row.handle === null || reserved.has(row.handle),
+  )
+    ? deriveAgentHandles(siblings, reserved)
     : new Map<string, string>();
   return rows.map((row) => ({
     ...row,
-    handle: row.handle ?? derived.get(row.id) ?? agentHandleBase(row.name),
+    handle: derived.get(row.id) ?? row.handle ?? agentHandleBase(row.name),
   }));
 }
 
@@ -1920,7 +1919,11 @@ async function selectProjectAgents(
     WHERE project_id = ${projectId}
     ORDER BY created_at_ms ASC
   `;
-  return withDerivedHandles(rows);
+  if (rows.length === 0) return withDerivedHandles(rows, new Set());
+  return withDerivedHandles(
+    rows,
+    await reservedHandlesInTx(sql, auth.organizationId),
+  );
 }
 
 export async function listProjectAgents(
@@ -1974,11 +1977,15 @@ export async function getProjectAgent(
   `;
   const row = rows[0];
   if (row === undefined) return null;
-  // An agent the previous release added shows the handle its project's
-  // next save gives it, which depends on the agents beside it.
+  // An agent the previous release added, or one whose handle someone else
+  // has come to answer to, shows the handle its project's next save gives
+  // it, which depends on the agents beside it.
+  const reserved = await reservedHandlesInTx(sql, auth.organizationId);
   const siblings =
-    row.handle === null ? await projectAgentHandleRows(sql, projectId) : [];
-  return withDerivedHandles([row], siblings)[0] ?? null;
+    row.handle === null || reserved.has(row.handle)
+      ? await projectAgentHandleRows(sql, projectId)
+      : [];
+  return withDerivedHandles([row], reserved, siblings)[0] ?? null;
 }
 
 export async function readAgentInstructionsConfiguration(
@@ -2508,8 +2515,10 @@ export async function updateProjectAgent(
   });
   for (const handle of reserved) taken.add(handle);
   const base = agentHandleBase(fields.name);
+  // A handle a person or an automation has come to answer to is left too.
   const keepsHandle =
     agent.handle !== null &&
+    !reserved.has(agent.handle) &&
     renameKeepsHandle(agent.handle, agent.name, fields.name);
   let handle =
     keepsHandle && agent.handle !== null

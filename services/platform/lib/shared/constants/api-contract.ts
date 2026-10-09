@@ -416,7 +416,8 @@
  * 3.24.0 — 2026-10-09: agents have mention handles, and mentions are stored
  * as whom they name. `ProjectAgent.handle` is the agent's handle, made from
  * its current name, unique in its project (`-02`, `-03` on a clash) and
- * made again on a rename. A comment body and a task description store each
+ * made again on a rename, or when a member's email name or an automation's
+ * store name comes to equal it. A comment body and a task description store each
  * mention a door resolves as a mention link,
  * `[@Ada Lovelace](mention:user/<userId>)`, and every read returns that
  * stored form: observable for a client that read the `@handle` it posted

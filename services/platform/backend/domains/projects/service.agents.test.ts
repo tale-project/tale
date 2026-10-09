@@ -898,6 +898,72 @@ describe('an agent answers to a handle made from its name, unique in its project
   });
 });
 
+describe('an agent moves off a handle someone else came to answer to [PROJ-R19]', () => {
+  // Ines's agent "Invoice checker" held `invoice-checker` before Marco
+  // deployed an automation of that store name, and Olga (ops@corp.test)
+  // joined after the agent "Ops" took `ops`. A person's email name and an
+  // automation's store name are the stronger claims: each agent answers to
+  // the next free handle, shows it, and stores it on its next save.
+  it('stores the next free handle on the agent’s next save', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Invoice checker', handle: 'invoice-checker' },
+      automations: [{ name: 'invoice-checker' }],
+    });
+    await updateProjectAgent(tx, auth, {
+      ...config,
+      name: 'Invoice checker',
+      model: 'other-model',
+    });
+    expect(updatedHandle(statements)).toEqual(['invoice-checker-02']);
+  });
+
+  it('moves a sibling off it on any agent save of the project', async () => {
+    const { tx, statements } = handleTx({
+      agent: { name: 'Reviewer', handle: 'reviewer' },
+      siblings: [
+        {
+          id: 'agent-2',
+          name: 'Ops',
+          handle: 'ops',
+          legacyHandles: [],
+          createdAt: 5,
+        },
+      ],
+      members: [{ userId: 'u-olga', email: 'ops@corp.test', name: 'Olga' }],
+    });
+    await updateProjectAgent(tx, auth, { ...config, model: 'other-model' });
+    const heal = statements.find((s) =>
+      s.text.startsWith('UPDATE app.project_agents a SET'),
+    );
+    expect(heal?.values).toContainEqual(['agent-2']);
+    expect(heal?.values).toContainEqual(['ops-02']);
+    expect(updatedHandle(statements)).toEqual(['reviewer']);
+  });
+
+  it('shows the handle it answers to before that save', async () => {
+    const run = (strings: TemplateStringsArray) => {
+      const text = strings.join('?').replace(/\s+/g, ' ').trim();
+      if (text.includes('FROM app.projects WHERE id = ?')) {
+        return Promise.resolve([PROJECT]);
+      }
+      if (text.includes('FROM "member" m JOIN "user" u')) {
+        return Promise.resolve([{ userId: 'u-olga', email: 'ops@corp.test' }]);
+      }
+      return Promise.resolve(
+        text.includes('FROM app.project_agents WHERE project_id = ?')
+          ? [{ ...AGENT, name: 'Ops', managed: false, handle: 'ops' }]
+          : [],
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for the postgres.js root instance
+    const sql = Object.assign(run, {
+      unsafe: (text: string) => text,
+    }) as unknown as Sql;
+    const agents = await listProjectAgents(sql, auth, 'project-1');
+    expect(agents.map((agent) => agent.handle)).toEqual(['ops-02']);
+  });
+});
+
 describe('the app reads what an agent answered to before handles [COLLAB-R11]', () => {
   function agentsSql(rows: object[]): Sql {
     const run = (strings: TemplateStringsArray) => {

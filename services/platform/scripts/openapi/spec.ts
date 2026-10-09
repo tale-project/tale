@@ -10398,7 +10398,10 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'single hyphens, made from its current name ("My Opus Agent ' +
                 '#3" → `my-opus-agent-3`) and unique in the project (a second ' +
                 'agent whose name gives the same handle gets `-02`, then ' +
-                '`-03` …). It changes when the agent is renamed. Address an ' +
+                '`-03` …). It changes when the agent is renamed, and when a ' +
+                'member or an automation of the organization comes to answer ' +
+                'to it (an email name or a store name is the stronger claim). ' +
+                'Address an ' +
                 'agent by `id`; type `@handle` in a comment or a task ' +
                 'description to mention it.',
             },

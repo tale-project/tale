@@ -24,9 +24,6 @@ export const AGENT_HANDLE_MAX = 52;
  * ("发票助手", "🚀"). */
 const AGENT_HANDLE_FALLBACK = 'agent';
 
-/** Lowercase letters and digits in runs joined by single hyphens. */
-const AGENT_HANDLE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
 /** Letters NFKD does not take apart into a base letter and a mark, spelled
  * the way their languages write them without the letter. */
 const TRANSLITERATION: Readonly<Record<string, string>> = {
@@ -117,11 +114,6 @@ export function renameKeepsHandle(
   );
 }
 
-/** Whether a stored or typed value has a handle's shape. */
-export function isAgentHandle(value: string): boolean {
-  return value.length <= AGENT_HANDLE_MAX && AGENT_HANDLE_RE.test(value);
-}
-
 export interface AgentHandleRow {
   id: string;
   name: string;
@@ -130,22 +122,27 @@ export interface AgentHandleRow {
 }
 
 /**
- * Handles for the agents of ONE project that have none yet, oldest agent
- * first, so the agent that was there first keeps the clean handle. Handles
- * already stored and `reserved` ones (what other people and automations
- * answer to) are never handed out. Agents that hold a handle are not in the
- * result.
+ * Handles for the agents of ONE project that have none they can be reached
+ * by, oldest agent first, so the agent that was there first keeps the clean
+ * handle: an agent with no handle stored yet, and one whose stored handle a
+ * person or an automation has come to answer to since (`reserved`: what
+ * other people and automations answer to ahead of an agent), which the
+ * agent then moves on from [PROJ-R19]. Handles other agents hold and
+ * `reserved` ones are never handed out. Agents whose handle stands are not
+ * in the result.
  */
 export function deriveAgentHandles(
   rows: readonly AgentHandleRow[],
   reserved: ReadonlySet<string> = new Set(),
 ): Map<string, string> {
+  const standing = (row: AgentHandleRow) =>
+    row.handle !== null && !reserved.has(row.handle);
   const taken = new Set<string>(reserved);
   for (const row of rows) {
-    if (row.handle !== null) taken.add(row.handle);
+    if (row.handle !== null && standing(row)) taken.add(row.handle);
   }
   const missing = rows
-    .filter((row) => row.handle === null)
+    .filter((row) => !standing(row))
     .toSorted(
       (a, b) =>
         a.createdAt - b.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),

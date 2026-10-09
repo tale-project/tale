@@ -7,10 +7,13 @@ import {
   agentHandleCandidate,
   deriveAgentHandles,
   handleFitsBase,
-  isAgentHandle,
   nextAgentHandle,
   renameKeepsHandle,
 } from './agent-handle';
+
+/** The shape the column's CHECK and the API's pattern hold a handle to:
+ * lowercase letters and digits in runs joined by single hyphens. */
+const HANDLE_SHAPE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 describe('an agent handle is its name in plain letters [PROJ-R18]', () => {
   it.each([
@@ -34,7 +37,7 @@ describe('an agent handle is its name in plain letters [PROJ-R18]', () => {
     ['Agent standard', 'agent-standard'],
   ])('%s → %s', (name, handle) => {
     expect(agentHandleBase(name)).toBe(handle);
-    expect(isAgentHandle(handle)).toBe(true);
+    expect(handle).toMatch(HANDLE_SHAPE);
   });
 
   it('cuts a long name to the base limit without a trailing hyphen', () => {
@@ -79,7 +82,7 @@ describe('an agent handle is its name in plain letters [PROJ-R18]', () => {
     const long = agentHandleCandidate(base, 12345);
     expect(long.endsWith('-12345')).toBe(true);
     expect(long.length).toBeLessThanOrEqual(AGENT_HANDLE_MAX);
-    expect(isAgentHandle(long)).toBe(true);
+    expect(long).toMatch(HANDLE_SHAPE);
   });
 
   it('knows which handles a base offers', () => {
@@ -127,5 +130,30 @@ describe('an agent handle is its name in plain letters [PROJ-R18]', () => {
       d: 'agent-03',
       e: 'invoice-checker-02',
     });
+  });
+
+  it('moves an agent off a handle a person or an automation came to answer to [PROJ-R19]', () => {
+    // Ines's "Invoice checker" held `invoice-checker` until Marco deployed
+    // an automation of that store name: the automation's claim is the
+    // stronger, so the agent answers to the next free handle.
+    const minted = deriveAgentHandles(
+      [
+        {
+          id: 'a',
+          name: 'Invoice checker',
+          handle: 'invoice-checker',
+          createdAt: 1,
+        },
+        {
+          id: 'b',
+          name: 'Invoice checker 2',
+          handle: 'invoice-checker-2',
+          createdAt: 2,
+        },
+        { id: 'c', name: 'Ops', handle: 'ops', createdAt: 3 },
+      ],
+      new Set(['invoice-checker']),
+    );
+    expect(Object.fromEntries(minted)).toEqual({ a: 'invoice-checker-02' });
   });
 });

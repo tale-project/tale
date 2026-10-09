@@ -362,6 +362,51 @@ describe('the agents of a project in the directory [COLLAB-R11]', () => {
   });
 });
 
+describe('an agent whose handle someone else came to answer to moves on [PROJ-R19]', () => {
+  it('answers to the next free handle, as its reads show and its next save stores', async () => {
+    // Marco saved a draft automation `invoice-checker` after Ines's agent
+    // took that handle: the agent answers to `@invoice-checker-02`, and the
+    // draft, which nobody can mention, still keeps `@invoice-checker`.
+    vi.mocked(listAutomations).mockResolvedValue([
+      {
+        name: 'invoice-checker',
+        latestVersion: 1,
+        deployedVersion: null,
+        description: null,
+        inputs: null,
+        presentation: null,
+        projectIds: [],
+        trigger: null,
+      },
+    ]);
+    const db = fakeDb((text) => {
+      if (text.startsWith('SELECT m."userId"')) return [ADA];
+      if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
+      if (text.includes('FROM app.project_agents')) {
+        return [
+          {
+            id: 'a-invoice',
+            name: 'Invoice checker',
+            handle: 'invoice-checker',
+            legacyHandles: [],
+            createdAt: 1,
+          },
+        ];
+      }
+      return [];
+    });
+    const resolved = await prepareSurfaceText(db, {
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      body: '@invoice-checker-02 and @invoice-checker',
+      cap: 10_000,
+      mode: 'full',
+    });
+    expect(resolved.mentions).toEqual([{ type: 'agent', id: 'a-invoice' }]);
+    expect(resolved.unresolvedMentionTokens).toEqual(['invoice-checker']);
+  });
+});
+
 describe('the current names of whoever tokens name', () => {
   it('reads each kind once, and leaves out people no longer in the organization', async () => {
     const statements: string[] = [];
