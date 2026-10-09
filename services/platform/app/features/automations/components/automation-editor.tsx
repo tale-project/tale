@@ -57,6 +57,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -551,12 +552,15 @@ function AutomationEditorScope({
     () => issueViews.map((view) => view.item),
     [issueViews],
   );
+  // Read against the document the canvas draws, which settles at a pause
+  // like the check does: a keystroke gives the canvas no new counts, so it
+  // never redraws every node per keystroke.
   const countsByNode = useMemo(
     () =>
-      automation === null
+      canvasDocument === null
         ? new Map<string, IssueCounts>()
-        : issueCountsByNode([...shownErrors, ...shownWarnings], automation),
-    [automation, shownErrors, shownWarnings],
+        : issueCountsByNode([...shownErrors, ...shownWarnings], canvasDocument),
+    [canvasDocument, shownErrors, shownWarnings],
   );
 
   // ── The canvas ────────────────────────────────────────────────────────
@@ -628,6 +632,12 @@ function AutomationEditorScope({
 
   /** A box picked on the canvas: a node, Start or End opens its inspector,
    * a condition opens its node at the condition's field. */
+  // The document as typed, read when a box is picked rather than closed
+  // over: the canvas keeps one handler however many keystrokes land.
+  const automationRef = useRef(automation);
+  useLayoutEffect(() => {
+    automationRef.current = automation;
+  });
   const selectOnCanvas = useCallback(
     (id: string | null) => {
       if (id === null) {
@@ -641,10 +651,12 @@ function AutomationEditorScope({
       }
       setSelectedId(target.nodeId);
       const index =
-        automation?.nodes.findIndex((node) => node.id === target.nodeId) ?? -1;
+        automationRef.current?.nodes.findIndex(
+          (node) => node.id === target.nodeId,
+        ) ?? -1;
       if (index >= 0) requestIssueFocus(ptr('nodes', index, 'when'));
     },
-    [automation, requestIssueFocus],
+    [requestIssueFocus],
   );
 
   // ── The inspector ────────────────────────────────────────────────────

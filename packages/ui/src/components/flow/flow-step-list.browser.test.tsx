@@ -13,6 +13,7 @@ import {
   branchFlowGraph,
   branchRunOverlay,
   triageFlowGraph,
+  triageInboxFlowGraph,
 } from './testing/flow-fixtures';
 import type { FlowGraph } from './types';
 
@@ -80,6 +81,25 @@ describe('FlowStepList', () => {
     expect(
       screen.getByRole('button', { name: 'Low' }),
     ).toHaveAccessibleDescription(/Runs when the condition of Normal is false/);
+  });
+
+  // REGRESSION: a condition's problems were counted on its own box, which
+  // the List view has no row for, so no row showed them and no reader
+  // heard them.
+  it('shows and says a condition’s problems on the step it guards', () => {
+    render(
+      <FlowStepList
+        graph={triageInboxFlowGraph()}
+        issues={new Map([['__gate:triage', { errors: 1, warnings: 0 }]])}
+      />,
+    );
+    const triage = screen.getByRole('button', { name: /^Triage/ });
+    expect(triage).toHaveAccessibleDescription(/1 error/);
+    expect(
+      triage.querySelector(
+        '[data-slot="flow-node-issue-marker"] [data-severity="error"]',
+      ),
+    ).not.toBeNull();
   });
 
   it('is one Tab stop: arrows move, Home and End jump, Enter opens', async () => {
