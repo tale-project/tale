@@ -136,6 +136,10 @@ const cfg = (packageCacheRetentionMs?: number) => ({
   ...(packageCacheRetentionMs !== undefined ? { packageCacheRetentionMs } : {}),
 });
 
+/** The image a cache volume's permission setup runs: the runtime image the
+ * sessions use, as it is on the host. */
+const RUNTIME_IMAGE = 'tale-sandbox-runtime:test';
+
 let sequence = 0;
 const nextOrg = () => `org_pkg_${++sequence}`;
 const caches = (org: string) => ['pip', 'npm', 'bun'].map((p) => `${p}-${org}`);
@@ -338,11 +342,11 @@ describe('expirePackageCaches', () => {
     const org = nextOrg();
     const [pip] = caches(org);
     await plantCaches(org);
-    await ensureCacheVolume(pip!);
+    await ensureCacheVolume(pip!, RUNTIME_IMAGE);
     await plantMarker(org, T0 - 15 * DAY);
     await quietly(() => expirePackageCaches(cfg(), T0));
     expect(await left(org)).toEqual([]);
-    await ensureCacheVolume(pip!);
+    await ensureCacheVolume(pip!, RUNTIME_IMAGE);
     expect((await state()).volumes[pip!]).toBeDefined();
   });
 });
