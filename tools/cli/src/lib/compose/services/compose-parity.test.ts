@@ -293,6 +293,23 @@ describe('egress connection capacity parity', () => {
     expect(egress.environment?.SANDBOX_EGRESS_MAX_CLIENTS).toBe(expected);
   });
 
+  test('both pipelines hand the proxy the same per-session cap, below the whole pool', () => {
+    const perSession = '${SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION:-256}';
+    expect(
+      compose.services['sandbox-egress']?.environment
+        ?.SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION,
+    ).toBe(perSession);
+    expect(egress.environment?.SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION).toBe(
+      perSession,
+    );
+    // One session at its cap leaves at least three quarters of the default
+    // pool to every other session and build helper.
+    const cap = Number(/:-(\d+)\}$/.exec(perSession)?.[1]);
+    const pool = Number(/:-(\d+)\}$/.exec(expected)?.[1]);
+    expect(cap).toBe(256);
+    expect(cap * 4).toBeLessThanOrEqual(pool);
+  });
+
   test('both pipelines size the container for the default limit', () => {
     const connections = Number(/:-(\d+)\}$/.exec(expected)?.[1]);
     expect(connections).toBe(2000);

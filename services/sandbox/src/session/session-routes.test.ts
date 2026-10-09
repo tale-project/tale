@@ -8339,3 +8339,213 @@ describe('runnerd answers naming the session incarnation', () => {
     expect(checks).toEqual(['inc-k8s', 'inc-k8s', 'inc-k8s']);
   });
 });
+
+describe('sessions whose egress proxy moved', () => {
+  // Where the backend reads the egress proxy now (an Error: unreadable),
+  // and how often a sweep asked.
+  let proxyAt: string | null | Error = '172.30.0.3';
+  let proxyReads = 0;
+  beforeEach(() => {
+    proxyAt = '172.30.0.3';
+    proxyReads = 0;
+  });
+  // Every create records the address the proxy had when it ran.
+  const movableBackend = (
+    overrides: Partial<SessionBackend> = {},
+  ): SessionBackend => ({
+    ...fakeBackend,
+    async createSession(spec: SessionSpec) {
+      return {
+        ...(await fakeBackend.createSession(spec)),
+        egressAddress: '172.30.0.3',
+      };
+    },
+    async egressAddress() {
+      proxyReads += 1;
+      if (proxyAt instanceof Error) throw proxyAt;
+      return proxyAt;
+    },
+    ...overrides,
+  });
+  const create = (routes: SessionRoutes, id: string) =>
+    routes.handleCreate(
+      JSON.stringify({ sessionId: id, organizationId: 'org_drift' }),
+    );
+  const ticket = async (routes: SessionRoutes, id: string) => {
+    const answer: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return JSON.stringify(answer);
+  };
+  const release = async (routes: SessionRoutes, id: string) =>
+    routes.handleActivity(id, 'release', await ticket(routes, id));
+  const quietly = async <T>(
+    work: () => Promise<T>,
+  ): Promise<{ value: T; warnings: string[] }> => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const value = await work();
+      return {
+        value,
+        warnings: warn.mock.calls.map((call) => call.map(String).join(' ')),
+      };
+    } finally {
+      warn.mockRestore();
+    }
+  };
+
+  test('a released session is recycled by the first sweep after the proxy moved, its workspace kept', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-released');
+    await release(routes, 'drift-released');
+    // Active a moment ago: no idle window would stop it.
+    fakeHealth.lastActivityAtMs = Date.now();
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(stopped.has('drift-released')).toBe(false);
+    proxyAt = '172.30.0.9';
+    const { value: reaped, warnings } = await quietly(() =>
+      routes.sweepExpired(),
+    );
+    expect(reaped).toBe(1);
+    expect(stopped.has('drift-released')).toBe(true);
+    expect(destroyed.has('drift-released')).toBe(false);
+    expect(routes.holds('drift-released')).toBe(false);
+    expect(warnings.join('\n')).toContain(
+      'recycling drift-released: it relays to the egress proxy at 172.30.0.3, which is at 172.30.0.9 now',
+    );
+  });
+
+  test('a session in use keeps running, is logged once, and is recycled once released', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-held');
+    const held = await ticket(routes, 'drift-held');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = '172.30.0.9';
+    const first = await quietly(() => routes.sweepExpired());
+    const second = await quietly(() => routes.sweepExpired());
+    expect([first.value, second.value]).toEqual([0, 0]);
+    expect(stopped.has('drift-held')).toBe(false);
+    expect(
+      [...first.warnings, ...second.warnings].filter((line) =>
+        line.includes('drift-held has no egress'),
+      ),
+    ).toHaveLength(1);
+    expect(first.warnings.join('\n')).toContain(
+      'it is in use, and is recycled once it is released and idle',
+    );
+    // An exec still running in it keeps it too.
+    await routes.handleActivity('drift-held', 'release', held);
+    fakeHealth.liveExecs = 1;
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(0);
+    expect(stopped.has('drift-held')).toBe(false);
+    fakeHealth.liveExecs = 0;
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(1);
+    expect(stopped.has('drift-held')).toBe(true);
+    expect(destroyed.has('drift-held')).toBe(false);
+  });
+
+  test('one read of the proxy serves the whole sweep, and sessions it did not move away from stay', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    for (const id of ['drift-same-1', 'drift-same-2', 'drift-same-3']) {
+      await create(routes, id);
+      await release(routes, id);
+    }
+    fakeHealth.lastActivityAtMs = Date.now();
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(proxyReads).toBe(1);
+    expect(stopped.size).toBe(0);
+  });
+
+  test('nothing is read while no session recorded the address it pinned', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      movableBackend({
+        createSession: (spec: SessionSpec) => fakeBackend.createSession(spec),
+      }),
+    );
+    await create(routes, 'drift-unlabelled');
+    await release(routes, 'drift-unlabelled');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = '172.30.0.9';
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(proxyReads).toBe(0);
+    expect(stopped.has('drift-unlabelled')).toBe(false);
+  });
+
+  test('a proxy address that cannot be read recycles nothing and is asked again next sweep', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-unread');
+    await release(routes, 'drift-unread');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = new Error('cannot find egress container');
+    const { value, warnings } = await quietly(() => routes.sweepExpired());
+    expect(value).toBe(0);
+    expect(stopped.has('drift-unread')).toBe(false);
+    expect(warnings.join('\n')).toContain('egress proxy address unreadable');
+    proxyAt = '172.30.0.9';
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(1);
+    expect(proxyReads).toBe(2);
+  });
+
+  test('a proxy read that hangs holds the sweep up for five seconds at most', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      movableBackend({
+        egressAddress: () => new Promise<string | null>(() => {}),
+      }),
+    );
+    await create(routes, 'drift-hung');
+    await release(routes, 'drift-hung');
+    fakeHealth.lastActivityAtMs = Date.now();
+    const started = Date.now();
+    const { value, warnings } = await quietly(() => routes.sweepExpired());
+    expect(value).toBe(0);
+    expect(Date.now() - started).toBeLessThan(9_000);
+    expect(stopped.has('drift-hung')).toBe(false);
+    expect(warnings.join('\n')).toContain('egress proxy address unreadable');
+  }, 20_000);
+
+  test('a re-adopted session carries the address its backend recorded', async () => {
+    const now = Date.now();
+    const routes = new SessionRoutes(
+      cfg,
+      movableBackend({
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            {
+              ...mkBackendSession('drift-adopted', 'org_drift'),
+              createdAtMs: now,
+              ttlMs: 60 * 60_000,
+              egressAddress: '172.30.0.3',
+            },
+          ];
+        },
+      }),
+    );
+    await routes.adoptExisting();
+    await release(routes, 'drift-adopted');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = '172.30.0.9';
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(1);
+    expect(stopped.has('drift-adopted')).toBe(true);
+  });
+
+  test('an always-on session is logged once and left running', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-pinned');
+    await routes.handleSetPinned(
+      'drift-pinned',
+      JSON.stringify({ pinned: true }),
+    );
+    await release(routes, 'drift-pinned');
+    proxyAt = '172.30.0.9';
+    const first = await quietly(() => routes.sweepExpired());
+    const second = await quietly(() => routes.sweepExpired());
+    expect([first.value, second.value]).toEqual([0, 0]);
+    expect(stopped.has('drift-pinned')).toBe(false);
+    expect(first.warnings.join('\n')).toContain('it is always-on');
+    expect(
+      second.warnings.filter((line) => line.includes('drift-pinned')),
+    ).toEqual([]);
+  });
+});

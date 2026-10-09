@@ -6,7 +6,10 @@ import { describe, expect, test } from 'bun:test';
 
 import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
 import type { SpawnerConfig } from '../types.ts';
-import { buildDockerSessionRunArgs } from './docker-session-args.ts';
+import {
+  buildDockerSessionRunArgs,
+  sessionPinsEgressAddress,
+} from './docker-session-args.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
 
 const cfg: SpawnerConfig = {
@@ -90,6 +93,62 @@ describe('buildDockerSessionRunArgs', () => {
         createAttemptId: 'unsafe\nattempt',
       }),
     ).toThrow(/createAttemptId/);
+  });
+
+  test('records the egress proxy address the session pins as a validated label', () => {
+    const args = buildDockerSessionRunArgs(cfg, {
+      ...goodInput,
+      egressAddress: '172.30.0.3',
+    });
+    expect(args).toContain('tale.egress-ip=172.30.0.3');
+    // No address read, no label: the argv is the one without it.
+    expect(buildDockerSessionRunArgs(cfg, goodInput)).toEqual(
+      args.filter(
+        (arg, i) =>
+          arg !== 'tale.egress-ip=172.30.0.3' &&
+          args[i + 1] !== 'tale.egress-ip=172.30.0.3',
+      ),
+    );
+    for (const egressAddress of [
+      'sandbox-egress',
+      '172.30.0.3/16',
+      '172.30.0.300',
+      '172.30.0.3\n--privileged',
+      '',
+    ]) {
+      expect(() =>
+        buildDockerSessionRunArgs(cfg, { ...goodInput, egressAddress }),
+      ).toThrow(/egressAddress/);
+    }
+  });
+
+  test('a session pins the egress address with transparent egress or Docker inside, not through its proxy environment alone', () => {
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: true, runtimeTier: 'sysbox' },
+        false,
+      ),
+    ).toBe(true);
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: false, runtimeTier: 'sysbox' },
+        true,
+      ),
+    ).toBe(true);
+    // gVisor sessions get no transparent egress: they reach the proxy by
+    // name, so they follow it wherever it moves.
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: true, runtimeTier: 'gvisor' },
+        false,
+      ),
+    ).toBe(false);
+    expect(
+      sessionPinsEgressAddress(
+        { transparentEgress: false, runtimeTier: 'runc' },
+        false,
+      ),
+    ).toBe(false);
   });
 
   test('an agent can opt out of inner Docker while the deployment supports it', () => {

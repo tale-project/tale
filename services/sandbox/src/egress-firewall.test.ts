@@ -21,9 +21,15 @@ mkdirSync(join(ipv6, 'conf/all'), { recursive: true });
 mkdirSync(join(ipv6, 'conf/default'), { recursive: true });
 mkdirSync(join(ipv6, 'conf/eth0'), { recursive: true });
 mkdirSync(join(ipv6, 'conf/lo'), { recursive: true });
+// A rule check (`-C`) finds only the rule named in TALE_FIREWALL_TEST_PRESENT;
+// every other call succeeds unless it is TALE_FIREWALL_TEST_FAIL.
 const firewall = `#!/bin/sh
 name="\${0##*/}"
 printf '%s %s\\n' "$name" "$*" >> "$TALE_FIREWALL_TEST_LOG"
+if [ "$1" = "-C" ]; then
+  [ "$name $*" = "$TALE_FIREWALL_TEST_PRESENT" ]
+  exit
+fi
 [ "$name $*" != "$TALE_FIREWALL_TEST_FAIL" ]
 `;
 for (const name of ['iptables', 'ip6tables'])
@@ -49,6 +55,7 @@ function boot(
   interfaceDisabled: boolean = ipv6Disabled,
   settingUnavailable: boolean = false,
   resolverConfig: string | null = 'nameserver 127.0.0.11\n',
+  env: Record<string, string> = {},
 ) {
   const log = join(root, 'calls');
   writeFileSync(log, '');
@@ -81,6 +88,7 @@ function boot(
       TALE_FIREWALL_TEST_FAIL: fail,
       TALE_FIREWALL_TEST_LOG: log,
       TALE_FIREWALL_TEST_NEXT: launch,
+      ...env,
     },
     encoding: 'utf8',
   });
@@ -264,4 +272,102 @@ describe('multi-network egress isolation', () => {
     );
     expect(calls).not.toContain('proxy-start');
   });
+});
+
+describe('per-session connection cap', () => {
+  const cap = (limit: number) =>
+    `INPUT -p tcp --syn --dport 3128 -m connlimit --connlimit-above ${limit} --connlimit-mask 32 -j REJECT --reject-with tcp-reset`;
+  const capCalls = (calls: string[]) =>
+    calls.filter((call) => call.includes('connlimit'));
+
+  test('caps each client address at 256 proxy connections before the proxy starts', () => {
+    const { result, calls } = boot('', false, false, false, undefined, {
+      SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: '256',
+    });
+    expect(result.status).toBe(0);
+    expect(calls).toContain(`iptables -C ${cap(256)}`);
+    expect(calls).toContain(`iptables -I ${cap(256)}`);
+    expect(calls.indexOf(`iptables -I ${cap(256)}`)).toBeGreaterThan(
+      calls.indexOf('iptables -I FORWARD 1 -j DROP'),
+    );
+    expect(calls.at(-1)).toBe('proxy-start');
+    expect(result.stdout).toContain(
+      'each session holds at most 256 proxy connections at once',
+    );
+  });
+
+  test('caps at 256 connections when the setting is unset or empty', () => {
+    const unset: Record<string, string>[] = [
+      {},
+      { SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: '' },
+    ];
+    for (const env of unset) {
+      const { result, calls } = boot('', false, false, false, undefined, env);
+      expect(result.status).toBe(0);
+      expect(calls).toContain(`iptables -I ${cap(256)}`);
+    }
+  });
+
+  test('takes the cap from SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION', () => {
+    const { result, calls } = boot('', false, false, false, undefined, {
+      SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: '64',
+    });
+    expect(result.status).toBe(0);
+    expect(calls).toContain(`iptables -I ${cap(64)}`);
+    expect(calls.some((call) => call.includes('--connlimit-above 256'))).toBe(
+      false,
+    );
+  });
+
+  test('adds the rule only once: a restart in the same network namespace finds it in place', () => {
+    const { result, calls } = boot('', false, false, false, undefined, {
+      TALE_FIREWALL_TEST_PRESENT: `iptables -C ${cap(256)}`,
+    });
+    expect(result.status).toBe(0);
+    expect(capCalls(calls)).toEqual([`iptables -C ${cap(256)}`]);
+    expect(calls.at(-1)).toBe('proxy-start');
+  });
+
+  test('starts without the cap and warns when the kernel has no connlimit match', () => {
+    const { result, calls } = boot(`iptables -I ${cap(256)}`);
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      'WARN: per-session connection cap unavailable',
+    );
+    expect(calls.at(-1)).toBe('proxy-start');
+  });
+
+  test('0 turns the cap off', () => {
+    const { result, calls } = boot('', false, false, false, undefined, {
+      SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: '0',
+    });
+    expect(result.status).toBe(0);
+    expect(capCalls(calls)).toEqual([]);
+    expect(result.stdout).toContain('no per-session connection cap');
+    expect(calls.at(-1)).toBe('proxy-start');
+  });
+
+  test('a development run without the SSRF firewall still caps each session', () => {
+    const { result, calls } = boot('', false, false, false, undefined, {
+      TALE_SKIP_SSRF_FIREWALL: '1',
+    });
+    expect(result.status).toBe(0);
+    expect(calls).not.toContain('iptables -I FORWARD 1 -j DROP');
+    expect(calls).toContain(`iptables -I ${cap(256)}`);
+  });
+
+  test.each(['lots', '-5', '0100', '256 ', '1e3'])(
+    'refuses to start on a cap that is no whole number (%p)',
+    (value) => {
+      const { result, calls } = boot('', false, false, false, undefined, {
+        SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION: value,
+      });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        'SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION must be a whole number',
+      );
+      expect(calls).not.toContain('proxy-start');
+      expect(calls.filter((call) => call.startsWith('ip'))).toEqual([]);
+    },
+  );
 });

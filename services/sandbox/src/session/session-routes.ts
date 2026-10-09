@@ -140,6 +140,14 @@ function reclaimable(health: RunnerdHealth): boolean {
  * image answers not-found (the caller retries) rather than a client timeout. */
 const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
 
+/** How long a sweep waits for the egress proxy's address. The read is one
+ * inspect; a Docker daemon too slow for it checks nothing for a moved proxy
+ * this time rather than hold up the idle reaper behind it. */
+const EGRESS_READ_BUDGET_MS = 5_000;
+
+/** Why a sweep leaves a session whose egress proxy moved running for now. */
+const BUSY_DRIFT = 'it is in use, and is recycled once it is released and idle';
+
 /** Sessions one sweep probes at once: a pass is bounded by the slowest few
  * daemons, not by the sum of every probe (5 s each when a daemon hangs). */
 const SWEEP_CONCURRENCY = 8;
@@ -467,6 +475,10 @@ export class SessionRoutes {
     string,
     { count: number; createdAtMs: number }
   >();
+  // The incarnation whose egress drift a sweep last logged as waiting (a
+  // busy or always-on session), so a session busy for an hour logs it once,
+  // not once a minute.
+  private readonly egressDriftNoted = new Map<string, number>();
   // Ended compute whose removal failed, by failure time: retried after a
   // back-off rather than on (and logged by) every sweep.
   private readonly endedReapFailedAtMs = new Map<string, number>();
@@ -1426,6 +1438,7 @@ export class SessionRoutes {
     this.probeFailedAtMs.delete(sessionId);
     this.reclaimSeen.delete(sessionId);
     this.probeFailures.delete(sessionId);
+    this.egressDriftNoted.delete(sessionId);
     // Its memory is the host's again: no reservation for it either.
     this.youngBytes.delete(sessionId);
     this.activeGenerations.delete(sessionId);
@@ -1704,6 +1717,9 @@ export class SessionRoutes {
       // record: a restart used to rebuild entries unpinned, and an always-on
       // session older than maxLifetime was TTL-stopped on the first sweep.
       pinned: s.pinned === true,
+      ...(s.egressAddress === undefined
+        ? {}
+        : { egressAddress: s.egressAddress }),
     };
     // Both endpoint and listed metadata describe the same verified stamp.
     // Abort old streams and drop their lifecycle marks, never the peer's compute.
@@ -1835,11 +1851,19 @@ export class SessionRoutes {
     let reaped = 0;
     const critical = this.diskCritical();
     if (critical.workspace) this.logLargestWorkspaces();
+    const egressAddress = await this.currentEgressAddress();
     await forEachLimited(
       this.registry.list(),
       SWEEP_CONCURRENCY,
       async (session) => {
-        if (await this.sweepSession(session, nowMs, critical.dockerData))
+        if (
+          await this.sweepSession(
+            session,
+            nowMs,
+            critical.dockerData,
+            egressAddress,
+          )
+        )
           reaped += 1;
       },
     );
@@ -1880,17 +1904,81 @@ export class SessionRoutes {
     return count;
   }
 
+  /**
+   * The egress proxy's address now, read once per sweep, and only while a
+   * registered session recorded the address it pinned. Null when the backend
+   * has no address that can move (Kubernetes), or when it cannot be read: the
+   * proxy being recreated right now is the usual reason, and the next sweep
+   * reads it again.
+   */
+  private async currentEgressAddress(): Promise<string | null> {
+    const backend = this.backend;
+    if (backend.egressAddress === undefined) return null;
+    if (!this.registry.list().some((s) => s.egressAddress !== undefined))
+      return null;
+    try {
+      return await withOperationBudget(EGRESS_READ_BUDGET_MS, async () =>
+        waitWithinOperation(backend.egressAddress?.() ?? Promise.resolve(null)),
+      );
+    } catch (error) {
+      console.warn(
+        '[sandbox.session] egress proxy address unreadable; sessions are checked for a moved proxy on the next sweep:',
+        error instanceof Error ? error.message : error,
+      );
+      return null;
+    }
+  }
+
+  /** The address this session pinned and the proxy's now, when they differ. */
+  private egressDrift(
+    s: RegistrySession,
+    current: string | null,
+  ): { pinned: string; current: string } | null {
+    return current === null ||
+      s.egressAddress === undefined ||
+      s.egressAddress === current
+      ? null
+      : { pinned: s.egressAddress, current };
+  }
+
+  /** Log, once per incarnation, a drifted session the sweep leaves running
+   * for now. */
+  private noteEgressDrift(
+    s: RegistrySession,
+    drift: { pinned: string; current: string } | null,
+    waitingFor: string,
+  ): void {
+    if (drift === null) return;
+    if (this.egressDriftNoted.get(s.sessionId) === s.createdAtMs) return;
+    this.egressDriftNoted.set(s.sessionId, s.createdAtMs);
+    console.warn(
+      `[sandbox.session] ${s.sessionId} has no egress: it relays to the egress proxy at ${drift.pinned}, which is at ${drift.current} now (sandbox-egress was recreated); ${waitingFor}`,
+    );
+  }
+
   /** The sweep's decision for one session: true when it stopped. */
   private async sweepSession(
     s: RegistrySession,
     nowMs: number,
     diskCritical = false,
+    egressAddress: string | null = null,
   ): Promise<boolean> {
     if (this.reclaimClaims.has(s.sessionId)) return this.reclaimIdle(s);
+    // A session whose egress proxy moved since it booted relays every public
+    // connection and DNS query to an address nothing serves any more. It is
+    // recycled as soon as it is released and doing nothing (below): a normal
+    // stop, after which its next use starts it again against the proxy's
+    // address now, with its workspace. Until then it is left alone.
+    const drift = this.egressDrift(s, egressAddress);
     // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
     // Unprobed, a streak of failed probes from before no longer describes
     // the daemon, so it starts over.
     if (s.pinned || this.pinProtection.get(s.sessionId) === s) {
+      this.noteEgressDrift(
+        s,
+        drift,
+        'it is always-on, so it keeps running until it is unpinned or stopped',
+      );
       this.probeFailures.delete(s.sessionId);
       // Always-on exempts live compute from idle stops, not confirmed-dead
       // backend objects from reconciliation. Unknown still stays held.
@@ -1905,6 +1993,7 @@ export class SessionRoutes {
     // backstop for a re-adopted busy session. An exec running through this
     // replica shows its runnerd answers: any streak of failed probes ends.
     if (s.liveExecs.size > 0) {
+      this.noteEgressDrift(s, drift, BUSY_DRIFT);
       this.probeFailures.delete(s.sessionId);
       return false;
     }
@@ -1938,6 +2027,7 @@ export class SessionRoutes {
         health.liveExecs > 0 ||
         (health.activity?.activeOperations ?? 0) > 0
       ) {
+        this.noteEgressDrift(s, drift, BUSY_DRIFT);
         return false;
       }
       if (
@@ -1959,6 +2049,15 @@ export class SessionRoutes {
           health,
           beforeMs: reason === 'lifetime' ? nowMs - 1 : nowMs - s.idleTimeoutMs,
         });
+      }
+      if (drift !== null && !expired) {
+        if (reclaimable(health)) {
+          console.warn(
+            `[sandbox.session] recycling ${s.sessionId}: it relays to the egress proxy at ${drift.pinned}, which is at ${drift.current} now (sandbox-egress was recreated); its next use starts it again with egress (workspace preserved)`,
+          );
+          return this.reclaimIdle(s);
+        }
+        this.noteEgressDrift(s, drift, BUSY_DRIFT);
       }
       // Released by the platform (its turn or run settled, nothing holds it):
       // a few idle minutes are enough. The stop goes through runnerd's
@@ -2396,6 +2495,9 @@ export class SessionRoutes {
         idleTimeoutMs: req.idleTimeoutMs,
         endpoint,
         liveExecs: new Map(),
+        ...(created.egressAddress === undefined
+          ? {}
+          : { egressAddress: created.egressAddress }),
       };
       this.registry.set(entry);
       // The readiness answer the create waited for is a runnerd answer like

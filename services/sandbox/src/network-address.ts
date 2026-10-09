@@ -16,6 +16,14 @@ export function ipv4Subnet(value: unknown): Address4 {
   return address;
 }
 
+const IPV4_OCTET = '(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)';
+const IPV4_ADDRESS_RE = new RegExp(`^(?:${IPV4_OCTET}\\.){3}${IPV4_OCTET}$`);
+
+/** Is this one IPv4 address in dotted-quad form, without a mask? */
+export function isIpv4Address(value: unknown): value is string {
+  return typeof value === 'string' && IPV4_ADDRESS_RE.test(value);
+}
+
 export function subnetsOverlap(a: Address4, b: Address4): boolean {
   return a.isInSubnet(b) || b.isInSubnet(a);
 }
