@@ -53,7 +53,8 @@ export interface RunReport {
   planRunId: string;
   targets: string[];
   shard: { index: number; count: number };
-  /** Shard reports this one was folded from; absent on a shard's own. */
+  /** Shard reports this one was folded from (counting through a merge of
+   * merged reports); absent on a shard's own. */
   mergedFrom?: number;
   processes: number;
   startedAt: string;
@@ -226,11 +227,12 @@ export function mergeReports(
   const spec = thresholdSpec ?? first.thresholdSpec;
   const thresholds = evaluateThresholds(parseThresholds(spec), summary);
   const failures = reports.flatMap((r) => r.outcome.workerFailures);
+  const shards = reports.reduce((sum, r) => sum + (r.mergedFrom ?? 1), 0);
   return {
     ...first,
     peakUsers: reports.reduce((sum, r) => sum + r.peakUsers, 0),
-    shard: { index: 0, count: reports.length },
-    mergedFrom: reports.length,
+    shard: { index: 0, count: shards },
+    mergedFrom: shards,
     processes: reports.reduce((sum, r) => sum + r.processes, 0),
     targets: [...new Set(reports.flatMap((r) => r.targets))],
     startedAt: reports.map((r) => r.startedAt).sort()[0] ?? first.startedAt,
@@ -305,7 +307,7 @@ export function renderMarkdown(report: RunReport): string {
     lines.push('');
     lines.push('## Stages');
     lines.push('');
-    if (report.mergedFrom !== undefined) {
+    if (report.mergedFrom !== undefined && report.mergedFrom > 1) {
       lines.push(
         `Merged from ${report.mergedFrom} shards: load summed, p95 the slowest shard's (an upper bound), held only where every shard held.`,
       );

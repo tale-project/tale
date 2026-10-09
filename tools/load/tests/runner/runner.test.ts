@@ -503,6 +503,12 @@ describe('mergeReports', () => {
     // One shard's own report of a two-shard run makes no merge claim.
     const { mergedFrom: _, ...shardOwn } = merged;
     expect(renderMarkdown(shardOwn)).not.toContain('Merged from');
+    // A merge of merged reports counts the shards underneath; one report
+    // folded alone is no merge.
+    const again = mergeReports([merged, mergeReports([b])]);
+    expect(again.mergedFrom).toBe(3);
+    expect(again.shard.count).toBe(3);
+    expect(renderMarkdown(mergeReports([b]))).not.toContain('Merged from');
   });
 
   test('a harness failure exits 2, a threshold failure 1', () => {
