@@ -273,12 +273,17 @@ export async function snapshotDatabase(
         blocksRead: string;
       }[]
     >`
-      SELECT s.queryid::text AS "queryId", s.query,
-             s.calls::text AS calls, s.total_exec_time AS "totalMs",
-             s.rows::text AS rows, s.shared_blks_read::text AS "blocksRead"
+      SELECT s.queryid::text AS "queryId", min(s.query) AS query,
+             sum(s.calls)::text AS calls,
+             sum(s.total_exec_time) AS "totalMs",
+             sum(s.rows)::text AS rows,
+             sum(s.shared_blks_read)::text AS "blocksRead"
       FROM pg_stat_statements s
       JOIN pg_database d ON d.oid = s.dbid
       WHERE d.datname = ${appDatabase}
+      -- One row per (user, database, query, top level): a statement run by
+      -- two roles, or both at top level and nested, is one statement here.
+      GROUP BY s.queryid
     `;
     const database = await sql<
       {
