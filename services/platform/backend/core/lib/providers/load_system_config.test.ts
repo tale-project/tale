@@ -68,6 +68,20 @@ describe('shipped providers', () => {
     });
   });
 
+  it('OpenAI ships a pasted ChatGPT token method forcing Codex', () => {
+    const openai = loadProviderDefinitions().find(
+      (provider) => provider.name === 'openai',
+    );
+    const key = openai?.auth.find((auth) => auth.method === 'subscription-key');
+    expect(key).toEqual({
+      method: 'subscription-key',
+      baseUrl: 'https://chatgpt.com/backend-api/codex',
+      targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
+      accountIdVar: 'TALE_SUBSCRIPTION_ACCOUNT_ID',
+      constraints: { execution: 'sandbox', harness: 'codex' },
+    });
+  });
+
   it('every subscription-key targetEnvVar is a variable its forced harness accepts', () => {
     const harnesses = loadHarnesses();
     for (const provider of loadProviderDefinitions()) {
