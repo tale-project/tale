@@ -862,11 +862,32 @@ export async function checkAgentTaskReadTools(
     const retryBefore = await dispatch(m1, 'task_get', {
       taskId: pendingRetryTask,
     });
+    const compactRetryBefore = await dispatch(m1, 'task_get', {
+      taskId: pendingRetryTask,
+      view: 'occupancy',
+      requestedRunId: pendingRetryRun.runId,
+    });
     await sql`
       UPDATE app.project_agent_runs
       SET auto_retry_refused_at_ms = ${Date.now()}
       WHERE id = ${pendingRetryRun.runId} AND org_id = ${orgId}
     `;
+    const compactRetryAfter = await dispatch(m1, 'task_get', {
+      taskId: pendingRetryTask,
+      view: 'occupancy',
+      requestedRunId: pendingRetryRun.runId,
+    });
+    record(
+      'compact task occupancy: the exact latest failed run retains the native retry arm and its retirement',
+      recordAt(out(compactRetryBefore), 'requestedRun').retryPending === true &&
+        recordAt(out(compactRetryAfter), 'requestedRun').retryPending ===
+          false &&
+        recordAt(out(compactRetryBefore), 'currentRun').runId ===
+          pendingRetryRun.runId &&
+        recordAt(out(compactRetryAfter), 'currentRun').runId ===
+          pendingRetryRun.runId,
+      `before=${String(recordAt(out(compactRetryBefore), 'requestedRun').retryPending)} after=${String(recordAt(out(compactRetryAfter), 'requestedRun').retryPending)}`,
+    );
     const retryAfter = await dispatch(m1, 'task_get', {
       taskId: pendingRetryTask,
     });
@@ -999,6 +1020,202 @@ export async function checkAgentTaskReadTools(
         outsiderFind.ok &&
         sameList([...outsiderFind.ids].sort(), [...foreignTasks].sort()),
       `foreign=${JSON.stringify(foreignRead)} member=${memberFind.ids.length}/${String(memberGet.status)}/${String(memberForeign.status)} outsider=${outsiderFind.ids.length}`,
+    );
+
+    // ---- compact requested/current occupancy through the authenticated door --
+    const occupancyTask = await insertTask({
+      projectId: projectA,
+      title: 'Compact occupancy fixture',
+      agentId: worker,
+    });
+    const oldOccupant = await agentRun({
+      agentId: worker,
+      taskId: occupancyTask,
+      status: 'failed',
+      failureCode: 'harness_error',
+      autoRetryArmedAt: now,
+    });
+    const newOccupant = await agentRun({
+      agentId: worker,
+      taskId: occupancyTask,
+      status: 'queued',
+    });
+    const compactArgs = {
+      taskId: occupancyTask,
+      view: 'occupancy',
+      requestedRunId: oldOccupant.runId,
+    };
+    const compact = await dispatch(m1, 'task_get', compactArgs);
+    const occupancy = out(compact);
+    const currentOccupant = recordAt(occupancy, 'currentRun');
+    const requestedOccupant = recordAt(occupancy, 'requestedRun');
+    record(
+      'compact task occupancy: an exact old requested failure cannot hide a newer queued occupant or inherit its retry state',
+      compact.status === 'ok' &&
+        occupancy.view === 'occupancy' &&
+        currentOccupant.runId === newOccupant.runId &&
+        currentOccupant.live === true &&
+        requestedOccupant.runId === oldOccupant.runId &&
+        requestedOccupant.live === false &&
+        requestedOccupant.retryPending === false &&
+        [
+          'comments',
+          'project',
+          'pendingReview',
+          'reviewFiles',
+          'idle',
+          'canStart',
+        ].every((key) => !(key in occupancy)) &&
+        [currentOccupant, requestedOccupant].every(
+          (run) => !('feedback' in run) && !('error' in run),
+        ) &&
+        typeof recordAt(occupancy, 'observed').completedAt === 'string',
+      `current=${String(currentOccupant.runId)} requested=${String(requestedOccupant.runId)} status=${String(compact.status)}`,
+    );
+    const unknownOccupant = await dispatch(m1, 'task_get', {
+      ...compactArgs,
+      requestedRunId: randomUUID(),
+    });
+    const wrongTaskOccupant = await dispatch(m1, 'task_get', {
+      ...compactArgs,
+      requestedRunId: liveRun.runId,
+    });
+    const neighbourOccupant = await dispatch(m1, 'task_get', {
+      ...compactArgs,
+      requestedRunId: outsiderRun.runId,
+    });
+    let foreignOrgOccupant: Body;
+    // Deliberately corrupt only this inert fixture's org binding: even a run
+    // whose task foreign key points here must not pass the tenant predicate.
+    try {
+      await sql`UPDATE app.project_agent_runs SET org_id = ${`foreign-occupancy-${suffix}`} WHERE id = ${oldOccupant.runId}`;
+      foreignOrgOccupant = await dispatch(m1, 'task_get', compactArgs);
+    } finally {
+      await sql`UPDATE app.project_agent_runs SET org_id = ${orgId} WHERE id = ${oldOccupant.runId}`;
+    }
+    record(
+      'compact task occupancy: missing, wrong-task, sibling-project and foreign-organization requested runs share the same unavailable refusal',
+      unknownOccupant.status === 'not_found' &&
+        [wrongTaskOccupant, neighbourOccupant, foreignOrgOccupant].every(
+          (result) =>
+            JSON.stringify(result) === JSON.stringify(unknownOccupant),
+        ) &&
+        !('output' in unknownOccupant),
+      `statuses=${[unknownOccupant, wrongTaskOccupant, neighbourOccupant, foreignOrgOccupant].map((result) => String(result.status)).join(',')}`,
+    );
+    const compactForeign = await dispatch(m1, 'task_get', {
+      taskId: foreignTask,
+      view: 'occupancy',
+    });
+    const compactMissing = await dispatch(m1, 'task_get', {
+      taskId: randomUUID(),
+      view: 'occupancy',
+    });
+    const compactAsk = out(
+      await dispatch(m1, 'task_get', { taskId: askTask, view: 'occupancy' }),
+    );
+    record(
+      'compact task occupancy: project scope stays closed and a workflow waiting on a person remains live',
+      compactForeign.status === 'not_found' &&
+        JSON.stringify(compactForeign) === JSON.stringify(compactMissing) &&
+        recordAt(compactAsk, 'workflowRun').runId === askRun &&
+        recordAt(compactAsk, 'workflowRun').live === true &&
+        recordAt(compactAsk, 'workflowRun').waitingFor === 'ask' &&
+        !('ask' in recordAt(compactAsk, 'workflowRun')),
+      `foreign=${String(compactForeign.status)} waitingFor=${String(recordAt(compactAsk, 'workflowRun').waitingFor)}`,
+    );
+    const deniedTask = await insertTask({
+      projectId: projectA,
+      title: 'Compact read grant fixture',
+      agentId: manager,
+    });
+    const deniedRun = await agentRun({
+      agentId: manager,
+      taskId: deniedTask,
+      status: 'running',
+      grants: ['task_find'],
+    });
+    const noReadGrant = await dispatch(
+      deniedRun.token,
+      'task_get',
+      compactArgs,
+    );
+    await settle(deniedRun.runId);
+    const grantedRun = await agentRun({
+      agentId: manager,
+      taskId: deniedTask,
+      status: 'running',
+    });
+    const activeRead = await dispatch(
+      grantedRun.token,
+      'task_get',
+      compactArgs,
+    );
+    await settle(grantedRun.runId);
+    const endedRead = await dispatch(grantedRun.token, 'task_get', compactArgs);
+    record(
+      'compact task occupancy: the existing read grant and live session authority remain required',
+      activeRead.status === 'ok' &&
+        noReadGrant.status !== 'ok' &&
+        endedRead.status !== 'ok' &&
+        !('output' in noReadGrant) &&
+        !('output' in endedRead),
+      `missingGrant=${String(noReadGrant.status)} active=${String(activeRead.status)} ended=${String(endedRead.status)}`,
+    );
+
+    await sql`UPDATE app.tasks SET description = ${'Synthetic occupancy context. '.repeat(650)} WHERE id = ${occupancyTask}`;
+    const fullSample = await dispatch(m1, 'task_get', {
+      taskId: occupancyTask,
+    });
+    const compactSample = await dispatch(m1, 'task_get', compactArgs);
+    const fullBytes = Buffer.byteLength(JSON.stringify(fullSample));
+    const compactBytes = Buffer.byteLength(JSON.stringify(compactSample));
+    const fullTimes: number[] = [];
+    const compactTimes: number[] = [];
+    let observationsOk = true;
+    for (let sample = 0; sample < 10; sample++) {
+      const fullStarted = performance.now();
+      const fullObservation = await dispatch(m1, 'task_get', {
+        taskId: occupancyTask,
+      });
+      fullTimes.push(performance.now() - fullStarted);
+      const compactStarted = performance.now();
+      const compactObservation = await dispatch(m1, 'task_get', compactArgs);
+      compactTimes.push(performance.now() - compactStarted);
+      observationsOk &&=
+        fullObservation.status === 'ok' &&
+        compactObservation.status === 'ok' &&
+        recordAt(out(compactObservation), 'currentRun').runId ===
+          newOccupant.runId &&
+        recordAt(out(compactObservation), 'requestedRun').runId ===
+          oldOccupant.runId;
+    }
+    const timing = (values: number[]) => {
+      const sorted = values.toSorted((a, b) => a - b);
+      return {
+        medianMs: Math.round(sorted[5] ?? 0),
+        p95Ms: Math.round(sorted[9] ?? 0),
+      };
+    };
+    record(
+      'compact task occupancy: synthetic full-context response shrinks by at least 75 percent; twenty sequential native reads retain exact identities',
+      fullSample.status === 'ok' &&
+        compactSample.status === 'ok' &&
+        observationsOk &&
+        compactBytes < fullBytes / 4 &&
+        compactBytes < 4096 &&
+        textAt(recordAt(out(fullSample), 'task'), 'description').startsWith(
+          'Synthetic occupancy context.',
+        ) &&
+        !('description' in recordAt(out(compactSample), 'task')),
+      JSON.stringify({
+        fullBytes,
+        compactBytes,
+        samplesPerView: 10,
+        full: timing(fullTimes),
+        compact: timing(compactTimes),
+        latencyThresholdAsserted: false,
+      }),
     );
 
     // ---- what stays a person's ---------------------------------------------

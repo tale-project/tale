@@ -4,12 +4,27 @@ import {
   taskAgentReviewReceiptSchema,
   taskReviewerSchema,
 } from '@tale/shared/schemas/task-review';
-import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { ThreadEvent, ThreadEventActor } from '@tale/ui/thread/thread-event';
+import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
-import { Bot } from 'lucide-react';
-import { Fragment, useCallback, useMemo } from 'react';
+import {
+  Ban,
+  Bot,
+  CalendarDays,
+  CheckCheck,
+  CircleDot,
+  Link2,
+  Paperclip,
+  PenLine,
+  Repeat,
+  SignalHigh,
+  Tag,
+  UserCheck,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react';
+import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
@@ -19,8 +34,6 @@ import {
   useTaskActorDirectory,
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
-import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
-import { TaskLogRow, useTaskLogWindow } from '../hooks/use-task-log-window';
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
@@ -37,11 +50,12 @@ import {
   inferWorkflowContextFromRuns,
   mergeTaskTimeline,
 } from '../utils/task-timeline';
-import { AssigneeAvatar } from './assignee-avatar';
 import { TaskActorName } from './task-actor-preview-popover';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
+import { TaskStatusGlyph } from './task-status-glyph';
 
-function formatCents(cents: number): string {
+/** An agent run's cost, as the conversation and the details panel show it. */
+export function formatCents(cents: number): string {
   return (cents / 100).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -49,9 +63,6 @@ function formatCents(cents: number): string {
 }
 
 type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
-
-/** How many history lines the opening frame renders before its background pass. */
-const FIRST_FRAME_LINES = 20;
 
 /** How much of a changed text a timeline line quotes. A description change
  *  records both whole descriptions (up to 20,000 characters each), and a
@@ -84,7 +95,7 @@ function storedRepeatRule(value: string): TaskRepeat | null {
 }
 
 /** A task's activity and its agent runs, merged newest first, with the runs'
- * total cost — what the Activity log and the task page's conversation read. */
+ * total cost — what the conversation and the details panel read. */
 export function useTaskTimeline(taskId: string) {
   const { activity } = useTaskActivity(taskId);
   const { runs } = useTaskAgentRuns(taskId);
@@ -108,6 +119,33 @@ export function timelineItemKey(item: TimelineItem): string {
   return item.kind === 'agentRun' ? `run-${item.run.runId}` : item.entry._id;
 }
 
+/** The gutter glyph of an activity line: what kind of change it was. */
+function activityIcon(action: string, kind: string | undefined): LucideIcon {
+  if (action.startsWith('attachment')) return Paperclip;
+  if (action.startsWith('dependency')) return Link2;
+  if (action === 'labels.changed') return Tag;
+  switch (kind) {
+    case 'person':
+      return UserRound;
+    case 'priority':
+      return SignalHigh;
+    case 'reviewer':
+      return UserCheck;
+    case 'reviewDecision':
+      return CheckCheck;
+    case 'date':
+      return CalendarDays;
+    case 'repeat':
+      return Repeat;
+    case 'refusal':
+      return Ban;
+    case 'text':
+      return action === 'repeat.next' ? Repeat : PenLine;
+    default:
+      return CircleDot;
+  }
+}
+
 /**
  * One line of a task's history: an agent run (who, how it went, how long,
  * what it cost) or an activity entry (who changed what, from → to). Rendered
@@ -122,11 +160,14 @@ function TaskTimelineEntryContent({
   runs,
   organizationId,
   projectId,
+  timeFormat = 'relative',
 }: {
   item: TimelineItem;
   runs: ReturnType<typeof useTaskAgentRuns>['runs'];
   organizationId: string;
   projectId: string;
+  /** `time` under a day divider; `relative` where nothing names the day. */
+  timeFormat?: 'time' | 'relative';
 }) {
   const { t } = useT('tasks');
   const {
@@ -136,7 +177,7 @@ function TaskTimelineEntryContent({
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
   } = useTaskActorDirectory(organizationId, projectId);
-  const { formatRelative, formatDate } = useFormatDate();
+  const { formatDate } = useFormatDate();
   const repeatLabel = useTaskRepeatLabel();
   const { never: repeatNever } = useRecurrenceFormat();
 
@@ -154,62 +195,50 @@ function TaskTimelineEntryContent({
         ? resolveActor('agent', run.delegatedByAgentId).name
         : undefined;
     return (
-      <div className="flex items-start gap-2 text-sm [contain-intrinsic-block-size:auto_2rem] [content-visibility:auto]">
-        <span
-          className="bg-primary/10 text-primary mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded-full"
-          aria-hidden
-        >
-          <Bot className="size-3" />
+      <ThreadEvent
+        className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
+        glyph={
+          <span
+            className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
+            aria-hidden
+          >
+            <Bot className="size-3" />
+          </span>
+        }
+        time={<ThreadTime value={run.startedAt} format={timeFormat} />}
+        trailing={
+          <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
+        }
+      >
+        <ThreadEventActor>
+          <TaskActorName preview={agentPreview} name={agentPreview.name} />
+        </ThreadEventActor>{' '}
+        {t('timeline.runLabel')}
+        <span aria-hidden="true"> · </span>
+        <span>
+          {t(`agentRuns.trigger.${run.trigger}`)}
+          {run.durationMs !== undefined
+            ? ` · ${Math.round(run.durationMs / 1000)}s`
+            : ''}
+          {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
         </span>
-        <div className="text-muted-foreground min-w-0 flex-1 text-xs">
-          <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-            <Text
-              as="span"
-              variant="muted"
-              className="text-foreground text-xs font-medium"
-            >
-              {t('timeline.runLabel')}
-            </Text>
-            <TaskActorName preview={agentPreview} name={agentPreview.name} />
-            <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
-            <span>
-              {t(`agentRuns.trigger.${run.trigger}`)}
-              {run.durationMs !== undefined
-                ? ` · ${Math.round(run.durationMs / 1000)}s`
-                : ''}
-              {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
-            </span>
-            {workflowPreview ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <TaskActorName
-                  preview={workflowPreview}
-                  name={workflowPreview.name}
-                />
-              </>
-            ) : null}
-            {delegatorName !== undefined ? (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>
-                  {t('timeline.startedByAgent')}{' '}
-                  <TaskActorName
-                    preview={delegatorPreview}
-                    name={delegatorName}
-                  />
-                </span>
-              </>
-            ) : null}
-            <span aria-hidden="true">·</span>
-            <time
-              dateTime={new Date(run.startedAt).toISOString()}
-              title={formatDate(new Date(run.startedAt), 'long')}
-            >
-              {formatRelative(new Date(run.startedAt))}
-            </time>
-          </div>
-        </div>
-      </div>
+        {workflowPreview ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            <TaskActorName
+              preview={workflowPreview}
+              name={workflowPreview.name}
+            />
+          </>
+        ) : null}
+        {delegatorName !== undefined ? (
+          <>
+            <span aria-hidden="true"> · </span>
+            {t('timeline.startedByAgent')}{' '}
+            <TaskActorName preview={delegatorPreview} name={delegatorName} />
+          </>
+        ) : null}
+      </ThreadEvent>
     );
   }
 
@@ -326,122 +355,30 @@ function TaskTimelineEntryContent({
   const to = unchanged ? undefined : formatActivityValue(entry.toValue);
   const detail = from && to ? `${from} → ${to}` : (to ?? from);
 
+  // The change leads in its own words and casing (a German label is a noun
+  // phrase), the person who made it follows.
+  const Icon = activityIcon(entry.action, field?.kind);
+  const statusGlyph =
+    field?.kind === 'status' &&
+    entry.toValue !== undefined &&
+    isTaskStatus(entry.toValue) ? (
+      <TaskStatusGlyph status={entry.toValue} className="size-3.5" />
+    ) : undefined;
+
   return (
-    <div className="flex items-center gap-2 [contain-intrinsic-block-size:auto_2rem] [content-visibility:auto]">
-      <AssigneeAvatar
-        assigneeType={entry.actorType}
-        assigneeId={entry.actorId}
-        name={displayName}
-      />
-      <div className="text-muted-foreground flex flex-wrap items-center gap-x-1.5 text-xs">
+    <ThreadEvent
+      className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
+      {...(statusGlyph !== undefined ? { glyph: statusGlyph } : { icon: Icon })}
+      time={<ThreadTime value={entry.createdAt} format={timeFormat} />}
+    >
+      <span>
+        {label}
+        {detail ? `: ${detail}` : ''}
+      </span>
+      <span aria-hidden="true"> · </span>
+      <ThreadEventActor>
         <TaskActorName preview={preview} name={displayName} />
-        <span>
-          {label.toLowerCase()}
-          {detail ? `: ${detail}` : ''}
-        </span>
-        <span aria-hidden="true">·</span>
-        <time
-          dateTime={new Date(entry.createdAt).toISOString()}
-          title={formatDate(new Date(entry.createdAt), 'long')}
-        >
-          {formatRelative(new Date(entry.createdAt))}
-        </time>
-      </div>
-    </div>
-  );
-}
-
-export const TaskTimeline = withTaskActorDirectory(TaskTimelineContent);
-
-function TaskTimelineContent({
-  taskId,
-  organizationId,
-  projectId,
-}: {
-  taskId: string;
-  organizationId: string;
-  projectId: string;
-}) {
-  const { t } = useT('tasks');
-  const { timeline, runs, totalCostCents } = useTaskTimeline(taskId);
-  // The newest lines mount with the task, the older ones right after — a
-  // long history sits below the comments, out of the opening screen.
-  const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES, taskId);
-  const getItemKey = useCallback(
-    (index: number) => timelineItemKey(shownTimeline[index]),
-    [shownTimeline],
-  );
-  const estimateSize = useCallback(() => 40, []);
-  const window = useTaskLogWindow({
-    count: shownTimeline.length,
-    getItemKey,
-    estimateSize,
-    gap: 12,
-  });
-
-  if (timeline.length === 0) return null;
-
-  return (
-    <section>
-      <Stack gap={2}>
-        <div className="flex items-center justify-between gap-2">
-          <Text as="h3" variant="label">
-            {t('detail.activity')}
-          </Text>
-          {totalCostCents > 0 && (
-            <Text as="span" variant="muted" className="text-xs tabular-nums">
-              {t('agentRuns.totalCost', {
-                amount: formatCents(totalCostCents),
-              })}
-            </Text>
-          )}
-        </div>
-        <Stack as="ul" ref={window.listRef} gap={0}>
-          {window.items.map((row) => (
-            <Fragment key={row.key}>
-              {row.paddingBefore > 0 && (
-                <li
-                  aria-hidden
-                  role="presentation"
-                  style={{ height: row.paddingBefore, flexShrink: 0 }}
-                />
-              )}
-              <li
-                data-index={row.index}
-                ref={window.measureElement}
-                onFocusCapture={window.onFocusCapture}
-                onBlurCapture={window.onBlurCapture}
-                aria-posinset={window.virtualized ? row.index + 1 : undefined}
-                aria-setsize={window.virtualized ? timeline.length : undefined}
-                style={
-                  window.virtualized
-                    ? undefined
-                    : {
-                        contentVisibility: 'auto',
-                        containIntrinsicSize: 'auto 40px',
-                      }
-                }
-              >
-                <TaskLogRow rowKey={row.key} setRowActive={window.setRowActive}>
-                  <TaskTimelineEntry
-                    item={shownTimeline[row.index]}
-                    runs={runs}
-                    organizationId={organizationId}
-                    projectId={projectId}
-                  />
-                </TaskLogRow>
-              </li>
-            </Fragment>
-          ))}
-          {window.paddingAfter > 0 && (
-            <li
-              aria-hidden
-              role="presentation"
-              style={{ height: window.paddingAfter, flexShrink: 0 }}
-            />
-          )}
-        </Stack>
-      </Stack>
-    </section>
+      </ThreadEventActor>
+    </ThreadEvent>
   );
 }

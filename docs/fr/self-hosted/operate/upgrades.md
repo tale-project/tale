@@ -63,8 +63,6 @@ Les deux couleurs montent le volume `static-assets` du déploiement. Avant qu’
 
 Un onglet ouvert continue normalement à fonctionner pendant la bascule. Si une partie nécessaire n’est plus disponible, Tale attend que son API et sa base de données répondent, puis recharge la page une fois. Si cette partie ne se charge toujours pas, Tale affiche **Une nouvelle version est disponible** avec l’action **Recharger**, sans répéter le rechargement automatique. Pendant une panne, l’avis de connexion reste visible. Les lectures ayant échoué sont actualisées quand la connexion revient ; les écritures ayant échoué ne sont pas renvoyées automatiquement.
 
-Une fois les services mis à jour, la CLI supprime les images Tale des versions antérieures à la fois à la nouvelle version et à la cible de retour arrière enregistrée. L’hôte garde ainsi les images de deux versions plutôt que de chaque version qu’il a exécutée. Elle ne force jamais une suppression : une image qu’un conteneur utilise encore, comme un service laissé en marche sur une version antérieure ou une session sandbox démarrée avant le déploiement, reste jusqu’à ce qu’un déploiement ultérieur la trouve libre. Les images chargées à l’avance pour une version ultérieure restent aussi.
-
 Si le nouveau groupe ne devient pas sain avant `HEALTH_CHECK_TIMEOUT`, la CLI ne termine pas la bascule. Examine l’état enregistré et les journaux avant de réessayer. Un déploiement interrompu peut laisser les deux groupes ou un transfert en attente. Suis les indications de reprise de la CLI plutôt que de supprimer manuellement conteneurs ou fichiers d’état.
 
 ## Vérifier les migrations et le résultat utilisateur

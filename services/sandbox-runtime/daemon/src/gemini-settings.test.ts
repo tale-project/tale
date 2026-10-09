@@ -105,7 +105,13 @@ describe('Gemini immutable system settings', () => {
       );
       expect(observed.argv).not.toContain('-private prompt');
       expect(result.stdout).not.toContain('private-token');
-      expect(readdirSync(join(root, 'home/.gemini'))).toEqual([]);
+      // The CLI took the wrapper's place, so the context file stays, named
+      // for the exec, until a later wrapper sees that exec has ended.
+      expect(readdirSync(join(root, 'home/.gemini'))).toEqual([
+        expect.stringMatching(
+          new RegExp(`^tale-context-${result.pid}-[0-9a-f]{32}\\.md$`),
+        ),
+      ]);
     },
   );
 
@@ -140,11 +146,17 @@ describe('Gemini immutable system settings', () => {
   });
 
   pyTest(
-    'returns the CLI exit code and cleans private context after failure',
+    "returns the CLI exit code, and the next exec removes the failed one's private context",
     () => {
-      const result = run(geminiPayload(root), '53');
-      expect(result.status).toBe(53);
-      expect(readdirSync(join(root, 'home/.gemini'))).toEqual([]);
+      const failed = run(geminiPayload(root), '53');
+      expect(failed.status).toBe(53);
+      const next = run(geminiPayload(root));
+      expect(next.status).toBe(0);
+      expect(readdirSync(join(root, 'home/.gemini'))).toEqual([
+        expect.stringMatching(
+          new RegExp(`^tale-context-${next.pid}-[0-9a-f]{32}\\.md$`),
+        ),
+      ]);
     },
   );
 });

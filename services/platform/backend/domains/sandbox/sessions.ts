@@ -483,6 +483,50 @@ export async function resumeSessionSlot(
   });
 }
 
+/**
+ * Hibernate ONE incarnation whose compute is gone while the spawner keeps its
+ * workspace — the reconcile's heal of an agent session after a host reboot,
+ * a daemon restart or the OOM killer took its container. The row reads
+ * `stopped` (its slot freed, its `createdAt` kept), so the next turn resumes
+ * it in place on the preserved files and conversation, exactly as after an
+ * idle release. By row id, only from a compute-holding status and only while
+ * unpinned, under the organization's admission lock like every release (a
+ * resume taken first keeps the row). The credentials go as at every
+ * teardown edge — the gateway keys settled and deleted, the session tokens
+ * revoked: the compute that held them is gone, and the next turn mints its
+ * own. A freed slot is a release edge, so parked runs are woken.
+ */
+export async function markSessionStopped(
+  sql: Sql,
+  args: { organizationId: string; sessionId: string; rowId: string },
+): Promise<boolean> {
+  const stopped = await sql.begin(async (tx) => {
+    await lockOrgAdmission(tx, args.organizationId);
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.sandbox_sessions SET status = 'stopped'
+      WHERE id = ${args.rowId} AND org_id = ${args.organizationId}
+        AND session_id = ${args.sessionId}
+        AND status IN ('creating', 'active', 'degraded')
+        AND pinned = false
+      RETURNING id
+    `;
+    return rows.length > 0;
+  });
+  if (!stopped) return false;
+  await revokeSessionGatewayKeys(sql, args).catch((error: unknown) => {
+    console.error(
+      `[sandbox] gateway key reclaim for stopped ${args.sessionId} failed:`,
+      error,
+    );
+  });
+  await wakeParkedAgentRuns(sql, args.organizationId).catch(
+    (error: unknown) => {
+      console.warn('[sandbox] capacity wake failed:', error);
+    },
+  );
+  return true;
+}
+
 /** Terminal: revoke the gateway keys + mark destroyed + revoke tokens. The
  * single bottom of EVERY destroy — the admin Destroy, the watchdog's
  * phantom heal and ended-run reclaim, the session teardown — so credential

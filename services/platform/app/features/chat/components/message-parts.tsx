@@ -143,7 +143,7 @@ export function MessageParts({
             ) : (
               <p
                 key={`text:${index}`}
-                className="text-foreground text-sm leading-relaxed whitespace-pre-wrap"
+                className="text-foreground text-sm leading-6 whitespace-pre-wrap"
               >
                 {part.text}
               </p>

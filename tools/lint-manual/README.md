@@ -33,10 +33,10 @@ pure functions over a model, and the entry point holds nothing worth testing.
 
 | Rule | Holds |
 | --- | --- |
-| `layout` | every tree carries the same files: `readme.md`, `setup.md`, `template.md`, `suites/` with at least one suite, the four registers under `reference/`, and the journal plus its two templates under `runs/`. `scripts/` is the one optional slot. |
+| `layout` | every tree carries the same files: `readme.md`, `setup.md`, `template.md`, `suites/` with at least one suite, the four registers under `reference/`, and the journal plus its two templates under `runs/`. `scripts/` is the one optional slot. An optional `reference/automation/` holds one coverage file per suite, each named after a suite in `suites/`. |
 | `suites` | each suite declares a prefix and no prefix shadows another (two suites may share one, so a chain and its standalone tours can continue one numbering), every box parses as ``- [ ] `ID` · **action** → judgment``, every ID starts with its suite's prefix and is unique in the tree, no box is ticked, no suite holds a findings table, and the guide's suites table and the directory agree. |
 | `runs` | a record is `r<nnnn>.md`, and the rounds table and the files agree in both directions. |
-| `references` | every box `pins.md`, `automation.md` or the guide cites exists — as a box, or as the group a box belongs to (`P4` for `P4.1`) — and every `BL-n` cited anywhere is defined in `not-a-finding.md`. `runs/` is exempt — a record is history and is never rewritten. |
+| `references` | every box `pins.md`, `automation.md`, a `reference/automation/<suite>.md` shard or the guide cites exists — as a box, or as the group a box belongs to (`P4` for `P4.1`) — and every `BL-n` cited anywhere is defined in `not-a-finding.md`. `runs/` is exempt — a record is history and is never rewritten. |
 
 **Add a rule here, add its test in `tests/rules/` under the same name, and state
 it in the manual layer's own `readme.md`** — a rule nothing checks rots, and a

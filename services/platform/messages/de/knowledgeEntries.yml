@@ -22,6 +22,7 @@ headers:
   source: Quelle
   updated: Aktualisiert
 source:
+  agent: Agent
   api: API
   chat: Chat
   manual: Manuell

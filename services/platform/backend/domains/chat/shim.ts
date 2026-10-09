@@ -192,7 +192,8 @@ const WEBSITE_SUMMARY_CAP = 200;
 
 /** What a project's own API key may read through the chat tools: the
  * subjects its access scope narrows to its project. Contacts, products,
- * websites and the inbox are the organization's, never one project's. */
+ * websites, knowledge entries and the inbox are the organization's, never
+ * one project's. */
 const PROJECT_KEY_READ_SUBJECTS: ReadonlySet<string> = new Set([
   'documents',
   'tasks',
@@ -1271,11 +1272,15 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as {
         organizationId: string;
         topic?: string;
+        /** The agents' `knowledge_entry_find` also looks in the content;
+         * the chat legs match topics only. */
+        matchContent?: boolean;
         paginationOpts: { numItems: number; cursor: string | null };
       };
       return listEntriesForAgent(sql, {
         organizationId: args.organizationId,
         ...(args.topic !== undefined ? { topic: args.topic } : {}),
+        ...(args.matchContent === true ? { matchContent: true } : {}),
         matchWords: true,
         numItems: args.paginationOpts.numItems,
         cursor: args.paginationOpts.cursor,

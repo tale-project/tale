@@ -665,8 +665,6 @@ settings:
   loadFailed: Impossible de charger les paramètres — ferme le dialogue et réessaie.
   save: Enregistrer
   saveAndContinue: Enregistrer et continuer
-  showMore: Voir plus
-  showLess: Voir moins
   dialogTitle: '{name} — paramètres'
   tabsLabel: Sections des paramètres
   moreTabs: Autres sections des paramètres

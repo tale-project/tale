@@ -240,6 +240,9 @@ board:
   agentWorking: '{name} y travaille'
   addTask: Ajouter une tâche
   addToLane: 'Ajouter une tâche dans {status}'
+  collapseLane: 'Replier {status}'
+  expandLane: 'Déplier {status}'
+  laneCount: '{count, plural, one {# tâche} other {# tâches}}'
   quickAddLabel: Titre de la nouvelle tâche
   quickAdded: '« {title} » ajoutée'
   noTasks: Aucune tâche
@@ -292,7 +295,6 @@ delete:
   error: Impossible de supprimer la tâche
 detail:
   overview: Aperçu
-  comments: Commentaires
   commentCount: '{count, plural, one {# commentaire} other {# commentaires}}'
   noComments: Aucun commentaire pour le moment.
   conversation: Conversation
@@ -307,7 +309,6 @@ detail:
   copyKey: 'Copier {key}'
   keyCopied: '{key} copié'
   showEarlierComments: Afficher les commentaires précédents
-  activity: Activité
   subtasks: Sous-tâches
   addSubtask: Ajouter une sous-tâche…
   addDescription: Ajouter une description…
@@ -327,6 +328,7 @@ detail:
   notFound: Impossible de trouver cette tâche. Elle a peut-être été supprimée.
 comment:
   edited: modifié
+  agentBadge: Agent
   deleteConfirm: Supprimer ce commentaire ?
 assignee:
   unassigned: Non assigné
@@ -451,6 +453,7 @@ agentRuns:
   working: L'agent travaille…
   needsAnswer: En attente de ta réponse
   totalCost: '{amount} au total'
+  costLabel: Coût des agents
   status:
     queued: En attente
     running: En cours
@@ -484,6 +487,7 @@ agentRuns:
     completedTitle: "{agent} — détails de l'exécution"
     noLiveDetail: Aucun transcript en direct n'est disponible pour cette exécution.
 timeline:
+  updates: '{count, plural, one {# modification} other {# modifications}}'
   runLabel: Exécution d'agent
   startedByAgent: lancé par
   systemActor: Système

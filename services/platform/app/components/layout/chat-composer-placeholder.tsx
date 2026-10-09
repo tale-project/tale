@@ -1,11 +1,10 @@
 import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-
 import {
-  CHAT_COMPOSER_FIELD_CLASS,
-  CHAT_COMPOSER_FRAME_CLASS,
-} from '../../features/chat/lib/layout';
+  THREAD_COMPOSER_FIELD_CLASS,
+  THREAD_COMPOSER_FRAME_CLASS,
+} from '@tale/ui/thread/layout';
 
 /**
  * KEEP THIS MODULE LEAN. The boot-shell prerender script renders it under
@@ -34,8 +33,8 @@ export function ChatComposerPlaceholder() {
     <div className="mobile-nav-clearance mt-auto hidden shrink-0 px-4 pb-[calc(1rem+var(--mobile-nav-content-pad,0px))] [.boot-chat_&]:block">
       <Skeletonize loading>
         <div className="mx-auto w-full max-w-3xl">
-          <Stack gap={2} className={CHAT_COMPOSER_FRAME_CLASS}>
-            <div className={CHAT_COMPOSER_FIELD_CLASS}>
+          <Stack gap={2} className={THREAD_COMPOSER_FRAME_CLASS}>
+            <div className={THREAD_COMPOSER_FIELD_CLASS}>
               <SkeletonBox asChild>
                 <div className="h-5 w-44 rounded-md" />
               </SkeletonBox>

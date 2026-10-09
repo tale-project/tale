@@ -145,9 +145,11 @@ describe('workflowScriptRunner', () => {
       packagesByLang: { python: ['openpyxl'] },
       timeoutMs: DEFAULT_SCRIPT_TIMEOUT_MS,
     });
+    // The script's exec has exited: the harvest takes its first listing.
     expect(harvestSessionOutput).toHaveBeenCalledWith(ctx, {
       organizationId: ORG,
       sessionId: 'wf-session',
+      execExited: true,
     });
     expect(sessionReadFile).toHaveBeenCalledWith(
       'wf-session',
@@ -308,5 +310,26 @@ describe('workflowScriptRunner', () => {
     expect(outcome.harvestSkipped).toEqual([
       { path: '/agent/output/huge.bin', reason: 'over cap' },
     ]);
+  });
+
+  it('lets the harvest re-read an empty box after a script cut at its timeout', async () => {
+    // A cut exec's processes can still be inside their kill grace.
+    runStepsInSession.mockResolvedValue({
+      status: 'cancelled',
+      exitCode: null,
+      stdout: '',
+      stderr: '',
+    });
+    await workflowScriptRunner(ctx)({
+      organizationId: ORG,
+      runId: RUN,
+      skill: 's',
+      entry: 'a.py',
+    });
+    expect(harvestSessionOutput).toHaveBeenCalledWith(ctx, {
+      organizationId: ORG,
+      sessionId: 'wf-session',
+      execExited: false,
+    });
   });
 });

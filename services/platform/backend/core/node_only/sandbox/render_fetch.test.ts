@@ -288,6 +288,22 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
     expect(spawner.sessionDestroyIfIdle).not.toHaveBeenCalled();
   });
 
+  it('asks for a short idle window, so a batch that died before its destroy frees its render slot within minutes', async () => {
+    const run = renderRun('row_1');
+    scriptSpawner(run.events);
+
+    await run.render();
+
+    // Three minutes: well above the seconds between a batch's steps, its
+    // exec holding the session whatever its length.
+    expect(spawner.sessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        placement: 'server',
+        idleTimeoutMs: 3 * 60_000,
+      }),
+    );
+  });
+
   it('a failure after the create still tears the session down', async () => {
     const run = renderRun('row_1');
     scriptSpawner(run.events);

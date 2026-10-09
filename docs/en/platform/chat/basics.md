@@ -98,6 +98,8 @@ Files come along only from your own conversation. A task takes only its creator'
 
 Use the reply toolbar to copy an answer, give feedback, inspect its details, or fork a conversation at that point. A fork lets you try another direction while preserving the earlier exchange.
 
+Your own messages sit on the right. A long one shows its beginning, with **Read more** to open the rest in place and **Show less** to fold it again. Point at one of your messages, or move the keyboard focus into it, to see when you sent it and to use **Edit message**, which changes the text in a new version of the conversation; on a touch screen, both are always shown. Under a message you edited, or one whose reply you asked for again with **Try again**, **Previous branch** and **Next branch** switch between the versions, and the number between them, such as 2/3, says which one is on screen.
+
 Find earlier chats in [Home](/platform#home); **Chats** above the list hides your tasks and inbox conversations. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work: drag it onto the project or choose **Move to project…** in its menu. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
 
 Very long conversations may exceed the model’s context window. Tale displays a notice when older messages are omitted. Restate an important requirement or start a new chat with the relevant sources instead of assuming the assistant still sees the entire history.

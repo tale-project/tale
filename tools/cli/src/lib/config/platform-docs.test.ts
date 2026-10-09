@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os';
 import { relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import picomatch from 'picomatch';
 import ts from 'typescript';
+import { parse } from 'yaml';
 import { z } from 'zod';
 
 import { deploymentSpecSchema } from '../deployment/model';
@@ -379,6 +381,39 @@ test('turbo re-runs the suites when an install page or another outside file they
     .map((file) => relative(CLI_ROOT, file).split(sep).join('/'))
     .filter((file) => !inputs.has(file));
   expect(unhashed).toEqual([]);
+});
+
+test('native CLI scopes cover every imported platform backend module', () => {
+  const graph = cliModuleGraph();
+  expect(graph.unresolved).toEqual([]);
+  const filters = z
+    .object({ cli: z.array(z.string()).min(1) })
+    .parse(
+      parse(readFileSync(resolve(REPO_ROOT, '.github/ci-scope.yml'), 'utf8')),
+    );
+  const workflow = z
+    .object({
+      on: z.object({ push: z.object({ paths: z.array(z.string()).min(1) }) }),
+    })
+    .parse(
+      parse(
+        readFileSync(resolve(REPO_ROOT, '.github/workflows/cli.yml'), 'utf8'),
+      ),
+    );
+  const backend = [...graph.files]
+    .map((file) => relative(REPO_ROOT, file).split(sep).join('/'))
+    .filter((file) => file.startsWith('services/platform/backend/'));
+  expect(backend.length).toBeGreaterThan(20);
+  for (const [name, patterns] of [
+    ['PR', filters.cli],
+    ['push', workflow.on.push.paths],
+  ] as const) {
+    const matches = picomatch(patterns, { dot: true });
+    expect(
+      backend.filter((file) => !matches(file)).sort(),
+      `${name}: imported backend changes must run native CLI validation`,
+    ).toEqual([]);
+  }
 });
 
 test('cached CLI checks hash every imported module and generated source tree', () => {

@@ -48,3 +48,7 @@ export type ErasureStatus = (typeof ERASURE_STATUSES)[number];
  */
 export const ERASURE_WATCHDOG_TIMEOUT_MESSAGE =
   'Erasure timed out and was stopped by the watchdog. File a new request.' as const;
+
+/** Persisted partial-receipt reason, distinct from a legal hold or a failed
+ * pass. The drawer translates this exact token; a retry cannot clear it. */
+export const ERASURE_LEGACY_AUTOMATION_HOLD = 'legacy_automation_hold';

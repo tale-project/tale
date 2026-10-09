@@ -20,7 +20,6 @@ import { useMemo } from 'react';
 
 import {
   SkillsMenu,
-  type SkillOption,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
 import { AgentSecretsField } from '@/app/features/projects/components/agent-secrets-field';
@@ -28,16 +27,13 @@ import {
   useAgentSecrets,
   useProjectHarnesses,
 } from '@/app/features/projects/hooks/queries';
+import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
 import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
 import {
   findSelectedModel,
   offeredToHarness,
   toModelOptions,
 } from '@/app/features/projects/lib/model-options';
-import {
-  AGENT_TOOL_CATALOG,
-  PROJECT_AGENT_ONLY_TOOLS,
-} from '@/backend/core/sandbox/tool_names';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
@@ -103,26 +99,7 @@ export function AgentNodeFields({
     [roster.data, t],
   );
 
-  const toolOptions = useMemo<SkillOption[]>(
-    () =>
-      // A project agent's delegation tool: an automation starts agents with
-      // its `task.start_agent` step, so its agent node is never offered it.
-      AGENT_TOOL_CATALOG.filter(
-        (tool) => !PROJECT_AGENT_ONLY_TOOLS.includes(tool.name),
-      ).map((tool) => ({
-        slug: tool.name,
-        label: tProjects(`agents.tool.${tool.name}`, {
-          defaultValue: tool.name,
-        }),
-        description: tProjects(
-          tool.effect === 'write'
-            ? 'agents.tool.writeBadge'
-            : 'agents.tool.readBadge',
-        ),
-        group: tProjects(`agents.tool.module.${tool.module}`),
-      })),
-    [tProjects],
-  );
+  const { tools: toolOptions, lockedTools } = useAgentToolOptions('automation');
 
   const binding: SkillsSelection = {
     skills: readStringArray(node, 'skills'),
@@ -275,6 +252,7 @@ export function AgentNodeFields({
         skills={capabilities.data?.skills ?? []}
         connectors={capabilities.data?.connectors ?? []}
         tools={toolOptions}
+        lockedTools={lockedTools}
         value={binding}
         disabled={readOnly}
         onChange={(next) =>

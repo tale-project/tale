@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * One line of the thinking strip — the header, a tool step, the ask row.
+ * One line of a disclosure strip — in the chat's thinking timeline, the
+ * header, a tool step and the ask row.
  *
  * All three used to be hand-rolled, and all three drifted: the header carried a
  * bare `size-3.5` icon with `gap-1.5` and `font-medium`, a step with a chevron
@@ -17,9 +18,10 @@
  * affordance for a cosmetic gain.
  */
 
-import { cn } from '@tale/ui/cn';
 import { ChevronRight } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
+
+import { cn } from '../../lib/cn';
 
 export interface TimelineRowProps {
   icon: ComponentType<{ className?: string }>;

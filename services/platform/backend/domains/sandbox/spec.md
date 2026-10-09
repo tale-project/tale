@@ -4,9 +4,10 @@
 
 A sandbox is the isolated environment an agent works in, and its workspace is the files it
 keeps between turns. These rules cover who can see and manage workspaces, what an agent in a
-sandbox can reach, how many sandboxes run at once, when a workspace is deleted, and how a
-turn's spend is booked. Connected devices and agent secrets have their own specs. Egress, the
-health checks, image generation and how waiting work resumes are not covered; see Not yet.
+sandbox can reach, how many sandboxes run at once, what is left of a workspace whose sandbox
+disappears, when a workspace is deleted, and how a turn's spend is booked. Connected devices
+and agent secrets have their own specs. Egress, the health checks, image generation and how
+waiting work resumes are not covered; see Not yet.
 
 ## Who can do what
 
@@ -81,7 +82,7 @@ which tools it has, it is told the granted ones and no others.
 
 A run that an editor of the project started can change any task of the project. A run that a
 member started can change only its own task and the subtasks under it, and can save no
-document to the project; anything else is refused (`member_run`). It stays limited when an
+document to the project and no knowledge entry; anything else is refused (`member_run`). It stays limited when an
 editor steers it later, and a starter who loses the editor role during the run is treated as
 a member from then on. Reading the project's tasks stays possible. Once a run has ended, its
 tools act for nobody (`run_ended`).
@@ -151,6 +152,23 @@ every attempt has failed, its row says so.
 - **Example**: Ada destroys a pinned workspace while the sandbox service is down → the
   workspace stays in the list, now unpinned, and the Destroy is tried again.
 
+## When a sandbox disappears
+
+A sandbox can end without a Destroy, for example when its host restarts or it runs out of
+memory. A pinned workspace gets a new sandbox (`SBX-R10`); this covers the others.
+
+### SBX-R17 · A workspace outlives the sandbox it ran in
+
+When the sandbox of a project agent or an automation run on the Tale server disappears
+without a Destroy, for example because the host restarted or the sandbox ran out of memory, its
+workspace is kept and reads as stopped. The next turn goes on in its files. A start that fails
+after that removes only the sandbox it began, never the files. A crawler's temporary sandbox is
+closed instead, and so is a workspace the sandbox service no longer holds, or one on a
+connected device, which it does not list.
+
+- **Example**: Ada's agent is working on a task when the host restarts → the workspace reads
+  **Stopped**, and the agent's next turn finds its files and goes on with its conversation.
+
 ## Automatic deletion
 
 Tale deletes a workspace on its own in two cases: nobody has used it for a while, or what it
@@ -175,13 +193,16 @@ shows the day a stopped workspace will be deleted.
 Deleting a project agent deletes its workspaces, without waiting for the unused period.
 Removing a member from the organization deletes the workspaces kept for that member's runs.
 A pinned workspace goes too. Deleting the organization deletes every sandbox it had, whatever
-is running in it, revokes the gateway keys issued to them and disconnects its devices; the
-deletion counts as finished only once the files are confirmed deleted.
+is running in it, revokes the gateway keys issued to them, removes the provider keys it gave the
+gateway and disconnects its devices; the deletion counts as finished only once the files are
+confirmed deleted and the gateway holds none of its provider keys.
 
 - **Example**: Ada deletes an agent whose workspace is pinned → the workspace is deleted with
   the agent.
 - **Example**: Noah is removed from the organization → the workspaces kept for his runs are
   deleted.
+- **Example**: An organization that brought its own OpenRouter key is deleted while one of its
+  devices is offline → the gateway drops that key at once; the device is let go once it is back.
 
 ## What a turn costs
 
@@ -231,7 +252,7 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
   the place in line a waiting start gets, giving a slot back when a turn ends, and waking the
   waiting runs (`sessions.ts`, `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
 - **Health checks and repair**: ending a session after its lifetime while sparing a turn that
-  is still working, closing a workspace whose sandbox disappeared, collecting failed starts,
+  is still working, closing a crawler's sandbox that disappeared, collecting failed starts,
   reclaiming the sandboxes of ended runs and crawls, and picking a turn up again after a
   restart (`watchdogs.ts`, `recovery.ts`, `service.ts`, `wait-retention.ts`,
   `retirement-schedule.ts`).

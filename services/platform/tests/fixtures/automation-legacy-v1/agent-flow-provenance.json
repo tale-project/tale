@@ -441,7 +441,12 @@
       "sourcePath": "services/platform/backend/core/node_only/sandbox/llm_gateway_admin.ts",
       "names": ["hashVirtualKey"],
       "blob": "9417452265bd2af66c65948839a96b52aad80d03",
-      "sha256": "1c0b33f4ddc0498a2b91337eb28be2125f22f1206a1a82ff305523b4cbfbf6cc"
+      "sections": [
+        {
+          "name": "hashVirtualKey",
+          "sha256": "c7a4526599f59ab0cdd4c578cbaa7d5b207d4f33ea6c3269f573e7a70e8701db"
+        }
+      ]
     },
     {
       "sourcePath": "services/platform/backend/core/node_only/sandbox/managed_stage.ts",
@@ -516,7 +521,36 @@
         "secretsGuidance"
       ],
       "blob": "dd48d3a9f326bdaf7271abea0ef125c22bd0dbb8",
-      "sha256": "e5e6b9a9a1794d814063c55c5749270c6052398090ee4fa16e26b4c016ecf53e"
+      "sections": [
+        {
+          "name": "ASK_HUMAN_TOOL",
+          "sha256": "50a66674db21636f643343721b0f5ed3a744489be05a44de59fe9740f539afad"
+        },
+        {
+          "name": "grantedToolsGuidance",
+          "sha256": "635927ecc7bbfe345035698331be25c687ffea55ff26beff6dc395c954811082"
+        },
+        {
+          "name": "IMAGE_GENERATION_TOOL",
+          "sha256": "ce55e40a6d288fee9c8f8509c2bc44f6fd1e64d2ba24b5f61f7d7c787def0717"
+        },
+        {
+          "name": "imageGenerationGuidance",
+          "sha256": "ae6ec980645958a0389e374c1c7947ce608e930393bb6e6a4617d86c67226488"
+        },
+        {
+          "name": "KNOWLEDGE_READ_TOOLS",
+          "sha256": "ace47e088716ec1e85a3909de0e4d292aef1485d1d2700f07d922bef14b57404"
+        },
+        {
+          "name": "KNOWLEDGE_TOOLS_GUIDANCE",
+          "sha256": "0c6f65c0d51334cdf0b7ee58a9efdc5959c14ac0a42c3cb29d2dda81431770b0"
+        },
+        {
+          "name": "secretsGuidance",
+          "sha256": "f8a150b1be7e838db6fb1a31cd732eefd8b38868cddcbd915c6c0db110e9b9d1"
+        }
+      ]
     },
     {
       "sourcePath": "services/platform/backend/core/skills/skill_unavailable_error.ts",

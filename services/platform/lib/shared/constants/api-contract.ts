@@ -404,7 +404,16 @@
  * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
  * names such a cap with `data.scope` `project`. Additive.
  *
- * 3.24.0 — 2026-10-09: a schedule trigger runs on a repeat rule
+ * 3.23.0 — 2026-10-09: the project-agent tools vocabulary gains
+ * `knowledge_entry_write`, an explicit grant to save an organization-wide
+ * knowledge entry by topic; changing an existing entry needs the version the
+ * agent read, and a stale one is refused with the current text.
+ * `KnowledgeEntry.source` gains `agent` for what such a grant wrote, its
+ * `createdBy` naming the agent. Native `knowledge_entry_find` answers each
+ * entry's version `id` and `updatedAt` and matches its content as well. No
+ * REST operation changes. Additive.
+ *
+ * 3.25.0 — 2026-10-09: a schedule trigger runs on a repeat rule
  * (`repeat`, the `ScheduleRule` schema, from `startDate` in `timezone`) or
  * on a cron expression, and says what it does with occurrences it missed
  * (`catchUp`: `latest` or `skip`); every trigger kind takes a fixed `input`
@@ -419,4 +428,4 @@
  * `timezone` (it saved and never fired) and `cron` together with `repeat`.
  * Additive otherwise.
  */
-export const API_CONTRACT_VERSION = '3.24.0';
+export const API_CONTRACT_VERSION = '3.25.0';

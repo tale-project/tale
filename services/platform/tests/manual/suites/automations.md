@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 103 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 104 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -359,6 +359,21 @@ output:
       saving valid values toasts `automations.settings.saved` and survives reopen.
       Signed in as a Member who works the task, the entry is absent: saving
       writes the project's files, which stay with the project's editors.
+- [ ] `AUTO-F69` · **A long settings description reads short first** —
+  (env-gated: a pack whose settings form carries a `description` of five or
+  more sentences, such as the package catalog guide's
+  `validation-policy.yaml` form with one added) In **Create task** on a
+  project that is not set up yet, choose the pack's template beside **Blank
+  task** (`tasks.template.blank`); after setup, open the task's settings
+  entry (**{name} — settings**, `automations.settings.dialogTitle`) → In the
+  setup step (`tasks.template.setupIntro`) and in the dialog, the description
+  above the fields shows three lines ending in an ellipsis, with **Read
+  more** (`common.actions.readMore`) under it; pressing it shows the whole
+  text and turns into **Show less** (`common.actions.showLess`). Neither
+  press saves anything or leaves the step: no `automations.settings.saved`
+  toast, and **Save and continue** (`automations.settings.saveAndContinue`)
+  still waits. A two-line description shows no button; at 390 px wide a
+  description that fit before clamps and gains the button.
 - [ ] `AUTO-F33` · **Metrics redirect + page** — Navigate to
       `/dashboard/{org}/automations/metrics?period=7d` → URL is rewritten to
       `/dashboard/{org}/settings/metrics/automations` keeping the query; the page

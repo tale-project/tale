@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 67 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 70 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -521,6 +521,22 @@ records and delete them after.
   not all of them; the content search ignores the filter. Keyboard: Tab
   reaches the segments and the arrow keys switch them.
 
+- [ ] `KNOW-F38` · **An agent adds and then edits a knowledge entry** — With
+  a provider credential and a project agent whose equipment includes **Add and
+  edit knowledge entries** (`projects.agents.tool.knowledge_entry_write`),
+  **Start agent** on a task that asks it to "save our support hours, Mon–Fri
+  8–18, as a knowledge entry" → when the run settles, **Knowledge entries**
+  lists `Support hours` with Source **Agent** (`knowledgeEntries.source.agent`).
+  Comment "@agent support hours are now 8–17" → the entry reads 8–17, and its
+  details' **Version history** keeps the 8–18 text as the earlier version.
+  **Settings → Governance → Logs** shows the two saves by the agent.
+- [ ] `KNOW-F39` · **An agent's stale edit is merged, not overwritten** —
+  Continue KNOW-F38: edit `Support hours` yourself to add "Sat 9–12", then ask
+  the agent (by comment) to change the weekday hours to 8–16 → the run's
+  **Details** shows a `knowledge_entry_write` answer `refused` with reason
+  `version_conflict` and the current text, then a second call answering
+  `updated`; the entry keeps "Sat 9–12" and reads 8–16 for weekdays.
+
 ## Boundary & error tests
 
 - [ ] `KNOW-B1` · **Required name** — KNOW-F4/KNOW-F5/KNOW-F6 manual entry:
@@ -772,6 +788,12 @@ records and delete them after.
   neither; the second reads `CHF 0.00` and `0`, its details `CHF 0.00` and
   **0 units** (`common.units.stock`). **Edit** the second, empty **Price**
   and **Stock** → **Save** → reload → both read `-`.
+
+- [ ] `KNOW-B25` · **Agent saves have their own limit** — With an agent
+  granted **Add and edit knowledge entries**, ask it in one task to save 30
+  distinct one-line facts → past the agents' per-minute limit its calls answer
+  `rate_limited` with a retry time and save nothing more until then; meanwhile
+  **Add entry** in Knowledge entries still saves your own entry at once.
 
 ## Accessibility (WCAG 2.1 AA)
 

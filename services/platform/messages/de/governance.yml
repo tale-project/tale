@@ -1492,6 +1492,7 @@ dataSubjectRequests:
     wfExecutionsErased: Gelöschte Automatisierungsläufe
     startedAt: Gestartet
     completedAt: Abgeschlossen
+    legacyAutomationHold: Einige Automationsläufe wurden aufbewahrt, weil ihre früheren externen Aktionen noch nicht überprüft wurden. Ein erneuter Versuch hebt diese Sperren nicht auf.
     errorMessage: Fehler
     errorState:
       title: Diese Anfrage konnte nicht geladen werden
@@ -1528,6 +1529,7 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Zurückgewiesen
     gdpr_erasure_cancelled: Abgebrochen
   categories:
+    modelApiRequests: Modellanfragen
     userMemories: Persönliche Memos
     userPreferences: Nutzereinstellungen
     messageFeedback: Nachrichten-Feedback

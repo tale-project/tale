@@ -85,7 +85,6 @@ import { ActorDirectoryProvider } from '../hooks/task-actor-directory';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import { useDescriptionCap } from '../hooks/use-description-cap';
 import { useTaskAccess } from '../hooks/use-task-access';
-import { TaskLogViewport } from '../hooks/use-task-log-window';
 import {
   plannedTransitionKind,
   useTaskStatusChoreography,
@@ -137,7 +136,6 @@ import { TaskAutomationRunEntry } from './task-automation-run-entry';
 import {
   TaskCommentComposer,
   TaskCommentComposerSkeleton,
-  TaskComments,
 } from './task-comments';
 import { TaskConversation } from './task-conversation';
 import { TaskDeleteDialog } from './task-delete-dialog';
@@ -163,7 +161,8 @@ import {
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskStatusGlyph } from './task-status-glyph';
 import { TaskSubjectPanel } from './task-subject-panel';
-import { TaskTimeline } from './task-timeline';
+import { TaskThreadColumn } from './task-thread-column';
+import { formatCents, useTaskTimeline } from './task-timeline';
 import { TaskWatchControl } from './task-watch-control';
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
@@ -292,6 +291,10 @@ export function TaskModal({
         </ResponsiveDialogDescription>
         {bodyTaskId ? (
           <EditTaskBody
+            // One body per task, as on the task page: a switch through a
+            // subtask, parent, dependency or next-task link opens the next
+            // task fresh, on its newest message, with nothing sliding in.
+            key={bodyTaskId}
             taskId={bodyTaskId}
             onOpenTask={onOpenTask}
             onClose={() => onOpenChange(false)}
@@ -314,19 +317,31 @@ export function TaskModal({
   );
 }
 
-/** Two-column shell shared by both modes: main content + right property panel. */
+/** Two-column shell shared by both modes: main content + right property
+ *  panel. An open task's main column is its reading thread — the same column
+ *  as its page; the create form's is a plain scrolling column. */
 function ModalLayout({
   header,
   main,
+  thread,
   panel,
   footer,
 }: {
   header: ReactNode;
-  main: ReactNode;
   panel: ReactNode;
   footer?: ReactNode;
-}) {
-  const mainScrollRef = useRef<HTMLDivElement>(null);
+} & (
+  | { main: ReactNode; thread?: undefined }
+  | {
+      main?: undefined;
+      thread: {
+        brief: ReactNode;
+        conversation: ReactNode;
+        composer: ReactNode;
+      };
+    }
+)) {
+  const { t } = useT('tasks');
   return (
     <Stack className="min-h-0 flex-1">
       <div className="shrink-0">{header}</div>
@@ -339,22 +354,55 @@ function ModalLayout({
           the scrollport slightly so focus rings on full-width fields aren't
           clipped at the column edge. */}
       <div className="flex min-h-0 flex-1 flex-col gap-6 md:flex-row md:gap-0">
-        <Stack
-          ref={mainScrollRef}
-          gap={5}
-          className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
-        >
-          <TaskLogViewport scrollRef={mainScrollRef}>{main}</TaskLogViewport>
-        </Stack>
+        {thread !== undefined ? (
+          // On a phone the drawer scrolls the whole dialog as one column, so
+          // the thread hands its scrolling up and its composer follows it.
+          <TaskThreadColumn
+            brief={thread.brief}
+            conversation={thread.conversation}
+            composer={thread.composer}
+            className="md:min-h-0"
+            scrollerClassName="max-md:flex-none max-md:overflow-visible md:-ml-2 md:pl-2 md:pr-6"
+            contentClassName="max-w-none px-0 pt-0.5 pb-4"
+            composerClassName="max-w-none px-0 pb-0 md:pr-6"
+          />
+        ) : (
+          <Stack
+            gap={5}
+            className="min-w-0 flex-1 md:-ml-2 md:min-h-0 md:overflow-y-auto md:py-0.5 md:pr-6 md:pl-2"
+          >
+            {main}
+          </Stack>
+        )}
         <PropertyList
           as="aside"
+          aria-label={t('detail.details')}
           className="shrink-0 md:-mr-2 md:min-h-0 md:w-[17rem] md:overflow-y-auto md:border-l md:py-0.5 md:pr-2 md:pl-6"
         >
+          {/* The panel's own headings sit under it, not under the thread's. */}
+          <h2 className="sr-only">{t('detail.details')}</h2>
           {panel}
         </PropertyList>
       </div>
       {footer && <div className="shrink-0">{footer}</div>}
     </Stack>
+  );
+}
+
+/** What the task's agent runs cost together. Each run's own cost stays on its
+ *  line in the conversation; the total is a fact about the task, so it sits
+ *  with its details — also once the task moved on to a person. Absent until a
+ *  run cost anything. */
+function TaskAgentCostField({ taskId }: { taskId: string }) {
+  const { t } = useT('tasks');
+  const { totalCostCents } = useTaskTimeline(taskId);
+  if (totalCostCents <= 0) return null;
+  return (
+    <PropertyRow label={t('agentRuns.costLabel')}>
+      <Text as="span" className="text-sm tabular-nums">
+        {t('agentRuns.totalCost', { amount: formatCents(totalCostCents) })}
+      </Text>
+    </PropertyRow>
   );
 }
 
@@ -1511,8 +1559,8 @@ export function EditTaskBody({
         );
       }
       // The dialog's own shape while the task is on its way — its key, its
-      // title, the brief and the details, masked where each will land —
-      // instead of an empty panel.
+      // title, the brief, the composer and the details, masked where each
+      // will land — instead of an empty panel.
       return (
         <Skeletonize loading className="flex min-h-0 flex-1 flex-col">
           <ModalLayout
@@ -1533,11 +1581,15 @@ export function EditTaskBody({
                 </div>
               </Stack>
             }
-            main={
-              <div className="text-sm leading-6">
-                <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
-              </div>
-            }
+            thread={{
+              brief: (
+                <div className="text-sm leading-6">
+                  <SkeletonText lines={3} lastLineWidth="45%" seed={2} />
+                </div>
+              ),
+              conversation: null,
+              composer: <TaskCommentComposerSkeleton />,
+            }}
             panel={<TaskDetailsSkeleton showProject={showProjectLink} />}
           />
         </Skeletonize>
@@ -2072,29 +2124,30 @@ export function EditTaskBody({
     </>
   );
 
-  const discussionNode = (
-    <>
-      <TaskComments
-        taskId={task._id}
-        organizationId={task.organizationId}
-        projectId={task.projectId}
-        canComment={canComment}
-        canWork={canWork}
-        currentUserId={me?.userId}
-        isAdmin={me?.isAdmin}
-        commentCount={task.commentCount}
-        {...(task.assigneeType === 'agent' && task.assigneeId
-          ? { composerHint: t('actions.commentAgentHint') }
-          : {})}
-      />
-
-      <TaskTimeline
-        taskId={task._id}
-        organizationId={task.organizationId}
-        projectId={task.projectId}
-      />
-    </>
+  // The discussion as the task page reads it: one conversation, oldest first,
+  // with the composer at its foot.
+  const conversationNode = (
+    <TaskConversation
+      taskId={task._id}
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+      canComment={canComment}
+      canWork={canWork}
+      {...(me?.userId !== undefined ? { currentUserId: me.userId } : {})}
+      {...(me?.isAdmin !== undefined ? { isAdmin: me.isAdmin } : {})}
+    />
   );
+
+  const composerNode = canComment ? (
+    <TaskCommentComposer
+      taskId={task._id}
+      organizationId={task.organizationId}
+      projectId={task.projectId}
+      {...(task.assigneeType === 'agent' && task.assigneeId
+        ? { hint: t('actions.commentAgentHint') }
+        : {})}
+    />
+  ) : null;
 
   const panelNode = (
     <>
@@ -2241,6 +2294,7 @@ export function EditTaskBody({
           />
         </PropertyRow>
       )}
+      <TaskAgentCostField taskId={task._id} />
       {/* The automation lane's twin: the latest subject-linked run's
                 state and its step timeline, kept after the run finished so
                 the result can still be audited from the task. Absent until a
@@ -2385,12 +2439,11 @@ export function EditTaskBody({
         {surface === 'dialog' ? (
           <ModalLayout
             header={headerNode}
-            main={
-              <>
-                {briefNode}
-                {discussionNode}
-              </>
-            }
+            thread={{
+              brief: briefNode,
+              conversation: conversationNode,
+              composer: composerNode,
+            }}
             panel={panelNode}
           />
         ) : (
@@ -2435,32 +2488,8 @@ export function EditTaskBody({
             }
             actions={pageActions}
             brief={briefNode}
-            conversation={
-              <TaskConversation
-                taskId={task._id}
-                organizationId={task.organizationId}
-                projectId={task.projectId}
-                canComment={canComment}
-                canWork={canWork}
-                {...(me?.userId !== undefined
-                  ? { currentUserId: me.userId }
-                  : {})}
-                {...(me?.isAdmin !== undefined ? { isAdmin: me.isAdmin } : {})}
-              />
-            }
-            composer={
-              canComment ? (
-                <TaskCommentComposer
-                  taskId={task._id}
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  variant="chat"
-                  {...(task.assigneeType === 'agent' && task.assigneeId
-                    ? { hint: t('actions.commentAgentHint') }
-                    : {})}
-                />
-              ) : null
-            }
+            conversation={conversationNode}
+            composer={composerNode}
             panel={panelNode}
           />
         )}

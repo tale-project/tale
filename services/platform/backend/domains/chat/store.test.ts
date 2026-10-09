@@ -312,7 +312,12 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1', threadId: 'thread_1' },
+      {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+        projectIds: [],
+      },
       { threadId: 'thread_b' },
     );
     expect(f.transactions).toEqual(['commit']);
@@ -327,7 +332,12 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1', threadId: 'thread_1' },
+      {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+        projectIds: [],
+      },
       undefined,
     );
   });
@@ -445,6 +455,7 @@ describe('createPgTurnStore.beginTurn', () => {
 
   const SPEND = {
     userId: 'user_1',
+    projectIds: ['original-project'],
     apiKeyId: 'key_1',
     tokens: 4_096.4,
     costCents: 12.5,
@@ -459,7 +470,13 @@ describe('createPgTurnStore.beginTurn', () => {
     );
     expect(claim?.text).toContain('user_id, api_key_id, reserved_cost_cents,');
     expect(claim?.values).toEqual(
-      expect.arrayContaining(['user_1', 'key_1', 12.5, 4_097]),
+      expect.arrayContaining([
+        'user_1',
+        'key_1',
+        12.5,
+        4_097,
+        ['original-project'],
+      ]),
     );
     // No budget policy is on: nothing to serialize, no admission.
     expect(budget.budgetPolicyActive).toHaveBeenCalledWith(f.sql, 'org_1');
@@ -483,6 +500,7 @@ describe('createPgTurnStore.beginTurn', () => {
         userId: 'user_1',
         apiKeyId: 'key_1',
         threadId: 'thread_1',
+        projectIds: ['original-project'],
       },
       // No partner column to leave out of the measure on an ordinary open.
       undefined,
@@ -517,7 +535,7 @@ describe('createPgTurnStore.beginTurn', () => {
     const claim = f.tx.find((statement) =>
       statement.text.includes('INSERT INTO app.generations'),
     );
-    expect(claim?.values.slice(-4)).toEqual([null, null, 0, 0]);
+    expect(claim?.values.slice(-5)).toEqual([null, null, 0, 0, []]);
   });
 });
 
