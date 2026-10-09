@@ -88,6 +88,16 @@ describe('runnerd protocol mirror', () => {
     expect(sameDocker).toBe(true);
   });
 
+  test('both declarations describe the same exit event', () => {
+    // A field one copy adds to the exit event and the other lacks would
+    // pass the assignability checks above while the boundaries disagree.
+    const sameExit: Exactly<
+      Extract<CanonicalEvent, { t: 'exit' }>,
+      Extract<MirrorEvent, { t: 'exit' }>
+    > = true;
+    expect(sameExit).toBe(true);
+  });
+
   test.each([
     null,
     '0',
@@ -148,6 +158,7 @@ describe('runnerd protocol mirror', () => {
       [{ t: 'replay-start' }, true],
       [{ t: 'replay-complete', throughSeq: 0 }, true],
       [exit, true],
+      [{ ...exit, exitCode: 143, failure: 'EXEC_STALLED' }, true],
       [{ t: 'fail', code: 'OUTPUT_LIMIT', message: 'storage full' }, true],
       [{ t: 'fail', code: 'REPLAY_DISK_FULL', message: 'disk full' }, true],
       [null, false],
@@ -165,6 +176,7 @@ describe('runnerd protocol mirror', () => {
       [{ ...exit, exitCode: 1.5 }, false],
       [{ ...exit, durationMs: -1 }, false],
       [{ ...exit, durationMs: NaN }, false],
+      [{ ...exit, failure: 'SOMETHING_ELSE' }, false],
       [{ t: 'fail', code: 'unknown', message: '' }, false],
     ];
     for (const [event, accepted] of cases) {

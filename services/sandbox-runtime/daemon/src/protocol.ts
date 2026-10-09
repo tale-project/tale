@@ -20,6 +20,16 @@ export const RUNNERD_INCARNATION_ENV = 'TALE_RUNNERD_INCARNATION';
 export const RUNNERD_INCARNATION_HEADER = 'x-tale-runnerd-incarnation';
 
 export const RUNNERD_MAX_LIVE_EXECS = 4;
+/** POST /execs refused because the session's memory is nearly spent: its
+ * working set reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of its limit.
+ * HTTP 429 with a {@link RunnerdMemoryBusy} body and a `retry-after` header
+ * in seconds. Nothing started; the execs already running are untouched. */
+export const RUNNERD_MEMORY_BUSY_ERROR = 'session_memory_busy';
+export interface RunnerdMemoryBusy {
+  error: typeof RUNNERD_MEMORY_BUSY_ERROR;
+  code: 'SESSION_MEMORY_BUSY';
+  message: string;
+}
 /** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
  * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
  * response unboundedly — the only thing the old fixed stdout cap incidentally
@@ -163,6 +173,11 @@ export type RunnerdExecEvent = (
       truncated: { stdout: boolean; stderr: boolean };
       timedOut: boolean;
       cancelled: boolean;
+      /** Why runnerd itself ended the exec, when it did: `EXEC_STALLED` —
+       * it printed nothing and its processes used under 1% of one CPU for
+       * the whole stall window (`TALE_EXEC_STALL_MS`). Absent on a natural
+       * exit, a cancel and the orphan deadline. */
+      failure?: 'EXEC_STALLED';
     }
   | {
       t: 'fail';
@@ -222,7 +237,8 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
         typeof value.cancelled === 'boolean' &&
         isObject(value.truncated) &&
         typeof value.truncated.stdout === 'boolean' &&
-        typeof value.truncated.stderr === 'boolean'
+        typeof value.truncated.stderr === 'boolean' &&
+        (value.failure === undefined || value.failure === 'EXEC_STALLED')
       );
     case 'fail':
       return (

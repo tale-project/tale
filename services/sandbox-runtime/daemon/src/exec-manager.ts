@@ -28,6 +28,11 @@ import {
   REPLAY_WRITE_WATERMARK,
 } from './exec-replay.ts';
 import {
+  execStallMsFromEnv,
+  StallWatch,
+  type StallWatchOptions,
+} from './exec-stall.ts';
+import {
   EXEC_TAG_ENV,
   groupMembers,
   processesLeft,
@@ -166,6 +171,8 @@ interface LiveExec {
   finishing: boolean;
   /** Set by the deadline timer so the terminal exit event reports timedOut. */
   timedOut: boolean;
+  /** Ended by the stall watch: the exit event says `EXEC_STALLED`. */
+  stalled: boolean;
   /** Held-open stdin pipe (stdinMode:'hold'), written via writeStdin(). Null
    * for 'close'-mode execs, after EOF, and after the pipe errors (a dead child)
    * — writes then report STDIN_CLOSED instead of falsely confirming delivery. */
@@ -214,12 +221,24 @@ export class ExecManager {
       /** The subreaper shim to run execs under; unset, {@link
        * resolveExecShim}'s, and null for none. */
       execShim?: string | null;
+      /** The stall watch: its window (`TALE_EXEC_STALL_MS` unless set, 0
+       * for none) and how it samples. */
+      stall?: StallWatchOptions & { windowMs?: number };
     } = {},
   ) {
     this.replayBudget = new ReplayBudget(options.replayBudgetBytes);
     this.execShim =
       options.execShim === undefined ? resolveExecShim() : options.execShim;
+    this.stalls = new StallWatch(
+      options.stall?.windowMs ?? execStallMsFromEnv(),
+      (execId) => this.endStalled(execId),
+      options.stall,
+    );
   }
+
+  /** Ends the execs that print nothing and use almost no CPU for its
+   * window (exec-stall.ts). */
+  private readonly stalls: StallWatch;
 
   /** The subreaper shim execs run under, or null: they run directly. */
   readonly execShim: string | null;
@@ -567,6 +586,7 @@ export class ExecManager {
       timer: null,
       finishing: false,
       timedOut: false,
+      stalled: false,
       stdin: null,
       terminated: false,
       handedOver: false,
@@ -580,6 +600,10 @@ export class ExecManager {
       },
     };
     this.live.set(execId, record);
+    this.stalls.watch(execId, () => ({
+      rootPid: record.rootPid,
+      groupId: record.groupId,
+    }));
 
     const detach = () => {
       consumerSignal?.removeEventListener('abort', detach);
@@ -714,6 +738,8 @@ export class ExecManager {
       // handling below). Keeps the start..stdout..exit order the platform
       // adapters depend on and never mutates already-persisted output.
       if (settled || replayFailure) return;
+      // Output past a truncation cap is still output: the exec is working.
+      this.stalls.output(execId);
       // stdoutMaxBytes <= 0 disables truncation. Replay storage limits fail
       // explicitly; pending writes and consumer queues bound memory.
       if (stdoutMaxBytes > 0) {
@@ -742,6 +768,7 @@ export class ExecManager {
     });
     child.stderr.on('data', (chunk: Buffer) => {
       if (settled || replayFailure) return;
+      this.stalls.output(execId);
       if (stderrMaxBytes > 0) {
         const remaining = stderrMaxBytes - stderrBytes;
         if (remaining <= 0) {
@@ -828,6 +855,7 @@ export class ExecManager {
           truncated: { stdout: stdoutTrunc, stderr: stderrTrunc },
           timedOut: record.timedOut,
           cancelled: record.cancelRequested,
+          ...(record.stalled ? { failure: 'EXEC_STALLED' as const } : {}),
         };
         // A success cannot outrun a failed spool open/write. Wait for every
         // prior record and the terminal record before publishing exit status.
@@ -1044,6 +1072,20 @@ export class ExecManager {
     return true;
   }
 
+  /** The stall watch found the exec quiet and idle for its whole window: end
+   * it as a cancel does — SIGTERM, then SIGKILL once the grace has passed —
+   * and let its exit event say why. */
+  private endStalled(execId: string): void {
+    const rec = this.live.get(execId);
+    if (rec === undefined || rec.finishing) return;
+    rec.stalled = true;
+    console.warn(
+      `[runnerd] exec ${execId} printed nothing and used under 1% of a CPU for ${this.stalls.windowMs} ms; ending it as stalled`,
+    );
+    if (rec.timer) clearTimeout(rec.timer);
+    this.endNow(rec);
+  }
+
   /** A rotation's cancel: SIGTERM to the exec's own group, SIGKILL to it
    * while its leader still runs once the grace has passed, and what the exec
    * left outside the group held until an exec started after this one ends.
@@ -1215,6 +1257,7 @@ export class ExecManager {
   [Symbol.dispose](): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.stalls[Symbol.dispose]();
     for (const record of this.recent.values())
       void record.replay.dispose().catch(logReplayError);
     this.recent.clear();
@@ -1234,6 +1277,7 @@ export class ExecManager {
   private dropLive(execId: string): void {
     const rec = this.live.get(execId);
     this.live.delete(execId);
+    this.stalls.unwatch(execId);
     if (rec !== undefined && !rec.handedOver) this.liftHolds(rec.ordinal);
     if (this.live.size === 0) void this.reap(this.takeUnheldLeftovers());
   }

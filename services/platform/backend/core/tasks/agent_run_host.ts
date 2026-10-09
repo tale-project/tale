@@ -32,6 +32,7 @@ import {
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
@@ -1891,6 +1892,9 @@ function isResumeLaunchFailure(
   return (
     errored &&
     !emptyAnswer &&
+    // The sandbox ended the exec (a hang): no dead handle echoed back, and
+    // a fresh relaunch at once would only meet the same end.
+    sandboxEndOf(window) === undefined &&
     // A model-wide capacity refusal says nothing about the resume handle.
     // Keep it for the counted delayed retry instead of launching fresh now.
     window.ended?.providerErrorKind !== 'model_capacity' &&
@@ -1995,9 +1999,12 @@ async function continueOrSettle(
   }
   const {
     errored,
-    reason: endReason,
+    reason: classifiedReason,
     emptyAnswer,
   } = classifyHarnessEnd(window);
+  // An exec the sandbox ended (a hang) is named as such, not as a crash.
+  const sandboxEnd = sandboxEndOf(window);
+  const endReason = sandboxEnd?.reason ?? classifiedReason;
   // A `--resume` of a dead conversation echoes the handle back on its error
   // result: stamping THAT would re-arm the dead handle on every Retry
   // forever. A window that errored without producing anything and without
@@ -2080,13 +2087,18 @@ async function continueOrSettle(
     // A spend refusal (402) is named as such: the auto-retry must not
     // re-kick it (the key is sized from the same exhausted balance), and
     // the run row should say why.
+    // A harness the sandbox ended as stalled is named too: a hang is no
+    // provider error, and no retry follows it at once.
     ...(errored
       ? {
-          failureCode: spendRefused
-            ? ('budget_exceeded' as const)
-            : ended?.providerErrorKind === 'model_capacity'
-              ? ('model_capacity' as const)
-              : ('harness_error' as const),
+          failureCode:
+            sandboxEnd?.failure === 'stalled'
+              ? ('turn_stalled' as const)
+              : spendRefused
+                ? ('budget_exceeded' as const)
+                : ended?.providerErrorKind === 'model_capacity'
+                  ? ('model_capacity' as const)
+                  : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for

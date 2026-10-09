@@ -39,6 +39,7 @@ import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
@@ -82,6 +83,7 @@ import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisi
 import {
   sessionCancelExec,
   sessionDeleteFiles,
+  SessionMemoryBusyError,
   sessionStageFiles,
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
@@ -1344,7 +1346,7 @@ export function classifyWorkflowStartFailure(
   const noRoom = sandboxCapacityRefusal(err);
   if (noRoom !== null) {
     return {
-      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : "the organization's workflow sessions are all in use"}`,
+      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : err instanceof SessionMemoryBusyError ? "the run's sandbox is short of memory" : "the organization's workflow sessions are all in use"}`,
       failureCode: 'sandbox_capacity',
       retryAtMs: now + noRoom.retryAfterMs,
       retryAfterMs: noRoom.retryAfterMs,
@@ -2617,7 +2619,10 @@ async function continueOrSettle(
     .catch((err) =>
       console.warn('[agent-host] final progress write failed:', err),
     );
-  const { errored, reason } = classifyHarnessEnd(window);
+  const { errored, reason: classifiedReason } = classifyHarnessEnd(window);
+  // An exec the sandbox ended (a hang) is named as such, not as a crash.
+  const sandboxEnd = sandboxEndOf(window);
+  const reason = sandboxEnd?.reason ?? classifiedReason;
   const ended = window.ended;
 
   // A clean turn end with a question on the table is not a settle — it is the
@@ -2703,16 +2708,19 @@ async function continueOrSettle(
       // `harness_error`, so the stepper re-kicks them in place, except a
       // death at the deadline — retrying a burned 12h window is waste — and
       // a spend refusal (402), which a re-kick would only meet again on a
-      // key sized from the same exhausted balance. The API status rides
-      // along for display.
+      // key sized from the same exhausted balance, and a harness the sandbox
+      // ended as stalled, which would most likely hang again. The API
+      // status rides along for display.
       ...(errored
         ? {
             failureCode:
               Date.now() > args.deadlineAt
                 ? 'deadline'
-                : spendRefused
-                  ? 'budget_exceeded'
-                  : 'harness_error',
+                : sandboxEnd?.failure === 'stalled'
+                  ? 'turn_stalled'
+                  : spendRefused
+                    ? 'budget_exceeded'
+                    : 'harness_error',
           }
         : {}),
       ...(errored && ended?.apiErrorStatus !== undefined

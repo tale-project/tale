@@ -37,6 +37,9 @@ export const TASK_RUN_FAILURE_CLASSES = [
   'start',
   /** The run stopped mid-way on the platform's side. */
   'interrupted',
+  /** The agent hung — no output, almost no CPU — until its sandbox ended
+   * it; nothing retries it by itself. */
+  'stalled',
   /** No code, or one this build does not know. */
   'unknown',
 ] as const;
@@ -59,6 +62,7 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   start_failed: 'start',
   session_gone: 'interrupted',
   turn_crashed: 'interrupted',
+  turn_stalled: 'stalled',
   harvest_failed: 'interrupted',
   steer_restart_failed: 'interrupted',
 };

@@ -46,6 +46,7 @@ const KEYS = [
   'SANDBOX_MIN_FREE_DISK',
   'SANDBOX_CRITICAL_FREE_DISK',
   'SANDBOX_CPU_PRESSURE_PERCENT',
+  'SANDBOX_EXEC_STALL_MINUTES',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -542,6 +543,27 @@ describe('loadConfig — docker-in-container gating', () => {
       for (const bad of ['0', '1', '262145', '256.5', 'high']) {
         process.env.SANDBOX_AGENT_CPU_SHARES = bad;
         expect(() => loadConfig()).toThrow(/SANDBOX_AGENT_CPU_SHARES/);
+      }
+    });
+  });
+
+  describe('exec stall window', () => {
+    test('defaults to 45 minutes and takes whole minutes, 0 turning it off', () => {
+      expect(loadConfig().session.execStallMs).toBe(45 * 60_000);
+      process.env.SANDBOX_EXEC_STALL_MINUTES = '10';
+      expect(loadConfig().session.execStallMs).toBe(10 * 60_000);
+      process.env.SANDBOX_EXEC_STALL_MINUTES = '0';
+      expect(loadConfig().session.execStallMs).toBe(0);
+    });
+
+    test('admits new execs up to 90% of a session’s memory', () => {
+      expect(loadConfig().session.execAdmissionMemoryPercent).toBe(90);
+    });
+
+    test('refuses a window that is no whole number of minutes up to a day', () => {
+      for (const bad of ['-1', '1.5', 'soon', '1441']) {
+        process.env.SANDBOX_EXEC_STALL_MINUTES = bad;
+        expect(() => loadConfig()).toThrow(/SANDBOX_EXEC_STALL_MINUTES/);
       }
     });
   });

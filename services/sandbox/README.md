@@ -136,6 +136,21 @@ There is no independently configured organization runtime ceiling. With
 organization's connected devices offer; the platform's ceiling for that
 organization is `maxSessions + deviceSessions`.
 
+A session exec that prints nothing for `SANDBOX_EXEC_STALL_MINUTES` (45 unless
+set, `0` turns it off) while its processes use under 1% of one CPU has hung,
+and runnerd ends it: every session container gets the window as
+`TALE_EXEC_STALL_MS`, and the exec's result reads `failed` with the error code
+`EXEC_STALLED`, even when the command exited 0 on the SIGTERM
+(../sandbox-runtime/README.md).
+
+A session whose memory is nearly spent starts no new exec: every session
+container gets `TALE_EXEC_ADMISSION_MEMORY_PERCENT=90`, and once the session's
+working set has reached that share of its limit runnerd refuses a new exec
+before it starts. `POST /v1/sessions/:id/exec` then answers `429`
+`{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with runnerd's
+`retry-after`, before any stream: the spawner starts the exec before it answers,
+so a refused exec never shows up as a failed one. Running execs are untouched.
+
 Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
 CPU for the `default` profile) and a CPU weight below the control plane's:
 agent sessions and their organization's build helpers run at `--cpu-shares`

@@ -398,6 +398,16 @@ function numEnv(
   return n;
 }
 
+/** A stall window in whole minutes, at most a day; 0 turns the stall watch
+ * off. */
+function stallMinutesEnv(name: string, fallback: number): number {
+  const minutes = numEnv(name, fallback, { min: 0, max: 24 * 60 });
+  if (!Number.isInteger(minutes)) {
+    throw new Error(`Env var ${name} must be a whole number; got: ${minutes}`);
+  }
+  return minutes;
+}
+
 /** A Docker `--cpu-shares` weight: a whole number in the 2–262144 range the
  * kernel accepts (0 would mean "the default 1024", which defeats the point). */
 function cpuSharesEnv(name: string, fallback: number): number {
@@ -945,6 +955,13 @@ export function loadConfig(): SpawnerConfig {
         24 * 60 * 60 * 1000,
         { min: 1_000 },
       ),
+      // An exec that prints nothing and computes nothing this long has hung
+      // (an agent CLI waiting on a socket that never answers): runnerd ends
+      // it so it stops holding the session. Whole minutes; 0 turns it off.
+      execStallMs: stallMinutesEnv('SANDBOX_EXEC_STALL_MINUTES', 45) * 60_000,
+      // Past 90% of its memory limit a session starts no new exec: one more
+      // would make the kernel kill a running one, most often the agent.
+      execAdmissionMemoryPercent: 90,
       createHealthTimeoutMs: numEnv(
         'SANDBOX_SESSION_CREATE_TIMEOUT_MS',
         180_000,

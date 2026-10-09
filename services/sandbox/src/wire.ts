@@ -57,6 +57,11 @@ export const sandboxErrorCodeLiterals = [
   // room, not a fault: a place frees when another exec of the session ends,
   // so the caller waits for that instead of failing the work.
   'EXEC_LIMIT',
+  // runnerd ended the exec because it stalled: it printed nothing and its
+  // processes used under 1% of one CPU for the whole stall window
+  // (SANDBOX_EXEC_STALL_MINUTES). A hang, not a crash — retrying it at once
+  // would most likely hang the same way.
+  'EXEC_STALLED',
 ] as const;
 
 export type SandboxErrorCode = (typeof sandboxErrorCodeLiterals)[number];
