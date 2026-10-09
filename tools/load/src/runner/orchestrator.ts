@@ -223,9 +223,11 @@ export async function runLoad(config: RunConfig): Promise<RunOutcome> {
         failures.push(`worker ${w}: ${message.message}`);
       }
     });
-    child.on('exit', (code) => {
+    child.on('exit', (code, signal) => {
       if (!state.stopped && code !== 0) {
-        failures.push(`worker ${w} exited with code ${code}`);
+        failures.push(
+          `worker ${w} exited with ${signal === null ? `code ${code}` : signal}`,
+        );
       }
       state.stopped = true;
     });

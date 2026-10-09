@@ -157,6 +157,18 @@ async function main(): Promise<void> {
     // The orchestrator is gone: nobody will read another snapshot.
     process.exit(0);
   });
+  // A terminal's Ctrl-C reaches the whole process group, workers included.
+  // The orchestrator owns shutdown — it sends `stop`, and the worker winds
+  // its users down and ships its final snapshot — so the signal itself is
+  // not this process's to act on. If the orchestrator dies instead, the IPC
+  // channel's `disconnect` above ends the worker.
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => {
+      console.warn(
+        `[load worker] ${signal} left to the orchestrator; winding down on its stop`,
+      );
+    });
+  }
 }
 
 await main();
