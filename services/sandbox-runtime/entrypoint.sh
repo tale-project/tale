@@ -905,8 +905,11 @@ _select_shared_buildx_builder() {
   }
   # Where buildx keeps the definition for the agent's environment.
   _bk_instance="${BUILDX_CONFIG:-${DOCKER_CONFIG:-/agent/.runtime/home/.docker}/buildx}/instances/${_builder}"
+  # A definition the agent owns that names this endpoint is reused as is; an
+  # empty or edited one goes through buildx, which rejects a broken builder.
   if /usr/bin/setpriv --reuid 10001 --regid 10001 --init-groups -- \
-    /bin/sh -c '[ -f "$1" ] && [ -O "$1" ]' sh "${_bk_instance}"; then
+    /bin/sh -c '[ -f "$1" ] && [ -O "$1" ] && [ -s "$1" ] && grep -qF -- "$2" "$1"' \
+    sh "${_bk_instance}" "${TALE_BUILDKITD_ENDPOINT}"; then
     :
   elif _bk inspect "${_builder}" >/dev/null 2>&1; then
     :

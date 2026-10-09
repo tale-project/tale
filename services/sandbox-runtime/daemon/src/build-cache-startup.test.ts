@@ -81,9 +81,24 @@ const instance = join(home, '.docker/buildx/instances', builder);
 function run(command: string, env: Record<string, string> = {}) {
   writeFileSync(log, '');
   rmSync(home, { recursive: true, force: true });
-  if (env.TALE_BUILD_TEST_INSTANCE === 'file') {
+  const definitions: Record<string, string> = {
+    // The shape buildx writes: the builder's name and its node's endpoint.
+    file: JSON.stringify({
+      Name: builder,
+      Driver: 'remote',
+      Nodes: [{ Name: `${builder}0`, Endpoint: endpoint }],
+    }),
+    empty: '',
+    foreign: JSON.stringify({
+      Name: builder,
+      Driver: 'remote',
+      Nodes: [{ Name: `${builder}0`, Endpoint: 'tcp://elsewhere:1234' }],
+    }),
+  };
+  const definition = definitions[env.TALE_BUILD_TEST_INSTANCE ?? ''];
+  if (definition !== undefined) {
     mkdirSync(dirname(instance), { recursive: true });
-    writeFileSync(instance, '{}');
+    writeFileSync(instance, definition);
   } else if (env.TALE_BUILD_TEST_INSTANCE === 'directory') {
     mkdirSync(instance, { recursive: true });
   }
@@ -170,6 +185,18 @@ describe('shared build cache startup', () => {
     expect(calls).toEqual(['']);
     expect(result.stdout).toContain(`SELECTED=${builder}`);
   });
+  test.each(['empty', 'foreign'])(
+    'a %s definition goes through buildx, which rejects a broken builder',
+    (kind) => {
+      const { result, calls } = run(select, {
+        TALE_BUILD_TEST_INSTANCE: kind,
+        TALE_BUILD_TEST_REUSE: '1',
+      });
+      expect(result.status).toBe(0);
+      expect(calls).toEqual([`buildx inspect ${builder}`]);
+      expect(result.stdout).toContain(`SELECTED=${builder}`);
+    },
+  );
   test('anything but a regular definition file falls back to inspect', () => {
     const { result, calls } = run(select, {
       TALE_BUILD_TEST_INSTANCE: 'directory',
