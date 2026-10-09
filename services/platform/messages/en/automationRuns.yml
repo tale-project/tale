@@ -30,6 +30,18 @@ lineage:
   from: Replay of run {id} · from {step}
   deleted: Replay of a run that was deleted
   open: Open run {id}
+playback:
+  reason:
+    when: 'Skipped: condition was false'
+    else: 'Skipped: {partner} ran'
+    upstream: 'Skipped: {via} was skipped'
+    error: Failed, the run went on
+  wait:
+    approval: Waited for approval
+    ask: Waited for an answer
+    room: Waited for a sandbox slot
+    repeat: Paused between passes
+    in_doubt: Waited for a decision
 runtime:
   codes:
     EXPR_SYNTAX:

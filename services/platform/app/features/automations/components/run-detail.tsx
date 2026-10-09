@@ -22,6 +22,7 @@ import { failureDetail } from '@/app/lib/backend/adapters';
 import type { RecordedStep } from '@/app/lib/backend/contract/automations';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
+import type { WaitRecord } from '@/lib/engine/core/record/types';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -47,6 +48,8 @@ import {
   nodeCatalogView,
   nodeTitle,
 } from '../lib/node-face';
+import { stepFailureText } from '../lib/run-failure';
+import type { TimelineWords } from '../lib/run-timeline';
 import {
   cursorNodeStatus,
   isRunFinished,
@@ -131,6 +134,7 @@ function RunDetailBody({
   onFocusLost,
 }: RunDetailProps & { onFocusLost: () => void }) {
   const { t } = useT('automations');
+  const { t: tRuns } = useT('automationRuns');
   const { formatDate } = useFormatDate();
   const inspectorId = useId();
   const effectsHeadingId = useId();
@@ -171,11 +175,12 @@ function RunDetailBody({
   );
   // The latest version, for a retry on it.
   const latestQuery = useAutomation(organizationId, automationSlug);
-  const recordQuery = useRunRecord(
-    organizationId,
-    run?.status === 'failed' ? runId : undefined,
-    { finished: true },
-  );
+  // The run step by step: the canvas plays it back, and a failed run's
+  // card names the step it failed at.
+  const recordQuery = useRunRecord(organizationId, run ? runId : undefined, {
+    travels: true,
+    finished: run ? isRunFinished(readRunStatus(run.status)) : false,
+  });
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const cancel = useCancelAutomationRun();
   const starterLabel = useRunStarterLabel(organizationId);
@@ -277,6 +282,47 @@ function RunDetailBody({
     }),
     [catalog, locale],
   );
+  // What the playback says about a step that failed or produced nothing,
+  // and about a wait.
+  const timelineWords = useMemo<TimelineWords>(() => {
+    const waits: Readonly<Record<WaitRecord['kind'], string>> = {
+      approval: tRuns('playback.wait.approval'),
+      ask: tRuns('playback.wait.ask'),
+      room: tRuns('playback.wait.room'),
+      repeat: tRuns('playback.wait.repeat'),
+      in_doubt: tRuns('playback.wait.in_doubt'),
+    };
+    return {
+      failed: (step) =>
+        step.failure === undefined
+          ? undefined
+          : stepFailureText(step.failure, {
+              t: tRuns,
+              locale,
+              ...failureLabels,
+            }).title,
+      skipped: (step) => {
+        const via = step.skip?.via?.[0];
+        switch (step.skip?.reason) {
+          case 'when':
+            return tRuns('playback.reason.when');
+          case 'else':
+            return via === undefined
+              ? tRuns('playback.reason.when')
+              : tRuns('playback.reason.else', { partner: nodeTitle(via) });
+          case 'upstream':
+            return via === undefined
+              ? undefined
+              : tRuns('playback.reason.upstream', { via: nodeTitle(via) });
+          case 'error':
+            return tRuns('playback.reason.error');
+          default:
+            return undefined;
+        }
+      },
+      wait: (wait) => waits[wait.kind],
+    };
+  }, [tRuns, locale, failureLabels]);
   const canvasRun = useMemo<CanvasRun | null>(
     () =>
       run === null
@@ -286,8 +332,21 @@ function RunDetailBody({
             projection,
             status: readRunStatus(run.status),
             startedBy: starterLabel(run),
+            ...(recordQuery.data !== null &&
+              recordQuery.data !== undefined && {
+                record: recordQuery.data,
+                words: timelineWords,
+                live: !isRunFinished(readRunStatus(run.status)),
+              }),
           },
-    [run, runStatusByNode, projection, starterLabel],
+    [
+      run,
+      runStatusByNode,
+      projection,
+      starterLabel,
+      recordQuery.data,
+      timelineWords,
+    ],
   );
   // A failed run opens on its failure: the node that failed comes into
   // view, and the way the run took to it stands out.

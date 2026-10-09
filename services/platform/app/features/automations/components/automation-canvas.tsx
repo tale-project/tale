@@ -4,13 +4,23 @@ import { Alert } from '@tale/ui/alert';
 import { EmptyState } from '@tale/ui/empty-state';
 import type { FlowLegendEntry } from '@tale/ui/flow/flow-legend';
 import type { FlowHighlight } from '@tale/ui/flow/paths';
+import {
+  buildPlaybackTimeline,
+  usePlaybackClock,
+} from '@tale/ui/flow/playback';
+import { FlowPlaybackBar, formatFlowClock } from '@tale/ui/flow/playback-bar';
 import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
-import { WorkflowCanvas, type FlowView } from '@tale/ui/flow/workflow-canvas';
+import {
+  WorkflowCanvas,
+  type FlowView,
+  type WorkflowCanvasProps,
+} from '@tale/ui/flow/workflow-canvas';
 import type { IssueCounts } from '@tale/ui/issue-summary';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { AlertTriangle, Hand, Workflow } from 'lucide-react';
 import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 
+import type { RunRecordView } from '@/app/lib/backend/contract/automations';
 import type { Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import type {
@@ -21,6 +31,7 @@ import type {
 import { useCanvasFlow } from '../hooks/use-canvas-flow';
 import type { NodeCatalogView, ReturnsSource } from '../lib/node-face';
 import { runOverlay } from '../lib/run-overlay';
+import { realRunOf, type TimelineWords } from '../lib/run-timeline';
 import type { NodeRunStatus, RunProjection, RunStatus } from '../lib/run-view';
 import { AUTOMATION_WORKBENCH_COMPACT_QUERY } from '../lib/workbench';
 import {
@@ -37,6 +48,12 @@ export interface CanvasRun {
   status: RunStatus;
   /** Who or what started it, for Start's strip. */
   startedBy?: string;
+  /** The run step by step: with it, the canvas plays the run back. */
+  record?: RunRecordView;
+  /** What the playback says about a step or a wait. */
+  words?: TimelineWords;
+  /** The run is still going: the playback follows its end. */
+  live?: boolean;
 }
 
 export interface AutomationCanvasProps {
@@ -276,58 +293,71 @@ export function AutomationCanvas({
       topStart
     );
 
+  const canvasProps: WorkflowCanvasProps = {
+    graph,
+    'aria-label': t('canvas.ariaLabel'),
+    layoutKey,
+    selectedId,
+    onSelect,
+    controlsId: inspectorId,
+    ...(revealId !== undefined && { revealId }),
+    ...(issueCounts !== undefined && { issues: issueCounts }),
+    ...(overlay !== undefined && { overlay }),
+    ...(paths !== null && { paths: paths.flowPaths }),
+    highlight,
+    ...(changed !== undefined && { changed }),
+    ...(view !== undefined && { view }),
+    ...(onViewChange !== undefined && { onViewChange }),
+    framed,
+    topStart: corner,
+    topEnd: (
+      <>
+        {paths !== null && (
+          <AutomationPathsButton
+            count={paths.count}
+            open={pathsOpen}
+            controls={pathsOpen && !compact ? panelId : undefined}
+            onToggle={() => {
+              setPathsOpen((open) => !open);
+              setPreviewId(null);
+            }}
+          />
+        )}
+        {topEnd}
+      </>
+    ),
+    toolbar,
+    legend,
+    ...(onLayout !== undefined && { onLayout }),
+    notice: hasCycle ? (
+      <Alert
+        variant="warning"
+        icon={AlertTriangle}
+        title={t('canvas.cycle.title')}
+        description={t('canvas.cycle.description')}
+        // Unframed, the canvas has no inset of its own: the warning
+        // keeps the page's instead of running into the edges.
+        className={framed ? 'mb-3' : 'm-4 mb-0'}
+      />
+    ) : undefined,
+  };
+  // A run recorded step by step plays back; one recorded before records
+  // were kept shows where each step ended.
+  const record = run?.record?.source === 'record' ? run.record : undefined;
+
   return (
     <>
-      <WorkflowCanvas
-        graph={graph}
-        aria-label={t('canvas.ariaLabel')}
-        layoutKey={layoutKey}
-        selectedId={selectedId}
-        onSelect={onSelect}
-        controlsId={inspectorId}
-        {...(revealId !== undefined && { revealId })}
-        {...(issueCounts !== undefined && { issues: issueCounts })}
-        {...(overlay !== undefined && { overlay })}
-        {...(paths !== null && { paths: paths.flowPaths })}
-        highlight={highlight}
-        {...(changed !== undefined && { changed })}
-        {...(view !== undefined && { view })}
-        {...(onViewChange !== undefined && { onViewChange })}
-        framed={framed}
-        topStart={corner}
-        topEnd={
-          <>
-            {paths !== null && (
-              <AutomationPathsButton
-                count={paths.count}
-                open={pathsOpen}
-                controls={pathsOpen && !compact ? panelId : undefined}
-                onToggle={() => {
-                  setPathsOpen((open) => !open);
-                  setPreviewId(null);
-                }}
-              />
-            )}
-            {topEnd}
-          </>
-        }
-        toolbar={toolbar}
-        legend={legend}
-        {...(onLayout !== undefined && { onLayout })}
-        notice={
-          hasCycle ? (
-            <Alert
-              variant="warning"
-              icon={AlertTriangle}
-              title={t('canvas.cycle.title')}
-              description={t('canvas.cycle.description')}
-              // Unframed, the canvas has no inset of its own: the warning
-              // keeps the page's instead of running into the edges.
-              className={framed ? 'mb-3' : 'm-4 mb-0'}
-            />
-          ) : undefined
-        }
-      />
+      {record === undefined ? (
+        <WorkflowCanvas {...canvasProps} />
+      ) : (
+        <PlayedWorkflowCanvas
+          key={record.runId}
+          record={record}
+          words={run?.words ?? NO_WORDS}
+          live={run?.live === true}
+          canvasProps={canvasProps}
+        />
+      )}
       {listProps !== null && compact && (
         <AutomationPathsSheet
           open={pathsOpen}
@@ -339,5 +369,53 @@ export function AutomationCanvas({
         />
       )}
     </>
+  );
+}
+
+const NO_WORDS: TimelineWords = {};
+
+/**
+ * The canvas playing a recorded run: the record as moments on this chart
+ * (`realRunOf`), compressed into a timeline a reader can follow, and the
+ * playback bar in the toolbar — opening on the whole story, the run's end.
+ * The clock shows the run's real elapsed time.
+ */
+function PlayedWorkflowCanvas({
+  record,
+  words,
+  live,
+  canvasProps,
+}: {
+  record: RunRecordView;
+  words: TimelineWords;
+  live: boolean;
+  canvasProps: WorkflowCanvasProps;
+}) {
+  const { graph } = canvasProps;
+  const timeline = useMemo(
+    () => buildPlaybackTimeline(realRunOf(record, graph, words)),
+    [record, graph, words],
+  );
+  const clock = usePlaybackClock({ timeline, live });
+  return (
+    <WorkflowCanvas
+      {...canvasProps}
+      playback={{ timeline, t: clock.t }}
+      toolbar={
+        <FlowPlaybackBar
+          timeline={timeline}
+          t={clock.t}
+          onTChange={clock.setT}
+          playing={clock.playing}
+          onPlayingChange={clock.setPlaying}
+          speed={clock.speed}
+          onSpeedChange={clock.setSpeed}
+          formatTime={(t) =>
+            formatFlowClock(timeline.toReal(t) - record.startedAt)
+          }
+          {...(live && !clock.following && { onFollowLive: clock.follow })}
+        />
+      }
+    />
   );
 }

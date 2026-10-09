@@ -1,6 +1,6 @@
 import type { FlowLegendEntry } from '@tale/ui/flow/flow-legend';
 import type { FlowHighlight } from '@tale/ui/flow/paths';
-import type { FlowRunOverlay } from '@tale/ui/flow/playback';
+import type { FlowPlayback, FlowRunOverlay } from '@tale/ui/flow/playback';
 import type { FlowGraph } from '@tale/ui/flow/types';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -32,6 +32,7 @@ const shown = vi.hoisted(() => ({
     controlsId?: string;
     highlight?: FlowHighlight | null;
     overlay?: FlowRunOverlay;
+    playback?: FlowPlayback;
     legend?: readonly FlowLegendEntry[];
     paths?: readonly unknown[];
   },
@@ -47,12 +48,14 @@ vi.mock('@tale/ui/flow/workflow-canvas', () => ({
     topStart?: ReactNode;
     topEnd?: ReactNode;
     notice?: ReactNode;
+    toolbar?: ReactNode;
     highlight?: FlowHighlight | null;
   }) => {
     shown.props = props;
     return (
       <div>
         {props.notice}
+        <div data-testid="toolbar">{props.toolbar}</div>
         <div data-testid="top-start">{props.topStart}</div>
         <div data-testid="top-end">{props.topEnd}</div>
         <div role="group" aria-label={props['aria-label']}>
@@ -224,6 +227,70 @@ describe('AutomationCanvas', () => {
     });
     expect(props().overlay?.nodes.triage).toEqual({ state: 'failed' });
     expect(props().overlay?.finished).toBe(true);
+  });
+});
+
+describe('AutomationCanvas playback', () => {
+  const run = {
+    statusByNode: new Map([
+      ['inbox', 'ok' as const],
+      ['triage', 'ok' as const],
+    ]),
+    projection: { byNode: new Map(), effects: [], trace: [] },
+    status: 'success' as const,
+  };
+  function step(nodeId: string, startedAt: number, endedAt: number) {
+    return {
+      path: nodeId,
+      nodeId,
+      type: 'transform',
+      status: 'succeeded' as const,
+      startedAt,
+      endedAt,
+      activeMs: endedAt - startedAt,
+      waitedMs: 0,
+      attempt: 1,
+      attempts: [],
+      decisions: [],
+      waits: [],
+      meta: {},
+    };
+  }
+  const record = {
+    format: 1 as const,
+    runId: 'run-1',
+    status: 'success',
+    version: 1,
+    mode: 'mock' as const,
+    startedAt: 1000,
+    finishedAt: 5000,
+    source: 'record' as const,
+    nodes: [step('inbox', 1000, 2000), step('triage', 2100, 4900)],
+    events: [],
+    eventsTotal: 0,
+    cursor: 5000,
+  };
+
+  it('plays a recorded run back, opening on its end', () => {
+    renderCanvas(TRIAGE, { run: { ...run, record } });
+    const playback = props().playback;
+    expect(playback).toBeDefined();
+    expect(playback?.t).toBe(playback?.timeline.duration);
+    const bar = within(screen.getByTestId('toolbar')).getByRole('group', {
+      name: 'Run timeline',
+    });
+    expect(within(bar).getByRole('button', { name: 'Play' })).toBeEnabled();
+  });
+
+  it('shows where each step ended for a run recorded before records were kept', () => {
+    renderCanvas(TRIAGE, {
+      run: { ...run, record: { ...record, source: 'trace' as const } },
+    });
+    expect(props().playback).toBeUndefined();
+    expect(props().overlay?.finished).toBe(true);
+    expect(
+      within(screen.getByTestId('toolbar')).queryByRole('group'),
+    ).toBeNull();
   });
 });
 

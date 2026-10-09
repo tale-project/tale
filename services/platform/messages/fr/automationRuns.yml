@@ -30,6 +30,18 @@ lineage:
   from: Relance de l’exécution {id} · à partir de l’étape {step}
   deleted: Relance d’une exécution supprimée
   open: Ouvrir l’exécution {id}
+playback:
+  reason:
+    when: 'Ignoré : condition non remplie'
+    else: 'Ignoré : {partner} s’est exécuté'
+    upstream: 'Ignoré : {via} a été ignoré'
+    error: En échec, l’exécution a continué
+  wait:
+    approval: Attente d’une approbation
+    ask: Attente d’une réponse
+    room: Attente d’une place en sandbox
+    repeat: Pause entre deux passages
+    in_doubt: Attente d’une décision
 runtime:
   codes:
     EXPR_SYNTAX:

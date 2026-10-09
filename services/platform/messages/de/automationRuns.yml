@@ -30,6 +30,18 @@ lineage:
   from: Wiederholung von Lauf {id} · ab {step}
   deleted: Wiederholung eines gelöschten Laufs
   open: Lauf {id} öffnen
+playback:
+  reason:
+    when: 'Übersprungen: Bedingung traf nicht zu'
+    else: 'Übersprungen: {partner} lief'
+    upstream: 'Übersprungen: {via} wurde übersprungen'
+    error: Fehlgeschlagen, der Lauf ging weiter
+  wait:
+    approval: Auf Freigabe gewartet
+    ask: Auf eine Antwort gewartet
+    room: Auf einen Sandbox-Platz gewartet
+    repeat: Pause zwischen Durchgängen
+    in_doubt: Auf eine Entscheidung gewartet
 runtime:
   codes:
     EXPR_SYNTAX:
