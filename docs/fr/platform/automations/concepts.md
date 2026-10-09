@@ -46,7 +46,7 @@ Tale dispose le canevas à partir des références entre les nœuds : personne 
 
 ### Les liaisons se déduisent, elles ne se déclarent pas
 
-Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canevas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi un trait, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
+Il n’y a pas de liste de liaisons. Un nœud en lit un autre en le référençant — `{{ nodes.invoice.output.id }}` — et cette référence _est_ la liaison que trace le canevas. L’ordre d’exécution est un tri topologique sur ces liaisons déduites : supprimer une référence retire donc aussi un trait, et deux nœuds qui se lisent l’un l’autre sont refusés comme une boucle.
 
 Les templates utilisent une seule grammaire `{{ }}` d’expressions JavaScript sur `input`, `nodes.<id>.output` et, à l’intérieur d’un nœud qui itère, `item` et `index`.
 
