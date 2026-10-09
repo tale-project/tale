@@ -252,15 +252,32 @@ function gatewayProviderPool(custom: boolean): GatewayProviderPool {
  * start. */
 const LOG_RETENTION_DAYS = 3;
 
+/** The longest request log the backend asks for: a decade. The gateway reads
+ * the value into a Go int and refuses a config whose number does not fit,
+ * which would fail every config apply, so a larger setting is held here. */
+const MAX_LOG_RETENTION_DAYS = 3650;
+
 function gatewayLogRetentionDays(): number {
   const raw = gatewayEnv('LOG_RETENTION_DAYS')?.trim();
   if (raw === undefined || raw === '') return LOG_RETENTION_DAYS;
   const days = Number(raw);
-  if (Number.isInteger(days) && days >= 1) return days;
-  console.warn(
-    `[llm-gateway] SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS=${raw} is not a whole number of days of at least 1; keeping the request log for ${LOG_RETENTION_DAYS} days`,
-  );
-  return LOG_RETENTION_DAYS;
+  const valid = Number.isSafeInteger(days) && days >= 1;
+  const used = valid
+    ? Math.min(days, MAX_LOG_RETENTION_DAYS)
+    : LOG_RETENTION_DAYS;
+  if (used !== days) {
+    // Said once per process: the config apply runs on every sandbox start.
+    const setting = `SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS=${raw}`;
+    if (!warnedPoolSettings.has(setting)) {
+      warnedPoolSettings.add(setting);
+      console.warn(
+        valid
+          ? `[llm-gateway] ${setting} is above ${MAX_LOG_RETENTION_DAYS} days; keeping the request log for ${used} days`
+          : `[llm-gateway] ${setting} is not a whole number of days of at least 1; keeping the request log for ${used} days`,
+      );
+    }
+  }
+  return used;
 }
 
 function managementHeaders(): Record<string, string> {

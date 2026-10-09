@@ -2666,6 +2666,27 @@ describe('applyGatewayConfig', () => {
     },
   );
 
+  it('holds an operator retention past a decade to 3650 days, which the gateway can store', async () => {
+    // 2^63 would not fit the gateway's integer and fail every config apply.
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS', '9223372036854775808');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const calls = stubGateway({ authEnabled: true });
+    await (await loadModule()).applyGatewayConfig();
+    expect(
+      calls.find((c) => c.method === 'PUT')?.body?.client_config,
+    ).toMatchObject({ log_retention_days: 3 });
+    expect(warn).toHaveBeenCalledTimes(1);
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_LOG_RETENTION_DAYS', '5000');
+    const held = stubGateway({ authEnabled: true });
+    await (await loadModule()).applyGatewayConfig();
+    expect(
+      held.find((c) => c.method === 'PUT')?.body?.client_config,
+    ).toMatchObject({ log_retention_days: 3650 });
+    expect(warn).toHaveBeenLastCalledWith(
+      expect.stringContaining('is above 3650 days'),
+    );
+  });
+
   it('fails closed before touching the gateway when the admin password is unset', async () => {
     vi.stubEnv('SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD', undefined);
     vi.stubEnv('LLM_GATEWAY_ADMIN_PASSWORD', undefined);
