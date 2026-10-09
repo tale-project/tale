@@ -1001,6 +1001,17 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | CI workflow operations | A same-head duplicate may release only its predecessor’s sole unallocated final-check tail after canceled actual work; complete fresh PR, run and paged job identities are required. Default reads do not mutate; explicit apply journals at most one cancellation and preserves unknown outcomes without retry. | ✅ pure policy + bounded adapter | `tools/cli/scripts/ci-retire-tail.test.ts`; native runner admission and terminal cancellation remain live observations |
 | Merge-queue recovery | A deleted historical merge-group ref absent from the complete current queue permits one ordinary cancellation after repeated native observations. Current groups, other events, unreadable or stale metadata and uncertain writes remain protected. Explicit finishing requires an accepted ordinary journal, exact reviewed workflow/action/script source, every real matrix job terminal and only unallocated verdict jobs; one separately journalled force request never proves CI success. | ✅ policy + bounded adapter | `tools/cli/scripts/ci-retire-merge-group.test.ts`, `tools/cli/scripts/ci-merge-group-finish.test.ts` (all seven source-pinned graphs, full or causally collapsed matrices, current-source drift guard); actual runner capacity and cancellation completion still require native readback |
 
+<!-- tale-241-project-capability-catalog -->
+Project agent equipment refreshes after a saved Audience change: reopening
+**New agent → Skills** reveals the newly available synthetic team skill.
+Project hints invalidate only the named project's catalog; resync, connector
+credential writes/hints, skill save/delete/upload and skill/connector file
+changes refresh the relevant organization catalogs. Covered by
+`app/features/projects/components/project-capability-catalog.test.tsx` with
+actual components, query hooks, adapters and hint listeners over fixture HTTP
+and stream transports. Authorization, agent execution, browser layout and
+live two-session SSE delivery remain outside this automated proof (#3767).
+
 ## Documentation rebase regressions
 
 - `backend/rest/v1-core.test.ts` verifies that document `If-Match` uses a fresh

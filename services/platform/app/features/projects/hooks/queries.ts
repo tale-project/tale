@@ -4,7 +4,10 @@ import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
-import { backendKey } from '@/app/lib/backend/query-keys';
+import {
+  backendKey,
+  projectCapabilityCatalogKey,
+} from '@/app/lib/backend/query-keys';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
@@ -36,7 +39,7 @@ export function useProjectCapabilityCatalog(
   projectId: string | undefined,
 ) {
   return useActionQuery(
-    ['projects', 'capability-catalog', organizationId, projectId ?? ''],
+    projectCapabilityCatalogKey(organizationId, projectId ?? ''),
     'chat/composer:listProjectCapabilities',
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- `enabled` below skips the query while projectId is undefined
     { organizationId, projectId: projectId as string },
