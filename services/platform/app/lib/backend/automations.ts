@@ -498,6 +498,25 @@ function invalidateAutomations(
   });
 }
 
+/**
+ * What one run's hint refreshes: that run's own reads — its row, question,
+ * write in doubt, record, open step and open pages — and the listings and
+ * figures every run moves. Every read keyed under `automation_run` is
+ * built in this file, so this is the whole of them.
+ */
+export function runHintPrefixes(
+  orgId: string,
+  runId: string,
+): ReadonlyArray<readonly unknown[]> {
+  return [
+    backendKey(orgId, 'automation_run', 'list'),
+    backendKey(orgId, 'automation_run', 'metrics'),
+    ...(['detail', 'ask', 'in-doubt', 'record', 'node', 'items'] as const).map(
+      (read) => backendKey(orgId, 'automation_run', read, runId),
+    ),
+  ];
+}
+
 function invalidateRuns(
   client: Parameters<NonNullable<WriteAdapter['invalidate']>>[0],
   args: Record<string, unknown>,
