@@ -75,7 +75,7 @@ export function SkillDetailPane({
   const deleteSkill = useDeleteSkill();
 
   const [selectedPath, setSelectedPath] = useState('SKILL.md');
-  const [form, setForm] = useState<SkillFormState | null>(null);
+  const [draft, setDraft] = useState<SkillFormState | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const savedForm = useMemo<SkillFormState | null>(() => {
@@ -94,20 +94,15 @@ export function SkillDetailPane({
     };
   }, [skill]);
 
-  // Reset local form when navigating to a different skill. Must run before
-  // the seed effect below — if both fire in the same commit (cached document
-  // already present for the new slug), seeding first then clearing leaves
-  // `form` null forever and the editor pane empty.
+  // With no local draft, render the saved values directly. A successful save
+  // clears the draft after invalidation, even when a normalized no-op keeps
+  // the same document or its detail refresh finishes before the library.
+  const form = draft ?? savedForm;
+
   useEffect(() => {
-    setForm(null);
+    setDraft(null);
     setSelectedPath('SKILL.md');
   }, [slug]);
-
-  // Seed once the document is available; edits in flight survive unrelated
-  // refetches because the seed only fills from null.
-  useEffect(() => {
-    setForm((current) => current ?? savedForm);
-  }, [savedForm]);
 
   const dirty =
     form !== null &&
@@ -176,7 +171,7 @@ export function SkillDetailPane({
           ? { labels: parseLabelsInput(form.metadata.labels) }
           : {}),
       });
-      setForm(null); // Re-seed from the fresh document.
+      setDraft(null); // Show the saved document without waiting for a seed effect.
       toast({ title: t('editor.saved'), variant: 'success' });
     } catch (error) {
       console.error('Failed to save skill', error);
@@ -291,7 +286,7 @@ export function SkillDetailPane({
                     values={form.metadata}
                     savedSharing={savedSharing}
                     savedLabels={savedForm?.metadata.labels}
-                    onChange={(metadata) => setForm({ ...form, metadata })}
+                    onChange={(metadata) => setDraft({ ...form, metadata })}
                     disabled={!canEdit}
                     orgReservedReason={orgReservedReason}
                   />
@@ -304,7 +299,7 @@ export function SkillDetailPane({
                       aria-label={t('section.body')}
                       value={form.body}
                       onChange={(e) =>
-                        setForm({ ...form, body: e.target.value })
+                        setDraft({ ...form, body: e.target.value })
                       }
                       rows={12}
                       className="font-mono text-sm"
