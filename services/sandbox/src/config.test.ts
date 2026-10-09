@@ -40,6 +40,8 @@ const KEYS = [
   'SANDBOX_BUILDKITD_MEMORY',
   'SANDBOX_BUILDKITD_IDLE_CACHE',
   'SANDBOX_BUILDKITD_CACHE_RETENTION',
+  'SANDBOX_BUILDKITD_IDLE_MS',
+  'SANDBOX_BUILDKITD_MAX_CACHE',
   'SANDBOX_PACKAGE_CACHE_RETENTION',
   'SANDBOX_MIN_FREE_DISK',
   'SANDBOX_CRITICAL_FREE_DISK',
@@ -322,6 +324,27 @@ test("an idle builder's cache budget is optional and validated", () => {
   expect(loadConfig().buildkitdIdleCacheBytes).toBe(0);
   process.env.SANDBOX_BUILDKITD_IDLE_CACHE = 'small';
   expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_IDLE_CACHE/);
+});
+
+test('how long idle build helpers keep running is optional and validated', () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdIdleMs');
+  process.env.SANDBOX_BUILDKITD_IDLE_MS = '300000';
+  expect(loadConfig().buildkitdIdleMs).toBe(300_000);
+  // The sweep runs once a minute: a shorter window is refused.
+  process.env.SANDBOX_BUILDKITD_IDLE_MS = '1000';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_IDLE_MS/);
+  process.env.SANDBOX_BUILDKITD_IDLE_MS = 'ten minutes';
+  expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_IDLE_MS/);
+});
+
+test("a builder's cache cap is optional and at least a gigabyte", () => {
+  expect(loadConfig()).not.toHaveProperty('buildkitdMaxCacheBytes');
+  process.env.SANDBOX_BUILDKITD_MAX_CACHE = '8g';
+  expect(loadConfig().buildkitdMaxCacheBytes).toBe(8 * 1024 ** 3);
+  for (const refused of ['0', '512m', 'large']) {
+    process.env.SANDBOX_BUILDKITD_MAX_CACHE = refused;
+    expect(() => loadConfig()).toThrow(/SANDBOX_BUILDKITD_MAX_CACHE/);
+  }
 });
 
 test('the free space kept on the session disk is optional and validated', () => {

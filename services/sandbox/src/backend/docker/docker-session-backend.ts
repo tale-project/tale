@@ -25,7 +25,7 @@ import {
 } from '../../buildkit-resources.ts';
 import {
   ensureBuildkitd,
-  ensureBuildkitdReady,
+  provisionBuildkitd,
   removeOrganizationBuildkit,
   retainBuildkitd,
   sweepIdleBuildkitd,
@@ -39,7 +39,6 @@ import {
 import { holdPackageCaches } from '../../package-cache-retention.ts';
 import {
   attachBuildkitNetwork,
-  readBuildkitNetworkPlan,
   type BuildkitNetworkPlan,
 } from '../../session/buildkit-network-guard.ts';
 import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
@@ -457,10 +456,7 @@ export class DockerSessionBackend implements SessionBackend {
           ),
           () =>
             waitWithinOperation(
-              (async () => ({
-                ...(await ensureBuildkitdReady(this.cfg, spec.organizationId)),
-                plan: await readBuildkitNetworkPlan(spec.organizationId),
-              }))(),
+              provisionBuildkitd(this.cfg, spec.organizationId),
             ),
         );
         buildkitNetworkPlan = ready.plan;
@@ -1485,12 +1481,14 @@ export class DockerSessionBackend implements SessionBackend {
     orgIds: readonly string[],
     upkeep: BuildCacheUpkeep = {},
   ): Promise<void> {
-    await retireLegacyBuildkitd().catch((error: unknown) => {
-      console.warn(
-        '[sandbox.session] legacy build-cache retirement deferred:',
-        error,
-      );
-    });
+    await retireLegacyBuildkitd(this.cfg.buildkitdCacheRetentionMs).catch(
+      (error: unknown) => {
+        console.warn(
+          '[sandbox.session] legacy build-cache retirement deferred:',
+          error,
+        );
+      },
+    );
     await sweepIdleBuildkitd(this.cfg, Date.now(), upkeep).catch(
       (error: unknown) => {
         console.warn(
@@ -1502,7 +1500,9 @@ export class DockerSessionBackend implements SessionBackend {
     if (!(this.cfg.dockerInContainer && this.cfg.dockerBuildCache)) return;
     for (const organizationId of new Set(orgIds)) {
       try {
-        await ensureBuildkitd(this.cfg, organizationId);
+        // In full: an adopted session's builder may predate a stack restart
+        // that moved the egress proxy.
+        await ensureBuildkitd(this.cfg, organizationId, { fresh: true });
       } catch (err) {
         console.warn(
           `[sandbox.session] build-cache reconcile for org ${organizationId} ` +
