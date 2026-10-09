@@ -327,6 +327,7 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
 
   /** Hand rows that committed late to every stream of their orgs. */
   function dispatchLate(rows: readonly TailRow[]): void {
+    const batches = new Map<Subscriber, string[]>();
     for (const row of rows) {
       const subscribers = byOrg.get(row.orgId);
       if (subscribers === undefined) continue;
@@ -334,8 +335,13 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
       for (const subscriber of subscribers) {
         if (subscriber.ended) continue;
         if (row.userId !== null && row.userId !== subscriber.userId) continue;
-        subscriber.writer.write(frame);
+        const batch = batches.get(subscriber);
+        if (batch === undefined) batches.set(subscriber, [frame]);
+        else batch.push(frame);
       }
+    }
+    for (const [subscriber, frames] of batches) {
+      subscriber.writer.write(frames.join(''));
     }
   }
 
@@ -383,9 +389,10 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     if (last !== undefined && (after === null || last.id > after)) {
       subscriber.cursor = last.id;
     }
-    for (const row of coalesceHints(mine)) {
-      subscriber.writer.write(hintFrame(row));
-    }
+    // One write per delivery: a replay of hundreds of hints is one batch
+    // for the writer's backlog ceiling, not hundreds of queued writes.
+    const frames = coalesceHints(mine).map(hintFrame).join('');
+    if (frames !== '') subscriber.writer.write(frames);
   }
 
   /** Fan one page of new rows out to every live stream of their orgs. */
@@ -407,7 +414,7 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
       // hand every such stream the same strings.
       const orgWide = orgRows.filter((row) => row.userId === null);
       const targeted = orgRows.length !== orgWide.length;
-      const sharedFrames = coalesceHints(orgWide).map(hintFrame);
+      const sharedFrames = coalesceHints(orgWide).map(hintFrame).join('');
       for (const subscriber of subscribers) {
         if (!subscriber.live || subscriber.ended) continue;
         if (
@@ -418,7 +425,7 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
         ) {
           deliver(subscriber, orgRows);
         } else {
-          for (const frame of sharedFrames) subscriber.writer.write(frame);
+          if (sharedFrames !== '') subscriber.writer.write(sharedFrames);
         }
       }
     }

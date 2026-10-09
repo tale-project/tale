@@ -397,6 +397,32 @@ describe('the shared hint tail', () => {
     await resumed.close();
   });
 
+  test('a replay of hundreds of distinct hints reaches the client whole', async () => {
+    const { world, sql } = outboxWorld();
+    world.members.set('o1/u1', 'member');
+    const app = appFor(sql, FAST);
+    const first = collect(await app.request('/events?orgId=o1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const from = world.insert('o1', 'task');
+    let last = from;
+    // 400 distinct entities: more than the writer's write-count ceiling.
+    for (let i = 0; i < 400; i += 1) last = world.insert('o1', 'product');
+    expect(await first.until((read) => read.includes(`id: ${last}`))).toBe(
+      true,
+    );
+    const resumed = collect(
+      await app.request('/events?orgId=o1', {
+        headers: { 'Last-Event-ID': String(from) },
+      }),
+    );
+    expect(await resumed.until((read) => read.includes(`id: ${last}`))).toBe(
+      true,
+    );
+    expect(hintIds(resumed.text)).toHaveLength(400);
+    await first.close();
+    await resumed.close();
+  });
+
   test('a hint whose transaction commits after a later one still arrives', async () => {
     const { world, sql } = outboxWorld();
     world.members.set('o1/u1', 'member');

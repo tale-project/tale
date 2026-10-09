@@ -9,14 +9,19 @@ import type { SSEStreamingApi } from 'hono/streaming';
  * `await` a single stream's write: a client that stopped reading (a laptop
  * lid closed mid-stream) holds its write open until its socket times out,
  * and an awaited write would stall delivery to every other stream behind
- * it. Writes are chained per stream instead, and a stream whose queue grows
- * past `maxPendingWrites` is aborted — its client reconnects and resumes
- * from its `Last-Event-ID`, which costs one reconnect instead of the
- * process's memory.
+ * it. Writes are chained per stream instead, and a stream whose backlog
+ * grows past `maxPendingWrites` writes or `maxPendingBytes` is aborted — its
+ * client reconnects and resumes from its `Last-Event-ID`, which costs one
+ * reconnect instead of the process's memory. A caller hands a whole batch
+ * (a replay, a page of hints) over as ONE write, so the ceiling counts what
+ * a slow client has not taken yet, never the size of one delivery; and a
+ * write onto an empty backlog is always taken, however big.
  */
 
 /** Writes a stream may have queued before it is treated as gone. */
 const DEFAULT_MAX_PENDING_WRITES = 256;
+/** Characters a stream may have queued before it is treated as gone. */
+const DEFAULT_MAX_PENDING_BYTES = 1024 * 1024;
 
 export interface FanoutStream {
   /** The underlying Hono SSE stream. */
@@ -62,19 +67,25 @@ export function createStreamWriter(
   target: FanoutStream,
   options: {
     maxPendingWrites?: number;
+    maxPendingBytes?: number;
     now?: () => number;
     onOverflow: () => void;
   },
 ): StreamWriter {
   const maxPending = options.maxPendingWrites ?? DEFAULT_MAX_PENDING_WRITES;
+  const maxBytes = options.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
   const now = options.now ?? Date.now;
   let tail: Promise<void> = Promise.resolve();
   let pending = 0;
+  let pendingBytes = 0;
   let overflowed = false;
   return {
     write(text) {
       if (target.ended || target.stream.aborted) return;
-      if (pending >= maxPending) {
+      if (
+        pending > 0 &&
+        (pending >= maxPending || pendingBytes + text.length > maxBytes)
+      ) {
         if (!overflowed) {
           overflowed = true;
           options.onOverflow();
@@ -82,6 +93,7 @@ export function createStreamWriter(
         return;
       }
       pending += 1;
+      pendingBytes += text.length;
       target.lastWriteAt = now();
       // The chain never rejects: a failed write is logged and the next one
       // still runs, so one broken write cannot silence the stream for good.
@@ -95,6 +107,7 @@ export function createStreamWriter(
         )
         .finally(() => {
           pending -= 1;
+          pendingBytes -= text.length;
         });
     },
     flushed: () => tail,
