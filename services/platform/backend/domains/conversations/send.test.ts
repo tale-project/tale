@@ -19,6 +19,8 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { plaintextToEmailHtml } from '../../../lib/shared/conversations/plaintext-email';
+
 const {
   runConnectorAction,
   createAuditLog,
@@ -716,6 +718,36 @@ describe('replyToConversation — the mailbox', () => {
     // org, conversation, connector_name, credential_id.
     return insert?.values[3];
   }
+
+  it.each([
+    ['Use <price> from A&B.', '<p>Use &lt;price&gt; from A&amp;B.</p>'],
+    [
+      '<script>alert("x")</script><b>bold</b>',
+      '<p>&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&lt;b&gt;bold&lt;/b&gt;</p>',
+    ],
+    ['First line\n\nSecond line', '<p>First line<br><br>Second line</p>'],
+  ])('stores and queues the same safe bulk body for %s', async (text, html) => {
+    const { sql, statements } = fakeSql({
+      [CONVERSATION]: [EMAIL_ROW],
+      [CONVERSATION_ROW]: [ROW],
+      [CARRIED]: [{ conversationId: 'c1', credentialId: 'cred-b' }],
+      'INSERT INTO app.conversation_messages': [{ id: 'm9' }],
+    });
+    await replyToConversation(sql, {
+      ...REPLY,
+      content: plaintextToEmailHtml(text),
+    });
+    const insert = statements.find((st) =>
+      st.text.includes('INSERT INTO app.conversation_messages'),
+    );
+    expect(insert?.values[4]).toBe(html);
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({
+      body: html,
+      contentType: 'HTML',
+    });
+    expect(runConnectorAction).not.toHaveBeenCalled();
+  });
 
   it('replies through the mailbox the newest inbound message recorded', async () => {
     const { sql, statements } = fakeSql({
