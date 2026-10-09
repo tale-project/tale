@@ -20,7 +20,7 @@ The packaged layout keeps `tale_app` and `tale_knowledge` in one Postgres servic
 
 ## Pin compatible images
 
-Set `VERSION` in Compose's `.env` to the Tale release you have reviewed and tested. Export that same value in your shell when running the separate runtime-image pull below. Keep Tale images on one release; the two upstream services have their own pinned versions.
+Set `VERSION` in Compose's `.env` to the Tale release you have reviewed and tested. Export that same value in your shell when running the separate runtime-image pull below. Keep Tale images on one release; the two upstream services have their own pinned versions. Tale's images have zstd-compressed layers, so the Docker host needs Docker Engine 24.0 or later.
 
 | Service | Image |
 | --- | --- |

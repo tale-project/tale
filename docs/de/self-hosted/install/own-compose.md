@@ -20,7 +20,7 @@ Im mitgelieferten Aufbau liegen `tale_app` und `tale_knowledge` in einem Postgre
 
 ## Kompatible Images festlegen
 
-Setze `VERSION` in der Compose-`.env` auf das geprüfte und getestete Tale-Release. Exportiere denselben Wert in deiner Shell für den separaten Image-Download weiter unten. Verwende für Tale-Images eine gemeinsame Version. Die beiden Dienste mit Upstream-Images haben eigene feste Versionen.
+Setze `VERSION` in der Compose-`.env` auf das geprüfte und getestete Tale-Release. Exportiere denselben Wert in deiner Shell für den separaten Image-Download weiter unten. Verwende für Tale-Images eine gemeinsame Version. Die beiden Dienste mit Upstream-Images haben eigene feste Versionen. Die Schichten der Tale-Images sind mit zstd komprimiert; der Docker-Host braucht deshalb Docker Engine 24.0 oder neuer.
 
 | Dienst | Image |
 | --- | --- |

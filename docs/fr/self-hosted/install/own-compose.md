@@ -20,7 +20,7 @@ Le montage fourni conserve `tale_app` et `tale_knowledge` dans un service Postgr
 
 ## Fixer des images compatibles
 
-Définis `VERSION` dans le `.env` de Compose avec la release Tale examinée et testée. Exporte la même valeur dans le shell pour le téléchargement séparé de l’image d’exécution plus bas. Garde les images Tale sur une release commune ; les deux services utilisant des images amont ont leurs propres versions.
+Définis `VERSION` dans le `.env` de Compose avec la release Tale examinée et testée. Exporte la même valeur dans le shell pour le téléchargement séparé de l’image d’exécution plus bas. Garde les images Tale sur une release commune ; les deux services utilisant des images amont ont leurs propres versions. Les couches des images Tale sont compressées en zstd : l’hôte Docker doit donc exécuter Docker Engine 24.0 ou une version ultérieure.
 
 | Service | Image |
 | --- | --- |

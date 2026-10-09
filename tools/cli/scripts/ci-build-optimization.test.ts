@@ -1530,8 +1530,57 @@ test('native release builds reuse isolated architecture caches without adding ru
   );
   expect(image.with!['cache-from']).not.toContain('type=gha');
   expect(image.with!['cache-to']).toBe(
-    'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true',
+    'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true,compression=zstd,compression-level=3,force-compression=true',
   );
+});
+
+/** A buildx `--output`/cache entry as its `key=value` attributes. */
+function exportAttributes(entry: unknown): Record<string, string> {
+  return Object.fromEntries(
+    String(entry)
+      .split(',')
+      .map((pair) => pair.split('=', 2) as [string, string]),
+  );
+}
+
+test('published images carry zstd layers under OCI media types, every release layer re-encoded', async () => {
+  const image = findStep(
+    (await workflow('release')).jobs.build!,
+    'Build and push',
+  );
+  expect(image.with?.push).toBe(true);
+  expect(exportAttributes(image.with?.outputs)).toEqual({
+    type: 'image',
+    compression: 'zstd',
+    'compression-level': '3',
+    'force-compression': 'true',
+    'oci-mediatypes': 'true',
+  });
+  // The release cache keeps the shipped zstd blobs, so an unchanged layer is
+  // never re-encoded and keeps its digest from one release to the next.
+  expect(exportAttributes(image.with?.['cache-to'])).toMatchObject({
+    type: 'registry',
+    mode: 'max',
+    'ignore-error': 'true',
+    compression: 'zstd',
+    'compression-level': '3',
+    'force-compression': 'true',
+  });
+});
+
+test('CI images take the release layer format without re-encoding their GHA cache', async () => {
+  const image = findStep(
+    (await workflow('build')).jobs.build!,
+    'Build and push',
+  );
+  expect(image.with?.push).toBe(true);
+  expect(exportAttributes(image.with?.outputs)).toEqual({
+    type: 'image',
+    compression: 'zstd',
+    'compression-level': '3',
+    'oci-mediatypes': 'true',
+  });
+  expect(String(image.with?.['cache-to'])).not.toContain('compression');
 });
 
 test('SARIF preserves all findings while direct SBOM analysis retains package hashes', async () => {

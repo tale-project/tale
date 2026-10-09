@@ -15,6 +15,7 @@ Tale runs on Kubernetes when you translate the [service contract](/self-hosted/i
 | Nodes that grant `NET_ADMIN` and provide ip6tables, or allow the IPv6 sysctls | The egress proxy installs its firewall at start and refuses to start without it. |
 | Ports 80 and 443 reachable at the public address | Caddy obtains certificates itself in `selfsigned` and `letsencrypt` mode. Behind an Ingress that terminates TLS, set `TLS_MODE=external`. |
 | Pull access to `ghcr.io/tale-project/tale/*` on every node, including the sandbox runtime image | Session Pods start from `SANDBOX_RUNTIME_IMAGE`. A node that cannot pull it fails the first session scheduled there. |
+| A container runtime that unpacks zstd-compressed layers, such as containerd 1.5 or later | Tale's images have zstd-compressed layers. A node whose runtime cannot unpack them fails to pull the images, and no Pod starts from them there. |
 | A sysbox or kata RuntimeClass if agents need Docker inside their sandbox | Without one, keep `SANDBOX_DOCKER_IN_CONTAINER=false`. The `runc` tier would need privileged Pods. |
 | `kubectl` and `envsubst` on the machine that applies the manifests | The manifests carry one `${VERSION}` variable that kubectl does not expand. |
 

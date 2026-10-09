@@ -338,6 +338,20 @@ change, so the layout keeps a release's change to the layers it touched:
 - A release build reads only its own registry cache, so an unchanged layer
   keeps the previous release's bytes. Pull request and `main` builds read that
   cache too, after their own.
+- Every published Tale image, this one included, is pushed with
+  zstd-compressed layers under OCI media types (`compression=zstd`, level 3,
+  `force-compression`), and the release cache stores those zstd blobs, so an
+  unchanged layer is never re-encoded and keeps its digest from one release to
+  the next. Pulling needs Docker Engine 23.0 or later (Tale requires 24.0, and
+  the CLI checks it) or, on Kubernetes, containerd 1.5 or later. The gain is
+  mostly in unpacking: in [zstd's own benchmark](https://github.com/facebook/zstd#benchmarks)
+  (Silesia corpus, both at level 1) zstd decompresses at 1550 MB/s against
+  zlib's 390 MB/s, and compresses to a 2.896 ratio against 2.743, about 5 %
+  fewer bytes. [AWS measured](https://aws.amazon.com/blogs/containers/reducing-aws-fargate-startup-times-with-zstd-compressed-container-images)
+  up to 27 % shorter Fargate task and pod starts with level-3 zstd images, the
+  largest images gaining most. Neither figure has been measured on this image.
+  Pull request and `main` builds compress new layers with zstd too, and keep
+  the layers their GHA cache holds as gzip rather than re-encode them.
 - Every base image and `COPY --from` image is pinned by digest; Renovate bumps
   them, so a base refresh is a reviewed change rather than whatever a tag
   pointed at when a cache missed.
