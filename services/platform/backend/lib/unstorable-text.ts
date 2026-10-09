@@ -3,12 +3,14 @@ import type { BodyIssue } from './invalid-body-response.ts';
 /**
  * Strings Postgres cannot store, found before they reach it.
  *
- * A U+0000 in any text or jsonb value is refused by the database (`22021`),
- * and an unpaired UTF-16 surrogate is silently rewritten to U+FFFD by
- * Node's UTF-8 encoder on the way to the driver — one turned a client's
- * mistake into a 500, the other stored a different string than the client
- * sent. Both request doors (the app's `appJsonBody` and the REST door's
- * `readJsonBody`) refuse such a body as a 400 naming the field instead.
+ * A U+0000 in any text or jsonb value is refused by the database (`22021`).
+ * An unpaired UTF-16 surrogate is rewritten to U+FFFD by Node's UTF-8
+ * encoder on its way into a text column, but reaches a jsonb one as the
+ * `\ud800` escape `JSON.stringify` writes, which Postgres refuses
+ * (`22P02`). The REST door (`readJsonBody`), whose callers are programs,
+ * refuses both as a 400 naming the field. The app door (`appJsonBody`)
+ * refuses a NUL the same way and stores an unpaired surrogate as U+FFFD
+ * whatever the column (`toWellFormedJson`).
  */
 
 /**
@@ -62,6 +64,45 @@ function findStringPath(
  */
 export function findNulByte(value: unknown): string | null {
   return findStringPath(value, (text) => text.includes('\0'));
+}
+
+/**
+ * Rewrite, in place, every unpaired surrogate in a parsed JSON body's
+ * strings — values and object keys — to U+FFFD, what a text column would
+ * have stored. A body without one is left untouched; a bare string body is
+ * left as it is (no handler stores one). Iterative, like the search above.
+ */
+export function toWellFormedJson(value: unknown): void {
+  if (findStringPath(value, (text) => !text.isWellFormed()) === null) return;
+  const stack: unknown[] = [value];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (Array.isArray(current)) {
+      current.forEach((item: unknown, index) => {
+        if (typeof item === 'string') current[index] = item.toWellFormed();
+        else stack.push(item);
+      });
+      continue;
+    }
+    if (current === null || typeof current !== 'object') continue;
+    const entries: [string, unknown][] = Object.entries(current);
+    // A renamed key must keep its place, so every key is set again in order.
+    const rekey = entries.some(([key]) => !key.isWellFormed());
+    for (const [key, item] of entries) {
+      if (typeof item !== 'string') stack.push(item);
+      const fixed = typeof item === 'string' ? item.toWellFormed() : item;
+      if (rekey) Reflect.deleteProperty(current, key);
+      if (rekey || fixed !== item) {
+        // Defined, never assigned: a `__proto__` key stays a plain key.
+        Object.defineProperty(current, key.toWellFormed(), {
+          value: fixed,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      }
+    }
+  }
 }
 
 /**
