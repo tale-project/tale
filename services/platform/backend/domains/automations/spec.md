@@ -277,6 +277,9 @@ starts the other automations listening for it, but never the automation whose ru
 When that run was itself started by an event, its events start nothing at all. A chain of
 event starts is therefore one start long, and no automation starts itself, or another one, in
 a loop. Events a person, an import or the platform raise start every listening automation.
+Work a run hands to a project agent is that agent's own: an event the project agent raises is
+not attributed to the run, so it starts the automations listening for it, the run's own
+included.
 
 - **Example**: The mailbox sync runs on a schedule and files an incoming email. The triage
   automation listening for "message received" starts. The reply the triage run drafts raises

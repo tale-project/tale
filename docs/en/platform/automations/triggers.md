@@ -170,7 +170,7 @@ The payload carries IDs, not whole records: read the task, comment or contact wi
 
 Task, comment and project events belong to a project; contact and conversation events don’t. An event of a project starts the automations installed in that project and those installed in none, and their runs belong to that project. An automation installed only in other projects doesn’t react to it. An event without a project starts an automation installed in exactly one project in that project. When that project is archived, or the automation’s inputs refuse the event, no run starts and the trigger shows why. The other automations listening for the event still start. Under **Event name**, the field says which events start this automation.
 
-An event that an automation’s run raises never starts that same automation, and a run that an event started doesn’t start other automations, so a workflow cannot keep starting itself, or another one, through its own changes.
+An event that an automation’s run raises never starts that same automation, and a run that an event started doesn’t start other automations, so a workflow cannot keep starting itself, or another one, through its own changes. This covers what the run itself does: its steps, its connector calls and its own agent’s tools. Work a step hands to a project agent belongs to that agent, so an event the agent raises can start the automation again: make sure such work doesn’t raise the event the automation listens for.
 
 ## Check what a run receives
 
