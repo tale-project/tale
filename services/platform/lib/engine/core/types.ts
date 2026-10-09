@@ -91,8 +91,9 @@ export interface NodeDef {
   /** agent: connector slugs the turn may reach through the broker. */
   connectors?: string[];
   /** agent: platform workspace-tool grants beyond the baseline — the task
-   * family and document_create (`AGENT_TOOL_CATALOG`). A write grant is the
-   * standing authorization for that write. */
+   * family, the document and knowledge-entry reads and writes, and the
+   * contact, product and website reads (`AGENT_TOOL_CATALOG`). A write grant
+   * is the standing authorization for that write. */
   tools?: string[];
   /** agent: names of org `agentSecrets` injected as environment variables for
    * the turn (BYO API keys for services with no shipped connector). */

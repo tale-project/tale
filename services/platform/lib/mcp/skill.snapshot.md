@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Needs Tale's MCP server connected (https://<your Tale>/api/v1/mcp); works with any MCP client that reads skills."
 metadata:
   publisher: tale
-  contract: "3.23.0"
+  contract: "3.24.0"
 ---
 
 # Tale

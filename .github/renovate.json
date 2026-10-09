@@ -21,6 +21,17 @@
     "labels": ["dependencies", "security"]
   },
   "osvVulnerabilityAlerts": true,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^services/sandbox/src/volume\\.ts$/"],
+      "matchStrings": [
+        "CACHE_PERMISSION_IMAGE\\s*=\\s*'(?<depName>busybox):(?<currentValue>[^'@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})'"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "description": "Patch updates: 30 day stabilization, grouped",

@@ -70,7 +70,7 @@ Automations follow a narrower rule, because an automation acts as itself, with t
 A run started by someone who can't edit the project, such as a Member, keeps to its task:
 
 - Its platform tools change only that task and the subtasks under it: the agent creates new tasks only as subtasks of that task, uses only labels the project already has, and can't sync items from other systems into the project.
-- It can't save documents to the project. The files it produces still arrive on the task under **Deliverables**.
+- It can't save documents to the project or write knowledge entries. The files it produces still arrive on the task under **Deliverables**.
 - The run gets neither the agent's **Secrets** nor the token of an equipped GitHub connection. The agent learns which credentials were held back and is asked to say so in its report when the work needs them; an Editor or higher then has to start it. Connectors equipped on the agent keep working and act for the person who started the run.
 - It works in a workspace of its own, kept for that person's runs with this agent: files from runs that Editors started aren't there, and what this run leaves behind never reaches those runs. The same person's later runs with the agent find it again, until Tale deletes it: when the person leaves the organization or the agent is deleted, or once no run has used it for the number of days the organization sets under [**Days without use**](/platform/admin/sandboxes#delete-unused-workspaces-automatically).
 
@@ -114,7 +114,7 @@ The current review also explains self-review, changed implementation ownership, 
 
 ## Use statuses to communicate progress
 
-Change **Status** in the task details, or drag a card to another column on **Board**. The status picker is the keyboard-accessible alternative to dragging.
+Change **Status** in the task details, or drag a card to another column on **Board**. The status picker is the keyboard-accessible alternative to dragging. **Done** and **Cancelled** fold to a narrow rail with the fold icon beside their name, so finished work stays out of the way: the rail keeps the column's count, opens again when you select it, and still takes a card you drag onto it. Each board remembers its folded columns in this browser.
 
 | Status | Meaning |
 | --- | --- |
@@ -213,7 +213,8 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 [Home](/platform#home) lists the open tasks assigned to you and those waiting for your review, from every project you can read; **Tasks** above the list shows only them. A task you open there appears as a page of its own beside the Home panel, not in the board's dialog:
 
 - The brief comes first as a card: the description, attachments, and subtasks.
-- The discussion follows like a conversation, oldest first under day labels. It combines the comments with the task's history, such as status changes, assignments, and agent runs.
+- The discussion follows like a conversation, oldest first under day labels that stay at the top while you scroll through their day. Your own comments sit on the right, as in a chat; everyone else's, people and agents, read on the left under their name, with an **Agent** label for an agent and the time. A long comment, such as an agent's report, shows its beginning with **Read more** to open the rest in place and **Show less** to fold it again.
+- The task's history sits between the comments as short lines, such as status changes, assignments, and agent runs. Three or more in a row fold into one line, such as **5 updates**, with who made them; select it to see each one.
 - The comment box sits at the bottom. Send with **⌘+Enter** or **Ctrl+Enter**, or with the round send button; **Enter** alone starts a new line. Type `@` to mention an agent or a person, with the same effect as in the board's dialog. Text you have not sent stays in the box for that task, here and in the board's dialog, and the task's row in Home shows **Draft** while you work elsewhere.
 - **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, repeat, labels, and dependencies, together with **Watch** and **Archive**. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
 

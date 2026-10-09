@@ -52,6 +52,15 @@ schedule started included, and binds nothing done outside the project. A run tha
 project, of an automation installed in several projects, is each one's work: it counts toward,
 and must fit, every one of their limits, as a member's spend counts toward each of their teams.
 
+Voice output keeps the projects it was admitted under even if the conversation moves; an empty
+project list remains empty. It reserves an estimate and one request while pending. Success books
+its resolved rate; an already-reserved failure or stale replacement conservatively books its
+saved estimate once, even when failure precedes the provider call. That estimate does not assert
+that the provider charged it. A retry includes the predecessor estimate when checking the limit,
+and a late result cannot bill it again. Ordinary audio age cleanup leaves pending attempts to
+their watchdog. Authorized history purge and erasure retain their existing deletion behavior;
+no strict budget guarantee overrides that privacy boundary.
+
 - **Example**: The Website project is capped at 100 a month and has spent 100. Mia, far from
   her own limit, writes in one of the project's chats → refused, naming the project's limit.
   She can still chat outside the project.
@@ -159,11 +168,11 @@ It counts only in the organization it was granted in.
 - **The usage pages** and their figures (`usage-metrics.ts`).
 - **A project's limit and transcription**: an audio or video file transcribed for a project's
   chat is booked to the person who added it, not to the project, and a project's limit warns
-  no one before it is reached. Voice output in a project is checked against its limit but holds
-  nothing while it is made.
-- **An automation's model steps hold nothing while they run**: an `llm` step is checked against
-  the limits before each call and counted after it, but sets nothing aside meanwhile, so steps of
-  runs at the same moment can pass a nearly reached limit together.
+  no one before it is reached.
+- **Legacy voice reservations**: previous writers left no saved price or project stamp. `NULL`
+  projects retain the current-thread fallback, unlike an explicitly empty project list; an
+  unknown legacy price is not invented. Every new admission receives the reservation guarantee
+  only after old writers retire.
 - **Nothing in the database forbids a start marker in place of a person in the usage
   ledger**, and **the per-turn usage table is retired but not dropped**; the contract debt
   ledger in [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

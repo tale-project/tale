@@ -257,6 +257,7 @@ organization:
   deleteLoading: Deleting…
   deleteSuccess: Organization deleted
   deleteFailed: Couldn't delete organization
+  deleteBlockedByLegacyAutomation: Automation runs are on hold because their earlier external actions have not been verified. Your organization was preserved. A stop request does not release these holds.
   deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
   deleteTypeNameLabel: Type the organization name to confirm
   deleteConfirmNameMismatch: The confirmation doesn't match the organization name. Reload the page and try again.
@@ -1261,6 +1262,8 @@ logs:
       document.trashed: Document moved to trash
       document.deleted: Document deleted
       folder.deleted: Folder deleted
+      knowledge_entry.created: Knowledge entry created
+      knowledge_entry.updated: Knowledge entry updated
       branding.updated: Branding updated
       branding.image_uploaded: Branding image uploaded
       branding.image_deleted: Branding image removed
@@ -1473,6 +1476,7 @@ logs:
       conversationMessage: Conversation message
       document: Document
       folder: Folder
+      knowledge_entry: Knowledge entry
       agent: Agent
       workflow: Automation
       workflow_run: Automation run

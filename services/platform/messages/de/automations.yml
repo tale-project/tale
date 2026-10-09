@@ -499,8 +499,6 @@ settings:
   loadFailed: Einstellungen konnten nicht geladen werden — schließe den Dialog und versuch es nochmal.
   save: Speichern
   saveAndContinue: Speichern und weiter
-  showMore: Mehr anzeigen
-  showLess: Weniger anzeigen
   dialogTitle: '{name} — Einstellungen'
   tabsLabel: Einstellungsbereiche
   moreTabs: Weitere Einstellungsbereiche

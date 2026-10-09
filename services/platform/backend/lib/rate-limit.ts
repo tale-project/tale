@@ -77,6 +77,15 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 20,
   },
+  // Agents writing entries (`knowledge_entry_write`) draw on a budget of
+  // their own per organization, so an agent that loops on its writes runs
+  // dry here while people's edits keep `knowledge:mutate` to themselves.
+  'knowledge:agent-write': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
+  },
 
   // TIER 3.6: projects
   'project:create': {

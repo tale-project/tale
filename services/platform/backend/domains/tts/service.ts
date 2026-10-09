@@ -45,9 +45,14 @@ import { loadOwnedThread, readThreadProjectId } from '../chat/threads.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
 import {
   checkOrgBudget,
+  findBudgetViolation,
   loadBudgetSubject,
   type OrgBudgetSubject,
 } from '../governance/budget-gate.ts';
+import {
+  lockBudgetAdmission,
+  readInFlightReservations,
+} from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 
 /**
@@ -116,6 +121,8 @@ interface ChunkRow {
   storageRef: string | null;
   characterCount: number | null;
   costEstimateCents: number | null;
+  reservedCostCents: number | null;
+  projectIds: string[] | null;
   usageRecordedAt: number | null;
   createdAt: number;
   attemptCreatedAt: number;
@@ -128,6 +135,7 @@ const CHUNK_COLUMNS = `
   voice, provider_name AS "providerName", model_id AS "modelId", format,
   storage_ref AS "storageRef", character_count::float8 AS "characterCount",
   cost_estimate_cents AS "costEstimateCents",
+  reserved_cost_cents AS "reservedCostCents", project_ids AS "projectIds",
   usage_recorded_at_ms::float8 AS "usageRecordedAt",
   created_at_ms::float8 AS "createdAt",
   attempt_created_at_ms::float8 AS "attemptCreatedAt"
@@ -281,6 +289,8 @@ export async function reserveChunk(
     locale: string;
     agentSlug: string | null;
     prospectiveCostCentsPerMChars: number | undefined;
+    providerName?: string;
+    modelId?: string;
   },
 ): Promise<ReserveOutcome> {
   if (
@@ -295,6 +305,9 @@ export async function reserveChunk(
   }
 
   return sql.begin(async (tx) => {
+    // Every spending lane takes this before its own row locks, then writes
+    // its hold before releasing it. Distinct voice chunks share the cap.
+    await lockBudgetAdmission(tx, args.organizationId);
     // Serialize reserves per (message, index) BEFORE the row read. The unique
     // row is the race arbiter once it exists, but `FOR UPDATE` over zero rows
     // locks nothing: two first-time reserves of one chunk both saw no row and
@@ -349,6 +362,10 @@ export async function reserveChunk(
         }
         // Stale pending — the attempt crashed; fall through to overwrite.
       }
+      // A timeout is not evidence that the provider did no work. Preserve
+      // the old estimate before evaluating or replacing its reservation.
+      // A refused replacement rolls back this booking and retains its hold.
+      await recordUnknownAttemptEstimate(tx, existing);
     }
 
     // Per-message character cap across every counted chunk (terminally
@@ -439,21 +456,33 @@ export async function reserveChunk(
       args.text.length,
       args.prospectiveCostCentsPerMChars ?? PROSPECTIVE_TTS_CENTS_PER_M_CHARS,
     );
-    const budget = await checkTtsBudget(tx, {
-      ...subject,
+    const violation = await findBudgetViolation(tx, subject, {
+      reservations: await readInFlightReservations(
+        tx,
+        subject,
+        existing !== undefined
+          ? {
+              tts: {
+                chunkId: existing.id,
+                attemptCreatedAt: existing.attemptCreatedAt,
+              },
+            }
+          : {},
+      ),
       prospectiveCostCents,
       prospectiveRequests: 1,
     });
-    if (!budget.allowed) {
-      throw new TtsError(
-        'BUDGET_EXCEEDED',
-        budget.reason ??
-          'TTS budget exceeded for this period. Contact your administrator.',
-        429,
-      );
+    if (violation !== null) {
+      throw new TtsError('BUDGET_EXCEEDED', violation.reason, 429);
     }
 
-    const attemptCreatedAt = Date.now();
+    // A failed retry can occur in the same millisecond. Its watchdog and
+    // provider result must never match the attempt it replaces.
+    const attemptCreatedAt = Math.max(
+      Date.now(),
+      (existing?.attemptCreatedAt ?? 0) + 1,
+    );
+    const projectIds = projectId !== undefined ? [projectId] : [];
     let chunkId: string;
     if (existing) {
       // Overwrite to retry: reset every result-bearing field, and reclaim a
@@ -466,9 +495,12 @@ export async function reserveChunk(
           status = 'pending', error = NULL, text = ${args.text},
           locale = ${args.locale}, created_at_ms = ${attemptCreatedAt},
           attempt_created_at_ms = ${attemptCreatedAt},
-          usage_recorded_at_ms = NULL, voice = NULL, provider_name = NULL,
-          model_id = NULL, format = NULL, storage_ref = NULL,
+          usage_recorded_at_ms = NULL, voice = NULL,
+          provider_name = ${args.providerName ?? null},
+          model_id = ${args.modelId ?? null}, format = NULL, storage_ref = NULL,
           character_count = NULL, cost_estimate_cents = NULL,
+          reserved_cost_cents = ${prospectiveCostCents},
+          project_ids = ${projectIds},
           user_id = ${args.userId}, team_id = NULL,
           agent_slug = ${args.agentSlug ?? tx.unsafe('agent_slug')}
         WHERE id = ${existing.id}
@@ -479,12 +511,15 @@ export async function reserveChunk(
         INSERT INTO app.tts_audio_chunks (
           org_id, thread_id, message_id, user_id, team_id, agent_slug,
           chunk_index, text, status, locale, created_at_ms,
-          attempt_created_at_ms
+          attempt_created_at_ms, provider_name, model_id,
+          reserved_cost_cents, project_ids
         ) VALUES (
           ${args.organizationId}, ${args.threadId}, ${args.messageId},
           ${args.userId}, NULL, ${args.agentSlug},
           ${args.index}, ${args.text}, 'pending', ${args.locale},
-          ${attemptCreatedAt}, ${attemptCreatedAt}
+          ${attemptCreatedAt}, ${attemptCreatedAt},
+          ${args.providerName ?? null}, ${args.modelId ?? null},
+          ${prospectiveCostCents}, ${projectIds}
         )
         RETURNING id
       `;
@@ -511,9 +546,56 @@ export async function reserveChunk(
 
 // ----------------------------------------------------------------- settle
 
+/** The caller holds this exact row through booking and release/replacement.
+ * A durable reservation can have an unknown provider outcome; record its
+ * saved estimate once rather than treating cancellation as free. This is
+ * estimated usage, not a claim that the provider confirmed a charge. */
+async function recordUnknownAttemptEstimate(
+  tx: TransactionSql,
+  row: ChunkRow,
+  knownCostEstimateCents?: number,
+): Promise<void> {
+  // Previous writers did not persist a price. Never invent a legacy charge.
+  if (row.usageRecordedAt !== null || row.reservedCostCents === null) return;
+  const legacyProjectId =
+    row.projectIds === null
+      ? await readThreadProjectId(tx, row.organizationId, row.threadId)
+      : undefined;
+  const projectIds =
+    row.projectIds ?? (legacyProjectId !== undefined ? [legacyProjectId] : []);
+  const now = Date.now();
+  const costEstimateCents = knownCostEstimateCents ?? row.reservedCostCents;
+  await incrementUsageLedger(tx, {
+    organizationId: row.organizationId,
+    userId: row.userId,
+    ...(row.teamId !== null ? { teamId: row.teamId } : {}),
+    ...(projectIds.length > 0 ? { projectIds } : {}),
+    agentSlug: TTS_SLUG,
+    ...(row.modelId !== null ? { model: row.modelId } : {}),
+    ...(row.providerName !== null ? { provider: row.providerName } : {}),
+    inputTokens: 0,
+    outputTokens: 0,
+    costEstimateCents,
+    characterCount: row.text.length,
+    timestamp: now,
+  });
+  await tx`
+    UPDATE app.tts_audio_chunks SET usage_recorded_at_ms = ${now},
+      cost_estimate_cents = ${costEstimateCents},
+      character_count = ${row.text.length}
+    WHERE id = ${row.id} AND attempt_created_at_ms = ${row.attemptCreatedAt}
+      AND usage_recorded_at_ms IS NULL
+  `;
+}
+
 async function markChunkFailed(
   sql: Sql,
-  args: { chunkId: string; attemptCreatedAt: number; error: string },
+  args: {
+    chunkId: string;
+    attemptCreatedAt: number;
+    error: string;
+    knownCostEstimateCents?: number;
+  },
 ): Promise<{ stale: boolean }> {
   if (!ERROR_CODES.has(args.error)) {
     // The closed vocabulary is the PII firewall — free-form text never
@@ -521,9 +603,8 @@ async function markChunkFailed(
     throw new Error(`[tts] not a TtsErrorCode: ${args.error}`);
   }
   return sql.begin(async (tx) => {
-    const rows = await tx<{ id: string; index: number; threadId: string }[]>`
-      SELECT id, chunk_index AS "index", thread_id AS "threadId"
-      FROM app.tts_audio_chunks
+    const rows = await tx<ChunkRow[]>`
+      SELECT ${tx.unsafe(CHUNK_COLUMNS)} FROM app.tts_audio_chunks
       WHERE id = ${args.chunkId} AND status = 'pending'
         AND attempt_created_at_ms = ${args.attemptCreatedAt}
       LIMIT 1
@@ -531,6 +612,7 @@ async function markChunkFailed(
     `;
     const row = rows[0];
     if (!row) return { stale: true };
+    await recordUnknownAttemptEstimate(tx, row, args.knownCostEstimateCents);
     await tx`
       UPDATE app.tts_audio_chunks SET status = 'failed', error = ${args.error}
       WHERE id = ${row.id}
@@ -542,7 +624,8 @@ async function markChunkFailed(
   });
 }
 
-async function markChunkReadyAndRecordUsage(
+/** Also used by the real-PG budget/attempt proof; synthesis owns the app door. */
+export async function markChunkReadyAndRecordUsage(
   sql: Sql,
   args: {
     chunkId: string;
@@ -560,7 +643,8 @@ async function markChunkReadyAndRecordUsage(
   return sql.begin(async (tx) => {
     const rows = await tx<ChunkRow[]>`
       SELECT ${tx.unsafe(CHUNK_COLUMNS)} FROM app.tts_audio_chunks
-      WHERE id = ${args.chunkId} AND status = 'pending'
+      WHERE id = ${args.chunkId} AND org_id = ${args.organizationId}
+        AND status = 'pending'
         AND attempt_created_at_ms = ${args.attemptCreatedAt}
       LIMIT 1
       FOR UPDATE
@@ -584,16 +668,20 @@ async function markChunkReadyAndRecordUsage(
     `;
     // Ledger rows for TTS always bucket under the TTS_SLUG sentinel so
     // voice cost surfaces as its own row, never folded into the agent.
-    const projectId = await readThreadProjectId(
-      tx,
-      row.organizationId,
-      row.threadId,
-    );
+    // [] deliberately admitted no project. Only a legacy NULL stamp may
+    // use the pre-reservation behavior of reading the thread at settlement.
+    const legacyProjectId =
+      row.projectIds === null
+        ? await readThreadProjectId(tx, row.organizationId, row.threadId)
+        : undefined;
+    const projectIds =
+      row.projectIds ??
+      (legacyProjectId !== undefined ? [legacyProjectId] : []);
     await incrementUsageLedger(tx, {
       organizationId: row.organizationId,
       userId: row.userId,
       ...(row.teamId !== null ? { teamId: row.teamId } : {}),
-      ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+      ...(projectIds.length > 0 ? { projectIds } : {}),
       agentSlug: TTS_SLUG,
       model: args.modelId,
       provider: args.providerName,
@@ -732,6 +820,8 @@ export async function synthesizeChunk(
     locale: args.locale,
     agentSlug: meta[0]?.agentSlug ?? null,
     prospectiveCostCentsPerMChars: modelData.centsPerMillionCharacters,
+    providerName: modelData.providerName,
+    modelId: modelData.modelId,
   });
   if (reservation.kind === 'ready') return { status: 'ready' };
   if (reservation.kind === 'pending-in-flight') return { status: 'in-flight' };
@@ -740,11 +830,15 @@ export async function synthesizeChunk(
   const markFailedAndReturn = async (
     code: TtsErrorCode,
     retryAfterMs?: number,
+    knownCostEstimateCents?: number,
   ): Promise<SynthesizeResult> => {
     const result = await markChunkFailed(sql, {
       chunkId,
       attemptCreatedAt,
       error: code,
+      ...(knownCostEstimateCents !== undefined
+        ? { knownCostEstimateCents }
+        : {}),
     });
     if (result.stale) return { status: 'in-flight' };
     return {
@@ -772,6 +866,7 @@ export async function synthesizeChunk(
   const url = `${modelData.baseUrl.replace(/\/+$/, '')}/audio/speech`;
   const mime =
     AUDIO_MIME_BY_FORMAT[modelData.audioFormat] ?? 'application/octet-stream';
+  let knownCostEstimateCents: number | undefined;
   try {
     const response = await safeFetchBinary(url, {
       allowPrivateAddresses: privateProviderHostsAllowed(),
@@ -810,6 +905,12 @@ export async function synthesizeChunk(
         `TTS API ${response.status}: provider call failed`,
       );
     }
+    // The request succeeded; a later body/storage failure must not replace
+    // its resolved rate with the admission fallback estimate.
+    knownCostEstimateCents = estimateTtsCostCents(
+      text.length,
+      modelData.centsPerMillionCharacters,
+    );
     if (response.body.size < MIN_TTS_AUDIO_BYTES) {
       console.warn('[tts] provider returned implausibly small body', {
         bytes: response.body.size,
@@ -817,7 +918,7 @@ export async function synthesizeChunk(
       });
       throw new SafeFetchError(
         'response_too_small',
-        `Provider returned ${response.body.size} bytes (< ${MIN_TTS_AUDIO_BYTES}); refusing to bill for empty audio`,
+        `Provider returned ${response.body.size} bytes (< ${MIN_TTS_AUDIO_BYTES}); refusing empty audio`,
         response.status,
       );
     }
@@ -850,7 +951,7 @@ export async function synthesizeChunk(
       code,
       detail: sanitizeError(error),
     });
-    return markFailedAndReturn(code, retryAfterMs);
+    return markFailedAndReturn(code, retryAfterMs, knownCostEstimateCents);
   }
 }
 
@@ -974,13 +1075,21 @@ export async function runTtsCleanup(
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef"
     FROM app.tts_audio_chunks
     WHERE thread_id = ${payload.threadId} AND created_at_ms < ${cutoff}
+      AND status <> 'pending'
     LIMIT ${CLEANUP_PASS_LIMIT}
   `;
   for (const row of rows) {
     await sql.begin(async (tx) => {
-      await tx`DELETE FROM app.tts_audio_chunks WHERE id = ${row.id}`;
-      if (row.storageRef !== null) {
-        await deleteOrgBlobRefs(tx, row.orgId, [row.storageRef]);
+      const deleted = await tx<{ storageRef: string | null }[]>`
+        DELETE FROM app.tts_audio_chunks
+        WHERE id = ${row.id} AND org_id = ${row.orgId}
+          AND created_at_ms < ${cutoff}
+          AND status <> 'pending'
+        RETURNING storage_ref AS "storageRef"
+      `;
+      const removed = deleted[0];
+      if (removed?.storageRef != null) {
+        await deleteOrgBlobRefs(tx, row.orgId, [removed.storageRef]);
       }
     });
   }
@@ -1008,7 +1117,7 @@ export async function gcExpiredTtsChunks(
   >`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef"
     FROM app.tts_audio_chunks
-    WHERE created_at_ms < ${cutoff}
+    WHERE created_at_ms < ${cutoff} AND status <> 'pending'
     ORDER BY created_at_ms
     LIMIT ${options.limit ?? 500}
   `;
@@ -1018,13 +1127,21 @@ export async function gcExpiredTtsChunks(
     // back a batch, and a row that survives its blob is the recoverable
     // direction (the next tick retries it).
     try {
-      await sql.begin(async (tx) => {
-        await tx`DELETE FROM app.tts_audio_chunks WHERE id = ${row.id}`;
-        if (row.storageRef !== null) {
-          await deleteOrgBlobRefs(tx, row.orgId, [row.storageRef]);
+      const removed = await sql.begin(async (tx) => {
+        const deletedRows = await tx<{ storageRef: string | null }[]>`
+          DELETE FROM app.tts_audio_chunks
+          WHERE id = ${row.id} AND org_id = ${row.orgId}
+            AND created_at_ms < ${cutoff}
+            AND status <> 'pending'
+          RETURNING storage_ref AS "storageRef"
+        `;
+        const chunk = deletedRows[0];
+        if (chunk?.storageRef != null) {
+          await deleteOrgBlobRefs(tx, row.orgId, [chunk.storageRef]);
         }
+        return chunk !== undefined;
       });
-      deleted += 1;
+      if (removed) deleted += 1;
     } catch (error) {
       console.warn('[tts] chunk GC failed for one row:', error);
     }

@@ -63,8 +63,6 @@ Beide Farben verwenden das Volume `static-assets` der Bereitstellung. Bevor eine
 
 Ein offener Tab arbeitet bei der Übergabe normalerweise weiter. Ist ein benötigter Teil nicht mehr verfügbar, wartet Tale, bis API und Datenbank antworten, und lädt dann einmal neu. Lässt sich der Teil weiterhin nicht laden, zeigt Tale **Eine neue Version ist verfügbar** mit der Aktion **Neu laden**, statt erneut automatisch zu laden. Während eines Ausfalls bleibt der Verbindungshinweis sichtbar. Fehlgeschlagene Leseanfragen werden nach der Wiederverbindung aktualisiert; fehlgeschlagene Schreibanfragen werden nicht automatisch erneut gesendet.
 
-Sobald die Dienste aktualisiert sind, entfernt die CLI die Tale-Images aller Versionen, die älter sind als die neue Version und das gespeicherte Rollback-Ziel. Der Host behält so die Images von zwei Releases statt von jedem Release, das je lief. Erzwungen wird nichts: Ein Image, das ein Container noch nutzt, etwa ein Dienst, der auf einer älteren Version weiterläuft, oder eine Sandbox-Sitzung, die vor dem Deployment startete, bleibt, bis ein späteres Deployment es frei vorfindet. Images, die du für eine spätere Version vorab geladen hast, bleiben ebenfalls.
-
 Wird die neue Gruppe nicht innerhalb von `HEALTH_CHECK_TIMEOUT` gesund, schließt die CLI den Wechsel nicht ab. Prüfe gespeicherten Bereitstellungszustand und Protokolle vor einem erneuten Versuch. Ein unterbrochener Rollout kann beide Gruppen oder eine ausstehende Übergabe hinterlassen. Folge den Wiederherstellungshinweisen der CLI, statt Container oder Zustandsdateien von Hand zu löschen.
 
 ## Migrationen und Nutzerergebnis prüfen

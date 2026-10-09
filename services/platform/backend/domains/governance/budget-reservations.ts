@@ -115,6 +115,7 @@ export async function readInFlightReservations(
   exclude: {
     threadId?: string;
     op?: { sessionId: string; execId: string };
+    tts?: { chunkId: string; attemptCreatedAt: number };
   } = {},
 ): Promise<BudgetReservations> {
   const org = subject.organizationId;
@@ -124,15 +125,18 @@ export async function readInFlightReservations(
   const projectIds = [...(subject.projectIds ?? [])];
   const rows = await sql<HoldRow[]>`
     WITH holds AS (
-      -- A chat turn belongs to its thread's project.
+      -- New turns keep the projects captured with the request. Only legacy
+      -- unstamped rows follow the thread's current project.
       SELECT g.user_id, g.api_key_id,
-             CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
-                  ELSE ARRAY[tm.project_id] END AS project_ids,
+             coalesce(g.project_ids,
+               CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                    ELSE ARRAY[tm.project_id] END) AS project_ids,
              g.reserved_cost_cents::float8 AS cost_cents,
              g.reserved_tokens::float8 AS tokens,
              1::float8 AS requests
       FROM app.generations g
-      LEFT JOIN app.thread_metadata tm ON tm.thread_id = g.thread_id
+      LEFT JOIN app.thread_metadata tm
+        ON tm.thread_id = g.thread_id AND tm.org_id = g.org_id
       WHERE g.org_id = ${org} AND g.user_id IS NOT NULL
         AND g.thread_id <> ${exclude.threadId ?? ''}
       UNION ALL
@@ -151,6 +155,21 @@ export async function readInFlightReservations(
         AND spend_settled_at_ms IS NULL
         AND NOT (session_id = ${exclude.op?.sessionId ?? ''}
                  AND exec_id = ${exclude.op?.execId ?? ''})
+      UNION ALL
+      -- Pending voice attempts hold one request and their admitted cost.
+      -- Legacy rows have no known cost; keep their request visible anyway.
+      SELECT c.user_id, NULL::text,
+             coalesce(c.project_ids,
+               CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                    ELSE ARRAY[tm.project_id] END),
+             coalesce(c.reserved_cost_cents, 0)::float8,
+             0::float8, 1::float8
+      FROM app.tts_audio_chunks c
+      LEFT JOIN app.thread_metadata tm
+        ON tm.thread_id = c.thread_id AND tm.org_id = c.org_id
+      WHERE c.org_id = ${org} AND c.status = 'pending'
+        AND NOT (c.id = ${exclude.tts?.chunkId ?? ''}
+          AND c.attempt_created_at_ms = ${exclude.tts?.attemptCreatedAt ?? -1})
     ),
     -- Who spends for a team: its current members, and the keys it owns.
     team_spenders AS (

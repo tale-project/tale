@@ -202,6 +202,11 @@ const OUTSIDE_READS = [
 /** Every outside repo module the platform's sources import, and who imports it. */
 const STATIC_IMPORTS = [
   {
+    path: 'tools/cli/src/lib/deployment/automation-cutover-sql.ts',
+    importers:
+      'backend/jobs/automation-floor.integration.ts proves the maintained CLI admission lock and census',
+  },
+  {
     path: 'services/web/app/content/product-screenshots.ts',
     importers:
       'tests/docs-screenshots/manifest.test.ts imports the marketing capture source registry',

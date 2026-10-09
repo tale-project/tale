@@ -34,7 +34,7 @@ export function requireAutomationProtocol(
   );
 }
 
-const databaseIdentitySchema = z.object({
+export const databaseIdentitySchema = z.object({
   Id: z.string().regex(/^[a-f0-9]{64}$/),
   Image: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   RestartCount: z.number().int().nonnegative(),
@@ -125,7 +125,16 @@ const backendIdentitySchema = z.object({
   Id: z.string().regex(/^[a-f0-9]{64}$/),
   Image: z.string().regex(/^sha256:[a-f0-9]{64}$/),
   RestartCount: z.number().int().nonnegative(),
-  State: z.object({ Running: z.boolean(), StartedAt: z.string() }),
+  State: z.object({
+    Running: z.boolean(),
+    StartedAt: z.string(),
+    Pid: z.number().int().nonnegative().optional(),
+    Status: z.string().optional(),
+    Dead: z.boolean().optional(),
+  }),
+  HostConfig: z
+    .object({ RestartPolicy: z.object({ Name: z.string() }) })
+    .optional(),
   Config: z.object({
     Labels: z.record(z.string(), z.string()),
     Env: z.array(z.string()).max(2048),
@@ -138,7 +147,7 @@ const backendIdentitySchema = z.object({
 export async function bundledBackendIdentity(
   projects: readonly string[],
   dependencies: RuntimeDependencies,
-): Promise<{ identity: string; protocol: AutomationWriterProtocol }> {
+) {
   const ids: string[] = [];
   requireRuntime(
     projects.length > 0 &&
@@ -286,12 +295,37 @@ export async function bundledBackendIdentity(
     .map((image) => ({
       id: image.Id,
       protocol: imageWriterProtocol(image.Config.Labels),
+      revision:
+        image.Config.Labels?.['org.opencontainers.image.revision'] ?? null,
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
-  const protocol = capabilities.some((image) => image.protocol === 2) ? 2 : 1;
+  const protocol: AutomationWriterProtocol = capabilities.some(
+    (image) => image.protocol === 2,
+  )
+    ? 2
+    : 1;
   // Compare only the owned identities and connection, never unrelated secrets.
   return {
     protocol,
+    writers: values
+      .map((v) => ({
+        id: v.Id,
+        image: v.Image,
+        revision:
+          capabilities.find((image) => image.id === v.Image)?.revision ?? null,
+        protocol:
+          capabilities.find((image) => image.id === v.Image)?.protocol ?? null,
+        restarts: v.RestartCount,
+        running: v.State.Running,
+        pid: v.State.Pid ?? null,
+        status: v.State.Status ?? null,
+        dead: v.State.Dead ?? null,
+        startedAt: v.State.StartedAt,
+        restartPolicy: v.HostConfig?.RestartPolicy.Name ?? null,
+        project: v.Config.Labels['com.docker.compose.project'],
+        service: v.Config.Labels['com.docker.compose.service'],
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id)),
     identity: stableJson({
       capabilities,
       containers: values
@@ -300,6 +334,7 @@ export async function bundledBackendIdentity(
           Image: v.Image,
           RestartCount: v.RestartCount,
           State: v.State,
+          RestartPolicy: v.HostConfig?.RestartPolicy.Name ?? null,
           Config: {
             Labels: v.Config.Labels,
             Env: v.Config.Env.filter((e) => e.startsWith('DATABASE_URL=')),

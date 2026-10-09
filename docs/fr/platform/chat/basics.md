@@ -98,6 +98,8 @@ Seuls les fichiers de ta propre conversation suivent. Une tâche n’accepte que
 
 La barre sous la réponse permet de copier le texte, donner un avis, consulter les détails ou créer une branche à cet endroit. Une branche permet d’explorer une autre direction tout en conservant l’échange précédent.
 
+Tes propres messages sont à droite. D’un long message, tu vois le début ; **Lire la suite** ouvre le reste sur place et **Afficher moins** le replie. Survole un de tes messages ou place le focus clavier dedans pour voir quand tu l’as envoyé et utiliser **Modifier le message**, qui change le texte dans une nouvelle version de la conversation ; sur un écran tactile, l’heure et ce bouton restent toujours affichés. Sous un message que tu as modifié, ou dont tu as redemandé la réponse avec **Réessayer**, **Branche précédente** et **Branche suivante** passent d’une version à l’autre, et le nombre entre les deux, par exemple 2/3, indique celle qui est affichée.
+
 Retrouve les anciens chats dans [Accueil](/fr/platform#home) ; la vue **Chats**, au-dessus de la liste, n’affiche que les chats. Épingle ceux qui servent souvent, donne-leur un titre reconnaissable ou déplace-les dans un projet lorsque le sujet devient récurrent : fais-les glisser sur le projet ou choisis **Déplacer vers un projet…** dans leur menu. [Chats partagés](/fr/platform/chat/shared-threads) explique comment publier un instantané en lecture seule pour des collègues.
 
 Une conversation très longue peut dépasser la fenêtre de contexte du modèle. Tale affiche un avis lorsque des messages anciens sont omis. Répète une contrainte importante ou démarre un nouveau chat avec les sources utiles, plutôt que de supposer que l’assistant voit encore tout l’historique.

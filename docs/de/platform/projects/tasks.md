@@ -70,7 +70,7 @@ Für Automatisierungen gilt eine engere Regel, denn eine Automatisierung handelt
 Ein Lauf, den jemand ohne Bearbeitungsrecht für das Projekt startet, etwa ein Mitglied, bleibt bei seiner Aufgabe:
 
 - Seine Plattform-Tools ändern nur diese Aufgabe und die Teilaufgaben darunter: Der Agent legt neue Aufgaben nur als Teilaufgaben dieser Aufgabe an, verwendet nur Labels, die das Projekt schon hat, und kann keine Einträge aus anderen Systemen ins Projekt synchronisieren.
-- Er kann keine Dokumente im Projekt speichern. Die Dateien, die er erzeugt, landen trotzdem unter **Ergebnisdateien** an der Aufgabe.
+- Er kann keine Dokumente im Projekt speichern und keine Wissenseinträge schreiben. Die Dateien, die er erzeugt, landen trotzdem unter **Ergebnisdateien** an der Aufgabe.
 - Der Lauf erhält weder die **Secrets** des Agenten noch das Token eines zugeordneten GitHub-Zugangs. Der Agent erfährt, welche Zugangsdaten zurückgehalten wurden, und soll in seinem Bericht darauf hinweisen, wenn die Arbeit sie braucht; dann muss ein Redakteur oder eine höhere Rolle ihn starten. Die Connectors des Agenten funktionieren weiter und handeln im Namen der Person, die den Lauf gestartet hat.
 - Er arbeitet in einem eigenen Arbeitsbereich, der für die Läufe dieser Person mit diesem Agenten bestehen bleibt: Dateien aus Läufen, die Redakteure gestartet haben, liegen dort nicht, und was dieser Lauf hinterlässt, erreicht jene Läufe nie. Spätere Läufe derselben Person mit dem Agenten finden ihn wieder, bis Tale ihn löscht: wenn die Person die Organisation verlässt, wenn der Agent gelöscht wird oder sobald ihn so viele Tage kein Lauf genutzt hat, wie die Organisation unter [**Tage ohne Nutzung**](/de/platform/admin/sandboxes#delete-unused-workspaces-automatically) festlegt.
 
@@ -114,7 +114,7 @@ Das aktuelle Review erklärt auch eine unzulässige Selbstprüfung, eine geände
 
 ## Fortschritt mit dem Status zeigen
 
-Ändere den **Status** in den Aufgabendetails oder ziehe die Karte auf dem **Board** in eine andere Spalte. Die Statusauswahl lässt sich auch mit der Tastatur bedienen.
+Ändere den **Status** in den Aufgabendetails oder ziehe die Karte auf dem **Board** in eine andere Spalte. Die Statusauswahl lässt sich auch mit der Tastatur bedienen. **Erledigt** und **Abgebrochen** klappst du mit dem Symbol neben ihrem Namen zu einer schmalen Leiste ein, damit abgeschlossene Arbeit nicht im Weg ist: Die Leiste zeigt weiter die Anzahl der Spalte, klappt wieder auf, wenn du sie auswählst, und nimmt eine Karte an, die du darauf ziehst. Jedes Board merkt sich in diesem Browser, welche Spalten eingeklappt sind.
 
 | Status | Bedeutung |
 | --- | --- |
@@ -213,7 +213,8 @@ Setze die Aufgabe auf **Erledigt**, sobald sie die Anforderung erfüllt. Soll ei
 [Start](/de/platform#home) listet die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, aus allen Projekten, die du lesen darfst; **Aufgaben** über der Liste zeigt nur sie. Öffnest du dort eine Aufgabe, erscheint sie als eigene Seite neben der Seitenleiste von **Start** und nicht im Dialog des Boards:
 
 - Oben steht der Auftrag als Karte: Beschreibung, Anhänge und Teilaufgaben.
-- Darunter folgt die Diskussion wie ein Gespräch, mit den ältesten Einträgen zuerst und nach Tagen gegliedert. Sie verbindet die Kommentare mit dem Verlauf der Aufgabe, etwa Statuswechseln, Zuweisungen und Agentenläufen.
+- Darunter folgt die Diskussion wie ein Gespräch, mit den ältesten Einträgen zuerst und nach Tagen gegliedert; das Datum bleibt oben stehen, während du durch seinen Tag scrollst. Deine eigenen Kommentare stehen rechts, wie in einem Chat. Die der anderen, Personen und Agenten, stehen links unter ihrem Namen, bei einem Agenten mit dem Hinweis **Agent**, und mit der Uhrzeit. Von einem langen Kommentar, etwa dem Bericht eines Agenten, siehst du den Anfang; **Weiterlesen** öffnet den Rest an Ort und Stelle, **Weniger anzeigen** klappt ihn wieder zu.
+- Der Verlauf der Aufgabe steht als kurze Zeilen zwischen den Kommentaren, etwa Statuswechsel, Zuweisungen und Agentenläufe. Drei oder mehr hintereinander werden zu einer Zeile zusammengefasst, etwa **5 Änderungen**, mit den Namen derer, die sie gemacht haben; wähle sie aus, um jede einzeln zu sehen.
 - Das Kommentarfeld steht ganz unten. Zum Senden drückst du **⌘+Enter** oder **Ctrl+Enter** oder klickst auf die runde Senden-Schaltfläche; **Enter** allein beginnt eine neue Zeile. Mit `@` erwähnst du einen Agenten oder eine Person, mit derselben Wirkung wie im Dialog des Boards. Was du noch nicht gesendet hast, bleibt für diese Aufgabe im Feld stehen, hier wie im Dialog des Boards. Solange du woanders arbeitest, zeigt die Zeile der Aufgabe in **Start** den Hinweis **Entwurf**.
 - **Details** neben der Diskussion enthält Status, Priorität, Zuständigkeit, Reviewer, Termine, Wiederholung, Labels und Abhängigkeiten, dazu **Verfolgen** und **Archivieren**. Inhaber und Administratoren der Organisation finden dort zusätzlich **Löschen**: Es entfernt die Aufgabe samt Teilaufgaben, Kommentaren und Dateien endgültig und stoppt ihre laufenden Agentenläufe. **Details ausblenden** am Ende der Kopfzeile blendet diesen Bereich aus, **Details einblenden** holt ihn zurück. Ist das Fenster zu schmal für beides nebeneinander, öffnet **Details einblenden** die Details stattdessen in einem Fenster über der Diskussion — von der Seite oder, auf dem Smartphone, vom unteren Bildschirmrand.
 

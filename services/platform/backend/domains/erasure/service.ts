@@ -3,10 +3,13 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { isAdminRole } from '../../auth/membership.ts';
+import { AUTOMATION_LLM_OP_KIND } from '../../core/automations/llm_budget.ts';
 import {
+  ERASURE_LEGACY_AUTOMATION_HOLD,
   ERASURE_REASON_CODES,
   ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
 } from '../../core/governance/erasure_constants.ts';
+import { foldBreakdownEntries } from '../../core/governance/erasure_counts.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { MODEL_API_OP_KIND } from '../../core/sandbox/session_constants.ts';
@@ -703,8 +706,11 @@ async function scrubSubjectAuditLogs(
 export function erasureReceiptStatus(
   failedPasses: readonly string[],
   heldOffPasses: readonly string[],
+  legacyHeldAutomationRuns = 0,
 ): 'done' | 'partial' {
-  return failedPasses.length === 0 && heldOffPasses.length === 0
+  return failedPasses.length === 0 &&
+    heldOffPasses.length === 0 &&
+    legacyHeldAutomationRuns === 0
     ? 'done'
     : 'partial';
 }
@@ -739,6 +745,7 @@ export function erasureHoldBlock(
 export function erasureReceiptError(
   failedPasses: readonly string[],
   heldOffPasses: readonly string[],
+  legacyHeldAutomationRuns = 0,
 ): string | null {
   const parts: string[] = [];
   if (failedPasses.length > 0) {
@@ -747,6 +754,7 @@ export function erasureReceiptError(
   if (heldOffPasses.length > 0) {
     parts.push(`held off by a legal hold: ${heldOffPasses.join(', ')}`);
   }
+  if (legacyHeldAutomationRuns > 0) parts.push(ERASURE_LEGACY_AUTOMATION_HOLD);
   return parts.length > 0 ? parts.join('; ') : null;
 }
 
@@ -779,6 +787,36 @@ async function subjectBelongsToOtherActiveOrg(
     ) AS "elsewhere"
   `;
   return rows[0]?.elsewhere ?? false;
+}
+
+/** Erase only unheld subject runs. The immutable hold and its protected
+ * children stay intact; its presence cannot roll back unrelated deletions.
+ * Both queries share one transaction and the same tenant/starter scope. */
+export async function eraseSubjectAutomationRuns(
+  sql: Sql,
+  organizationId: string,
+  targetUserId: string,
+): Promise<{ deleted: number; held: number }> {
+  const starters = [
+    `user:${targetUserId}`,
+    `api-key:${targetUserId}`,
+    targetUserId,
+  ];
+  return sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    const [held] = await tx<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.automation_runs
+      WHERE org_id = ${organizationId} AND started_by = ANY(${starters})
+        AND legacy_quarantine IS NOT NULL
+    `;
+    const removed = await tx<{ id: string }[]>`
+      DELETE FROM app.automation_runs
+      WHERE org_id = ${organizationId} AND started_by = ANY(${starters})
+        AND legacy_quarantine IS NULL
+      RETURNING id
+    `;
+    return { deleted: removed.length, held: held?.count ?? 0 };
+  });
 }
 
 /** The cascade — each pass bounded and idempotent; per-pass counts land on
@@ -843,9 +881,15 @@ export async function processErasure(
     return;
   }
 
-  const counts: Record<string, number> = {};
+  const counts: Record<
+    string,
+    number | { rows: number; skippedByHold: number }
+  > = {};
   const failures: string[] = [];
   const heldOff: string[] = [];
+  let legacyHeldAutomationRuns = 0;
+  let automationRunsRetired = false;
+  let modelRequestsDeidentified = false;
   const pass = async (
     name: string,
     run: () => Promise<number>,
@@ -994,15 +1038,6 @@ export async function processErasure(
     return removed.length;
   });
 
-  await pass('memories', async () => {
-    const removed = await sql<{ id: string }[]>`
-      DELETE FROM app.memories
-      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
-      RETURNING id
-    `;
-    return removed.length;
-  });
-
   // The subject's coding agents' daily call counters (when, which method and
   // tool, the client's own name): kept for their activity view, never as
   // evidence, so they go with the person.
@@ -1015,10 +1050,52 @@ export async function processErasure(
     return removed.length;
   });
 
-  // Requests through the model endpoints for API keys: one op row per
-  // request (`app.sandbox_session_ops`, kind `model-api`), stamped with the
-  // key holder. A row whose spend is booked and whose key is deleted (or was
-  // never minted) has done its work — its spend went to the ledger, whose
+  await pass('memories', async () => {
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.memories
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    return removed.length;
+  });
+
+  // Automation runs the subject started. `input`, `output`, `trace` and
+  // `effects` hold every node's resolved values, so the run is subject data
+  // even though the row is org-owned. Three markers: `user:<id>` from the
+  // app door (and, since the engine store prefixes its starter, from the
+  // builder session and the chat capability), `api-key:<id>` from REST and
+  // MCP — and the BARE id those two engine lanes recorded before they did,
+  // which this pass used to leave behind: a retention defect, since a run
+  // started from the builder carried the subject's data as much as any.
+  await pass('automationRuns', async () => {
+    const result = await eraseSubjectAutomationRuns(
+      sql,
+      organizationId,
+      targetUserId,
+    );
+    legacyHeldAutomationRuns = result.held;
+    automationRunsRetired = true;
+    return result.deleted;
+  });
+  if (
+    legacyHeldAutomationRuns > 0 &&
+    typeof counts.automationRuns === 'number'
+  ) {
+    // This per-category shape is already understood by historical receipt
+    // readers. Held rows must never be presented as erased rows.
+    counts.automationRuns = {
+      rows: counts.automationRuns,
+      skippedByHold: legacyHeldAutomationRuns,
+    };
+  }
+
+  // Retirement waits for admissions holding the run's FOR SHARE lock.
+  // Their committed ops are therefore visible to the identity pass below;
+  // later admission cannot find the deleted run. Preserved legacy runs are
+  // quarantined and cannot satisfy the running/live-lease admission gate.
+  // Model API requests and direct automation LLM calls each own an op row
+  // stamped with the person who started them. A row whose spend is booked
+  // and whose key is deleted (or was never minted) has done its work — its spend went to the ledger, whose
   // rows of the subject the pass below erases — so it is deleted. A row
   // still in flight is not: it carries the request's budget hold, or names a
   // live gateway key whose spend the settlement has yet to read and book, so
@@ -1031,9 +1108,12 @@ export async function processErasure(
   // books either before that pass (and is erased by it) or under the
   // pseudonym — never under the subject after the ledger was cleared.
   await pass('modelApiRequests', async () => {
+    if (!automationRunsRetired)
+      throw new Error('Automation run retirement did not complete');
+    const kinds = [MODEL_API_OP_KIND, AUTOMATION_LLM_OP_KIND];
     const removed = await sql<{ id: string }[]>`
       DELETE FROM app.sandbox_session_ops
-      WHERE org_id = ${organizationId} AND kind = ${MODEL_API_OP_KIND}
+      WHERE org_id = ${organizationId} AND kind = ANY(${kinds})
         AND user_id = ${targetUserId}
         AND spend_settled_at_ms IS NOT NULL
         AND (key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL)
@@ -1041,10 +1121,11 @@ export async function processErasure(
     `;
     const pseudonymised = await sql<{ id: string }[]>`
       UPDATE app.sandbox_session_ops SET user_id = ${ERASED_SUBJECT}
-      WHERE org_id = ${organizationId} AND kind = ${MODEL_API_OP_KIND}
+      WHERE org_id = ${organizationId} AND kind = ANY(${kinds})
         AND user_id = ${targetUserId}
       RETURNING id
     `;
+    modelRequestsDeidentified = true;
     return removed.length + pseudonymised.length;
   });
 
@@ -1053,6 +1134,8 @@ export async function processErasure(
   // run's starter carry the door forms (`user:<id>`, `api-key:<id>`) and are
   // the subject's spend all the same.
   await pass('usageLedger', async () => {
+    if (!modelRequestsDeidentified)
+      throw new Error('Model request de-identification did not complete');
     const removed = await sql<{ orgId: string }[]>`
       DELETE FROM app.usage_ledger
       WHERE org_id = ${organizationId}
@@ -1172,27 +1255,6 @@ export async function processErasure(
       RETURNING id
     `;
     return removed.length;
-  });
-
-  // Automation runs the subject started. `input`, `output`, `trace` and
-  // `effects` hold every node's resolved values, so the run is subject data
-  // even though the row is org-owned. Three markers: `user:<id>` from the
-  // app door (and, since the engine store prefixes its starter, from the
-  // builder session and the chat capability), `api-key:<id>` from REST and
-  // MCP — and the BARE id those two engine lanes recorded before they did,
-  // which this pass used to leave behind: a retention defect, since a run
-  // started from the builder carried the subject's data as much as any.
-  await pass('automationRuns', async () => {
-    return sql.begin(async (tx) => {
-      await markAutomationWriterInTx(tx);
-      const removed = await tx<{ id: string }[]>`
-      DELETE FROM app.automation_runs
-      WHERE org_id = ${organizationId}
-        AND started_by = ANY(${[`user:${targetUserId}`, `api-key:${targetUserId}`, targetUserId]})
-      RETURNING id
-    `;
-      return removed.length;
-    });
   });
 
   // The sandbox workspaces the subject's runs with the organization's agents
@@ -1424,13 +1486,17 @@ export async function processErasure(
     scrubSubjectAuditLogs(sql, organizationId, targetUserId),
   );
 
-  const status = erasureReceiptStatus(failures, heldOff);
+  const status = erasureReceiptStatus(
+    failures,
+    heldOff,
+    legacyHeldAutomationRuns,
+  );
   await sql.begin(async (tx) => {
     await tx`
       UPDATE app.gdpr_erasure_requests SET
         status = ${status}, finished_at_ms = ${Date.now()},
         counts = ${tx.json(toJson(counts))},
-        error = ${erasureReceiptError(failures, heldOff)}
+        error = ${erasureReceiptError(failures, heldOff, legacyHeldAutomationRuns)}
       WHERE id = ${requestId}
     `;
     await createAuditLog(tx, {
@@ -1691,7 +1757,7 @@ export async function getErasureRequest(
       cancelledBy: string | null;
       cancellationReason: string | null;
       threadsTargeted: string[] | null;
-      counts: Record<string, number> | null;
+      counts: Record<string, unknown> | null;
       error: string | null;
     }[]
   >`
@@ -1735,6 +1801,12 @@ export async function getErasureRequest(
   ];
   const nameOf = await userNames(sql, userIds);
   const counts = row.counts;
+  const categories = Object.fromEntries(
+    foldBreakdownEntries(counts ?? {}).visible.map((entry) => [
+      entry.key,
+      entry,
+    ]),
+  );
   const terminalAt = row.finishedAt;
   const request: Record<string, unknown> = {
     _id: row.id,
@@ -1751,11 +1823,16 @@ export async function getErasureRequest(
     ...(row.threadsTargeted !== null
       ? { threadsTargeted: row.threadsTargeted }
       : {}),
-    ...(counts?.threads !== undefined ? { threadsErased: counts.threads } : {}),
-    ...(counts?.documents !== undefined
-      ? { documentsErased: counts.documents }
+    ...(counts !== null
+      ? {
+          threadsErased: categories.threads?.rows ?? 0,
+          threadsSkippedByHold: categories.threads?.skippedByHold ?? 0,
+          documentsErased: categories.documents?.rows ?? 0,
+          documentsSkippedByHold: categories.documents?.skippedByHold ?? 0,
+          wfExecutionsErased: categories.automationRuns?.rows ?? 0,
+          perCategorySnapshot: counts,
+        }
       : {}),
-    ...(counts !== null ? { perCategorySnapshot: counts } : {}),
     ...(row.error !== null ? { errorMessage: row.error } : {}),
     ...(row.startedAt !== null ? { startedAt: row.startedAt } : {}),
     ...(row.status === 'cancelled'

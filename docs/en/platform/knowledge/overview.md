@@ -42,7 +42,7 @@ Test a new source with a question whose answer you already know: “What are our
 
 ## Understand access and search
 
-Organization chat can search the shared library within your permissions. Project chat can also search that project's files and uses its saved instructions; it does not search another project's files. Project agents need the corresponding platform tools in their equipment.
+Organization chat can search the shared library within your permissions. Project chat can also search that project's files and uses its saved instructions; it does not search another project's files. Project agents and automation agent steps always search this knowledge in their project's scope, with no grant needed; reading or changing [knowledge entries](/platform/knowledge/knowledge-entries) directly needs the matching tool in their equipment.
 
 Team restrictions continue to apply during retrieval. A file you can see in one workspace may therefore be absent from a different project's context. Use [project files](/platform/projects/manage-files) for project-specific material and document team access for shared library files.
 

@@ -1,0 +1,8 @@
+# Projects & tasks — boxes a spec took over
+
+Rows for [`projects`](../../suites/projects.md) boxes that moved out of the suite. Read
+[`../automation.md`](../automation.md) for the rest of the coverage map.
+
+| Suite | Automated slice | Coverage | Specs |
+| --- | --- | --- | --- |
+| [projects](../../suites/projects.md) / [chat](../../suites/chat.md) / [knowledge](../../suites/knowledge.md) / [automations](../../suites/automations.md) | The component halves of `PROJ-F40`, `CHAT-F61`, `KNOW-F37` and `AUTO-F56`: a delete lands on its overview. A project deleted from one of its own pages replaces that page with the Projects list, while a delete from the list (or a refused one) moves nothing; the open chat deleted from its header or its row replaces its page with a fresh chat (`?new`), never plain `/chat`, whose resume could reopen the deleted chat, while deleting another chat or a refused delete moves nothing; a subfolder deleted from its row keeps the folder on screen instead of jumping to the Documents root; a folder trail the backend refuses (404 or 403) reads as no trail, which replaces the dead address with the Documents root and toasts `documents.folderNotFound`, while any other failure stays an error; a deleted automation's address keeps its deletion banner | 🔶 component + adapter | `app/features/projects/components/project-delete-dialog.test.tsx`, `app/features/chat/components/thread-delete-dialog.test.tsx`, `app/features/documents/components/documents-table.folder-delete.test.tsx`, `app/features/documents/components/breadcrumb-navigation.test.tsx`, `app/lib/backend/documents.breadcrumb.test.ts`, `app/features/automations/components/automation-detail-shell.test.tsx`; the real router, browser history and toasts stay manual (the four boxes) |

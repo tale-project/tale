@@ -411,7 +411,7 @@ describe('reconcilePendingSessionOpKeys', () => {
     gateway.readVirtualKeySpend.mockResolvedValue({ status: 'unavailable' });
     const { sql, statements } = fakeSql([
       {
-        match: 'WHERE finalized_at_ms IS NOT NULL AND finalized_at_ms <',
+        match: 'WHERE ((finalized_at_ms IS NOT NULL AND finalized_at_ms <',
         rows: [
           { organizationId: 'org-1', sessionId: 'pa-alice', execId: 'exec-1' },
         ],
@@ -439,7 +439,7 @@ describe('reconcilePendingSessionOpKeys', () => {
     expect(result).toEqual({ scanned: 1, settled: 0, pending: 1 });
     const select = statements.find((s) =>
       s.text.includes(
-        'WHERE finalized_at_ms IS NOT NULL AND finalized_at_ms <',
+        'WHERE ((finalized_at_ms IS NOT NULL AND finalized_at_ms <',
       ),
     );
     expect(select?.text).toContain(
@@ -600,4 +600,165 @@ describe('reconcilePendingSessionOpKeys — deferred settlements', () => {
     );
     expect(statements[0]?.values).toContain(5_000_000);
   });
+});
+
+describe('direct LLM reconciliation', () => {
+  function fixture(overrides: Record<string, unknown> = {}) {
+    return fakeSql([
+      {
+        match: 'SELECT org_id AS "organizationId", kind, minted_key_id',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'automation-llm',
+            mintedKeyId: null,
+            finalizedAt: null,
+            spendSettledAt: null,
+            keyRevokedAt: null,
+            startedAtMs: 1,
+            settleAfter: null,
+            expectedCents: null,
+            floorCents: null,
+            budgetCents: 8,
+            reservedTokens: 8000,
+            ...overrides,
+          },
+        ],
+      },
+      { match: "status = 'failed'", rows: [{ id: 'op' }] },
+      {
+        match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+        rows: [
+          {
+            organizationId: 'org-1',
+            kind: 'automation-llm',
+            modelRef: 'first/first/vendor/model',
+            inputTokens: 20,
+            outputTokens: 4,
+          },
+        ],
+      },
+      {
+        match: 'SELECT user_id AS "userId"',
+        rows: [
+          {
+            userId: 'user-1',
+            agentSlug: 'flow',
+            apiKeyId: null,
+            projectIds: ['a', 'b'],
+          },
+        ],
+      },
+      {
+        match: 'SELECT project_ids AS "projectIds"',
+        rows: [{ projectIds: ['a', 'b'] }],
+      },
+    ]);
+  }
+  const key = {
+    organizationId: 'org-1',
+    sessionId: 'direct',
+    execId: 'attempt',
+  };
+  it('books known direct spend without a virtual key under its immutable project stamp', async () => {
+    const { sql } = fixture({ expectedCents: 2, finalizedAt: 10 });
+    await expect(reconcileSessionOpKey(sql, key)).resolves.toEqual({
+      spendSettled: true,
+      keyRevoked: true,
+    });
+    expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        costEstimateCents: 2,
+        inputTokens: 20,
+        outputTokens: 4,
+        projectIds: ['a', 'b'],
+        provider: 'first',
+        model: 'vendor/model',
+      }),
+    );
+    expect(gateway.readVirtualKeySpend).not.toHaveBeenCalled();
+  });
+  it('keeps an unknown direct call held until its bounded deadline', async () => {
+    const { sql, statements } = fixture({ startedAtMs: Date.now() });
+    await expect(reconcileSessionOpKey(sql, key)).resolves.toEqual({
+      spendSettled: false,
+      keyRevoked: true,
+    });
+    expect(statements).toHaveLength(1);
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+  it('recovers a lost direct call at its reserved estimate, never the generic no-key zero', async () => {
+    const { sql, statements } = fixture();
+    await reconcileSessionOpKey(sql, key);
+    expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        costEstimateCents: 8,
+        inputTokens: 8000,
+        outputTokens: 0,
+      }),
+    );
+    expect(
+      statements.some(
+        ({ text }) =>
+          text.includes('floor_cents = budget_cents') &&
+          text.includes('expected_cents IS NULL'),
+      ),
+    ).toBe(true);
+    expect(gateway.revokeVirtualKey).not.toHaveBeenCalled();
+  });
+  it('leaves an invalid estimate unsettled instead of freeing its hold', async () => {
+    await expect(
+      reconcileSessionOpKey(fixture({ budgetCents: null }).sql, key),
+    ).rejects.toThrow('no valid settlement estimate');
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+  it('does not book an already settled attempt twice', async () => {
+    await reconcileSessionOpKey(fixture({ spendSettledAt: 10 }).sql, key);
+    expect(ledger.incrementUsageLedger).not.toHaveBeenCalled();
+  });
+});
+
+describe('managed op immutable billing projects', () => {
+  it.each([{ projectIds: ['a', 'b'] }, { projectIds: [] }])(
+    'books admitted $projectIds after live bindings change to A/C [GOV-R14]',
+    async ({ projectIds }) => {
+      const { sql } = fakeSql([
+        {
+          match: 'UPDATE app.sandbox_session_ops SET spent_cents',
+          rows: [
+            {
+              organizationId: 'org-1',
+              kind: 'workflow-agent',
+              modelRef: 'p/p/m',
+            },
+          ],
+        },
+        WORKFLOW_SESSION,
+        {
+          match: 'FROM app.automation_runs ar',
+          rows: [
+            {
+              startedBy: 'user:user-1',
+              name: 'flow',
+              apiKeyId: null,
+              projectId: null,
+              boundProjectIds: ['a', 'c'],
+            },
+          ],
+        },
+        { match: 'SELECT project_ids AS "projectIds"', rows: [{ projectIds }] },
+      ]);
+      await settleSessionOpSpend(sql, {
+        sessionId: 'workflow',
+        execId: 'op',
+        spentCents: 3,
+      });
+      expect(ledger.incrementUsageLedger).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ projectIds }),
+      );
+    },
+  );
 });

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.23.0",
+    "version": "3.24.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -39470,7 +39470,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.23.0"
+          "example": "3.24.0"
         }
       },
       "Location": {
@@ -44661,6 +44661,7 @@
                 "document_find",
                 "document_create",
                 "knowledge_entry_find",
+                "knowledge_entry_write",
                 "contact_find",
                 "product_find",
                 "website_find"
@@ -44743,6 +44744,7 @@
                 "document_find",
                 "document_create",
                 "knowledge_entry_find",
+                "knowledge_entry_write",
                 "contact_find",
                 "product_find",
                 "website_find"
@@ -45084,8 +45086,8 @@
           },
           "source": {
             "type": "string",
-            "enum": ["chat", "manual", "api"],
-            "description": "The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form) or `api` (this door — a create or supersede over REST)"
+            "enum": ["chat", "manual", "api", "agent"],
+            "description": "The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form), `api` (this door — a create or supersede over REST) or `agent` (a project agent or an automation’s agent step granted `knowledge_entry_write`; `createdBy` then names the agent — a project agent’s id or `automation:<name>` — not a user)"
           },
           "documentId": {
             "type": "string",

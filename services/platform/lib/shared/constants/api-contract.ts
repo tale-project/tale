@@ -404,7 +404,16 @@
  * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
  * names such a cap with `data.scope` `project`. Additive.
  *
- * 3.23.0 — 2026-10-09: the MCP endpoint speaks protocol revision 2025-11-25
+ * 3.23.0 — 2026-10-09: the project-agent tools vocabulary gains
+ * `knowledge_entry_write`, an explicit grant to save an organization-wide
+ * knowledge entry by topic; changing an existing entry needs the version the
+ * agent read, and a stale one is refused with the current text.
+ * `KnowledgeEntry.source` gains `agent` for what such a grant wrote, its
+ * `createdBy` naming the agent. Native `knowledge_entry_find` answers each
+ * entry's version `id` and `updatedAt` and matches its content as well. No
+ * REST operation changes. Additive.
+ *
+ * 3.24.0 — 2026-10-09: the MCP endpoint speaks protocol revision 2025-11-25
  * beside 2025-06-18 and 2025-03-26, answers an `MCP-Protocol-Version` it
  * does not speak with -32022 naming the `supported` revisions, answers
  * `initialize` with `instructions`, and reports this contract version as
@@ -493,4 +502,4 @@
  * No other REST operation changes. A script that matched the -32602
  * argument error, or read the indented text, reads the tool result instead.
  */
-export const API_CONTRACT_VERSION = '3.23.0';
+export const API_CONTRACT_VERSION = '3.24.0';

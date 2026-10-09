@@ -65,12 +65,12 @@ interface HandlerNames {
       heartbeatRun: FunctionRef;
       recordAgentTurnSettled: FunctionRef;
       recordLlmStepUsage: FunctionRef;
+      reserveLlmStepBudget: FunctionRef;
       recordProgress: FunctionRef;
       stampAgentTurnLaunch: FunctionRef;
       suspendRun: FunctionRef;
     };
     queries: FunctionRef & {
-      checkLlmStepBudget: FunctionRef;
       getRunLanguageContext: FunctionRef;
       getRunProjectContext: FunctionRef;
       getRunProjectId: FunctionRef;
@@ -228,6 +228,9 @@ interface HandlerNames {
     };
   };
   knowledge_entries: FunctionRef & {
+    internal_mutations: FunctionRef & {
+      upsertEntryForAgent: FunctionRef;
+    };
     internal_queries: FunctionRef & {
       listEntriesForAgent: FunctionRef;
     };
@@ -356,6 +359,7 @@ interface HandlerNames {
       getTaskByIdInternal: FunctionRef;
       getTaskContextForAgent: FunctionRef;
       getTaskWorkStateForAgent: FunctionRef;
+      getTaskOccupancyForAgent: FunctionRef;
       getTaskReviewFilesForAgent: FunctionRef;
       listTasksForAgent: FunctionRef;
     };

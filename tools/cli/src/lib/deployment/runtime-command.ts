@@ -48,6 +48,7 @@ export async function runtimeCommand(
   options: {
     cwd?: string;
     timeout?: number;
+    maxOutputBytes?: number;
     allowFailure?: boolean;
     operation?: 'compose-validation' | 'compose-startup';
     /**
@@ -72,6 +73,9 @@ export async function runtimeCommand(
       timeout: options.timeout ?? 60,
       silent: true,
       env: runtimeProcessEnvironment(),
+      ...(options.maxOutputBytes === undefined
+        ? {}
+        : { maxOutputBytes: options.maxOutputBytes }),
     });
   } catch {
     throw externalDepError(

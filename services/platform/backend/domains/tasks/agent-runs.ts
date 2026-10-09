@@ -1151,6 +1151,8 @@ export async function listTaskAgentRunSummaries(
     taskId: string;
     limit: number;
     beforeSeq?: number;
+    /** Exact requested run, still bound to this organization and task. */
+    runId?: string;
   },
 ): Promise<TaskAgentRunSummary[]> {
   const rows = await sql<
@@ -1173,6 +1175,7 @@ export async function listTaskAgentRunSummaries(
                     false) AS "feedbackTruncated"
     FROM app.project_agent_runs
     WHERE org_id = ${args.organizationId} AND task_id = ${args.taskId}
+      AND (${args.runId ?? null}::text IS NULL OR id = ${args.runId ?? null})
       AND (${args.beforeSeq ?? null}::bigint IS NULL
            OR seq < ${args.beforeSeq ?? null}::bigint)
     ORDER BY seq DESC

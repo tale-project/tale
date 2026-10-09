@@ -10,6 +10,8 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
+import { operationalFailure } from '../../commands/operational-failure';
+import { CliError, ExitCode } from '../../utils/fail';
 import { TALE_REPOSITORY, withDeploymentSources } from './sources';
 
 const roots: string[] = [];
@@ -88,6 +90,8 @@ for (const variant of ['LF', 'missing LF', 'CRLF', 'CRLF missing LF']) {
           run: async (command, args, options) => {
             expect(command).toBe('git');
             expect(options?.silent).toBe(true);
+            expect(options?.timeout).toBe(300);
+            expect(options?.maxOutputBytes).toBe(1_048_576);
             expect(options?.env).not.toHaveProperty('TALE_SOURCE_SSH_KEY');
             expect(JSON.stringify(options?.env)).not.toContain(sourceKey);
             if (args.includes('fetch')) {
@@ -153,3 +157,110 @@ test('public runtime source acquisition does not stage or use a client key', asy
   );
   expect(existsSync(root)).toBe(false);
 });
+
+async function sourceFailure({
+  stage = 'fetch',
+  request = runtime,
+  stderr = '',
+  exitCode = 128,
+  thrown,
+}: {
+  stage?: string;
+  request?: typeof runtime;
+  stderr?: string;
+  exitCode?: number;
+  thrown?: Error;
+}) {
+  let root = '';
+  let failures = 0;
+  try {
+    await withDeploymentSources(
+      [request],
+      {
+        run: async (_command, args) => {
+          root = dirname(args[1]!);
+          if (!args.includes(stage)) return success(revision);
+          failures++;
+          if (thrown) throw thrown;
+          return { success: false, stdout: '', stderr, exitCode };
+        },
+      },
+      async () => {
+        throw new Error('failed acquisition must not reach its consumer');
+      },
+    );
+    throw new Error('source acquisition must fail');
+  } catch (error) {
+    expect(error).toBeInstanceOf(CliError);
+    if (!(error instanceof CliError)) throw error;
+    expect(error.info.code).toBe(ExitCode.ExternalDep);
+    expect(error.info.cause).toBeUndefined();
+    expect(failures).toBe(1);
+    expect(existsSync(root)).toBe(false);
+    expect(
+      operationalFailure(error, { schema: 'invalid input', summary: 'failed' }),
+    ).toBe(error);
+    return error;
+  }
+}
+
+test('source acquisition distinguishes disk and DNS failures without exposing stderr', async () => {
+  const disk = await sourceFailure({
+    stderr: 'fatal: No space left on device /private/checkout secret-marker',
+  });
+  const dns = await sourceFailure({
+    stderr: 'fatal: Could not resolve host: private.example secret-marker',
+  });
+  expect(disk.message).toBe(
+    'Git could not acquire the pinned runtime deployment source during fetch (exit 128; failure hint: no-space).',
+  );
+  expect(dns.message).toBe(
+    'Git could not acquire the pinned runtime deployment source during fetch (exit 128; failure hint: name-resolution).',
+  );
+  for (const error of [disk, dns]) {
+    expect(JSON.stringify(error.info)).not.toContain('secret-marker');
+    expect(JSON.stringify(error.info)).not.toContain('private');
+  }
+});
+
+for (const request of [runtime, client]) {
+  for (const stage of ['init', 'remote', 'fetch', 'checkout', 'rev-parse']) {
+    test(`source acquisition identifies ${request === runtime ? 'runtime' : 'configuration'} ${stage} failures`, async () => {
+      const error = await sourceFailure({
+        request,
+        stage,
+        stderr:
+          'unknown secret-marker https://private.example/repo /private/key',
+      });
+      expect(error.message).toContain(
+        `pinned ${request === runtime ? 'runtime' : 'configuration'} deployment source during ${stage} (exit 128; failure hint: unknown)`,
+      );
+      const rendered = JSON.stringify(error.info);
+      for (const privateValue of [
+        'secret-marker',
+        'private',
+        request.repository,
+      ])
+        expect(rendered).not.toContain(privateValue);
+    });
+  }
+}
+
+for (const exitCode of [Number.NaN, Number.POSITIVE_INFINITY, -1, 0, 256]) {
+  test(`source acquisition refuses invalid exit status ${exitCode}`, async () => {
+    const error = await sourceFailure({ exitCode });
+    expect(error.message).toContain('(exit unknown; failure hint: unknown)');
+  });
+}
+
+for (const [message, hint] of [
+  ['Command exceeded its time limit.', 'timeout'],
+  ['Command output exceeded its byte limit.', 'output-limit'],
+  ['unexpected private-source-key-marker /private/key', 'unknown'],
+]) {
+  test(`source acquisition classifies thrown ${hint} failures safely`, async () => {
+    const error = await sourceFailure({ thrown: new Error(message) });
+    expect(error.message).toContain(`(exit unknown; failure hint: ${hint})`);
+    expect(JSON.stringify(error.info)).not.toContain(message);
+  });
+}
