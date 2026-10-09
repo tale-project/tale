@@ -35,7 +35,8 @@ export function initialRank(): string {
  * Counts up within the key's length: base 36, carrying to the left, the
  * last digit running 1–z so no key ends in 0 (see the post-condition of
  * {@link rankBetween}). Only a key made entirely of `z` has nothing of its
- * length above it; it is extended by a block as long as itself. So n
+ * length above it; it is extended by a block as long as itself, at most 8
+ * digits. So n
  * appends need O(log n) digits — under a million appends stay within 16 —
  * where a midpoint walk towards the alphabet's end grows a digit every few
  * appends and a busy column's keys reach kilobytes (bigger rows, bigger
@@ -56,10 +57,11 @@ function rankAfter(before: string): string {
       return digits.map((d) => ALPHABET[d]).join('');
     }
   }
-  const block =
-    before.length < 2
-      ? MID_CHAR
-      : `${MID_CHAR}${'0'.repeat(before.length - 2)}1`;
+  // As long as the key, up to 8 digits: doubling is what keeps counted keys
+  // logarithmic, and past 8 a block already holds over a trillion appends —
+  // a long legacy key of z's must not double.
+  const size = Math.min(before.length, 8);
+  const block = size < 2 ? MID_CHAR : `${MID_CHAR}${'0'.repeat(size - 2)}1`;
   return `${before}${block}`;
 }
 

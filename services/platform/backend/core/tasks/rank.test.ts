@@ -91,6 +91,13 @@ describe('rankBetween', () => {
     expect(next.length).toBe(stored.length);
   });
 
+  it('extends a long legacy all-z key by at most 8 digits', () => {
+    const stored = 'z'.repeat(5000);
+    const next = rankBetween(stored, undefined);
+    expect(next > stored).toBe(true);
+    expect(next).toBe(`${stored}i0000001`);
+  });
+
   it('counts with a carry and extends only past all-z keys', () => {
     expect(rankBetween('i', undefined)).toBe('j');
     expect(rankBetween('iz', undefined)).toBe('j1');
