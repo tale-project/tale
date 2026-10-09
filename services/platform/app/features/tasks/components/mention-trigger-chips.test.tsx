@@ -62,7 +62,7 @@ describe('MentionTriggerChips', () => {
     expect(useActorDirectory).toHaveBeenCalledWith('org-1', 'project-1');
   });
 
-  it('previews an agent named by the handle the picker inserts', async () => {
+  it('previews an agent named by a typed handle', async () => {
     renderChips('@pr.reviewer please look');
 
     expect(
@@ -73,6 +73,29 @@ describe('MentionTriggerChips', () => {
       ),
     ).toBeInTheDocument();
     expect(requestedSlugs.at(-1)).toEqual(['agent-7f3a']);
+  });
+
+  it('previews an agent named by a stored mention', async () => {
+    renderChips('[@Old name](mention:agent/agent-7f3a) please look');
+
+    expect(
+      await screen.findByText(
+        'mentionPreview.willRespond:PR Reviewer',
+        {},
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    expect(requestedSlugs.at(-1)).toEqual(['agent-7f3a']);
+  });
+
+  it('shows no chip for an agent the saved text names by a stored mention', async () => {
+    renderChips(
+      '[@PR Reviewer](mention:agent/agent-7f3a) still owns this',
+      '@pr.reviewer owns this',
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(requestedSlugs).toEqual([]);
   });
 
   it('shows one chip for an agent named twice, by name and by id', async () => {

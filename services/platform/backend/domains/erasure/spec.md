@@ -110,8 +110,8 @@ and the category breakdown read both historical count shapes and agree on erased
 
 - **Who can file, approve and retry a request**, and the second admin's approval itself: see
   the approvals spec for who can decide an erasure approval.
-- **Everything else an erasure removes**: chats, documents, files, preferences and the rest
-  (`service.ts`). An integration lane covers the hand-over of reviews; the guard does not read
-  it.
+- **Everything else an erasure removes**: chats, documents, files, preferences, the person's
+  name and id in other people's mentions of them, and the rest (`service.ts`). An integration
+  lane covers the hand-over of reviews; the guard does not read it.
 - **The waiting period** before an approved request runs, and the receipt's states.
 - **A request that takes too long**: it is ended with a message and can be retried.

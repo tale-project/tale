@@ -79,6 +79,7 @@ import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
@@ -24127,7 +24128,7 @@ async function checkTasksCollabIntegrity(
   // leg failing rejects (MENTION_DIRECTORY_UNAVAILABLE, 503) instead of
   // answering a partial directory that turns `@teammate` into plain text;
   // the healthy resolution still names the teammate.
-  const { MentionDirectoryError, resolveSurfaceMentions } =
+  const { MentionDirectoryError, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const instanceLegDown = Object.assign(
     (strings: TemplateStringsArray, ...values: unknown[]): unknown => {
@@ -24143,18 +24144,26 @@ async function checkTasksCollabIntegrity(
     },
     { json: sql.json.bind(sql), unsafe: sql.unsafe.bind(sql) },
   );
-  const degraded: unknown = await resolveSurfaceMentions(
+  const degraded: unknown = await prepareSurfaceText(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tag + json/unsafe stand-in over the real handle
     instanceLegDown as unknown as Sql,
-    { organizationId: orgId, body: `@${reviewer} please look`, projectId },
+    {
+      organizationId: orgId,
+      body: `@${reviewer} please look`,
+      projectId,
+      cap: 10_000,
+      mode: 'full',
+    },
   ).then(
     () => 'resolved',
     (error: unknown) => error,
   );
-  const healthy = await resolveSurfaceMentions(sql, {
+  const healthy = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: `@${reviewer} please look`,
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   // Typed against the module's export so the probe stays a plain FAIL (not
   // a crash) on a tree that has no `MentionDirectoryError` yet.
@@ -24236,26 +24245,25 @@ async function checkCollabMentions(
   `;
   const agentInstanceId = agentRows[0]?.id ?? '';
 
-  const { buildMentionDirectory, resolveSurfaceMentions } =
+  const { buildMentionDirectory, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const directory = await buildMentionDirectory(sql, {
     organizationId: orgId,
     projectId,
   });
-  const handleOwners = new Map<string, string>();
-  for (const entry of directory.entries) {
-    for (const handle of entry.handles) {
-      handleOwners.set(handle, `${entry.type}:${entry.id}`);
-    }
-  }
-  // The instance goes LAST so its handle wins a clash.
+  // The agent answers to its older name form as well as its handle.
+  const resolvedReviewer = directory.index.resolve('pr.reviewer');
   const instanceShadows =
-    handleOwners.get('pr.reviewer') === `agent:${agentInstanceId}`;
+    resolvedReviewer !== null &&
+    `${resolvedReviewer.kind}:${resolvedReviewer.id}` ===
+      `agent:${agentInstanceId}`;
 
-  const resolved = await resolveSurfaceMentions(sql, {
+  const resolved = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: '@mention-teammate-1 and @pr.reviewer please look; @nobody-here too',
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   const mentionKeys = resolved.mentions.map(
     (mention) => `${mention.type}:${mention.id}`,
@@ -24263,7 +24271,7 @@ async function checkCollabMentions(
   record(
     'mentions: the directory scopes to the project and resolves agent instances',
     directory.entries.some(
-      (entry) => entry.type === 'user' && entry.id === teammate,
+      (entry) => entry.kind === 'user' && entry.id === teammate,
     ) &&
       instanceShadows &&
       mentionKeys.includes(`user:${teammate}`) &&
@@ -61914,6 +61922,24 @@ async function main(): Promise<void> {
         () => checkLapsedTeamWrites(sql, baseUrl, record),
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
+      [
+        'checkMentionHandles',
+        async () =>
+          checkMentionHandles(
+            sql,
+            {
+              ...authCtx,
+              base: baseUrl,
+              orgSlug: `itest-${orgSuffix}`,
+              restKey: await mintRestKey(
+                baseUrl,
+                authCtx.cookie,
+                'Mention handles proof',
+              ),
+            },
+            record,
+          ),
+      ],
       [
         'checkTaskDescriptionMentions',
         () => checkTaskDescriptionMentions(sql, authCtx, record),

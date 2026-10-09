@@ -13,12 +13,14 @@ import type {
 } from '../../../lib/connectors/natives/index.ts';
 import type { WorkflowIssueInput } from '../../../lib/connectors/natives/platform-tasks.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import { taskMentionPlainText } from '../../core/tasks/mentions.ts';
 import { authorizeActorRun } from '../automations/dispatch-store.ts';
 import {
   bindingProjectIds,
   getRun,
   resolveRunProject,
 } from '../automations/store.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import {
   getProjectAuthContext,
   loadProjectOrThrow,
@@ -434,7 +436,19 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
         taskId: task.id,
         title: task.title,
         status: task.status,
-        ...(task.description !== null ? { description: task.description } : {}),
+        // The description as stored (each mention a mention link), and read
+        // as text, each mention as `@` and the current name.
+        ...(task.description !== null
+          ? {
+              description: task.description,
+              descriptionText: taskMentionPlainText(
+                task.description,
+                await currentMentionNames(sql, organizationId, [
+                  task.description,
+                ]),
+              ),
+            }
+          : {}),
         projectId: task.projectId,
         ...(task.externalSystem != null
           ? { externalSystem: task.externalSystem }
@@ -559,6 +573,13 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
       const page = await listTaskComments(sql, auth, taskId, {
         limit: TASK_COMMENT_PAGE_MAX,
       });
+      // `body` as stored, each mention a mention link; `bodyText` the same
+      // text with each mention as `@` and the current name.
+      const names = await currentMentionNames(
+        sql,
+        organizationId,
+        page.comments.map((comment) => comment.body),
+      );
       return {
         comments: page.comments.map((comment) => ({
           authorType:
@@ -567,6 +588,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
               : ('agent' as const),
           authorId: comment.authorId,
           body: comment.body,
+          bodyText: taskMentionPlainText(comment.body, names),
           ...(comment.bodyByLocale != null
             ? { bodyByLocale: comment.bodyByLocale }
             : {}),

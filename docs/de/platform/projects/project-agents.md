@@ -25,6 +25,8 @@ Trenne dauerhafte Anweisungen von der jeweiligen Aufgabe. „Erkenne fehlende Be
 
 Öffne den Tab **Agenten** des Projekts und wähle **Neuer Agent**. Gib unter **Name** einen erkennbaren Namen ein und wähle die **Agent-Laufzeit**, also das [Programm für seine Ausführung](/de/platform/agents/harnesses). Namen sind innerhalb des Projekts eindeutig; bis zu 50 Agenten sind möglich.
 
+Aus dem Namen macht Tale ein Handle; tippst du es nach `@`, findest du den Agenten: Aus „My Opus Agent #3“ wird `@my-opus-agent-3`. Ist das Handle schon vergeben, an einen anderen Agenten des Projekts oder an ein Mitglied oder eine Automatisierung, die man damit bereits erwähnt, bekommt der Agent das nächste freie: `-02`, dann `-03`. Hört später ein Mitglied oder eine Automatisierung auf das Handle des Agenten, wechselt der Agent ebenso zum nächsten freien. Das Handle steht im Tab **Agenten** und unter **Name**, wenn du den Agenten bearbeitest. Benennst du den Agenten um, ändert sich sein Handle; frühere Erwähnungen nennen weiter diesen Agenten und zeigen seinen neuen Namen.
+
 Du kannst auch bei einer Aufgabe beginnen: Solange das Projekt keinen Agenten hat, öffnet **Agent erstellen …** unter **Zuständig** den Dialog **Neuer Agent** über der Aufgabe und weist ihr den Agenten zu, den du erstellst.
 
 </Step>

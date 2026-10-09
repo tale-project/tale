@@ -553,6 +553,14 @@ mentionPreview:
 mentionPicker:
   title: Mentionner un membre, un agent ou une automatisation
   empty: Aucun résultat
+mentionChip:
+  kind:
+    user: Personne
+    agent: Agent
+    automation: Automatisation
+  missing:
+    user: N’est plus membre
+    automation: Automatisation indisponible
 metrics:
   title: Métriques du projet
   description:

@@ -4,26 +4,49 @@ import { cn } from '@tale/ui/cn';
 import { Ban, Zap } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { parseMentionTokens } from '@/backend/core/tasks/mentions';
+import { findTaskMentions } from '@/backend/core/tasks/mentions';
 import { useT } from '@/lib/i18n/client';
+import type { MentionHandleIndex } from '@/lib/shared/mention-handles';
 
 import { useMentionTriggerPreview } from '../hooks/queries';
-import { useActorDirectory } from '../hooks/use-actor-directory';
-import { agentHandleVariants } from '../lib/mention-handles';
+import {
+  useTaskMentionActors,
+  withTaskActorDirectory,
+} from '../hooks/task-actor-directory-context';
 
 const DEBOUNCE_MS = 400;
+
+/** The agents a text mentions, by id: a stored mention names its agent, and
+ * a typed `@handle` names whom the server would resolve it to. */
+function mentionedAgents(text: string, mentions: MentionHandleIndex): string[] {
+  const ids: string[] = [];
+  for (const occurrence of findTaskMentions(text)) {
+    let agentId: string | undefined;
+    if (occurrence.type === 'token') {
+      if (occurrence.ref.kind === 'agent') agentId = occurrence.ref.id;
+    } else {
+      const entry = mentions.resolve(occurrence.handle);
+      if (entry?.kind === 'agent') agentId = entry.id;
+    }
+    if (agentId !== undefined && !ids.includes(agentId)) ids.push(agentId);
+  }
+  return ids;
+}
 
 /**
  * Live trigger preview under a mention-aware composer (comment OR task
  * description): for each @-mentioned agent in the draft, whether saving will
  * put it to work (⚡) or why not (⛔ — automation off, breaker, budget, or a
  * task the viewer may comment on but not work).
- * Only tokens that name one of the project's agents are queried, by any
- * handle the server resolves (the name forms the picker inserts, or the
- * instance id) — human mentions and typos render no chip. Create mode (no
- * task yet) targets the project instead of the task.
+ * Only mentions of the project's agents are queried, by id — human mentions
+ * and typos render no chip. Create mode (no task yet) targets the project
+ * instead of the task.
  */
-export function MentionTriggerChips({
+export const MentionTriggerChips = withTaskActorDirectory(
+  MentionTriggerChipsContent,
+);
+
+function MentionTriggerChipsContent({
   organizationId,
   projectId,
   target,
@@ -41,36 +64,19 @@ export function MentionTriggerChips({
   baseline?: string;
 }) {
   const { t } = useT('tasks');
-  const { agents } = useActorDirectory(organizationId, projectId);
-
-  // Every handle an agent answers to, keyed back to the agent: the picker
-  // inserts the readable name form, and the instance id resolves too.
-  const agentByHandle = useMemo(() => {
-    const byHandle = new Map<string, (typeof agents)[number]>();
-    for (const agent of agents) {
-      for (const handle of agentHandleVariants(agent)) {
-        byHandle.set(handle, agent);
-      }
-    }
-    return byHandle;
-  }, [agents]);
+  const mentions = useTaskMentionActors(organizationId, projectId);
 
   // Parse per keystroke (cheap), query only when the settled set of
   // mentioned agents changes — typing "@mar…" must not refire the query per
-  // character. One chip per agent, whichever handle named it.
+  // character. One chip per agent, however the text named it.
   const tokensKey = useMemo(() => {
-    const existing = new Set<string>();
-    for (const token of baseline ? parseMentionTokens(baseline) : []) {
-      const agent = agentByHandle.get(token);
-      if (agent) existing.add(agent.id);
-    }
-    const mentioned = new Set<string>();
-    for (const token of parseMentionTokens(draft)) {
-      const agent = agentByHandle.get(token);
-      if (agent && !existing.has(agent.id)) mentioned.add(agent.id);
-    }
-    return [...mentioned].join(',');
-  }, [draft, baseline, agentByHandle]);
+    const existing = new Set(
+      baseline ? mentionedAgents(baseline, mentions) : [],
+    );
+    return mentionedAgents(draft, mentions)
+      .filter((id) => !existing.has(id))
+      .join(',');
+  }, [draft, baseline, mentions]);
   const [debouncedKey, setDebouncedKey] = useState('');
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedKey(tokensKey), DEBOUNCE_MS);
@@ -87,7 +93,7 @@ export function MentionTriggerChips({
   const label = (preview: (typeof previews)[number]): string => {
     // The chip names the agent by its display name, not the raw id.
     const name =
-      agents.find((a) => a.id === preview.slug)?.name ?? preview.slug;
+      mentions.byRef({ kind: 'agent', id: preview.slug })?.name ?? preview.slug;
     switch (preview.reason) {
       case 'ok':
         return t('mentionPreview.willRespond', { slug: name });

@@ -303,6 +303,13 @@ export function ProjectAgentDialog({
           setName(e.target.value);
           setNameError(undefined);
         }}
+        // How people mention the agent: made from its name, so a rename
+        // changes it, which the saved agent's handle tells best.
+        description={
+          agent?.handle !== undefined
+            ? t('agents.handleHint', { handle: agent.handle })
+            : undefined
+        }
         errorMessage={nameError}
         disabled={isSubmitting}
       />

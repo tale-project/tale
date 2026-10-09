@@ -553,6 +553,14 @@ mentionPreview:
 mentionPicker:
   title: Mitglied, Agent oder Automatisierung erwähnen
   empty: Keine Treffer
+mentionChip:
+  kind:
+    user: Person
+    agent: Agent
+    automation: Automatisierung
+  missing:
+    user: Nicht mehr Mitglied
+    automation: Automatisierung nicht verfügbar
 metrics:
   title: Projekt-Metriken
   description: Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.

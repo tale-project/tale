@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 144 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 150 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -138,8 +138,8 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (**Comment**, `tasks.actions.comment`) containing `@` → the mention listbox
   (`tasks.mentionPicker.title`) → pick a member; edit then delete a comment →
   The listbox offers only actors with project access (members + this project's
-  agents, `tasks.assignee.agents` section); the posted comment renders the
-  mention highlighted; a mentioned agent shows the preview chip **{slug} will
+  agents, `tasks.assignee.agents` section); the field shows the picked
+  member's name; the posted comment renders the mention as a chip; a mentioned agent shows the preview chip **{slug} will
   respond** (`tasks.mentionPreview.willRespond`); an edited comment is marked
   (`tasks.comment.edited`); delete confirms (`tasks.comment.deleteConfirm`);
   the conversation survives reload (`tasks.detail.conversation`). On a task assigned to
@@ -834,6 +834,32 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the sum of the costs on the runs' lines in the conversation, in the board's
   dialog and on the task's page; reassign the task to a person → the total
   stays; a task whose runs cost nothing shows no such row.
+- [ ] `TASK-F78` · **Mention by name, saved as whom it names** — With a
+  project agent named "My Opus Agent #3" and a second member B, type
+  `@my opus` in a task comment → the listbox (`tasks.mentionPicker.title`)
+  offers the agent with the caption **@my-opus-agent-3 · Agents**
+  (`tasks.assignee.agents`), and `@my-opus-agent-3`, B's name and B's email
+  find them too; pick both → the field shows **@My Opus Agent #3** and B's
+  name on a tint, never an id or a handle; send → the comment shows both as
+  chips with those names (hovering the agent's shows its handle), B's bell
+  shows **You were mentioned** (`inbox.mention`), and a reload reads the same.
+- [ ] `TASK-F79` · **A rename follows every mention** — After TASK-F78, rename
+  the agent "Release Reviewer" on the project's Agents tab, then reopen the
+  task → the earlier comment, and a description that mentions the agent, read
+  **@Release Reviewer**; editing that comment shows the new name in the field;
+  `@release` in the composer finds the agent with the caption
+  **@release-reviewer**, and `@my-opus-agent-3` finds nobody.
+- [ ] `TASK-F80` · **Edit around mentions** — Edit a comment that mentions two
+  people → both names show on a tint; Backspace right after one removes the
+  whole name in one keystroke and a screen reader hears **Removed the mention
+  of {name}** (`mentions.removed`); typing inside the other turns it into plain
+  words (the tint goes); ⌘/Ctrl+Z brings the removed name back on its tint;
+  save → only a person the edit newly mentions gets a bell. Repeat on an
+  iPhone and on an Android phone with Gboard: the tint sits exactly on the
+  name while typing and scrolling, a deletion that reaches into a name removes
+  all of it, and an autocorrect never rewrites a name; with VoiceOver the
+  field reads as the plain text with the names, and keyboard-only picking
+  works.
 
 - [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
   lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with
@@ -1268,6 +1294,21 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   entry → the run's **Details** shows `knowledge_entry_write` refused as
   `member_run`, **Knowledge entries** is unchanged, and the agent's report says
   an editor must save the fact. The same request from an Editor's run saves it.
+- [ ] `TASK-B47` · **Mentions only where they read as mentions** — With B's
+  email name typed as a handle (B = Ada, so `@ada`), post a comment that
+  mentions B in a heading, a table cell, bold text and a list item, and also
+  holds `@ada` in inline code, `@ada` in a fenced code block, "Pay $5 to @ada
+  and $10" and `\@ada` → the heading, cell, bold, list and dollar-sentence
+  mentions render as chips with B's name; the code and the escaped one stay
+  literal text; no **Mention not recognized** toast
+  (`common.mentions.unresolvedTitle`) and no bell come from them.
+- [ ] `TASK-B48` · **A mention of someone gone never shows an id** — Mention a
+  project agent in a comment, then delete the agent; also open an older
+  comment that typed a deleted agent's id after `@` → both show a muted chip,
+  the first with the agent's name and the second reading **@Deleted agent**
+  (`tasks.timeline.deletedAgent`); hovering a chip names why it is muted, a
+  screen reader reads the reason after the name, and no id appears anywhere.
+  In light and dark themes the muted chip's text keeps AA contrast.
 
 ## Accessibility (WCAG 2.1 AA)
 

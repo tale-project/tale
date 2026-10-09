@@ -3,9 +3,11 @@ import type { Sql } from 'postgres';
 import { parseTaskRepeat } from '../../../lib/shared/task-repeat.ts';
 import { findActingMember } from '../../auth/membership.ts';
 import { isAudienceAdmin } from '../../core/lib/audience.ts';
+import { relabelTaskMentions } from '../../core/tasks/mentions.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { wordStartPatterns } from '../../lib/word-match.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import { searchConversationsForChat } from '../conversations/search-chat.ts';
 import { listDocumentsForAgent } from '../documents/agent-list.ts';
 import {
@@ -987,6 +989,16 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       `;
       const row = rows[0];
       if (!row) return null;
+      // The assistant reads each mention with the current name of whoever
+      // it names.
+      if (row.description != null) {
+        row.description = relabelTaskMentions(
+          row.description,
+          await currentMentionNames(sql, args.organizationId, [
+            row.description,
+          ]),
+        );
+      }
       return Object.fromEntries(
         Object.entries(row).filter(([, value]) => value !== null),
       );
@@ -1084,6 +1096,12 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       // Read leniently, as the board reads it: a rule that no longer
       // validates is no rule.
       const repeat = parseTaskRepeat(task.repeat);
+      // The agent reads each mention with the CURRENT name of whoever it
+      // names; the address it acts on stays as stored.
+      const names = await currentMentionNames(sql, args.organizationId, [
+        task.description ?? '',
+        ...commentPage.comments.map((comment) => comment.body),
+      ]);
       return {
         task: {
           _id: task._id,
@@ -1091,7 +1109,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
           status: task.status,
           ...(task.number != null ? { number: task.number } : {}),
           ...(task.description != null
-            ? { description: task.description }
+            ? { description: relabelTaskMentions(task.description, names) }
             : {}),
           ...(task.projectId != null ? { projectId: task.projectId } : {}),
           ...(task.startDate != null ? { startDate: task.startDate } : {}),
@@ -1138,7 +1156,7 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
               commentId: comment.messageId,
               authorType: comment.authorType,
               authorId: comment.authorId,
-              body: comment.body,
+              body: relabelTaskMentions(comment.body, names),
               createdAt: comment.createdAt,
             },
             comment.editedAt !== null ? { editedAt: comment.editedAt } : {},

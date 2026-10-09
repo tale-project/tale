@@ -13,6 +13,10 @@ import { foldBreakdownEntries } from '../../core/governance/erasure_counts.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { MODEL_API_OP_KIND } from '../../core/sandbox/session_constants.ts';
+import {
+  formatTaskMention,
+  mentionTokenSqlPattern,
+} from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
@@ -1305,6 +1309,88 @@ export async function processErasure(
       RETURNING id
     `;
     return changed.length;
+  });
+
+  // Other people's task text that mentions the subject stores their name and
+  // id in the mention (`[@Ada Lovelace](mention:user/<id>)`). Both give way
+  // to the pseudonym wherever such text is kept: comments and their
+  // translations, the people a comment notified, task descriptions, the
+  // description history of the activity log and a run's start message. A
+  // pending review's evidence hash reads the comments and the description,
+  // so a review of a task whose text named the subject sees its evidence
+  // change: the erasure takes precedence.
+  await pass('mentions', async () => {
+    const pattern = mentionTokenSqlPattern({ kind: 'user', id: targetUserId });
+    const pseudonym = formatTaskMention({
+      kind: 'user',
+      id: ERASED_SUBJECT,
+      label: ERASED_SUBJECT,
+    });
+    const named = [{ type: 'user', id: targetUserId }];
+    const comments = await sql<{ id: string }[]>`
+      UPDATE app.messages m
+      SET text = regexp_replace(m.text, ${pattern}, ${pseudonym}, 'g')
+      FROM app.task_discussion_message_meta meta
+      WHERE meta.message_id = m.id AND meta.org_id = ${organizationId}
+        AND m.text ~ ${pattern}
+      RETURNING m.id
+    `;
+    const translations = await sql<{ id: string }[]>`
+      UPDATE app.task_discussion_message_meta meta
+      SET body_by_locale = (
+        SELECT jsonb_object_agg(
+          e.key, regexp_replace(e.value, ${pattern}, ${pseudonym}, 'g'))
+        FROM jsonb_each_text(meta.body_by_locale) e
+      )
+      WHERE meta.org_id = ${organizationId}
+        AND jsonb_typeof(meta.body_by_locale) = 'object'
+        AND EXISTS (SELECT 1 FROM jsonb_each_text(meta.body_by_locale) e
+                    WHERE e.value ~ ${pattern})
+      RETURNING meta.message_id AS id
+    `;
+    const notified = await sql<{ id: string }[]>`
+      UPDATE app.task_discussion_message_meta meta
+      SET mentions = (
+        SELECT jsonb_agg(
+          CASE WHEN x.e ->> 'type' = 'user' AND x.e ->> 'id' = ${targetUserId}
+               THEN jsonb_build_object('type', 'user', 'id', ${ERASED_SUBJECT}::text)
+               ELSE x.e END
+          ORDER BY x.ord)
+        FROM jsonb_array_elements(meta.mentions) WITH ORDINALITY AS x(e, ord)
+      )
+      WHERE meta.org_id = ${organizationId}
+        AND jsonb_typeof(meta.mentions) = 'array'
+        AND meta.mentions @> ${sql.json(named)}
+      RETURNING meta.message_id AS id
+    `;
+    const descriptions = await sql<{ id: string }[]>`
+      UPDATE app.tasks
+      SET description = regexp_replace(description, ${pattern}, ${pseudonym}, 'g')
+      WHERE org_id = ${organizationId} AND description ~ ${pattern}
+      RETURNING id
+    `;
+    const history = await sql<{ id: string }[]>`
+      UPDATE app.task_activity
+      SET from_value = regexp_replace(from_value, ${pattern}, ${pseudonym}, 'g'),
+          to_value = regexp_replace(to_value, ${pattern}, ${pseudonym}, 'g')
+      WHERE org_id = ${organizationId}
+        AND (from_value ~ ${pattern} OR to_value ~ ${pattern})
+      RETURNING id::text AS id
+    `;
+    const starts = await sql<{ id: string }[]>`
+      UPDATE app.project_agent_runs
+      SET feedback = regexp_replace(feedback, ${pattern}, ${pseudonym}, 'g')
+      WHERE org_id = ${organizationId} AND feedback ~ ${pattern}
+      RETURNING id
+    `;
+    return (
+      comments.length +
+      translations.length +
+      notified.length +
+      descriptions.length +
+      history.length +
+      starts.length
+    );
   });
 
   // Review decisions are pseudonymized rather than deleted: the decision is

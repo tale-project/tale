@@ -548,6 +548,14 @@ mentionPreview:
 mentionPicker:
   title: Mention a member, agent, or automation
   empty: No matches
+mentionChip:
+  kind:
+    user: Person
+    agent: Agent
+    automation: Automation
+  missing:
+    user: No longer a member
+    automation: Automation not available
 metrics:
   title: Project metrics
   description: Delivery, intervention, and cost metrics for this project's tasks.

@@ -436,3 +436,8 @@ issues:
   technicalDetails: Détails techniques
   learnMore: En savoir plus
   goTo: Y aller
+mentions:
+  listboxLabel: Mentionner quelqu’un
+  empty: Aucun résultat
+  inserted: Mention de {name} ajoutée
+  removed: Mention de {name} retirée
