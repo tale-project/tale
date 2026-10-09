@@ -85,6 +85,7 @@ import {
 } from '../../volume.ts';
 import { ORG_ID_ALPHABET_RE } from '../../wire.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type BackendWorkspace,
@@ -528,11 +529,19 @@ export class DockerSessionBackend implements SessionBackend {
       // A name conflict that survived the reconcile above (the container is
       // running/created — a likely concurrent winner — or a retry that re-lost
       // the race) is NOT ours to tear down: surface it without the destructive
-      // cleanup below. adoptExisting + the route's 409-reuse path recover a
-      // running peer on a later turn.
+      // cleanup below. A RUNNING container of this spawner's instance is a
+      // live session the registry does not hold: answered as a duplicate, so
+      // the caller adopts it through acquire. Read as a failed create, the
+      // caller's cleanup would remove what runs under the id. Any other
+      // holder (still `created`, being removed, unreadable) stays a failure.
       const nameConflict = isDockerNameConflict(stderr);
       if (!nameConflict) {
         await this.cleanupCreateAttempt(spec.sessionId, createAttemptId);
+      } else if (await this.runsLiveSession(containerName)) {
+        throw new SessionExistsError(
+          spec.sessionId,
+          `container ${containerName} is running`,
+        );
       }
       // The run never pulls (`--pull=never`): a missing image fails at once,
       // and the spawner's warmup pulls it outside any create's budget.
@@ -742,6 +751,27 @@ export class DockerSessionBackend implements SessionBackend {
     );
     if (inspect.exitCode !== 0) return null;
     return inspect.stdout.trim();
+  }
+
+  /** Does the named container run, as a session of this spawner's instance?
+   * An unreadable state is "no": only a definite running container is
+   * answered as a live session. */
+  private async runsLiveSession(containerName: string): Promise<boolean> {
+    const inspect = await runDocker(
+      [
+        'inspect',
+        '--format',
+        `{{.State.Status}}\t{{with index .Config.Labels "${SESSION_INSTANCE_LABEL}"}}{{.}}{{end}}`,
+        containerName,
+      ],
+      { timeoutMs: 5_000 },
+    );
+    if (inspect.exitCode !== 0) return false;
+    const [status, instance] = inspect.stdout.replace(/\r?\n$/, '').split('\t');
+    return (
+      status?.trim() === 'running' &&
+      belongsToInstance(instance?.trim(), this.cfg.instance)
+    );
   }
 
   /** Read identity and status together: a replacement after this observation

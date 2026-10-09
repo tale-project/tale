@@ -40,6 +40,7 @@ import {
   InnerDockerHealth,
   LAZY_DOCKER_HEALTH_SOCKET,
 } from './inner-docker-health.ts';
+import { installProcessGuards } from './process-guard.ts';
 import {
   RUNNERD_CHECKPOINT_MAX_BYTES,
   parseRunnerdSequence,
@@ -779,19 +780,24 @@ if (
   // transcript and a wrapper to remove what it staged before the teardown.
   // Either exit ends the daemon even past a /proc read that never returns
   // (daemon-exit.ts).
+  const shutdown = (code: number): void => {
+    // Journal/file I/O can block libuv too; the hard deadline cannot rely
+    // on the process-table read counter to decide whether exit is safe.
+    setTimeout(() => exitDaemon(code, { force: true }), 2_000);
+    void execManager
+      .terminateAll()
+      .catch((error: unknown) => {
+        console.warn('[runnerd] passing the stop on failed:', error);
+      })
+      .finally(() => server.close(() => exitDaemon(code)));
+  };
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
-    process.on(sig, () => {
-      // Journal/file I/O can block libuv too; the hard deadline cannot rely
-      // on the process-table read counter to decide whether exit is safe.
-      setTimeout(() => exitDaemon(0, { force: true }), 2_000);
-      void execManager
-        .terminateAll()
-        .catch((error: unknown) => {
-          console.warn('[runnerd] passing the stop on failed:', error);
-        })
-        .finally(() => server.close(() => exitDaemon(0)));
-    });
+    process.on(sig, () => shutdown(0));
   }
+  // An unhandled rejection is logged and survived; an uncaught exception
+  // stops the daemon the same way, with an exit code of its own
+  // (process-guard.ts).
+  installProcessGuards({ shutdown });
 
   // Every harness finds the image's built-in skills among its own from the
   // session's first moment, not only after its first exec.

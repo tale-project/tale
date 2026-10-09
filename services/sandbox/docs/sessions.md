@@ -94,6 +94,26 @@ exec's group and replaced its environment. runnerd's startup line names the
 shim it uses (`execShim=`). On SIGTERM, runnerd passes the signal on to every
 live exec, and to what exited execs left waiting, before it exits.
 
+**An exec's command ranks above runnerd for the OOM killer.** runnerd keeps
+the score its container starts with (`--oom-score-adj=500` on Docker); before
+the shim runs the command it raises the command's adjustment to 900, never
+lowering a higher one, and everything the command starts inherits it, while
+the shim itself keeps runnerd's. When a session reaches its memory limit, the
+kernel's OOM killer, which picks the highest score, ends a build or a test run
+before runnerd, whose end would be the container's and every exec's in it.
+Raising a score needs no privilege, so this holds with every capability
+dropped; where the kernel has no such file or refuses the write, the command
+runs with the score it inherited and nothing is reported.
+
+runnerd is the only child of the container's init, so its end is the
+container's, and every exec in it ends too. An error nothing handled does not
+take the session with it: an unhandled promise rejection (which Node 24 turns
+into an exit) is logged and survived, as in the spawner; an uncaught exception,
+after which the daemon's state is unknown, stops runnerd the way SIGTERM does
+(live execs told to end, the two-second forced deadline still holding) and it
+exits 70 (`EX_SOFTWARE`), apart from a stop's 0 and a signal's 128 + N, or by
+SIGKILL when that deadline passes first.
+
 Reading another process's environment waits on that process's memory lock,
 which a process stuck under memory pressure can hold for minutes. While every
 exec a round covers still has its shim, the round reads `/proc/<pid>/stat`
@@ -202,6 +222,16 @@ orphan cleanup. Kubernetes failed creates use a separate 30-second cleanup
 budget after cancellation or failure: only acknowledged Pod and Secret UIDs
 can be removed, observed Pod deletion also fences its resource version, and
 workspace PVCs and ambiguous API outcomes remain for retry or recovery.
+
+A create that loses the session's deterministic name to a LIVE session this
+spawner's registry does not hold — a running container of this spawner's
+instance, or a Pod that is neither terminating nor ended — answers
+`409 duplicate`, as a create of a registered session does: the platform then
+adopts it through acquire, and the registry-miss resolve below registers it.
+Answered as `502 create_failed`, the platform would clean up after a failed
+create and remove that session's compute. A name held by anything else (a
+container still `created` or being removed, a terminating Pod, one that
+cannot be read) stays a `502`, and nothing under the name is touched.
 
 A session absent from this spawner's registry is resolved from the backend.
 If that inventory or endpoint lookup fails, or an existing nonterminal runtime
@@ -566,6 +596,18 @@ workspace. Pinned ("always-on") and live-exec sessions are exempt from the
 reaper entirely, except that compute which has already ended is removed (the
 pin's own reconcile recreates a pinned session).
 
+Losing compute is not losing the workspace. When the platform's reconcile finds
+the compute of an unpinned agent session gone without a Destroy — a host
+reboot, a daemon restart, an OOM-killed runnerd, the spawner's own TTL stop —
+it settles the row as `stopped` while the spawner's inventory
+(`GET /v1/workspaces`) lists the workspace, or cannot be read: the next turn
+resumes it in place, same incarnation and harness conversation included. A
+render session, or an agent session whose workspace is gone, settles as
+destroyed, and so does a session on a connected device: the inventory lists
+this host's workspaces only. A create that fails after such a loss removes
+only compute (`?keep_workspace=1`, below), never the workspace it would have
+re-attached.
+
 A pin change succeeds only after runnerd and the backend's durable record
 acknowledge it. Failure returns 503 and keeps the last acknowledged `pinned`
 value visible with `pinSynchronized: false`, so platform reconciliation retries
@@ -699,6 +741,16 @@ The spawner's part:
   defers the destroy. A failed create removes only its own container and
   preserves every workspace and organization marker, including a newly
   created directory. A later explicit destroy performs the workspace cleanup.
+- `DELETE /v1/sessions/:id?if_idle=1&keep_workspace=1` — compute only: it
+  refuses (`{busy:true}`) as `if_idle` does, and otherwise stops the session
+  (`backend.stopSession`) and keeps its workspace, answering
+  `{stopped, busy: false, workspaceKept: true}`. The platform sends it after a
+  failed create of an agent session (`agent_session.ts`) and from the
+  watchdog's collect of such a failed row: the id may name a workspace kept
+  for its next turn, and deleting what nothing owns is this cleanup's. The
+  device hub leaves the placement of a session whose device kept the workspace
+  as it was. A spawner or device older than the flag destroys instead, and its
+  answer carries no `workspaceKept`.
 - `DELETE /v1/organizations/:id` — for an organization the platform deleted:
   destroys every session the backend still holds for it (containers/Pods with
   their workspaces) and every stopped workspace attributed to it, then its

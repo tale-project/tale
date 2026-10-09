@@ -13,6 +13,7 @@ import {
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
   sandboxDevices,
+  sandboxWorkspaceInventory,
   STAGE_BODY_BUDGET_BYTES,
   SpawnerUnreachableError,
   sessionAcquire,
@@ -22,6 +23,7 @@ import {
   sessionIsAlive,
   sessionDestroyWorkspace,
   sessionReadFile,
+  sessionStopIfIdle,
   sessionStageFiles,
   type SessionStageFile,
   SpawnerBusyError,
@@ -1425,6 +1427,92 @@ describe('sessionDestroyWorkspace', () => {
       destroyed: true,
       busy: false,
     });
+  });
+});
+
+describe('sessionStopIfIdle', () => {
+  const calls: Array<{ url: string; method: string | undefined }> = [];
+  function answer(body: unknown, status = 200) {
+    calls.length = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      calls.push({ url, method: init?.method });
+      return new Response(JSON.stringify(body), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+  }
+
+  test('asks for an idle-only stop that keeps the workspace [SBX-R17]', async () => {
+    answer({ stopped: true, busy: false, workspaceKept: true });
+    expect(await sessionStopIfIdle('pa-1')).toEqual({
+      stopped: true,
+      busy: false,
+      workspaceKept: true,
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.method).toBe('DELETE');
+    const url = new URL(calls[0]?.url ?? '');
+    expect(url.pathname).toBe('/v1/sessions/pa-1');
+    expect(url.search).toBe('?if_idle=1&keep_workspace=1');
+  });
+
+  test('reads busy, and an older spawner that destroyed instead', async () => {
+    answer({ destroyed: false, busy: true });
+    expect(await sessionStopIfIdle('pa-1')).toEqual({
+      stopped: false,
+      busy: true,
+      workspaceKept: false,
+    });
+    answer({ destroyed: true, busy: false, deletion: 'done' });
+    expect(await sessionStopIfIdle('pa-1')).toEqual({
+      stopped: true,
+      busy: false,
+      workspaceKept: false,
+    });
+  });
+
+  test('throws on a failed stop, so the caller never reads it as done', async () => {
+    answer({ error: 'backend stop failed' }, 502);
+    await expect(sessionStopIfIdle('pa-1')).rejects.toThrow(
+      'sandbox session stop failed (502)',
+    );
+  });
+});
+
+describe('sandboxWorkspaceInventory', () => {
+  // The reconcile reads the inventory under a session's lifecycle lock, so
+  // the caller's signal must end the read, not only the client's own bound.
+  test("gives up once the caller's signal aborts", async () => {
+    const signals: Array<AbortSignal | null | undefined> = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (_url: string, init?: RequestInit) => {
+      signals.push(init?.signal);
+      return new Response(
+        JSON.stringify({
+          backend: 'docker',
+          workspaces: [],
+          organizations: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    const caller = new AbortController();
+
+    await expect(
+      sandboxWorkspaceInventory({ signal: caller.signal }),
+    ).resolves.toEqual({
+      backend: 'docker',
+      workspaces: [],
+      organizations: [],
+    });
+
+    expect(signals[0]?.aborted).toBe(false);
+    caller.abort();
+    expect(signals[0]?.aborted).toBe(true);
   });
 });
 

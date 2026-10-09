@@ -311,6 +311,62 @@ describe('session HTTP routes', () => {
     }
   });
 
+  test('a destroy passes keep_workspace=1 on, and only that', async () => {
+    const destroy = spyOn(
+      SessionRoutes.prototype,
+      'handleDestroy',
+    ).mockImplementation(async () =>
+      Response.json({ stopped: true, busy: false, workspaceKept: true }),
+    );
+    try {
+      for (const query of ['?if_idle=1&keep_workspace=1', '?if_idle=1']) {
+        const path = `/v1/sessions/sess1${query}`;
+        const timestamp = String(Date.now());
+        const nonce = crypto.randomUUID();
+        const response = await router(
+          new Request(`http://sandbox${path}`, {
+            method: 'DELETE',
+            headers: {
+              [SIGNATURE_HEADER]: sign(
+                'DELETE',
+                path,
+                timestamp,
+                '',
+                'route-test-secret',
+                nonce,
+              ),
+              [TIMESTAMP_HEADER]: timestamp,
+              [NONCE_HEADER]: nonce,
+            },
+          }),
+        );
+        expect(response.status).toBe(200);
+      }
+      expect(destroy.mock.calls).toEqual([
+        [
+          'sess1',
+          {
+            ifIdle: true,
+            ifStopped: false,
+            awaitDeletion: false,
+            keepWorkspace: true,
+          },
+        ],
+        [
+          'sess1',
+          {
+            ifIdle: true,
+            ifStopped: false,
+            awaitDeletion: false,
+            keepWorkspace: false,
+          },
+        ],
+      ]);
+    } finally {
+      destroy.mockRestore();
+    }
+  });
+
   test('checkpoint GET and PUT pass the authenticated router with a bounded body', async () => {
     const checkpoint = spyOn(
       SessionRoutes.prototype,

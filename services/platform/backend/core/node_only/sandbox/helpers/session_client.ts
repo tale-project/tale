@@ -862,6 +862,46 @@ export async function sessionDestroyIfIdle(
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
 }
 
+/** Conditional stop (`?if_idle=1&keep_workspace=1`): the spawner no-ops
+ * with {busy:true} while the session still has a live exec, exactly as
+ * {@link sessionDestroyIfIdle} does, and otherwise releases its compute and
+ * KEEPS its workspace — the cleanup after a failed create of an agent
+ * session, whose id may name a workspace preserved for its next turn (a
+ * container lost to a host reboot or the OOM killer leaves exactly that).
+ * Deleting a workspace nothing owns any more stays the workspace cleanup's
+ * job. `workspaceKept: false` is the answer of a spawner or device older
+ * than the flag, which destroyed instead. Same non-2xx THROW contract as
+ * sessionDestroy. */
+export async function sessionStopIfIdle(
+  sessionId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<{ stopped: boolean; busy: boolean; workspaceKept: boolean }> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1&keep_workspace=1`;
+  const res = await spawnerFetch('DELETE', path, {
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
+  });
+  await throwIfDeviceOffline(res);
+  if (!res.ok) {
+    throw new Error(`sandbox session stop failed (${res.status})`);
+  }
+  const answer = z
+    .object({
+      stopped: z.boolean().optional(),
+      destroyed: z.boolean().optional(),
+      busy: z.boolean().optional(),
+      workspaceKept: z.boolean().optional(),
+    })
+    .parse(await res.json());
+  return {
+    stopped: answer.stopped === true || answer.destroyed === true,
+    busy: answer.busy === true,
+    workspaceKept: answer.workspaceKept === true,
+  };
+}
+
 /** How far deleting a destroyed workspace's bytes has come, as the spawner
  * answers a destroy: `done` (Docker: no trash entry of the id is left),
  * `pending` (still being deleted in the background), `failed` (the last
@@ -943,10 +983,16 @@ export type SandboxWorkspaceInventory = z.infer<
 /** GET /v1/workspaces — every workspace the spawner holds (stopped sessions'
  * preserved data included) and the organizations holding resources beyond
  * them. `null` from a spawner that predates the route; THROWS when the
- * spawner could not read its inventory. */
-export async function sandboxWorkspaceInventory(): Promise<SandboxWorkspaceInventory | null> {
+ * spawner could not read its inventory, or once `signal` aborts (the read
+ * gives up after 60 s on its own). */
+export async function sandboxWorkspaceInventory(
+  options: { signal?: AbortSignal } = {},
+): Promise<SandboxWorkspaceInventory | null> {
   const res = await spawnerFetch('GET', '/v1/workspaces', {
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(60_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return null;
   if (!res.ok) {

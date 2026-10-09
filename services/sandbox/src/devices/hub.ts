@@ -669,12 +669,14 @@ export class DeviceHub {
     const text = await res.text();
     let busy = false;
     let deleted = false;
+    let kept = false;
     try {
       const parsed: unknown = JSON.parse(text);
       if (parsed !== null && typeof parsed === 'object') {
         busy = Reflect.get(parsed, 'busy') === true;
         const deletion: unknown = Reflect.get(parsed, 'deletion');
         deleted = deletion === 'done' || deletion === 'handed_off';
+        kept = Reflect.get(parsed, 'workspaceKept') === true;
       }
     } catch (err) {
       console.warn('[sandbox.devices] unreadable destroy answer:', err);
@@ -682,9 +684,11 @@ export class DeviceHub {
     }
     // `?if_idle=1` on a busy session destroyed nothing, and a create for the
     // same id forwarded while the destroy ran made the session anew there:
-    // the placement stays as it is. Otherwise no session lives on the device
-    // any more, but its workspace's bytes may: only an explicit completion
-    // lets go of the route. A device still deleting (`pending`, `failed`) —
+    // the placement stays as it is. So does a stop that kept the workspace
+    // (`?keep_workspace=1`): the device still holds it for the id's next
+    // session. Otherwise no session lives on the device any more, but its
+    // workspace's bytes may: only an explicit completion lets go of the
+    // route. A device still deleting (`pending`, `failed`) —
     // or one older than the `deletion` contract, whose answer says nothing
     // about the bytes — keeps it, marked deleting, so the destroy that asks
     // again reaches the device holding them.
@@ -695,7 +699,7 @@ export class DeviceHub {
       const recreated =
         this.creates.get(sessionId) !== createsBefore ||
         this.placements.get(sessionId) !== placementBefore;
-      if (!busy && !recreated) {
+      if (!busy && !kept && !recreated) {
         if (deleted) {
           await this.placements.delete(sessionId);
           this.creates.delete(sessionId);

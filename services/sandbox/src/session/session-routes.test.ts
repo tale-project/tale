@@ -19,6 +19,7 @@ import { getEventListeners } from 'node:events';
 
 import { ActivityGate } from '../../../sandbox-runtime/daemon/src/activity-gate.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type SessionBackend,
@@ -532,6 +533,7 @@ let backendCheckThrows = false;
 // Sessions whose backend destroy fails (a wedged dockerd) — destroySession
 // throws for these so the route's honesty path (no laundered success) is tested.
 const backendDestroyThrows = new Set<string>();
+const backendStopThrows = new Set<string>();
 // Sessions whose create is a RESUME (the workspace pre-existed backend-side).
 const resumedSessions = new Set<string>();
 // The backend's durable pin record (what a restart would re-adopt).
@@ -568,6 +570,9 @@ const fakeBackend: SessionBackend = {
     return had;
   },
   async stopSession(sessionId: string) {
+    if (backendStopThrows.has(sessionId)) {
+      throw new Error('backend stop failed (wedged dockerd)');
+    }
     // Stop releases compute but PRESERVES the workspace — never marks destroyed.
     const had = created.has(sessionId);
     stopped.add(sessionId);
@@ -626,6 +631,7 @@ async function readSse(res: Response): Promise<{ events: SseEvent[] }> {
 // into another test's assertions). fakeServer/fakeBaseUrl stay (beforeAll-owned).
 beforeEach(() => {
   created.clear();
+  backendStopThrows.clear();
   destroyed.clear();
   stopped.clear();
   stdinWrites.length = 0;
@@ -1664,6 +1670,39 @@ describe('SessionRoutes (fake runnerd)', () => {
     expect(again.status).toBe(409);
   });
 
+  // The platform adopts a 409 and cleans up after a 502: a live session the
+  // registry lost must read as the former, or its compute is removed.
+  test('a create that finds a live unregistered session → 409 duplicate; a failed create → 502', async () => {
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        if (spec.sessionId === 'live-unregistered') {
+          throw new SessionExistsError(
+            spec.sessionId,
+            'container tale-sbx-ses-live-unregistered is running',
+          );
+        }
+        throw new Error(
+          'docker run (session) failed: Conflict. The container name is already in use',
+        );
+      },
+    });
+    const live = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'live-unregistered', organizationId: 'o' }),
+    );
+    expect(live.status).toBe(409);
+    expect(await live.json()).toMatchObject({ error: 'duplicate' });
+    const failed = await routes.handleCreate(
+      JSON.stringify({ sessionId: 'not-live', organizationId: 'o' }),
+    );
+    expect(failed.status).toBe(502);
+    expect(await failed.json()).toMatchObject({ error: 'create_failed' });
+    for (const id of ['live-unregistered', 'not-live']) {
+      expect(destroyed.has(id)).toBe(false);
+      expect(stopped.has(id)).toBe(false);
+    }
+  });
+
   test('env / files / content / attach round-trip through runnerd', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
@@ -2389,6 +2428,82 @@ describe('SessionRoutes (fake runnerd)', () => {
         busy: false,
         deletion: 'done',
       });
+    });
+  });
+
+  // The platform's cleanup after a failed create of an agent session: the
+  // id may name a workspace preserved for the owner's next turn, so only the
+  // compute goes.
+  describe('conditional stop that keeps the workspace (ifIdle + keepWorkspace)', () => {
+    test('idle: the compute is stopped, the workspace kept, and the answer says so', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep1', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 0;
+      const res = await routes.handleDestroy('keep1', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({
+        stopped: true,
+        busy: false,
+        workspaceKept: true,
+      });
+      expect(stopped.has('keep1')).toBe(true);
+      expect(destroyed.has('keep1')).toBe(false);
+      expect((await routes.handleGet('keep1')).status).toBe(404);
+    });
+
+    test('busy: nothing is stopped', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep2', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 1;
+      const res = await routes.handleDestroy('keep2', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(await res.json()).toEqual({ destroyed: false, busy: true });
+      expect(stopped.has('keep2')).toBe(false);
+      expect(destroyed.has('keep2')).toBe(false);
+    });
+
+    test('no compute under the id: nothing stopped, and the workspace is never destroyed', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      backendGone.add('dead-keep3');
+      const res = await routes.handleDestroy('dead-keep3', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(await res.json()).toEqual({
+        stopped: false,
+        busy: false,
+        workspaceKept: true,
+      });
+      expect(destroyed.has('dead-keep3')).toBe(false);
+    });
+
+    test('a failed backend stop answers 502 and keeps the registry entry', async () => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'keep4', organizationId: 'org_keep' }),
+      );
+      fakeHealth.liveExecs = 0;
+      backendStopThrows.add('keep4');
+      const res = await routes.handleDestroy('keep4', {
+        ifIdle: true,
+        keepWorkspace: true,
+      });
+      expect(res.status).toBe(502);
+      expect(await res.json()).toMatchObject({
+        destroyed: false,
+        error: 'backend stop failed',
+      });
+      expect((await routes.handleGet('keep4')).status).toBe(200);
+      expect(destroyed.has('keep4')).toBe(false);
     });
   });
 
