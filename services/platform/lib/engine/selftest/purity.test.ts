@@ -79,11 +79,17 @@ describe('engine purity', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
     // periscopic scopes, the zimmerframe walker, is-reference), the shared
     // safe YAML loader, type guards, name grammar and stable serializer are
-    // runtime-neutral; everything else outside the engine tree is a layering
-    // violation.
+    // runtime-neutral, and so is `@tale/ui`'s data core (summaries, shapes,
+    // diffs, pointers), whose own guard (`packages/ui/src/data/pure.test.ts`)
+    // holds it to imports of itself; everything else outside the engine tree
+    // is a layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/ui/data/infer-schema',
+      '@tale/ui/data/json-pointer',
+      '@tale/ui/data/value-diff',
+      '@tale/ui/data/value-summary',
       'acorn',
       'estree',
       'is-reference',

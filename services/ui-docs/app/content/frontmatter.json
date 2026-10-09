@@ -20,6 +20,13 @@
       "description": "Edit code, JSON, YAML and templates with highlighting, completion and inline problems, and leave the field with the keyboard."
     }
   },
+  "components/data-core": {
+    "slug": "components/data-core",
+    "frontmatter": {
+      "title": "Data core",
+      "description": "Summarize, shape and compare JSON values, and name a place in one with a JSON pointer — pure functions, no React."
+    }
+  },
   "components/data-table": {
     "slug": "components/data-table",
     "frontmatter": {

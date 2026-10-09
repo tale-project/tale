@@ -27,6 +27,7 @@
         "components/time-field",
         "components/code-editor",
         "components/schema-tree",
+        "components/data-core",
         "components/issue-list",
         "components/flow-node-issues",
         "components/workflow-canvas",

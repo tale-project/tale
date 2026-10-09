@@ -4,6 +4,7 @@
     "components/app-shell",
     "components/button",
     "components/code-editor",
+    "components/data-core",
     "components/data-table",
     "components/dialog",
     "components/field-issues",

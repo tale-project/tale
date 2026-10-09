@@ -3,6 +3,7 @@
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
+import type { SchemaTreeSchema } from '../../data/infer-schema';
 import { useT } from '../../i18n/client';
 import { cn } from '../../lib/cn';
 import { HighlightedCode } from '../../markdown/highlighted-code';
@@ -15,25 +16,7 @@ import { CollapsibleDetails } from '../navigation/collapsible-details';
  * starts with, what a step receives and returns, a webhook's payload.
  */
 
-/** A JSON Schema subset: what describes the fields of a value. */
-export interface SchemaTreeSchema {
-  type?:
-    | 'string'
-    | 'number'
-    | 'integer'
-    | 'boolean'
-    | 'object'
-    | 'array'
-    | 'null'
-    | ReadonlyArray<string>;
-  properties?: Readonly<Record<string, SchemaTreeSchema>>;
-  required?: readonly string[];
-  items?: SchemaTreeSchema;
-  enum?: readonly unknown[];
-  anyOf?: readonly SchemaTreeSchema[];
-  /** Written by the author; shown as is (document content, not translated). */
-  description?: string;
-}
+export type { SchemaTreeSchema } from '../../data/infer-schema';
 
 export interface SchemaTreeProps {
   schema: SchemaTreeSchema;
