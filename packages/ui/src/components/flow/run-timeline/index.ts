@@ -11,6 +11,7 @@ export {
   FLOW_TIMELINE_CHILD_LIMIT,
   flowRowSpans,
   flowSpansByNode,
+  flowTimelineChildrenUnread,
   flowTimelineCursor,
   flowTimelineItemId,
   flowTimelineLineId,

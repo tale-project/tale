@@ -11,6 +11,7 @@ import {
 import {
   flowRowSpans,
   flowSpansByNode,
+  flowTimelineChildrenUnread,
   flowTimelineCursor,
   flowTimelineItemId,
   flowTimelineLineId,
@@ -162,6 +163,32 @@ describe('flowTimelineRows', () => {
 });
 
 describe('flowTimelineLines', () => {
+  it('says an open node’s items load while they are not read yet', () => {
+    const unread: FlowTimelineRow[] = [
+      {
+        kind: 'node',
+        id: 'a',
+        nodeId: 'a',
+        start: 0,
+        label: 'A',
+        childrenTotal: 3,
+      },
+    ];
+    expect(flowTimelineChildrenUnread(unread[0] as FlowTimelineRow)).toBe(true);
+    const lines = flowTimelineLines(unread, new Set(['a']), new Set());
+    expect(lines.map(flowTimelineLineId)).toEqual(['a', 'a#loading']);
+    expect(lines[1]).toMatchObject({ kind: 'loading', parentId: 'a' });
+    // Read, even as none, the node holds what it holds.
+    const read = flowTimelineLines(
+      [{ ...(unread[0] as FlowTimelineRow), children: [] } as FlowTimelineRow],
+      new Set(['a']),
+      new Set(),
+    );
+    expect(read.map(flowTimelineLineId)).toEqual(['a']);
+    // The cursor never rests on it.
+    expect(flowTimelineCursor(lines, 10)).toBe(0);
+  });
+
   const rows = flowTimelineRows(
     triageFlowGraph(),
     buildPlaybackTimeline(triageFailedRun()),

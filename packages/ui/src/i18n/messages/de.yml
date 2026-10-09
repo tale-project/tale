@@ -702,6 +702,7 @@ flow:
       duration: Dauer
     showItems: Elemente zeigen
     hideItems: Elemente ausblenden
+    loadingItems: Elemente werden geladen…
     showAll: Alle {count} zeigen
     item: Element {index}
     pass: Durchgang {index}

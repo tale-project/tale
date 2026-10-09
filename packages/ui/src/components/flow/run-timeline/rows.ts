@@ -47,7 +47,9 @@ export interface FlowTimelineNodeRow extends FlowTimelineRowBase {
   typeLabel?: string;
   icon?: FlowIcon;
   /** Its items or passes, in order, when it ran once per item or
-   *  repeated. */
+   *  repeated. Left out with a `childrenTotal`, they are not read yet: a
+   *  host that reads them when the row opens (`onExpand`) lets it open
+   *  before, and the view says they are loading. */
   children?: readonly FlowTimelineItemRow[];
   /** How many items or passes there are in all — more than `children`
    *  when not every one was recorded. */
@@ -328,8 +330,9 @@ export function flowTimelineRows(
 /** How many of a node's items or passes show before "Show all". */
 export const FLOW_TIMELINE_CHILD_LIMIT = 20;
 
-/** One line of the Steps view as it is shown: a row, or the "Show all"
- *  line under a node whose items are cut short. */
+/** One line of the Steps view as it is shown: a row, the "Show all" line
+ *  under a node whose items are cut short, or the line that says an open
+ *  node's items are still being read. */
 export type FlowTimelineLine =
   | {
       kind: 'row';
@@ -350,12 +353,26 @@ export type FlowTimelineLine =
       count: number;
       position: number;
       siblings: number;
+    }
+  | {
+      kind: 'loading';
+      id: string;
+      parentId: string;
+      position: 1;
+      siblings: 1;
     };
+
+/** Whether a node row's items are known to exist but not read yet. */
+export const flowTimelineChildrenUnread = (row: FlowTimelineRow): boolean =>
+  row.kind === 'node' &&
+  row.children === undefined &&
+  (row.childrenTotal ?? 0) > 0;
 
 /**
  * The lines shown: every row, and under each expanded node its first
  * `limit` items or passes — all of them once "Show all" was chosen — then
- * a "Show all" line while some are held back.
+ * a "Show all" line while some are held back. An expanded node whose items
+ * are not read yet shows a loading line in their place.
  */
 export function flowTimelineLines(
   rows: readonly FlowTimelineRow[],
@@ -373,6 +390,16 @@ export function flowTimelineLines(
       siblings: rows.length,
     });
     if (row.kind !== 'node' || !expanded.has(row.id)) return;
+    if (flowTimelineChildrenUnread(row)) {
+      lines.push({
+        kind: 'loading',
+        id: `${row.id}#loading`,
+        parentId: row.id,
+        position: 1,
+        siblings: 1,
+      });
+      return;
+    }
     const children = row.children ?? [];
     const all = showingAll.has(row.id) || children.length <= limit;
     const shown = all ? children : children.slice(0, limit);
