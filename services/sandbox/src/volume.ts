@@ -288,8 +288,28 @@ async function ensureCacheVolumeUnlocked(
  * is on the host already (sessions cannot start without it), so the chmod
  * needs no registry — an air-gapped host could not pull one, and anonymous
  * Docker Hub pulls are rate-limited. Its entrypoint is replaced by the
- * coreutils chmod, without network. */
+ * coreutils chmod, without network. Resolve a configured tag to its local
+ * immutable image ID first, so changing a tag cannot change the root helper
+ * between inspection and execution. */
 async function setCacheVolumeMode(name: string, image: string): Promise<void> {
+  const inspected = await runDocker(
+    ['image', 'inspect', '--format', '{{.Id}}', image],
+    { timeoutMs: 15_000, stdoutMaxBytes: 1024, stderrMaxBytes: 1024 },
+  );
+  if (inspected.exitCode !== 0) {
+    if (/no such image/i.test(inspected.stderr)) {
+      throw new Error(`volume: No such image: ${image}`);
+    }
+    throw new Error(
+      'volume: cannot resolve local runtime image for cache permissions',
+    );
+  }
+  const imageId = inspected.stdout.trim();
+  if (inspected.stdoutTruncated || !/^sha256:[a-f0-9]{64}$/.test(imageId)) {
+    throw new Error(
+      'volume: local runtime image has no valid immutable image ID',
+    );
+  }
   const perms = await runDocker(
     [
       'run',
@@ -305,7 +325,7 @@ async function setCacheVolumeMode(name: string, image: string): Promise<void> {
       'tale.sandbox-staging=1',
       '--mount',
       `type=volume,src=${name},dst=/cache`,
-      image,
+      imageId,
       '1777',
       '/cache',
     ],

@@ -60,11 +60,10 @@ cannot be read, or whose nonterminal runtime is still starting, answer
 that temporary uncertainty as a lost session.
 
 Docker package-cache setup runs a short root helper to set each organization's
-cache volume to mode `1777`. Its BusyBox image is pinned to a multi-architecture
-digest in `src/volume.ts`; the repository's Renovate configuration tracks that
-pin. An uncached helper still needs Docker Hub on first use, within the existing
-120-second command bound. The pin fixes image identity; it does not preload the
-helper or remove that registry dependency.
+cache volume to mode `1777`. It resolves the already-local runtime image to its
+immutable `sha256` image ID and executes that exact image with `--pull=never`,
+`--network none` and `/bin/chmod` as the entrypoint. A missing image or invalid
+identity refuses the helper; setup never pulls a separate image.
 
 ## Authentication
 
@@ -451,8 +450,8 @@ workspace without inner Docker or BuildKit.
 
 The spawner pulls no helper image for sessions: an organization's new package
 cache volumes (pip, npm, bun) are made writable for every session uid (mode
-1777) by a short `--network none` run of `SANDBOX_RUNTIME_IMAGE` itself, with
-`/bin/chmod` as its entrypoint, so an air-gapped host needs nothing beyond the
+1777) by a short `--pull=never --network none` run of the local immutable image
+ID resolved from `SANDBOX_RUNTIME_IMAGE`, with `/bin/chmod` as its entrypoint, so an air-gapped host needs nothing beyond the
 runtime image. A volume whose mode could not be set is removed again, and the
 next create makes it afresh.
 

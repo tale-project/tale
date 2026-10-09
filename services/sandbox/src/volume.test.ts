@@ -40,6 +40,8 @@ import {
 // answering late would have. `fail-<call>` makes the first such call fail.
 // `exists-on-create` makes the next create find the volume another caller
 // has just made, labelled or not, and refuse as Podman does.
+const IMAGE_ID = `sha256:${'a'.repeat(64)}`;
+
 const FAKE_DOCKER = `#!/usr/bin/env bash
 dir="$(dirname "$0")"
 printf '%s\\n' "$*" >> "$dir/calls.log"
@@ -53,6 +55,10 @@ hold() {
 }
 fails() { mv "$dir/fail-$1" "$dir/failed-$1" 2>/dev/null; }
 case "$1 $2" in
+  "image inspect")
+    if fails image; then echo "Error response from daemon: No such image: runtime:test private-diagnostic" >&2; exit 1; fi
+    if [ -e "$dir/reply-image" ]; then cat "$dir/reply-image"; else echo "${IMAGE_ID}"; fi
+    exit 0 ;;
   "volume inspect")
     if fails inspect; then echo "Error response from daemon: i/o timeout" >&2; exit 1; fi
     if [ -d "$volumes/$name" ]; then
@@ -111,7 +117,7 @@ beforeEach(async () => {
   await writeFile(join(root, 'calls.log'), '');
   // A gate one failing test left behind would hold or fail the next.
   for (const entry of await readdir(root)) {
-    if (/^(hold|holding|fail|failed|exists-on|existed-on)-/.test(entry)) {
+    if (/^(hold|holding|fail|failed|exists-on|existed-on|reply)-/.test(entry)) {
       await rm(join(root, entry));
     }
   }
@@ -222,21 +228,19 @@ async function rejection(promise: Promise<unknown>): Promise<Error | null> {
 
 describe('per-organization cache volumes', () => {
   test.each([false, true])(
-    'permission setup runs the runtime image already on the host, never a pulled tag, for an in-use cache: %s',
+    'permission setup resolves a mutable runtime tag to its immutable local ID for an in-use cache: %s',
     async (inUse) => {
       const name = npmCacheVolumeName(cfg, nextOrg());
       if (inUse) await plantUnlabelled(name, true);
       const warn = spyOn(console, 'warn').mockImplementation(() => {});
       try {
         await ensureCacheVolume(name, IMAGE);
-        const runs = (await calls()).filter((call) => call.startsWith('run '));
-        expect(runs).toHaveLength(1);
-        // The image every session already runs, as it is on this host: no
-        // registry tag is pulled or executed as root for the setup.
-        expect(runs[0]).toContain('--pull=never');
-        expect(runs[0]).toContain('--network none');
-        expect(runs[0]?.split(' ')).toContain(IMAGE);
-        expect(runs[0]).not.toContain('busybox');
+        const recorded = await calls();
+        expect(recorded).toContain(`image inspect --format {{.Id}} ${IMAGE}`);
+        expect(recorded.filter((call) => call.startsWith('run '))).toEqual([
+          `run --rm --pull=never --network none --user 0:0 --entrypoint /bin/chmod --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache ${IMAGE_ID} 1777 /cache`,
+        ]);
+        expect(recorded.some((call) => call.startsWith('pull '))).toBe(false);
         expect(await volume(name)).toEqual({
           labelled: !inUse,
           mode: '1777',
@@ -247,6 +251,38 @@ describe('per-organization cache volumes', () => {
     },
   );
 
+  test('a missing local runtime image refuses root execution without pulling it or exposing daemon detail', async () => {
+    const name = npmCacheVolumeName(cfg, nextOrg());
+    await writeFile(join(root, 'fail-image'), '');
+    expect((await rejection(ensureCacheVolume(name, IMAGE)))?.message).toBe(
+      `volume: No such image: ${IMAGE}`,
+    );
+    const recorded = await calls();
+    expect(recorded.some((call) => /^(run|pull) /.test(call))).toBe(false);
+    expect(recorded).toContain(`volume rm ${name}`);
+    expect(await volume(name)).toBeNull();
+  });
+
+  test.each([
+    'runtime:test',
+    `sha256:${'a'.repeat(63)}`,
+    `sha256:${'a'.repeat(64)} unexpected`,
+    'x'.repeat(2000),
+  ])(
+    'an invalid or truncated image identity refuses root execution: %s',
+    async (reply) => {
+      const name = npmCacheVolumeName(cfg, nextOrg());
+      await writeFile(join(root, 'reply-image'), reply);
+      expect((await rejection(ensureCacheVolume(name, IMAGE)))?.message).toBe(
+        'volume: local runtime image has no valid immutable image ID',
+      );
+      expect((await calls()).some((call) => /^(run|pull) /.test(call))).toBe(
+        false,
+      );
+      expect(await volume(name)).toBeNull();
+    },
+  );
+
   test('a volume made ready is not asked about again on the next create', async () => {
     const name = npmCacheVolumeName(cfg, nextOrg());
     const now = 1_000_000;
@@ -254,6 +290,7 @@ describe('per-organization cache volumes', () => {
     expect((await calls()).map((call) => call.split(' ')[0])).toEqual([
       'volume',
       'volume',
+      'image',
       'run',
     ]);
     expect(await volume(name)).toEqual({ labelled: true, mode: '1777' });
@@ -319,7 +356,8 @@ describe('a cache volume Docker made itself', () => {
       inspectCall(name),
       `volume rm ${name}`,
       `volume create --label tale.sandbox-cache=1 ${name}`,
-      `run --rm --pull=never --network none --user 0:0 --entrypoint /bin/chmod --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache ${IMAGE} 1777 /cache`,
+      `image inspect --format {{.Id}} ${IMAGE}`,
+      `run --rm --pull=never --network none --user 0:0 --entrypoint /bin/chmod --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache ${IMAGE_ID} 1777 /cache`,
     ]);
     // Labelled, it is the organization's again: its teardown removes it.
     expect(await removeCacheVolumes(cfg, org)).toBe(1);
@@ -405,7 +443,8 @@ describe('a fresh cache volume whose mode cannot be set', () => {
     expect(await calls()).toEqual([
       inspectCall(name),
       `volume create --label tale.sandbox-cache=1 ${name}`,
-      `run --rm --pull=never --network none --user 0:0 --entrypoint /bin/chmod --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache ${IMAGE} 1777 /cache`,
+      `image inspect --format {{.Id}} ${IMAGE}`,
+      `run --rm --pull=never --network none --user 0:0 --entrypoint /bin/chmod --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache ${IMAGE_ID} 1777 /cache`,
       `volume rm ${name}`,
     ]);
     // Not taken as ready: the next ensure makes it with its mode.

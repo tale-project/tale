@@ -185,6 +185,7 @@ describe('what a session create asks the docker daemon', () => {
 async function refusedRun(
   runStderr: string,
   freshCaches = false,
+  inspectMissing = false,
 ): Promise<{
   heard: string[];
   error: string | null;
@@ -206,6 +207,11 @@ mock.module(spawnPath, () => ({...realSpawn,
     if (args[0] === 'run') {
       run = args;
       return {...success, exitCode:125, stderr:${JSON.stringify(runStderr)}};
+    }
+    if (args[0] === 'image' && args[1] === 'inspect') {
+      return ${JSON.stringify(inspectMissing)}
+        ? {...success, exitCode:1, stderr:'No such image: runtime:test private-diagnostic'}
+        : {...success, stdout:'sha256:' + 'a'.repeat(64)};
     }
     if (args[0] === 'inspect') return {...success, exitCode:1, stderr:'No such container'};
     if (args[0] === 'volume' && args[1] === 'inspect') {
@@ -268,6 +274,13 @@ describe('a create on a host without the runtime image', () => {
     expect(error).toContain('failed to set perms on cache volume');
     expect(heard).toHaveLength(1);
     expect(heard[0]).toContain('No such image');
+  });
+
+  test('a missing local image found before cache chmod tells the warmup without a run', async () => {
+    const { heard, error, run } = await refusedRun('', true, true);
+    expect(run).toBeNull();
+    expect(error).toBe('volume: No such image: runtime:test');
+    expect(heard).toEqual(['volume: No such image: runtime:test']);
   });
 
   test('any other refusal is no news for the warmup', async () => {
