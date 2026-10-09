@@ -2077,7 +2077,7 @@ export interface RunReplayOf {
 
 /** A run's replay lineage, from its row; undefined for a run nobody
  * replayed into being. */
-export function runReplayOf(
+function runReplayOf(
   row: Pick<RunRow, 'replayOfRunId' | 'replayKind' | 'replayFromNode'>,
 ): RunReplayOf | undefined {
   if (row.replayKind === null || row.replayKind === undefined) return undefined;
