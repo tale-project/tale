@@ -3,11 +3,11 @@
  * profiles: an obsolete group executes its own source, not today's workflow. */
 export const FINISH_SOURCE = {
   '.github/workflows/checks.yml':
-    '7f1958d88c3b9dbd6403f6044ef10d04a18ea741a75235f7771204a2852ca881',
+    'a0937203f1b3095b0d8b4cc8560eeb947b7c07a9acf5c430850fbb42fa22e497',
   '.github/actions/ci-ready/action.yml':
     '8f65cea1dd5980711da087140a68264b382ff1cb0d6347d8ef034c71ddbaf7c5',
   'tools/cli/scripts/ci-ready.ts':
-    'b7431aa1aa71a03dc8df35c393452b274de9f443f86b4881f86acc431dd28e63',
+    '4e4adbbcf43c835800f6eb4a92db7f0a98db7432a50e3cd320aa75312294fdf8',
 } as const;
 const FINISH_PATHS = [
   '.github/workflows/checks.yml',
@@ -109,6 +109,12 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
   profile(
     'Checks',
     '159d83af0f550b45d4e91eb7dbdb9825be8b5b9c53379a0aa3621975f36f21ca',
+    shards,
+  ),
+  // Current Checks routes the external service pull through the public mirror.
+  profile(
+    'Checks',
+    '7f1958d88c3b9dbd6403f6044ef10d04a18ea741a75235f7771204a2852ca881',
     shards,
   ),
   profile(
