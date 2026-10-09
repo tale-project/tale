@@ -278,6 +278,15 @@ forwarding rules prevent that proxy and the session's outer interfaces from
 routing unsolicited traffic between networks. The builder's RUN steps retain
 the transparent proxy and DNS path. A moved egress proxy is reattached and the
 builder's stale egress configuration is repaired during provisioning/adoption.
+A session pins the proxy's address the same way (its relay target, its DNS
+and its inner engine's DNS). The spawner records the address it read right
+before `docker run` in the session's `tale.egress-ip` label; once per sweep it
+reads the proxy's address on the sandbox network (one inspect of the
+remembered proxy container) and recycles a session that pinned another one as
+soon as it is released and doing nothing, through the same runnerd claim an
+idle stop takes. A busy or pinned session is logged once and left running.
+Kubernetes sessions reach the proxy through its Service's cluster IP, which
+stays the same while the proxy's Pods are replaced, so they need no such check.
 
 The runtime derives its buildx builder name from the configured endpoint, so
 persistent workspaces do not retain an earlier global endpoint by name. A

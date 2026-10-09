@@ -87,6 +87,8 @@ Quand de nombreuses sessions installent des paquets ou chargent des pages en mê
 
 Quand les connexions d’une seule session échouent sur des réinitialisations alors que d’autres sessions atteignent encore les mêmes hôtes, cette session détient peut-être déjà `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connexions (256 par défaut), et le proxy refuse les suivantes jusqu’à ce que certaines se ferment. Augmente la valeur, ou mets `0` pour désactiver la limite, puis recrée le service de sortie.
 
+Un service `sandbox-egress` recréé (après un déploiement ou un redémarrage de la pile) peut revenir à une autre adresse, alors que les sessions qui tournaient déjà continuent d’envoyer leur trafic à l’ancienne et perdent l’accès réseau. Le service `sandbox` recycle chacune de ces sessions dès qu’elle est libérée et inactive, et consigne `recycling <session>` ; la prochaine utilisation la redémarre avec son espace de travail intact. Une session encore utilisée continue d’échouer jusqu’à la fin de son travail, et une session épinglée continue de tourner jusqu’à ce que tu l’arrêtes ou ne l’épingles plus.
+
 ## Les écritures échouent ou le stockage se remplit
 
 Vérifie connexion à la base applicative, espace libre, usage des connexions et verrous. Arrête la croissance évitable et récupère de la capacité selon ta procédure de base. Ne supprime pas le contenu des volumes, ne remplace pas les clés de chiffrement et ne suppose pas que les écritures échouées seront rejouées après redémarrage. Vérifie si l’opération a persisté avant de la relancer.

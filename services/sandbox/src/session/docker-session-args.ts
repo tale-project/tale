@@ -13,7 +13,11 @@
 // over the runnerd HTTP API after the container is up.
 
 import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
-import { ipv4Subnet, parseDindInnerPool } from '../network-address.ts';
+import {
+  ipv4Subnet,
+  isIpv4Address,
+  parseDindInnerPool,
+} from '../network-address.ts';
 import {
   dindCapabilityOf,
   dockerRuntimeFor,
@@ -23,6 +27,7 @@ import type { SessionAgentProfileConfig, SpawnerConfig } from '../types.ts';
 import type { SandboxSessionProfile } from '../wire.ts';
 import { RUNNERD_INCARNATION_ENV } from './runnerd-protocol.ts';
 import {
+  SESSION_EGRESS_LABEL,
   SESSION_INSTANCE_LABEL,
   sessionContainerName,
 } from './session-naming.ts';
@@ -74,6 +79,31 @@ interface DockerSessionRunInput {
   /** Inspected org bridge subnets, required with an endpoint because the bridge
    * attaches after runtime readiness and is not in the initial route table. */
   buildkitNetworkSubnets?: readonly string[];
+  /**
+   * The egress proxy's address on the sandbox network, read right before
+   * this run, for a session that pins it ({@link sessionPinsEgressAddress}).
+   * Recorded in the {@link SESSION_EGRESS_LABEL} label so the sweep can tell
+   * when the proxy moved away from it. Undefined ⇒ no label.
+   */
+  egressAddress?: string;
+}
+
+/**
+ * Does a session resolve the egress proxy's address once at boot and keep
+ * it? Transparent egress relays the session's public connections and its DNS
+ * to that address, and Docker-in-sandbox relays its nested containers' and
+ * hands the inner engine the address as their DNS server. A session that does
+ * neither reaches the proxy only by name through its proxy environment, and
+ * so follows the proxy wherever it moves.
+ */
+export function sessionPinsEgressAddress(
+  cfg: Pick<SpawnerConfig, 'transparentEgress' | 'runtimeTier'>,
+  dind: boolean,
+): boolean {
+  return (
+    dind ||
+    (cfg.transparentEgress && transparentEgressSupported(cfg.runtimeTier))
+  );
 }
 
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -145,6 +175,11 @@ export function buildDockerSessionRunArgs(
   assertSafe('runnerdToken', inp.runnerdToken, TOKEN_RE);
   if (inp.createAttemptId !== undefined)
     assertSafe('createAttemptId', inp.createAttemptId, ID_RE);
+  if (inp.egressAddress !== undefined && !isIpv4Address(inp.egressAddress)) {
+    throw new Error(
+      `docker-session-args: egressAddress value rejected by safety check: ${JSON.stringify(inp.egressAddress)}`,
+    );
+  }
 
   const dind = sessionDindEnabled(cfg, inp.profile, inp.docker);
   const profile = isAgentSessionProfile(inp.profile)
@@ -443,6 +478,9 @@ export function buildDockerSessionRunArgs(
     ...(inp.createAttemptId === undefined
       ? []
       : ['--label', `tale.create-attempt=${inp.createAttemptId}`]),
+    ...(inp.egressAddress === undefined
+      ? []
+      : ['--label', `${SESSION_EGRESS_LABEL}=${inp.egressAddress}`]),
     ...networkArgs,
     // These Docker networks carry IPv4 only. Disable loopback/current and
     // future-interface IPv6 explicitly so missing ip6_tables is safe on hosts

@@ -53,7 +53,9 @@ cannot take that whole pool from the others: `docker-entrypoint.sh` adds one
 (`-m connlimit --connlimit-above N --connlimit-mask 32 -j REJECT --reject-with tcp-reset`),
 only when the rule is not there yet. With transparent egress every connection
 of a session, its nested containers' included, comes from the session's one
-address, and each build helper has an address of its own; a connection past
+address (on Kubernetes, its Pod's, unless the cluster network rewrites source
+addresses: sessions behind one shared address share one cap, so set `0`
+there), and each build helper has an address of its own; a connection past
 the cap is reset at once instead of waiting out a timeout. `0` turns the cap
 off, and a value that is no whole number refuses the start. The cap is
 fairness, not a security boundary, so it fails open: a kernel without the

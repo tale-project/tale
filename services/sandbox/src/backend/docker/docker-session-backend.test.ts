@@ -102,7 +102,7 @@ describe('isReapableContainerStatus', () => {
 // ---------------------------------------------------------------------------
 
 const FAKE_DOCKER = `#!/usr/bin/env bash
-# Fake docker CLI for tests. Reads eight lines from ./mode next to this script:
+# Fake docker CLI for tests. Reads nine lines from ./mode next to this script:
 #   line 1: 1 when the container exists, else 0
 #   line 2: rm outcome — ok | removes (ok, and the container is gone after) |
 #           nosuch | busy
@@ -112,12 +112,14 @@ const FAKE_DOCKER = `#!/usr/bin/env bash
 #   line 6: the session's Docker-in-container capability (may be empty)
 #   line 7: mount inspect outcome — ok | fail
 #   line 8: creation stamp observed by the running-state probe
+#   line 9: the egress address label \`docker ps\` lists (may be empty)
 here="$(cd "$(dirname "$0")" && pwd)"
 present="$(sed -n 1p "$here/mode")"
 rm_mode="$(sed -n 2p "$here/mode")"
 listed="$(sed -n 3p "$here/mode")"
 ps_mode="$(sed -n 4p "$here/mode")"
 dind="$(sed -n 6p "$here/mode")"
+egress="$(sed -n 9p "$here/mode")"
 cmd="$1"; shift
 case "$cmd" in
   ps)
@@ -127,7 +129,7 @@ case "$cmd" in
     fi
     IFS=',' read -ra ids <<< "$listed"
     for id in "\${ids[@]}"; do
-      [ -n "$id" ] && printf '%s\torg_fake\tagent\t1700000000000\trunning\t\t%s\n' "$id" "$dind"
+      [ -n "$id" ] && printf '%s\torg_fake\tagent\t1700000000000\trunning\t\t%s\t%s\n' "$id" "$dind" "$egress"
     done
     exit 0 ;;
   inspect)
@@ -203,10 +205,11 @@ async function fakeDocker(scenario: {
   dind?: boolean;
   mountRead?: 'ok' | 'fail';
   createdStamp?: string;
+  egress?: string;
 }): Promise<void> {
   await writeFile(
     join(fakeRoot, 'mode'),
-    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n${scenario.createdStamp ?? '1700000000000'}\n`,
+    `${scenario.present ? '1' : '0'}\n${scenario.rm}\n${(scenario.listed ?? []).join(',')}\n${scenario.ps ?? 'ok'}\n${scenario.mount ?? ''}\n${scenario.dind ?? ''}\n${scenario.mountRead ?? 'ok'}\n${scenario.createdStamp ?? '1700000000000'}\n${scenario.egress ?? ''}\n`,
   );
 }
 
@@ -1164,6 +1167,24 @@ describe('DockerSessionBackend.listSessions', () => {
         dockerInContainer: true,
       });
       expect((await backend.listSessions())[0]?.docker).toBe(dind);
+    },
+  );
+
+  test.each([
+    ['172.30.0.3', '172.30.0.3'],
+    ['', undefined],
+    ['sandbox-egress', undefined],
+  ])(
+    'reads the egress address the session pinned from its label (%p)',
+    async (label, expected) => {
+      await fakeDocker({
+        present: true,
+        rm: 'ok',
+        listed: ['egress'],
+        egress: label,
+      });
+      const backend = new DockerSessionBackend(backendConfig());
+      expect((await backend.listSessions())[0]?.egressAddress).toBe(expected);
     },
   );
 

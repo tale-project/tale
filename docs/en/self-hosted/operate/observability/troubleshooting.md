@@ -87,6 +87,8 @@ When many sessions install packages or load pages at once and connections fail w
 
 When one session's connections fail with resets while other sessions still reach the same hosts, that session may already hold `SANDBOX_EGRESS_MAX_CONNECTIONS_PER_SESSION` connections (256 by default), and the proxy refuses its next ones until some close. Raise the value, or set `0` to turn the cap off, and recreate the egress service.
 
+A recreated `sandbox-egress` service (after a deploy or a stack restart) can come back at another address, while sessions that were already running keep sending their traffic to the old one and lose network access. The sandbox service recycles each such session as soon as it is released and idle, and logs `recycling <session>`; the next use starts it again with its workspace intact. A session still in use keeps failing until its work ends, and a pinned session keeps running until you unpin or stop it.
+
 ## Writes fail or storage fills up
 
 Check application-database connectivity, free space, connection usage, and locks. Stop avoidable growth and follow your database procedure to recover capacity. Do not delete volume contents, reset encryption keys, or assume failed writes will replay after a restart. Retry the original operation only after checking whether it persisted.

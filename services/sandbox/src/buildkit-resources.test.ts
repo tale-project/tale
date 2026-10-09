@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  egressProxyAddress,
   ensureBuildkitNetwork,
   createLegacyBuildkitRetirer,
   inspectBuildkitContainer,
@@ -153,7 +154,7 @@ if (a[0] === 'inspect') {
   // Every target answers on its own line; missing ones fail the call after
   // the others are printed, as the Docker CLI does.
   const egress = () => {
-    const networks = { 'tale-sandbox-net': { Aliases: [s.egressAlias], IPAddress: '172.30.0.3', NetworkID: 'f'.repeat(64) } };
+    const networks = { 'tale-sandbox-net': { Aliases: [s.egressAlias], IPAddress: s.egressAddress ?? '172.30.0.3', NetworkID: 'f'.repeat(64) } };
     for (const net of s.attachments) networks[net] = { Aliases: ['tale-buildkit-egress'], IPAddress: '172.22.0.2', NetworkID: new Bun.CryptoHasher('sha256').update(net).digest('hex') };
     return { id: s.egressId, name: '/compose-egress-1', running: true, startedAt: s.egressStartedAt ?? '2026-10-01T00:00:00Z', networks };
   };
@@ -272,6 +273,8 @@ interface FakeState {
     }
   >;
   egressId: string;
+  /** The proxy's address on the sandbox network (172.30.0.3 by default). */
+  egressAddress?: string;
   egressStartedAt?: string;
   egressAlias: string;
   firewallBlocked: boolean;
@@ -1070,6 +1073,68 @@ describe('organization BuildKit provisioning', () => {
       expect((await calls()).some((a) => a[0] === 'rm')).toBe(false);
     },
   );
+});
+
+describe('the egress proxy address sessions pin', () => {
+  const inspectsOf = (recorded: string[][]) =>
+    recorded.map((args) => args.slice(0, 2).join(' '));
+
+  test('the first read finds the proxy on the sandbox network; later ones inspect only that container', async () => {
+    expect(await egressProxyAddress(cfg)).toBe('172.30.0.3');
+    expect(inspectsOf(await calls())).toEqual([
+      'network inspect',
+      'inspect --format',
+    ]);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await egressProxyAddress(cfg)).toBe('172.30.0.3');
+    const again = await calls();
+    expect(again).toHaveLength(1);
+    expect(again[0]?.at(-1)).toBe('a'.repeat(64));
+  });
+
+  test('concurrent reads share one lookup', async () => {
+    const reads = await Promise.all([
+      egressProxyAddress(cfg),
+      egressProxyAddress(cfg),
+      egressProxyAddress(cfg),
+    ]);
+    expect(reads).toEqual(['172.30.0.3', '172.30.0.3', '172.30.0.3']);
+    expect(await calls()).toHaveLength(2);
+  });
+
+  test('a recreated proxy is found again at its new address', async () => {
+    expect(await egressProxyAddress(cfg)).toBe('172.30.0.3');
+    await save({
+      ...initialState(),
+      egressId: 'b'.repeat(64),
+      egressAddress: '172.30.0.9',
+    });
+    expect(await egressProxyAddress(cfg)).toBe('172.30.0.9');
+  });
+
+  test('a literal proxy address has no move to follow and costs no call', async () => {
+    expect(
+      await egressProxyAddress({
+        ...cfg,
+        egressProxy: 'http://172.30.0.3:3128',
+      }),
+    ).toBeNull();
+    expect(await calls()).toEqual([]);
+  });
+
+  test('a proxy the sandbox network does not name is an error, never a guess', async () => {
+    await save({ ...initialState(), egressAlias: 'another-proxy' });
+    expect((await rejection(egressProxyAddress(cfg)))?.message).toMatch(
+      /exactly one container/,
+    );
+  });
+
+  test('a proxy without an IPv4 address there is an error', async () => {
+    await save({ ...initialState(), egressAddress: '' });
+    expect((await rejection(egressProxyAddress(cfg)))?.message).toMatch(
+      /no IPv4 address/,
+    );
+  });
 });
 
 describe('helper inspects and the docker CLI lanes', () => {
