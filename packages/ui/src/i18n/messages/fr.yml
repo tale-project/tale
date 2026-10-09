@@ -598,6 +598,30 @@ flow:
     valueText: '{position} – {events}'
     live: En direct
     followLive: Suivre en direct
+  timeline:
+    label: Étapes
+    empty: Aucune étape pour l'instant
+    keyboardHelp: Utilise les flèches haut et bas pour passer d'une étape à l'autre, les flèches droite et gauche pour afficher ou masquer les éléments d'une étape, et Entrée pour aller à une étape.
+    columns:
+      step: Étape
+      duration: Durée
+    showItems: Afficher les éléments
+    hideItems: Masquer les éléments
+    showAll: Afficher les {count}
+    item: Élément {index}
+    pass: Passage {index}
+    itemOf: Élément {index} sur {total}
+    passOf: Passage {index} sur {total}
+  compare:
+    a: A
+    b: B
+    side: '{label} : {state}'
+    differs: Différent
+    only: Seulement dans {label}
+    absent: Absent de la version de {label}
+    legend:
+      differs: 'Anneau : diffère entre les exécutions'
+      onlyOne: 'Étiquette sur un trait : une seule exécution est passée par là'
 mentions:
   listboxLabel: Mentionner quelqu’un
   empty: Aucun résultat

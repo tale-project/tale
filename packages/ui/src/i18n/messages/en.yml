@@ -598,6 +598,30 @@ flow:
     valueText: '{position} — {events}'
     live: Live
     followLive: Follow live
+  timeline:
+    label: Steps
+    empty: No steps yet
+    keyboardHelp: Use the up and down arrow keys to move between steps, the right and left arrow keys to show or hide a step's items, and Enter to go to a step.
+    columns:
+      step: Step
+      duration: Duration
+    showItems: Show items
+    hideItems: Hide items
+    showAll: Show all {count}
+    item: Item {index}
+    pass: Pass {index}
+    itemOf: Item {index} of {total}
+    passOf: Pass {index} of {total}
+  compare:
+    a: A
+    b: B
+    side: '{label}: {state}'
+    differs: Differs
+    only: Only in {label}
+    absent: Not in {label}'s version
+    legend:
+      differs: 'Ring: differs between the runs'
+      onlyOne: 'Label on a line: only one run went this way'
 mentions:
   listboxLabel: Mention someone
   empty: No matches

@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
+import { flowCompareFromOverlays } from './compare/compare';
 import {
   describeFlowGraph,
   flowListFormat,
   type FlowTranslate,
 } from './describe';
-import { branchFlowGraph, triageFlowGraph } from './testing/flow-fixtures';
+import { flowStateFromOverlay } from './playback/derive-state';
+import {
+  branchFlowGraph,
+  branchRunOverlay,
+  branchRunOverlayB,
+  triageFlowGraph,
+} from './testing/flow-fixtures';
 
 /** Echoes the key and its values, so the test reads what was asked for. */
 const t: FlowTranslate = (key, options) =>
@@ -88,5 +95,82 @@ describe('describeFlowGraph', () => {
       'rowWithDetail(label=Every day at 07:00 · UTC, detail=Next Thu 9 Oct, 07:00)',
     );
     expect(start).toContain('label=firedAt');
+  });
+
+  it('says why a node went as it did, in its description, its List lines and its tooltip', () => {
+    const graph = branchFlowGraph();
+    const overlay = branchRunOverlay();
+    const run = flowStateFromOverlay(graph, {
+      ...overlay,
+      nodes: {
+        ...overlay.nodes,
+        urgent: {
+          state: 'skipped',
+          reason: 'Skipped: the condition is false',
+          explanation: 'urgent of Classify (false) is not true',
+        },
+        '__gate:urgent': {
+          state: 'succeeded',
+          decision: false,
+          explanation: 'Decided No: urgent of Classify (false) is not true',
+        },
+      },
+    });
+    const said = describeFlowGraph(graph, {
+      t,
+      tIssues: t,
+      list: flowListFormat('en'),
+      run,
+    });
+    expect(said.descriptions.get('urgent')).toMatch(
+      /^node\.position\(index=5, count=13\)\. Skipped: the condition is false\. urgent of Classify \(false\) is not true\./,
+    );
+    expect(said.lines.get('urgent')?.slice(0, 2)).toEqual([
+      'Skipped: the condition is false',
+      'urgent of Classify (false) is not true',
+    ]);
+    expect(said.explanations.get('urgent')).toEqual([
+      'urgent of Classify (false) is not true',
+    ]);
+    // A condition's decision folds into the node it guards in the List view.
+    expect(said.lines.get('urgent')).toContain(
+      'Decided No: urgent of Classify (false) is not true',
+    );
+    expect(said.descriptions.get('__gate:urgent')).toContain(
+      'Decided No: urgent of Classify (false) is not true',
+    );
+    expect(said.explanations.has('fetch')).toBe(false);
+  });
+
+  it('says how a node went in each of two runs compared, and where they differ', () => {
+    const graph = branchFlowGraph();
+    const said = describeFlowGraph(graph, {
+      t,
+      tIssues: t,
+      list: flowListFormat('en'),
+      compare: flowCompareFromOverlays(
+        graph,
+        branchRunOverlay(),
+        branchRunOverlayB(),
+        { absent: { b: ['low'] } },
+      ),
+    });
+    expect(said.names.get('notify')).toBe(
+      'node.rowWithDetail(label=Notify, detail=compare.differs)',
+    );
+    expect(said.names.get('fetch')).toBe('Fetch');
+    expect(said.names.get('low')).toBe(
+      'node.rowWithDetail(label=Low, detail=compare.absent(label=compare.b))',
+    );
+    expect(said.lines.get('notify')?.slice(0, 2)).toEqual([
+      'compare.side(label=compare.a, state=The mail server refused the message)',
+      'compare.side(label=compare.b, state=state.succeeded · 300 ms)',
+    ]);
+    expect(said.strips.get('fetch')).toBe(
+      'compare.side(label=compare.a, state=state.succeeded · 390 ms) · compare.side(label=compare.b, state=state.succeeded · 410 ms)',
+    );
+    expect(said.explanations.get('__gate:urgent')).toEqual([
+      'compare.side(label=compare.b, state=urgent of Classify (true) is true, so Urgent ran)',
+    ]);
   });
 });

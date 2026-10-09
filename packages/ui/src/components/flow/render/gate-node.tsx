@@ -19,17 +19,30 @@ import type { FlowNodeData } from './step-node';
  * (a split) leads to Yes on the left and No on the right. A pointer gets the
  * full condition in a tooltip; a keyboard gets it in the name. In a run, a
  * chip at its end says how it decided — "Yes" with a check or "No" with a
- * dash, in the branch's colour.
+ * dash, in the branch's colour. Two runs compared that decided alike share
+ * that chip; runs that decided apart get one each, "A ✓ · B –".
  */
 export const FlowGateNodeView = memo(function FlowGateNodeView({
   data,
 }: NodeProps & { data: FlowNodeData<FlowGateNode> }) {
   const { t } = useT('flow');
-  const { issues, looks } = useFlowRender();
+  const { issues, looks, compare } = useFlowRender();
   const { node, phase } = data;
   const Icon = node.mode === 'if-else' ? Split : Filter;
   const counts = issues.get(node.id);
-  const decision = looks.get(node.id)?.decision;
+  const face = compare?.faces.get(node.id);
+  const decidedA = face?.a?.decision;
+  const decidedB = face?.b?.decision;
+  // Compared runs that decided alike, or only one that decided, show one
+  // chip; runs that decided apart show a chip each.
+  const apart =
+    decidedA !== undefined && decidedB !== undefined && decidedA !== decidedB;
+  const decision =
+    face === undefined
+      ? looks.get(node.id)?.decision
+      : apart
+        ? undefined
+        : (decidedA ?? decidedB);
   return (
     <FlowNodeButton
       id={node.id}
@@ -63,6 +76,45 @@ export const FlowGateNodeView = memo(function FlowGateNodeView({
           errors={counts.errors}
           warnings={counts.warnings}
         />
+      )}
+      {apart && compare !== null && (
+        <span
+          aria-hidden="true"
+          data-slot="flow-gate-decision"
+          className="inline-flex h-5 shrink-0 items-center gap-1 text-xs font-medium"
+        >
+          {(['a', 'b'] as const).map((run, index) => {
+            const decided = run === 'a' ? decidedA : decidedB;
+            return (
+              <span
+                key={run}
+                data-flow-compare-decision={run}
+                className="inline-flex items-center gap-0.5"
+              >
+                {index > 0 && (
+                  <span className="text-muted-foreground mr-0.5 font-normal">
+                    ·
+                  </span>
+                )}
+                <span className="text-foreground">{compare.labels[run]}</span>
+                <span
+                  className="inline-flex"
+                  style={{
+                    color: decided
+                      ? FLOW_EDGE_COLORS.positive
+                      : FLOW_EDGE_COLORS.negative,
+                  }}
+                >
+                  {decided ? (
+                    <Check className="size-3" />
+                  ) : (
+                    <Minus className="size-3" />
+                  )}
+                </span>
+              </span>
+            );
+          })}
+        </span>
       )}
       {decision !== undefined && (
         <span

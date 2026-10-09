@@ -598,6 +598,30 @@ flow:
     valueText: '{position} – {events}'
     live: Live
     followLive: Live folgen
+  timeline:
+    label: Schritte
+    empty: Noch keine Schritte
+    keyboardHelp: Mit den Pfeiltasten nach oben und unten wechselst du zwischen den Schritten. Mit den Pfeiltasten nach rechts und links zeigst oder verbirgst du die Elemente eines Schritts, mit der Eingabetaste springst du zu einem Schritt.
+    columns:
+      step: Schritt
+      duration: Dauer
+    showItems: Elemente zeigen
+    hideItems: Elemente ausblenden
+    showAll: Alle {count} zeigen
+    item: Element {index}
+    pass: Durchgang {index}
+    itemOf: Element {index} von {total}
+    passOf: Durchgang {index} von {total}
+  compare:
+    a: A
+    b: B
+    side: '{label}: {state}'
+    differs: Unterschiedlich
+    only: Nur in {label}
+    absent: Nicht in der Version von {label}
+    legend:
+      differs: 'Ring: unterscheidet sich zwischen den Läufen'
+      onlyOne: 'Etikett auf einer Linie: nur ein Lauf nahm diesen Weg'
 mentions:
   listboxLabel: Jemanden erwähnen
   empty: Keine Treffer

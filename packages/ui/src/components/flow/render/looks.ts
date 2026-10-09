@@ -1,6 +1,6 @@
 import type { FlowTranslate } from '../describe';
 import type { FlowHighlight } from '../paths/highlight';
-import type { FlowFrameState } from '../playback/types';
+import type { FlowCompareOverlay, FlowFrameState } from '../playback/types';
 import type { FlowGraph } from '../types';
 import type { FlowEdgeLook, FlowNodeLook } from './flow-render-context';
 
@@ -18,16 +18,22 @@ import type { FlowEdgeLook, FlowNodeLook } from './flow-render-context';
  *    keyboard on it) and quiets nothing.
  *  - In a run, a line the run took is drawn in the emphasis colour (red
  *    into the node it failed at), a line it did not take steps back.
+ *  - Two runs compared (`compare`, in place of a run): a box where they
+ *    differ is ringed, one a run's version lacks is dashed; a line both
+ *    took stands out, one neither took steps back, one only one took stays
+ *    plain (its words say which).
  */
 export function flowLooks({
   graph,
   run,
+  compare = null,
   primary,
   incident,
   ringPrimary = true,
 }: {
   graph: FlowGraph;
   run: FlowFrameState | null;
+  compare?: FlowCompareOverlay | null;
   primary: FlowHighlight | null;
   incident: FlowHighlight | null;
   ringPrimary?: boolean;
@@ -51,7 +57,16 @@ export function flowLooks({
           : 'none',
     };
     if (info?.decision !== undefined) look.decision = info.decision;
-    if (look.state !== 'idle' || look.quiet || look.highlighted !== 'none')
+    const compared = compare?.nodes[node.id];
+    if (compared?.absentIn !== undefined) look.absent = true;
+    else if (compared?.differs === true) look.differs = true;
+    if (
+      look.state !== 'idle' ||
+      look.quiet ||
+      look.highlighted !== 'none' ||
+      look.differs === true ||
+      look.absent === true
+    )
       nodes.set(node.id, look);
   }
 
@@ -63,8 +78,12 @@ export function flowLooks({
     const forward =
       primary?.edges.has(edge.id) === true ||
       incident?.edges.has(edge.id) === true;
+    const taken = compare?.edges[edge.id];
     let look: FlowEdgeLook['look'];
     if (quietRest && !forward) look = 'quiet';
+    else if (taken === 'both') look = 'emphasis';
+    else if (taken === 'neither') look = 'quiet';
+    else if (taken !== undefined) look = forward ? 'emphasis' : 'base';
     else if (state === 'not-taken') look = 'quiet';
     else if (state === 'travelled' || state === 'travelling')
       look =
@@ -74,12 +93,12 @@ export function flowLooks({
     else if (forward) look = 'emphasis';
     else look = 'base';
     const branch = edge.kind === 'branch-yes' || edge.kind === 'branch-no';
-    const taken =
+    const went =
       !branch || state === undefined || state === 'idle'
         ? undefined
         : state !== 'not-taken';
-    if (look !== 'base' || taken !== undefined)
-      edges.set(edge.id, taken === undefined ? { look } : { look, taken });
+    if (look !== 'base' || went !== undefined)
+      edges.set(edge.id, went === undefined ? { look } : { look, taken: went });
   }
   return { nodes, edges };
 }
