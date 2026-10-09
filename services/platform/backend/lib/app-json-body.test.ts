@@ -96,12 +96,6 @@ describe('appJsonBody', () => {
       'st\u0000atus',
       'NUL character',
     ],
-    [
-      'an unpaired surrogate',
-      '{"status":"\\ud800"}',
-      'status',
-      'unpaired UTF-16 surrogate',
-    ],
   ])(
     'refuses %s Postgres could not store as 400 invalid body, naming the field',
     async (_n, body, path, reason) => {
@@ -118,6 +112,12 @@ describe('appJsonBody', () => {
       expect(errors).not.toHaveBeenCalled();
     },
   );
+
+  it('lets an unpaired surrogate through, as the driver stores U+FFFD', async () => {
+    const res = await post('/api/app/tasks/t1/move', '{"status":"\\ud800"}');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, status: '\ud800' });
+  });
 
   it('parses a valid body exactly as before', async () => {
     const res = await post('/api/app/tasks/t1/move', '{"status":"done"}');

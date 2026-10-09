@@ -3,7 +3,7 @@ import { HTTPException } from 'hono/http-exception';
 
 import { requestIdOf } from '../error-reporting.ts';
 import { invalidBodyIssuesResponse } from './invalid-body-response.ts';
-import { findUnstorableText } from './unstorable-text.ts';
+import { findNulByte } from './unstorable-text.ts';
 
 /** The sentence a body that is not JSON answers on the app door. */
 export const INVALID_JSON_MESSAGE = 'The request body is not valid JSON';
@@ -18,9 +18,13 @@ export const INVALID_JSON_MESSAGE = 'The request body is not valid JSON';
  * refusal speaks (`{error, code}`, with the request id), thrown as an
  * HTTPException so the error handler passes it through unreported.
  *
- * A body that parses but carries a string Postgres cannot store — a NUL
- * character or an unpaired UTF-16 surrogate (`unstorable-text.ts`) —
- * answers the app door's 400 `invalid body`, naming the field.
+ * A body that parses but carries a NUL character, which Postgres cannot
+ * store (`unstorable-text.ts`), answers the app door's 400 `invalid body`,
+ * naming the field. An unpaired UTF-16 surrogate is let through, as it
+ * always was: the driver stores U+FFFD in its place. The app's own forms
+ * can produce one — a length limit cutting an emoji in half — and a person
+ * cannot see, let alone fix, what the refusal would name. The REST door,
+ * whose callers are programs, refuses both.
  *
  * Everything else about the read is untouched: a valid body parses as
  * before, a handler that falls back on a failed read
@@ -54,16 +58,15 @@ export function appJsonBody<E extends Env>(): MiddlewareHandler<E> {
           ),
         });
       }
-      // A string Postgres cannot store (a NUL, an unpaired surrogate) is
-      // refused here, naming its field, before any handler hands it to the
-      // database as a 500 — the same rule the REST door applies.
-      const unstorable = findUnstorableText(parsed);
-      if (unstorable !== null) {
+      // A NUL is refused here, naming its field, before any handler hands
+      // it to the database as a 500.
+      const nul = findNulByte(parsed);
+      if (nul !== null) {
+        const path = nul || 'body';
+        const message = 'must not contain a NUL character (U+0000)';
         throw new HTTPException(400, {
-          message: `${unstorable.path || 'body'}: ${unstorable.message}`,
-          res: invalidBodyIssuesResponse(c, [
-            { path: unstorable.path || 'body', message: unstorable.message },
-          ]),
+          message: `${path}: ${message}`,
+          res: invalidBodyIssuesResponse(c, [{ path, message }]),
         });
       }
       return parsed;
