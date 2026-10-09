@@ -83,6 +83,7 @@ import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisi
 import {
   sessionCancelExec,
   sessionDeleteFiles,
+  SessionMemoryBusyError,
   sessionStageFiles,
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
@@ -1345,7 +1346,7 @@ export function classifyWorkflowStartFailure(
   const noRoom = sandboxCapacityRefusal(err);
   if (noRoom !== null) {
     return {
-      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : "the organization's workflow sessions are all in use"}`,
+      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : err instanceof SessionMemoryBusyError ? "the run's sandbox is short of memory" : "the organization's workflow sessions are all in use"}`,
       failureCode: 'sandbox_capacity',
       retryAtMs: now + noRoom.retryAfterMs,
       retryAfterMs: noRoom.retryAfterMs,

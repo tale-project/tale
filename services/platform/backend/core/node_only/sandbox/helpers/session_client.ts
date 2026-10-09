@@ -154,6 +154,65 @@ export class SessionExecLimitError extends Error {
   }
 }
 
+/** The `error` of a 429 the spawner forwards when the session's runtime
+ * refused to start an exec because the session's memory is nearly spent
+ * (runnerd's `session_memory_busy`, `services/sandbox/src/session/runnerd-protocol.ts`). */
+const SESSION_MEMORY_BUSY_ERROR = 'session_memory_busy';
+
+/** How long a memory refusal that names no wait is waited out. */
+const SESSION_MEMORY_BUSY_RETRY_MS = 5_000;
+
+/** A start whose exec the session's runtime refused because the session's
+ * working set has reached its share of the memory limit: one more exec
+ * would make the kernel end a running one, most often the agent. Nothing
+ * ran, and the room frees as the session's other work settles, so it waits
+ * like a session whose live-exec places are all taken — it is one of those
+ * refusals to every lane that waits for sandbox room. */
+export class SessionMemoryBusyError extends SessionExecLimitError {
+  readonly retryAfterMs: number;
+  constructor(
+    sessionId: string,
+    execId: string,
+    retryAfterMs: number,
+    detail: string,
+  ) {
+    super(sessionId, execId);
+    this.name = 'SessionMemoryBusyError';
+    this.message = `sandbox session ${sessionId} refused exec ${execId}: ${detail}`;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
+/** The memory refusal a 429 to an exec is, or null for any other 429 (the
+ * host short of memory or disk, the session limit). */
+async function sessionMemoryBusyErrorOf(
+  res: Response,
+  sessionId: string,
+  execId: string,
+): Promise<SessionMemoryBusyError | null> {
+  let body: unknown;
+  try {
+    body = JSON.parse(await safeText(res));
+  } catch {
+    return null;
+  }
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('error' in body) ||
+    body.error !== SESSION_MEMORY_BUSY_ERROR
+  )
+    return null;
+  return new SessionMemoryBusyError(
+    sessionId,
+    execId,
+    parseRetryAfterMs(res) ?? SESSION_MEMORY_BUSY_RETRY_MS,
+    'message' in body && typeof body.message === 'string'
+      ? body.message
+      : 'the session is short of memory',
+  );
+}
+
 /** The `queue` field of a 429 body, as a boundary: a body that is not JSON,
  * names no line or names one out of shape is an older spawner's answer, and
  * the create waits as it always did. */
@@ -1990,6 +2049,14 @@ async function sessionExec(
       signal: fetchAbort,
     });
     if (res.status === 404) throw new SessionNotFoundError(sessionId);
+    if (res.status === 429) {
+      // Read once: the body says whether the session's own memory refused it.
+      const message = `sandbox session exec failed (${res.status})`;
+      throw (
+        (await sessionMemoryBusyErrorOf(res, sessionId, body.execId)) ??
+        new SpawnerStatusError(message, res)
+      );
+    }
     if (!res.ok || !res.body) {
       throw await refusedAnswerErrorOf(
         `sandbox session exec failed (${res.status})`,
@@ -2160,6 +2227,23 @@ export async function drainSessionExecResilient(
       if (err instanceof ExecReplayGapError) throw err;
       if (err instanceof ExecOutputConsumerError) throw err.cause;
       if (err instanceof ExecStreamProtocolError) throw err;
+      if (err instanceof SessionMemoryBusyError) {
+        // Nothing started: the session's runtime refused the exec for want
+        // of memory. Start it again once the refusal's wait has passed,
+        // within the consecutive-failure budget; past it, the caller's lane
+        // waits for room as for any refused start.
+        attempt += 1;
+        if (attempt > MAX_RECONNECT_ATTEMPTS) throw err;
+        recreate = true;
+        console.warn(
+          `[session_client] exec ${body.execId} refused: the session is short of memory (attempt ${attempt}/${MAX_RECONNECT_ATTEMPTS}); starting it again in ${Math.min(err.retryAfterMs, MAX_BACKOFF_MS)} ms`,
+        );
+        await sleepUnlessAborted(
+          Math.min(err.retryAfterMs, MAX_BACKOFF_MS),
+          signal,
+        );
+        continue;
+      }
       if (err instanceof ExecAttachBusyError) {
         // Reader admission is temporary pressure, not a failure of the exec.
         // Keep retrying this attach within the action/window cancellation.
