@@ -89,7 +89,7 @@ Tale refuses a retry it cannot do faithfully and says why: the version to run ch
 
 ## Compare two runs {#compare}
 
-**Compare with it** on a replay, **Compare with the previous run** in the **Run again** menu, or two runs selected in the **Runs** tab and **Compare** opens two runs side by side. **What differs** names, most telling first, the versions they ran, how many fields of their input differ, the step where they split and why, such as a condition that went the other way, how each ended, and their output and writes. The table below lists each step with how each run left it and whether its data is the same. **Swap A and B** swaps the two runs. When their input or output differs, **Input: A → B** and **Output: A → B** show the two side by side, each changed field marked.
+**Compare with it** on a replay, **Compare with the previous run** in the **Run again** menu, or two runs selected in the **Runs** tab and **Compare** opens two runs side by side. **What differs** names, most telling first, the versions they ran, how many fields of their input differ, the step where they split and why, such as a condition that went the other way, how each ended, and their output and writes. The table below lists each step with how each run left it and whether its data is the same. **Swap A and B** swaps the two runs. When their input or output differs, **Input: A → B** and **Output: A → B** show the two side by side, each changed field marked. **Both runs on the chart** draws the two on the chart of B’s version: each step says how A and how B left it, the step where they part is ringed, and a step A’s version lacks is dashed.
 
 ## Check what the run changed
 

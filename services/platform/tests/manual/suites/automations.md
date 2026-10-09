@@ -1041,7 +1041,9 @@ output:
       `automationRuns.compare.diff.input` shows A and B side by side (a list
       on a narrow window) with each changed field marked; when the outputs
       differ too, `automationRuns.compare.diff.output` appears above it; two
-      runs with the same input show neither.
+      runs with the same input show neither. `automationRuns.compare.canvas`
+      draws both runs on B's version: each strip reads "A … · B …", the
+      step where they part is ringed.
 
 ## Boundary & error tests
 
