@@ -92,6 +92,8 @@ invalidate indexed delete/edit dialogs; a later failed save preserves an earlier
 acknowledged save while the cache is unchanged:
 `app/features/settings/governance/components/model-access-editor.test.tsx`.
 
+| [navigation](../suites/navigation.md) | Organization switching replaces the staging history entry for both dashboard-root and subpath switches, so browser Back returns to the page before the switch without revisiting `/dashboard/switching`; the route keeps the existing cross-org cache invalidation and detail-subpath reset. | ✅ route semantics | `app/routes/dashboard/switching.test.tsx`; the real user-menu switch and browser Back journey remain manual |
+
 Personalization distinguishes a failed preferences read from a successful null
 response. Localized errors offer Try again without a switch, editor or save path
 until preferences load. Pending retries preserve the alert and keyboard focus;
