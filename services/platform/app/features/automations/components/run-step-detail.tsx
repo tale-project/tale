@@ -19,6 +19,7 @@ import { RunStatusBadge } from './run-status-badge';
 import { RunStepAttempts } from './run-step-attempts';
 import { RunStepConditions } from './run-step-conditions';
 import { RunStepData } from './run-step-data';
+import { RunStepFailure } from './run-step-failure';
 import { RunStepItems } from './run-step-items';
 
 /** A step as the run's record keeps it, and where to read more of it. */
@@ -75,8 +76,14 @@ export function RunStepDetail({
           </Text>
         )}
       </div>
-      {runView.error !== undefined && (
-        <Alert variant="destructive" description={runView.error} />
+      {/* The record says why in words; the trace's own English is what a
+          run without one has. */}
+      {record?.step?.failure !== undefined ? (
+        <RunStepFailure failure={record.step.failure} />
+      ) : (
+        runView.error !== undefined && (
+          <Alert variant="destructive" description={runView.error} />
+        )
       )}
       {record?.step !== undefined && <RunStepConditions step={record.step} />}
       {record?.step !== undefined && <RunStepAttempts step={record.step} />}
@@ -87,7 +94,7 @@ export function RunStepDetail({
           step={record.step}
         />
       )}
-      {runView.note !== undefined && (
+      {record?.step === undefined && runView.note !== undefined && (
         <Text as="p" variant="muted" className="text-xs text-pretty">
           {runView.note}
         </Text>

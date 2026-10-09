@@ -31,7 +31,6 @@ import {
   fieldLabel,
   type IssueTranslate,
   kindLabel,
-  nodeLabel,
   quote,
 } from './issue-text';
 import { nodeTitle } from './node-face';
@@ -112,7 +111,7 @@ function derivedParamsOf(reason: StepFailureReason): readonly string[] {
  * `STEP_FAILURE_META` params: names prepared for reading. `fieldLabel`,
  * `keyLabel`, `nameLabel`, `actionLabel`, `propertyLabel` and
  * `automationLabel` are in the language's quotes; `sourceLabel` and
- * `childLabel` name a step the way the canvas does; `connectorLabel`,
+ * `childLabel` name a step the way the canvas titles it, in quotes; `connectorLabel`,
  * `modelLabel` and `harnessLabel` are display names; `kindLabel` says what
  * kind of value it was ("a number"); `limit` words a time limit ("5
  * seconds"); `suggestion` is the read written so it cannot fail. One a
@@ -185,7 +184,7 @@ function derive(
     case 'name':
       return { nameLabel: none ? 'none' : quote(t, text) };
     case 'source':
-      return { sourceLabel: none ? 'none' : nodeLabel(t, text) };
+      return { sourceLabel: none ? 'none' : quote(t, nodeTitle(text)) };
     case 'chain': {
       const key = asText(failure.params.key);
       return {
@@ -223,7 +222,7 @@ function derive(
     case 'automation':
       return { automationLabel: none ? 'none' : quote(t, text) };
     case 'childPath':
-      return { childLabel: none ? 'none' : nodeLabel(t, text) };
+      return { childLabel: none ? 'none' : quote(t, nodeTitle(text)) };
     default:
       return {};
   }

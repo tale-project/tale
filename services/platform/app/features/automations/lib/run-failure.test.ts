@@ -139,7 +139,7 @@ describe('stepFailureText — every reason in every language', () => {
     const en = context('en');
     const missing = stepFailureText(failureOf('EXPR_READ_MISSING', true), en);
     expect(missing.cause).toBe(
-      'nodes.fetch.output.customer.email reads "email" of nodes.fetch.output.customer, which is missing. That value comes from what "fetch" returned.',
+      'nodes.fetch.output.customer.email reads "email" of nodes.fetch.output.customer, which is missing. That value comes from what "Fetch" returned.',
     );
     expect(missing.fix).toContain('nodes.fetch.output.customer?.email');
     const de = stepFailureText(
