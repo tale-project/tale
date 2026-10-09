@@ -166,13 +166,22 @@ export function useProjects(
   organizationId: string,
   options?: { includeArchived?: boolean },
 ) {
-  const { data, isLoading } = useBackendQuery('projects/queries:listProjects', {
-    organizationId,
-    includeArchived: options?.includeArchived,
-  });
+  const { data, isLoading, isError, isFetching, refetch } = useBackendQuery(
+    'projects/queries:listProjects',
+    {
+      organizationId,
+      includeArchived: options?.includeArchived,
+    },
+  );
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
   return {
     projects: data ?? [],
     isLoading,
+    error: isError,
+    isRetrying: isFetching,
+    retry,
   };
 }
 
