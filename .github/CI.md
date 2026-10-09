@@ -818,8 +818,11 @@ review remains a separate obligation; a CI readiness result does not certify it.
 ### Merge queue
 
 `main` lands through a GitHub merge queue (ruleset **Tale required CI**, since 2026-10-09):
-squash merges, groups of up to five PRs, up to ten PRs building at once, all-green grouping
-(a group merges only when every PR in it passes) and a 180-minute check timeout. Build's full
+squash merges, groups of up to five PRs, up to five PRs building at once, all-green grouping
+(a group merges only when every PR in it passes) and a 360-minute check timeout. The build cap
+and timeout follow from the runner budget: the public repository's free plan runs about 20 jobs at
+once across every PR and queue run, a full merge-group run needs dozens, so speculative builds
+beyond one group only starve PR runs, and a queued run can wait hours for a runner. Build's full
 merge-group run takes up to about 90 minutes. The ruleset no longer requires a branch to be up to
 date before merging; the queue checks the result that will actually land. With about 75 merges a
 day, "up to date" forced every other open PR to rebase and re-run CI after each merge.
