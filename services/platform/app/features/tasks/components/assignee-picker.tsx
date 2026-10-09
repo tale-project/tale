@@ -100,6 +100,12 @@ interface AssigneePickerProps {
  * mounting them all closed cost a 2,000-task board seconds. The name
  * comes from the directory an `ActorDirectoryProvider` provides (the board's,
  * the task's) or, without one, from the picker's own.
+ *
+ * A picker serves one task. The task modal keeps its picker while it moves to
+ * another task (a parent link, a subtask), so the picker is keyed by the task:
+ * a handoff asked for one task — its live-run read, its confirm, the cancel
+ * and the reassign — stays with that task's picker and never lands on the
+ * next one.
  */
 export const AssigneePicker = memo(function AssigneePicker(
   props: AssigneePickerProps,
@@ -109,7 +115,7 @@ export const AssigneePicker = memo(function AssigneePicker(
       organizationId={props.organizationId}
       projectId={props.projectId}
     >
-      <AssigneePickerTrigger {...props} />
+      <AssigneePickerTrigger key={props.taskId} {...props} />
     </ActorDirectoryBoundary>
   );
 });
