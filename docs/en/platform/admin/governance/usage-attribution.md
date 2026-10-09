@@ -7,7 +7,7 @@ Every AI request Tale makes for your organization is recorded once, against one 
 
 ## What counts as usage
 
-Tale records a request whenever a model or a metered service runs for your organization: a chat reply, including a regenerated or edited one and both sides of a model comparison; the short model call that names a new chat; a turn of a managed agent working on a task or inside an automation; an image such an agent generates; voice output; the transcription of an uploaded recording; a metered connector call; and a call to the model endpoints with an API key. Each record carries the tokens or units used and the cost estimated from the provider's list price at that moment; for a model endpoint call, it is the cost the model gateway measured.
+Tale records a request whenever a model or a metered service runs for your organization: a chat reply, including a regenerated or edited one and both sides of a model comparison; the short model call that names a new chat; the model call of an automation's `llm` step; a turn of a managed agent working on a task or inside an automation; an image such an agent generates; voice output; the transcription of an uploaded recording; a metered connector call; and a call to the model endpoints with an API key. Each record carries the tokens or units used and the cost estimated from the provider's list price at that moment; for a model endpoint call, it is the cost the model gateway measured.
 
 ## Who a request counts against
 
@@ -27,22 +27,27 @@ The rule is the same everywhere: a request counts against the person who asked f
 
 A retry of an agent run continues the run its starter kicked off, so its usage stays with that person. When an integration uses an API key to act for another member, the run counts against the member acted for, and the key's own limit counts it too.
 
+Work in a project also counts toward that project, whoever asked for it: the project's chats, with their titles, the answers read aloud, and the assistant's tool calls; the runs of its agents and the agent and `llm` steps of automations run in it, with the images they generate; and the calls made with the project's own API keys. A run that names no project, of an automation installed in several projects, counts toward each of them; an automation installed in no project counts toward the organization alone. A transcription is not counted toward a project.
+
+An API key an Admin made for a member counts against that member, like the member's own key. A key that belongs to a team, a project, or the organization ([API keys](/platform/admin/api-keys#create-a-key-for-someone-else)) is not a person: what it asks for counts against the key itself. Usage analytics shows it as a row of its own under **Per-user usage**, under the key's name with its team, project, or organization beneath, and never counts it as an active user. A team's key also counts toward its team's usage.
+
 ## Which limits apply
 
-- **Personal, team, and role limits** bind the person a request counts against. A run a schedule, a webhook, or an event started has no such person and is not measured against any of them.
+- **Personal, team, and role limits** bind the person a request counts against. A run a schedule, a webhook, or an event started has no such person and is not measured against any of them. Neither is a team's, a project's, or the organization's own key, except that a team's key is held to its team's limit.
 - **Organization limits** bind every request, including trigger-started runs.
 - **API-key limits** bind the requests authenticated with that key: the chat messages it sent, its model endpoint calls, and the runs it started.
+- **Project limits** bind the work in that project, whoever asked for it, including runs a trigger started.
 
-When a limit is reached, Tale refuses the next request before it runs and names the limit. A managed agent turn is refused at its start; a turn already running keeps the allowance it was given. An image the agent asks for during its turn is checked on its own before the image model is called, so a reached limit refuses the image while the turn continues. The image also draws on the allowance of the turn that asked for it. [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine) covers the case of several rules applying to one person.
+When a limit is reached, Tale refuses the next request before it runs and names the limit. A managed agent turn is refused at its start; a turn already running keeps the allowance it was given. An image the agent asks for during its turn is checked on its own before the image model is called, so a reached limit refuses the image while the turn continues. The image also draws on the allowance of the turn that asked for it. An automation's `llm` step is checked before each model call: a call a limit refuses fails the step with `budget_exceeded`, and its error names the limit; the run fails with it unless the step's `onError` is `continue`. The step holds nothing while its call runs, so runs started at the same moment can pass a nearly reached limit together. [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine) covers the case of several rules applying to one person.
 
 ## Three situations worth knowing
 
 **A teammate mentions your agent in a task comment or a task description.** Posting the comment or saving the description starts a run, and that run counts against the teammate who wrote it, not against you as the agent's creator.
 
-**A scheduled automation spends every night.** Its runs appear on the **Automations (triggers)** row. They never raise anyone's personal usage or the active-user count, and only the organization's limits can stop them. Set an organization cost or request limit when you need a ceiling for them.
+**A scheduled automation spends every night.** Its runs appear on the **Automations (triggers)** row. They never raise anyone's personal usage or the active-user count, and only the organization's limits can stop them, or a project's limits when the automation runs in a project. Set an organization or project cost or request limit when you need a ceiling for them.
 
 **An integration uses an API key on behalf of a member.** The member's personal and team limits see the run, and so does the key's limit. Two ceilings apply, and the stricter one refuses first.
 
 ## What members see
 
-**Settings > Usage** lists every limit that applies to the signed-in member with its current usage: the chats they sent, the voice output they requested, the model endpoint calls they made, and the agent runs they started, whichever way they started them. Shared team and organization limits appear there too, because they can be reached before a personal one.
+**Settings > Usage** lists every limit that applies to the signed-in member with its current usage: the chats they sent, the voice output they requested, the model endpoint calls they made, and the agent and automation runs they started, whichever way they started them. Shared team and organization limits appear there too, because they can be reached before a personal one. A project's limit does not appear there; a request it refuses names it.

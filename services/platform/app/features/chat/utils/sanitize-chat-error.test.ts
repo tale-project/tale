@@ -90,3 +90,20 @@ describe('sanitizeChatError raw surfaces', () => {
     expect(sanitized.rawMessage).toBeUndefined();
   });
 });
+
+describe('sanitizeChatError for a reached budget cap', () => {
+  it('names a project’s cap as the project’s, every other cap as the sender’s', () => {
+    const project = sanitizeChatError(
+      encodeChatError({
+        code: 'budget_exceeded',
+        raw: "Usage limit reached. This project's monthly cost limit is used up.",
+        budgetScope: 'project',
+      }),
+    );
+    expect(project.i18nKey).toBe('errorHintProjectBudgetExceeded');
+    const own = sanitizeChatError(
+      encodeChatError({ code: 'budget_exceeded', budgetScope: 'user' }),
+    );
+    expect(own.i18nKey).toBe('errorHintBudgetExceeded');
+  });
+});

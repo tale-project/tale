@@ -16,8 +16,12 @@ A task keeps a piece of work together: its purpose, owner, status, files, and th
 1. Open the project’s **Tasks** tab and click **Create task**.
 2. Write a **Title** that names the result, such as “Review the launch brief”.
 3. Use **Description** to explain what is needed and how the result will be checked. Add supporting files under **Attachments** when the work depends on them.
-4. Choose **Status**, **Priority**, and an **Assignee** as needed. New tasks default to **To do**; use **Backlog** for a proposal the team has not committed to.
-5. Click **Create task**. Open the new card to continue adding details. When an agent is the **Assignee**, **Create and start agent** creates the task and starts the agent in one step.
+4. Choose **Status**, **Priority**, and an **Assignee** as needed. A new task starts in **To do** with **Medium** priority and today as its **Start date**; use **Backlog** for a proposal the team has not committed to, and clear the start date when there is none yet. A start date after the **Due date** is named under the dates, and **Create task** waits until you fix it.
+5. Click **Create task**, or press **⌘+Enter** (**Ctrl+Enter** on Windows and Linux) in the title or the description; **Enter** in the title moves on to the description. A message confirms the new task, with **Open** to go to it. When an agent is the **Assignee**, **Create and start agent** creates the task and starts the agent in one step.
+
+To create several tasks in a row, switch on **Create another** at the bottom left of the dialog before you create. The dialog then stays open: the title, description and attachments are cleared for the next task, while its status, priority, assignee, dates, repeat and labels stay as you set them. Tale remembers the switch in this browser.
+
+On **Board**, each column can create in its own status: the **+** beside the column's name opens the same dialog with that status, and **Add task** at the foot of the column takes just a title. Type it and press **Enter** to add the task to that column with **Medium** priority and today as its start date, and with the priority or assignee the board is filtered to; the field stays open for the next one, and **Esc** closes it.
 
 A title can have up to 200 characters and a description up to 20,000; most emoji count as 2. A longer description, pasted in or left on a task by an earlier import, is not cut: the field names the limit and counts the length, and **Create task** or **Save** stays unavailable until you shorten it.
 
@@ -213,7 +217,7 @@ Move the task to **Done** when the result meets the requirement. If an agent nee
 - The comment box sits at the bottom. Send with **⌘+Enter** or **Ctrl+Enter**, or with the round send button; **Enter** alone starts a new line. Type `@` to mention an agent or a person, with the same effect as in the board's dialog. Text you have not sent stays in the box for that task, here and in the board's dialog, and the task's row in Home shows **Draft** while you work elsewhere.
 - **Details** beside the discussion holds the status, priority, assignee, reviewer, dates, repeat, labels, and dependencies, together with **Watch** and **Archive**. Organization owners and admins also find **Delete** there: it removes the task with its subtasks, their comments, and their files for good, and stops their running agent runs. **Hide details** at the end of the header folds it away, and **Show details** brings it back. In a window too narrow to keep both side by side, **Show details** opens it as a sheet over the discussion instead — from the side, or from the bottom on a phone.
 
-**Board** in the header opens the project's task board. A task you open from the board still appears in its dialog; both views edit the same task. **Copy link**, the link icon beside **Board**, copies a link to this task page. To copy the task's identifier, such as `WEB-2`, click it in the line under the title; a message confirms each copy.
+**Board** in the header opens the project's task board. A task you open from the board still appears in its dialog, which shows the same title line; both views edit the same task. **Open as page**, the expand icon beside **Close** in the dialog, opens the task here on its own page, and the browser's Back returns to the board with the dialog open. A description you are still editing is not carried over, so save it first. **Copy link** in the dialog copies the same page link. **Copy link**, the link icon beside **Board**, copies a link to this task page. To copy the task's identifier, such as `WEB-2`, click it in the line under the title; a message confirms each copy.
 
 ## Find work that needs attention
 

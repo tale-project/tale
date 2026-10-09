@@ -63,7 +63,7 @@ Das Absenden eines Formulars begründet kein Vertragsverhältnis zwischen dir un
 
 ### 6.1 Links von der Website
 
-Unsere Website kann Links zu Drittanbieter-Websites, -Diensten oder -Ressourcen enthalten, die nicht von uns betrieben oder kontrolliert werden, einschließlich unserer Dokumentations-Site, Schulungsangebote und Service-Vereinbarungen. Wir haben keine Kontrolle über und übernehmen keine Verantwortung für Inhalte, Datenschutzpraktiken oder Verfügbarkeit solcher Drittanbieter-Websites oder -Dienste. Die Aufnahme eines Links stellt keine Empfehlung dar. Wir empfehlen dir, die Bedingungen und Datenschutzerklärungen aller besuchten Drittanbieter-Seiten zu lesen.
+Unsere Website kann Links zu Drittanbieter-Websites, -Diensten oder -Ressourcen enthalten, die nicht von uns betrieben oder kontrolliert werden, einschließlich unserer Dokumentations-Site und Service-Vereinbarungen. Wir haben keine Kontrolle über und übernehmen keine Verantwortung für Inhalte, Datenschutzpraktiken oder Verfügbarkeit solcher Drittanbieter-Websites oder -Dienste. Die Aufnahme eines Links stellt keine Empfehlung dar. Wir empfehlen dir, die Bedingungen und Datenschutzerklärungen aller besuchten Drittanbieter-Seiten zu lesen.
 
 ### 6.2 An den Dienst übermittelte URLs
 

@@ -1,6 +1,8 @@
 'use client';
 
 import {
+  allBudgetRules,
+  budgetConfigOf,
   budgetConfigSchema,
   type BudgetConfig,
   type BudgetRule,
@@ -41,6 +43,8 @@ import {
   type ReactNode,
 } from 'react';
 
+import { ProjectArchivedBadge } from '@/app/features/projects/components/project-archived-badge';
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -73,6 +77,7 @@ const SCOPES = [
   'default',
   'user',
   'team',
+  'project',
   'role',
   'apiKey',
   'org',
@@ -112,8 +117,22 @@ function apiKeyName(key: OrgApiKeyWire): string {
   return key.name || key.start || key.id;
 }
 
-function apiKeyOwner(key: OrgApiKeyWire): string | null {
-  return key.ownerName || key.ownerEmail || null;
+/** Whose key it is: the person it acts as, or — for a key that is not a
+ * person — the team, project or organization it belongs to. */
+function apiKeyOwner(
+  key: OrgApiKeyWire,
+  t: ReturnType<typeof useT>['t'],
+): string | null {
+  switch (key.ownerKind) {
+    case 'team':
+      return t('budgets.apiKeyOwnerTeam', { name: key.teamName ?? '—' });
+    case 'project':
+      return t('budgets.apiKeyOwnerProject', { name: key.projectName ?? '—' });
+    case 'organization':
+      return t('budgets.apiKeyOwnerOrganization');
+    default:
+      return key.ownerName || key.ownerEmail || null;
+  }
 }
 
 /** The state chip of a key that can no longer spend here; nothing for a
@@ -162,10 +181,42 @@ function ApiKeyRuleTarget({
       </HStack>
       {!unknown && (
         <Text as="span" variant="caption">
-          {apiKeyOwner(apiKey) ?? t('budgets.apiKeyOwnerUnknown')}
+          {apiKeyOwner(apiKey, t) ?? t('budgets.apiKeyOwnerUnknown')}
         </Text>
       )}
     </Stack>
+  );
+}
+
+/**
+ * The Target cell of a project's rule: the project by name, marked when it is
+ * archived. A rule outlives its project: one that is gone says so instead of
+ * showing a bare id — except while the project list is still loading.
+ */
+function ProjectRuleTarget({
+  projectId,
+  project,
+  loading,
+}: {
+  projectId: string;
+  project: ProjectTarget | undefined;
+  loading: boolean;
+}) {
+  const { t } = useT('governance');
+  if (project === undefined) {
+    return loading ? (
+      <span className="break-all">{projectId}</span>
+    ) : (
+      <Text as="span" variant="muted">
+        {t('budgets.projectDeleted')}
+      </Text>
+    );
+  }
+  return (
+    <HStack gap={2} className="flex-wrap">
+      <span className="break-words">{project.name}</span>
+      {project.archived && <ProjectArchivedBadge />}
+    </HStack>
   );
 }
 
@@ -177,13 +228,15 @@ function emptyRule(): BudgetRule {
 }
 
 /** Scopes that target a specific subject — they only enforce when their target
- *  id matches a user/team/role/API key at runtime (see `budget_enforcement.ts`).
- *  Saving one with an empty target produces a permanently dead rule. The apiKey
- *  scope targets `apiKeyId`; the others target `scopeId`. */
+ *  id matches a user/team/project/role/API key at runtime (see
+ *  `budget_enforcement.ts`). Saving one with an empty target produces a
+ *  permanently dead rule. The apiKey scope targets `apiKeyId`; the others
+ *  target `scopeId`. */
 function scopeNeedsTarget(scope: BudgetRule['scope']): boolean {
   return (
     scope === 'user' ||
     scope === 'team' ||
+    scope === 'project' ||
     scope === 'role' ||
     scope === 'apiKey'
   );
@@ -256,6 +309,14 @@ function validateBudgetRule(rule: BudgetRule, t: TFunction): BudgetRuleErrors {
   return errors;
 }
 
+/** The rules in the order the saved file reads back — its `rules`, then its
+ *  project caps — so the table does not reorder when the save lands, and a
+ *  row's index keeps naming the rule it showed. */
+function inSavedOrder(rules: readonly BudgetRule[]): BudgetRule[] {
+  return allBudgetRules(budgetConfigOf(true, rules));
+}
+
+/** The saved file, both kinds of rule in it read as one list. */
 function parseBudgetConfig(policy: unknown): BudgetConfig {
   const config = isRecord(policy) ? policy : {};
   const result = budgetConfigSchema.safeParse(config);
@@ -291,9 +352,22 @@ interface RuleDialogProps {
   cannotManage: boolean;
   memberOptions: { value: string; label: string; description?: string }[];
   teamOptions: { value: string; label: string }[];
+  /** Every project, archived ones included: the picker offers the active
+   *  ones, and the one a saved rule names whatever became of it. */
+  projects: readonly ProjectTarget[];
+  /** Whether the project list is still loading — a project not in it yet
+   *  is not gone. */
+  projectsLoading: boolean;
   /** Every key the listing describes: the live ones the picker offers,
    *  and the ones a saved rule still names. */
   apiKeys: readonly OrgApiKeyWire[];
+}
+
+/** A project a rule can cap: its id, its name, and whether it is archived. */
+interface ProjectTarget {
+  id: string;
+  name: string;
+  archived: boolean;
 }
 
 function RuleDialog({
@@ -305,6 +379,8 @@ function RuleDialog({
   cannotManage,
   memberOptions,
   teamOptions,
+  projects,
+  projectsLoading,
   apiKeys,
 }: RuleDialogProps) {
   const { t } = useT('governance');
@@ -349,21 +425,46 @@ function RuleDialog({
     });
     setDraft((prev) => {
       const updated = { ...prev, ...patch };
-      if (patch.scope === 'default' || patch.scope === 'org') {
+      if (patch.scope !== undefined && patch.scope !== prev.scope) {
+        // A target names a subject of ITS scope: a user's id is no team, a
+        // role no project. Kept across a switch, it would save a rule that
+        // matches nothing while the field reads "Select…", so every switch
+        // starts the new scope without a target.
         delete updated.scopeId;
-        delete updated.apiKeyId;
-      } else if (patch.scope === 'apiKey') {
-        // apiKey targets `apiKeyId`; drop any stale user/team/role `scopeId`.
-        delete updated.scopeId;
-      } else if (patch.scope !== undefined) {
-        // Switching to a scopeId-targeted scope: drop any stale `apiKeyId`.
         delete updated.apiKeyId;
       }
+      // A project's cap warns no one, so a threshold on it would be inert.
+      if (patch.scope === 'project') delete updated.warningThresholdPercent;
       return updated;
     });
   }, []);
 
   const errors = useMemo(() => validateBudgetRule(draft, t), [draft, t]);
+
+  // The picker offers the projects work still happens in; a rule being
+  // edited keeps its own project in the list, archived or not.
+  const projectOptions = useMemo(
+    () =>
+      projects
+        .filter((project) => !project.archived || project.id === draft.scopeId)
+        .map((project) => {
+          const option: SearchableSelectOption = {
+            value: project.id,
+            label: project.name,
+          };
+          if (project.archived) option.labelBadge = <ProjectArchivedBadge />;
+          return option;
+        }),
+    [projects, draft.scopeId],
+  );
+  // A rule whose project is gone limits nothing; the field says so rather
+  // than reading "Select project…" over a target it still keeps.
+  const projectGone =
+    draft.scope === 'project' &&
+    draft.scopeId !== undefined &&
+    draft.scopeId !== '' &&
+    !projectsLoading &&
+    !projects.some((project) => project.id === draft.scopeId);
 
   // The picker offers the keys that can still spend. A rule being edited
   // keeps its own key in the list whatever became of it, so the field shows
@@ -374,7 +475,7 @@ function RuleDialog({
       apiKeys
         .filter((key) => key.status === 'active' || key.id === draft.apiKeyId)
         .map((key) => {
-          const owner = apiKeyOwner(key);
+          const owner = apiKeyOwner(key, t);
           const option: SearchableSelectOption = {
             value: key.id,
             label: owner ? `${apiKeyName(key)} · ${owner}` : apiKeyName(key),
@@ -385,7 +486,7 @@ function RuleDialog({
           }
           return option;
         }),
-    [apiKeys, draft.apiKeyId],
+    [apiKeys, draft.apiKeyId, t],
   );
 
   const handleSubmit = useCallback(
@@ -470,6 +571,24 @@ function RuleDialog({
             emptyText={t('budgets.noTeamsFound')}
             aria-label={t('budgets.selectTeamAriaLabel')}
             error={showTargetError}
+          />
+        )}
+
+        {draft.scope === 'project' && (
+          <SearchableSelect
+            label={t('budgets.project')}
+            placeholder={t('budgets.selectProject')}
+            disabled={cannotManage}
+            value={draft.scopeId ?? null}
+            onValueChange={(value) => updateDraft({ scopeId: value })}
+            options={projectOptions}
+            searchPlaceholder={t('budgets.searchProjects')}
+            emptyText={t('budgets.noProjectsFound')}
+            aria-label={t('budgets.selectProjectAriaLabel')}
+            error={showTargetError}
+            {...(projectGone
+              ? { description: t('budgets.projectDeletedHint') }
+              : {})}
           />
         )}
 
@@ -580,28 +699,31 @@ function RuleDialog({
             <FieldError message={errors.limits} />
           )}
 
-          <div>
-            <Input
-              label={t('budgets.warningThreshold')}
-              type="number"
-              value={draft.warningThresholdPercent ?? ''}
-              onChange={(e) =>
-                updateDraft({
-                  warningThresholdPercent: e.target.value
-                    ? Number(e.target.value)
-                    : undefined,
-                })
-              }
-              disabled={cannotManage}
-              placeholder="e.g. 80"
-              min={0}
-              max={100}
-              errorMessage={fieldError('warningThresholdPercent')}
-            />
-            <Text className="text-muted-foreground mt-1 text-xs">
-              {t('budgets.warningThresholdHelp')}
-            </Text>
-          </div>
+          {/* A project's cap warns no one: no threshold is offered for it. */}
+          {draft.scope !== 'project' && (
+            <div>
+              <Input
+                label={t('budgets.warningThreshold')}
+                type="number"
+                value={draft.warningThresholdPercent ?? ''}
+                onChange={(e) =>
+                  updateDraft({
+                    warningThresholdPercent: e.target.value
+                      ? Number(e.target.value)
+                      : undefined,
+                  })
+                }
+                disabled={cannotManage}
+                placeholder="e.g. 80"
+                min={0}
+                max={100}
+                errorMessage={fieldError('warningThresholdPercent')}
+              />
+              <Text className="text-muted-foreground mt-1 text-xs">
+                {t('budgets.warningThresholdHelp')}
+              </Text>
+            </div>
+          )}
         </Stack>
       </Stack>
     </FormDialog>
@@ -640,6 +762,12 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
   const { members } = useMembers(organizationId);
   const { teams } = useOrgTeams();
+  // A rule outlives its project's archiving: archived projects are listed
+  // so the table still names the project a saved rule caps.
+  const { projects: projectRows, isLoading: projectsLoading } = useProjects(
+    organizationId,
+    { includeArchived: true },
+  );
   // The API keys an admin can attach a budget to: every member's live key,
   // not only the admin's own — a per-key cap is how an admin bounds one
   // person's script or coding tool. A rule stores the raw `apiKeyId` and
@@ -679,6 +807,16 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     [teams],
   );
 
+  const projects = useMemo(
+    (): ProjectTarget[] =>
+      projectRows.map((project) => ({
+        id: project._id,
+        name: project.name || project._id,
+        archived: Boolean(project.archivedAt),
+      })),
+    [projectRows],
+  );
+
   const apiKeyById = useMemo(
     () => new Map((apiKeys ?? []).map((key) => [key.id, key])),
     [apiKeys],
@@ -702,7 +840,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
   useEffect(() => {
-    setRules(savedConfig.rules);
+    setRules(allBudgetRules(savedConfig));
   }, [savedConfig]);
 
   const cannotManage = ability.cannot('write', 'orgSettings');
@@ -715,7 +853,7 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
     policyType: 'budgets',
     savedEnabled: savedConfig.enabled,
     isLoading: loading,
-    buildConfig: (next) => ({ enabled: next, rules: savedConfig.rules }),
+    buildConfig: (next) => budgetConfigOf(next, allBudgetRules(savedConfig)),
     failureTitle: t('toastSaveFailedTitle'),
     failureDescription: t('budgets.saveFailed'),
   });
@@ -726,8 +864,9 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'budgets',
-          // A rule edit is only reachable while the section is on.
-          config: { enabled: true, rules: nextRules },
+          // A rule edit is only reachable while the section is on. A
+          // project's cap is saved in its own array (`budgetConfigOf`).
+          config: budgetConfigOf(true, nextRules),
         });
         toast({
           title: t('toastSavedTitle'),
@@ -774,12 +913,11 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
 
   const handleDialogSave = useCallback(
     (rule: BudgetRule) => {
-      let newRules: BudgetRule[];
-      if (editingIndex === null) {
-        newRules = [...rules, rule];
-      } else {
-        newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
-      }
+      const edited =
+        editingIndex === null
+          ? [...rules, rule]
+          : rules.map((r, i) => (i === editingIndex ? rule : r));
+      const newRules = inSavedOrder(edited);
       setRules(newRules);
       void saveConfig(newRules);
     },
@@ -801,6 +939,16 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           return (
             teamOptions.find((o) => o.value === rule.scopeId)?.label ??
             rule.scopeId
+          );
+        }
+        case 'project': {
+          if (!rule.scopeId) return '—';
+          return (
+            <ProjectRuleTarget
+              projectId={rule.scopeId}
+              project={projects.find((project) => project.id === rule.scopeId)}
+              loading={projectsLoading}
+            />
           );
         }
         case 'role':
@@ -826,7 +974,15 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           return '—';
       }
     },
-    [memberOptions, teamOptions, roleOptions, apiKeyById, t],
+    [
+      memberOptions,
+      teamOptions,
+      projects,
+      projectsLoading,
+      roleOptions,
+      apiKeyById,
+      t,
+    ],
   );
 
   const onAddRule = openAddDialog;
@@ -1044,6 +1200,8 @@ function BudgetEditorContent({ organizationId }: BudgetEditorProps) {
           cannotManage={cannotManage}
           memberOptions={memberOptions}
           teamOptions={teamOptions}
+          projects={projects}
+          projectsLoading={projectsLoading}
           apiKeys={apiKeys ?? NO_API_KEYS}
         />
 

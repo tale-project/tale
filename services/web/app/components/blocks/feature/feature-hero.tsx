@@ -1,16 +1,19 @@
 import { FeatureHero as FeatureHeroFrame } from '@tale/marketing-ui/feature-hero';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 
 import { CtaPair } from '@/app/components/marketing';
-import { GET_STARTED_HREF, REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { getStartedUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 interface FeatureHeroProps {
   eyebrow?: string;
   title: string;
   description: string;
-  /** Product demo rendered under the heading on an inset DemoStage. */
+  /** Product visual rendered below the heading. */
   visual?: ReactNode;
+  visualTreatment?: ComponentProps<typeof FeatureHeroFrame>['visualTreatment'];
   showCtas?: boolean;
 }
 
@@ -23,9 +26,11 @@ export function FeatureHero({
   title,
   description,
   visual,
+  visualTreatment,
   showCtas = true,
 }: FeatureHeroProps) {
   const { t } = useT('featureShared');
+  const locale = useCurrentLocale();
 
   return (
     <FeatureHeroFrame
@@ -33,10 +38,11 @@ export function FeatureHero({
       title={title}
       description={description}
       visual={visual}
+      visualTreatment={visualTreatment}
       actions={
         showCtas ? (
           <CtaPair
-            primary={{ label: t('ctaGetStarted'), href: GET_STARTED_HREF }}
+            primary={{ label: t('ctaGetStarted'), href: getStartedUrl(locale) }}
             secondary={{ label: t('ctaPrimary'), to: REQUEST_DEMO_PATH }}
           />
         ) : null

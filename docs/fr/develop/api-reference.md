@@ -41,7 +41,9 @@ Les contacts et produits sont triés par `updatedAt`, puis `id`, dans l’ordre 
 
 ## Authentification
 
-Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué une compétence qui s’utilise avec une clé (`tale:models.api`, `tale:notifications.export` ou `tale:rest.act-as`) ; toute autre personne est refusée avec `403 API_KEY_CREATE_FORBIDDEN` ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée. Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
+Crée les clés dans **Paramètres > API > REST** en tant que propriétaire, admin ou développeur, ou en tant que membre à qui un admin a attribué une compétence qui s’utilise avec une clé (`tale:models.api`, `tale:notifications.export` ou `tale:rest.act-as`) ; toute autre personne est refusée avec `403 API_KEY_CREATE_FORBIDDEN` ; [Clés API](/fr/platform/admin/api-keys) explique l’interface. Une clé n’apparaît qu’une fois et agit comme la personne qui l’a créée, sauf si un propriétaire ou un admin l’a créée pour quelqu’un d’autre (voir plus bas). Cette surface REST ne crée, liste, renouvelle ni révoque les clés.
+
+Les propriétaires et admins peuvent aussi créer une clé pour un autre membre, une équipe, un projet ou l’organisation. Une telle clé ne fonctionne que dans cette organisation, n’a pas besoin de `X-Organization-Slug` et répond `403 ORG_FORBIDDEN` à un en-tête qui nomme une autre organisation. La clé d’un membre agit au nom de ce membre. La clé d’une équipe, d’un projet ou de l’organisation agit comme une identité propre, avec le rôle choisi à sa création : la clé d’une équipe atteint ce qu’atteint cette équipe, et la clé d’un projet son seul projet — les routes sous `/api/v1/projects/{projectId}`, `GET /api/v1/projects`, `GET /api/v1/me` et les endpoints de modèles —, toute autre route répondant `403 API_KEY_SCOPE_FORBIDDEN` (contrat 3.21.0).
 
 | En-tête | Règle |
 | --- | --- |
@@ -60,7 +62,7 @@ Une personne appartenant à une seule organisation peut omettre l'en-tête d'org
 
 Chacun de ces trois refus liste dans `data.organizations` les organisations que tu peux sélectionner, sous forme de paires `slug` et `name`. Les appartenances désactivées en sont exclues ; s'il n'en reste aucune, la liste est vide. Relance la requête avec l'un des slugs listés.
 
-`GET /api/v1/me` renvoie aussi les appartenances sous `organizations`. `key.expiresAt` est un horodatage Unix en millisecondes, ou `null` pour une clé sans expiration. Renouvelle les identifiants des traitements autonomes avant que l'expiration provoque `401`. `key.name` identifie la clé utilisée.
+`GET /api/v1/me` renvoie aussi les appartenances sous `organizations` ; pour une clé qui ne fonctionne que dans une organisation, c’est cette seule organisation, avec le rôle avec lequel la clé agit. `key.expiresAt` est un horodatage Unix en millisecondes, ou `null` pour une clé sans expiration. Renouvelle les identifiants des traitements autonomes avant que l'expiration provoque `401`. `key.name` identifie la clé utilisée, et `key.owner.kind` indique à qui elle appartient : `user` pour la clé personnelle d’une personne, `member`, `team`, `project` ou `organization`, avec l’équipe ou le projet sous `key.owner.team` et `key.owner.project`. La clé d’une équipe, d’un projet ou de l’organisation n’a pas d’adresse : son `user.email` est vide.
 
 Avant de proposer une opération, vérifie le rôle et l’accès à la ressource. Un lecteur de projet peut discuter, commenter et créer des tâches, puis modifier et démarrer celles qu’il a créées ou qui lui sont attribuées ; les modifications des autres ressources et des tâches des autres demandent un accès en écriture.
 
@@ -763,7 +765,8 @@ Une exécution lancée par un déclencheur (`startedBy: "trigger:<id>"`) porte a
 | --- | --- |
 | Automatisation | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt` : examine le nœud en échec et sa trace. Corrige les données ou la définition. Si une opération a été refusée, tiens compte du motif du refus avant de demander une nouvelle exécution. |
 | Fournisseur de modèle | Par exemple `credit_exhausted` ou `rate_limited` : résous le problème du fournisseur avant un nouvel essai. |
-| Exécution d’agent | Par exemple `harness_error`, `session_gone`, `deadline` ou `budget_exceeded` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
+| Exécution d’agent | Par exemple `harness_error`, `session_gone` ou `deadline` : examine le détail et les limites de l’agent. L’énumération complète figure dans OpenAPI. |
+| Limite de budget | `budget_exceeded` : une limite de budget a refusé un tour d’agent ou l’appel d’une étape `llm`, ou un tour a épuisé l’enveloppe avec laquelle il a démarré. Lis `detail`, puis attends que la limite se réinitialise ou demande à un administrateur de la relever. |
 
 Le code identifie la cause sans garantir qu’un redémarrage complet soit sans effet indésirable : des nœuds précédents peuvent déjà avoir modifié un système externe. `startedAt` indique l’acceptation du démarrage, avant sa prise en charge par un worker. Aucun horodatage distinct ne marque cette prise en charge ; `finishedAt - startedAt` inclut donc la file et les autres attentes.
 

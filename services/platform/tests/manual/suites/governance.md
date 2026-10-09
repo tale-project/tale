@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 82 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 85 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -44,9 +44,10 @@ Stack up + signed in per [SETUP.md](../setup.md) as owner/admin. Mock mode (A)
 is sufficient. **GOV-F4b (per-API-key budget)** needs at least one API key to
 target — create one first under **Settings → API → REST**
 (`…/settings/api/rest`, see [settings.md](settings.md) SET-F9); the API-key
-select lists every member's live key, read from
-`GET /api/app/governance/api-keys` (disabled and expired keys are left out;
-GOV-F48 covers a rule on such a key).
+select lists every live key that works in the organization — members' own
+keys and the keys made for members, teams, projects and the organization —
+read from `GET /api/app/governance/api-keys` (disabled and expired keys are
+left out; GOV-F48 covers a rule on such a key).
 
 **GOV-F40–GOV-F47 and GOV-B15–GOV-B17 (model endpoints for API keys)** call
 `/api/v1/openai/…` and `/api/v1/anthropic/…` with API keys minted under
@@ -141,6 +142,56 @@ agent.
   creates a second key in their own session → it joins the select within
   seconds, no reload. `GET /api/app/governance/api-keys` as a non-admin
   answers 403, and no response carries a key secret.
+- [ ] `GOV-F53` · **A team's key spends as the team** — create the Finance
+  team's API key (settings.md SET-F78) and a GOV-F4-style **Team** rule on
+  Finance with **Max requests** 2; open the GOV-F4b dialog → the **API key**
+  select lists the team's key as **‹name› · Team Finance**
+  (`governance.budgets.apiKeyOwnerTeam`) and the organization's key as
+  **‹name› · The organization**
+  (`governance.budgets.apiKeyOwnerOrganization`). Send REST chat messages
+  with the team's key until the team's cap is reached → the next send answers
+  429 `BUDGET_EXCEEDED` naming the team's cap, while no member's personal
+  usage under **Settings → Usage** grew; **Usage analytics** lists the key as
+  its own row, **API key of team Finance**
+  (`analytics.usage.tables.users.teamKey`), and the active-user count does
+  not count it. **Delete the rule after**
+- [ ] `GOV-F54` · **A project's budget caps the project** — GOV-F4 → **Add
+  rule**, **Scope** = **Project** (`governance.budgets.scopeLabels.project`):
+  the **Project** select appears (placeholder
+  `governance.budgets.selectProject`, aria-label
+  `governance.budgets.selectProjectAriaLabel`) and offers the active
+  projects, and **Warning threshold (%)** is gone; pick one, set **Max
+  requests** 2 → **Confirm** → reload → the row's **Scope** reads
+  **Project** and its **Target** the project's name. As a member far from
+  any personal cap, send one message in a new chat of that project (its
+  reply and the chat's title are the project's two requests) → the next send
+  is refused with **Usage limit reached** (`chat.toast.budgetExceeded`) and
+  **This project's usage limit has been reached…**
+  (`chat.errorHintProjectBudgetExceeded`), while a chat outside the project
+  still answers; with the model endpoints on (GOV-F40), the project's own key
+  (settings.md SET-F78) is refused at the same cap on
+  `POST /api/v1/openai/chat/completions` with 429 `BUDGET_EXCEEDED`. Archive
+  the project → the row still names it, marked **Archived**, and **Edit
+  rule** keeps it selected while the select offers only active projects
+  besides it; delete the project → the row reads **Deleted project**
+  (`governance.budgets.projectDeleted`). Every label reads in German and
+  French too. **Delete the rule after**
+- [ ] `GOV-F55` · **An automation's `llm` step is held to the budget** —
+  install an automation with one `llm` node in a new project P1, and
+  GOV-F54-style give P1 a **Project** rule with **Max requests** 1. Deploy
+  it and choose **Run live** in the editor → it succeeds, and **Usage
+  analytics** counts the call under the automation's name in **Top
+  assistants**. **Run live** again → the run fails with `failureCode`
+  `budget_exceeded`, its detail reading **‹node id›: the llm call was
+  refused: Usage limit reached. This project's monthly request limit is
+  used up until … — wait until the limit resets, or ask an administrator
+  to raise it**, and the provider received no second request. Delete P1's
+  rule, install the automation in a second new project P2 as well, and
+  give P2 the same rule; let its schedule start a run (it names no
+  project, so it is both projects' work) → it succeeds, and the next
+  scheduled run is refused naming **This project's** request limit: the
+  first one counted toward P2 too, not only toward P1. **Delete the rule
+  after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the

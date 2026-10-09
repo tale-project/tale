@@ -41,7 +41,9 @@ Kontakte und Produkte sind nach `updatedAt`, dann `id`, jeweils absteigend sorti
 
 ## Authentifizierung
 
-Erstelle Schlüssel unter **Einstellungen > API > REST** als Inhaber, Admin oder Entwickler oder als Mitglied, dem ein Admin eine Kompetenz zugewiesen hat, die mit einem Schlüssel genutzt wird (`tale:models.api`, `tale:notifications.export` oder `tale:rest.act-as`); alle anderen lehnt Tale mit `403 API_KEY_CREATE_FORBIDDEN` ab; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller. Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
+Erstelle Schlüssel unter **Einstellungen > API > REST** als Inhaber, Admin oder Entwickler oder als Mitglied, dem ein Admin eine Kompetenz zugewiesen hat, die mit einem Schlüssel genutzt wird (`tale:models.api`, `tale:notifications.export` oder `tale:rest.act-as`); alle anderen lehnt Tale mit `403 API_KEY_CREATE_FORBIDDEN` ab; [API-Schlüssel](/de/platform/admin/api-keys) erklärt die Oberfläche. Ein Schlüssel erscheint einmal und handelt als sein Ersteller, außer ein Inhaber oder Admin hat ihn für jemand anderen erstellt (siehe unten). Diese REST-Oberfläche erstellt, listet, rotiert oder widerruft keine Schlüssel.
+
+Inhaber und Admins können auch einen Schlüssel für ein anderes Mitglied, ein Team, ein Projekt oder die Organisation erstellen. Ein solcher Schlüssel gilt nur in dieser einen Organisation, braucht keinen `X-Organization-Slug` und beantwortet einen Header, der eine andere Organisation nennt, mit `403 ORG_FORBIDDEN`. Der Schlüssel eines Mitglieds handelt als dieses Mitglied. Der Schlüssel eines Teams, eines Projekts oder der Organisation handelt als eigene Identität, mit der Rolle, mit der er erstellt wurde: Der Schlüssel eines Teams erreicht, was dieses Team erreicht, und der Schlüssel eines Projekts nur sein eigenes Projekt — die Routen unter `/api/v1/projects/{projectId}`, `GET /api/v1/projects`, `GET /api/v1/me` und die Modell-Endpunkte —, während jede andere Route mit `403 API_KEY_SCOPE_FORBIDDEN` antwortet (Vertrag 3.21.0).
 
 | Header | Regel |
 | --- | --- |
@@ -60,7 +62,7 @@ Bei genau einer Organisation ist der Organisations-Header optional. Mit mehreren
 
 Jede dieser drei Ablehnungen nennt in `data.organizations` die Organisationen, die du wählen kannst, jeweils als Paar aus `slug` und `name`. Deaktivierte Mitgliedschaften fehlen darin; bleibt keine übrig, ist die Liste leer. Wiederhole die Anfrage mit einem der genannten Slugs.
 
-`GET /api/v1/me` liefert die Mitgliedschaften auch als `organizations`. `key.expiresAt` enthält Unixzeit in Millisekunden oder `null` bei unbegrenzter Gültigkeit. Rotiere unbeaufsichtigte Zugangsdaten vor dem Ablauf, bevor `401` den Dienst unterbricht. `key.name` benennt den verwendeten Schlüssel.
+`GET /api/v1/me` liefert die Mitgliedschaften auch als `organizations`; bei einem Schlüssel, der nur in einer Organisation gilt, ist das diese eine Organisation, mit der Rolle, als die der Schlüssel handelt. `key.expiresAt` enthält Unixzeit in Millisekunden oder `null` bei unbegrenzter Gültigkeit. Rotiere unbeaufsichtigte Zugangsdaten vor dem Ablauf, bevor `401` den Dienst unterbricht. `key.name` benennt den verwendeten Schlüssel, und `key.owner.kind` sagt, wem er gehört: `user` für den eigenen Schlüssel einer Person, `member`, `team`, `project` oder `organization`, mit dem Team oder Projekt unter `key.owner.team` und `key.owner.project`. Der Schlüssel eines Teams, eines Projekts oder der Organisation hat keine Adresse, deshalb ist sein `user.email` leer.
 
 Prüfe vor einer Operation sowohl die Rolle als auch den Zugriff auf die Ressource. Projektleser dürfen chatten, kommentieren und Aufgaben anlegen; die Aufgaben, die sie selbst angelegt haben oder die ihnen zugewiesen sind, dürfen sie auch ändern und starten. Änderungen an anderen Ressourcen und an Aufgaben anderer benötigen Bearbeitungszugriff.
 
@@ -672,7 +674,8 @@ Ein Lauf, den ein Trigger gestartet hat (`startedBy: "trigger:<id>"`), trägt au
 | --- | --- |
 | Automatisierung | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt`: Prüfe den betroffenen Knoten und die Ablaufspur. Korrigiere Eingabe oder Definition. Wurde eine Aktion abgelehnt, kläre den Grund vor einem neuen Lauf. |
 | Modellanbieter | Etwa `credit_exhausted` oder `rate_limited`: Behebe die Ursache beim Anbieter vor dem nächsten Versuch. |
-| Agentenausführung | Etwa `harness_error`, `session_gone`, `deadline` oder `budget_exceeded`: Prüfe die Fehlerbeschreibung und Grenzen des Agenten. Die vollständige Auswahl steht in OpenAPI. |
+| Agentenausführung | Etwa `harness_error`, `session_gone` oder `deadline`: Prüfe die Fehlerbeschreibung und Grenzen des Agenten. Die vollständige Auswahl steht in OpenAPI. |
+| Budgetlimit | `budget_exceeded`: Ein Budgetlimit hat einen Zug eines Agenten oder den Aufruf eines `llm`-Schritts abgelehnt, oder ein Zug hat den Rahmen aufgebraucht, mit dem er gestartet ist. Lies `detail`, und warte dann, bis das Limit zurückgesetzt wird, oder bitte einen Administrator, es zu erhöhen. |
 
 Der Code benennt die Ursache, garantiert aber keinen gefahrlosen Neustart des ganzen Laufs: Frühere Knoten können externe Systeme bereits verändert haben. `startedAt` bezeichnet die Annahme des Starts, noch vor der Übernahme durch einen Worker. Einen gesonderten Übernahmezeitpunkt gibt es nicht; `finishedAt - startedAt` enthält daher Warteschlangen- und andere Wartezeiten.
 

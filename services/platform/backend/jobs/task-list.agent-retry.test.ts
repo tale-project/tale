@@ -230,6 +230,8 @@ function sqlWith(runs: Array<Record<string, unknown>>, world: World = {}): Sql {
     if (text.includes('FROM "teamMember"')) {
       return Promise.resolve((world.teams ?? []).map((teamId) => ({ teamId })));
     }
+    // A starter who is no member is no API key's own identity either.
+    if (text.includes('FROM app.api_key_owners')) return Promise.resolve([]);
     if (text.includes('FROM app.automation_triggers')) {
       return Promise.resolve(
         world.schedule === false ? [] : [{ id: 'schedule-1' }],

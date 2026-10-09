@@ -5,11 +5,9 @@
  * A live body needs the mediated host in hand — `ctx.http` (the allowlisted,
  * SSRF-policed fetch), `ctx.secrets.get`, `ctx.files` — and those are
  * functions. The bundled node-vm runner is data-only by contract (its scope
- * crosses as JSON), so it can never carry them; the sandbox-exec runner
- * carries them by round-tripping every call to the host-call endpoint, but
- * only a caller that owns a sandbox session can use it. Automation runs and
- * chat own none, which left every live yaml-js action refusing outside the
- * bridge.
+ * crosses as JSON), so it can never carry them. Every live caller runs the
+ * catalog's bodies here: automation runs, chat, the platform's own senders
+ * and an agent's connector calls through the sandbox bridge.
  *
  * TRUST: this runner is NOT a security boundary and must only ever run the
  * catalog under `configs/platform/system/connectors/` — code that ships with
@@ -21,16 +19,15 @@
  * the sandbox; this module's `runBody` only accepts the async live shape and
  * hands everything else to the data-only backend.
  *
- * TIME LIMIT: `limits.timeoutMs` bounds the CALLER's wait, not the body. In
- * this realm there is no isolate to tear down, so a body whose await
- * outlives the deadline keeps running in the backend process until that
- * await settles, and its result is dropped. What it can still do is bounded
- * by the host it holds — every `ctx.http` call goes through the policed live
- * host with its own per-request timeout, `ctx.files` writes to the org's own
- * store — so an overrun costs a request slot and some memory, never a policy.
- * Cancelling the body itself (an AbortSignal threaded into the live host's
- * fetch) is not wired; a catalog body is expected to make one or a few
- * bounded vendor calls.
+ * TIME LIMIT: `limits.timeoutMs` bounds the CALLER's wait here. In this
+ * realm there is no isolate to tear down, so a body whose await outlives the
+ * deadline keeps running in the backend process until that await settles,
+ * and its result is dropped. The dispatcher hands the body's host a signal
+ * that aborts at the same limit, so from then on every `ctx.http` and
+ * `ctx.files` request rejects and the body unwinds at its next host call;
+ * only work between host calls runs on. An overrun therefore costs a request
+ * slot and some memory, never a policy, and an agent retrying a slow call
+ * cannot pile up bodies that keep calling the vendor.
  */
 
 import vm from 'node:vm';

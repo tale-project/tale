@@ -35,7 +35,8 @@ budgets:
   allUsers: All users
   overrideHint:
     'More specific scopes override broader ones: user > team > role >
-    default. Org limits always apply as an additional cap.'
+    default. Org limits always apply as an additional cap, and a project''s
+    limits to the work in that project.'
   noRulesTitle: No budget rules configured
   noRulesDescription: Add a rule to start enforcing limits.
   editRuleAriaLabel: Edit rule {index}
@@ -58,6 +59,13 @@ budgets:
   searchTeams: Search teams
   noTeamsFound: No teams found
   selectTeamAriaLabel: Select team
+  project: Project
+  selectProject: Select project...
+  searchProjects: Search projects
+  noProjectsFound: No projects found
+  selectProjectAriaLabel: Select project
+  projectDeleted: Deleted project
+  projectDeletedHint: This project no longer exists, so the rule limits nothing. Choose a project or remove the rule.
   apiKey: API key
   selectApiKey: Select API key...
   searchApiKeys: Search API keys
@@ -75,6 +83,7 @@ budgets:
     default: Default
     user: User
     team: Team
+    project: Project
     role: Role
     apiKey: API key
     org: Organization
@@ -83,6 +92,9 @@ budgets:
     weekly: Weekly
     monthly: Monthly
   apiKeyOwnerUnknown: Owner unknown
+  apiKeyOwnerTeam: Team {name}
+  apiKeyOwnerProject: Project {name}
+  apiKeyOwnerOrganization: The organization
   apiKeyInactive: This key can no longer spend in this organization, so the rule limits nothing. Choose an active key or remove the rule.
   apiKeyStatus:
     expired: Expired

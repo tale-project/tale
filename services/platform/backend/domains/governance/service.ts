@@ -1,9 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  getUserTeamIds,
-  findOrganizationMember,
-} from '../../auth/membership.ts';
+import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import {
   evaluateFeatureFlags,
   type ResolvedFeatureFlags,
@@ -33,7 +30,7 @@ async function whoIs(
   organizationId: string,
   userId: string,
 ): Promise<{ userId: string; teamIds: string[]; role: string | undefined }> {
-  const member = await findOrganizationMember(sql, organizationId, userId);
+  const member = await findActingMember(sql, organizationId, userId);
   const teamIds = await getUserTeamIds(sql, organizationId, userId);
   return { userId, teamIds, role: member?.role };
 }
@@ -198,11 +195,16 @@ export interface UsageLedgerEntryInput {
   characterCount?: number;
   /** Transcription lane: audio seconds, accumulated on the bucket. */
   audioDurationSec?: number;
+  /** The projects the spend belongs to: also booked on each project's own
+   * buckets (`app.project_usage`), which a `project` budget rule reads — a
+   * run of an automation bound to several projects belongs to each. */
+  projectIds?: readonly string[];
 }
 
 const ALL_PERIODS = ['daily', 'weekly', 'monthly'] as const;
 
-/** One billable call → three period buckets, each an atomic upsert. */
+/** One billable call → three period buckets, each an atomic upsert — and,
+ * for spend that belongs to projects, each project's three as well. */
 export async function incrementUsageLedger(
   sql: Sql | TransactionSql,
   entry: UsageLedgerEntryInput,
@@ -263,6 +265,29 @@ export async function incrementUsageLedger(
         provider = coalesce(app.usage_ledger.provider, EXCLUDED.provider),
         updated_at_ms = ${now}
     `;
+    for (const projectId of new Set(entry.projectIds ?? [])) {
+      await sql`
+        INSERT INTO app.project_usage (
+          org_id, project_id, granularity, period_key, input_tokens,
+          output_tokens, total_tokens, cost_estimate_cents, request_count,
+          updated_at_ms
+        ) VALUES (
+          ${entry.organizationId}, ${projectId}, ${period},
+          ${periodKey}, ${entry.inputTokens}, ${entry.outputTokens},
+          ${totalTokens}, ${entry.costEstimateCents}, 1, ${now}
+        )
+        ON CONFLICT (org_id, project_id, period_key) DO UPDATE SET
+          input_tokens = app.project_usage.input_tokens + EXCLUDED.input_tokens,
+          output_tokens =
+            app.project_usage.output_tokens + EXCLUDED.output_tokens,
+          total_tokens = app.project_usage.total_tokens + EXCLUDED.total_tokens,
+          cost_estimate_cents =
+            app.project_usage.cost_estimate_cents
+              + EXCLUDED.cost_estimate_cents,
+          request_count = app.project_usage.request_count + 1,
+          updated_at_ms = ${now}
+      `;
+    }
   }
 }
 
@@ -277,11 +302,14 @@ export async function recordConnectorUsage(
     connectorOperation: string;
     costEstimateCents: number;
     timestamp: number;
+    /** The project of the chat the tool ran in. */
+    projectId?: string;
   },
 ): Promise<void> {
   await incrementUsageLedger(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
+    ...(args.projectId !== undefined ? { projectIds: [args.projectId] } : {}),
     inputTokens: 0,
     outputTokens: 0,
     costEstimateCents: args.costEstimateCents,

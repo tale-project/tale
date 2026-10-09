@@ -1,9 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
+import { loadAttributedBudgetSubject } from '../governance/attributed-subject.ts';
 import {
-  loadBudgetSubject,
-  type OrgBudgetSubject,
   resolveTurnAllowance,
   type TurnAllowance,
 } from '../governance/budget-gate.ts';
@@ -78,28 +76,16 @@ export async function reserveTurnBudget(
     const attribution =
       args.subject ?? (await resolveSessionOpAttribution(tx, args));
     const userId = attribution?.userId ?? '';
-    const apiKey =
-      attribution?.apiKeyId !== undefined
-        ? { apiKeyId: attribution.apiKeyId }
-        : {};
     // Nobody to measure — an op without a run to attribute, or a run a
     // trigger started — is evaluated against the organization's caps (and
     // the key's, were one involved) alone; a person is measured as they are
-    // now, teams and role included.
-    const subject: OrgBudgetSubject =
-      userId === '' || isAutomationSubject(userId)
-        ? {
-            organizationId: args.organizationId,
-            userId,
-            userTeamIds: [],
-            impersonal: true,
-            ...apiKey,
-          }
-        : await loadBudgetSubject(tx, {
-            organizationId: args.organizationId,
-            userId,
-            ...apiKey,
-          });
+    // now, teams and role included. The projects the run is in bind the
+    // turn either way: a trigger's run spends their budgets all the same.
+    const subject = await loadAttributedBudgetSubject(
+      tx,
+      args.organizationId,
+      attribution,
+    );
     // The chat lane's opens take the same budget-admission lock and hold on
     // their generation rows: the allowance counts live chat turns as well
     // as the unsettled ops, and they count it.
@@ -142,13 +128,14 @@ export async function reserveTurnBudget(
     await tx`
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
-        api_key_id, model_ref, harness, budget_cents, reserved_tokens,
-        heartbeat_at_ms, started_at_ms
+        api_key_id, project_ids, model_ref, harness, budget_cents,
+        reserved_tokens, heartbeat_at_ms, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
+        ${subject.projectIds !== undefined ? [...subject.projectIds] : null},
         ${args.modelRef ?? null}, ${args.harness ?? null},
         ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
         ${now}, ${now}
@@ -160,6 +147,8 @@ export async function reserveTurnBudget(
           EXCLUDED.agent_slug),
         api_key_id = coalesce(app.sandbox_session_ops.api_key_id,
           EXCLUDED.api_key_id),
+        project_ids = coalesce(app.sandbox_session_ops.project_ids,
+          EXCLUDED.project_ids),
         model_ref = coalesce(EXCLUDED.model_ref,
           app.sandbox_session_ops.model_ref),
         harness = coalesce(EXCLUDED.harness, app.sandbox_session_ops.harness)

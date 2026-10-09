@@ -289,7 +289,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   sandbox runtime's `build-gemini-settings.ts` and daemon `file-ops.ts` and
   `exec-replay.ts`, which suites import, plus the daemon modules' shared `protocol.ts`:
   `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The catalog glob explicitly
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The capture-manifest test also
+  imports `services/web/app/content/product-screenshots.ts`; test, lint and typecheck hash
+  that registry through the same guard's reader and static-import tables. The catalog glob explicitly
   excludes nested `.turbo/` output: explicit inputs include otherwise ignored task logs, so
   running a catalog skill must not invalidate the platform test cache. The guard changes logs
   and real catalog/skill source in an isolated Git fixture and checks the actual Turbo hashes.
@@ -305,7 +307,16 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   while unrelated sandbox source and the daemon's production build retain their hashes.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
-  i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
+  i18n catalogs and test framework (test). Its screenshot-manifest test also hashes the marketing
+  source registry at `services/web/app/content/product-screenshots.ts`. Its guard is
+  `services/docs/tests/turbo-inputs.test.ts`.
+- [`services/web/turbo.json`](../services/web/turbo.json) gives `@tale/web`'s product-capture tests
+  the docs capture manifest and registered EN/DE/FR source images. Its guard,
+  `services/web/tests/turbo-inputs.test.ts`, derives the source paths from the registry and verifies
+  their actual Turbo dry-run hashes. A newly registered source must enter the task's input glob.
+  Native motion recording also imports platform capture and video helpers: lint and typecheck
+  hash their full static dependency closure; unit tests hash the encoder's ffmpeg helper and
+  capture-options parser. The same guard checks the actual hashes for all three tasks.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
   `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
   and directly for its source-reading tests. The candidate contract refresh script
@@ -435,6 +446,16 @@ default means deleting the override and fixing what surfaces:
 
 ## Contract debt ledger
 
+- **The session-bound connector runner has no caller** — agent connector calls through the
+  sandbox bridge run on the in-process live runner (2026-10), so nothing starts a live
+  connector body as a `node -e` program in a session any more. The machinery for it stays:
+  `engine_exec_runner.ts` (`sandboxProgramRunnerForSession`), the sandbox-exec runner, `lib/connectors/portable-live.ts`,
+  `core/connectors/hostcall_token.ts`, the `/api/connectors/hostcall` route in
+  `domains/connectors/bridge-routes.ts` with its body limit in
+  `domains/sandbox/door-body-limit.ts`, the dispatcher's portable branch, the hostcall secret
+  in `backend/env.ts`, and the device relay's allowance for the route
+  (`services/sandbox/src/devices/relay-policy.ts`). Paying it down means deleting them together
+  with their tests; `runConnectorAction` no longer accepts a session to run in.
 - **Unbounded named-array lists on `/api/v1`** — `GET /automations`,
   `GET /projects/{id}/automations`, the two `…/versions` listings, `GET /projects/{id}/folders`
   (per level) and `GET /browser-sessions` answer the whole set with no `LIMIT`; declared
@@ -477,16 +498,15 @@ default means deleting the override and fixing what surfaces:
   backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
   forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
   or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.
-- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block: an `llm`
-  node's spend is not metered at all (`backend/core/automations/llm_call.ts` → `model_call.ts`
-  parses no usage and writes no ledger row), and an `agent` node's cents settle on
-  `app.sandbox_session_ops` under the automation's name and user, never on the run
-  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`); the stepper drops the
-  agent settle's `usage` when it records the node. A `usage` that read `0` for every `llm` node
-  would be a fabricated figure, so the surface says a run carries none (2026-09, round g).
-  Paying it down means (1) parsing usage in `parseChatReply` and booking it through
-  `incrementUsageLedger({agentSlug: run.automation})` for `llm` nodes, (2) keeping
-  `settled.usage` in the agent checkpoint trace, then (3) `?include=usage` summing both.
+- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block. An `llm`
+  node's call is booked to the usage ledger under the run's subject and the automation's name
+  (`backend/domains/automations/llm-metering.ts`, 2026-10-08), and an `agent` node's cents
+  settle on `app.sandbox_session_ops` under the same subject
+  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`) — but neither lands on
+  the run itself: the stepper keeps no `llm` node's usage and drops the agent settle's `usage`
+  when it records the node, and the ledger's buckets sum across runs. Paying it down means
+  (1) keeping each `llm` node's usage and the agent's `settled.usage` in the node's checkpoint
+  trace, then (2) `?include=usage` summing them.
 - **Approvals have no REST twin** — a run parked on `waitingFor: approval` can only be decided
   in the app (`backend/domains/approvals/routes.ts`); over REST the `detail`
   (`approval:<approvalId>`) names something no door takes (2026-09, round g). The ask half was
@@ -629,10 +649,25 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   means a migration that drops both once a release has run without them, with the erasure pass
   and its breakdown category going in the same change.
 - **`private_knowledge.semantic_cache` is an empty table** — the knowledge baseline creates it, and
-  `backend/core/knowledge/dimensions.ts` and `teardown.ts` still keep it in step, but the cache
-  seam that could have filled it was removed without ever shipping an implementation
-  (2026-09-27). Paying it down means a knowledge-db migration that drops it, with that upkeep
-  removed in the same change.
+  `backend/core/knowledge/teardown.ts` still keeps it in step, but the cache seam that could have
+  filled it was removed without ever shipping an implementation (2026-09-27). Paying it down means
+  a knowledge-db migration that drops it, with that upkeep removed in the same change.
+- **`chunks.embedding` is retired, not dropped** — vectors live in a table per width beside the
+  chunks (`chunk_vectors_<width>`, knowledge-db migrations `15` and `16`, 2026-10-06), and nothing
+  reads the old column in either corpus schema. It stays for one release, with its HNSW index and
+  `create_chunks_hnsw_index()`, because the previous image still uses it while a deployment
+  rolls: the `chunks_mirror_legacy_embedding` trigger copies what that image writes into the
+  table of its width, and this image writes the column too whenever it is declared at the width
+  being written (`legacyColumnWidth` in `backend/core/knowledge/dimensions.ts`, asked of the
+  catalog per document slice and per crawl link), so the previous image finds what this one
+  indexes, during the roll and after a rollback. The mirror trigger names no column, because
+  the previous image pins an undeclared column with `ALTER COLUMN ... TYPE vector(<width>)`,
+  which Postgres refuses for a column a trigger definition uses. Until the column goes, a migrated corpus stores the vectors of that one width twice,
+  and maintains the old HNSW index for them. Paying it down means one knowledge-db migration per
+  schema, a release after every image has stopped writing the column, that copies any row the
+  trigger missed, then drops the trigger and its function, the index,
+  `create_chunks_hnsw_index()` and the column — and, in the same change, `legacyColumnWidth`
+  with its writers in `indexing.ts` and `crawl_action.ts`.
 - **Nine `app.projects` settings columns are retired, not dropped** — `knowledge_mode`,
   `agent_mode`, `recommended_agent_slugs`, `allowed_agent_slugs`, `model_mode`,
   `recommended_models`, `allowed_models`, `connectors_mode` and `allowed_connector_slugs` lost

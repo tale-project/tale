@@ -558,7 +558,9 @@ const runProperties: Record<string, Json> = {
       '`llm` node’s provider: the account or the provider, not the ' +
       'request. The agent codes (`harness_error`, `turn_crashed`, ' +
       '`session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — ' +
-      'an `agent` node’s turn, after its in-node retries. Retry on ' +
+      'an `agent` node’s turn, after its in-node retries. ' +
+      '`budget_exceeded` — a budget limit refused an `agent` node’s turn ' +
+      'or an `llm` node’s call, or the turn used up its allowance. Retry on ' +
       '`provider_error`, `provider_unreachable`, `rate_limited`, ' +
       '`turn_crashed`, `session_gone`, `harvest_failed`; alert a person on ' +
       'the rest.',
@@ -5849,7 +5851,7 @@ export function buildSpec(): Json {
       post: {
         tags: ['Threads'],
         summary: 'Send a message and start a turn',
-        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
+        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the conversation’s project’s, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
         operationId: scope.project ? 'postProjectThreadMessage' : 'postMessage',
         security: sec,
         parameters: [...itemParameters, sendIdempotencyKeyParam],
@@ -7491,6 +7493,17 @@ send under \`data.organizations\`; \`GET /api/v1/me\` lists them too, as its
 top-level \`organizations\`. The slug is matched without regard to case; a
 blank or whitespace-only header reads as absent.
 
+A key an Owner or Admin made for a member, a team, a project or the
+organization itself works in that one organization only, so it needs no
+\`X-Organization-Slug\` (one naming another organization answers 403
+\`ORG_FORBIDDEN\`). A team's, a project's or the organization's key is not a
+person: it acts with the role it was made with, a team's key sees what that
+team sees, and a project's key reaches its own project alone — the model
+endpoints, \`GET /me\`, \`GET /projects\` and the routes under
+\`/projects/{projectId}\` — while any other route answers 403
+\`API_KEY_SCOPE_FORBIDDEN\`. \`GET /api/v1/me\` names whose key it is, as
+\`key.owner\`.
+
 ## Requests
 
 Bodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole
@@ -7581,7 +7594,8 @@ UTF-16 code units\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
 \`cursor\` (\`INVALID_LIMIT\`, \`INVALID_CURSOR\`) names its parameter there
 too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
-\`ORG_FORBIDDEN\`, \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
+\`ORG_FORBIDDEN\`, \`API_KEY_SCOPE_FORBIDDEN\` (a project's key outside its
+project), \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
 \`INVALID_QUERY\`, \`INVALID_LIMIT\`, \`INVALID_CURSOR\`, \`INVALID_BODY\`,
 \`BODY_TOO_LARGE\`, \`METHOD_NOT_ALLOWED\`, \`NOT_FOUND\`, \`RATE_LIMITED\`,
 \`REQUEST_TIMEOUT\` (408 — the request did not finish arriving within 15
@@ -7960,9 +7974,9 @@ curl -H "Authorization: Bearer <api-key>" \\
                 },
                 scope: {
                   type: 'string',
-                  enum: ['user', 'team', 'org', 'apiKey'],
+                  enum: ['user', 'team', 'project', 'org', 'apiKey'],
                   description:
-                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), the organization’s (`org`) or this API key’s (`apiKey`)',
+                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), that of the project the work belongs to (`project`), the organization’s (`org`) or this API key’s (`apiKey`)',
                 },
                 period: {
                   type: 'string',
@@ -8700,7 +8714,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               nullable: true,
               description:
                 'The API key this request authenticated with — keys are minted, rotated and revoked in the app (Settings > API > REST), never through this surface, so this is where an unattended caller sees its own expiry coming. `null` only when the key was revoked while the request was in flight.',
-              required: ['id', 'name', 'expiresAt'],
+              required: ['id', 'name', 'expiresAt', 'owner'],
               additionalProperties: false,
               properties: {
                 id: str,
@@ -8713,10 +8727,47 @@ curl -H "Authorization: Bearer <api-key>" \\
                   description:
                     'When the key stops authenticating; `null` for a key minted to never expire',
                 },
+                owner: {
+                  type: 'object',
+                  description:
+                    'Whose key it is. `user`: a person’s own key, working in every organization they belong to. `member`: a key an Owner or Admin made for that member, working in this organization only. `team`, `project`, `organization`: a key that is not a person — it acts as its own identity with the role it was made with (`organization.role`), in this organization only; a team’s key sees what that team sees, and a project’s key reaches its project alone (any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`). A key bound to one organization needs no `X-Organization-Slug`; one naming another organization answers 403 `ORG_FORBIDDEN`',
+                  required: ['kind', 'team', 'project'],
+                  additionalProperties: false,
+                  properties: {
+                    kind: {
+                      type: 'string',
+                      enum: [
+                        'user',
+                        'member',
+                        'team',
+                        'project',
+                        'organization',
+                      ],
+                    },
+                    team: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The team a team’s key belongs to',
+                    },
+                    project: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The project a project’s key belongs to',
+                    },
+                  },
+                },
               },
             },
             user: {
               type: 'object',
+              description:
+                'Who the key acts as: its holder, or — for a team’s, a project’s or the organization’s key — the key’s own identity, whose `email` is empty',
               required: ['id', 'email'],
               properties: { id: str, email: str },
             },
@@ -8736,7 +8787,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizations: {
               type: 'array',
               description:
-                'Every organization the key holder belongs to (disabled memberships excluded)',
+                'Every organization the key holder belongs to (disabled memberships excluded); for a key bound to one organization, that organization alone',
               items: {
                 type: 'object',
                 required: ['id', 'slug', 'name', 'role'],

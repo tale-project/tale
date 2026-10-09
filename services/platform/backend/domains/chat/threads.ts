@@ -7,10 +7,7 @@ import {
   parseBranchSelections,
   resolveViewPath,
 } from '../../../lib/shared/branch-selection.ts';
-import {
-  getUserTeamIds,
-  findOrganizationMember,
-} from '../../auth/membership.ts';
+import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
@@ -193,11 +190,7 @@ export async function projectChatAccess(
   `;
   const project = projects[0];
   if (!project || project.orgId !== args.organizationId) return 'not_found';
-  const member = await findOrganizationMember(
-    sql,
-    args.organizationId,
-    args.userId,
-  );
+  const member = await findActingMember(sql, args.organizationId, args.userId);
   if (member === null || member.role === 'disabled') return 'forbidden';
   const teamIds = await getUserTeamIds(sql, args.organizationId, args.userId);
   const access = checkProjectAccess(
@@ -206,6 +199,20 @@ export async function projectChatAccess(
     member.role,
   );
   return access.canRead ? 'ok' : 'forbidden';
+}
+
+/** The project a thread belongs to, if any — whose budget its spend
+ * counts toward, whoever spends it. */
+export async function readThreadProjectId(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  threadId: string,
+): Promise<string | undefined> {
+  const rows = await sql<{ projectId: string | null }[]>`
+    SELECT project_id AS "projectId" FROM app.thread_metadata
+    WHERE thread_id = ${threadId} AND org_id = ${organizationId}
+  `;
+  return rows[0]?.projectId ?? undefined;
 }
 
 /** Load a thread the caller OWNS — null when it does not exist, is someone
@@ -530,6 +537,16 @@ export async function moveThreadToProject(
         project_id = ${projectId},
         shared_with_project = ${moved ? false : thread.sharedWithProject}
       WHERE thread_id = ${thread.id}
+    `;
+    // The conversation's hidden rows — its edit and regenerate branches and
+    // an arena column — carry its later turns: they move with it, or a turn
+    // on one would keep spending in, and being capped by, the project the
+    // conversation left.
+    const rootId = thread.branchRootId ?? thread.id;
+    await tx`
+      UPDATE app.thread_metadata SET project_id = ${projectId}
+      WHERE org_id = ${auth.organizationId}
+        AND (thread_id = ${rootId} OR branch_root_id = ${rootId})
     `;
     if (!moved) return;
     const projectName = async (id: string): Promise<string | undefined> => {

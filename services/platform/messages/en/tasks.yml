@@ -181,6 +181,7 @@ priority:
   none: No priority
 fields:
   title: Title
+  titlePlaceholder: Task title
   description: Description
   assignee: Assignee
   reviewer: Reviewer
@@ -214,6 +215,10 @@ labels:
     deleteFailed: Couldn't delete the label.
 actions:
   create: Create task
+  createAnother: Create another
+  createShortcut: '{shortcut} to create'
+  openCreated: Open
+  openCreatedAltText: Open the new task
   createAndStart: Create and start agent
   createOnly: Create only
   created: Task created
@@ -231,6 +236,11 @@ views:
   board: Board
   list: List
 board:
+  agentWorking: '{name} is working'
+  addTask: Add task
+  addToLane: 'Add task to {status}'
+  quickAddLabel: New task title
+  quickAdded: 'Added “{title}”'
   noTasks: No tasks
 list:
   showArchived: Show archived
@@ -290,6 +300,7 @@ detail:
   showDetails: Show details
   hideDetails: Hide details
   openBoard: Board
+  openPage: Open as page
   copyLink: Copy link
   linkCopied: Link copied
   copyKey: 'Copy {key}'

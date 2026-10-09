@@ -182,6 +182,7 @@ priority:
   none: Aucune priorité
 fields:
   title: Titre
+  titlePlaceholder: Titre de la tâche
   description: Description
   assignee: Assigné à
   reviewer: Relecteur
@@ -215,6 +216,10 @@ labels:
     deleteFailed: Impossible de supprimer l'étiquette.
 actions:
   create: Créer une tâche
+  createAnother: En créer une autre
+  createShortcut: '{shortcut} pour créer'
+  openCreated: Ouvrir
+  openCreatedAltText: Ouvrir la nouvelle tâche
   createAndStart: Créer et démarrer l'agent
   createOnly: Créer seulement
   created: Tâche créée
@@ -232,6 +237,11 @@ views:
   board: Tableau
   list: Liste
 board:
+  agentWorking: '{name} y travaille'
+  addTask: Ajouter une tâche
+  addToLane: 'Ajouter une tâche dans {status}'
+  quickAddLabel: Titre de la nouvelle tâche
+  quickAdded: '« {title} » ajoutée'
   noTasks: Aucune tâche
 list:
   showArchived: Afficher les archivées
@@ -291,6 +301,7 @@ detail:
   showDetails: Afficher les détails
   hideDetails: Masquer les détails
   openBoard: Tableau
+  openPage: Ouvrir en pleine page
   copyLink: Copier le lien
   linkCopied: Lien copié
   copyKey: 'Copier {key}'

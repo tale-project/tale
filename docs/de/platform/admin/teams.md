@@ -56,7 +56,7 @@ Bei eingehenden Konversationen können [Routing-Regeln](/de/platform/admin/gover
 
 ## Ein Team geordnet auflösen
 
-Wähle **Löschen** im Zeilenmenü. Die Bestätigung zählt die Mitglieder des Teams, die Projekte, Ordner und Dokumente, zu deren Reichweite es gehört, und die Konversationen in seiner Warteschlange. Sie nennt außerdem, wie viele dieser Elemente kein weiteres Team haben und für alle in der Organisation sichtbar werden. Weise Arbeit, deren Zugriff eingeschränkt bleiben muss, vor dem Bestätigen neu zu.
+Wähle **Löschen** im Zeilenmenü. Die Bestätigung zählt die Mitglieder des Teams, die Projekte, Ordner und Dokumente, zu deren Reichweite es gehört, und die Konversationen in seiner Warteschlange. Sie nennt außerdem, wie viele dieser Elemente kein weiteres Team haben und für alle in der Organisation sichtbar werden, und wie viele [API-Schlüssel](/de/platform/admin/api-keys#create-a-key-for-someone-else) dem Team gehören: Sie funktionieren danach nicht mehr. Weise Arbeit, deren Zugriff eingeschränkt bleiben muss, vor dem Bestätigen neu zu.
 
 <Warning>
 

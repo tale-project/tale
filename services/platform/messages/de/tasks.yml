@@ -180,6 +180,7 @@ priority:
   none: Keine Priorität
 fields:
   title: Titel
+  titlePlaceholder: Aufgabentitel
   description: Beschreibung
   assignee: Zuständig
   reviewer: Reviewer
@@ -213,6 +214,10 @@ labels:
     deleteFailed: Label konnte nicht gelöscht werden.
 actions:
   create: Aufgabe erstellen
+  createAnother: Weitere erstellen
+  createShortcut: '{shortcut} zum Erstellen'
+  openCreated: Öffnen
+  openCreatedAltText: Neue Aufgabe öffnen
   createAndStart: Erstellen und Agent starten
   createOnly: Nur erstellen
   created: Aufgabe erstellt
@@ -230,6 +235,11 @@ views:
   board: Board
   list: Liste
 board:
+  agentWorking: '{name} arbeitet daran'
+  addTask: Aufgabe hinzufügen
+  addToLane: 'Aufgabe zu {status} hinzufügen'
+  quickAddLabel: Titel der neuen Aufgabe
+  quickAdded: '„{title}“ hinzugefügt'
   noTasks: Keine Aufgaben
 list:
   showArchived: Archivierte anzeigen
@@ -289,6 +299,7 @@ detail:
   showDetails: Details einblenden
   hideDetails: Details ausblenden
   openBoard: Board
+  openPage: Als Seite öffnen
   copyLink: Link kopieren
   linkCopied: Link kopiert
   copyKey: '{key} kopieren'

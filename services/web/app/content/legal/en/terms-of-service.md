@@ -63,7 +63,7 @@ Submitting a form does not create a contractual relationship between you and Rul
 
 ### 6.1 Links from the Website
 
-Our Website may contain links to third-party websites, services, or resources that are not owned or controlled by us, including but not limited to our documentation site, training courses, and service agreements. We have no control over, and assume no responsibility for, the content, privacy practices, or availability of any third-party websites or services. The inclusion of a link does not imply endorsement. We encourage you to review the terms and privacy policies of any third-party sites you visit.
+Our Website may contain links to third-party websites, services, or resources that are not owned or controlled by us, including but not limited to our documentation site and service agreements. We have no control over, and assume no responsibility for, the content, privacy practices, or availability of any third-party websites or services. The inclusion of a link does not imply endorsement. We encourage you to review the terms and privacy policies of any third-party sites you visit.
 
 ### 6.2 URLs You Submit to the Service
 

@@ -121,7 +121,6 @@ export type BridgeDispatch = (args: {
   action: string;
   input: unknown;
   userId: string;
-  execSessionId: string;
 }) => Promise<unknown>;
 
 /** Whether the org has an ACTIVE credential for a connector (the status
@@ -175,7 +174,6 @@ export async function runBridgeConnectorImpl(
   dispatch: BridgeDispatch,
   args: {
     organizationId: string;
-    sessionId: string;
     userId: string;
     slug: string;
     operation: string;
@@ -230,9 +228,10 @@ export async function runBridgeConnectorImpl(
       action: args.operation,
       input: args.callArgs ?? {},
       userId: args.userId,
-      // The turn's own session doubles as the out-of-process runner for the
-      // connector's live body (the portable sandbox-exec convention).
-      execSessionId: args.sessionId,
+      // No session rides along: the connector's live body runs in the
+      // platform process, never in the calling turn's sandbox, where its
+      // program (credential secrets included) would sit on the process list
+      // of a session the agent itself runs in.
     });
     if (isRecord(result) && result.status === 'approval-required') {
       const message =

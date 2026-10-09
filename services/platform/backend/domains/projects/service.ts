@@ -46,6 +46,7 @@ import {
 } from '../../core/projects/audit_actions.ts';
 import { normalizeToolGrants } from '../../core/sandbox/tool_names.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { retireApiKeysInTx } from '../api_keys/retire.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { recordTrashRefusalFromJson } from '../documents/service.ts';
 import { emitEvent } from '../events/emit.ts';
@@ -128,6 +129,9 @@ export interface ProjectAuthContext {
   email?: string;
   role: string;
   teamIds: string[];
+  /** The one project a project's API key may reach: every other project is
+   * not found for it, whatever its audience (`domains/api_keys/owners.ts`). */
+  projectScope?: string;
 }
 
 /** Resolve the caller's role + team ids for project access checks. */
@@ -135,18 +139,23 @@ export async function getProjectAuthContext(
   sql: Sql | TransactionSql,
   member: { organizationId: string; userId: string; role: string },
   email?: string,
+  options: { projectScope?: string } = {},
 ): Promise<ProjectAuthContext> {
   const teamIds = await getUserTeamIds(
     sql,
     member.organizationId,
     member.userId,
   );
+  // A project's own API key reaches that project alone: the doors that act
+  // for one pass its project (`findActingMember` names the key).
+  const projectScope = options.projectScope;
   return {
     organizationId: member.organizationId,
     userId: member.userId,
     ...(email !== undefined ? { email } : {}),
     role: member.role,
     teamIds,
+    ...(projectScope !== undefined ? { projectScope } : {}),
   };
 }
 
@@ -263,7 +272,10 @@ export async function loadProjectOrThrow(
 }
 
 function assertSameOrg(project: ProjectRow, auth: ProjectAuthContext): void {
-  if (project.organizationId !== auth.organizationId) {
+  if (
+    project.organizationId !== auth.organizationId ||
+    (auth.projectScope !== undefined && project.id !== auth.projectScope)
+  ) {
     throw new ProjectError('PROJECT_NOT_FOUND', 'Project not found', 404);
   }
 }
@@ -1346,6 +1358,12 @@ export async function deleteProject(
     organizationId: auth.organizationId,
     agentIds: agents.map((agent) => agent.id),
   });
+  // The project's own API keys reached nothing but the project.
+  await retireApiKeysInTx(tx, {
+    organizationId: auth.organizationId,
+    reason: 'project_deleted',
+    projectId: args.projectId,
+  });
   await tx`DELETE FROM app.projects WHERE id = ${args.projectId}`;
 
   await createAuditLog(
@@ -2310,6 +2328,9 @@ export async function deleteProjectAgent(
  * array, with the legacy-pair fallback for a row the previous image wrote
  * during a rollout (`PROJECT_TEAM_IDS_SQL`). Admins see every project. */
 function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
+  if (auth.projectScope !== undefined) {
+    return sql`(id = ${auth.projectScope} AND ${audienceClause(sql, 'project_team_ids', auth)})`;
+  }
   return audienceClause(sql, 'project_team_ids', auth);
 }
 

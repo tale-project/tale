@@ -1,7 +1,5 @@
 import {
   KnowledgeHeroDemo,
-  KnowledgeTourAgentsDemo,
-  KnowledgeTourArenaDemo,
   KnowledgeTourChatDemo,
   KnowledgeTourProjectsDemo,
 } from '@/app/components/blocks/demos/content';
@@ -11,12 +9,9 @@ import { usePlatformTour } from '@/app/pages/platform/use-platform-tour';
 
 export function KnowledgePage() {
   const content = useFeaturePageContent('knowledge', 'platformKnowledge');
-  // One library, one story: the hero indexes the product corpus, the chat
-  // stage cites those exact sources, and Arena answers from the same shelf.
+  // Two focused tours connect knowledge to its supporting project context.
   const tour = usePlatformTour('platformKnowledge', [
     { id: 'chat', demo: <KnowledgeTourChatDemo /> },
-    { id: 'agents', demo: <KnowledgeTourAgentsDemo /> },
-    { id: 'arena', demo: <KnowledgeTourArenaDemo /> },
     { id: 'projects', demo: <KnowledgeTourProjectsDemo /> },
   ]);
 

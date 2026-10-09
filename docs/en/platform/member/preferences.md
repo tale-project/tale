@@ -57,7 +57,7 @@ Your instructions never override the organization’s mandatory instructions or 
 
 ## Check your usage limits {#usage-limits}
 
-Open **Settings > Usage** to see how much you have used of each limit your organization applies to you. The page says so when no limit covers you.
+Open **Settings > Usage** to see how much you have used of each limit your organization applies to you. The page says so when no limit covers you. A project's limit, which caps everything spent in that project, is not listed here; a request it refuses says so.
 
 <Frame caption="Settings > Usage lists each limit that applies to you with its usage and next reset.">
 

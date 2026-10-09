@@ -366,3 +366,43 @@ describe('listTaskActivity — what a changed description carries', () => {
     expect(renamed?.fromValue).toBe(title);
   });
 });
+
+/** The stamp `updateTask` writes for the start-date bell, read off the
+ * UPDATE's own parameters: the value bound right after `startChanged`. */
+function startStamp(statements: { text: string; values: unknown[] }[]) {
+  const update = statements.find((statement) =>
+    statement.text.startsWith('UPDATE app.tasks SET title'),
+  );
+  if (update === undefined) throw new Error('no task update');
+  const marker = 'start_notified_at_ms = CASE WHEN ?';
+  const before = update.text.slice(0, update.text.indexOf(marker));
+  const changedIndex = before.split('?').length - 1;
+  return {
+    changed: update.values[changedIndex],
+    stamp: update.values[changedIndex + 1],
+  };
+}
+
+describe('updateTask — a start date that has already arrived raises no bell [TASK-R23]', () => {
+  it('stamps a start moved to today or earlier as already announced', async () => {
+    const before = Date.now();
+    const { tx, statements } = fakeTx(
+      taskRow({ startDate: null, dueDate: null }),
+    );
+    await updateTask(tx, auth, { taskId: 't-1', startDate: before - 60_000 });
+    const { changed, stamp } = startStamp(statements);
+    expect(changed).toBe(true);
+    expect(stamp).toBeGreaterThanOrEqual(before);
+  });
+
+  it('leaves a start still ahead unstamped, so its day rings', async () => {
+    const { tx, statements } = fakeTx(
+      taskRow({ startDate: null, dueDate: null }),
+    );
+    await updateTask(tx, auth, {
+      taskId: 't-1',
+      startDate: Date.now() + 3 * 86_400_000,
+    });
+    expect(startStamp(statements)).toEqual({ changed: true, stamp: null });
+  });
+});

@@ -237,6 +237,20 @@ export async function addMember(
       400,
     );
   }
+  // An API key's own identity is never a person: a membership would make
+  // it act as one, past what its key was confined to.
+  const keyIdentity = await tx<{ id: string }[]>`
+    SELECT api_key_id AS id FROM app.api_key_owners
+    WHERE key_user_id = ${args.userId}
+    LIMIT 1
+  `;
+  if (keyIdentity.length > 0) {
+    throw new MemberServiceError(
+      'MEMBER_ADD_FORBIDDEN',
+      'An API key cannot be made a member.',
+      403,
+    );
+  }
 
   const inserted = await tx<{ id: string }[]>`
     INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")

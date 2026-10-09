@@ -172,9 +172,12 @@ describe('the edit / regenerate forks measure the budget before forking', () => 
       message: expect.stringContaining('Usage limit reached'),
       data: { scope: 'user', limitCode: 'COST_LIMIT' },
     });
+    // The thread is named: a project's thread is measured against the
+    // project's caps too.
     expect(assertChatTurnBudget).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'o1',
       userId: 'u1',
+      threadId: 't1',
     });
     expect(branchForEdit).not.toHaveBeenCalled();
     expect(emitHintInTx).not.toHaveBeenCalled();
@@ -389,10 +392,12 @@ describe('POST /threads/:threadId/arena/turn admits the pair', () => {
     assertChatTurnBudget.mockRejectedValueOnce(budgetExceeded());
     const res = await turn();
     expect(res.status).toBe(200);
+    // Each side names the cap, as the send door does: whose it is.
     const refused = {
       status: 'refused',
       code: 'BUDGET_EXCEEDED',
       persisted: false,
+      data: { scope: 'user', limitCode: 'COST_LIMIT' },
     };
     await expect(res.json()).resolves.toMatchObject({
       a: refused,
@@ -401,6 +406,7 @@ describe('POST /threads/:threadId/arena/turn admits the pair', () => {
     expect(assertChatTurnBudget).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'o1',
       userId: 'u1',
+      threadId: 't1',
       prospectiveRequests: 2,
     });
     expect(runChatTurn).not.toHaveBeenCalled();

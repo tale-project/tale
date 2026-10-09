@@ -1,8 +1,9 @@
 # Docs tutorial-video pipeline
 
 Every video under `services/docs/public/videos/` is produced by this pipeline from a declarative
-episode spec — no hand-recorded video ever ships. The production discipline lives in the
-[`produce-video`](../../../../.agents/skills/produce-video/SKILL.md) skill; the docs-side gate in
+episode spec — no hand-recorded video ever ships. Follow the
+[repository contract](../../../../.agents/repo.md) and
+[native screenshot guide](../../../../.agents/skills/write-docs/SCREENSHOTS.md); the docs-side gate is in
 `services/docs/tests/videos.test.ts`; the shared demo workspace in
 [`../docs-screenshots/`](../docs-screenshots/README.md). `bun run docs:videos -- --help` is the
 authoritative flag reference.
@@ -13,7 +14,7 @@ Each step catches what the next one would waste time (or money) discovering:
 
 ```bash
 bun run gen                                                # scaffold: pick "video-episode"
-# … storyboard + narration (STORYBOARD.md in the skill) …
+# … episode spec, narration, and native scene choreography …
 bun run docs:videos -- --episode <id> --stage check        # instant: spec ↔ scenes ↔ mock replies
 bun run docs:videos -- --episode <id> --stage plan         # instant: timeline table from estimates
 bun run docs:videos -- --episode <id> --mock-tts           # free rehearsal: silence-narrated take,
@@ -101,6 +102,12 @@ Cross-cutting: `lib/validate.ts` is the static gate (`--stage check` + the alway
 episodes from the filesystem (`episodes/<id>/episode.ts`, id = directory name — nothing to
 register).
 
+The marketing motion pipeline reuses `lib/screencast.ts`, `lib/frame-playlist.ts`, and
+`lib/ffmpeg.ts` for short silent native takes. Its separate
+[capture runbook](../docs-screenshots/README.md#record-the-marketing-product-in-action) describes
+the responsive variants, owned cleanup, matched first-frame posters, and native codec proof.
+`web:animations` does not run narrated episodes or invoke TTS.
+
 ## The shared-workspace contract
 
 Recording runs against the SAME "Northlight Labs" org the screenshot pipeline seeds — never a
@@ -134,8 +141,9 @@ by `--stage check`).
   the overrun gate; fixed cues need a per-scene `minMs` floor in `episode.ts`, never a silent stretch.
 - **Never `page.goto` inside a scene** — it reloads the SPA on camera (auth, websocket, queries all
   re-run as visible skeletons). Rail clicks and `spaNavigate` are the only route changes in a take.
-- **`.state/` is disposable and gitignored** — frames are heavy (a 3-minute take ≈ 3–5 GB of JPEG);
-  delete `.state/frames/` freely, the TTS cache is the only thing worth keeping (it bills).
+- **`.state/` is local and gitignored** — frames are heavy (a 3-minute take ≈ 3–5 GB of JPEG).
+  Retain existing captures and caches; clean only task-owned output when authorized. The TTS
+  cache avoids billing again for unchanged narration.
 - **Brand/word pronunciation is a per-locale respelling** (`lib/tts-text.ts`) applied to the SPOKEN
   text only — eleven_v3 has no phoneme tags, and a German voice reads "Tale" as /ˈtaːlə/ without it.
   Captions and docs keep the real spelling.

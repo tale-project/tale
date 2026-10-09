@@ -390,7 +390,21 @@
  * termination. Ordinary cancel refuses held runs (`RUN_QUARANTINED`);
  * stale stop requests answer `RUN_QUARANTINE_CHANGED`. Additive.
  *
- * 3.21.0 — 2026-10-08: a schedule trigger runs on a repeat rule
+ * 3.21.0 — 2026-10-08: API keys can belong to a member an Owner or Admin
+ * made them for, or to a team, a project or the organization itself. Such a
+ * key works in its one organization: it needs no `X-Organization-Slug`, and
+ * one naming another organization answers 403 `ORG_FORBIDDEN`. A project's
+ * key reaches its own project, the project list, `/me` and the model
+ * endpoints; any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`.
+ * `GET /api/v1/me` answers `key.owner` (`kind`, `team`, `project`), lists
+ * the bound organization alone, and an empty `user.email` for a key that
+ * is not a person. Additive.
+ *
+ * 3.22.0 — 2026-10-08: budget rules can cap a project — everything spent in
+ * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
+ * names such a cap with `data.scope` `project`. Additive.
+ *
+ * 3.24.0 — 2026-10-09: a schedule trigger runs on a repeat rule
  * (`repeat`, the `ScheduleRule` schema, from `startDate` in `timezone`) or
  * on a cron expression, and says what it does with occurrences it missed
  * (`catchUp`: `latest` or `skip`); every trigger kind takes a fixed `input`
@@ -405,4 +419,4 @@
  * `timezone` (it saved and never fired) and `cron` together with `repeat`.
  * Additive otherwise.
  */
-export const API_CONTRACT_VERSION = '3.21.0';
+export const API_CONTRACT_VERSION = '3.24.0';

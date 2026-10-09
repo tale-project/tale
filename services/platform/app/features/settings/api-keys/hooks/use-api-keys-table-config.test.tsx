@@ -30,4 +30,17 @@ describe('useApiKeysTableConfig', () => {
 
     expect(result.current.stickyLayout).toBe(false);
   });
+
+  it('has a column saying when each key expires [APIKEY-R10]', () => {
+    const { result } = renderHook(() => useApiKeysTableConfig('org-1'), {
+      wrapper: Providers,
+    });
+
+    const ids = result.current.columns.map((column) => column.id);
+    expect(ids).toContain('expires');
+    const expires = result.current.columns.find(
+      (column) => column.id === 'expires',
+    );
+    expect(expires?.header).toBe('Expires');
+  });
 });

@@ -84,6 +84,7 @@ export async function runChatTurn(
     organizationId: request.organizationId,
     userId: request.userId,
     ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
+    threadId: request.threadId,
     ...(request.admissionExclude !== undefined
       ? { exclude: request.admissionExclude }
       : {}),

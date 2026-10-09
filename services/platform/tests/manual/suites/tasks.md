@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 125 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 136 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -71,14 +71,18 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   never a tab.
 - [ ] `TASK-F2` · **Create a task** — In either view: header **Create task**
   (`tasks.actions.create`) → **Title** (`tasks.fields.title`) → submit → Toast
-  **Task created** (`tasks.actions.created`); the card lands in **To do**
-  (`tasks.status.todo`, the create default) and is present in **both** views
-  and after reload; the same header button is the only create affordance (no
-  per-lane +)
+  **Task created** (`tasks.actions.created`) with **Open**
+  (`tasks.actions.openCreated`); the card lands in **To do**
+  (`tasks.status.todo`, the create default) at **Medium** priority
+  (`tasks.priority.p2`) with today as **Start date** (`tasks.startDate.label`),
+  and is present in **both** views and after reload; on the board each lane
+  also creates in its own status (TASK-F74)
 - [ ] `TASK-F3` · **Board lanes** — `…/tasks/board` → Six lanes render in
   order — **Backlog / To do / In progress / In review / Done / Cancelled**
-  (`tasks.status.backlog` … `tasks.status.cancelled`); an empty lane shows
-  **No tasks** (`tasks.board.noTasks`) and still accepts drops.
+  (`tasks.status.backlog` … `tasks.status.cancelled`), each headed by its
+  status glyph, word and count; an empty lane still accepts drops and shows
+  **Add task** (`tasks.board.addTask`) to a viewer who may create, **No tasks**
+  (`tasks.board.noTasks`) to one who may not.
 - [ ] `TASK-F4` · **Board drag-and-drop** — Drag a card across lanes (e.g. To
   do → In progress → Done), including into an empty lane → The card re-homes
   and the new status survives reload **and** shows in the list view; dragging
@@ -756,6 +760,54 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
 
 - [ ] `TASK-F62` · **Let a manager triage without starting work** — As an editor, enable **Change task priority and agent assignment** (`projects.agents.tool.task_update_metadata`) on a project agent, using the keyboard in **Skills, connectors & tools**; save and reopen it → the named option remains checked with its **Writes data** badge and visible focus, fits at desktop and phone widths in EN/DE/FR, and an automation agent node never offers it. Let that manager change an idle task’s priority and agent assignment, then watch the task from a second browser session → both values refresh, the activity names the manager, status and run history stay unchanged, and a reload keeps the values.
 
+- [ ] `TASK-F66` · **Create from the keyboard** — **Create task** → the caret
+  is in the title (placeholder **Task title**, `tasks.fields.titlePlaceholder`)
+  → type a title, press **Enter** → the caret moves to **Description**
+  (`tasks.fields.description`) and nothing is created → type two lines with
+  **Enter** between them → **⌘+Enter** / **Ctrl+Enter** creates the task; the
+  footer reads **⌘ Enter to create** (`tasks.actions.createShortcut`) on a Mac,
+  **Ctrl + Enter to create** elsewhere, and hides it on a touch screen. **Open**
+  in the toast closes the dialog and opens the new task.
+- [ ] `TASK-F67` · **Create another** — **Create task** → switch on **Create
+  another** (`tasks.actions.createAnother`) → set Priority **High**, an
+  assignee and a label, type a title and a description, attach a file →
+  **Create task** → the dialog stays open, title, description and file are
+  cleared, Priority, assignee, label, dates and Status are kept, the caret is
+  in the title, and the toast offers **Open** → create a second task the same
+  way → both cards carry the kept fields. Close and reopen the dialog, also
+  after a reload: the switch is still on. The chat's **Create task** hand-over
+  shows no switch.
+- [ ] `TASK-F68` · **Open a task from its dialog as a page** — Open a task from
+  the board → **Open as page** (`tasks.detail.openPage`, the expand icon left
+  of **Close**) → `/dashboard/{org}/tasks/{taskId}` shows the same task, with
+  an unsent comment still in its box → browser **Back** → the board with the
+  same task's dialog open. Open a subtask inside the dialog, then **Open as
+  page** → the subtask's page. ⌘/Ctrl-click the icon → the page opens in a new
+  tab and the dialog stays. At 390 px the drawer shows the icon beside its X.
+- [ ] `TASK-F69` · **The dialog's header reads like the page** — Open a task
+  from the board → its header shows the status glyph tile, the title and one
+  line **project · key · status**; clicking the key copies it
+  (`tasks.detail.copyKey`); **Copy link** (`tasks.detail.copyLink`) copies
+  `/dashboard/{org}/tasks/{taskId}` (not the board address) and confirms with
+  **Link copied** (`tasks.detail.linkCopied`). An archived task shows its badge
+  on that line.
+
+- [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
+  lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with
+  Status **In progress** → in the **Backlog** lane press **Add task**
+  (`tasks.board.addTask`), type a title, **Enter** → the card appears at the
+  lane's end with Medium priority, the field stays open and focused for the
+  next title; **Esc** closes it, and leaving it empty closes it too. With the
+  board filtered to **Priority: High** and an assignee, a task added this way
+  carries both. A reader of an archived project sees neither control.
+- [ ] `TASK-F75` · **A card says what is happening** — Open the board with a
+  task whose agent is running → it shows **{agent} is working**
+  (`tasks.board.agentWorking`) under its
+  title with a pulsing glyph; one whose agent asked a question shows **Waiting
+  for your answer** instead; one at the review gate shows **Waiting on you** or
+  **Waiting on {name}**. An agent-assigned card names its agent beside the
+  avatar. The card's title reads the same sentence to a screen reader.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -1145,6 +1197,18 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   error toast for a comment it sends, and after reload nothing has landed.
   **Restore** (`tasks.actions.restore`) → the comment field is back.
 
+- [ ] `TASK-B41` · **Dates the server would refuse are named before Create** —
+  **Create task** → keep today's start, pick a due date of yesterday → under the
+  dates **Start date must be on or before the due date.**
+  (`tasks.startDate.afterDue`) shows and **Create task** is unavailable → clear
+  the start date or move the due date → Create works. Start a large upload and
+  press **Create task** at once → it stays unavailable until the file is in.
+- [ ] `TASK-B42` · **A start of today rings nobody** — Create a task with the
+  default start of today, and on another task move the start to yesterday →
+  after the next hourly date sweep the Inbox shows no **starts today** bell
+  for either (`inbox.taskStartReached`); a task whose start you set to tomorrow
+  rings tomorrow.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `TASK-A1` · **Keyboard status path** → Every DnD outcome is reachable
@@ -1284,6 +1348,25 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   disabled option; with the standard agent on, **Standard agent**
   (`tasks.assignee.standardAgent`) is read as an option with its description,
   and the footer `tasks.assignee.standardAgentFooter` as text.
+
+- [ ] `TASK-A16` · **The dialog's header actions by keyboard and screen
+  reader** — Open a task from the board, Tab through the dialog → after the
+  content come **Copy link**, **Open as page** (a link) and **Close**, in that
+  order, each with a visible focus ring and a 32 px target; a screen reader
+  names them in English, German (**Link kopieren**, **Als Seite öffnen**,
+  **Schließen**) and French (**Copier le lien**, **Ouvrir en pleine page**,
+  **Fermer**); Escape still closes the dialog.
+- [ ] `TASK-A17` · **The create dialog by keyboard and screen reader** —
+  **Create task** → the dialog is named **Create task**, the title field
+  **Title** and the switch **Create another** with its on/off state; Space
+  toggles the switch; the schedule message is announced when it appears
+  (`role=alert`).
+
+- [ ] `TASK-A20` · **Lane controls by keyboard** — Tab into a lane → its **+**
+  shows on focus with a visible ring and is named **Add task to {status}**;
+  **Add task** opens its field with the caret in it, **Enter** adds and a screen
+  reader hears **Added "{title}"** (`tasks.board.quickAdded`), **Esc** closes it
+  and focus stays in the lane.
 
 ## Performance
 

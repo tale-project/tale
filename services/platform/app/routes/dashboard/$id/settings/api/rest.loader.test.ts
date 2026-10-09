@@ -14,13 +14,16 @@ import { apiKeysQuery } from '@/app/features/settings/api-keys/hooks/use-api-key
 
 // Lists must not gate page paint. An offline read pauses rather than rejects,
 // so catching a preload error cannot release an awaited loader. The client is
-// real; only the auth transport and cached ability are stubbed.
+// real; only the backend transport and cached ability are stubbed.
 const { cachedAbility, list } = vi.hoisted(() => ({
   cachedAbility: vi.fn(),
   list: vi.fn(),
 }));
 
-vi.mock('@/lib/auth-client', () => ({ authClient: { apiKey: { list } } }));
+vi.mock('@/app/lib/backend/api-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/lib/backend/api-client')>()),
+  backendFetch: list,
+}));
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
   Link: () => null,
@@ -51,7 +54,7 @@ describe('API REST route loader', () => {
     cachedAbility.mockReset();
     cachedAbility.mockReturnValue(null);
     list.mockReset();
-    list.mockResolvedValue({ data: { apiKeys: [] } });
+    list.mockResolvedValue({ keys: [] });
     onlineManager.setOnline(true);
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -70,7 +73,7 @@ describe('API REST route loader', () => {
     let settle = () => {};
     list.mockReturnValue(
       new Promise((resolve) => {
-        settle = () => resolve({ data: { apiKeys: [] } });
+        settle = () => resolve({ keys: [] });
       }),
     );
 
@@ -96,7 +99,7 @@ describe('API REST route loader', () => {
 
   it('leaves a failed read to the page instead of failing the transition', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    list.mockResolvedValue({ error: { message: 'offline' } });
+    list.mockRejectedValue(new Error('offline'));
 
     expect(preload()).toBeUndefined();
     await waitFor(() =>

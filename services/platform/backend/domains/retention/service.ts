@@ -628,9 +628,26 @@ async function sweepUsageLedger(
       )
       RETURNING id
     `;
+    // A project's own buckets — the same spend, summed per project — age
+    // out with the ledger. They name no person, so no member's hold keeps
+    // them; an organization's hold skips the whole run.
+    const projects = await tx<{ id: string }[]>`
+      DELETE FROM app.project_usage
+      WHERE ctid IN (
+        SELECT ctid FROM app.project_usage
+        WHERE org_id = ${org.organizationId}
+          AND updated_at_ms < ${cutoff}
+        LIMIT ${BATCH_LIMIT}
+      )
+      RETURNING org_id AS id
+    `;
     return {
-      deleted: ledger.length + events.length,
-      counts: { usageLedger: ledger.length, usageEvents: events.length },
+      deleted: ledger.length + events.length + projects.length,
+      counts: {
+        usageLedger: ledger.length,
+        usageEvents: events.length,
+        projectUsage: projects.length,
+      },
     };
   });
 }

@@ -189,6 +189,8 @@ const bridgeSql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
     return Promise.resolve([{ startedBy: run.startedBy, agentId: 'alice' }]);
   }
   if (text.includes('FROM app.sandbox_session_ops')) return Promise.resolve([]);
+  // A starter who is no member is no API key's own identity either.
+  if (text.includes('FROM app.api_key_owners')) return Promise.resolve([]);
   if (text.includes('INSERT INTO app.sandbox_tool_calls')) {
     io.toolCalls.push(values);
     return Promise.resolve([]);
@@ -368,8 +370,12 @@ describe('a task run of an agent equipped with a connector', () => {
       input: { organizationSlug: 'tale' },
       mode: 'live',
       caller: { kind: 'user', userId: 'user-starter' },
-      execSessionId: 'pa-alice',
     });
+    // Run in the platform process, never as a program in the agent's own
+    // session, whose process list would show the credential.
+    expect(runConnectorAction.mock.calls[0]?.[1]).not.toHaveProperty(
+      'execSessionId',
+    );
     // The forensic row names the member the call ran for.
     expect(io.toolCalls).toHaveLength(1);
     expect(io.toolCalls[0]).toContain('user-starter');

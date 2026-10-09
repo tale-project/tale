@@ -65,6 +65,7 @@ import {
 import { setUrlSafetyResolverForTests } from './core/video_links/url_safety.ts';
 import { runBootMigrations } from './db/migrate.ts';
 import { createSql } from './db/sql.ts';
+import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
@@ -96,11 +97,13 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
 import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
+import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
 import {
   checkConcurrentEntryCreation,
@@ -167,6 +170,7 @@ import {
   errorText,
   fullCoverageBlockers,
   isSkippedCheck,
+  ITEST_VECTOR_WIDTH,
   itestObjectStore,
   recordSkip,
   requestedLanes,
@@ -8779,7 +8783,7 @@ async function checkKnowledge(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -8940,9 +8944,11 @@ async function checkKnowledge(
     >`
       SELECT count(*)::text AS total,
              count(*) FILTER (WHERE c.passage_repeat)::text AS repeats,
-             count(*) FILTER (WHERE c.embedding IS NOT NULL)::text AS embedded
+             count(v.chunk_id)::text AS embedded
       FROM private_knowledge.chunks c
       JOIN private_knowledge.documents d ON d.id = c.document_id
+      LEFT JOIN private_knowledge.${dupPool(`chunk_vectors_${ITEST_VECTOR_WIDTH}`)} v
+        ON v.chunk_id = c.id
       WHERE d.org_slug = ${orgSlug} AND d.file_id = ${dup.storageRef}
     `;
     const dupTotal = Number(dupChunks[0]?.total ?? '0');
@@ -9556,7 +9562,7 @@ async function checkIndexingReleaseRace(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -9875,7 +9881,7 @@ async function checkEmbeddingCredentialRefusal(
       JSON.stringify({
         providerSlug,
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10125,7 +10131,7 @@ async function checkCorpusPurgeConsistency(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: `http://127.0.0.1:${embedPort}/v1`,
       }),
     );
@@ -10824,15 +10830,20 @@ async function checkCorpusPurgeConsistency(
 }
 
 /** OpenAI-shaped embeddings response for a raw request body — deterministic
- * 8-dim vectors from character statistics; base64 Float32 when asked (the
- * OpenAI SDK's default decode path). */
+ * vectors from eight character statistics, repeated to the width the request
+ * asks for (`dimensions`; the fixtures' width without one — repeating a
+ * vector changes none of its cosines); base64 Float32 when asked (the OpenAI
+ * SDK's default decode path). */
 function fakeEmbeddingsPayload(rawBody: string): string {
   const parsed = z
     .object({
       input: z.union([z.string(), z.array(z.string())]),
       encoding_format: z.string().optional(),
+      dimensions: z.number().int().positive().optional(),
     })
     .safeParse(JSON.parse(rawBody || '{}'));
+  const width =
+    (parsed.success ? parsed.data.dimensions : undefined) ?? ITEST_VECTOR_WIDTH;
   const inputs = parsed.success
     ? Array.isArray(parsed.data.input)
       ? parsed.data.input
@@ -10841,13 +10852,17 @@ function fakeEmbeddingsPayload(rawBody: string): string {
   const wantsBase64 =
     parsed.success && parsed.data.encoding_format === 'base64';
   const data = inputs.map((text, index) => {
-    const vector = Array.from({ length: 8 }, (_, i) => {
+    const statistics = Array.from({ length: 8 }, (_, i) => {
       let acc = 0;
       for (let j = i; j < text.length; j += 8) {
         acc += text.charCodeAt(j) % 97;
       }
       return (acc % 1000) / 1000 + 0.001;
     });
+    const vector = Array.from(
+      { length: width },
+      (_, i) => statistics[i % statistics.length] ?? 0,
+    );
     const embedding = wantsBase64
       ? Buffer.from(new Float32Array(vector).buffer).toString('base64')
       : vector;
@@ -11215,7 +11230,7 @@ async function checkChat(
       JSON.stringify({
         providerSlug: 'openai',
         model: 'itest-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -12713,6 +12728,92 @@ async function checkAutomations(
       SELECT count(*)::text AS count FROM app.audit_logs
       WHERE org_id = ${orgId} AND action = 'automation.run.success'
     `;
+
+    // The live run's llm step is its starter's spend, booked under the
+    // automation's name with the tokens the provider reported; once a cap
+    // is reached, the next run's step is refused before the provider is
+    // called (GOV-R14, GOV-R4).
+    const llmBooked = await sql<
+      { userId: string; tokens: number; requests: number }[]
+    >`
+      SELECT user_id AS "userId", total_tokens::float8 AS tokens,
+             request_count::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'ops/greet'
+        AND model = 'itest-llm' AND granularity = 'monthly'
+    `;
+    const budgetsFile = path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'governance',
+      'budgets.yml',
+    );
+    const priorBudgets = await readFile(budgetsFile, 'utf8').catch(() => null);
+    let capped:
+      | { status: string; failureCode: string | null; detail: string | null }
+      | undefined;
+    try {
+      await mkdir(path.dirname(budgetsFile), { recursive: true });
+      await writeFile(
+        budgetsFile,
+        [
+          'enabled: true',
+          'rules:',
+          '  - scope: org',
+          '    period: monthly',
+          '    maxRequests: 1',
+        ].join('\n'),
+      );
+      (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+      const cappedStart = z.object({ runId: z.string() }).safeParse(
+        await (
+          await post(`/api/app/automations/ops/greet/start?orgId=${orgId}`, {
+            input: { who: 'ops' },
+            mode: 'live',
+          })
+        ).json(),
+      );
+      const cappedRunId = cappedStart.success ? cappedStart.data.runId : '';
+      await waitFor(async () => {
+        const rows = await sql<{ status: string }[]>`
+          SELECT status FROM app.automation_runs WHERE id = ${cappedRunId}
+        `;
+        return ['success', 'failed', 'cancelled'].includes(
+          rows[0]?.status ?? '',
+        );
+      }, 30_000);
+      [capped] = await sql<
+        { status: string; failureCode: string | null; detail: string | null }[]
+      >`
+        SELECT status, failure_code AS "failureCode", detail
+        FROM app.automation_runs WHERE id = ${cappedRunId}
+      `;
+    } finally {
+      if (priorBudgets !== null) {
+        await writeFile(budgetsFile, priorBudgets);
+      } else {
+        await rm(budgetsFile, { force: true });
+      }
+      (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+    }
+    const llmRequestsAfter = await sql<{ requests: number }[]>`
+      SELECT coalesce(sum(request_count), 0)::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'ops/greet'
+        AND model = 'itest-llm' AND granularity = 'monthly'
+    `;
+    record(
+      'automations: a live llm step books its tokens under the run’s starter, and a reached cap refuses the next before the provider',
+      llmBooked.length === 1 &&
+        llmBooked[0]?.userId === userId &&
+        llmBooked[0].tokens === 18 &&
+        llmBooked[0].requests === 1 &&
+        capped?.status === 'failed' &&
+        capped.failureCode === 'budget_exceeded' &&
+        (capped.detail ?? '').includes('monthly request limit') &&
+        llmRequestsAfter[0]?.requests === 1,
+      `booked=${JSON.stringify(llmBooked)} (want one row: the starter, 18 tokens, 1 request), capped run=${JSON.stringify(capped)} (want failed, budget_exceeded, naming the monthly request limit), llm requests after=${llmRequestsAfter[0]?.requests} (want still 1)`,
+    );
 
     // Liveness: a queued run whose step job was LOST (inserted directly, no
     // enqueue) is overdue — the sweep must re-poke it to completion.
@@ -18234,7 +18335,7 @@ async function checkRestResources(
       JSON.stringify({
         providerSlug: 'restchat',
         model: 'rest-chat-embed',
-        dimensions: 8,
+        dimensions: ITEST_VECTOR_WIDTH,
         baseUrl: aiBase,
       }),
     );
@@ -24825,10 +24926,13 @@ async function checkPolicySweeps(
     SELECT count(*)::text AS count FROM app.messages
     WHERE org_id = ${orgId} AND text LIKE '[automated]%'
   `;
-  // Rescheduling re-arms the ladder (updateTask clears the stamps it owns):
-  // the overdue task pushed out to later today is "due soon" again on the
-  // next sweep, and a started task whose start moves is announced again.
-  // And the level-2 nudge speaks every locale the app ships.
+  // Rescheduling re-arms the ladder (updateTask rewrites the stamps it
+  // owns): the overdue task pushed out to later today is "due soon" again on
+  // the next sweep, and a started task whose start moves ahead is unstamped,
+  // to ring on its new day. A start moved to a moment that has already come
+  // is written as announced (TASK-R23): whoever set it is looking at the
+  // task, so the sweep rings nobody. And the level-2 nudge speaks every
+  // locale the app ships.
   const { updateTask } = await import('./domains/tasks/service.ts');
   const sweepAuth = {
     organizationId: orgId,
@@ -24840,7 +24944,13 @@ async function checkPolicySweeps(
     updateTask(tx, sweepAuth, { taskId: overdueId, dueDate: now + 3_600_000 }),
   );
   await transactSerializable(sql, (tx) =>
-    updateTask(tx, sweepAuth, { taskId: startedId, startDate: now - 30_000 }),
+    updateTask(tx, sweepAuth, {
+      taskId: startedId,
+      startDate: now + 86_400_000,
+    }),
+  );
+  await transactSerializable(sql, (tx) =>
+    updateTask(tx, sweepAuth, { taskId: futureId, startDate: now - 30_000 }),
   );
   const third = await enforceTaskDatesForOrg(sql, orgId);
   const rescheduled = await sql<
@@ -24848,7 +24958,7 @@ async function checkPolicySweeps(
   >`
     SELECT id, start_notified_at_ms::float8 AS "startNotified",
            sla_level AS "slaLevel"
-    FROM app.tasks WHERE id IN (${startedId}, ${overdueId})
+    FROM app.tasks WHERE id IN (${startedId}, ${overdueId}, ${futureId})
   `;
   const rescheduledById = new Map(rescheduled.map((row) => [row.id, row]));
   const nudgeMeta = await sql<{ bodyByLocale: unknown }[]>`
@@ -24861,13 +24971,14 @@ async function checkPolicySweeps(
   record(
     'sweeps: a reschedule re-arms the date ladder, and the nudge speaks every locale',
     third.dueSoon === 1 &&
-      third.start === 1 &&
+      third.start === 0 &&
       rescheduledById.get(overdueId)?.slaLevel === 1 &&
-      rescheduledById.get(startedId)?.startNotified !== null &&
+      rescheduledById.get(startedId)?.startNotified === null &&
+      rescheduledById.get(futureId)?.startNotified !== null &&
       typeof nudgeLocales?.en === 'string' &&
       typeof nudgeLocales?.de === 'string' &&
       typeof nudgeLocales?.fr === 'string',
-    `third=${JSON.stringify(third)} (want dueSoon 1, start 1), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), started re-stamped=${rescheduledById.get(startedId)?.startNotified !== null}, nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
+    `third=${JSON.stringify(third)} (want dueSoon 1, start 0), overdue→slaLevel=${rescheduledById.get(overdueId)?.slaLevel} (want 1), moved-ahead start re-armed=${rescheduledById.get(startedId)?.startNotified === null} (want true), arrived start written announced=${rescheduledById.get(futureId)?.startNotified !== null} (want true), nudge locales=${nudgeLocales ? Object.keys(nudgeLocales).sort().join(',') : 'none'} (want de,en,fr)`,
   );
 
   record(
@@ -46356,6 +46467,7 @@ async function checkChatDeferredAuto(
 
   // ---- a live fake provider (catalog + streaming completions) -------------
   const AUTO_ANSWER = 'Deferred answer done.';
+  const capturedPrompts: string[] = [];
   const autoServer = createServer((req, res) => {
     let body = '';
     req.on('data', (chunk: unknown) => {
@@ -46380,6 +46492,7 @@ async function checkChatDeferredAuto(
         return;
       }
       if (url.endsWith('/chat/completions')) {
+        capturedPrompts.push(body);
         res.setHeader('content-type', 'text/event-stream');
         const sse = (payload: unknown): string =>
           `data: ${JSON.stringify(payload)}\n\n`;
@@ -46593,6 +46706,209 @@ async function checkChatDeferredAuto(
         `${base}/api/app/connector-credentials/${connectorCredential.data.credentialId}?orgId=${orgId}`,
         { method: 'DELETE', headers: { cookie, origin: base } },
       );
+    }
+
+    // Real-PG attachment boundary: deny new parks, sanitize already-parked
+    // failures, and rebuild legacy poisoned history under the CURRENT reader.
+    const { pollDeferredSend } =
+      await import('./domains/chat/deferred-sends.ts');
+    const { runChatTurn } = await import('./domains/chat/service.ts');
+    const { chatShimHandlers } = await import('./domains/chat/shim.ts');
+    const { userTurnParts } = await import('../lib/chat/turn.ts');
+    const { toJson } = await import('./db/sql.ts');
+    const foreignOrg = randomUUID();
+    const foreignUser = randomUUID();
+    await sql`
+      INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+      VALUES (${foreignOrg}, 'Attachment boundary tenant', ${`boundary-${foreignOrg}`}, now())
+    `;
+    await sql`
+      INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${foreignUser}, ${`boundary-${foreignUser}@door.test`}, 'Attachment owner', true, now(), now())
+    `;
+    const boundaryThreads: string[] = [];
+    try {
+      for (const fileOrg of [orgId, foreignOrg]) {
+        const sentinel = `PRIVATE_TRANSCRIPT_${randomUUID()}`;
+        const ref = `s3:boundary-${randomUUID()}`;
+        const attachments = [
+          {
+            fileId: ref,
+            fileName: 'private.wav',
+            fileType: 'audio/wav',
+            fileSize: 10,
+          },
+        ];
+        await sql`
+          INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+            uploaded_by, transcript, transcription_status, created_at_ms)
+          VALUES (${fileOrg}, ${ref}, 'private.wav', 'audio/wav', 10,
+            ${foreignUser}, ${sentinel}, 'completed', ${Date.now()})
+        `;
+        const created = z.object({ id: z.string() }).parse(
+          await (
+            await post(`/api/app/chat/threads?orgId=${orgId}`, {
+              title: 'Attachment boundary',
+            })
+          ).json(),
+        );
+        const threadId = created.id;
+        boundaryThreads.push(threadId);
+        const startPrompt = capturedPrompts.length;
+        const park = await post(
+          `/api/app/chat/threads/${threadId}/deferred-sends?orgId=${orgId}`,
+          {
+            text: 'Summarize',
+            modelId: 'auto-pick-model',
+            attachments,
+          },
+        );
+        const unexpectedParks = await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.deferred_sends WHERE thread_id = ${threadId}
+        `;
+        record(
+          'attachment boundary: unreadable audio is refused at parking',
+          park.status === 400 && unexpectedParks[0]?.count === '0',
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} status=${park.status} rows=${unexpectedParks[0]?.count}`,
+        );
+        // Remove only this fixture's unexpected park on the baseline so the
+        // worker cannot race the deliberate legacy row below.
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        const legacy = await sql<{ id: string }[]>`
+          INSERT INTO app.deferred_sends (org_id, user_id, thread_id, user_text,
+            attachments, model_id, status, created_at_ms, waiting_since_ms)
+          VALUES (${orgId}, ${userId}, ${threadId}, 'Legacy parked send',
+            ${sql.json(toJson(attachments))}, 'auto-pick-model', 'waiting', ${Date.now()}, ${Date.now()})
+          RETURNING id
+        `;
+        await pollDeferredSend(sql, legacy[0]?.id ?? '');
+        const trace = await sql<{ parts: unknown }[]>`
+          SELECT parts FROM app.messages WHERE thread_id = ${threadId} AND role = 'user'
+        `;
+        record(
+          'attachment boundary: refused legacy park leaves no attachment parts',
+          trace.length === 1 && !JSON.stringify(trace).includes(ref),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} userRows=${trace.length} containsRef=${JSON.stringify(trace).includes(ref)}`,
+        );
+        const metaQuery =
+          chatShimHandlers(sql)[
+            'file_metadata/internal_queries:getByStorageId'
+          ];
+        if (!metaQuery) throw new Error('metadata handler missing');
+        record(
+          'attachment boundary: metadata refuses an unreadable transcript',
+          (await metaQuery({
+            organizationId: orgId,
+            userId,
+            storageId: ref,
+          })) === null,
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'}`,
+        );
+        const next = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Next turn',
+        });
+        // Existing persisted poison must also be harmless, independently of
+        // the new trace fix. The last row is a user row for regenerate.
+        await appendMessageRow(sql, {
+          organizationId: orgId,
+          threadId,
+          role: 'user',
+          parts: userTurnParts('Legacy attachment', attachments),
+          text: 'Legacy attachment',
+        });
+        const regenerated = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: '',
+          resend: true,
+        });
+        const later = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Read prior history',
+        });
+        const prompts = capturedPrompts.slice(startPrompt);
+        record(
+          'attachment boundary: next turn, regenerate and legacy history never expose foreign audio',
+          next.status === 'completed' &&
+            regenerated.status === 'completed' &&
+            later.status === 'completed' &&
+            prompts.length >= 3 &&
+            prompts.every(
+              (prompt) => !prompt.includes(sentinel) && !prompt.includes(ref),
+            ),
+          `tenant=${fileOrg === orgId ? 'same' : 'foreign'} outcomes=${next.status},${regenerated.status},${later.status} calls=${prompts.length} leaked=${prompts.some((prompt) => prompt.includes(sentinel))}`,
+        );
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ref}`;
+      }
+      const ownRef = `s3:boundary-own-${randomUUID()}`;
+      const ownSentinel = `OWN_TRANSCRIPT_${randomUUID()}`;
+      const ownThread = z.object({ id: z.string() }).parse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, {
+            title: 'Readable audio control',
+          })
+        ).json(),
+      );
+      boundaryThreads.push(ownThread.id);
+      await sql`
+        INSERT INTO app.file_metadata (org_id, storage_ref, file_name, content_type, size,
+          uploaded_by, transcript, transcription_status, created_at_ms)
+        VALUES (${orgId}, ${ownRef}, 'own.wav', 'audio/wav', 10,
+          ${userId}, ${ownSentinel}, 'completed', ${Date.now()})
+      `;
+      try {
+        const beforeOwn = capturedPrompts.length;
+        const ownOutcome = await runChatTurn(sql, {
+          organizationId: orgId,
+          userId,
+          threadId: ownThread.id,
+          modelId: 'auto-pick-model',
+          providerSlug: 'itestauto',
+          userText: 'Summarize my audio',
+          attachments: [
+            {
+              fileId: ownRef,
+              fileName: 'own.wav',
+              fileType: 'audio/wav',
+              fileSize: 10,
+            },
+          ],
+        });
+        record(
+          'attachment boundary: own completed audio still reaches the model',
+          ownOutcome.status === 'completed' &&
+            capturedPrompts
+              .slice(beforeOwn)
+              .some((prompt) => prompt.includes(ownSentinel)),
+          `outcome=${ownOutcome.status} calls=${capturedPrompts.length - beforeOwn}`,
+        );
+      } finally {
+        await sql`DELETE FROM app.file_metadata WHERE storage_ref = ${ownRef}`;
+      }
+    } finally {
+      for (const threadId of boundaryThreads) {
+        await sql`DELETE FROM app.deferred_sends WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.generations WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.messages WHERE thread_id = ${threadId}`;
+        await sql`DELETE FROM app.threads WHERE id = ${threadId}`;
+      }
+      await sql`DELETE FROM app.file_metadata WHERE uploaded_by = ${foreignUser}`;
+      await sql`DELETE FROM "user" WHERE "id" = ${foreignUser}`;
+      await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrg}`;
     }
 
     // ---- deferred sends ---------------------------------------------------
@@ -60556,6 +60872,26 @@ async function checkOrganizationLifecycle(
     `settled=${staleCleanupSettled} dirB=${await exists(dirB)}`,
   );
 
+  // Keys an Owner made for others in A — the organization's own, and one
+  // for the plain member — leave with it; the member's account stays.
+  const mintInA = async (keyOwner: Record<string, string>): Promise<string> => {
+    const response = await post(
+      owner.cookie,
+      `/api/app/api-keys?orgId=${orgA}`,
+      { name: `Life ${keyOwner.kind ?? ''}`, owner: keyOwner },
+    );
+    const parsed = z
+      .object({ id: z.string() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? parsed.data.id : '';
+  };
+  const orgKeyA = await mintInA({ kind: 'organization', role: 'member' });
+  const memberKeyA = await mintInA({ kind: 'member', userId: plain.userId });
+  const identityA = await sql<{ id: string }[]>`
+    SELECT key_user_id AS id FROM app.api_key_owners
+    WHERE api_key_id IN (${orgKeyA}, ${memberKeyA})
+  `;
+
   // The committed delete: rows, audit, cascade, pointers, config tree.
   const deleted = await post(
     owner.cookie,
@@ -60580,6 +60916,27 @@ async function checkOrganizationLifecycle(
     SELECT count(*)::text AS count FROM "session"
     WHERE "activeOrganizationId" = ${orgA}
   `);
+  const boundKeysLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "apikey"
+    WHERE "id" IN (${orgKeyA}, ${memberKeyA})
+  `);
+  const keyIdentitiesLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user"
+    WHERE "id" = ANY(${identityA.map((row) => row.id)})
+  `);
+  const plainAccountLeft = await count(sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM "user" WHERE "id" = ${plain.userId}
+  `);
+  record(
+    'org delete removes the keys made for others there, and the identities they authenticated as, not the member',
+    orgKeyA !== '' &&
+      memberKeyA !== '' &&
+      identityA.length === 2 &&
+      boundKeysLeft === 0 &&
+      keyIdentitiesLeft === 0 &&
+      plainAccountLeft === 1,
+    `minted=${orgKeyA !== ''}/${memberKeyA !== ''} keysLeft=${boundKeysLeft} identitiesLeft=${keyIdentitiesLeft} memberAccount=${plainAccountLeft}`,
+  );
   record(
     'org delete commits as one teardown: rows, audit, cascade, config tree',
     deleted.ok &&
@@ -61803,6 +62160,14 @@ async function main(): Promise<void> {
       ['checkSlackInbound', () => checkSlackInbound(sql, baseUrl, authCtx)],
       ['checkRecoverySweeps', () => checkRecoverySweeps(sql, authCtx)],
       ['checkRagStatusHintScope', () => checkRagStatusHintScope(sql, record)],
+      [
+        'checkVectorWidths',
+        () =>
+          checkVectorWidths(sql, {
+            record,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
+      ],
       ['checkRagWatchdogBatch', () => checkRagWatchdogBatch(sql, record)],
       [
         'checkPolicySweeps',
@@ -62360,6 +62725,14 @@ async function main(): Promise<void> {
       [
         'checkTeamScopeRetirement',
         () => checkTeamScopeRetirement(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkApiKeyOwners',
+        () => checkApiKeyOwners(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkProjectBudgets',
+        () => checkProjectBudgets(sql, baseUrl, authCtx, record),
       ],
       [
         'checkOrphanedOrgRowsBackfill',

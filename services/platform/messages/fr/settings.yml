@@ -342,6 +342,7 @@ teams:
   deleteImpact:
     summary: "Cette équipe compte {members, plural, one {# membre} other {# membres}}. Elle fait partie de l'audience de {projects, plural, one {# projet} other {# projets}}, {folders, plural, one {# dossier} other {# dossiers}} et {documents, plural, one {# document} other {# documents}}, et {conversations, plural, one {# conversation est} other {# conversations sont}} dans sa file."
     becomeOrgWide: "{count, plural, one {# élément n'a pas d'autre équipe et deviendra visible} other {# éléments n'ont pas d'autre équipe et deviendront visibles}} pour toute l'organisation."
+    apiKeys: '{count, plural, one {# clé API appartient à cette équipe et cessera de fonctionner.} other {# clés API appartiennent à cette équipe et cesseront de fonctionner.}}'
   description: Crée et gère des équipes au sein de ton organisation pour un
     contrôle d'accès granulaire
 credentials:
@@ -1074,7 +1075,10 @@ apiKeys:
   keyCreatedDescription:
     Assure-toi de copier ta clé API maintenant. Tu ne pourras
     plus la voir ensuite.
+  keyCreatedDescriptionForOthers: Copie la clé API maintenant. Tu ne pourras plus la voir ensuite.
+  keyCreatedForMember: Transmets la clé à {name} par un canal sûr. Une notification l'informe de sa création.
   yourApiKey: Ta clé API
+  newApiKey: Nouvelle clé API
   keyRevoked: Clé API révoquée
   keyRevokeFailed: Échec de la révocation de la clé API
   keyCreateFailed: Échec de la création de la clé API
@@ -1089,6 +1093,18 @@ apiKeys:
     key: Clé
     created: Ajouté
     lastUsed: Dernière utilisation
+    expires: Expiration
+    owner: Appartient à
+  owner:
+    you: Toi
+    team: Équipe {name}
+    project: Projet {name}
+    organization: Organisation
+    formerMember: Ancien membre
+    deletedTeam: Équipe supprimée
+    deletedProject: Projet supprimé
+    actsAs: Agit en tant que {role}
+    madeBy: Créée par {name}
   form:
     name: Nom de la clé
     namePlaceholder: Saisis le nom de la clé...
@@ -1102,8 +1118,47 @@ apiKeys:
       30days: 30 jours
       90days: 90 jours
       1year: 1 an
+      custom: Date personnalisée
       never: Jamais
+    expiresOn: La clé expire le {date}.
+    neverExpiresHint: La clé fonctionne jusqu'à sa révocation.
+    expiryDate: Date d'expiration
+    expiryDateHint: Choisis un jour, au plus un an à l'avance.
+    expiryDateRequired: Choisis une date d'expiration.
+    expiryDateRange: Choisis un jour entre demain et dans un an.
+    owner: Appartient à
+    ownerOptions:
+      self: Toi
+      member: Un autre membre
+      team: Une équipe
+      project: Un projet
+      organization: L'organisation
+    ownerHints:
+      member: La clé agit au nom de ce membre, avec son rôle et ses équipes, dans cette organisation uniquement. Ce membre en est informé et peut la révoquer.
+      team: La clé appartient à l'équipe, pas à une personne. Elle agit avec le rôle que tu choisis, voit ce que voit l'équipe et continue de fonctionner si tu pars.
+      project: La clé appartient au projet, pas à une personne. Elle agit avec le rôle que tu choisis et n'atteint que ce projet.
+      organization: La clé appartient à l'organisation, pas à une personne. Elle agit avec le rôle que tu choisis et continue de fonctionner si tu pars.
+    member: Membre
+    memberPlaceholder: Choisis un membre
+    memberSearch: Rechercher des membres...
+    memberEmpty: Aucun membre dont le rôle est inférieur au tien
+    memberNoMatch: Aucun membre ne correspond
+    team: Équipe
+    teamPlaceholder: Choisis une équipe
+    teamSearch: Rechercher des équipes...
+    teamEmpty: Aucune équipe
+    teamNoMatch: Aucune équipe ne correspond
+    project: Projet
+    projectPlaceholder: Choisis un projet
+    projectSearch: Rechercher des projets...
+    projectEmpty: Aucun projet actif
+    projectNoMatch: Aucun projet ne correspond
+    role: Agit en tant que
+    roleHint: Le rôle de la clé dans cette organisation. Il ne peut pas dépasser le tien.
+    targetRequired: Choisis à qui appartient la clé.
   neverUsed: Jamais utilisée
+  neverExpires: Jamais
+  expired: Expirée
   description: Gérer les clés API pour les connectors externes
   title: Clés API
 apiDocs:
@@ -1704,15 +1759,11 @@ dataResidency:
     dimensions: Largeur des vecteurs
     dimensionsHint:
       "Déclarée, jamais devinée : le nombre exact de dimensions que produit
-      ce modèle. La changer plus tard rend inutilisables les vecteurs déjà
-      écrits à l'ancienne largeur."
+      ce modèle, parmi {widths}. Après un changement, les documents et les
+      pages de sites déjà indexés reçoivent de nouveaux vecteurs à la
+      nouvelle largeur."
     baseUrl: URL de base
     baseUrlHint: Endpoint compatible OpenAI ; vide pour celui du fournisseur.
-    sharedDbNote:
-      Sur la base partagée du déploiement, toutes les organisations partagent
-      une même largeur de vecteurs — elle est fixée à l'écriture du premier
-      vecteur. Donne à cette organisation sa propre base de connaissances
-      pour choisir librement.
     removed: Modèle d'embedding supprimé — la recherche de connaissances est
       indisponible tant qu'un nouveau modèle n'est pas configuré.
     removeConfirm:
@@ -1727,7 +1778,7 @@ dataResidency:
       invalid: Les paramètres d'embedding sont invalides. Vérifie les champs et réessaie.
       providerRequired: Choisis un fournisseur.
       modelRequired: Saisis le tag du modèle.
-      dimensionsInvalid: Saisis un nombre entier entre 1 et 16000.
+      dimensionsInvalid: 'Saisis une largeur de vecteurs prise en charge : {widths}.'
       baseUrlInvalid: Saisis une URL http(s), ou laisse le champ vide.
       credentialNotFound: Les identifiants choisis n'existent plus — choisis-en d'autres.
       credentialMismatch: Les identifiants choisis appartiennent à un autre fournisseur.
