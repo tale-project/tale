@@ -372,6 +372,8 @@ export function TaskCommentComposer({
       onKeyDown={onModEnter(() => {
         if (!isAdding) void submit();
       })}
+      // Its own name: the placeholder is a hint and goes once you type.
+      aria-label={t('actions.comment')}
       placeholder={t('actions.commentPlaceholder')}
       aria-describedby={hint ? 'new-comment-hint' : undefined}
       className="min-h-[44px] resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
