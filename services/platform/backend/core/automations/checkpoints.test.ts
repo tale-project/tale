@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  effectsFrom,
   mergeParkedAgentCursor,
   parkedAgentSettled,
   parseRunCheckpoints,
   readCheckpoints,
+  traceFrom,
 } from './checkpoints.ts';
 
 const NODE = {
@@ -172,5 +174,51 @@ describe('mergeParkedAgentCursor', () => {
   ])('writes the walker’s cursor as it is over %s', (_case, stored) => {
     const mine = turn('review', { execId: 'exec_1' });
     expect(mergeParkedAgentCursor(stored, mine)).toBe(mine);
+  });
+});
+
+describe('a replay’s reused steps', () => {
+  const checkpoints = {
+    nodes: {
+      fetch: {
+        status: 'ok' as const,
+        output: { n: 1 },
+        trace: { node: 'fetch', type: 'http.get', status: 'ok' as const },
+        effects: [{ node: 'fetch', connector: 'http', input: { url: 'a' } }],
+        reused: { runId: 'run-source' },
+      },
+      send: {
+        status: 'ok' as const,
+        output: { sent: true },
+        trace: { node: 'send', type: 'smtp.send', status: 'ok' as const },
+        effects: [{ node: 'send', connector: 'smtp', input: { to: 'b' } }],
+      },
+    },
+    executions: 1,
+  };
+
+  it('keeps them in the trace, saying where they came from', () => {
+    expect(traceFrom(checkpoints, ['fetch', 'send'])).toEqual([
+      {
+        node: 'fetch',
+        type: 'http.get',
+        status: 'ok',
+        note: 'reused from run run-source',
+      },
+      { node: 'send', type: 'smtp.send', status: 'ok' },
+    ]);
+  });
+
+  it('leaves their effects out: the run did only what it ran', () => {
+    expect(effectsFrom(checkpoints, ['fetch', 'send'])).toEqual([
+      { node: 'send', connector: 'smtp', input: { to: 'b' } },
+    ]);
+  });
+
+  it('reads a reused entry back as a finished step', () => {
+    expect(parseRunCheckpoints(checkpoints)).toEqual({
+      ok: true,
+      checkpoints,
+    });
   });
 });

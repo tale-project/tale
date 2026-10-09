@@ -300,3 +300,54 @@ export async function readNodeRunsSince(
     updatedAt: row.updated_at_ms,
   }));
 }
+
+/**
+ * A fork's record of the steps it took from the run it replays: their rows
+ * — items, passes and the steps of a subautomation they walked included —
+ * copied to the new run, each marked with the run and the times it ran
+ * there, and counted into the new run's stored bytes. Written with the new
+ * run, in its insert's transaction.
+ */
+export async function copyNodeRunsForForkInTx(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    sourceRunId: string;
+    runId: string;
+    /** The reused steps' ids. */
+    paths: readonly string[];
+    at: number;
+  },
+): Promise<number> {
+  if (args.paths.length === 0) return 0;
+  const copied = await tx<{ bytes: number }[]>`
+    INSERT INTO app.automation_node_runs (
+      run_id, org_id, path, item_index, pass, node_id, node_type, status,
+      started_at_ms, ended_at_ms, active_ms, attempt, skip_reason,
+      failure_code, input, output, record, claim_epoch, updated_at_ms)
+    SELECT ${args.runId}, s.org_id, s.path, s.item_index, s.pass, s.node_id,
+           s.node_type, s.status, ${args.at}::bigint, ${args.at}::bigint, 0,
+           s.attempt, s.skip_reason, s.failure_code, s.input, s.output,
+           s.record || jsonb_build_object('meta',
+             coalesce(s.record -> 'meta', '{}'::jsonb) || jsonb_build_object(
+               'reused', jsonb_strip_nulls(jsonb_build_object(
+                 'runId', ${args.sourceRunId}::text,
+                 'startedAt', s.started_at_ms,
+                 'endedAt', s.ended_at_ms)))),
+           0, ${args.at}::bigint
+    FROM app.automation_node_runs s
+    WHERE s.run_id = ${args.sourceRunId} AND s.org_id = ${args.organizationId}
+      AND split_part(s.path, '[', 1) = ANY(${[...args.paths]}::text[])
+    ON CONFLICT (run_id, path, item_index, pass) DO NOTHING
+    RETURNING coalesce(octet_length(input::text), 0)
+      + coalesce(octet_length(output::text), 0) AS bytes
+  `;
+  const bytes = copied.reduce((sum, row) => sum + row.bytes, 0);
+  if (bytes > 0) {
+    await tx`
+      UPDATE app.automation_runs SET record_bytes = record_bytes + ${bytes}
+      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+    `;
+  }
+  return copied.length;
+}

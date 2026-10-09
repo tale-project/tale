@@ -26637,6 +26637,578 @@
         }
       }
     },
+    "/api/v1/runs/{runId}/replay": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Plan running a run again",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. What running the run again would do, without doing it: the version it runs, which steps it reuses and which it runs again, what each does outside Tale, how many writes go out a second time when it runs live, how many model and agent calls it repeats — or the `refusal` it would meet. The query is the request `POST …/replay` takes.",
+        "operationId": "planRunReplay",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["again", "edited", "from"]
+            },
+            "description": "`again` (its own input), `edited` (an input you send to POST), or `from` (from one step)"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "kind `from`: the step to run again from"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`same` (the default: the version the run ran), `deployed`, `latest`, or a version number"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["mock", "live"]
+            },
+            "description": "The run’s own mode by default"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the replay would do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayPlan"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "`version: \"deployed\"` while nothing is deployed (`AUTOMATION_NOT_DEPLOYED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Runs"],
+        "summary": "Run a run again",
+        "description": "Only a run without a project is visible here. Use its project URL for a project run. Starts a new run of the same automation in the same scope: with the run's own input (`again`), with an `input` you send (`edited`), or from one step (`from`) — a fork born with the steps the run finished outside that step and what it feeds, which it reuses (their results, their record, never their effects), and runs the rest. Plan it first with `GET …/replay`: a step that writes runs again and writes again, under a new request key. Answers 202 like a start; the new run's `replayOf` names this run. A live replay requires the developer capability and the deployed version; a fork of a mock run stays mock. Send `Idempotency-Key` to make it safe to retry. Charges the execute bucket on top of the general REST bucket.",
+        "operationId": "replayRun",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[ -~]*[!-~][ -~]*$",
+              "maxLength": 255
+            },
+            "description": "A stable key of your choosing that names this replay — printable ASCII (a UUID, a job id), at most 255 characters: any other character answers 400 `INVALID_HEADER`, naming the header under `data.issues`, and no replay happens — keys are compared byte for byte once surrounding whitespace is removed, so the pattern is what keeps two spellings of one key from naming two replays; a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, run, kind and step within 24 hours answers 202 with the replay the first attempt started and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused replay is not remembered, so the same key runs once the refusal is fixed. A header sent but left blank (spaces only), or one over 255 characters, answers 400 `INVALID_HEADER` and starts nothing — omit the header to proceed without a key; it is never silently read as \"no key\"."
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The replay started, or the one an earlier attempt under the same `Idempotency-Key` started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayStarted"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body (`INVALID_BODY` — a fork without `from`, an `edited` replay without `input`, …), or input that does not match the automation inputs schema (`AUTOMATION_INPUT_INVALID`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "A live replay requires developer capability (`ROLE_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), no step `from` in both versions (`REPLAY_NODE_UNKNOWN`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "The run has not finished (`REPLAY_RUN_NOT_FINISHED`); the version to run changed what a reused step would compute (`REPLAY_GRAPH_CHANGED`, the steps under `data.nodes`); a fork of a mock run asked to run live (`REPLAY_MODE_MISMATCH`); the run’s progress cannot be read (`REPLAY_PROGRESS_UNREADABLE`); the run kept no input (`REPLAY_INPUT_UNAVAILABLE`); a live replay of a version that is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`) or of nothing deployed (`AUTOMATION_NOT_DEPLOYED`); the automation is now installed in projects while the run had none (`AUTOMATION_PROJECT_SCOPE_REQUIRED`); or the `Idempotency-Key` was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/runs/{runId}/ask": {
       "get": {
         "tags": ["Runs"],
@@ -29303,6 +29875,596 @@
               },
               "Allow": {
                 "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/runs/{runId}/replay": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Plan running a run again",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. What running the run again would do, without doing it: the version it runs, which steps it reuses and which it runs again, what each does outside Tale, how many writes go out a second time when it runs live, how many model and agent calls it repeats — or the `refusal` it would meet. The query is the request `POST …/replay` takes.",
+        "operationId": "planProjectRunReplay",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["again", "edited", "from"]
+            },
+            "description": "`again` (its own input), `edited` (an input you send to POST), or `from` (from one step)"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "kind `from`: the step to run again from"
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`same` (the default: the version the run ran), `deployed`, `latest`, or a version number"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["mock", "live"]
+            },
+            "description": "The run’s own mode by default"
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the replay would do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayPlan"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "304": {
+            "description": "Not Modified — `If-None-Match` named the current `ETag`, so the body is not sent",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Cache-Control": {
+                "$ref": "#/components/headers/CacheControl"
+              },
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request: a body the schema refuses — a wrong type, an unknown key, a missing field, a NUL or an unpaired surrogate, a whole number beyond 2^53 − 1 (`INVALID_BODY`, every problem under `data.issues`); a query parameter the operation does not take, given twice or left blank (`INVALID_QUERY`); on a list, a `limit` that is not a whole number (`INVALID_LIMIT`) or a `cursor` this list did not answer (`INVALID_CURSOR`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "`version: \"deployed\"` while nothing is deployed (`AUTOMATION_NOT_DEPLOYED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "429": {
+            "description": "The key holder’s request budget is spent (`RATE_LIMITED`): `Retry-After` names the wait in whole seconds and `data.retryAfterMs` in milliseconds; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (`INTERNAL_ERROR`); the envelope carries a `requestId` to quote when reporting it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "503": {
+            "description": "The platform’s database is restarting or cannot be reached (`DATABASE_UNAVAILABLE`): `Retry-After` names the wait in whole seconds — retry with backoff; the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Retry-After": {
+                "$ref": "#/components/headers/RetryAfter"
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Runs"],
+        "summary": "Run a run again",
+        "description": "The run must belong to the URL project, and the key holder must have project read access. Requires write access to the active URL project. Starts a new run of the same automation in the same scope: with the run's own input (`again`), with an `input` you send (`edited`), or from one step (`from`) — a fork born with the steps the run finished outside that step and what it feeds, which it reuses (their results, their record, never their effects), and runs the rest. Plan it first with `GET …/replay`: a step that writes runs again and writes again, under a new request key. Answers 202 like a start; the new run's `replayOf` names this run. A live replay requires the developer capability and the deployed version; a fork of a mock run stays mock. Send `Idempotency-Key` to make it safe to retry. Charges the execute bucket on top of the general REST bucket.",
+        "operationId": "replayProjectRun",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED on every call, reads included, when the key holder belongs to more than one organization — without it such requests are refused with 400 `ORG_SLUG_REQUIRED` (the dashboard’s last-active organization never steers a machine call). A slug that names no organization answers 404 `ORG_SLUG_INVALID`, one the key holder is no member of 403 `ORG_FORBIDDEN`. Single-organization keys may omit it; a blank or whitespace-only value reads as the header absent. Each of the three refusals lists the slugs the key holder may send under `data.organizations`; `GET /api/v1/me` answers them too."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Run ID returned by a start request"
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[ -~]*[!-~][ -~]*$",
+              "maxLength": 255
+            },
+            "description": "A stable key of your choosing that names this replay — printable ASCII (a UUID, a job id), at most 255 characters: any other character answers 400 `INVALID_HEADER`, naming the header under `data.issues`, and no replay happens — keys are compared byte for byte once surrounding whitespace is removed, so the pattern is what keeps two spellings of one key from naming two replays; a header value carrying a control character never reaches the platform, the edge refuses the request before any envelope. A repeat with the same key, run, kind and step within 24 hours answers 202 with the replay the first attempt started and `duplicate: true`; a repeat with a different body answers 409 `IDEMPOTENCY_KEY_REUSED`. A refused replay is not remembered, so the same key runs once the refusal is fixed. A header sent but left blank (spaces only), or one over 255 characters, answers 400 `INVALID_HEADER` and starts nothing — omit the header to proceed without a key; it is never silently read as \"no key\"."
+          },
+          {
+            "name": "X-Request-Id",
+            "in": "header",
+            "required": false,
+            "description": "Your own correlation id, echoed back on the response and written to the platform’s log: up to 255 characters of letters, digits, `_`, `-` and `=`. Any other value is replaced by a fresh UUID (the response carries the id that was used), and uniqueness of an id you choose is yours to keep.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_=-]{1,255}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplayRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The replay started, or the one an earlier attempt under the same `Idempotency-Key` started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayStarted"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid body (`INVALID_BODY` — a fork without `from`, an `edited` replay without `input`, …), or input that does not match the automation inputs schema (`AUTOMATION_INPUT_INVALID`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key (`UNAUTHORIZED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "WWW-Authenticate": {
+                "$ref": "#/components/headers/WWWAuthenticate"
+              }
+            }
+          },
+          "403": {
+            "description": "Requires write access to an active project; a live replay also requires developer capability (`ROLE_FORBIDDEN`); or `X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "404": {
+            "description": "Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), no step `from` in both versions (`REPLAY_NODE_UNKNOWN`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`); or `X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "405": {
+            "description": "The path exists, but not for this method (`METHOD_NOT_ALLOWED`); `Allow` names the methods it serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              },
+              "Allow": {
+                "$ref": "#/components/headers/Allow"
+              }
+            }
+          },
+          "409": {
+            "description": "The run has not finished (`REPLAY_RUN_NOT_FINISHED`); the version to run changed what a reused step would compute (`REPLAY_GRAPH_CHANGED`, the steps under `data.nodes`); a fork of a mock run asked to run live (`REPLAY_MODE_MISMATCH`); the run’s progress cannot be read (`REPLAY_PROGRESS_UNREADABLE`); the run kept no input (`REPLAY_INPUT_UNAVAILABLE`); a live replay of a version that is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`) or of nothing deployed (`AUTOMATION_NOT_DEPLOYED`); the automation is now installed in projects while the run had none (`AUTOMATION_PROJECT_SCOPE_REQUIRED`); or the `Idempotency-Key` was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeds this operation’s byte cap — 1 MiB unless the description says otherwise (`BODY_TOO_LARGE`); the envelope carries a `requestId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "headers": {
+              "X-Request-Id": {
+                "$ref": "#/components/headers/XRequestId"
+              },
+              "X-Tale-Api-Version": {
+                "$ref": "#/components/headers/XTaleApiVersion"
               }
             }
           },
@@ -41907,6 +43069,12 @@
                   "PURGE_INCOMPLETE",
                   "RATE_LIMITED",
                   "RBAC_FORBIDDEN",
+                  "REPLAY_GRAPH_CHANGED",
+                  "REPLAY_INPUT_UNAVAILABLE",
+                  "REPLAY_MODE_MISMATCH",
+                  "REPLAY_NODE_UNKNOWN",
+                  "REPLAY_PROGRESS_UNREADABLE",
+                  "REPLAY_RUN_NOT_FINISHED",
                   "REQUEST_TIMEOUT",
                   "REVIEW_COMPETENCE_REQUIRED",
                   "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
@@ -42141,6 +43309,12 @@
                   "PURGE_INCOMPLETE",
                   "RATE_LIMITED",
                   "RBAC_FORBIDDEN",
+                  "REPLAY_GRAPH_CHANGED",
+                  "REPLAY_INPUT_UNAVAILABLE",
+                  "REPLAY_MODE_MISMATCH",
+                  "REPLAY_NODE_UNKNOWN",
+                  "REPLAY_PROGRESS_UNREADABLE",
+                  "REPLAY_RUN_NOT_FINISHED",
                   "REQUEST_TIMEOUT",
                   "REVIEW_COMPETENCE_REQUIRED",
                   "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
@@ -42366,6 +43540,12 @@
               "PURGE_INCOMPLETE",
               "RATE_LIMITED",
               "RBAC_FORBIDDEN",
+              "REPLAY_GRAPH_CHANGED",
+              "REPLAY_INPUT_UNAVAILABLE",
+              "REPLAY_MODE_MISMATCH",
+              "REPLAY_NODE_UNKNOWN",
+              "REPLAY_PROGRESS_UNREADABLE",
+              "REPLAY_RUN_NOT_FINISHED",
               "REQUEST_TIMEOUT",
               "REVIEW_COMPETENCE_REQUIRED",
               "REVIEW_INDEPENDENT_REVIEWER_REQUIRED",
@@ -45921,6 +47101,24 @@
             "type": "string",
             "description": "The run id (`runId` at start)"
           },
+          "replayOf": {
+            "type": "object",
+            "description": "Present on a run started by running another one again: that run (`runId`, null once it was deleted), how (`kind`), and from which step (`fromNode`)",
+            "required": ["runId", "kind"],
+            "properties": {
+              "runId": {
+                "type": "string",
+                "nullable": true
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["again", "edited", "from"]
+              },
+              "fromNode": {
+                "type": "string"
+              }
+            }
+          },
           "organizationId": {
             "type": "string"
           },
@@ -46070,6 +47268,24 @@
           "id": {
             "type": "string",
             "description": "The run id (`runId` at start)"
+          },
+          "replayOf": {
+            "type": "object",
+            "description": "Present on a run started by running another one again: that run (`runId`, null once it was deleted), how (`kind`), and from which step (`fromNode`)",
+            "required": ["runId", "kind"],
+            "properties": {
+              "runId": {
+                "type": "string",
+                "nullable": true
+              },
+              "kind": {
+                "type": "string",
+                "enum": ["again", "edited", "from"]
+              },
+              "fromNode": {
+                "type": "string"
+              }
+            }
           },
           "organizationId": {
             "type": "string"
@@ -48221,6 +49437,217 @@
               "values": {
                 "type": "boolean",
                 "enum": [true]
+              }
+            }
+          }
+        }
+      },
+      "ReplayRequest": {
+        "type": "object",
+        "description": "How to run a run again. `from` is taken only by kind `from`, `input` only by kind `edited`.",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["again", "edited", "from"]
+          },
+          "from": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "description": "kind `from`: the step to run again from"
+          },
+          "version": {
+            "description": "`same` (the default: the version the run ran), `deployed`, `latest`, or a version number",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": ["same", "deployed", "latest"]
+              },
+              {
+                "type": "integer",
+                "minimum": 1
+              }
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["mock", "live"],
+            "description": "The run’s own mode by default"
+          },
+          "input": {
+            "description": "kind `edited`: the input to run with; must match the automation inputs schema when declared"
+          }
+        }
+      },
+      "ReplayStarted": {
+        "type": "object",
+        "required": ["runId", "version", "mode", "kind", "reused"],
+        "properties": {
+          "runId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer"
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["mock", "live"]
+          },
+          "kind": {
+            "type": "string",
+            "enum": ["again", "edited", "from"]
+          },
+          "reused": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Steps taken from the run it replays"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "Present when the `Idempotency-Key` had already started this replay: nothing new ran"
+          }
+        }
+      },
+      "ReplayPlan": {
+        "type": "object",
+        "description": "What a replay would do, before it starts.",
+        "required": [
+          "kind",
+          "sourceRunId",
+          "version",
+          "mode",
+          "deployed",
+          "liveAllowed",
+          "reuse",
+          "rerun",
+          "writesAgain",
+          "spendAgain"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["again", "edited", "from"]
+          },
+          "sourceRunId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "object",
+            "required": ["source", "target", "resolved"],
+            "properties": {
+              "source": {
+                "type": "integer"
+              },
+              "target": {
+                "type": "integer"
+              },
+              "resolved": {
+                "type": "string",
+                "enum": ["same", "deployed", "latest", "number"]
+              }
+            }
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["mock", "live"]
+          },
+          "deployed": {
+            "type": "boolean",
+            "description": "The version it runs is the deployed one"
+          },
+          "liveAllowed": {
+            "type": "boolean",
+            "description": "It may run live: the version is deployed and the key holder may start live runs"
+          },
+          "reuse": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["nodeId", "status"],
+              "properties": {
+                "nodeId": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": ["ok", "skipped"]
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "rerun": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["nodeId", "type", "effect"],
+              "properties": {
+                "nodeId": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "effect": {
+                  "type": "string",
+                  "enum": ["write", "read", "llm", "agent", "none"]
+                },
+                "connector": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "description": "How many items it ran for in the run, for a step that runs per item"
+                }
+              }
+            }
+          },
+          "writesAgain": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Writes that go out a second time when it runs live: one per writing step, one per item for a step that ran per item"
+          },
+          "spendAgain": {
+            "type": "object",
+            "required": ["llm", "agent"],
+            "properties": {
+              "llm": {
+                "type": "integer"
+              },
+              "agent": {
+                "type": "integer"
+              }
+            }
+          },
+          "refusal": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "REPLAY_NODE_UNKNOWN",
+                  "REPLAY_GRAPH_CHANGED",
+                  "REPLAY_RUN_NOT_FINISHED",
+                  "REPLAY_MODE_MISMATCH",
+                  "REPLAY_PROGRESS_UNREADABLE",
+                  "REPLAY_INPUT_UNAVAILABLE"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "nodes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

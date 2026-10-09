@@ -2055,6 +2055,38 @@ export interface RunRow {
    * responding, or a stopping server handed it on and no other has taken
    * it yet. */
   stalled: boolean;
+  /** The run this one replays — null once that run was deleted, while
+   * `replayKind` still says it was a replay. Answered as `replayOf`; every
+   * read of the row selects them. */
+  replayOfRunId?: string | null;
+  replayKind?: RunReplayKind | null;
+  replayFromNode?: string | null;
+}
+
+/** How a replay ran its source again: with the same input, with an input a
+ * person edited, or from one of its steps. */
+export type RunReplayKind = 'again' | 'edited' | 'from';
+
+/** The run a replay ran again, as a read answers it. */
+export interface RunReplayOf {
+  /** Null once the run it replays was deleted. */
+  runId: string | null;
+  kind: RunReplayKind;
+  fromNode?: string;
+}
+
+/** A run's replay lineage, from its row; undefined for a run nobody
+ * replayed into being. */
+export function runReplayOf(
+  row: Pick<RunRow, 'replayOfRunId' | 'replayKind' | 'replayFromNode'>,
+): RunReplayOf | undefined {
+  if (row.replayKind === null || row.replayKind === undefined) return undefined;
+  return {
+    runId: row.replayOfRunId ?? null,
+    kind: row.replayKind,
+    ...(row.replayFromNode !== null &&
+      row.replayFromNode !== undefined && { fromNode: row.replayFromNode }),
+  };
 }
 
 /** Why and when a run was last handed to another server. */
@@ -2098,7 +2130,9 @@ const RUN_COLUMNS = `
   resume_count AS "resumeCount",
   last_resume_reason AS "lastResumeReason",
   last_resumed_at_ms::float8 AS "lastResumedAt",
-  ${RUN_STALLED_SQL} AS "stalled"
+  ${RUN_STALLED_SQL} AS "stalled",
+  replay_of_run_id AS "replayOfRunId", replay_kind AS "replayKind",
+  replay_from_node AS "replayFromNode"
 `;
 
 async function runRow(
@@ -2373,29 +2407,41 @@ export function runWaitingFor(
  * resume stamps. */
 export function toRunDetail(row: RunRow): Omit<
   RunRow,
-  'askPending' | 'lastResumeReason' | 'lastResumedAt' | 'legacyQuarantine'
+  | 'askPending'
+  | 'lastResumeReason'
+  | 'lastResumedAt'
+  | 'legacyQuarantine'
+  | 'replayOfRunId'
+  | 'replayKind'
+  | 'replayFromNode'
 > & {
   legacyQuarantine?: LegacyRunQuarantine;
   waitingFor?: RunSummary['waitingFor'];
   startedVia?: RunSummary['startedVia'];
   lastResume?: RunLastResume;
+  replayOf?: RunReplayOf;
 } {
   const {
     askPending: _askPending,
     legacyQuarantine: _legacyQuarantine,
     lastResumeReason: _lastResumeReason,
     lastResumedAt: _lastResumedAt,
+    replayOfRunId: _replayOfRunId,
+    replayKind: _replayKind,
+    replayFromNode: _replayFromNode,
     ...rest
   } = row;
   const waitingFor = runWaitingFor(row);
   const startedVia = runStartedVia(row);
   const lastResume = runLastResume(row);
+  const replayOf = runReplayOf(row);
   return {
     ...rest,
     ...legacyRunReadFields(row),
     ...(startedVia !== undefined ? { startedVia } : {}),
     ...(waitingFor !== undefined ? { waitingFor } : {}),
     ...(lastResume !== undefined ? { lastResume } : {}),
+    ...(replayOf !== undefined ? { replayOf } : {}),
   };
 }
 
@@ -2538,6 +2584,15 @@ export interface BeginRunArgs {
    * admission too: omitting projectId must not infer a hidden project, nor
    * start an organization run able to operate in hidden bound projects. */
   visibleProjectIds?: string[];
+  /** A replay: the run it runs again and how. A replay from a step is born
+   * with the steps it takes from that run already finished — each entry
+   * marked `reused` — and runs the rest. */
+  replay?: {
+    of: string;
+    kind: RunReplayKind;
+    fromNode?: string;
+    reused?: Record<string, NodeCheckpoint>;
+  };
 }
 
 /** The same project admission for durable and in-process run artifacts.
@@ -2691,14 +2746,16 @@ export async function beginRunInTx(
       INSERT INTO app.automation_runs (
         org_id, name, version, project_id, status, mode, started_by,
         api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms,
-        record_bytes
+        record_bytes, replay_of_run_id, replay_kind, replay_from_node
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${version},
         ${projectId}, 'queued', ${args.mode}, ${args.startedBy},
         ${args.apiKeyId ?? null},
         ${tx.json(toJson(JSON.stringify(args.input)))},
-        ${tx.json(toJson({ nodes: {}, executions: 0 }))},
-        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}, ${start.bytes}
+        ${tx.json(toJson({ nodes: args.replay?.reused ?? {}, executions: 0 }))},
+        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}, ${start.bytes},
+        ${args.replay?.of ?? null}, ${args.replay?.kind ?? null},
+        ${args.replay?.fromNode ?? null}
       )
       RETURNING id
     `;

@@ -1419,6 +1419,7 @@ logs:
       automation.run.failed: Automatisierungslauf fehlgeschlagen
       automation.run.cancelled: Automatisierungslauf gestoppt
       automation.run.deleted: Automatisierungslauf gelöscht
+      automation.run.replayed: Automatisierungslauf erneut gestartet
       automation.run.in_doubt_resolved: Über unterbrochenen Automatisierungsschritt entschieden
       automation.version.saved: Automatisierungsversion gespeichert
       automation.deployed: Automatisierung live geschaltet

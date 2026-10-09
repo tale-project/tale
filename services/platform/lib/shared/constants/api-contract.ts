@@ -555,9 +555,18 @@
  * one automation (`RunDiff`). Each has its project twin and reads the run
  * as `GET …/runs/{runId}` does. New codes: `NODE_RUN_NOT_FOUND` (404) and
  * `RUN_COMPARE_MISMATCH` (400). A run's `effects` carry the `item` and
- * `pass` they were made for. The MCP `get_run` takes `include`
- * (`["record"]`, `["travels"]`) and answers `record` beside `run`; new
- * read tools `get_run_node` and `compare_runs` answer the same unit and
- * comparison. Additive otherwise.
+ * `pass` they were made for. A run runs again: `POST …/runs/{runId}/replay`
+ * (`ReplayRequest`: `again`, `edited` with `input`, or `from` a step, a
+ * `version` and a `mode`) answers 202 `ReplayStarted` and honours
+ * `Idempotency-Key`; `GET …/replay` answers its `ReplayPlan` without
+ * starting it. A fork reuses the steps the run finished outside the step
+ * and what it feeds; the new run's `Run.replayOf` names the run it
+ * replays. New codes: `REPLAY_RUN_NOT_FINISHED`, `REPLAY_NODE_UNKNOWN`,
+ * `REPLAY_GRAPH_CHANGED`, `REPLAY_MODE_MISMATCH`,
+ * `REPLAY_PROGRESS_UNREADABLE`, `REPLAY_INPUT_UNAVAILABLE`. The MCP
+ * `get_run` takes `include` (`["record"]`, `["travels"]`) and answers
+ * `record` beside `run`; new read tools `get_run_node` and `compare_runs`
+ * answer the same unit and comparison, and `replay_run` runs a run again
+ * (`dryRun` answers the plan). Additive otherwise.
  */
 export const API_CONTRACT_VERSION = '3.29.0';

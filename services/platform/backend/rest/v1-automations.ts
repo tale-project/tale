@@ -1,4 +1,5 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
+import { replayRequestSchema } from '@tale/shared/schemas/automation-replay';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -18,6 +19,10 @@ import {
   automationVisible,
   readableProjectIds,
 } from '../domains/automations/project-visibility.ts';
+import {
+  readReplayPlan,
+  replayRunInTx,
+} from '../domains/automations/replay.ts';
 import {
   readNodeDetail,
   readNodePage,
@@ -69,6 +74,7 @@ import {
   chargeLane,
   domainErrorResponse,
   formatKeysetCursor,
+  hasDeveloperCapability,
   invalidQueryResponse,
   loadRestProject,
   mintCursor,
@@ -154,11 +160,20 @@ const RUN_FIELDS = [
 ] as const satisfies readonly (keyof RunRow)[];
 // Every key the full read answers must be selectable: a `RunRow` column
 // added without a `RUN_FIELDS` entry fails here, not as a 400 in production.
-// `askPending` is the read's own input to `waitingFor`, and the two resume
-// stamps the read's input to `lastResume`, stripped before the wire — never
-// fields a caller names.
+// `askPending` is the read's own input to `waitingFor`, the two resume
+// stamps the read's input to `lastResume`, and the three replay columns its
+// input to `replayOf`, stripped before the wire — never fields a caller
+// names.
 type RunFieldsMissing = Exclude<
-  keyof Omit<RunRow, 'askPending' | 'lastResumeReason' | 'lastResumedAt'>,
+  keyof Omit<
+    RunRow,
+    | 'askPending'
+    | 'lastResumeReason'
+    | 'lastResumedAt'
+    | 'replayOfRunId'
+    | 'replayKind'
+    | 'replayFromNode'
+  >,
   (typeof RUN_FIELDS)[number]
 >;
 const RUN_FIELDS_COMPLETE: [RunFieldsMissing] extends [never] ? true : never =
@@ -182,6 +197,14 @@ const RUN_NODE_QUERY = {
   pass: queryFilter(10).optional(),
 };
 
+/** The query of a replay's plan: the request a replay takes. */
+const REPLAY_PLAN_QUERY = {
+  kind: queryFilter(16),
+  from: queryFilter(200).optional(),
+  version: queryFilter(16).optional(),
+  mode: queryFilter(8).optional(),
+};
+
 /** The query of a page of a step's items and passes. */
 const RUN_ITEMS_QUERY = {
   ...PAGE_QUERY,
@@ -200,6 +223,7 @@ const RUN_READ_FIELDS = [
   'waitingFor',
   'startedVia',
   'lastResume',
+  'replayOf',
 ] as const;
 
 /** The query every run listing takes: the page pair, a status set and the
@@ -1218,6 +1242,104 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     }
   };
   app.get('/runs/:runId/compare/:otherRunId', noQuery, compareRoute);
+
+  // ---- run a run again ------------------------------------------------------
+  /** What a replay would do: what it reuses, what it runs again and sends
+   * out a second time, or why it cannot start. */
+  const replayPlanRoute = async (c: Context<RestEnv>) => {
+    const query = readQuery(c, REPLAY_PLAN_QUERY);
+    if (query instanceof Response) return query;
+    const version =
+      query.version === undefined || !/^[1-9]\d{0,6}$/.test(query.version)
+        ? query.version
+        : Number(query.version);
+    const request = replayRequestSchema.safeParse({
+      kind: query.kind,
+      ...(query.from !== undefined && { from: query.from }),
+      ...(version !== undefined && { version }),
+      ...(query.mode !== undefined && { mode: query.mode }),
+    });
+    if (!request.success) {
+      return invalidQueryResponse(
+        c,
+        'INVALID_QUERY',
+        `invalid query: ${request.error.issues[0]?.message ?? 'not a replay'}`,
+        request.error.issues.map((issue) => ({
+          path: issue.path.join('.') || 'kind',
+          message: issue.message,
+        })),
+      );
+    }
+    try {
+      const runId = c.req.param('runId') ?? '';
+      if (!(await restRunVisible(c, runId))) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      const plan = await readReplayPlan(deps.sql, {
+        organizationId: c.get('organizationId'),
+        sourceRunId: runId,
+        request: request.data,
+        canStartLive: hasDeveloperCapability(c),
+      });
+      return plan === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(plan);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.get('/runs/:runId/replay', replayPlanRoute);
+  app.get('/projects/:id/runs/:runId/replay', replayPlanRoute);
+
+  /** Run a run again, in its own project: a live replay needs the developer
+   * capability, a project's replay its write access, and every replay draws
+   * from the execution budget like a start. */
+  const replayRoute = async (c: Context<RestEnv>) => {
+    const body = await parseBody(c, replayRequestSchema);
+    if (body instanceof Response) return body;
+    const idempotencyKey = readIdempotencyKey(c);
+    if (idempotencyKey instanceof Response) return idempotencyKey;
+    try {
+      const organizationId = c.get('organizationId');
+      const runId = c.req.param('runId') ?? '';
+      const projectId = c.req.param('id');
+      const auth =
+        projectId === undefined ? null : await restProjectAuth(deps.sql, c);
+      if (auth !== null && projectId !== undefined) {
+        await loadRestProject(deps.sql, auth, projectId, { write: true });
+      }
+      const run = await getRun(deps.sql, organizationId, runId);
+      if (run === null || run.projectId !== (projectId ?? null)) {
+        return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      }
+      // The capability gate before the lane charge, as on a start.
+      if ((body.mode ?? run.mode) === 'live') requireDeveloper(c);
+      const limited = await chargeLane(deps.sql, c, 'rest:execute');
+      if (limited) return limited;
+      const keyId = restApiKeyId(c);
+      const started = await transactSerializable(deps.sql, async (tx) => {
+        if (auth !== null && projectId !== undefined) {
+          await loadRestProject(tx, auth, projectId, { write: true });
+        }
+        return replayRunInTx(tx, {
+          organizationId,
+          sourceRunId: runId,
+          request: body,
+          startedBy: `api-key:${c.get('userId')}`,
+          canStartLive: hasDeveloperCapability(c),
+          ...(keyId !== undefined && { apiKeyId: keyId }),
+          ...(idempotencyKey !== undefined && { idempotencyKey }),
+        });
+      });
+      return started === null
+        ? notFound(c, 'Run not found', 'RUN_NOT_FOUND')
+        : c.json(started, 202);
+    } catch (error) {
+      return domainErrorResponse(c, error);
+    }
+  };
+  app.post('/runs/:runId/replay', replayRoute);
+  app.post('/projects/:id/runs/:runId/replay', replayRoute);
   app.get(
     '/projects/:id/runs/:runId/compare/:otherRunId',
     noQuery,

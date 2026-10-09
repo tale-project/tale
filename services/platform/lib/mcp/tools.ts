@@ -179,6 +179,7 @@ const EXECUTE_TOOLS: ReadonlySet<string> = new Set([
   'deploy_automation',
   'run_deployed',
   'start_run',
+  'replay_run',
   'answer_run_ask',
   'invoke_capability',
 ]);
@@ -265,6 +266,7 @@ const METHOD_ANNOTATIONS: Record<Method, McpToolAnnotations> = {
   get_run: READ,
   get_run_node: READ,
   compare_runs: READ,
+  replay_run: EXECUTE_LIVE,
   cancel_run: REPLACE,
   answer_run_ask: ANSWER,
   list_versions: READ,
@@ -308,6 +310,8 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
     "One step of a run read whole — or one of its items or passes: what it received and returned (secrets withheld), where its templates' text landed, what it read from earlier steps, how its output differs from its input, and its call to a connector or a model.",
   compare_runs:
     'Two runs of one automation side by side, step by step: what changed in the version, how input and output differ, and the first step where the runs went different ways — the decision that flipped and the values that flipped it.',
+  replay_run:
+    'Run a run again, in its own project: with its own input ("again"), with an edited input ("edited"), or from one step ("from"), reusing what it finished outside that step. dryRun: true answers the plan first — what runs again and which writes go out a second time. A live replay needs the developer role and the deployed version.',
   cancel_run: 'Stop a run at its next node boundary.',
   answer_run_ask:
     'Answer the question a waiting run asked a person (get_run answers it as run.ask: askId and question); the run resumes on the answer. The answer speaks for the person: ask them first.',
@@ -345,6 +349,7 @@ const METHOD_GROUPS: Record<Method, Exclude<McpToolGroup, 'capability'>> = {
   get_run: 'management',
   get_run_node: 'management',
   compare_runs: 'management',
+  replay_run: 'management',
   cancel_run: 'management',
   answer_run_ask: 'management',
   list_versions: 'management',

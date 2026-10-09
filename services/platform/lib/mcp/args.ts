@@ -1,3 +1,5 @@
+import { REPLAY_KINDS } from '@tale/shared/automation-replay';
+import { checkReplayRequest } from '@tale/shared/schemas/automation-replay';
 import { automationSettingsSchema } from '@tale/shared/schemas/automation-settings';
 import { taskSubjectContractSchema } from '@tale/shared/schemas/task-contract';
 import { z } from 'zod';
@@ -418,6 +420,48 @@ export const ENGINE_TOOL_ARGS = {
       'The later run of the same automation: steps are compared in the order its version runs them.',
     ),
   }),
+  replay_run: z
+    .strictObject({
+      runId,
+      kind: z
+        .enum(REPLAY_KINDS)
+        .describe(
+          '"again" runs it with its own input, "edited" with input, "from" again from one step: the steps it finished outside that step and what it feeds are reused, the rest run anew.',
+        ),
+      from: nonBlank()
+        .max(200)
+        .optional()
+        .describe(
+          'kind "from": the step to run again from, as get_run {include: ["record"]} lists it.',
+        ),
+      version: z
+        .union([
+          z.enum(['same', 'deployed', 'latest']),
+          z.number().int().min(1).max(1_000_000),
+        ])
+        .optional()
+        .describe(
+          'The version to run: the one the run ran ("same", the default), the deployed one, the latest saved one, or a version number. A live run needs the deployed version.',
+        ),
+      mode: z
+        .enum(['mock', 'live'])
+        .optional()
+        .describe(
+          'The run’s own mode by default. A fork of a mock run stays mock: its results were made up.',
+        ),
+      input: z
+        .unknown()
+        .optional()
+        .describe('kind "edited": the input to run with.'),
+      dryRun: z
+        .boolean()
+        .optional()
+        .describe(
+          'true: answer the plan — what it reuses, runs again and sends out a second time — and start nothing.',
+        ),
+      idempotencyKey: idempotencyKey.optional(),
+    })
+    .superRefine(checkReplayRequest),
   cancel_run: z.strictObject({ runId }),
   answer_run_ask: z.strictObject({
     runId,

@@ -38,7 +38,7 @@ export type AutomationDefinitionAction =
 /** Who an actor string names, as the audit row records it: the person (a
  * bare id, `user:<id>`, `api-key:<id>`) with the door's actor type, or the
  * system for a writer that is not a person (`system:provisioning`). */
-function auditActor(actor: string): {
+export function auditActor(actor: string): {
   actorId: string;
   actorType: AuditLogActorType;
 } {

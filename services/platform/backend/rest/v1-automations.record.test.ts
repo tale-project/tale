@@ -20,10 +20,21 @@ const record = vi.hoisted(() => ({
   readNodePage: vi.fn(),
   readRunComparison: vi.fn(),
 }));
+const replay = vi.hoisted(() => ({
+  readReplayPlan: vi.fn(),
+  replayRunInTx: vi.fn(),
+}));
+const roles = vi.hoisted(() => ({ role: 'member' }));
 
 vi.mock('../domains/automations/store.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../domains/automations/store.ts')>()),
   getRun: store.getRun,
+}));
+vi.mock('../domains/automations/replay.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../domains/automations/replay.ts')
+  >()),
+  ...replay,
 }));
 vi.mock('../domains/automations/run-record.ts', async (importOriginal) => ({
   ...(await importOriginal<
@@ -61,28 +72,52 @@ function fakeSql(): Sql {
   return sql as unknown as Sql;
 }
 
-function request(path: string): Promise<Response> {
+function request(
+  path: string,
+  init?: { body?: unknown; headers?: Record<string, string> },
+): Promise<Response> {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
     c.set('userEmail', 'worker@example.com');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
-    c.set('role', 'member');
+    c.set('role', roles.role);
     c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
     return next();
   });
   app.route('/api/v1', createAutomationRestRoutes({ sql: fakeSql() }));
-  return Promise.resolve(app.request(`http://localhost/api/v1${path}`));
+  return Promise.resolve(
+    app.request(`http://localhost/api/v1${path}`, {
+      ...(init?.body !== undefined && {
+        method: 'POST',
+        body: JSON.stringify(init.body),
+      }),
+      headers: {
+        'content-type': 'application/json',
+        ...init?.headers,
+      },
+    }),
+  );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  roles.role = 'member';
+  replay.readReplayPlan.mockResolvedValue({ kind: 'again', rerun: [] });
+  replay.replayRunInTx.mockResolvedValue({
+    runId: 'run-new',
+    version: 2,
+    mode: 'mock',
+    kind: 'again',
+    reused: 0,
+  });
   store.getRun.mockImplementation(
     async (_sql: unknown, _org: string, id: string) => {
-      if (id === 'org-run') return { id, projectId: null };
-      if (id === 'project-run') return { id, projectId: 'p-2' };
+      if (id === 'org-run') return { id, projectId: null, mode: 'mock' };
+      if (id === 'live-run') return { id, projectId: null, mode: 'live' };
+      if (id === 'project-run') return { id, projectId: 'p-2', mode: 'mock' };
       return null;
     },
   );
@@ -221,5 +256,77 @@ describe('GET …/runs/{runId}/compare/{otherRunId}', () => {
     const res = await request('/runs/org-run/compare/org-run');
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ code: 'RUN_COMPARE_MISMATCH' });
+  });
+});
+
+describe('GET …/runs/{runId}/replay', () => {
+  it('plans the replay the query names, on the run’s own path', async () => {
+    const res = await request(
+      '/runs/org-run/replay?kind=from&from=send&version=deployed',
+    );
+    expect(res.status).toBe(200);
+    expect(replay.readReplayPlan).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      sourceRunId: 'org-run',
+      request: { kind: 'from', from: 'send', version: 'deployed' },
+      canStartLive: false,
+    });
+    expect((await request('/runs/project-run/replay?kind=again')).status).toBe(
+      404,
+    );
+  });
+
+  it('refuses a plan that is not a replay', async () => {
+    const res = await request('/runs/org-run/replay?kind=from');
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_QUERY' });
+  });
+});
+
+describe('POST …/runs/{runId}/replay', () => {
+  it('replays as the key, with its key and budget, answering 202', async () => {
+    const res = await request('/runs/org-run/replay', {
+      body: { kind: 'again' },
+      headers: { 'Idempotency-Key': 'retry-1' },
+    });
+    expect(res.status).toBe(202);
+    expect(replay.replayRunInTx).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      sourceRunId: 'org-run',
+      request: { kind: 'again' },
+      startedBy: 'api-key:user-1',
+      canStartLive: false,
+      idempotencyKey: 'retry-1',
+    });
+  });
+
+  it('needs the developer capability for a live replay, before any budget is spent [AUTO-R41]', async () => {
+    const res = await request('/runs/live-run/replay', {
+      body: { kind: 'again' },
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'ROLE_FORBIDDEN' });
+    expect(replay.replayRunInTx).not.toHaveBeenCalled();
+    roles.role = 'developer';
+    expect(
+      (await request('/runs/live-run/replay', { body: { kind: 'again' } }))
+        .status,
+    ).toBe(202);
+  });
+
+  it('answers a run outside the URL’s scope like a missing one', async () => {
+    const res = await request('/runs/project-run/replay', {
+      body: { kind: 'again' },
+    });
+    expect(res.status).toBe(404);
+    expect(replay.replayRunInTx).not.toHaveBeenCalled();
+  });
+
+  it('refuses an edited replay without its input', async () => {
+    const res = await request('/runs/org-run/replay', {
+      body: { kind: 'edited' },
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'INVALID_BODY' });
   });
 });

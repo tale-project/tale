@@ -31,6 +31,10 @@ const PURE_SHARED_HELPERS = [
     ENGINE_ROOT,
     '../../../../packages/shared/src/automation-name.ts',
   ),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/automation-replay.ts',
+  ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
   path.resolve(ENGINE_ROOT, '../shared/utils/bound-json.ts'),
   path.resolve(ENGINE_ROOT, '../shared/audit-redaction.ts'),
@@ -92,6 +96,7 @@ describe('engine purity', () => {
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/shared/automation-replay',
       '@tale/ui/data/hash',
       '@tale/ui/data/infer-schema',
       '@tale/ui/data/json-pointer',

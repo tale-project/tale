@@ -4,7 +4,13 @@ import { seeded } from '@tale/ui/data/random-json';
 import { describe, expect, it } from 'vitest';
 
 import type { Automation, NodeDef } from '../types';
-import { canonicalNode, downstream, planFork } from './replay';
+import {
+  canonicalNode,
+  downstream,
+  planFork,
+  planReplay,
+  replayModeAllowed,
+} from './replay';
 
 /** A step reading `reads` through its input mapping. */
 function step(id: string, reads: string[] = [], extra?: Partial<NodeDef>) {
@@ -418,5 +424,143 @@ describe('planFork', () => {
       }
       expect(order).toHaveLength(count);
     }
+  });
+});
+
+describe('replayModeAllowed', () => {
+  it('lets a run again in any mode, and a fork never more real than its source [AUTO-R41]', () => {
+    expect(replayModeAllowed('again', 'mock', 'live')).toBe(true);
+    expect(replayModeAllowed('edited', 'mock', 'live')).toBe(true);
+    expect(replayModeAllowed('from', 'live', 'mock')).toBe(true);
+    expect(replayModeAllowed('from', 'live', 'live')).toBe(true);
+    expect(replayModeAllowed('from', 'mock', 'live')).toBe(false);
+  });
+});
+
+describe('planReplay', () => {
+  const invoice = doc([
+    step('fetch', [], { type: 'http.get' }),
+    step('score', ['fetch'], { type: 'llm' }),
+    step('send', ['score'], { type: 'smtp.send', forEach: '{{ [1, 2] }}' }),
+    step('audit', ['fetch'], { type: 'transform' }),
+  ]);
+  const effectOf = (type: string) =>
+    type === 'smtp.send' ? ('write' as const) : ('read' as const);
+  const base = {
+    mode: 'live' as const,
+    canStartLive: true,
+    source: {
+      id: 'run-1',
+      status: 'failed',
+      mode: 'live' as const,
+      version: 3,
+      document: invoice,
+      checkpoints: {
+        nodes: {
+          fetch: { status: 'ok' },
+          score: { status: 'ok' },
+          audit: { status: 'skipped', reason: 'when' },
+        },
+      },
+      inputKnown: true,
+      items: new Map([['send', 2]]),
+    },
+    target: {
+      version: 3,
+      resolved: 'same' as const,
+      document: invoice,
+      deployed: true,
+    },
+    effectOf,
+  };
+
+  it('runs everything again, counting the writes and calls it repeats', () => {
+    const plan = planReplay({ ...base, kind: 'again' });
+    expect(plan.refusal).toBeUndefined();
+    expect(plan.reuse).toEqual([]);
+    expect(plan.rerun).toEqual([
+      { nodeId: 'fetch', type: 'http.get', effect: 'read', connector: 'http' },
+      { nodeId: 'score', type: 'llm', effect: 'llm' },
+      {
+        nodeId: 'send',
+        type: 'smtp.send',
+        effect: 'write',
+        connector: 'smtp',
+        items: 2,
+      },
+      { nodeId: 'audit', type: 'transform', effect: 'none' },
+    ]);
+    expect(plan.writesAgain).toBe(2);
+    expect(plan.spendAgain).toEqual({ llm: 1, agent: 0 });
+    expect(plan.liveAllowed).toBe(true);
+  });
+
+  it('counts no write going out again for a mock replay', () => {
+    expect(
+      planReplay({ ...base, kind: 'again', mode: 'mock' }).writesAgain,
+    ).toBe(0);
+  });
+
+  it('reuses what a fork does not feed, with why a step was skipped [AUTO-R41]', () => {
+    const plan = planReplay({ ...base, kind: 'from', from: 'send' });
+    expect(plan.refusal).toBeUndefined();
+    expect(plan.reuse).toEqual([
+      { nodeId: 'fetch', status: 'ok' },
+      { nodeId: 'score', status: 'ok' },
+      { nodeId: 'audit', status: 'skipped', reason: 'when' },
+    ]);
+    expect(plan.rerun.map((r) => r.nodeId)).toEqual(['send']);
+  });
+
+  it('refuses in order: no input, an unfinished run, unreadable progress, a fork more real than its source, a step it cannot start from', () => {
+    const code = (over: Partial<Parameters<typeof planReplay>[0]>) =>
+      planReplay({ ...base, kind: 'from', from: 'send', ...over }).refusal
+        ?.code;
+    expect(code({ source: { ...base.source, inputKnown: false } })).toBe(
+      'REPLAY_INPUT_UNAVAILABLE',
+    );
+    expect(code({ source: { ...base.source, status: 'running' } })).toBe(
+      'REPLAY_RUN_NOT_FINISHED',
+    );
+    expect(code({ source: { ...base.source, checkpoints: null } })).toBe(
+      'REPLAY_PROGRESS_UNREADABLE',
+    );
+    expect(code({ source: { ...base.source, mode: 'mock' } })).toBe(
+      'REPLAY_MODE_MISMATCH',
+    );
+    expect(code({ from: 'ghost' })).toBe('REPLAY_NODE_UNKNOWN');
+    // An edited input needs none of the run's own.
+    expect(
+      planReplay({
+        ...base,
+        kind: 'edited',
+        source: { ...base.source, inputKnown: false },
+      }).refusal,
+    ).toBeUndefined();
+  });
+
+  it('names the reused steps a changed version would compute differently', () => {
+    const changed = doc([
+      step('fetch', [], { type: 'http.get', input: { url: 'other' } }),
+      ...invoice.nodes.slice(1),
+    ]);
+    expect(
+      planReplay({
+        ...base,
+        kind: 'from',
+        from: 'send',
+        target: { ...base.target, version: 4, document: changed },
+      }).refusal,
+    ).toMatchObject({ code: 'REPLAY_GRAPH_CHANGED', nodes: ['fetch'] });
+  });
+
+  it('may not run live a version that is not deployed', () => {
+    expect(
+      planReplay({
+        ...base,
+        kind: 'again',
+        target: { ...base.target, deployed: false },
+      }).liveAllowed,
+    ).toBe(false);
   });
 });

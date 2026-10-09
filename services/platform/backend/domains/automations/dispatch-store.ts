@@ -48,6 +48,7 @@ import {
   readableProjectIds,
   runControlAccess,
 } from './project-visibility.ts';
+import { readReplayPlan, replayRunInTx } from './replay.ts';
 import {
   readNodeDetail,
   readRunComparison,
@@ -796,6 +797,60 @@ export function pgAutomationStore(
             await readRunComparison(sql, { organizationId, runId, otherRunId }),
           )
         : null,
+    planReplay: async (runId, request) => {
+      if (!(await readableRun(runId))) return null;
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        'membership',
+      );
+      return asJsonObject(
+        await readReplayPlan(sql, {
+          organizationId,
+          sourceRunId: runId,
+          request,
+          canStartLive: defineAbilityFor(auth.role).can(
+            'read',
+            'developerSettings',
+          ),
+        }),
+      );
+    },
+    replayRun: async (runId, request, options) => {
+      if (!(await readableRun(runId))) return null;
+      const row = await getRun(sql, organizationId, runId);
+      if (row === null) return null;
+      const mode = request.mode ?? row.mode;
+      const auth = await authorizeActorRun(
+        sql,
+        organizationId,
+        actor,
+        mode === 'live' ? 'developer' : 'membership',
+      );
+      const sourceProject = row.projectId;
+      const started = await transactSerializable(sql, async (tx) => {
+        // A project run is replayed in its project: a write on it.
+        if (sourceProject !== null) {
+          await writableActorProject(tx, auth, sourceProject);
+        }
+        return replayRunInTx(tx, {
+          organizationId,
+          sourceRunId: runId,
+          request,
+          startedBy: runStarter(actor),
+          canStartLive: defineAbilityFor(auth.role).can(
+            'read',
+            'developerSettings',
+          ),
+          ...(scope.apiKeyId !== undefined && { apiKeyId: scope.apiKeyId }),
+          ...(options.idempotencyKey !== undefined && {
+            idempotencyKey: options.idempotencyKey,
+          }),
+        });
+      });
+      return asJsonObject(started);
+    },
     getRun: async (runId): Promise<RunDetail | null> => {
       const auth = await authorizeActorRun(
         sql,

@@ -1449,6 +1449,7 @@ logs:
       automation.run.failed: Exécution d'automatisation en échec
       automation.run.cancelled: Exécution d'automatisation arrêtée
       automation.run.deleted: Exécution d'automatisation supprimée
+      automation.run.replayed: Exécution d'automatisation relancée
       automation.run.in_doubt_resolved: Décision prise sur une étape d'automatisation interrompue
       automation.version.saved: Version d’automatisation enregistrée
       automation.deployed: Automatisation mise en service

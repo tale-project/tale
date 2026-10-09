@@ -700,6 +700,26 @@ curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record"
 #   "cursor": 1758210000000 }
 ```
 
+### Run a run again
+
+`POST /api/v1/runs/{runId}/replay` (or the project form) starts a new run of the same automation, in the run's own scope: with the run's input (`"kind": "again"`), with an `input` you send (`"edited"`), or from one step (`"from"` with `from`). A replay from a step reuses the steps the run finished outside that step and what it feeds — their results and their record, never their effects — and runs the rest; the new run's `replayOf` names the run it replays. `version` picks the version (`same` by default, or `deployed`, `latest`, a number) and `mode` the mode (the run's own by default). A live replay needs the developer capability and the deployed version, and a replay from a step of a mock run stays mock (**409** `REPLAY_MODE_MISMATCH`).
+
+A step that writes runs again and writes again, under a new request key, so services that ignore repeated requests won't treat it as a repeat. Plan first: `GET …/replay` with the same request in the query answers what it reuses, what runs again, what each step does outside Tale, and `writesAgain`, the writes that go out a second time — or the `refusal` it would meet: the run has not finished (`REPLAY_RUN_NOT_FINISHED`), the version to run changed what a reused step computes (`REPLAY_GRAPH_CHANGED`, with the steps), no such step (`REPLAY_NODE_UNKNOWN`), or the run kept no input (`REPLAY_INPUT_UNAVAILABLE`). Send `Idempotency-Key` to make the replay safe to retry. These doors need API contract 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/replay?kind=from&from=send" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "reuse": [{ "nodeId": "fetch", "status": "ok" }], "rerun": [{ "nodeId": "send", "effect": "write", … }],
+#   "writesAgain": 1, … }
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/runs/<runId>/replay" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: fix-4711" \
+  -d '{ "kind": "from", "from": "send" }'
+# → 202 { "runId": "...", "version": 3, "mode": "live", "kind": "from", "reused": 1 }
+```
+
 ## Act for a member: answer a run’s question, decide a task’s review
 
 A run parked on `waitingFor: "ask"` waits on a person; a task in `in_review` can wait on a person or a designated agent. These two REST doors relay a person's gesture from another application and name that person as `actor`, so Tale records the person rather than the key. Both doors need API contract 1.16.0; contract 3.11.0 adds the explicit refusal of human approval while a task review belongs to an agent.

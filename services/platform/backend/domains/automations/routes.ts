@@ -1,3 +1,5 @@
+import { REPLAY_KINDS } from '@tale/shared/automation-replay';
+import { appReplayRequestSchema } from '@tale/shared/schemas/automation-replay';
 import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
@@ -53,6 +55,7 @@ import {
   readableProjectIds,
   runControlAccess,
 } from './project-visibility.ts';
+import { readReplayPlan, replayRunInTx } from './replay.ts';
 import {
   readNodeDetail,
   readNodePage,
@@ -295,6 +298,21 @@ const itemsQuerySchema = z.object({
     .pipe(z.number().int().min(1).max(200))
     .optional(),
   status: z.enum(['all', 'failed']).optional(),
+});
+
+/** A replay's plan, asked for in the query: the same request a replay
+ * takes, its version a keyword or a number. */
+const replayQuerySchema = z.object({
+  kind: z.enum(REPLAY_KINDS),
+  from: z.string().trim().min(1).max(200).optional(),
+  version: z
+    .string()
+    .regex(/^(same|deployed|latest|[1-9]\d{0,6})$/)
+    .transform((v) =>
+      v === 'same' || v === 'deployed' || v === 'latest' ? v : Number(v),
+    )
+    .optional(),
+  mode: z.enum(['mock', 'live']).optional(),
 });
 
 /** The parts of a refusal the editor reads as structure, not as a sentence. */
@@ -757,6 +775,68 @@ export function createAutomationRoutes(deps: {
       });
       if (diff === null) throw runNotFound();
       return c.json({ diff });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  // Running a run again: its plan — what it reuses, runs again and sends out
+  // a second time — then the replay, born in the source's project. Both are
+  // read like the run itself; a live replay needs an author, as a live
+  // start does (AUTO-R41).
+  const mayStartLive = (c: Context<OrgEnv>): boolean =>
+    isAdminOrDeveloperRole(c.get('orgMember').role);
+
+  app.get('/runs/:runId/replay', async (c) => {
+    const query = replayQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const plan = await readReplayPlan(deps.sql, {
+        organizationId: c.get('orgId'),
+        sourceRunId: runId,
+        request: query.data,
+        canStartLive: mayStartLive(c),
+      });
+      if (plan === null) throw runNotFound();
+      return c.json({ plan });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/runs/:runId/replay', async (c) => {
+    const body = appReplayRequestSchema.safeParse(
+      await c.req.json().catch(() => undefined),
+    );
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      const runId = c.req.param('runId');
+      const run = await visibleRun(c, runId);
+      if (run === null) throw runNotFound();
+      const { requestId, ...request } = body.data;
+      if ((request.mode ?? run.mode) === 'live') {
+        const denied = requireAuthor(c);
+        if (denied) return denied;
+      }
+      const visibleProjectIds = await readableProjectIds(
+        deps.sql,
+        await projectAuth(c),
+      );
+      const started = await deps.sql.begin((tx) =>
+        replayRunInTx(tx, {
+          organizationId: c.get('orgId'),
+          sourceRunId: runId,
+          request,
+          startedBy: `user:${c.get('sessionBundle').user.id}`,
+          canStartLive: mayStartLive(c),
+          visibleProjectIds,
+          ...(requestId !== undefined && { idempotencyKey: requestId }),
+        }),
+      );
+      if (started === null) throw runNotFound();
+      return c.json(started, started.duplicate === true ? 200 : 201);
     } catch (error) {
       return handleError(c, error);
     }

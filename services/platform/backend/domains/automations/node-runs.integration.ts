@@ -7,19 +7,24 @@
  * the units still open; the record reads back whole, with only the events a
  * reader may see, then by what changed since its cursor; a step's items page
  * in order, a unit reads whole with its ledger call, two runs of one
- * automation compare and two of different ones do not; and the rows leave
- * with their run. */
+ * automation compare and two of different ones do not; a run runs again
+ * whole or from a step, a fork born with the steps it reuses and their
+ * record, a replay of an unfinished run or a fork more real than its source
+ * refused, a double submit starting one replay; and the rows leave with
+ * their run, a replay keeping how it came to be. */
 import type { Sql } from 'postgres';
 
 import { createRecorder } from '../../../lib/engine/core/record/recorder.ts';
 import type { NodeRunRecord } from '../../../lib/engine/core/record/types.ts';
 import { recordBudget } from '../../../lib/engine/core/record/value.ts';
 import { jsonParam } from '../../db/sql.ts';
+import { eraseSubjectAutomationRuns } from '../erasure/service.ts';
 import {
   readOpenNodeRuns,
   recordNodeRunsStarted,
   writeNodeRunsInTx,
 } from './node-runs.ts';
+import { readReplayPlan, replayRunInTx } from './replay.ts';
 import {
   readNodeDetail,
   readNodePage,
@@ -29,6 +34,7 @@ import {
 import {
   AutomationError,
   beginRun,
+  decodeRunInput,
   deploy,
   recordProgress,
   saveVersion,
@@ -56,7 +62,15 @@ export async function checkAutomationNodeRuns(
     document: {
       version: 1,
       name,
-      nodes: [{ id: 'one', type: 'transform', input: {}, code: 'return 1;' }],
+      nodes: [
+        { id: 'one', type: 'transform', input: {}, code: 'return 1;' },
+        {
+          id: 'two',
+          type: 'transform',
+          input: { x: '{{ nodes.one.output }}' },
+          code: 'return input.x;',
+        },
+      ],
     },
     actor: userId,
   });
@@ -402,15 +416,208 @@ export async function checkAutomationNodeRuns(
     `;
   });
 
-  // ---- the rows leave with their run.
+  // ---- a run runs again: whole, or from a step, keeping what it finished.
+  await sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    await tx`
+      UPDATE app.automation_runs SET
+        status = 'success', finished_at_ms = ${Date.now()},
+        checkpoints = ${jsonParam(tx, {
+          nodes: {
+            one: {
+              status: 'ok',
+              output: 1,
+              trace: { node: 'one', type: 'transform', status: 'ok' },
+              effects: [],
+            },
+            two: {
+              status: 'ok',
+              output: 1,
+              trace: { node: 'two', type: 'transform', status: 'ok' },
+              effects: [],
+            },
+          },
+          executions: 2,
+        })}::jsonb
+      WHERE id = ${runId}
+    `;
+  });
+  const fromTwo = { kind: 'from' as const, from: 'two' };
+  const plan = await readReplayPlan(sql, {
+    organizationId: orgId,
+    sourceRunId: runId,
+    request: fromTwo,
+    canStartLive: false,
+  });
+  const fork = await sql.begin((tx) =>
+    replayRunInTx(tx, {
+      organizationId: orgId,
+      sourceRunId: runId,
+      request: fromTwo,
+      startedBy: userId,
+      canStartLive: false,
+      idempotencyKey: 'fork-1',
+    }),
+  );
+  const forkAgain = await sql.begin((tx) =>
+    replayRunInTx(tx, {
+      organizationId: orgId,
+      sourceRunId: runId,
+      request: fromTwo,
+      startedBy: userId,
+      canStartLive: false,
+      idempotencyKey: 'fork-1',
+    }),
+  );
+  const forkRun = (
+    await sql<
+      {
+        replayOf: string | null;
+        kind: string | null;
+        fromNode: string | null;
+        checkpoints: { nodes: Record<string, { reused?: { runId: string } }> };
+        input: unknown;
+      }[]
+    >`
+      SELECT replay_of_run_id AS "replayOf", replay_kind AS kind,
+             replay_from_node AS "fromNode", checkpoints, input
+      FROM app.automation_runs WHERE id = ${fork?.runId ?? ''}
+    `
+  )[0];
+  const forkRows = await sql<{ path: string; reused: string | null }[]>`
+    SELECT path, record -> 'meta' -> 'reused' ->> 'runId' AS reused
+    FROM app.automation_node_runs
+    WHERE run_id = ${fork?.runId ?? ''} AND item_index = -1 AND pass = -1
+    ORDER BY path
+  `;
+  record(
+    'a fork is born with the steps it reuses — finished, marked, their record copied — and says what it replays; a double submit starts it once',
+    plan?.refusal === undefined &&
+      JSON.stringify(plan?.reuse.map((r) => r.nodeId)) === '["one"]' &&
+      JSON.stringify(plan?.rerun.map((r) => r.nodeId)) === '["two"]' &&
+      fork?.reused === 1 &&
+      forkRun?.replayOf === runId &&
+      forkRun.kind === 'from' &&
+      forkRun.fromNode === 'two' &&
+      forkRun.checkpoints.nodes.one?.reused?.runId === runId &&
+      forkRun.checkpoints.nodes.two === undefined &&
+      forkRows.some((r) => r.path === 'one' && r.reused === runId) &&
+      forkRows.some((r) => r.path === '__start' && r.reused === null) &&
+      forkAgain?.duplicate === true &&
+      forkAgain.runId === fork?.runId,
+    `plan=${JSON.stringify(plan?.reuse)}/${JSON.stringify(plan?.rerun.map((r) => r.nodeId))} fork=${JSON.stringify(fork)} row=${JSON.stringify({ ...forkRun, input: undefined })} rows=${JSON.stringify(forkRows)} again=${JSON.stringify(forkAgain)}`,
+  );
+
+  const refusalOf = async (
+    sourceRunId: string,
+    request: Parameters<typeof replayRunInTx>[1]['request'],
+  ): Promise<string> => {
+    try {
+      await sql.begin((tx) =>
+        replayRunInTx(tx, {
+          organizationId: orgId,
+          sourceRunId,
+          request,
+          startedBy: userId,
+          canStartLive: true,
+        }),
+      );
+      return 'started';
+    } catch (error) {
+      return error instanceof AutomationError ? error.code : String(error);
+    }
+  };
+  const rerunWhole = await sql.begin((tx) =>
+    replayRunInTx(tx, {
+      organizationId: orgId,
+      sourceRunId: runId,
+      request: { kind: 'again' },
+      startedBy: userId,
+      canStartLive: false,
+    }),
+  );
+  const wholeRun = (
+    await sql<{ kind: string | null; input: unknown; nodes: number }[]>`
+      SELECT replay_kind AS kind, input,
+             (SELECT count(*)::int FROM jsonb_object_keys(checkpoints -> 'nodes'))
+               AS nodes
+      FROM app.automation_runs WHERE id = ${rerunWhole?.runId ?? ''}
+    `
+  )[0];
+  const unfinished = await refusalOf(rerunWhole?.runId ?? '', fromTwo);
+  const moreReal = await refusalOf(runId, { ...fromTwo, mode: 'live' });
+  const unknownStep = await refusalOf(runId, { kind: 'from', from: 'ghost' });
+  record(
+    'a run runs again whole with its own input; an unfinished run, a fork more real than its source and a step that is not there are refused',
+    wholeRun?.kind === 'again' &&
+      JSON.stringify(decodeRunInput(wholeRun.input)) === '{"who":"ada"}' &&
+      wholeRun.nodes === 0 &&
+      unfinished === 'REPLAY_RUN_NOT_FINISHED' &&
+      moreReal === 'REPLAY_MODE_MISMATCH' &&
+      unknownStep === 'REPLAY_NODE_UNKNOWN',
+    `whole=${JSON.stringify(wholeRun)} unfinished=${unfinished} moreReal=${moreReal} unknown=${unknownStep}`,
+  );
+
+  // ---- erasing a person takes the runs that replay theirs with them.
+  const subject = `itest-erased-${Date.now()}`;
+  const subjectRun = await beginRun(sql, {
+    organizationId: orgId,
+    name,
+    input: { who: 'noah' },
+    mode: 'mock',
+    startedBy: `user:${subject}`,
+    requireOrgScope: true,
+  });
+  await sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    await tx`
+      UPDATE app.automation_runs SET status = 'failed',
+        finished_at_ms = ${Date.now()}
+      WHERE id = ${subjectRun?.runId ?? ''}
+    `;
+  });
+  const colleagueReplay = await sql.begin((tx) =>
+    replayRunInTx(tx, {
+      organizationId: orgId,
+      sourceRunId: subjectRun?.runId ?? '',
+      request: { kind: 'again' },
+      startedBy: userId,
+      canStartLive: false,
+    }),
+  );
+  const erased = await eraseSubjectAutomationRuns(sql, orgId, subject);
+  const left = await sql<{ id: string }[]>`
+    SELECT id FROM app.automation_runs
+    WHERE id IN (${subjectRun?.runId ?? ''}, ${colleagueReplay?.runId ?? ''})
+  `;
+  record(
+    'erasing a person removes their runs and the runs that replay them [ERASE-R10]',
+    erased.deleted === 2 && left.length === 0,
+    `deleted=${erased.deleted} left=${left.length}`,
+  );
+
+  // ---- the rows leave with their run; a replay keeps how it came to be.
   await sql.begin(async (tx) => {
     await markAutomationWriterInTx(tx);
     await tx`DELETE FROM app.automation_runs WHERE id = ${runId}`;
   });
   const gone = await rowsOf(runId);
+  const orphan = (
+    await sql<{ replayOf: string | null; kind: string | null }[]>`
+      SELECT replay_of_run_id AS "replayOf", replay_kind AS kind
+      FROM app.automation_runs WHERE id = ${fork?.runId ?? ''}
+    `
+  )[0];
   record(
-    'the run record leaves with its run',
-    gone.length === 0,
-    `rows left=${gone.length}`,
+    'the run record leaves with its run, and a replay of it still says it was one',
+    gone.length === 0 && orphan?.replayOf === null && orphan.kind === 'from',
+    `rows left=${gone.length} replay=${JSON.stringify(orphan)}`,
   );
+  await sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    await tx`
+      DELETE FROM app.automation_runs
+      WHERE id IN (${fork?.runId ?? ''}, ${rerunWhole?.runId ?? ''})
+    `;
+  });
 }

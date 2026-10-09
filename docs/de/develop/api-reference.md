@@ -727,6 +727,26 @@ curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/record"
 #   "cursor": 1758210000000 }
 ```
 
+### Einen Lauf erneut ausführen
+
+`POST /api/v1/runs/{runId}/replay` (oder die Projektform) startet einen neuen Lauf derselben Automatisierung im eigenen Geltungsbereich des Laufs: mit der Eingabe des Laufs (`"kind": "again"`), mit einer `input`, die du sendest (`"edited"`), oder ab einem Schritt (`"from"` mit `from`). Ein erneuter Lauf ab einem Schritt verwendet die Schritte wieder, die der Lauf außerhalb dieses Schritts und dessen, was er speist, beendet hat – ihre Ergebnisse und ihre Aufzeichnung, nie ihre Wirkungen – und führt den Rest aus; `replayOf` des neuen Laufs nennt den Lauf, den er wiederholt. `version` wählt die Version (standardmäßig `same`, oder `deployed`, `latest`, eine Nummer) und `mode` den Modus (standardmäßig der des Laufs). Ein Live-Lauf braucht die Entwicklerberechtigung und die bereitgestellte Version, und ein erneuter Lauf ab einem Schritt eines Mock-Laufs bleibt Mock (**409** `REPLAY_MODE_MISMATCH`).
+
+Ein Schritt, der schreibt, läuft erneut und schreibt erneut, unter einem neuen Anfrageschlüssel – Dienste, die wiederholte Anfragen ignorieren, sehen darin also keine Wiederholung. Plane zuerst: `GET …/replay` mit derselben Anfrage in der Query liefert, was wiederverwendet wird, was erneut läuft, was jeder Schritt außerhalb von Tale tut, und `writesAgain`, die Schreibvorgänge, die ein zweites Mal hinausgehen – oder die `refusal`, auf die er treffen würde: Der Lauf ist nicht beendet (`REPLAY_RUN_NOT_FINISHED`), die auszuführende Version hat geändert, was ein wiederverwendeter Schritt berechnet (`REPLAY_GRAPH_CHANGED`, mit den Schritten), es gibt keinen solchen Schritt (`REPLAY_NODE_UNKNOWN`), oder der Lauf hat keine Eingabe behalten (`REPLAY_INPUT_UNAVAILABLE`). Sende `Idempotency-Key`, damit ein erneuter Versuch sicher ist. Diese Endpunkte brauchen API-Vertrag 3.29.0.
+
+```bash
+curl -sS --compressed "https://your-host.example.com/api/v1/runs/<runId>/replay?kind=from&from=send" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "reuse": [{ "nodeId": "fetch", "status": "ok" }], "rerun": [{ "nodeId": "send", "effect": "write", … }],
+#   "writesAgain": 1, … }
+curl -sS --compressed -X POST "https://your-host.example.com/api/v1/runs/<runId>/replay" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" -H "Idempotency-Key: fix-4711" \
+  -d '{ "kind": "from", "from": "send" }'
+# → 202 { "runId": "...", "version": 3, "mode": "live", "kind": "from", "reused": 1 }
+```
+
 ## Für ein Mitglied handeln: Frage eines Laufs beantworten, Prüfung einer Aufgabe entscheiden
 
 Ein Lauf mit `waitingFor: "ask"` wartet auf eine Person; eine Aufgabe in `in_review` kann auf eine Person oder einen benannten Agenten warten. Diese beiden REST-Endpunkte reichen die Handlung einer Person aus einer anderen Anwendung weiter und nennen sie als `actor`. Tale hält die Person fest, nicht den Schlüssel. Beide Endpunkte brauchen API-Vertrag 1.16.0; Vertrag 3.11.0 ergänzt die ausdrückliche Ablehnung einer menschlichen Freigabe, solange das Review einem Agenten gehört.

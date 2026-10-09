@@ -508,6 +508,19 @@ why something happened, never the server that saw it.
   record of a Payroll run answers "not found", the same as a run that never existed, and
   comparing a Billing run with a Payroll run answers "not found" too.
 
+### AUTO-R41 · A run runs again in its own project, as a start would, a fork never more real
+
+Whoever may read a run may see what running it again would do. Running it again takes what
+starting a run takes: an author and the deployed version for a live run, the project's write
+access where a start needs it. The replay keeps the run's project and starts anew with the
+run's input, an edited input, or from one step — reusing the results and record of the steps
+the run finished outside that step and what it feeds, never their effects. A fork of a mock
+run stays mock, and a live replay is audited.
+
+- **Example**: Leo's live import failed at `send`. He runs it again from `send` → `fetch` and
+  `score` are reused, `send` runs again live and writes again, and the new run says it
+  replays Leo's run.
+
 ## Approvals inside a run
 
 ### AUTO-R21 · Each run asks its own organization's approval policy
@@ -547,7 +560,8 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
   server steps a run, `AUTO-R22` how a restart hands it on, `AUTO-R18` what a run says once it
   moved to another, `AUTO-R19` and `AUTO-R20` what a resumed run never repeats, and
-  `AUTO-R38` and `AUTO-R39` what its record keeps, `AUTO-R40` who may read it.
+  `AUTO-R38` and `AUTO-R39` what its record keeps, `AUTO-R40` who may read it, `AUTO-R41` how
+  it runs again.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
   (`backend/core/automations/stepper.ts`, `shim.ts`); `AUTO-R21` covers whose policy decides.
   An approval cannot be decided over the API; the contract debt ledger in

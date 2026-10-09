@@ -812,8 +812,14 @@ export function invalidBodyResponse(
  * The developer capability gate — authoring a trigger, starting a LIVE run,
  * cancelling a run (the same rule the session surface applies).
  */
+/** Whether the key holder's role carries the developer capability — what
+ * a live run needs (`capabilities.developer` on `/me`). */
+export function hasDeveloperCapability(c: Context<RestEnv>): boolean {
+  return defineAbilityFor(c.get('role')).can('read', 'developerSettings');
+}
+
 export function requireDeveloper(c: Context<RestEnv>): void {
-  if (defineAbilityFor(c.get('role')).cannot('read', 'developerSettings')) {
+  if (!hasDeveloperCapability(c)) {
     throw new RestRefusal(
       `Role "${c.get('role')}" lacks the developer capability required here.`,
       403,

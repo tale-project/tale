@@ -24,6 +24,7 @@ export const METHODS = [
   'get_run',
   'get_run_node',
   'compare_runs',
+  'replay_run',
   'cancel_run',
   'answer_run_ask',
   'list_versions',

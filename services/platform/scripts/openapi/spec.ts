@@ -590,6 +590,17 @@ const runStepProperties: Record<string, Json> = {
 
 const runProperties: Record<string, Json> = {
   id: { ...str, description: 'The run id (`runId` at start)' },
+  replayOf: {
+    type: 'object',
+    description:
+      'Present on a run started by running another one again: that run (`runId`, null once it was deleted), how (`kind`), and from which step (`fromNode`)',
+    required: ['runId', 'kind'],
+    properties: {
+      runId: { type: 'string', nullable: true },
+      kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+      fromNode: { type: 'string' },
+    },
+  },
   organizationId: str,
   name: str,
   version: int,
@@ -4826,6 +4837,11 @@ export function buildSpec(): Json {
     scope: 'automation and scope',
     answer: 'the run the first attempt started',
   });
+  const replayIdempotencyKeyParam = idempotencyKeyParam({
+    names: 'replay',
+    scope: 'run, kind and step',
+    answer: 'the replay the first attempt started',
+  });
   const sendIdempotencyKeyParam = idempotencyKeyParam({
     names: 'send',
     scope: 'thread and scope',
@@ -5495,6 +5511,75 @@ export function buildSpec(): Json {
           '400': withDoorRefusal(
             standardErrors['400'],
             'two runs of different automations (`RUN_COMPARE_MISMATCH`)',
+          ),
+        },
+      },
+    };
+    paths[`${scope.path}/replay`] = {
+      get: {
+        tags: ['Runs'],
+        summary: 'Plan running a run again',
+        description: `${visibility} What running the run again would do, without doing it: the version it runs, which steps it reuses and which it runs again, what each does outside Tale, how many writes go out a second time when it runs live, how many model and agent calls it repeats — or the \`refusal\` it would meet. The query is the request \`POST …/replay\` takes.`,
+        operationId: scope.project ? 'planProjectRunReplay' : 'planRunReplay',
+        security: sec,
+        parameters: [
+          ...parameters,
+          {
+            ...queryParam(
+              'kind',
+              '`again` (its own input), `edited` (an input you send to POST), or `from` (from one step)',
+            ),
+            required: true,
+            schema: { type: 'string', enum: ['again', 'edited', 'from'] },
+          },
+          queryParam('from', 'kind `from`: the step to run again from'),
+          queryParam(
+            'version',
+            '`same` (the default: the version the run ran), `deployed`, `latest`, or a version number',
+          ),
+          {
+            ...queryParam('mode', 'The run’s own mode by default'),
+            schema: { type: 'string', enum: ['mock', 'live'] },
+          },
+        ],
+        responses: {
+          '200': jsonResponse('What the replay would do', ref('ReplayPlan')),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+          ),
+          '409': errorResponse(
+            '`version: "deployed"` while nothing is deployed (`AUTOMATION_NOT_DEPLOYED`)',
+          ),
+          ...standardErrors,
+        },
+      },
+      post: {
+        tags: ['Runs'],
+        summary: 'Run a run again',
+        description: `${visibility}${scope.project ? ' Requires write access to the active URL project.' : ''} Starts a new run of the same automation in the same scope: with the run's own input (\`again\`), with an \`input\` you send (\`edited\`), or from one step (\`from\`) — a fork born with the steps the run finished outside that step and what it feeds, which it reuses (their results, their record, never their effects), and runs the rest. Plan it first with \`GET …/replay\`: a step that writes runs again and writes again, under a new request key. Answers 202 like a start; the new run's \`replayOf\` names this run. A live replay requires the developer capability and the deployed version; a fork of a mock run stays mock. Send \`Idempotency-Key\` to make it safe to retry. Charges the execute bucket on top of the general REST bucket.`,
+        operationId: scope.project ? 'replayProjectRun' : 'replayRun',
+        security: sec,
+        parameters: [...parameters, replayIdempotencyKeyParam],
+        requestBody: jsonBody(ref('ReplayRequest')),
+        responses: {
+          '202': jsonResponse(
+            'The replay started, or the one an earlier attempt under the same `Idempotency-Key` started',
+            ref('ReplayStarted'),
+          ),
+          '403': errorResponse(
+            scope.project
+              ? 'Requires write access to an active project; a live replay also requires developer capability (`ROLE_FORBIDDEN`)'
+              : 'A live replay requires developer capability (`ROLE_FORBIDDEN`)',
+          ),
+          '404': errorResponse(
+            'Run missing or outside the visible URL scope (`RUN_NOT_FOUND`), no step `from` in both versions (`REPLAY_NODE_UNKNOWN`), or the named `version` was never saved (`AUTOMATION_VERSION_UNKNOWN`)',
+          ),
+          '409': errorResponse(
+            'The run has not finished (`REPLAY_RUN_NOT_FINISHED`); the version to run changed what a reused step would compute (`REPLAY_GRAPH_CHANGED`, the steps under `data.nodes`); a fork of a mock run asked to run live (`REPLAY_MODE_MISMATCH`); the run’s progress cannot be read (`REPLAY_PROGRESS_UNREADABLE`); the run kept no input (`REPLAY_INPUT_UNAVAILABLE`); a live replay of a version that is not deployed (`AUTOMATION_VERSION_NOT_DEPLOYED`) or of nothing deployed (`AUTOMATION_NOT_DEPLOYED`); the automation is now installed in projects while the run had none (`AUTOMATION_PROJECT_SCOPE_REQUIRED`); or the `Idempotency-Key` was already used for a different request (`IDEMPOTENCY_KEY_REUSED`)',
+          ),
+          ...standardErrors,
+          '400': errorResponse(
+            'Invalid body (`INVALID_BODY` — a fork without `from`, an `edited` replay without `input`, …), or input that does not match the automation inputs schema (`AUTOMATION_INPUT_INVALID`)',
           ),
         },
       },
@@ -11110,6 +11195,167 @@ curl -H "Authorization: Bearer <api-key>" \\
                 nodes: { type: 'boolean', enum: [true] },
                 effects: { type: 'boolean', enum: [true] },
                 values: { type: 'boolean', enum: [true] },
+              },
+            },
+          },
+        },
+        ReplayRequest: {
+          type: 'object',
+          description:
+            'How to run a run again. `from` is taken only by kind `from`, ' +
+            '`input` only by kind `edited`.',
+          additionalProperties: false,
+          required: ['kind'],
+          properties: {
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            from: {
+              ...str,
+              minLength: 1,
+              maxLength: 200,
+              description: 'kind `from`: the step to run again from',
+            },
+            version: {
+              description:
+                '`same` (the default: the version the run ran), `deployed`, `latest`, or a version number',
+              anyOf: [
+                { type: 'string', enum: ['same', 'deployed', 'latest'] },
+                { type: 'integer', minimum: 1 },
+              ],
+            },
+            mode: {
+              type: 'string',
+              enum: ['mock', 'live'],
+              description: 'The run’s own mode by default',
+            },
+            input: {
+              description:
+                'kind `edited`: the input to run with; must match the automation inputs schema when declared',
+            },
+          },
+        },
+        ReplayStarted: {
+          type: 'object',
+          required: ['runId', 'version', 'mode', 'kind', 'reused'],
+          properties: {
+            runId: str,
+            version: int,
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            reused: {
+              ...int,
+              minimum: 0,
+              description: 'Steps taken from the run it replays',
+            },
+            duplicate: {
+              type: 'boolean',
+              enum: [true],
+              description:
+                'Present when the `Idempotency-Key` had already started this replay: nothing new ran',
+            },
+          },
+        },
+        ReplayPlan: {
+          type: 'object',
+          description: 'What a replay would do, before it starts.',
+          required: [
+            'kind',
+            'sourceRunId',
+            'version',
+            'mode',
+            'deployed',
+            'liveAllowed',
+            'reuse',
+            'rerun',
+            'writesAgain',
+            'spendAgain',
+          ],
+          properties: {
+            kind: { type: 'string', enum: ['again', 'edited', 'from'] },
+            sourceRunId: str,
+            version: {
+              type: 'object',
+              required: ['source', 'target', 'resolved'],
+              properties: {
+                source: int,
+                target: int,
+                resolved: {
+                  type: 'string',
+                  enum: ['same', 'deployed', 'latest', 'number'],
+                },
+              },
+            },
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            deployed: {
+              ...bool,
+              description: 'The version it runs is the deployed one',
+            },
+            liveAllowed: {
+              ...bool,
+              description:
+                'It may run live: the version is deployed and the key holder may start live runs',
+            },
+            reuse: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['nodeId', 'status'],
+                properties: {
+                  nodeId: str,
+                  status: { type: 'string', enum: ['ok', 'skipped'] },
+                  reason: str,
+                },
+              },
+            },
+            rerun: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['nodeId', 'type', 'effect'],
+                properties: {
+                  nodeId: str,
+                  type: str,
+                  effect: {
+                    type: 'string',
+                    enum: ['write', 'read', 'llm', 'agent', 'none'],
+                  },
+                  connector: str,
+                  items: {
+                    ...int,
+                    minimum: 1,
+                    description:
+                      'How many items it ran for in the run, for a step that runs per item',
+                  },
+                },
+              },
+            },
+            writesAgain: {
+              ...int,
+              minimum: 0,
+              description:
+                'Writes that go out a second time when it runs live: one per writing step, one per item for a step that ran per item',
+            },
+            spendAgain: {
+              type: 'object',
+              required: ['llm', 'agent'],
+              properties: { llm: int, agent: int },
+            },
+            refusal: {
+              type: 'object',
+              required: ['code', 'message'],
+              properties: {
+                code: {
+                  type: 'string',
+                  enum: [
+                    'REPLAY_NODE_UNKNOWN',
+                    'REPLAY_GRAPH_CHANGED',
+                    'REPLAY_RUN_NOT_FINISHED',
+                    'REPLAY_MODE_MISMATCH',
+                    'REPLAY_PROGRESS_UNREADABLE',
+                    'REPLAY_INPUT_UNAVAILABLE',
+                  ],
+                },
+                message: str,
+                nodes: { type: 'array', items: str },
               },
             },
           },
