@@ -794,9 +794,11 @@ async function subjectBelongsToOtherActiveOrg(
   return rows[0]?.elsewhere ?? false;
 }
 
-/** Erase only unheld subject runs. The immutable hold and its protected
- * children stay intact; its presence cannot roll back unrelated deletions.
- * Both queries share one transaction and the same tenant/starter scope. */
+/** Erase only unheld subject runs, and every unheld run that replays one of
+ * them — a replay ran again with the run's input, a fork with its results
+ * too (ERASE-R10). The immutable hold and its protected children stay
+ * intact; its presence cannot roll back unrelated deletions. Both queries
+ * share one transaction and the same tenant/starter scope. */
 export async function eraseSubjectAutomationRuns(
   sql: Sql,
   organizationId: string,
@@ -816,8 +818,18 @@ export async function eraseSubjectAutomationRuns(
     `;
     const removed = await tx<{ id: string }[]>`
       DELETE FROM app.automation_runs
-      WHERE org_id = ${organizationId} AND started_by = ANY(${starters})
-        AND legacy_quarantine IS NULL
+      WHERE org_id = ${organizationId} AND legacy_quarantine IS NULL
+        AND id IN (
+          WITH RECURSIVE lineage AS (
+            SELECT id FROM app.automation_runs
+            WHERE org_id = ${organizationId} AND started_by = ANY(${starters})
+            UNION
+            SELECT r.id FROM app.automation_runs r
+            JOIN lineage l ON r.replay_of_run_id = l.id
+            WHERE r.org_id = ${organizationId}
+          )
+          SELECT id FROM lineage
+        )
       RETURNING id
     `;
     return { deleted: removed.length, held: held?.count ?? 0 };

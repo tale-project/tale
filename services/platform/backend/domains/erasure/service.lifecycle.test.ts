@@ -442,11 +442,13 @@ describe('processErasure', () => {
       s.text.startsWith('DELETE FROM app.automation_runs'),
     );
     expect(runs?.text).toBe(
-      'DELETE FROM app.automation_runs WHERE org_id = ? AND started_by = ANY(?) AND legacy_quarantine IS NULL RETURNING id',
+      'DELETE FROM app.automation_runs WHERE org_id = ? AND legacy_quarantine IS NULL AND id IN ( WITH RECURSIVE lineage AS ( SELECT id FROM app.automation_runs WHERE org_id = ? AND started_by = ANY(?) UNION SELECT r.id FROM app.automation_runs r JOIN lineage l ON r.replay_of_run_id = l.id WHERE r.org_id = ? ) SELECT id FROM lineage ) RETURNING id',
     );
     expect(runs?.values).toEqual([
       'org_1',
+      'org_1',
       ['user:subject', 'api-key:subject', 'subject'],
+      'org_1',
     ]);
     const settle = fake.statements.find(
       (s) =>
@@ -494,6 +496,48 @@ describe('processErasure', () => {
     expect(settle?.values[2]).toMatchObject({ mcpActivity: 2 });
   });
 
+  it('takes every run that replays one of the person’s runs with them [ERASE-R10]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    let deleteText = '';
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (
+        text.includes('FROM app.automation_runs') &&
+        text.startsWith('SELECT')
+      ) {
+        return [{ count: 0 }];
+      }
+      if (text.includes('DELETE FROM app.automation_runs')) {
+        deleteText = text;
+        // The person's run, a colleague's replay of it, and a replay of
+        // that replay.
+        return [{ id: 'run' }, { id: 'replay' }, { id: 'replay-of-replay' }];
+      }
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+    await processErasure(fake.sql, 'req-1');
+    expect(deleteText).toContain('WITH RECURSIVE lineage');
+    expect(deleteText).toContain('r.replay_of_run_id = l.id');
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
+  });
+
   it('deletes unheld runs while preserving and reporting legacy-held subject runs [ERASE-R9]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text, values) => {
@@ -520,14 +564,16 @@ describe('processErasure', () => {
         ]);
         return [{ count: 1 }];
       }
-      if (text.startsWith('DELETE FROM app.automation_runs')) {
+      if (text.includes('DELETE FROM app.automation_runs')) {
         if (!text.includes('legacy_quarantine IS NULL'))
           throw Object.assign(new Error('held run cannot be deleted'), {
             code: 'P7502',
           });
         expect(values).toEqual([
           'org_1',
+          'org_1',
           ['user:subject', 'api-key:subject', 'subject'],
+          'org_1',
         ]);
         return [{ id: 'unheld-run' }];
       }

@@ -107,6 +107,16 @@ and the category breakdown read both historical count shapes and agree on erased
 - **Example**: Noah started two runs and one is held after an upgrade. Ada's erasure removes
   the unheld run → the receipt shows one erased, one preserved and a partial result.
 
+### ERASE-R10 · An erasure removes the runs that replay the person's runs
+
+A run someone started by running one of the person's runs again carries what that run was
+given, and a run started from one of its steps carries its results too. The erasure removes
+each such run with the person's runs, and the runs that replay those in turn, unless an
+execution hold preserves it; the receipt counts them with the person's runs.
+
+- **Example**: Ada ran Noah's failed import again after fixing it. Ada's erasure of Noah
+  removes Noah's run and Ada's replay of it → the receipt counts both.
+
 ## Not yet
 
 - **Who can file, approve and retry a request**, and the second admin's approval itself: see
