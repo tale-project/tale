@@ -287,9 +287,17 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     }
   }
 
-  /** Put rows that committed late into the ring at their place by id. */
+  /**
+   * Put rows that committed late into the ring at their place by id, and
+   * only inside its span: the ring's oldest row is what `ringCovers` trusts
+   * for a resume, so a row older than it is not put in front of it (a full
+   * ring would trim it again at once; a younger ring must not appear to
+   * reach further back). Such a row still went to every live stream.
+   */
   function insertIntoRing(rows: readonly TailRow[]): void {
     for (const row of rows) {
+      const oldest = ring[0];
+      if (oldest === undefined || row.id < oldest.id) continue;
       let low = 0;
       let high = ring.length;
       while (low < high) {
