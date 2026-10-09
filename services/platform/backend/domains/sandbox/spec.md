@@ -11,11 +11,11 @@ waiting work resumes are not covered; see Not yet.
 
 ## Who can do what
 
-| | Read limits and capacity | See the workspace list | Stop, pin or destroy a workspace |
-| --- | --- | --- | --- |
-| An owner or admin | yes | yes | yes |
-| A developer | yes | no | no |
-| An editor, a member or a viewer | no | no | no |
+|                                 | Read limits and capacity | See the workspace list | Stop, pin or destroy a workspace |
+| ------------------------------- | ------------------------ | ---------------------- | -------------------------------- |
+| An owner or admin               | yes                      | yes                    | yes                              |
+| A developer                     | yes                      | no                     | no                               |
+| An editor, a member or a viewer | no                       | no                     | no                               |
 
 ### SBX-R1 · Owners, admins and developers can read sandbox limits and capacity
 
@@ -282,10 +282,12 @@ longer exists when its spend is read is closed without an amount.
 Before a turn starts, its allowance is set aside against every spending limit that applies to
 its starter, together with what other work in flight already holds. When a limit refuses it,
 nothing is set aside and the refusal carries the limit's own sentence. An agent's image
-request is refused the same way (`budget_exceeded`) and holds nothing either.
+request is refused the same way (`budget_exceeded`) and holds nothing either. A turn on a
+provider subscription sets aside one request and no cost (`GOV-R16`).
 
-- **Example**: Mia's monthly cost limit is used up. She starts an agent on a task → the turn
-  is refused with the limit's sentence, and nothing is held against her limit.
+- **Example**: Mia's monthly cost limit is used up. She starts an agent whose model the gateway
+  serves on a task → the turn is refused with the limit's sentence, and nothing is held against
+  her limit.
 
 ## Not yet
 

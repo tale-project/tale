@@ -976,6 +976,28 @@ async function mintTurnServing(
       ...(vision !== null ? { visionPolyfillReads: vision.polyfillReads } : {}),
     };
   }
+  // A subscription turn costs the organization nothing per call, but it is a
+  // request: it holds one while it runs, and is refused before any
+  // credential is vended once a request or token cap that binds its run is
+  // reached. Cost caps cannot bind it — it adds no cost.
+  const reservation = readReserveTurnBudgetResult(
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveTurnBudget,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'task-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+        modelRef: `${resolved.providerSlug}/${resolved.modelId}`,
+        harness: args.harness,
+      },
+    ),
+  );
+  if (!reservation.allowed) {
+    throw new TurnBudgetExceededError(reservation.reason);
+  }
   const credential = await resolveProviderCredential(
     ctx,
     {

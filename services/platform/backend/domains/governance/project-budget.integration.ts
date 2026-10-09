@@ -33,6 +33,7 @@ import {
 } from '../files/transcription-metering.ts';
 import {
   reconcilePendingSessionOpKeys,
+  settleCostFreeTurn,
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
@@ -1174,6 +1175,83 @@ export async function checkProjectBudgets(
         Math.abs((transcriptionBooked[0]?.cost ?? 0) - 0.88) < 1e-9 &&
         transcriptionBooked[0]?.seconds === 88,
       `subject=${JSON.stringify(transcriptionSubject)} (want the uploader in the project) stranger=${JSON.stringify(strangerSubject)} (want no project, booked to __automation__ — its uploader is no member) removed=${JSON.stringify(removedSubject)} (want null) held ${whileTranscribing - beforeTranscription} then ${afterTranscription - beforeTranscription} (want 6 then 0) booked=${JSON.stringify(transcriptionBooked)} (want 0.88 cents, 88 s, the uploader)`,
+    );
+
+    // A subscription turn costs nothing per call: the project's spent cost
+    // cap cannot refuse it. It holds one request at no cost while it runs,
+    // and is booked as that request, with its tokens, once it ends. Last in
+    // the lane: its booking lands in the project's buckets, which the checks
+    // above read to the token.
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules: []',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        '    maxCostCents: 1',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    const holdsInProject = async () =>
+      (
+        await readInFlightReservations(sql, {
+          organizationId: orgId,
+          userId,
+          userTeamIds: [],
+          projectIds: [projectId],
+        })
+      ).projects?.[projectId] ?? { costCents: 0, tokens: 0, requests: 0 };
+    const beforeSubscription = await holdsInProject();
+    const subscriptionTurn = await reserveTurnBudget(sql, {
+      organizationId: orgId,
+      sessionId: opSession,
+      execId: 'subscription',
+      kind: 'task-agent',
+      defaultBudgetCents: 0,
+      costFree: true,
+      subject: {
+        userId,
+        agentSlug: 'itest-subscription-agent',
+        projectIds: [projectId],
+      },
+    });
+    const whileSubscription = await holdsInProject();
+    await settleCostFreeTurn(sql, {
+      sessionId: opSession,
+      execId: 'subscription',
+      usage: { inputTokens: 1_200, outputTokens: 300 },
+    });
+    // Settled once: a second call books nothing more.
+    await settleCostFreeTurn(sql, {
+      sessionId: opSession,
+      execId: 'subscription',
+    });
+    const afterSubscription = await holdsInProject();
+    const subscriptionBooked = await sql<
+      { requests: number; cost: number; tokens: number }[]
+    >`
+      SELECT request_count::float8 AS requests,
+             cost_estimate_cents::float8 AS cost,
+             total_tokens::float8 AS tokens
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'itest-subscription-agent'
+        AND granularity = 'monthly'
+    `;
+    record(
+      'project budgets: a subscription turn is a request at no cost — a spent cost cap admits it, and it books once [GOV-R16]',
+      subscriptionTurn.allowed &&
+        subscriptionTurn.budgetCents === 0 &&
+        whileSubscription.requests - beforeSubscription.requests === 1 &&
+        whileSubscription.costCents === beforeSubscription.costCents &&
+        afterSubscription.requests === beforeSubscription.requests &&
+        subscriptionBooked.length === 1 &&
+        subscriptionBooked[0]?.requests === 1 &&
+        subscriptionBooked[0]?.cost === 0 &&
+        subscriptionBooked[0]?.tokens === 1_500,
+      `admitted=${JSON.stringify(subscriptionTurn)} (want allowed at 0 cents), project hold requests ${beforeSubscription.requests} → ${whileSubscription.requests} → ${afterSubscription.requests} (want +1 then back), cost ${beforeSubscription.costCents} → ${whileSubscription.costCents} (want unchanged), booked=${JSON.stringify(subscriptionBooked)} (want one request, 0 cents, 1500 tokens)`,
     );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {

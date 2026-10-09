@@ -688,6 +688,21 @@ export async function releaseTurnKey(
     );
     spentCents = outcome.spentCents;
     pending = settlementPending(outcome);
+  } else if (op?.budgetCents === 0 && op.spendSettled !== true) {
+    // A subscription turn: no key to read a spend from. It cost the
+    // organization nothing per call, and is booked as the request it was,
+    // with the tokens its harness reported — before the terminal stamp
+    // below closes a keyless op without a booking.
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.recordSessionOpSpend,
+      {
+        sessionId,
+        execId,
+        spentCents: 0,
+        ...(args.usageTotals !== undefined ? { usage: args.usageTotals } : {}),
+      },
+    );
+    spentCents = 0;
   }
   await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
     organizationId: args.organizationId,
@@ -1171,6 +1186,28 @@ async function mintWorkflowTurnAuth(
     throw new Error(
       `provider "${args.providerSlug}" resolved to the subscription lane without an API base URL — rerun the automation`,
     );
+  }
+  // A subscription turn costs the organization nothing per call, but it is a
+  // request: it holds one while it runs, and is refused before any
+  // credential is vended once a request or token cap that binds its run is
+  // reached. Cost caps cannot bind it — it adds no cost.
+  const reservation = readReserveTurnBudgetResult(
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveTurnBudget,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'workflow-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+        modelRef: `${args.providerSlug}/${args.modelId}`,
+        harness: args.harness,
+      },
+    ),
+  );
+  if (!reservation.allowed) {
+    throw new TurnBudgetExceededError(reservation.reason);
   }
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,

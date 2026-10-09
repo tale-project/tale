@@ -120,6 +120,67 @@ describe('resolveTurnAllowance', () => {
     expect(allowance).toEqual({ allowed: true, budgetCents: 300 });
   });
 
+  describe('a subscription turn, which costs nothing per call', () => {
+    it('is admitted past a reached cost cap while requests have room, holding no cents [GOV-R16]', async () => {
+      policy.config = {
+        enabled: true,
+        rules: [
+          {
+            scope: 'org',
+            period: 'monthly',
+            maxCostCents: 1_000,
+            maxRequests: 50,
+          },
+        ],
+      };
+      const allowance = await resolveTurnAllowance(
+        ledger({
+          org: { totalTokens: 0, costEstimate: 1_000, requestCount: 10 },
+        }),
+        {
+          ...SUBJECT,
+          defaultCents: 0,
+          reservations: holds(0, 0),
+          costFree: true,
+        },
+      );
+      expect(allowance).toEqual({ allowed: true, budgetCents: 0 });
+    });
+
+    it.each([
+      [
+        'a request cap',
+        { maxRequests: 10 },
+        { totalTokens: 0, costEstimate: 0, requestCount: 10 },
+        'REQUEST_LIMIT',
+      ],
+      [
+        'a token cap',
+        { maxTokens: 5_000 },
+        { totalTokens: 5_000, costEstimate: 0, requestCount: 3 },
+        'TOKEN_LIMIT',
+      ],
+    ] as const)(
+      'is refused once %s it adds to is reached [GOV-R16]',
+      async (_label, cap, org, code) => {
+        policy.config = {
+          enabled: true,
+          rules: [{ scope: 'org', period: 'monthly', ...cap }],
+        };
+        const allowance = await resolveTurnAllowance(ledger({ org }), {
+          ...SUBJECT,
+          defaultCents: 0,
+          reservations: holds(0, 0),
+          costFree: true,
+        });
+        expect(allowance.allowed).toBe(false);
+        if (!allowance.allowed) {
+          expect(allowance.violation).toMatchObject({ scope: 'org', code });
+        }
+      },
+    );
+  });
+
   it('refuses when the org cap is reached, with the cap’s own wording [GOV-R4]', async () => {
     policy.config = {
       enabled: true,

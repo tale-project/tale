@@ -100,6 +100,16 @@ alone, so connector calls never use it up.
   searches the documents five times → the reply runs, and its searches add nothing to her
   requests.
 
+### GOV-R16 · A turn on a subscription is a request at no cost
+
+An agent turn served by a provider subscription the organization pays its vendor for apart from
+Tale costs nothing per call. It is counted as one request, with the tokens its agent reports, and
+holds that request while it runs. Request and token limits bind it; a cost limit cannot, since it
+adds no cost.
+
+- **Example**: The organization's monthly cost limit is used up. Mia starts an agent that runs on
+  the team's Claude subscription → it runs, and counts as one request.
+
 ### GOV-R6 · A warning comes before a limit is reached, for each limit on its own
 
 The organization's limit, an API key's limit and a person's limit each have their own warning

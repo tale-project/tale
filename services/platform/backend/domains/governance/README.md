@@ -130,6 +130,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Inbox Improve with AI | `domains/conversations/improve.ts`, held and booked as a direct call | the writer | `inbox-improve` | — | — |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| A managed turn on a provider subscription (either op) | as above; held as one request at no cost (`reserveTurnBudget` `costFree`, `budget_cents` 0) and booked at 0 cents with its harness's tokens when it ends (`releaseTurnKey`), or as a bare request when a watchdog ends it (`settleCostFreeTurn`) | as above | as above | as above | as above |
 | Automation `llm` step | `resolveAutomationRunAttribution` → immutable `automation-llm` op → `settleSessionOpSpend` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
 | Voice output | `domains/tts` | the requester | `__tts__` | — | captured at admission; legacy `NULL` uses the current thread |
@@ -191,6 +192,13 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
   — a task turn's connector calls act for the run's starter while the run is live, and for
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an
   auto-retry keeps the failed run's starter.
+- `domains/governance/budget-gate.test.ts`, `domains/sandbox/turn-budget.test.ts`,
+  `spend-settlement.test.ts`, `image-generation.test.ts`, `core/automations/agent_host.release.test.ts`,
+  `core/tasks/agent_run_host.context_window.test.ts`, `core/automations/agent_host.context_window.test.ts`,
+  `domains/tasks/agent-turn-shim.cost-free.test.ts` — a subscription turn holds one request at no
+  cost before any credential is vended, is refused at a reached request or token cap but never a
+  cost cap, books one request at 0 cents with its tokens however it ends, and its images draw on
+  the default allowance (`GOV-R16`).
 - `lib/connectors/dispatcher.test.ts`, `domains/connectors/service.usage.test.ts`,
   `domains/governance/usage-ledger.test.ts`, `budget-gate.test.ts`, `usage-metrics.test.ts`,
   `domains/conversations/send.test.ts` — a live connector call whose body ran is counted once, as
