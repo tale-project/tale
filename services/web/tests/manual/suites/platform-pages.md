@@ -6,7 +6,7 @@ Exercise the marketing pages the 2026-07 site rewrite added — the `/platform`
 hub, the six module pages
 (`/platform/{chat|projects|knowledge|agents|automations|governance}`), and the
 `/changelog` release timeline. Each page is built from the
-`app/components/blocks/feature/` family (FeatureHero → demo tour →
+`app/components/blocks/feature/` family (FeatureHero with a localized real product capture → two topic tours →
 capabilities → FAQ → related → docs → CTA, composed by
 `app/pages/platform/feature-page-layout.tsx`) with animated demo scenes from
 `app/components/blocks/demos/`. Navigation into these pages lives in
@@ -28,7 +28,7 @@ of GitHub Releases (`app/generated/releases-manifest.ts`, fetched by
 `scripts/fetch-releases.ts` during `build` — see the SETUP mode-B note), so
 its content is only as fresh as the last build.
 
-> **Agent note**: every demo scene is a single illustration for AT —
+> **Agent note**: hero images use native `img` alternative text from `demo.pages.*.label`. Each full-screen link opens the complete capture in the page language; Swiss German uses German. Every supporting demo scene is a single illustration for AT —
 > `role="img"` with an aria-label from `<namespace>.demos.*.label` — locate
 > demos with `getByRole('img', { name: … })` and assert `toContainText` on the
 > scene. Under `prefers-reduced-motion: reduce` the timeline driver pins every
@@ -37,16 +37,10 @@ its content is only as fresh as the last build.
 
 ## Functional tests
 
-- [ ] `PAGE-F1` · **Hub hero** — Open `/platform` → H1 matching `platformHub.title` with its hero demo
-  (`platformHub.demos.hero.label`) telling a hub-specific story — its prompt
-  (`platformHub.demos.hero.prompt`) is **not** the homepage's
-  (`home.demos.hero.prompt`)
-- [ ] `PAGE-F2` · **Hub module sampler** — Scroll the tour on `/platform` →
-  Six alternating tour rows, one per module, each a `DemoShell` window with a
-  hub-owned scenario
-  (`platformHub.demos.{connect,knowledge,automation,govern,arena,projects}.*`);
-  each row's **Explore {module}** link (`home.tour.explore` + the
-  `nav.product.*` label) commits the matching `/platform/{module}` page.
+- [ ] `PAGE-F1` · **Hub hero** — Open `/platform`, `/de/platform`, and `/fr/platform` → H1 matching `platformHub.title`, a distinct real Inbox capture (`demo.pages.hub.label`), native interface labels, and an example-workspace caption.
+
+- [ ] `PAGE-F2` · **Hub module sampler** — Scroll the tour on `/platform` → Two alternating `DemoShell` rows for Projects and Agents with hub-owned scenarios (`platformHub.demos.{projects,connect}.*`); each Explore link commits the matching module page.
+
 - [ ] `PAGE-F3` · **Hub grid + FAQ + CTA** — Continue below the tour → A
   module card grid (Chat → Projects → Knowledge → Agents → Automations →
   Governance, labels under `nav.product.*`) linking to the module pages; FAQ
@@ -56,36 +50,15 @@ its content is only as fresh as the last build.
   `platformChat.eyebrow` + H1 matching `platformChat.title` + description, then in order: tour rows with demos →
   capabilities grid (`platformChat.capabilities.*`) → mini-FAQ → **Related
   modules** → **Read the docs** → CTA (`feature-page-layout.tsx` order)
-- [ ] `PAGE-F5` · **Chat story: Arena** — On `/platform/chat`, find the Arena
-  demo (`platformChat.demos.arena.label`) → The scene duels one announcement
-  prompt (`platformChat.demos.arena.prompt`) across two model columns side by
-  side — content distinct from the homepage Arena scene
-  (`home.demos.arena.prompt`)
-- [ ] `PAGE-F6` · **Projects story** — On `/platform/projects`, walk its demos
-  (labels under `platformProjects.demos.*`) → The relaunch-workspace story
-  runs through the project list (`platformProjects.demos.projects.project1`),
-  a tasks board (`platformProjects.demos.tasks.*`), a project chat, and
-  granted knowledge — all distinct from the homepage scenes.
-- [ ] `PAGE-F7` · **Knowledge story** — On `/platform/knowledge`, find the
-  knowledge demo (`platformKnowledge.demos.knowledge.label`) and the hero chat
-  → The pool lists indexed sources
-  (`platformKnowledge.demos.knowledge.source1`); the hero chat reply cites the
-  indexed manual (`platformKnowledge.demos.hero.citation1`)
-- [ ] `PAGE-F8` · **Agents story** — On `/platform/agents`, find the roster
-  (`platformAgents.demos.connect.label`) and sandbox scene
-  (`platformAgents.demos.sandbox.label`) → The agents page shows its **own**
-  roster (`platformAgents.demos.connect.agent2` — not the homepage roster) and
-  a sandbox window with a **Files** tree + active file
-  (`platformAgents.demos.sandbox.activeFile`) and a **Live** browser pane
-  (`platformAgents.demos.sandbox.browserTitle`)
-- [ ] `PAGE-F9` · **Automations + Governance stories** — On
-  `/platform/automations`, find the pipeline demo
-  (`platformAutomations.demos.automation.label`); on `/platform/governance`,
-  the approval demo (`platformGovernance.demos.govern.label`) → The invoice
-  pipeline shows its trigger (`platformAutomations.demos.automation.trigger`)
-  awaiting approval; the governance scene holds a knowledge write for approval
-  (`platformGovernance.demos.govern.approvalTitle`) with an audit trail
-  (`platformGovernance.demos.govern.audit3`)
+- [ ] `PAGE-F5` · **Chat story** — On `/platform/chat`, inspect the real conversation capture and its two supporting tours → Project context (`platformChat.demos.projects.*`) and shared knowledge (`platformChat.demos.knowledge.*`) show how the conversation connects to the team's work.
+- [ ] `PAGE-F6` · **Projects story** — On `/platform/projects`, inspect its real task-board capture and two supporting tours → The relaunch task scene (`platformProjects.demos.tasks.*`) and project chat (`platformProjects.demos.hero.*`) show project-specific content.
+
+- [ ] `PAGE-F7` · **Knowledge story** — On `/platform/knowledge`, inspect the real shared-entries library capture and its two supporting tours → A cited answer (`platformKnowledge.demos.hero.citation1`) and project access (`platformKnowledge.demos.projects.*`) show how shared material supports the team's work.
+
+- [ ] `PAGE-F8` · **Agents story** — On `/platform/agents`, inspect its real runtime/model roster and two supporting tours → Project assignments (`platformAgents.demos.projects.*`) and knowledge access (`platformAgents.demos.knowledge.*`) explain the agents page independently.
+
+- [ ] `PAGE-F9` · **Automations + Governance stories** — On `/platform/automations`, inspect the real completed run plus protected-action and agent tours; on `/platform/governance`, inspect the real audit log plus automation and agent tours → Each page has its own captured state and supporting scenarios.
+
 - [ ] `PAGE-F10` · **Related + docs cross-links** — On any module page, use
   **Related modules** (`featureShared.relatedHeading`) and **Read the docs**
   (`featureShared.docsHeading`) → Related cards commit sibling
@@ -128,10 +101,8 @@ its content is only as fresh as the last build.
 - [ ] `PAGE-A1` · **Heading order** → One `h1` per page, no skipped levels —
   automated for `/platform` by `smoke.spec.ts`; walk the six module pages and
   `/changelog` manually the same way.
-- [ ] `PAGE-A2` · **Demo names** → Every demo scene is `role="img"` with a
-  descriptive aria-label (under `platformHub.demos.*` and each module page's
-  `.demos.*` group, e.g. `platformChat.demos.arena.label`) that names what the
-  animation shows; inner text/icons are not separately announced.
+- [ ] `PAGE-A2` · **Image names and framing** → Every hero has a descriptive localized alternative text and keyboard-reachable full-screen link. At 320px, focused crops keep relevant product content visible; desktop framing preserves orientation. Supporting scenes remain `role="img"` with descriptive names, and their inner text/icons are not separately announced.
+
 - [ ] `PAGE-A3` · **Keyboard reach** → Tab reaches every **Explore {module}**
   tour link, module-grid card, FAQ accordion, and changelog timeline link;
   activating a timeline link by keyboard moves `aria-current` and scrolls the

@@ -65,6 +65,7 @@ interface HandlerNames {
       heartbeatRun: FunctionRef;
       openLlmStepCall: FunctionRef;
       recordAgentTurnSettled: FunctionRef;
+      recordLlmStepUsage: FunctionRef;
       recordProgress: FunctionRef;
       releaseLlmStepCall: FunctionRef;
       settleLlmStepCall: FunctionRef;
@@ -72,6 +73,7 @@ interface HandlerNames {
       suspendRun: FunctionRef;
     };
     queries: FunctionRef & {
+      checkLlmStepBudget: FunctionRef;
       getRunLanguageContext: FunctionRef;
       getRunProjectContext: FunctionRef;
       getRunProjectId: FunctionRef;

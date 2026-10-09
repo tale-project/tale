@@ -48,13 +48,14 @@ DevTools / the browser context.
   `/` (disable cache) → No white flash before first paint — the inline
   `index.html` script reads `localStorage['tale-theme']` and applies the
   `dark` class pre-hydration; same check with system-dark + no stored value.
-- [ ] `THEME-F5` · **Demo scenes + head assets follow the theme** — On `/`,
-  toggle Light ↔ Dark and inspect the hero demo (`home.demos.tasks.label`) and
-  one tour demo; read `document.head` → The demo windows restyle with the
+- [ ] `THEME-F5` · **Product captures, demo scenes + head assets** — On `/`,
+  toggle Light ↔ Dark and inspect the real task capture and one tour demo;
+  read `document.head` → Capture pixels retain their recorded light theme
+  in both the hero and its full-resolution link; the surrounding frame and
+  caption follow the site palette. Supporting demo windows restyle with
   design tokens (dark surfaces/borders/text — no unreadable hardcoded colours
-  inside `DemoShell` chrome or scene content; there is **no** light/dark image
-  swap because no `<img>` exists); the favicon `<link>`s and `<meta
-  name="theme-color">` are media-gated per `prefers-color-scheme` in
+  inside `DemoShell` chrome or scene content). The favicon `<link>`s and
+  `<meta name="theme-color">` are media-gated per `prefers-color-scheme` in
   `index.html`
 - [ ] `THEME-F6` · **Default** — Fresh profile (no `tale-theme` key), OS light
   → Site renders light and the **System** radio is checked — system is the

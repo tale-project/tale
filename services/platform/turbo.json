@@ -6,6 +6,7 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/web/app/content/product-screenshots.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-replay.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",
@@ -19,6 +20,7 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/web/app/content/product-screenshots.ts",
         "$TURBO_ROOT$/.env.example",
         "$TURBO_ROOT$/.github/workflows/checks.yml",
         "$TURBO_ROOT$/compose.yml",
@@ -191,6 +193,7 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/services/web/app/content/product-screenshots.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/build-gemini-settings.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/exec-replay.ts",
         "$TURBO_ROOT$/services/sandbox-runtime/daemon/src/file-ops.ts",

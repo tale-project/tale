@@ -15,6 +15,8 @@ in [locale.md](locale.md) / [theme.md](theme.md).
 | Home             | `/` (also `/{lang}`)                                                                                                        |
 | Platform hub     | `/platform`                                                                                                                 |
 | Platform modules | `/platform/{chat\|projects\|knowledge\|agents\|automations\|governance}`                                                    |
+| Comparisons      | `/compare` + `/compare/{slug}`                                                                                              |
+| Use cases        | `/use-cases` + `/use-cases/{slug}`                                                                                           |
 | Pricing          | `/pricing`                                                                                                                  |
 | Hardware pricing | `/hardware-pricing`                                                                                                         |
 | Changelog        | `/changelog`                                                                                                                |
@@ -38,16 +40,17 @@ routes render without a backend.
 ## Functional tests
 
 - [ ] `NAV-F1` · **Header nav** — On `/`, open **Platform** (`nav.platform`)
-  and **Resources** (`nav.resources`); click **Pricing** (`nav.pricing`) →
-  Platform lists the six modules **Chat → Projects → Knowledge → Agents →
-  Automations → Governance** (labels under `nav.product.*` — the hub
-  `/platform` is **not** a row, `NAV_DROPDOWN_PAGES`); Resources lists
-  **Docs** (external) → **Changelog** → **Hardware** → **About us** (labels
-  under `nav.resource.*`, `buildResourcesNavItems()`); **Pricing** commits
-  `/pricing`
+  and **Resources** (`nav.resources`); inspect **Compare**
+  (`nav.resource.compare.label`) and **Pricing** (`nav.pricing`) →
+  Platform places **Platform overview** above six modules **Chats → Projects
+  → Knowledge → Agents → Automations → Governance** (labels under
+  `nav.product.*`); Resources lists **Documentation** (external) →
+  **Use cases** → **Changelog** → **Hardware** → **About us** (labels under
+  `nav.resource.*`); Compare and Pricing are direct header links; each panel
+  stays within the screen at 1024px, with readable descriptions in both themes.
 - [ ] `NAV-F2` · **Get started** — Header → **Get started** (`nav.getStarted`)
   → Get started opens the docs quickstart
-  (`https://tale.dev/docs/get-started/quickstart`, `GET_STARTED_URL`) — the
+  (`https://docs.tale.dev/get-started/quickstart`, `getStartedUrl(locale)`) — the
   primary header CTA; Request a demo is not in the header.
 - [ ] `NAV-F3` · **GitHub** — Header trailing GitHub icon
   (`footer.githubAriaLabel`) → External link to
@@ -58,7 +61,7 @@ routes render without a backend.
   `/{lang}`); hero renders.
 - [ ] `NAV-F5` · **Footer Platform + Company** — Footer **Platform**
   (`footer.platform`); **Company** (`footer.company`): About us + Contact us +
-  Request a demo; address column under Platform → Platform links commit the
+  Request a demo; address in the bottom bar → Platform links commit the
   hub `/platform` (**Platform overview**, `nav.product.hub.label`) + the six
   `/platform/{module}` pages; company links commit `/about`, `/contact`, and
   `/request-demo`; address shows Ruler GmbH + VAT link.
@@ -70,7 +73,8 @@ routes render without a backend.
   `footer.processingAgreement`, `footer.technicalOrganizationalMeasures`),
   which commit `/legal/{slug}`
 - [ ] `NAV-F7` · **Footer Resources + bottom bar** — Footer **Resources**:
-  Docs / Changelog / Hardware / Pricing; bottom bar: **llms.txt** +
+  Documentation / Tale UI / Compare / Use cases / Changelog / Hardware / Pricing;
+  bottom bar: company address and **llms.txt** +
   **llms-full.txt** links (`footer.llmsTxtLabel`, `footer.llmsFullTxtLabel`),
   then the language/theme switchers and the GitHub icon → Docs is external;
   Changelog / Hardware / Pricing commit internal routes; `llms.txt` /
