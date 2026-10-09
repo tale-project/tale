@@ -239,6 +239,9 @@ board:
   agentWorking: '{name} is working'
   addTask: Add task
   addToLane: 'Add task to {status}'
+  collapseLane: 'Collapse {status}'
+  expandLane: 'Expand {status}'
+  laneCount: '{count, plural, one {# task} other {# tasks}}'
   quickAddLabel: New task title
   quickAdded: 'Added “{title}”'
   noTasks: No tasks

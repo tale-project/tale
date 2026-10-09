@@ -114,7 +114,7 @@ La relecture en cours explique aussi les blocages liés à l’auto-relecture, �
 
 ## Montrer la progression avec les statuts
 
-Modifie **Statut** dans les détails de la tâche ou déplace sa carte vers une autre colonne du tableau. Le sélecteur de statut offre une alternative au glisser-déposer utilisable au clavier.
+Modifie **Statut** dans les détails de la tâche ou déplace sa carte vers une autre colonne du tableau. Le sélecteur de statut offre une alternative au glisser-déposer utilisable au clavier. **Terminé** et **Annulé** se replient en une barre étroite avec l’icône à côté de leur nom, pour que le travail fini ne gêne pas : la barre garde le nombre de tâches de la colonne, se déplie quand tu la sélectionnes et accepte encore une carte que tu y glisses. Chaque tableau retient dans ce navigateur les colonnes repliées.
 
 | Statut | Signification |
 | --- | --- |

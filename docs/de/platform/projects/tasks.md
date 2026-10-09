@@ -114,7 +114,7 @@ Das aktuelle Review erklärt auch eine unzulässige Selbstprüfung, eine geände
 
 ## Fortschritt mit dem Status zeigen
 
-Ändere den **Status** in den Aufgabendetails oder ziehe die Karte auf dem **Board** in eine andere Spalte. Die Statusauswahl lässt sich auch mit der Tastatur bedienen.
+Ändere den **Status** in den Aufgabendetails oder ziehe die Karte auf dem **Board** in eine andere Spalte. Die Statusauswahl lässt sich auch mit der Tastatur bedienen. **Erledigt** und **Abgebrochen** klappst du mit dem Symbol neben ihrem Namen zu einer schmalen Leiste ein, damit abgeschlossene Arbeit nicht im Weg ist: Die Leiste zeigt weiter die Anzahl der Spalte, klappt wieder auf, wenn du sie auswählst, und nimmt eine Karte an, die du darauf ziehst. Jedes Board merkt sich in diesem Browser, welche Spalten eingeklappt sind.
 
 | Status | Bedeutung |
 | --- | --- |

@@ -76,6 +76,8 @@ what is there, and the page shows the one thing you opened.
   Creating a task reads like the open task: the status tile and a borderless title in the header, the
   property panel beside the description (Medium priority and today's start preselected), and a footer
   with **Create another** at the left and the `⌘ Enter` hint beside Cancel and Create.
+  On the board, **Done** and **Cancelled** fold to a 44px rail (glyph, count, the name standing on
+  end) that opens on a click and still takes a drop; each board remembers its folded lanes.
 - **Conversation entries** — one anatomy for chats and task discussions, built from `@tale/ui/thread/*`:
   the viewer's own words as a right-aligned muted bubble (`ThreadMessage variant="own"`); every other
   voice — a teammate, an agent, the assistant — as flat prose under an identity row (24px avatar, name,

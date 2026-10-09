@@ -31,6 +31,7 @@ import {
   ActorDirectoryProvider,
   useActorDirectory,
 } from '../hooks/use-actor-directory';
+import { useCollapsedLanes } from '../hooks/use-collapsed-lanes';
 import { useTaskAccess } from '../hooks/use-task-access';
 import {
   BOARD_TASK_STATUSES,
@@ -92,6 +93,8 @@ export function TasksWorkspace({
   const [searchQuery, setSearchQuery] = useState('');
   const debouncedSearchQuery = useDebounce(searchQuery, 300);
   const trimmedSearchQuery = debouncedSearchQuery.trim();
+  // Done and Cancelled can fold to a rail; each board remembers its own.
+  const lanes = useCollapsedLanes(allProjects ? 'all' : projectId);
   const [assigneeFilter, setAssigneeFilter] = useState(ALL_ASSIGNEE_FILTER);
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
@@ -507,7 +510,11 @@ export function TasksWorkspace({
           onFocusLost={focusBoard}
         />
       ) : isFirstLoad ? (
-        <TasksSkeleton view={view} canEdit={skeletonCanEdit} />
+        <TasksSkeleton
+          view={view}
+          canEdit={skeletonCanEdit}
+          collapsedLanes={lanes.collapsed}
+        />
       ) : (
         <>
           {tasksRead.kind === 'stale' ? (
@@ -592,6 +599,8 @@ export function TasksWorkspace({
                     {...(laneCreate !== undefined
                       ? { onAddTask: openCreateIn, quickAdd: laneCreate }
                       : {})}
+                    collapsedLanes={lanes.collapsed}
+                    onLaneCollapsedChange={lanes.setCollapsed}
                   />
                 ) : (
                   <TasksList
