@@ -282,6 +282,25 @@ describe('AutomationCanvas playback', () => {
     expect(within(bar).getByRole('button', { name: 'Play' })).toBeEnabled();
   });
 
+  it('opens on the run’s end when the record lands after the chart', () => {
+    const { rerender } = renderCanvas(TRIAGE, { run });
+    expect(props().playback).toBeUndefined();
+    rerender(
+      <AutomationCanvas
+        automation={TRIAGE}
+        layoutKey="triage-inbox:latest"
+        catalog={CATALOG}
+        selectedId={null}
+        onSelect={() => {}}
+        inspectorId="inspector"
+        run={{ ...run, record }}
+      />,
+    );
+    const playback = props().playback;
+    expect(playback).toBeDefined();
+    expect(playback?.t).toBe(playback?.timeline.duration);
+  });
+
   it('shows where each step ended for a run recorded before records were kept', () => {
     renderCanvas(TRIAGE, {
       run: { ...run, record: { ...record, source: 'trace' as const } },

@@ -18,7 +18,14 @@ import {
 import type { IssueCounts } from '@tale/ui/issue-summary';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { AlertTriangle, Hand, Workflow } from 'lucide-react';
-import { useEffect, useId, useMemo, useState, type ReactNode } from 'react';
+import {
+  type ReactNode,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import type { RunRecordView } from '@/app/lib/backend/contract/automations';
 import type { Automation } from '@/lib/engine/core/types';
@@ -347,17 +354,12 @@ export function AutomationCanvas({
 
   return (
     <>
-      {record === undefined ? (
-        <WorkflowCanvas {...canvasProps} />
-      ) : (
-        <PlayedWorkflowCanvas
-          key={record.runId}
-          record={record}
-          words={run?.words ?? NO_WORDS}
-          live={run?.live === true}
-          canvasProps={canvasProps}
-        />
-      )}
+      <RunCanvas
+        record={record}
+        words={run?.words ?? NO_WORDS}
+        live={run?.live === true}
+        canvasProps={canvasProps}
+      />
       {listProps !== null && compact && (
         <AutomationPathsSheet
           open={pathsOpen}
@@ -374,29 +376,51 @@ export function AutomationCanvas({
 
 const NO_WORDS: TimelineWords = {};
 
+/** The timeline of no run, for a chart whose record has not arrived. */
+const NO_TIMELINE = buildPlaybackTimeline({
+  startedAt: 0,
+  spans: [],
+  travels: [],
+});
+
 /**
- * The canvas playing a recorded run: the record as moments on this chart
- * (`realRunOf`), compressed into a timeline a reader can follow, and the
- * playback bar in the toolbar — opening on the whole story, the run's end.
- * The clock shows the run's real elapsed time.
+ * The chart, and once a run's record is there, the run playing on it: the
+ * record as moments on this chart (`realRunOf`), compressed into a timeline
+ * a reader can follow, and the playback bar in the toolbar — opening on the
+ * whole story, the run's end, with the clock on the run's real elapsed
+ * time. The same chart stays mounted while the record arrives, so it never
+ * lays itself out twice.
  */
-function PlayedWorkflowCanvas({
+function RunCanvas({
   record,
   words,
   live,
   canvasProps,
 }: {
-  record: RunRecordView;
+  record: RunRecordView | undefined;
   words: TimelineWords;
   live: boolean;
   canvasProps: WorkflowCanvasProps;
 }) {
   const { graph } = canvasProps;
   const timeline = useMemo(
-    () => buildPlaybackTimeline(realRunOf(record, graph, words)),
+    () =>
+      record === undefined
+        ? NO_TIMELINE
+        : buildPlaybackTimeline(realRunOf(record, graph, words)),
     [record, graph, words],
   );
   const clock = usePlaybackClock({ timeline, live });
+  const { setT } = clock;
+  // A record that lands after the chart opens on its end, as one that was
+  // there from the start does; a live one follows its end by itself.
+  const opened = useRef(record !== undefined);
+  useEffect(() => {
+    if (record === undefined || opened.current) return;
+    opened.current = true;
+    if (!live) setT(timeline.duration);
+  }, [record, live, timeline.duration, setT]);
+  if (record === undefined) return <WorkflowCanvas {...canvasProps} />;
   return (
     <WorkflowCanvas
       {...canvasProps}
@@ -405,7 +429,7 @@ function PlayedWorkflowCanvas({
         <FlowPlaybackBar
           timeline={timeline}
           t={clock.t}
-          onTChange={clock.setT}
+          onTChange={setT}
           playing={clock.playing}
           onPlayingChange={clock.setPlaying}
           speed={clock.speed}
