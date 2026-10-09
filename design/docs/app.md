@@ -79,7 +79,9 @@ what is there, and the page shows the one thing you opened.
   On the board, **Done** and **Cancelled** fold to a 44px rail (glyph, count, the name standing on
   end) that opens on a click and still takes a drop; each board remembers its folded lanes.
 - **Conversation entries** — one anatomy for chats and task discussions, built from `@tale/ui/thread/*`:
-  the viewer's own words as a right-aligned muted bubble (`ThreadMessage variant="own"`); every other
+  the viewer's own words as a right-aligned muted bubble (`ThreadMessage variant="own"` — a chat's turns
+  and a task's comments alike, with the time and actions revealed under it and a chat's ‹ 2/3 › branch
+  navigator always in view beside them as its `trailing` control); every other
   voice — a teammate, an agent, the assistant — as flat prose under an identity row (24px avatar, name,
   an **Agent** badge for an agent, clock time; the chat's assistant hides the row), with a message by the
   same author minutes later joining the one before it; actions as icon buttons that show on hover,

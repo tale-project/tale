@@ -68,6 +68,27 @@ describe('ThreadMessage', () => {
     );
   });
 
+  it('keeps an own message’s trailing control in view beside its facts', () => {
+    const { container } = render(
+      <ThreadMessage
+        variant="own"
+        time="14:32"
+        trailing={<span data-testid="branches">2 / 3</span>}
+      >
+        My message
+      </ThreadMessage>,
+    );
+
+    const footer = container.querySelector(
+      '[data-slot="thread-message-footer"]',
+    );
+    const trailing = screen.getByTestId('branches');
+    expect(footer).toContainElement(trailing);
+    // The time waits for hover or focus; the trailing control never does.
+    expect(screen.getByText('14:32').closest('.opacity-0')).not.toBeNull();
+    expect(trailing.closest('.opacity-0')).toBeNull();
+  });
+
   it('drops the identity row of a continuation and closes the gap', () => {
     const { container } = render(
       <ThreadMessage author="Yara Polish" time="14:33" continuation>

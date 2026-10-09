@@ -47,7 +47,9 @@ One message of a conversation. \`own\` is the viewer's words, a right-aligned
 muted bubble; \`other\` is everyone else, flat prose under an identity row
 (avatar, name, role badge, clock time). A \`continuation\` drops the identity
 row; \`header={null}\` hides it (the chat's assistant). \`clampHeight\` folds a
-long body behind **Read more**.
+long body behind **Read more**. \`trailing\` keeps a control in view at the end of
+an \`own\` message's footer while its time and actions wait for hover (a chat's
+‹ 2/3 › branch navigator).
 
 ## Usage
 \`\`\`tsx

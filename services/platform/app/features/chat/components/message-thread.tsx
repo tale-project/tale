@@ -274,7 +274,9 @@ export const MessageThread = memo(function MessageThread({
         ref={containerRef}
         role="log"
         aria-label={t('aria.messageHistory')}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
+        // The column answers to the scroller's width (`@container`), not the
+        // window's: a chat beside an open panel is a narrow column.
+        className="@container flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
       >
         {/* The content wrapper's padding-top is the snap/slack inset — the
             surface's className carries the glass-bar clearance. */}

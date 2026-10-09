@@ -66,6 +66,11 @@ export interface ThreadMessageProps extends Omit<
   /** Icon buttons for the message (size-7, ghost). */
   actions?: ReactNode;
   /**
+   * An `own` message's always-visible end of its footer row, after the
+   * revealed time and actions — a chat's ‹ 2/3 › branch navigator.
+   */
+  trailing?: ReactNode;
+  /**
    * Replace the identity row of an `other` message; `null` hides it and
    * lets the body use the full width.
    */
@@ -93,6 +98,7 @@ export function ThreadMessage({
   time,
   meta,
   actions,
+  trailing,
   header,
   continuation = false,
   clampHeight,
@@ -240,18 +246,25 @@ export function ThreadMessage({
 
       {body}
 
-      {own && (facts !== false || actionCluster !== false) && (
-        <div
-          data-slot="thread-message-footer"
-          className={cn(
-            'flex items-center justify-end gap-1.5',
-            THREAD_REVEAL_CLASS,
-          )}
-        >
-          {facts}
-          {actions}
-        </div>
-      )}
+      {own &&
+        (facts !== false ||
+          actionCluster !== false ||
+          trailing !== undefined) && (
+          <div
+            data-slot="thread-message-footer"
+            className="flex items-center justify-end gap-1.5"
+          >
+            {(facts !== false || actionCluster !== false) && (
+              <div
+                className={cn('flex items-center gap-1.5', THREAD_REVEAL_CLASS)}
+              >
+                {facts}
+                {actions}
+              </div>
+            )}
+            {trailing}
+          </div>
+        )}
 
       {/* With no identity row of its own, an `other` message keeps its time
           and actions in a cluster that appears over its top end. */}

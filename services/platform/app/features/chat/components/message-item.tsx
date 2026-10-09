@@ -3,9 +3,9 @@
 /**
  * One message of the transcript.
  *
- * The user's turns read as compact right-aligned bubbles (long ones clamp
- * with a Show more toggle; a hover pencil swaps the bubble for the edit
- * form); the assistant's read as the page itself — full width, markdown, the
+ * The user's turns read as the thread's own bubbles, as a task shows the
+ * viewer's comments (long ones clamp behind Read more; a hover pencil swaps
+ * the bubble for the edit form); the assistant's read as the page itself — full width, markdown, the
  * actions toolbar underneath. A forked message carries the ‹ n/m › sibling
  * navigator. Tool and system rows keep their chip presentation. History items
  * rasterize lazily (`content-visibility`) so a long thread costs what the
@@ -15,14 +15,18 @@
 import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { Text } from '@tale/ui/text';
+import {
+  THREAD_OWN_BUBBLE_SURFACE_CLASS,
+  THREAD_OWN_BUBBLE_WIDTH_CLASS,
+} from '@tale/ui/thread/layout';
 import { ThinkingDots } from '@tale/ui/thread/thinking-dots';
+import { ThreadMessage } from '@tale/ui/thread/thread-message';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { CircleStop, Pencil } from 'lucide-react';
 import {
   memo,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -44,7 +48,6 @@ import {
   useThinkingTimer,
 } from '../hooks/use-thinking-timer';
 import { useVoiceOutputChunker } from '../hooks/use-voice-output';
-import { CHAT_USER_BUBBLE_CLASS, CHAT_USER_MESSAGE_CLASS } from '../lib/layout';
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageItem, ChatMessageView } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
@@ -169,19 +172,23 @@ function MessageItemComponent({ deferred, ...props }: MessageItemProps) {
 
 /** A dormant row's stand-in: the message's words as plain text, in the
  * shape of its bubble — what find-in-page and a screen reader need, at a
- * fraction of the full row's cost. */
+ * fraction of the full row's cost. A user's bubble keeps the room of the
+ * footer row (time, edit) the awake bubble carries under it, so waking moves
+ * nothing below. */
 function DormantMessage({ message }: { message: ChatMessageItem }) {
   if (message.role === 'user') {
     return (
-      <div className={CHAT_USER_MESSAGE_CLASS}>
+      <div className="flex w-full min-w-0 flex-col items-end gap-1">
         <div
           className={cn(
-            CHAT_USER_BUBBLE_CLASS,
-            'max-h-96 overflow-hidden text-sm whitespace-pre-line',
+            THREAD_OWN_BUBBLE_WIDTH_CLASS,
+            THREAD_OWN_BUBBLE_SURFACE_CLASS,
+            'max-h-96 overflow-hidden whitespace-pre-line',
           )}
         >
           {message.text}
         </div>
+        <div className="h-7" />
       </div>
     );
   }
@@ -329,30 +336,27 @@ function UserBubble({
 }) {
   const { t } = useT('chat');
   const { formatDateHeader, formatDate } = useFormatDate();
-  const [expanded, setExpanded] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
   const [editing, setEditing] = useState(false);
-  const bodyRef = useRef<HTMLDivElement | null>(null);
+  const editButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef(false);
+
+  // Closing the editor (Escape, Cancel, a started edit) hands focus back to
+  // the pencil that opened it, so a keyboard reader keeps their place in the
+  // transcript instead of starting over from the top of the page.
+  const closeEditor = () => {
+    restoreFocusRef.current = true;
+    setEditing(false);
+  };
+  useEffect(() => {
+    if (editing || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    editButtonRef.current?.focus();
+  }, [editing]);
 
   // "Today, 14:32" / "Yesterday, 09:15" / a localized date + time — revealed
-  // on hover alongside the edit affordance.
+  // on hover alongside the edit affordance (a chat has no day dividers).
   const sentAt = new Date(message.createdAt);
   const sentLabel = `${formatDateHeader(sentAt)}, ${formatDate(sentAt, 'time')}`;
-
-  // Measure the clamp only while clamped — once expanded, scrollHeight equals
-  // clientHeight and would read as "fits", hiding the Show less toggle. The
-  // ResizeObserver re-measures on container reflow (panel fold, window
-  // resize): a bubble that fit at one width can overflow at another.
-  useLayoutEffect(() => {
-    if (expanded || editing) return undefined;
-    const el = bodyRef.current;
-    if (!el) return undefined;
-    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [expanded, editing, message.parts]);
 
   if (editing) {
     return (
@@ -362,63 +366,61 @@ function UserBubble({
           // The form closes only once the edit STARTED; a refusal that wrote
           // nothing (a reached usage cap) hands the draft back instead.
           const accepted = (await onEditSubmit?.(message, text)) ?? false;
-          if (accepted) setEditing(false);
+          if (accepted) closeEditor();
           return accepted;
         }}
-        onCancel={() => setEditing(false)}
+        onCancel={closeEditor}
       />
     );
   }
 
   return (
-    <div className={CHAT_USER_MESSAGE_CLASS}>
-      <div
-        ref={bodyRef}
-        className={cn(
-          CHAT_USER_BUBBLE_CLASS,
-          // ~16 lines of text-sm (the 0.3 clamp); longer collapses behind
-          // Show more.
-          !expanded && 'max-h-96 overflow-hidden',
-        )}
-      >
-        <MessageParts parts={message.parts} />
-      </div>
-      <div className="flex items-center gap-0.5">
-        <span className="text-muted-foreground/70 mt-1 text-xs opacity-0 transition-opacity group-hover/message:opacity-100 pointer-coarse:opacity-100">
+    // The thread's own bubble, as a task shows the viewer's comments: a long
+    // message reads its first lines behind Read more.
+    <ThreadMessage
+      variant="own"
+      clampHeight={384}
+      className="w-full"
+      time={
+        <time
+          dateTime={sentAt.toISOString()}
+          title={formatDate(sentAt, 'long')}
+        >
           {sentLabel}
-        </span>
-        {(overflowing || expanded) && (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => setExpanded((value) => !value)}
-            className="text-muted-foreground mt-1 h-6 px-2 text-xs"
-          >
-            {expanded ? t('showLess') : t('showMore')}
-          </Button>
-        )}
-        {onEditSubmit !== undefined && (
-          <Button
-            size="icon"
-            variant="ghost"
-            title={t('editMessage')}
-            tooltipSide="bottom"
-            data-testid="message-edit-button"
-            onClick={() => setEditing(true)}
-            className="text-muted-foreground mt-1 size-6 opacity-0 transition-opacity group-hover/message:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
-          >
-            <Pencil aria-hidden className="size-3" />
-          </Button>
-        )}
-        {forkGroup !== undefined && (
-          <BranchNavigator
-            index={forkGroup.index}
-            total={forkGroup.total}
-            onSelect={forkGroup.onSelect}
-          />
-        )}
-      </div>
-    </div>
+        </time>
+      }
+      {...(onEditSubmit !== undefined
+        ? {
+            actions: (
+              <Button
+                ref={editButtonRef}
+                size="icon"
+                variant="ghost"
+                title={t('editMessage')}
+                tooltipSide="bottom"
+                data-testid="message-edit-button"
+                onClick={() => setEditing(true)}
+                className="text-muted-foreground hover:text-foreground size-7"
+              >
+                <Pencil aria-hidden className="size-3.5" />
+              </Button>
+            ),
+          }
+        : {})}
+      {...(forkGroup !== undefined
+        ? {
+            trailing: (
+              <BranchNavigator
+                index={forkGroup.index}
+                total={forkGroup.total}
+                onSelect={forkGroup.onSelect}
+              />
+            ),
+          }
+        : {})}
+    >
+      <MessageParts parts={message.parts} />
+    </ThreadMessage>
   );
 }
 

@@ -300,8 +300,6 @@ fallback:
   image: Image
 loadingConversation: Loading conversation…
 speakOutLoud: Speak out loud
-showMore: Show more
-showLess: Show less
 scrollToBottom: Scroll to bottom
 messageInfo:
   title: Message information
