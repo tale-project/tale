@@ -63,6 +63,17 @@ describe('applyRunSearchChange', () => {
       pass: 0,
       t: 900,
     });
+    expect(applyRunSearchChange(previous, { t: 1500 })).toEqual({
+      view: 'steps',
+      node: 'score',
+      item: 2,
+      t: 1500,
+    });
+    expect(applyRunSearchChange(previous, { t: null })).toEqual({
+      view: 'steps',
+      node: 'score',
+      item: 2,
+    });
     // The previous search is left as it was.
     expect(previous).toEqual({ view: 'steps', node: 'score', item: 2, t: 900 });
   });

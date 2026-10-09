@@ -136,6 +136,12 @@ export interface AutomationCanvasProps {
    *  keeps the choice itself when left out. */
   runView?: RunCanvasView;
   onRunViewChange?: (view: RunCanvasView) => void;
+  /** The moment of a recorded run to open on, in real milliseconds since it
+   *  started; the run's end when left out. */
+  runMoment?: number;
+  /** Where the playback rests, 300 ms after it stops moving: real
+   *  milliseconds since the run started, or `null` at the run's end. */
+  onRunMomentChange?: (moment: number | null) => void;
   /** Bring this box into view. */
   revealId?: string | null;
   /** Nodes another window or a coding agent changed, ringed once. */
@@ -194,6 +200,8 @@ export function AutomationCanvas({
   compare,
   runView,
   onRunViewChange,
+  runMoment,
+  onRunMomentChange,
   revealId,
   changed,
   framed = true,
@@ -440,6 +448,10 @@ export function AutomationCanvas({
         {...(onRunViewChange !== undefined && {
           onViewChange: onRunViewChange,
         })}
+        {...(runMoment !== undefined && { moment: runMoment })}
+        {...(onRunMomentChange !== undefined && {
+          onMomentChange: onRunMomentChange,
+        })}
       />
       {listProps !== null && compact && (
         <AutomationPathsSheet
@@ -493,6 +505,8 @@ function RunCanvas({
   items,
   view: viewProp,
   onViewChange,
+  moment,
+  onMomentChange,
 }: {
   record: RunRecordView | undefined;
   words: TimelineWords;
@@ -505,6 +519,9 @@ function RunCanvas({
   /** The view the page holds; the canvas holds its own when left out. */
   view?: RunCanvasView;
   onViewChange?: (view: RunCanvasView) => void;
+  /** The moment to open on, in real milliseconds since the run started. */
+  moment?: number;
+  onMomentChange?: (moment: number | null) => void;
 }) {
   const { t } = useT('automationRuns');
   const { locale } = useLocale();
@@ -524,14 +541,31 @@ function RunCanvas({
   );
   const clock = usePlaybackClock({ timeline, live });
   const { setT } = clock;
-  // A record that lands after the chart opens on its end, as one that was
-  // there from the start does; a live one follows its end by itself.
-  const opened = useRef(record !== undefined);
+  // The chart opens on the moment a link names, or on the run's end — once
+  // the record is there, whether it was from the start or landed later; a
+  // live run follows its end by itself.
+  const positioned = useRef(false);
   useEffect(() => {
-    if (record === undefined || opened.current) return;
-    opened.current = true;
-    if (!live) setT(timeline.duration);
-  }, [record, live, timeline.duration, setT]);
+    if (record === undefined || positioned.current) return;
+    positioned.current = true;
+    if (moment !== undefined)
+      setT(timeline.fromReal(record.startedAt + moment));
+    else if (!live) setT(timeline.duration);
+  }, [record, live, moment, timeline, setT]);
+  // Where the playback rests follows into the page's link once it has
+  // rested 300 ms; the run's end, where it opens, needs no moment.
+  const { playing, following } = clock;
+  const restsAt = clock.t;
+  useEffect(() => {
+    if (record === undefined || onMomentChange === undefined) return undefined;
+    if (playing || (live && following)) return undefined;
+    const at =
+      restsAt >= timeline.duration
+        ? null
+        : Math.max(0, Math.round(timeline.toReal(restsAt) - record.startedAt));
+    const timer = window.setTimeout(() => onMomentChange(at), 300);
+    return () => window.clearTimeout(timer);
+  }, [record, onMomentChange, playing, following, live, restsAt, timeline]);
 
   // The steps whose items are read: those the reader opened, and the step
   // of an item picked elsewhere (a link, the inspector). A step once read
