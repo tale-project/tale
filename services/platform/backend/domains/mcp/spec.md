@@ -16,13 +16,13 @@ the Tale skill is the one file an agent installs to work here.
 A call acts as the person who holds the API key, in the organization the key names, with that
 person's role in it at the time of the request.
 
-| | Owner, admin or developer | Any other member |
-| --- | --- | --- |
-| Save a version, deploy one, delete an automation, set or remove a trigger | yes | no |
-| Install an automation in projects or remove it from them | yes | no |
-| Start or stop a live run | yes | no |
-| Read, validate and test automations, run them on the mocks, start a mock run | yes | yes |
-| Answer a run's question | yes | yes, in a project they can edit |
+|                                                                              | Owner, admin or developer | Any other member                |
+| ---------------------------------------------------------------------------- | ------------------------- | ------------------------------- |
+| Save a version, deploy one, delete an automation, set or remove a trigger    | yes                       | no                              |
+| Install an automation in projects or remove it from them                     | yes                       | no                              |
+| Start or stop a live run                                                     | yes                       | no                              |
+| Read, validate and test automations, run them on the mocks, start a mock run | yes                       | yes                             |
+| Answer a run's question                                                      | yes                       | yes, in a project they can edit |
 
 Reads and runs reach only the automations the app would show the person (MCP-R9).
 
@@ -197,14 +197,19 @@ applied, what failed and what was skipped.
 
 ### MCP-R12 · No secret goes into or comes out of a settings call
 
-A stored secret reads as masked, with a short excerpt at most. A change may send that masked
-value back to keep the stored secret, and nothing else in its place; a credential anywhere else
-in a change — a key pasted into a description — refuses the change, naming where it was found
-and never the value (`SECRET_ARGUMENT_REFUSED`). A person enters a new secret in Tale.
+A stored secret reads as masked, with a short excerpt at most, and so does a credential found
+anywhere else in a stored setting — a key someone pasted into an instruction or a header in
+Tale. A change may send a masked value back to keep what is stored there, and nothing else in
+its place; a credential anywhere else in a change — a key pasted into a description — refuses
+the change, naming where it was found and never the value (`SECRET_ARGUMENT_REFUSED`). A person
+enters a new secret in Tale.
 
 - **Example**: Ada's agent reads a provider whose key is stored → the key reads as masked; it
   changes the address and sends the masked key back → the stored key is kept; it sends a key it
   typed instead → refused, and the answer names the field, not the key.
+- **Example**: Ben once pasted an API key into the organization's system prompt in Tale. Ada's
+  agent reads the policy → the prompt reads as masked; the agent changes another field and sends
+  the masked prompt back → the prompt is kept as Ben wrote it.
 
 ## Answers and refusals
 

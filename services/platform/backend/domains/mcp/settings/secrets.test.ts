@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isMaskedSecret,
+  maskedPlaces,
   maskSecrets,
   restoreMaskedSecrets,
   secretArgumentRefusal,
@@ -165,6 +166,60 @@ describe('keeping a stored secret through a masked value', () => {
         data: {
           places: [
             { pointer: '/config/apiKey', kind: 'nothing stored to keep' },
+          ],
+        },
+      }),
+    });
+  });
+});
+
+describe('a credential stored where no secret belongs', () => {
+  // A person can paste a key into a policy's header or an instruction in
+  // Tale; a read over MCP never answers it.
+  const policy = {
+    enabled: true,
+    endpoint: {
+      url: 'https://moderation.example.invalid',
+      headers: { Authorization: `Bearer ${PASTED}`, Accept: 'json' },
+    },
+    note: `the old key was ${PASTED}`,
+  };
+
+  it('is masked wherever the detector finds it, beside the secrets a path names [MCP-R12]', () => {
+    expect(maskedPlaces(policy, []).sort()).toEqual([
+      '/endpoint/headers/Authorization',
+      '/note',
+    ]);
+    const masked = maskSecrets(policy, []);
+    expect(JSON.stringify(masked)).not.toContain(PASTED);
+    expect(masked).toMatchObject({
+      enabled: true,
+      endpoint: {
+        url: 'https://moderation.example.invalid',
+        headers: {
+          Authorization: { masked: true },
+          Accept: 'json',
+        },
+      },
+      note: { masked: true },
+    });
+  });
+
+  it('is kept when a change sends its mask back, and its mask is taken nowhere else [MCP-R12]', () => {
+    const sent = maskSecrets({ ...policy, enabled: false }, []);
+    expect(restoreMaskedSecrets(sent, policy, [])).toEqual({
+      config: { ...policy, enabled: false },
+    });
+    const elsewhere = {
+      ...policy,
+      endpoint: { ...policy.endpoint, url: { masked: true } },
+    };
+    expect(restoreMaskedSecrets(elsewhere, policy, [])).toEqual({
+      refusal: expect.objectContaining({
+        code: 'SECRET_ARGUMENT_REFUSED',
+        data: {
+          places: [
+            { pointer: '/config/endpoint/url', kind: 'nothing stored to keep' },
           ],
         },
       }),
