@@ -336,7 +336,7 @@ async function pumpNdjson(
         'OUTPUT_GAP',
         'OUTPUT_LIMIT',
         'REPLAY_UNAVAILABLE',
-        'DISK_FULL',
+        'REPLAY_DISK_FULL',
       ].includes(event.code)
     ) {
       throw new RunnerdOutputGapError(event.message, event.code);

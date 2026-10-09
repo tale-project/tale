@@ -174,7 +174,7 @@ export type RunnerdExecEvent = (
         | 'OUTPUT_LIMIT'
         | 'REPLAY_UNAVAILABLE'
         | 'OUTPUT_GAP'
-        | 'DISK_FULL';
+        | 'REPLAY_DISK_FULL';
       message: string;
     }
 ) & { seq?: number };
@@ -234,7 +234,7 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
           value.code === 'OUTPUT_LIMIT' ||
           value.code === 'REPLAY_UNAVAILABLE' ||
           value.code === 'OUTPUT_GAP' ||
-          value.code === 'DISK_FULL')
+          value.code === 'REPLAY_DISK_FULL')
       );
     default:
       return false;

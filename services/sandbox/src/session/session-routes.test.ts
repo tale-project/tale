@@ -340,7 +340,7 @@ beforeAll(() => {
               { t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 },
               {
                 t: 'fail',
-                code: 'DISK_FULL',
+                code: 'REPLAY_DISK_FULL',
                 message: 'The sandbox host ran out of disk space.',
                 seq: 2,
               },
@@ -1888,7 +1888,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     },
   );
 
-  test('a journal that ran out of disk ends the exec stream with DISK_FULL, never a result, and keeps the session', async () => {
+  test('a journal that ran out of disk ends the exec stream with REPLAY_DISK_FULL, never a result, and keeps the session', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(
       JSON.stringify({ sessionId: 'disk-full', organizationId: 'org_disk' }),
@@ -1902,7 +1902,7 @@ describe('SessionRoutes (fake runnerd)', () => {
     );
     expect(events.map((event) => event.event)).toEqual(['phase', 'error']);
     expect(events[1]?.data).toEqual({
-      code: 'DISK_FULL',
+      code: 'REPLAY_DISK_FULL',
       message: 'The sandbox host ran out of disk space.',
     });
     expect(routes.holds('disk-full')).toBe(true);

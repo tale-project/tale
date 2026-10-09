@@ -1810,11 +1810,11 @@ export class ExecOutputGapError extends ExecStreamProtocolError {
 }
 
 /** The session's runtime could not write the exec's output because the
- * sandbox host's disk is full (runnerd's `DISK_FULL`), and ended the exec: a
+ * sandbox host's disk is full (runnerd's `REPLAY_DISK_FULL`), and ended the exec: a
  * condition of the host, not a lost transcript, so it says so in its own
  * words. Reattaching cannot help. */
 export class ExecDiskFullError extends ExecStreamProtocolError {
-  readonly code = 'DISK_FULL';
+  readonly code = 'REPLAY_DISK_FULL';
   constructor() {
     super('the sandbox host ran out of disk space');
   }
@@ -2162,7 +2162,7 @@ async function consumeExecSse(
       if (parsed?.code === 'ATTACH_BUSY')
         throw new ExecAttachBusyError(message);
       if (parsed?.code === 'OUTPUT_GAP') throw new ExecOutputGapError(message);
-      if (parsed?.code === 'DISK_FULL') throw new ExecDiskFullError();
+      if (parsed?.code === 'REPLAY_DISK_FULL') throw new ExecDiskFullError();
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }

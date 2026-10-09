@@ -143,8 +143,8 @@ describe('disk exec replay', () => {
   });
 
   test.each([
-    ['ENOSPC', 'DISK_FULL'],
-    ['EDQUOT', 'DISK_FULL'],
+    ['ENOSPC', 'REPLAY_DISK_FULL'],
+    ['EDQUOT', 'REPLAY_DISK_FULL'],
     ['EIO', 'REPLAY_UNAVAILABLE'],
   ])(
     'a journal write that fails with %s ends the replay as %s',
@@ -171,10 +171,43 @@ describe('disk exec replay', () => {
           ),
         ).toMatchObject({
           message:
-            code === 'DISK_FULL'
+            code === 'REPLAY_DISK_FULL'
               ? 'The sandbox host ran out of disk space.'
               : 'The complete execution transcript is unavailable.',
         });
+      } finally {
+        opened.mockRestore();
+        await replay.dispose();
+      }
+    },
+  );
+
+  test.each([
+    ['ENOSPC', 'REPLAY_DISK_FULL'],
+    ['EDQUOT', 'REPLAY_DISK_FULL'],
+    ['EIO', 'REPLAY_UNAVAILABLE'],
+  ])(
+    'a checkpoint write that fails with %s ends the replay as %s',
+    async (errno, code) => {
+      const originalOpen = fs.open;
+      const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
+        const file = await originalOpen(...args);
+        if (args[1] === 'w') {
+          file.writeFile = async () => {
+            throw Object.assign(new Error('write failed'), { code: errno });
+          };
+        }
+        return file;
+      });
+      const replay = createReplay();
+      try {
+        await replay.append(line(1), 1);
+        await expectOutputLimit(
+          replay.saveCheckpoint({ seq: 1, state: null }),
+          code,
+        );
+        // The failure stands for the output after it as well.
+        await expectOutputLimit(replay.append(line(2), 2), code);
       } finally {
         opened.mockRestore();
         await replay.dispose();

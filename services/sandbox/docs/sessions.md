@@ -359,12 +359,14 @@ storage per session**, including files held open by readers. At most four
 execs run at once and 16 exec records are retained. Completed spools are
 evicted first under the shared budget. An active writer that exhausts its
 budget ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
-`REPLAY_UNAVAILABLE`, and a journal write the disk refuses for want of space
-(`ENOSPC`, `EDQUOT`) ends the exec with `DISK_FULL`. The spawner forwards each
+`REPLAY_UNAVAILABLE`, and a journal or checkpoint write the disk refuses for
+want of space (`ENOSPC`, `EDQUOT`) ends the exec with `REPLAY_DISK_FULL`. The spawner forwards each
 of the three as the code of the stream's terminal `error` event; the platform
-ends the turn on it without reattaching, and names `DISK_FULL` in words of its
-own: the sandbox host ran out of disk space. The disk-backed spool is the sole
-retained output history.
+ends the turn on it without reattaching, and names `REPLAY_DISK_FULL` in words of its
+own: the sandbox host ran out of disk space. The full-disk code carries the
+`REPLAY_` prefix on purpose: a platform older than the runtime already ends a
+turn on every `REPLAY_` code instead of reattaching. The disk-backed spool is
+the sole retained output history.
 
 A checkpoint is committed (written to a temporary file and renamed into
 place) before its acknowledged prefix is pruned, so a run can produce more

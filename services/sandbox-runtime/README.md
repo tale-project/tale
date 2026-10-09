@@ -68,8 +68,8 @@ Disk replay is the sole retained output history. A committed parser checkpoint
 acknowledges its prefix before segments are pruned, allowing long runs to exceed
 the per-exec bound over time. Unacknowledged overflow ends the writer with
 `OUTPUT_LIMIT`; evicted or unreadable replay reports `REPLAY_UNAVAILABLE`.
-A journal write the disk refuses for want of space (`ENOSPC`, or `EDQUOT` for
-a spent quota) ends the exec with `DISK_FULL` instead, so the failure names
+A journal or checkpoint write the disk refuses for want of space (`ENOSPC`, or
+`EDQUOT` for a spent quota) ends the exec with `REPLAY_DISK_FULL` instead, so the failure names
 the host's full disk rather than a lost transcript.
 An acknowledged prefix missing from an older reader's cursor produces an exact
 gap range, which the platform can recover from a covering checkpoint.

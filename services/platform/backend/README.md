@@ -294,7 +294,7 @@ without retaining a growing promise chain. Drain windows rebuild bounded UI
 projections from the runtime journal, publishing resumed progress only after
 replay catches up. Missing journal history is an explicit `REPLAY_UNAVAILABLE`
 failure, output beyond the journal budget fails with `OUTPUT_LIMIT`, and a
-journal the sandbox host's full disk refused fails with `DISK_FULL`, read as
+journal the sandbox host's full disk refused fails with `REPLAY_DISK_FULL`, read as
 "the sandbox host ran out of disk space" (`ExecDiskFullError`); none can be
 booked as a successful turn with incomplete usage or tools.
 

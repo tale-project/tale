@@ -889,7 +889,12 @@ describe('drainSessionExecResilient', () => {
     expect(requests).toBe(1);
   });
 
-  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE', 'DISK_FULL'])(
+  test.each([
+    'OUTPUT_GAP',
+    'OUTPUT_LIMIT',
+    'REPLAY_UNAVAILABLE',
+    'REPLAY_DISK_FULL',
+  ])(
     'fails %s terminally without retrying missing or refused history',
     async (code) => {
       let requests = 0;
@@ -917,7 +922,7 @@ describe('drainSessionExecResilient', () => {
   test('a sandbox disk that ran out ends the exec in words of its own, never the payload', async () => {
     globalThis.fetch = (async () =>
       sseResponse([
-        `event: error\ndata: ${JSON.stringify({ code: 'DISK_FULL', message: '{"internal":"payload"}' })}\n\n`,
+        `event: error\ndata: ${JSON.stringify({ code: 'REPLAY_DISK_FULL', message: '{"internal":"payload"}' })}\n\n`,
       ])) as unknown as typeof fetch;
     const failure = await drainSessionExecResilient(
       's',
@@ -928,7 +933,7 @@ describe('drainSessionExecResilient', () => {
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(ExecDiskFullError);
     expect(failure).toMatchObject({
-      code: 'DISK_FULL',
+      code: 'REPLAY_DISK_FULL',
       message: 'the sandbox host ran out of disk space',
     });
   });
