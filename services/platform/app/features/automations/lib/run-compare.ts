@@ -47,10 +47,22 @@ export function compareSummary(
     );
   }
   if (diff.firstDivergence !== undefined) {
+    const { path, why } = diff.firstDivergence;
+    // A step one run skipped by its condition and the other ran ended
+    // differently because its condition went the other way: say that.
+    const flipped = diff.nodes
+      .find((node) => node.path === path)
+      ?.decisions.some(
+        (decision) =>
+          (decision.kind === 'when' || decision.kind === 'else') &&
+          decision.a?.result !== undefined &&
+          decision.b?.result !== undefined &&
+          decision.a.result !== decision.b.result,
+      );
     lines.push(
       t('compare.differs.split', {
-        step: ctx.stepLabel(topLevelStep(diff.firstDivergence.path)),
-        why: diff.firstDivergence.why,
+        step: ctx.stepLabel(topLevelStep(path)),
+        why: why === 'status' && flipped === true ? 'decision' : why,
       }),
     );
   }

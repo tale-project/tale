@@ -64,6 +64,37 @@ describe('compareSummary', () => {
     ]);
   });
 
+  it('names a condition that went the other way as why two runs split', () => {
+    const lines = compareSummary(
+      diff({
+        nodes: [
+          {
+            path: 'big_order',
+            nodeId: 'big_order',
+            a: { status: 'skipped', activeMs: 0, attempt: 1 },
+            b: { status: 'ok', activeMs: 5, attempt: 1 },
+            differs: 'status',
+            decisions: [
+              {
+                kind: 'when',
+                a: { result: false },
+                b: { result: true },
+                operands: [],
+              },
+            ],
+            input: same,
+            output: same,
+          },
+        ],
+        firstDivergence: { path: 'big_order', why: 'status' },
+      }),
+      ctx('en'),
+    );
+    expect(lines).toEqual([
+      'They split at Big_order: its condition went the other way.',
+    ]);
+  });
+
   it('says when only the timing differs', () => {
     expect(compareSummary(diff(), ctx('en'))).toEqual([
       'Same version, same input, same path — only the timing differs.',
