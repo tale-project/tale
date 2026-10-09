@@ -18,6 +18,7 @@ export function isManagedResource(
     resource.kind === 'agent-instructions' ||
     resource.kind === 'agent-tools' ||
     resource.kind === 'task-instructions' ||
+    resource.kind === 'task-review-context' ||
     resource.kind === 'automation-definition' ||
     resource.kind === 'automation-deployment' ||
     resource.kind === 'automation-schedule'
@@ -35,6 +36,8 @@ function resourcePath(resource: ManagedPlatformResource, read = false): string {
       return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/tools`;
     case 'task-instructions':
       return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/instructions?projectId=${encodeURIComponent(projectId)}`;
+    case 'task-review-context':
+      return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/review-context?projectId=${encodeURIComponent(projectId)}`;
     default:
       return `/api/app/automations/${encodeURIComponent(resource.config.name)}/configuration${read ? `?projectId=${encodeURIComponent(projectId)}&kind=${resource.kind}` : ''}`;
   }
@@ -48,7 +51,11 @@ export async function readManagedResource(
     .object({ config: z.unknown(), hash: expectedConfigurationHashSchema })
     .parse(await client.request(resourcePath(resource, true)));
   if (view.config === null) {
-    if (view.hash !== null || !resource.kind.startsWith('automation-'))
+    if (
+      view.hash !== null ||
+      (!resource.kind.startsWith('automation-') &&
+        resource.kind !== 'task-review-context')
+    )
       throw preconditionError(
         'Managed configuration target is missing or inconsistent.',
       );
@@ -97,6 +104,14 @@ export async function readManagedResource(
       observed.config.taskId !== resource.config.taskId)
   )
     throw preconditionError('Managed task readback names another task.');
+  if (
+    resource.kind === 'task-review-context' &&
+    (observed.kind !== 'task-review-context' ||
+      observed.config.reviewerAgentId !== resource.config.reviewerAgentId)
+  )
+    throw preconditionError(
+      'Managed review context readback names another reviewer.',
+    );
   return { config: observedConfig, revision: view.hash };
 }
 

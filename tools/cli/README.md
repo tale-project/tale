@@ -431,6 +431,24 @@ saves. Plan/readback exposes only identity, tools and their native hash. A runti
 without this configuration facet or a requested capability refuses the operation.
 Interrupted application uses the same pending receipt recovery described above.
 
+A `task-review-context` resource explicitly enrolls a pristine native operational
+task with `projectId`, `taskId`, `reviewerAgentId` and `enabled`. The editor must
+name an existing open task without retained execution, review or source work,
+external identity, children or dependencies, and an eligible project reviewer
+already granted `task_review`. Enrollment does not grant tools or start work.
+Its reviewer and purpose remain fixed when disabled. A runtime without the
+native facet refuses planning; interrupted application reconciles the same
+native hash before writing again.
+
+A live project manager with `task_review` and `task_start_agent` starts an
+occurrence through `task_review` operation `start_batch`, supplying a request
+UUID, `contextTaskId`, and one to twenty exact `{taskId, expected}` targets copied
+from native review reads. Use operation `read_batch` with its `batchId` to recover
+the result. Only matching native decisions from that batch can complete it; a
+settled report does not. An incomplete replay starts nothing. A new occurrence
+must explicitly name the remaining targets. Each source task keeps its original
+independent review gate; the operational context produces no report-review gate.
+
 An `automation-definition` resource declares `projectId`, the exact native `name`
 (including folder slashes), `document`, `settings`, `presentation` and `taskContract`.
 The three metadata fields are required: copy their observed native values, or use

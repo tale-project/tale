@@ -48,6 +48,18 @@ export const managedTaskInstructionsSchema = z.strictObject({
   description: z.string().max(TASK_DESCRIPTION_MAX),
 });
 
+/** Explicit enrollment of a pristine operational task. The reviewer identity
+ * is permanent; disabling the context does not turn it into source work. */
+export const managedTaskReviewContextSchema = z.strictObject({
+  ...project,
+  taskId: identity,
+  reviewerAgentId: identity,
+  enabled: z.boolean(),
+});
+export type ManagedTaskReviewContext = z.infer<
+  typeof managedTaskReviewContextSchema
+>;
+
 /** The native authoring dispatcher validates documents and runs their tests.
  * Metadata is explicit: null clears it; an omitted field must never silently
  * erase a value that an existing automation owns. */
@@ -92,6 +104,10 @@ export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('task-instructions'),
     config: managedTaskInstructionsSchema,
+  }),
+  z.strictObject({
+    kind: z.literal('task-review-context'),
+    config: managedTaskReviewContextSchema,
   }),
   z.strictObject({
     kind: z.literal('automation-definition'),

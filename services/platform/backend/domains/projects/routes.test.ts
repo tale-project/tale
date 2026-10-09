@@ -26,6 +26,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 import { appErrorHandler } from '../../error-reporting.ts';
 import { appJsonBody, INVALID_JSON_MESSAGE } from '../../lib/app-json-body.ts';
 import { checkUserRateLimit } from '../../lib/rate-limit.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 
 const service = vi.hoisted(() => ({
   createProject: vi.fn(),
@@ -287,6 +288,26 @@ describe('project routes — the shared schemas guard the door', () => {
     const res = await send('DELETE', '/p1', { mode: 'cascade' });
     expect(res.status).toBe(400);
     expect(service.deleteProject).not.toHaveBeenCalled();
+  });
+
+  it('preserves a review context custody refusal on project deletion', async () => {
+    const refusal = new LegalHoldError(
+      'LEGAL_HOLD_ACTIVE',
+      'This task is owned by a user on a custodian legal hold. Release the user-level hold before deleting.',
+      409,
+    );
+    service.deleteProject.mockRejectedValueOnce(refusal);
+    const response = await send('DELETE', '/p1', { mode: 'detach' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: refusal.code,
+      message: refusal.message,
+    });
+    expect(service.deleteProject).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1', userId: 'u1' }),
+      { projectId: 'p1', mode: 'detach' },
+    );
   });
 });
 
