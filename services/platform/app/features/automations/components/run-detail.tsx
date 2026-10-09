@@ -69,6 +69,7 @@ import { EffectList } from './effect-list';
 import { IssueImportContinuation } from './issue-import-continuation';
 import { IssueImportResult } from './issue-import-result';
 import { NodeInspector, type InspectorContext } from './node-inspector';
+import { RunActions } from './run-actions';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
 import { RunFailureCard } from './run-failure-card';
@@ -242,6 +243,32 @@ function RunDetailBody({
         .at(-1),
     [recordQuery.data],
   );
+  // The writes the run made, and where they went: what running it again
+  // live sends again.
+  const writes = useMemo(() => {
+    const sent = projection.effects.filter((effect) =>
+      effect.connector.includes('.'),
+    );
+    const slugs = [
+      ...new Set(sent.map((effect) => effect.connector.split('.')[0] ?? '')),
+    ];
+    return {
+      count: sent.length,
+      connectors: slugs.map((slug) => connectorName(slug, catalog, locale)),
+    };
+  }, [projection.effects, catalog, locale]);
+  /** The runs of this automation, where the run's own page hangs. */
+  const runsPath = `${automationDetailPathname({
+    organizationId,
+    automationSlug,
+    ...(run?.projectId !== undefined && { projectId: run.projectId }),
+  })}/runs`;
+  const openRun = useCallback(
+    (started: { runId: string }) => {
+      void navigate({ to: `${runsPath}/${started.runId}` });
+    },
+    [navigate, runsPath],
+  );
   const failureLabels = useMemo(
     () => ({
       connectorLabel: (slug: string) => connectorName(slug, catalog, locale),
@@ -399,6 +426,22 @@ function RunDetailBody({
               date: formatDate(new Date(run.finishedAt), 'long'),
             })}
           </Text>
+        )}
+        {isRunFinished(status) && (
+          <RunActions
+            organizationId={organizationId}
+            run={{ id: run.id, version: run.version, mode: run.mode }}
+            {...(latestQuery.data?.version !== undefined && {
+              latestVersion: latestQuery.data.version,
+            })}
+            {...(versionQuery.data?.deployedVersion !== undefined && {
+              deployedVersion: versionQuery.data.deployedVersion,
+            })}
+            canStartLive={canStartLive}
+            writes={writes}
+            href={`${runsPath}/${run.id}`}
+            onStarted={openRun}
+          />
         )}
         {!isRunFinished(status) && status !== 'quarantined' && (
           <Button
@@ -648,17 +691,7 @@ function RunDetailBody({
             deployedVersion: versionQuery.data.deployedVersion,
           })}
           canStartLive={canStartLive}
-          onStarted={(started) => {
-            void navigate({
-              to: `${automationDetailPathname({
-                organizationId,
-                automationSlug,
-                ...(run.projectId !== undefined && {
-                  projectId: run.projectId,
-                }),
-              })}/runs/${started.runId}`,
-            });
-          }}
+          onStarted={openRun}
           onSelectStep={(id) => {
             setSelectedNodeId(id);
           }}

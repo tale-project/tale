@@ -1,3 +1,20 @@
+again:
+  button: Erneut ausführen
+  menu: Weitere Möglichkeiten zum erneuten Ausführen
+  latest: Erneut mit v{version} als Test ausführen
+  asTest: Erneut als Test ausführen
+  live: Live mit v{version} ausführen
+  notLive: v{version} ist nicht mehr live. Führe sie als Test aus oder v{live} live.
+  noneLive: Keine Version ist live, deshalb kann v{version} nur als Test erneut laufen.
+  liveConfirm:
+    title: Erneut live ausführen?
+    body: '{count, plural, one {Dabei wird erneut # Schreibvorgang an {connectors} gesendet, wie im letzten Lauf.} other {Dabei werden erneut # Schreibvorgänge an {connectors} gesendet, wie im letzten Lauf.}}'
+    confirm: Erneut live ausführen
+  refused: Der Lauf konnte nicht gestartet werden. {detail}
+  copyId: Lauf-ID kopieren
+  idCopied: Lauf-ID kopiert
+  copyLink: Link kopieren
+  linkCopied: Link kopiert
 failure:
   title: Der Lauf ist bei {step} fehlgeschlagen
   titleRun: Der Lauf ist fehlgeschlagen

@@ -1,3 +1,20 @@
+again:
+  button: Run again
+  menu: More ways to run again
+  latest: Run again on v{version} as a test
+  asTest: Run again as a test
+  live: Run live on v{version}
+  notLive: v{version} isn't live any more. Run it as a test, or run v{live} live.
+  noneLive: No version is live, so v{version} can only run again as a test.
+  liveConfirm:
+    title: Run again live?
+    body: '{count, plural, one {This sends # write to {connectors} again, as the last run did.} other {This sends # writes to {connectors} again, as the last run did.}}'
+    confirm: Run again live
+  refused: Couldn't start the run. {detail}
+  copyId: Copy run ID
+  idCopied: Run ID copied
+  copyLink: Copy link
+  linkCopied: Link copied
 failure:
   title: The run failed at {step}
   titleRun: The run failed

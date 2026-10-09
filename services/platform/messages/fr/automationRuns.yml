@@ -1,3 +1,20 @@
+again:
+  button: Relancer
+  menu: Autres façons de relancer
+  latest: Relancer sur la v{version} en essai
+  asTest: Relancer en essai
+  live: Exécuter en réel sur la v{version}
+  notLive: La v{version} n’est plus en service. Exécute-la en essai, ou exécute la v{live} en réel.
+  noneLive: 'Aucune version n’est en service : la v{version} ne peut donc être relancée qu’en essai.'
+  liveConfirm:
+    title: Relancer en réel ?
+    body: '{count, plural, one {Cela envoie à nouveau # écriture vers {connectors}, comme la dernière exécution.} other {Cela envoie à nouveau # écritures vers {connectors}, comme la dernière exécution.}}'
+    confirm: Relancer en réel
+  refused: Impossible de lancer l’exécution. {detail}
+  copyId: Copier l’ID de l’exécution
+  idCopied: ID de l’exécution copié
+  copyLink: Copier le lien
+  linkCopied: Lien copié
 failure:
   title: L’exécution a échoué à l’étape {step}
   titleRun: L’exécution a échoué
