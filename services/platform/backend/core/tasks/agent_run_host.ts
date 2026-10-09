@@ -41,6 +41,7 @@ import {
   harnessMountsMcp,
   harnessResumesConversations,
   nextWindowDelayMs,
+  removeStagedInstructions,
   removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   SPAWNER_OUTAGE_BUDGET_MS,
@@ -1733,8 +1734,14 @@ export async function startTaskAgentTurnImpl(
             );
           });
           // The refused exec never ran, but its inputs were staged: the
-          // start that gets room stages its credential again.
+          // start that gets room stages its credential again, and its
+          // instructions under the fresh exec's own name.
           await removeStagedSubscription(args.sessionId, args.harness);
+          await removeStagedInstructions(
+            args.sessionId,
+            args.harness,
+            args.execId,
+          );
         }
         return null;
       }
@@ -1789,6 +1796,8 @@ export async function driveTaskAgentTurnImpl(
       if (!heldByAnotherExec(run, args.execId)) {
         await removeStagedSubscription(args.sessionId, args.harness);
       }
+      // Named for this exec alone: it goes whichever exec holds the run now.
+      await removeStagedInstructions(args.sessionId, args.harness, args.execId);
       await releaseProjectAgentSlotAfterSettle(ctx, args);
       return null;
     }
@@ -2261,6 +2270,7 @@ async function settleTaskAgentTurn(
     if (!heldByAnotherExec(current, args.execId)) {
       await removeStagedSubscription(args.sessionId, args.harness);
     }
+    await removeStagedInstructions(args.sessionId, args.harness, args.execId);
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
@@ -2274,8 +2284,9 @@ async function settleTaskAgentTurn(
       : {}),
   });
   // The turn is over, whoever won the finalize claim: its staged
-  // subscription credential leaves the session with it.
+  // subscription credential and its instructions leave the session with it.
   await removeStagedSubscription(args.sessionId, args.harness);
+  await removeStagedInstructions(args.sessionId, args.harness, args.execId);
   if (!release.won) {
     // The finalize claim keys on the op row — a start that died BEFORE
     // writing one (model unresolvable, spawner error, staging failure) loses

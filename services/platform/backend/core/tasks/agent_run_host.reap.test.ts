@@ -17,6 +17,8 @@
  *  - a Gemini turn's staged subscription credential leaves the session when
  *    the turn settles or is orphaned, unless a steer moved the run onto a
  *    newer exec that staged its own;
+ *  - an OpenCode turn's instructions file, named for its exec, leaves the
+ *    session whenever that exec's turn ends, a steer's included;
  *  - a window that ends with the spawner out of reach hands the turn to its
  *    next window after a pause, carrying when the outage began, and the run
  *    settles once — failed only once the outage outlasts its budget.
@@ -541,6 +543,94 @@ describe('a Gemini turn’s staged subscription credential', () => {
 
     expect(io.cancels).toEqual(['exec-old']);
     expect(io.deletes).toEqual([]);
+  });
+});
+
+describe('an OpenCode turn’s staged instructions', () => {
+  const OPENCODE = { ...KEYS, harness: 'opencode' };
+  const instructionsOf = (execId: string) => [
+    `.runtime/tale/instructions/${execId}.md`,
+  ];
+
+  it('leave the session when the turn settles', async () => {
+    io.terminal = {
+      kind: 'terminal',
+      text: 'Done.',
+      timeline: [],
+      ended: { type: 'turn-ended', status: 'completed', finalText: 'Done.' },
+      exited: true,
+    };
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, OPENCODE as never);
+
+    expect(io.deletes).toEqual([instructionsOf('exec-old')]);
+  });
+
+  it('leave the session when a Stop orphans the turn', async () => {
+    const run: RunState = { status: 'cancelled', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, OPENCODE as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.deletes).toEqual([instructionsOf('exec-old')]);
+  });
+
+  it('of the old exec leave when a steer restarted the run onto a new one', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-rotated' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, OPENCODE as never);
+
+    // Only the old exec's own file: the new exec's stays with its turn.
+    expect(io.deletes).toEqual([instructionsOf('exec-old')]);
+  });
+
+  it('of an exec its workspace refused for want of room leave with it', async () => {
+    // The runtime refuses the exec before it spawns (`EXEC_LIMIT`): the run
+    // parks onto a fresh exec, which stages its own file when it starts.
+    io.windows = [
+      {
+        kind: 'terminal',
+        text: '',
+        timeline: [],
+        exited: true,
+        execResult: {
+          status: 'failed',
+          exitCode: null,
+          durationMs: 0,
+          stdoutBase64: '',
+          stderrBase64: '',
+          truncated: { stdout: false, stderr: false },
+          errorCode: 'EXEC_LIMIT',
+          errorMessage: 'live exec cap 4 reached',
+        },
+      },
+    ];
+    const run: RunState = { status: 'queued', execId: 'exec-new' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...OPENCODE,
+      runId: 'run-new',
+      execId: 'exec-new',
+      model: 'gpt-5',
+      modelProvider: 'openai',
+      skills: [],
+      connectors: [],
+      tools: [],
+      secrets: [],
+      sweep: true,
+      inspectNote: false,
+    } as never);
+
+    expect(
+      mutations.find((m) => m.name.endsWith(':parkTaskAgentRunForCapacity'))
+        ?.args,
+    ).toMatchObject({ execId: 'exec-new', execRefused: true });
+    expect(io.deletes).toEqual([instructionsOf('exec-new')]);
   });
 });
 
