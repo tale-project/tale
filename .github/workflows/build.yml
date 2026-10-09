@@ -411,7 +411,12 @@ jobs:
           build-args: |
             VERSION=${{ needs.changes.outputs.image_tag }}
             ${{ matrix.service == 'platform' && format('AUTOMATION_WRITER_PROTOCOL={0}', steps.meta.outputs.automation-protocol) || '' }}
-          cache-from: type=gha,scope=${{ matrix.service }}
+          # The release's own amd64 cache is read here and never written: a
+          # build whose GHA cache was evicted reuses the layers the last release
+          # shipped instead of rebuilding every one of them.
+          cache-from: |
+            type=gha,scope=${{ matrix.service }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}-buildcache:amd64
           # Publish the large shared stack cache only from main. PR-local
           # exports took 148s and cannot seed other PRs; old candidates must
           # not overwrite the current main cache.
