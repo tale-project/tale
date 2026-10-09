@@ -9,10 +9,7 @@ home:
         unterstützt die meisten grossen KI-Anbieter ohne Aufschlag —
         Cloud-Modellnutzung wird zu den Tarifen deines Anbieters abgerechnet und
         ist nicht in den Plänen enthalten.
-    aiProviders:
-      a: Ja. Tale unterstützt die grossen Cloud-KI-Anbieter ohne Aufschlag — die
-        Nutzung wird zu den Preisen deines Anbieters abgerechnet. Du behältst
-        deinen Anbieter und deine bestehende Abrechnung.
+
 pricing:
   extras:
     cloudProviders:

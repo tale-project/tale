@@ -330,8 +330,8 @@ export const budgetRuleSchema = z.object({
 
 /**
  * A project's cap: everything spent in one project (`scopeId` is its id) —
- * the chats in its threads, its agents' turns and its automations' agent
- * steps, and its own API keys — as one shared bucket, like a team's.
+ * the chats in its threads, its agents' turns, its automations' agent and
+ * `llm` steps, and its own API keys — as one shared bucket, like a team's.
  *
  * Saved in the file's `projectRules`, never in `rules`: an image that
  * predates project caps still parses the file — `z.object` drops the

@@ -12,7 +12,6 @@ import {
   Building2,
   History,
   Server,
-  GitCompareArrows,
   BriefcaseBusiness,
 } from 'lucide-react';
 
@@ -39,29 +38,37 @@ interface NavMenuDef {
   items: readonly NavMenuItem[];
 }
 
-/** Resources — docs (external), changelog, hardware, about. */
+/** Comparison is a primary destination whenever its published hub exists. */
+export const COMPARISON_NAV_ITEM = listMarketingContent(
+  'comparisons',
+  'en',
+).some((page) => page.slug === 'index')
+  ? ({
+      id: 'compare',
+      path: '/compare',
+      labelKey: 'resource.compare.label',
+    } as const)
+  : null;
+
+/** Resources — docs (external), use cases, changelog, hardware, about. */
 const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
-  ...(['comparisons', 'use-cases'] as const).flatMap(
-    (category): NavMenuItem[] => {
-      if (
-        !listMarketingContent(category, 'en').some(
-          (page) => page.slug === 'index',
-        )
+  ...(['use-cases'] as const).flatMap((category): NavMenuItem[] => {
+    if (
+      !listMarketingContent(category, 'en').some(
+        (page) => page.slug === 'index',
       )
-        return [];
-      const compare = category === 'comparisons';
-      const key = compare ? 'compare' : 'useCases';
-      return [
-        {
-          id: key,
-          path: compare ? '/compare' : '/use-cases',
-          labelKey: `resource.${key}.label`,
-          descriptionKey: `resource.${key}.description`,
-          icon: compare ? GitCompareArrows : BriefcaseBusiness,
-        },
-      ];
-    },
-  ),
+    )
+      return [];
+    return [
+      {
+        id: 'useCases',
+        path: '/use-cases',
+        labelKey: 'resource.useCases.label',
+        descriptionKey: 'resource.useCases.description',
+        icon: BriefcaseBusiness,
+      },
+    ];
+  }),
   {
     id: 'changelog',
     path: '/changelog',

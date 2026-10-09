@@ -4,13 +4,17 @@
  * The llm door, off the wire: transport is `createBuilderModel`'s and proven
  * in its own suite, so these tests substitute it and prove what THIS module
  * owns — which connector serves an explicitly named model, how a reply
- * becomes `{text}` or schema-checked `{data}`, and that every refusal names
- * the problem.
+ * becomes `{text}` or schema-checked `{data}`, that every refusal names the
+ * problem, and that each call is measured against and booked to its run's
+ * budgets (the measure and the booking themselves are `llm-metering.ts`'s).
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { EmptyReplyError } from '../automations_builder/chat_wire';
 import type { ActionCtx } from '../lib/ctx';
+import { NodeFailure } from './failure';
 
 const {
   builderModel,
@@ -43,21 +47,41 @@ import {
 } from './llm_call';
 
 const ORG = 'org_llm';
+const RUN = 'run_llm';
 
 /** Credential rows by provider slug; the fake ctx serves them. */
 let credentials: Record<string, unknown>;
+/** What the run's budget check answers. */
+let admission: unknown;
 
-const ctx = {
-  runQuery: vi.fn((_ref: unknown, args: { providerSlug: string }) =>
-    Promise.resolve(credentials[args.providerSlug] ?? null),
+const runQuery = vi.fn((ref: unknown, args: { providerSlug: string }) =>
+  Promise.resolve(
+    functionRefName(ref) === 'automations/queries:checkLlmStepBudget'
+      ? admission
+      : (credentials[args.providerSlug] ?? null),
   ),
-} as unknown as ActionCtx;
+);
+const runMutation = vi.fn((_ref: unknown, _args: unknown) =>
+  Promise.resolve(null),
+);
+const ctx = { runQuery, runMutation } as unknown as ActionCtx;
+
+/** The bookings the door asked for, by their arguments. */
+function bookings(): unknown[] {
+  return runMutation.mock.calls
+    .filter(
+      ([ref]) =>
+        functionRefName(ref) === 'automations/mutations:recordLlmStepUsage',
+    )
+    .map(([, args]) => args);
+}
 
 const DIRECT = { status: 'active', authMethod: 'api-key' };
 
 beforeEach(() => {
   vi.clearAllMocks();
   credentials = {};
+  admission = { allowed: true };
   resolveConnectors.mockResolvedValue([
     { name: 'first', catalog: { source: 'static' } },
     { name: 'second', catalog: { source: 'static' } },
@@ -142,6 +166,7 @@ describe('automationLlmCall', () => {
     const reply = await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'vendor/small-1',
       prompt: 'Summarize.',
@@ -176,7 +201,11 @@ describe('automationLlmCall', () => {
     ]);
 
     await expect(
-      automationLlmCall(ctx, ORG)({ model: 'vendor/small-1', prompt: 'x' }),
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
     ).rejects.toThrow(/no configured provider serves model "vendor\/small-1"/);
   });
 
@@ -193,6 +222,7 @@ describe('automationLlmCall', () => {
     await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'anthropic/claude-haiku-4-5',
       prompt: 'Triage.',
@@ -221,6 +251,7 @@ describe('automationLlmCall', () => {
     await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'anthropic/claude-haiku-4-5',
       prompt: 'Triage.',
@@ -254,6 +285,7 @@ describe('automationLlmCall', () => {
     await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'anthropic/claude-haiku-4-5',
       prompt: 'Triage.',
@@ -275,7 +307,11 @@ describe('automationLlmCall', () => {
     getProviderCatalog.mockRejectedValue(new Error('models endpoint 500'));
 
     await expect(
-      automationLlmCall(ctx, ORG)({ model: 'vendor/small-1', prompt: 'x' }),
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
     ).rejects.toThrow(/catalog for "first", "second" was unreachable/);
   });
 
@@ -286,7 +322,7 @@ describe('automationLlmCall', () => {
     ]);
     const stop = new AbortController();
 
-    await automationLlmCall(ctx, ORG, { signal: stop.signal })({
+    await automationLlmCall(ctx, ORG, RUN, { signal: stop.signal })({
       model: 'vendor/small-1',
       prompt: 'one',
     });
@@ -303,7 +339,7 @@ describe('automationLlmCall', () => {
       { id: 'vendor/small-1', tags: ['chat'] },
     ]);
 
-    const door = automationLlmCall(ctx, ORG);
+    const door = automationLlmCall(ctx, ORG, RUN);
     await door({ model: 'vendor/small-1', prompt: 'one' });
     await door({ model: 'vendor/small-1', prompt: 'two' });
 
@@ -327,6 +363,7 @@ describe('automationLlmCall', () => {
     const reply = await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'vendor/small-1',
       prompt: 'Score it.',
@@ -351,7 +388,7 @@ describe('automationLlmCall', () => {
       properties: { score: { type: 'number' } },
       required: ['score'],
     };
-    const door = automationLlmCall(ctx, ORG);
+    const door = automationLlmCall(ctx, ORG, RUN);
 
     builderModel.mockResolvedValue({ content: 'about a seven, I think' });
     await expect(
@@ -362,6 +399,152 @@ describe('automationLlmCall', () => {
     await expect(
       door({ model: 'vendor/small-1', prompt: 'x', outputSchema }),
     ).rejects.toThrow(/does not satisfy the node's outputSchema/);
+  });
+});
+
+describe('automationLlmCall and the run’s budgets', () => {
+  beforeEach(() => {
+    credentials = { first: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
+  });
+
+  it('books each call’s tokens to its run, priced under the serving connector [GOV-R14]', async () => {
+    builderModel.mockResolvedValue({
+      content: 'a fine sentence',
+      usage: { prompt: 120, completion: 30 },
+    });
+
+    await automationLlmCall(
+      ctx,
+      ORG,
+      RUN,
+    )({ model: 'vendor/small-1', prompt: 'Summarize.' });
+
+    expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: ORG,
+      runId: RUN,
+    });
+    expect(bookings()).toEqual([
+      {
+        organizationId: ORG,
+        runId: RUN,
+        provider: 'first',
+        model: 'vendor/small-1',
+        inputTokens: 120,
+        outputTokens: 30,
+      },
+    ]);
+  });
+
+  it('refuses the call before the provider once a cap binding the run is reached [GOV-R4]', async () => {
+    admission = {
+      allowed: false,
+      reason:
+        "Usage limit reached. This project's monthly cost limit is used up until 2026-11-01T00:00:00.000Z.",
+    };
+
+    const refusal = automationLlmCall(
+      ctx,
+      ORG,
+      RUN,
+    )({ model: 'vendor/small-1', prompt: 'x' });
+
+    await expect(refusal).rejects.toBeInstanceOf(NodeFailure);
+    await expect(refusal).rejects.toMatchObject({
+      code: 'budget_exceeded',
+      message: expect.stringContaining(
+        "This project's monthly cost limit is used up",
+      ),
+    });
+    expect(builderModel).not.toHaveBeenCalled();
+    expect(bookings()).toEqual([]);
+  });
+
+  it('measures every call of a door, not the first alone', async () => {
+    const door = automationLlmCall(ctx, ORG, RUN);
+    await door({ model: 'vendor/small-1', prompt: 'one' });
+    admission = { allowed: false, reason: 'Usage limit reached.' };
+
+    await expect(
+      door({ model: 'vendor/small-1', prompt: 'two' }),
+    ).rejects.toMatchObject({ code: 'budget_exceeded' });
+    expect(builderModel).toHaveBeenCalledTimes(1);
+  });
+
+  it('books a reply with no text before the step fails on it', async () => {
+    builderModel.mockRejectedValue(
+      new EmptyReplyError({ prompt: 40, completion: 8000 }),
+    );
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow(/no text content/);
+    expect(bookings()).toEqual([
+      expect.objectContaining({ inputTokens: 40, outputTokens: 8000 }),
+    ]);
+  });
+
+  it('books a reply that defies the node’s schema — the call was made', async () => {
+    builderModel.mockResolvedValue({
+      content: 'about a seven',
+      usage: { prompt: 10, completion: 4 },
+    });
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({
+        model: 'vendor/small-1',
+        prompt: 'x',
+        outputSchema: { type: 'object' },
+      }),
+    ).rejects.toMatchObject({ code: 'llm_output_invalid' });
+    expect(bookings()).toEqual([
+      expect.objectContaining({ inputTokens: 10, outputTokens: 4 }),
+    ]);
+  });
+
+  it('keeps the reply when its booking fails, and says so', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    builderModel.mockResolvedValue({
+      content: 'a fine sentence',
+      usage: { prompt: 1, completion: 1 },
+    });
+    runMutation.mockRejectedValueOnce(new Error('connection reset'));
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).resolves.toEqual({ text: 'a fine sentence' });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(`run ${RUN}: booking an llm call`),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
+  it('fails loudly on a budget answer it cannot read', async () => {
+    admission = { allowed: 'maybe' };
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow(/unexpected shape/);
+    expect(builderModel).not.toHaveBeenCalled();
   });
 });
 

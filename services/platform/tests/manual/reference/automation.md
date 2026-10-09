@@ -6,6 +6,18 @@ suite alongside the automated ones — they drive the same stack.
 
 ## Coverage map
 
+The docs screenshot runner's locale selection, stable English paths, isolated
+state directory precedence, invalid argument rejection, and asynchronous native
+label isolation are covered by `tests/docs-screenshots/capture-options.test.ts`
+and `tests/docs-screenshots/i18n.test.ts`. Auth requests wait for the mounted
+login form, existing owners fall back to sign-in, and failures close the page
+in `tests/docs-screenshots/capture-auth.test.ts`. Each marketing source declares
+native route-topic readiness in `tests/docs-screenshots/manifest.test.ts`.
+The marketing orchestrator forwards state/config arguments and runs derivatives
+only after successful capture in `services/web/scripts/capture-product-screenshots.test.ts`.
+Actual captured scene readiness and
+readability remain part of the screenshot runbook's visual review.
+
 Managed deployment acceptance reads the exact Ready receipt, current runtime
 custody and OCI version, canonical-origin health, and complete source-derived
 SQL/TypeScript and knowledge migration inventories without applying state.
@@ -1106,3 +1118,5 @@ Scroll-responsive navigation is covered by `packages/ui/src/hooks/use-scroll-com
 | [automations](../suites/automations.md) | Public run API projects safe legacy hold facts in organization and project scopes; stop requests require the exact hold identity and acknowledgement, authenticated actor and existing write authority; stale and wrong-scope requests refuse without releasing the hold | 🔶 REST contract and OpenAPI tests; native stop and migration outcomes remain separate integration proofs | `backend/rest/v1-automations.contract.test.ts`, `backend/rest/v1-automations.project-scope.test.ts`, `scripts/openapi/spec.test.ts` |
 | [connectors](../suites/connectors.md) | An agent's connector call through the in-sandbox bridge runs the action's live body in the platform process, like an automation's or chat's call, never as a `node -e` program in the agent's own session (whose command line carried the credential's secrets, readable by every process of that session, and which took one of its live-exec places); the bridge's dispatch carries no session. The bridge runs at most four of a session's calls at once (a further one is refused as busy), gives agent calls no file store, and a body past its time limit can no longer reach the outside system | ✅ backend | `backend/domains/connectors/service.runner.test.ts` (the door hands a live call the in-process runner, and a bridge call no file store), `backend/domains/connectors/bridge-routes.test.ts` (live mode, no session, the four-call cap), `lib/connectors/dispatcher.test.ts` (no host request after the time limit), `backend/core/node_only/sandbox/connectors_bridge.test.ts` (the dispatch's exact arguments), `backend/core/tasks/agent_run_host.connector_caller.test.ts` (a task run's call routed through the real hosts with the door mocked) |
 | [chat](../suites/chat.md) | Attachment permissions are checked before parking and before rebuilding history or regenerating a turn; preflight failures retain text only, metadata uses the current organization and reader, and denied document reads do not queue indexing. Real PostgreSQL probes cover same-organization and cross-organization audio denial through captured model requests, with an allowed own-audio control. | ✅ unit + real PostgreSQL | `backend/domains/chat/attachment-privacy.test.ts`, `deferred-sends.test.ts` and the `checkChatDeferredAuto` lane in `backend/integration-check.ts`; existing REST and arena suites cover surrounding caller contracts; door-level privacy execution remains separate |
+
+| [tasks](../suites/tasks.md) | Task-detail screenshot readiness waits for the independent activity response in EN/DE/FR after the dialog, brief and comment appear; an activity heading outside the task dialog cannot admit the capture. | ✅ browser | `tests/e2e/specs/docs-screenshot-seed.spec.ts` (controlled response and synthetic DOM; actual localized capture playback remains visual review) |

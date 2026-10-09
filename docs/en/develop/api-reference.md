@@ -647,7 +647,8 @@ A run a trigger started (`startedBy: "trigger:<id>"`) also carries `startedVia` 
 | --- | --- |
 | Automation engine | `node_error`, `connector_error`, `llm_output_invalid`, `approval_rejected`, `execution_limit`, `automation_deleted`, `engine_incompatible`, `effect_in_doubt`: inspect the failed node and its trace. Correct the input or definition; if a person rejected an operation, address their reason before requesting another run. |
 | Model provider | Codes such as `credit_exhausted` or `rate_limited`: resolve the provider condition before another attempt. |
-| Agent execution | Codes such as `harness_error`, `session_gone`, `deadline`, or `budget_exceeded`: inspect the agent’s detail and limits. The complete enum is in OpenAPI. |
+| Agent execution | Codes such as `harness_error`, `session_gone`, or `deadline`: inspect the agent’s detail and limits. The complete enum is in OpenAPI. |
+| Budget limit | `budget_exceeded`: a budget limit refused an agent turn or an `llm` step’s call, or an agent turn used up the allowance it started with. Read `detail`, then wait until the limit resets or ask an administrator to raise it. |
 
 A failure code identifies the cause; it does not make a whole-run retry safe. Earlier nodes may already have changed external systems. `startedAt` records when the start was accepted, before a worker claims it. There is no separate pickup timestamp, so `finishedAt - startedAt` includes queueing and other waits.
 

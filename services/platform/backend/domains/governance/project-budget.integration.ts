@@ -9,6 +9,10 @@ import { z } from 'zod';
 import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
 import type { RecordCheck } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
+import {
+  checkLlmStepBudget,
+  recordLlmStepUsage,
+} from '../automations/llm-metering.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
   assertChatTurnBudget,
@@ -27,7 +31,8 @@ const createdSchema = z.object({ id: z.string() });
  * in one of its threads is admitted against the project's cap, counting the
  * turns in flight there; a model request in the project is held to it and
  * stamps the project on its op, whose hold then counts toward the project;
- * and nothing outside the project is bound by it.
+ * an automation run spends in every project it is in, its agent steps and
+ * its llm steps alike; and nothing outside the project is bound by it.
  *
  * `ctx` is the suite's owner. The lane makes its own project and threads,
  * and removes them with its budgets file and its bookings.
@@ -362,6 +367,74 @@ export async function checkProjectBudgets(
         costOf(projectId) === 67 &&
         costOf(secondProjectId) === 7,
       `admitted=${turn.allowed}, stamp=${JSON.stringify(runStamp[0]?.projectIds)} (want both projects), second project's hold=${JSON.stringify(secondHolds.projects?.[secondProjectId])} (want 10 cents), booked=${JSON.stringify(booked)} (want 60+7 and 7)`,
+    );
+
+    // The run's llm steps are its spend too: each call is measured against
+    // both projects' caps, and booked to both beside the ledger, under the
+    // automation subject and the automation's name.
+    const stepModel = `itest-model-${suffix}`;
+    const beforeCap = await checkLlmStepBudget(sql, {
+      organizationId: orgId,
+      runId,
+    });
+    await recordLlmStepUsage(sql, {
+      organizationId: orgId,
+      runId,
+      provider: 'itest',
+      model: stepModel,
+      inputTokens: 40,
+      outputTokens: 10,
+    });
+    const stepBuckets = await sql<
+      { projectId: string; tokens: number; requests: number }[]
+    >`
+      SELECT project_id AS "projectId", total_tokens::float8 AS tokens,
+             request_count::float8 AS requests
+      FROM app.project_usage
+      WHERE org_id = ${orgId} AND granularity = 'monthly'
+        AND project_id = ANY(${[projectId, secondProjectId]})
+    `;
+    const stepLedger = await sql<{ userId: string; tokens: number }[]>`
+      SELECT user_id AS "userId", total_tokens::float8 AS tokens
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${automationName}
+        AND model = ${stepModel} AND granularity = 'monthly'
+    `;
+    const secondBucket = stepBuckets.find(
+      (row) => row.projectId === secondProjectId,
+    );
+    // The second project's requests are its cap now: the next step is
+    // refused, naming the project's cap.
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules: []',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${secondProjectId}`,
+        '    period: monthly',
+        `    maxRequests: ${secondBucket?.requests ?? 0}`,
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    const atCap = await checkLlmStepBudget(sql, {
+      organizationId: orgId,
+      runId,
+    });
+    record(
+      'project budgets: an automation’s llm step is measured against, and booked to, every project its run is in',
+      beforeCap.allowed &&
+        stepBuckets.length === 2 &&
+        stepBuckets.find((row) => row.projectId === projectId)?.tokens === 72 &&
+        secondBucket?.tokens === 57 &&
+        secondBucket.requests === 2 &&
+        stepLedger.length === 1 &&
+        stepLedger[0]?.userId === '__automation__' &&
+        stepLedger[0].tokens === 50 &&
+        !atCap.allowed &&
+        atCap.reason.includes("This project's monthly request limit"),
+      `before the cap=${JSON.stringify(beforeCap)} (want allowed), buckets=${JSON.stringify(stepBuckets)} (want 15+7+50 and 7+50 tokens, the second at 2 requests), ledger=${JSON.stringify(stepLedger)} (want 50 tokens under __automation__), at the cap=${JSON.stringify(atCap)} (want refused for the project's request limit)`,
     );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {

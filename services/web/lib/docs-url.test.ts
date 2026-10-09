@@ -4,6 +4,8 @@ import {
   DOCS_URL,
   GET_STARTED_URL,
   SELF_HOSTED_QUICKSTART_URL,
+  getDocsUrl,
+  getStartedUrl,
 } from './docs-url';
 
 describe('docs-url', () => {
@@ -25,6 +27,17 @@ describe('docs-url', () => {
       `${DOCS_URL}/self-hosted/install/quickstart`,
     );
   });
+
+  it.each(['en', 'de', 'fr'] as const)(
+    'keeps $locale chrome links in the same language',
+    (locale) => {
+      const prefix = locale === 'en' ? '' : `/${locale}`;
+      expect(getDocsUrl(locale)).toBe(`${DOCS_URL}${prefix || '/'}`);
+      expect(getStartedUrl(locale)).toBe(
+        `${DOCS_URL}${prefix}/get-started/quickstart`,
+      );
+    },
+  );
 });
 
 describe.each([
@@ -50,6 +63,11 @@ describe.each([
       const urls = await import('./docs-url');
 
       expect(urls.getSelfHostedQuickstartUrl(locale)).toBe(`${mount}${path}`);
+      const prefix = locale === 'en' ? '' : `/${locale}`;
+      expect(urls.getDocsUrl(locale)).toBe(`${mount}${prefix || '/'}`);
+      expect(urls.getStartedUrl(locale)).toBe(
+        `${mount}${prefix}/get-started/quickstart`,
+      );
       if (locale === 'en') {
         expect(urls.SELF_HOSTED_QUICKSTART_URL).toBe(`${mount}${path}`);
         expect(urls.GET_STARTED_URL).toBe(`${mount}/get-started/quickstart`);
