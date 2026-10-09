@@ -96,7 +96,7 @@ Besides deleting unused workspaces, Tale deletes a workspace when what it belong
 - Deleting a project agent deletes all its workspaces, including each Member's. Deleting a project does the same for every agent in it.
 - [Removing a member](/platform/admin/members-and-roles#remove-or-recover-access) from the organization deletes their own workspaces with every agent. Setting the member to **Disabled** instead keeps them.
 - [Erasing a person's data](/platform/admin/governance/data-subject-requests) deletes their own workspaces without waiting for work running in them.
-- Deleting the organization deletes all its sandboxes and their files, revokes the gateway keys issued to them, disconnects its [devices](/platform/admin/sandbox-devices) and removes the build and package caches kept for it.
+- Deleting the organization deletes all its sandboxes and their files, revokes the gateway keys issued to them, removes its model-provider keys from the model gateway, disconnects its [devices](/platform/admin/sandbox-devices) and removes the build and package caches kept for it.
 
 This happens within about a minute, or after the task ends if one is still running in the workspace. A pinned workspace goes too, but a [legal hold](/platform/admin/governance/legal-hold) keeps every workspace it covers: a hold on the organization keeps all of them, and a hold on a person keeps that person's own workspaces. An hourly cleanup also deletes leftovers that nothing owns any more, such as a workflow run's workspace that was never reclaimed.
 

@@ -193,13 +193,16 @@ shows the day a stopped workspace will be deleted.
 Deleting a project agent deletes its workspaces, without waiting for the unused period.
 Removing a member from the organization deletes the workspaces kept for that member's runs.
 A pinned workspace goes too. Deleting the organization deletes every sandbox it had, whatever
-is running in it, revokes the gateway keys issued to them and disconnects its devices; the
-deletion counts as finished only once the files are confirmed deleted.
+is running in it, revokes the gateway keys issued to them, removes the provider keys it gave the
+gateway and disconnects its devices; the deletion counts as finished only once the files are
+confirmed deleted and the gateway holds none of its provider keys.
 
 - **Example**: Ada deletes an agent whose workspace is pinned → the workspace is deleted with
   the agent.
 - **Example**: Noah is removed from the organization → the workspaces kept for his runs are
   deleted.
+- **Example**: An organization that brought its own OpenRouter key is deleted while one of its
+  devices is offline → the gateway drops that key at once; the device is let go once it is back.
 
 ## What a turn costs
 

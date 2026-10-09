@@ -2155,6 +2155,214 @@ describe('ensureModelPricingOverride', () => {
   });
 });
 
+describe('removeOrganizationFromGateway', () => {
+  type Key = { id: string; name: string };
+
+  /**
+   * A management plane that keeps its provider records and their keys:
+   *   GET    /api/providers               → every record's name
+   *   GET    /api/providers/:p/keys       → its keys (404 for no record)
+   *   PUT    /api/providers/:p            → creates the record
+   *   POST   /api/providers/:p/keys       → adds a key, answered with its id
+   *   DELETE /api/providers/:p            → the record and its keys
+   *   DELETE /api/providers/:p/keys/:id   → one key (404 when gone)
+   * `refuse` answers the named calls 403, which no retry repeats.
+   */
+  function storedGateway(
+    records: Record<string, Key[]>,
+    refuse: ReadonlySet<string> = new Set(),
+  ) {
+    const store = new Map(
+      Object.entries(records).map(([name, keys]) => [name, [...keys]]),
+    );
+    const calls: string[] = [];
+    let created = 0;
+    const json = (value: unknown) =>
+      Promise.resolve(new Response(JSON.stringify(value), { status: 200 }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        const path = decodeURIComponent(new URL(String(url)).pathname);
+        const call = `${method} ${path}`;
+        calls.push(call);
+        if (refuse.has(call)) {
+          return Promise.resolve(new Response('refused', { status: 403 }));
+        }
+        const [, , , provider, sub, keyId] = path.split('/');
+        if (method === 'GET' && provider === undefined) {
+          return json({
+            providers: [...store.keys()].map((name) => ({ name })),
+            total: store.size,
+          });
+        }
+        const keys = provider === undefined ? undefined : store.get(provider);
+        if (method === 'PUT' && sub === undefined && provider !== undefined) {
+          if (keys === undefined) store.set(provider, []);
+          return json({ name: provider });
+        }
+        if (keys === undefined || provider === undefined) {
+          return Promise.resolve(new Response('not found', { status: 404 }));
+        }
+        if (method === 'GET' && sub === 'keys') return json({ keys });
+        if (method === 'POST' && sub === 'keys') {
+          const body: unknown =
+            typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+          const name =
+            typeof body === 'object' &&
+            body !== null &&
+            'name' in body &&
+            typeof body.name === 'string'
+              ? body.name
+              : '';
+          const id = `kid-new-${++created}`;
+          keys.push({ id, name });
+          return json({ id, name, value: '<redacted>' });
+        }
+        if (method === 'DELETE' && sub === undefined) {
+          store.delete(provider);
+          return json({ name: provider });
+        }
+        if (method === 'DELETE' && sub === 'keys') {
+          const at = keys.findIndex((key) => key.id === keyId);
+          if (at === -1) {
+            return Promise.resolve(new Response('not found', { status: 404 }));
+          }
+          keys.splice(at, 1);
+          return json({});
+        }
+        return json({});
+      }),
+    );
+    return { store, calls };
+  }
+
+  // org_1's key beside another organization's on two shared records; its own
+  // records (one on the Anthropic lane); another organization's own record,
+  // and one of an organization whose id org_1's is a prefix of.
+  const shared = () => ({
+    openrouter: [
+      { id: 'k-own-or', name: `tale-${ORG}-openrouter` },
+      { id: 'k-other-or', name: 'tale-org_2-openrouter' },
+    ],
+    anthropic: [
+      { id: 'k-own-an', name: `tale-${ORG}-anthropic` },
+      { id: 'k-other-an', name: 'tale-org_10-anthropic' },
+    ],
+    [`${ORG}__acme__llama-3`]: [
+      { id: 'k-own-c1', name: `tale-${ORG}-${ORG}__acme__llama-3` },
+    ],
+    [`${ORG}__acme__llama-3__anthropic`]: [
+      { id: 'k-own-c2', name: `tale-${ORG}-${ORG}__acme__llama-3__anthropic` },
+    ],
+    org_2__acme__llama: [
+      { id: 'k-other-c', name: 'tale-org_2-org_2__acme__llama' },
+    ],
+    org_10__acme__llama: [
+      { id: 'k-prefix-c', name: 'tale-org_10-org_10__acme__llama' },
+    ],
+    // The record of an organization whose id is org_1's followed by `_`.
+    [`${ORG}___acme__llama`]: [
+      { id: 'k-underscore-c', name: `tale-${ORG}_-${ORG}___acme__llama` },
+    ],
+  });
+
+  it("removes the organization's keys from shared records and its own records, and nothing of another organization's", async () => {
+    const { store, calls } = storedGateway(shared());
+    const mod = await loadModule();
+    expect(await mod.removeOrganizationFromGateway(ORG)).toEqual({
+      records: 2,
+      keys: 2,
+    });
+    expect(Object.fromEntries(store)).toEqual({
+      openrouter: [{ id: 'k-other-or', name: 'tale-org_2-openrouter' }],
+      anthropic: [{ id: 'k-other-an', name: 'tale-org_10-anthropic' }],
+      org_2__acme__llama: [
+        { id: 'k-other-c', name: 'tale-org_2-org_2__acme__llama' },
+      ],
+      org_10__acme__llama: [
+        { id: 'k-prefix-c', name: 'tale-org_10-org_10__acme__llama' },
+      ],
+      [`${ORG}___acme__llama`]: [
+        { id: 'k-underscore-c', name: `tale-${ORG}_-${ORG}___acme__llama` },
+      ],
+    });
+    expect(calls.filter((call) => call.startsWith('DELETE')).sort()).toEqual([
+      'DELETE /api/providers/anthropic/keys/k-own-an',
+      'DELETE /api/providers/openrouter/keys/k-own-or',
+      `DELETE /api/providers/${ORG}__acme__llama-3`,
+      `DELETE /api/providers/${ORG}__acme__llama-3__anthropic`,
+    ]);
+  });
+
+  it('finds nothing left on a second run', async () => {
+    const { calls } = storedGateway(shared());
+    const mod = await loadModule();
+    await mod.removeOrganizationFromGateway(ORG);
+    calls.length = 0;
+    expect(await mod.removeOrganizationFromGateway(ORG)).toEqual({
+      records: 0,
+      keys: 0,
+    });
+    expect(calls.filter((call) => call.startsWith('DELETE'))).toEqual([]);
+  });
+
+  it('throws without removing anything when the gateway cannot list its records', async () => {
+    const { store, calls } = storedGateway(
+      shared(),
+      new Set(['GET /api/providers']),
+    );
+    const mod = await loadModule();
+    await expect(mod.removeOrganizationFromGateway(ORG)).rejects.toThrow(
+      /list providers failed \(403\)/,
+    );
+    expect(calls).toEqual(['GET /api/providers']);
+    expect(store.size).toBe(Object.keys(shared()).length);
+  });
+
+  it('tries every record, then throws naming the ones it could not clear', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { store } = storedGateway(
+      shared(),
+      new Set([
+        'DELETE /api/providers/openrouter/keys/k-own-or',
+        'GET /api/providers/org_2__acme__llama/keys',
+      ]),
+    );
+    const mod = await loadModule();
+    await expect(mod.removeOrganizationFromGateway(ORG)).rejects.toThrow(
+      `llm-gateway still holds organization ${ORG} on: openrouter, org_2__acme__llama`,
+    );
+    // Everything else went all the same.
+    expect(store.has(`${ORG}__acme__llama-3`)).toBe(false);
+    expect(store.get('anthropic')).toEqual([
+      { id: 'k-other-an', name: 'tale-org_10-anthropic' },
+    ]);
+    expect(store.get('openrouter')).toHaveLength(2);
+  });
+
+  it('forgets the key it pushed for the organization, so a later request-scoped provision lists again', async () => {
+    const { store, calls } = storedGateway({ openrouter: [] });
+    const mod = await loadModule();
+    const keyIds: string[] = [];
+    const remember = {
+      reuseRecent: true,
+      onProviderKey: (_name: string, keyId: string) => keyIds.push(keyId),
+    };
+    await mod.provisionProviders(ORG, [PROVIDER], remember);
+    await mod.removeOrganizationFromGateway(ORG);
+    expect(store.get('openrouter')).toEqual([]);
+
+    calls.length = 0;
+    await mod.provisionProviders(ORG, [PROVIDER], remember);
+    // Not the removed key's id from memory: the record is read and the key
+    // written again.
+    expect(calls).toContain('GET /api/providers/openrouter/keys');
+    expect(calls).toContain('POST /api/providers/openrouter/keys');
+    expect(keyIds).toEqual(['kid-new-1', 'kid-new-2']);
+  });
+});
+
 describe('hashVirtualKey', () => {
   it('is the sha256 hex of the plaintext', async () => {
     const mod = await loadModule();

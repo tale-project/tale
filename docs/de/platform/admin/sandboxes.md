@@ -96,7 +96,7 @@ Neben ungenutzten Arbeitsbereichen löscht Tale einen Arbeitsbereich auch, sobal
 - Das Löschen eines Projekt-Agenten löscht alle seine Arbeitsbereiche, auch die der Mitglieder. Das Löschen eines Projekts tut dasselbe für jeden Agenten darin.
 - [Entfernst du ein Mitglied](/de/platform/admin/members-and-roles#zugriff-entziehen-oder-wiederherstellen) aus der Organisation, werden seine eigenen Arbeitsbereiche mit allen Agenten gelöscht. Setzt du es stattdessen auf **Deaktiviert**, bleiben sie erhalten.
 - [Die Löschung der Daten einer Person](/de/platform/admin/governance/data-subject-requests) entfernt ihre eigenen Arbeitsbereiche, ohne auf laufende Arbeit darin zu warten.
-- Das Löschen der Organisation entfernt alle ihre Sandboxes samt Dateien, widerruft die dafür ausgegebenen Gateway-Schlüssel, trennt ihre [Geräte](/de/platform/admin/sandbox-devices) und löscht die für sie angelegten Build- und Paket-Caches.
+- Das Löschen der Organisation entfernt alle ihre Sandboxes samt Dateien, widerruft die dafür ausgegebenen Gateway-Schlüssel, entfernt ihre Modell-Provider-Schlüssel aus dem Modell-Gateway, trennt ihre [Geräte](/de/platform/admin/sandbox-devices) und löscht die für sie angelegten Build- und Paket-Caches.
 
 Das geschieht innerhalb von etwa einer Minute oder, falls im Arbeitsbereich noch eine Aufgabe läuft, nach deren Ende. Auch ein angepinnter Arbeitsbereich wird dann gelöscht, doch ein [Legal Hold](/de/platform/admin/governance/legal-hold) bewahrt jeden Arbeitsbereich, den er abdeckt: Eine Sperre der Organisation bewahrt alle, eine Sperre für eine Person deren eigene Arbeitsbereiche. Eine stündliche Bereinigung löscht außerdem Überreste, die niemandem mehr gehören, etwa den Arbeitsbereich eines Workflow-Laufs, der nie zurückgefordert wurde.
 

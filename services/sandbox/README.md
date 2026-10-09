@@ -262,7 +262,7 @@ Pod and Secret identities, and preserves workspace PVCs and ambiguous objects.
 BuildKit solver parallelism follows the helper's CPU limit rounded down, at
 least one, and changes when an idle helper is recreated.
 
-The mirrors enable registry storage deletion so `registry:2` can expire cached
+The mirrors enable registry storage deletion so the registry can expire cached
 image layers after its seven-day lifetime. Without this setting, its expiry
 scheduler forgets failed deletions and the layers remain on disk. A spawner
 upgrade replaces older mirrors once no build is running, preserving their cache
