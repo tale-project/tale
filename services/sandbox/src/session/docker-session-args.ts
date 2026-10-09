@@ -480,6 +480,10 @@ export function buildDockerSessionRunArgs(
     // spawner registered without a `docker inspect`.
     '--env',
     `${RUNNERD_INCARNATION_ENV}=${inp.createdAtMs}`,
+    // How long an exec may stay quiet and idle before runnerd ends it as
+    // stalled (exec-stall.ts in the runtime daemon); 0 turns the watch off.
+    '--env',
+    `TALE_EXEC_STALL_MS=${cfg.session.execStallMs}`,
     // DinD signal + tier for the entrypoint (empty when DinD is off).
     ...dindEnv,
     // Transparent egress signal + drop-uid for the entrypoint (empty when off).

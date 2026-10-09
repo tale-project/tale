@@ -255,6 +255,8 @@ describe('buildDockerSessionRunArgs', () => {
     // runnerd names the incarnation it serves: the `tale.created` stamp.
     expect(args).toContain('tale.created=1700000000000');
     expect(args).toContain('TALE_RUNNERD_INCARNATION=1700000000000');
+    // runnerd's stall window, from SANDBOX_EXEC_STALL_MINUTES.
+    expect(args).toContain('TALE_EXEC_STALL_MS=2700000');
     // Container + workspace mount.
     expect(args).toContain('tale-sbx-ses-ses-abc-123');
     expect(args).toContain(

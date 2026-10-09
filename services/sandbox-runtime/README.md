@@ -500,6 +500,7 @@ same window, under 1% of one CPU used by the exec's processes — its subreaper
 shim and the shim's descendants, read from `/proc/<pid>/stat`, plus the CPU of
 the inner Docker engine's containers, which work for whichever exec started
 them. The exec ends through the cancel path (SIGTERM, then SIGKILL after the
-grace), and its `exit` event carries `failure: "EXEC_STALLED"`. The process
-table is read once a minute at most, and a table that cannot be read judges
-nothing.
+grace), and its `exit` event carries `failure: "EXEC_STALLED"`; the spawner
+reports it as the `EXEC_STALLED` error code and sets the window from
+`SANDBOX_EXEC_STALL_MINUTES`. The process table is read once a minute at most,
+and a table that cannot be read judges nothing.

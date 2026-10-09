@@ -109,6 +109,24 @@ describe('buildSessionPod', () => {
     expect(pod.metadata?.annotations?.['tale.dev/docker']).toBe('false');
   });
 
+  test('every runner carries the exec stall window', () => {
+    for (const docker of [true, false]) {
+      const pod = buildSessionPod(
+        {
+          ...cfg,
+          dockerInContainer: true,
+          session: { ...cfg.session, execStallMs: 600_000 },
+        },
+        { ...input, docker },
+      );
+      expect(
+        pod.spec?.containers[0]?.env?.find(
+          (env) => env.name === 'TALE_EXEC_STALL_MS',
+        )?.value,
+      ).toBe('600000');
+    }
+  });
+
   test('a lightweight agent keeps its uid and omits Docker storage and privilege', () => {
     const configured = {
       ...cfg,

@@ -371,6 +371,26 @@ beforeAll(() => {
             { headers: { 'content-type': 'application/x-ndjson' } },
           );
         }
+        if (text.includes('__stalled__')) {
+          // runnerd's stall watch ended the exec (exec-stall.ts); the
+          // command caught the SIGTERM and exited 0.
+          return new Response(
+            ndjson([
+              { t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 },
+              {
+                t: 'exit',
+                exitCode: 0,
+                durationMs: 2_700_000,
+                truncated: { stdout: false, stderr: false },
+                timedOut: false,
+                cancelled: false,
+                failure: 'EXEC_STALLED',
+                seq: 2,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         if (text.includes('__exec_limit__')) {
           // runnerd's own refusal at its live-exec cap (daemon main.ts).
           return new Response(
@@ -536,6 +556,25 @@ beforeAll(() => {
 
         if (url.pathname.includes('/hang-')) {
           return hangingExecResponse();
+        }
+        if (url.pathname.includes('/stalled-')) {
+          return new Response(
+            ndjson([
+              { t: 'replay-start' },
+              { t: 'replay-complete', throughSeq: 0 },
+              {
+                t: 'exit',
+                exitCode: 143,
+                durationMs: 2_700_000,
+                truncated: { stdout: false, stderr: false },
+                timedOut: false,
+                cancelled: false,
+                failure: 'EXEC_STALLED',
+                seq: 1,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
         }
         return new Response(
           ndjson([
@@ -1381,6 +1420,40 @@ describe('SessionRoutes (fake runnerd)', () => {
       durationMs: 0,
       errorCode: 'EXEC_LIMIT',
       errorMessage: 'live exec cap 4 reached',
+    });
+  });
+
+  test('an exec runnerd ended as stalled reads EXEC_STALLED, even after a clean exit', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_stall', organizationId: 'org_f' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_stall/exec', { method: 'POST' }),
+      'sess_stall',
+      JSON.stringify({ execId: 'e6', command: ['echo', '__stalled__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(payload).toMatchObject({
+      status: 'failed',
+      exitCode: 0,
+      errorCode: 'EXEC_STALLED',
+    });
+    expect(String(payload.errorMessage)).toContain('under 1% of one CPU');
+
+    const attachRes = await routes.handleExecAttach(
+      new Request('http://x', { method: 'GET' }),
+      'sess_stall',
+      'stalled-1',
+    );
+    const replay = await readSse(attachRes);
+    expect(
+      replay.events.find((event) => event.event === 'result')?.data,
+    ).toMatchObject({
+      status: 'failed',
+      exitCode: 143,
+      errorCode: 'EXEC_STALLED',
     });
   });
 

@@ -3287,7 +3287,7 @@ export class SessionRoutes {
             result = {
               status: e.cancelled
                 ? 'cancelled'
-                : e.exitCode === 0
+                : e.exitCode === 0 && e.failure === undefined
                   ? 'completed'
                   : 'failed',
               exitCode: e.exitCode,
@@ -3301,6 +3301,7 @@ export class SessionRoutes {
               ...(e.timedOut && e.exitCode !== 0
                 ? { errorCode: 'TIMEOUT' as const }
                 : {}),
+              ...execExitFailure(e),
             };
             break;
           case 'gap':
@@ -3964,6 +3965,21 @@ function execFailErrorCode(
     : 'RUNTIME_ERROR';
 }
 
+/** The error of an exec runnerd itself ended, for its result: one that
+ * stalled — no output and under 1% of one CPU for its whole stall window —
+ * reads `EXEC_STALLED`, never an ordinary failure with a signal's exit
+ * code. Nothing for an exec that ended any other way. */
+function execExitFailure(
+  e: Extract<RunnerdExecEvent, { t: 'exit' }>,
+): Pick<SessionExecResponse, 'errorCode' | 'errorMessage'> {
+  if (e.failure !== 'EXEC_STALLED') return {};
+  return {
+    errorCode: 'EXEC_STALLED',
+    errorMessage:
+      'the exec printed nothing and its processes used under 1% of one CPU for the whole stall window, so the sandbox ended it',
+  };
+}
+
 /** Translate a runnerd exec NDJSON event into the SSE event grammar used by
  * both /exec and /exec/:id/attach. */
 async function forwardExecEvent(
@@ -4011,7 +4027,7 @@ async function forwardExecEvent(
       await send('result', {
         status: e.cancelled
           ? 'cancelled'
-          : e.exitCode === 0
+          : e.exitCode === 0 && e.failure === undefined
             ? 'completed'
             : 'failed',
         exitCode: e.exitCode,
@@ -4024,6 +4040,7 @@ async function forwardExecEvent(
         ...(e.timedOut && e.exitCode !== 0
           ? { errorCode: 'TIMEOUT' as const }
           : {}),
+        ...execExitFailure(e),
       } satisfies SessionExecResponse);
       break;
     case 'gap':
