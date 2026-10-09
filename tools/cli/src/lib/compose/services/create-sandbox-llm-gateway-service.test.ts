@@ -45,6 +45,12 @@ describe('createSandboxLlmGatewayService', () => {
     expect(networks.sandbox?.aliases).toContain('llm-gateway');
   });
 
+  test('gives the calls in flight 90s to finish when a deploy stops the gateway', () => {
+    expect(createSandboxLlmGatewayService(config).stop_grace_period).toBe(
+      '90s',
+    );
+  });
+
   test('healthchecks the gateway on :8080/health via wget', () => {
     const healthcheck = createSandboxLlmGatewayService(config).healthcheck;
     const command =

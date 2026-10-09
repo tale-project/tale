@@ -34,6 +34,13 @@ export function createSandboxLlmGatewayService(
     container_name: `${getProjectId()}-sandbox-llm-gateway`,
     env_file: ['.env'],
     restart: 'unless-stopped',
+    // Graceful drain on stop: on SIGTERM the gateway stops taking new calls,
+    // waits for the ones in flight (streamed answers included) to finish, and
+    // then writes its in-memory budget counters, the spend the platform
+    // books, to its store. Docker's 10s default would cut every model stream
+    // still running 10s into a deploy's stop, and kill the gateway before
+    // that write; 90s lets an ordinary model call finish.
+    stop_grace_period: '90s',
     mem_limit: '512m',
     volumes: ['llm-gateway-data:/app/data'],
     healthcheck: {

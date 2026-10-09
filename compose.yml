@@ -962,6 +962,13 @@ services:
       # `llm-gateway`); kept as-is to avoid a data migration.
       - llm-gateway-data:/app/data
     restart: unless-stopped
+    # Graceful shutdown: on SIGTERM the gateway stops taking new calls, waits
+    # for the ones in flight (streamed answers included) to finish, then
+    # writes its in-memory budget counters (the spend the platform books) to
+    # its store. Docker's 10s default would cut every model stream still
+    # running 10s into a deploy's stop, and kill the gateway before that write.
+    # Mirrors the CLI generator (create-sandbox-llm-gateway-service.ts: 90s).
+    stop_grace_period: 90s
     mem_limit: 512m
     healthcheck:
       # The gateway image ships busybox wget but no curl.

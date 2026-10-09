@@ -40,7 +40,7 @@ Jeder Pod unten setzt `enableServiceLinks: false`. Andernfalls injiziert Kuberne
 | `proxy` | Deployment mit Strategie `Recreate`; `hostPort` 80 und 443; PVC für `/data` | Der Zertifikatspeicher überlebt Neustarts auf dem PVC. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment; Service auf 8003 | `SANDBOX_BACKEND=kubernetes`; `config-data` nur lesend unter `/app/platform-config`. Kein Docker-Socket. |
 | `sandbox-egress` | Deployment; Service auf 3128 | Der ausgelieferte Capability-Satz, keine Sysctls. |
-| `sandbox-llm-gateway` | Deployment mit Strategie `Recreate`, PVC unter `/app/data`; Services `sandbox-llm-gateway` und `llm-gateway` auf 8080 | Das Image läuft als uid 1000; `fsGroup: 1000` lässt es seinen Zustand schreiben. Das Gateway liest `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` aus `tale-env`: Solange es kein Admin-Konto hat, legt es eines nur für einen Aufrufer an, der dieses Geheimnis vorweist. |
+| `sandbox-llm-gateway` | Deployment mit Strategie `Recreate`, PVC unter `/app/data`; Services `sandbox-llm-gateway` und `llm-gateway` auf 8080 | Das Image läuft als uid 1000; `fsGroup: 1000` lässt es seinen Zustand schreiben. Das Gateway liest `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` aus `tale-env`: Solange es kein Admin-Konto hat, legt es eines nur für einen Aufrufer an, der dieses Geheimnis vorweist. Mit `terminationGracePeriodSeconds: 90` gibt ein Rollout dem alten Pod bis zu 90 Sekunden, um laufende Modellaufrufe samt gestreamter Antworten zu beenden und seine Ausgabenzähler zu speichern. Neue Aufrufe nimmt er in dieser Zeit nicht an, und der neue Pod startet, sobald er beendet ist. |
 | `bgutil-provider` | Deployment; Service auf 4416 | Optionaler Token-Anbieter für Videos. |
 
 Die Prüfungen übertragen die Compose-Healthchecks:
@@ -545,6 +545,7 @@ spec:
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 90
       securityContext: { fsGroup: 1000 }
       containers:
         - name: gateway
