@@ -449,6 +449,18 @@ settled report does not. An incomplete replay starts nothing. A new occurrence
 must explicitly name the remaining targets. Each source task keeps its original
 independent review gate; the operational context produces no report-review gate.
 
+An `agent-model` resource selects `harness`, `model` and an explicit
+`modelProvider` for an existing `projectId` and `agentId`. The native model
+catalog checks the exact combination and credentials without provider fallback.
+The same project editing permissions and platform-managed-agent restriction
+apply. Only those serving fields change; instructions and all equipment and
+secret grants retain their exact stored values. Queued and running work retains
+the tuple stamped at admission. Future starts use the new selection. An equal
+selection is a no-op, and a changed selection invalidates stale full-agent saves.
+A legacy unset provider is observed as `null`; desired declarations require an
+explicit provider. Plan, apply, interrupted recovery and readback use the same
+configuration flow. A runtime without this facet refuses the operation.
+
 An `automation-definition` resource declares `projectId`, the exact native `name`
 (including folder slashes), `document`, `settings`, `presentation` and `taskContract`.
 The three metadata fields are required: copy their observed native values, or use

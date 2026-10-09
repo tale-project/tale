@@ -7,6 +7,7 @@ import { configurationHashSchema } from './configuration';
 import {
   PROJECT_AGENT_INSTRUCTIONS_MAX,
   PROJECT_AGENT_BINDINGS_MAX,
+  projectAgentInputSchema,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
 } from './projects';
 
@@ -42,6 +43,27 @@ export const managedAgentToolsSchema = z.strictObject({
     .max(PROJECT_AGENT_BINDINGS_MAX)
     .transform((tools) => normalizeToolGrants(tools)),
 });
+/** Model adoption selects one explicit provider; native observations may retain
+ * an older unpinned provider without silently choosing one during the read. */
+export const managedAgentModelSchema = projectAgentInputSchema
+  .pick({ harness: true, model: true, modelProvider: true })
+  .extend({
+    ...project,
+    agentId: identity,
+    model: projectAgentInputSchema.shape.model.trim().min(1),
+    modelProvider: projectAgentInputSchema.shape.modelProvider
+      .unwrap()
+      .trim()
+      .min(1),
+  })
+  .strict();
+export const managedAgentModelObservationSchema =
+  managedAgentModelSchema.extend({
+    model: projectAgentInputSchema.shape.model,
+    modelProvider: projectAgentInputSchema.shape.modelProvider
+      .unwrap()
+      .nullable(),
+  });
 export const managedTaskInstructionsSchema = z.strictObject({
   ...project,
   taskId: identity,
@@ -100,6 +122,10 @@ export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
   z.strictObject({
     kind: z.literal('agent-tools'),
     config: managedAgentToolsSchema,
+  }),
+  z.strictObject({
+    kind: z.literal('agent-model'),
+    config: managedAgentModelSchema,
   }),
   z.strictObject({
     kind: z.literal('task-instructions'),
