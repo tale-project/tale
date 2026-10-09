@@ -381,6 +381,7 @@ connectors:
     in workflows and supported platform tools.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Enter an integer port from 1 to 65535.
   catalog:
     emptyBody: >-
       This deployment ships no connector files. Check that the config root

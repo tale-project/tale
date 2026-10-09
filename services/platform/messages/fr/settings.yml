@@ -406,6 +406,7 @@ connectors:
     des connectors dans les workflows et les outils compatibles de la plateforme.
   vendorColumn: Connector
   vendorFilterLabel: Connector
+  invalidPort: Saisis un port entier compris entre 1 et 65535.
   catalog:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
