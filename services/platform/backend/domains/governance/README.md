@@ -31,8 +31,13 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 4. **A keyed start books to its key too.** When an API key authenticated the chat send or the run
    start, the ledger row carries `api_key_id` beside the person, so the key's own budget caps see
    the spend the docs promise them. Run rows keep the key in `automation_runs.api_key_id`
-   (`0110_run_billing_subject.sql`); the reservation stamps it on `sandbox_session_ops`, and an
-   unsettled op's hold counts against the key's caps as well as the person's.
+   (`0110_run_billing_subject.sql`) and `project_agent_runs.api_key_id`
+   (`0159_agent_run_api_key.sql`); the reservation stamps it on `sandbox_session_ops`, and an
+   unsettled op's hold counts against the key's caps as well as the person's. A project agent's
+   run takes the key of the call that started it — a REST start, comment or review
+   (`ProjectAuthContext.apiKeyId`), or a keyed automation run's `task.start_agent` step — and its
+   retry and a run its run delegated to carry it on; a comment that restarts a running turn
+   makes the turn its writer's, with the key it was written with or none.
 5. **`agent_slug` is a stable identifier, never a display name.** A chat assistant books under its
    slug, a project agent under its id (`project_agents.id`), an automation under its name (a
    unique path per organization), the system lanes under their sentinels (`__tts__`,
@@ -128,7 +133,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key | the thread's |
 | Chat title | `core/chat/generate_title.ts`, held and booked as a direct call (`domains/chat/title-meter.ts`) | the thread's member | `thread-title` | the key that sent the message | the thread's (`chat.generate_title` job) |
 | Inbox Improve with AI | `domains/conversations/improve.ts`, held and booked as a direct call | the writer | `inbox-improve` | — | — |
-| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
+| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | `project_agent_runs.api_key_id` | `project_agent_runs.project_id` |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | A managed turn on a provider subscription (either op) | as above; held as one request at no cost (`reserveTurnBudget` `costFree`, `budget_cents` 0) and booked at 0 cents with its harness's tokens when it ends (`releaseTurnKey`), or as a bare request when a watchdog ends it (`settleCostFreeTurn`) | as above | as above | as above | as above |
 | Automation `llm` step | `resolveAutomationRunAttribution` → immutable `automation-llm` op → `settleSessionOpSpend` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
@@ -217,6 +222,11 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
   key identity is its own row and no active user.
 - `backend/integration-check.ts` — `checkSandboxGatewayKeyReclaim`: a trigger run books under the
   sentinel, a keyed run under person + key; the MCP one-shot run records its key.
+- `domains/tasks/agent-run-keys.integration.ts` (`checkAgentRunApiKeys`) — a keyed REST comment
+  books the agent's run to the key, its retry carries it, a steer moves it to the steerer's, and a
+  keyed automation run's agent spends under its key; `jobs/task-list.agent-retry.test.ts`,
+  `domains/tasks/service.member-work.test.ts`, `comments.automation-key.test.ts` and
+  `jobs/task-list.start-workflow.test.ts` pin each door.
 
 ## Not yet
 

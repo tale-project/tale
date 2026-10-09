@@ -135,6 +135,7 @@ import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integrati
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
+import { checkAgentRunApiKeys } from './domains/tasks/agent-run-keys.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
 import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts';
 import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
@@ -62165,6 +62166,10 @@ async function main(): Promise<void> {
       [
         'checkAutomatedRetryAgentBusy',
         () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkAgentRunApiKeys',
+        () => checkAgentRunApiKeys(sql, baseUrl, authCtx, record),
       ],
       [
         'checkWorkerDrainHandOff',

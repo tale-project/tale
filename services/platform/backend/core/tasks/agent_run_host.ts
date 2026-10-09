@@ -2548,6 +2548,9 @@ export interface SteerTaskAgentTurnArgs extends TurnKeys {
   mentionSource?: MentionSource;
   author: string;
   authorId: string;
+  /** The API key the text was written with; absent from a steer queued
+   * before it was carried. */
+  authorApiKeyId?: string;
   attempt: number;
 }
 
@@ -2586,6 +2589,9 @@ export async function steerTaskAgentTurnImpl(
         organizationId: args.organizationId,
         taskId: args.taskId,
         authorId: args.authorId,
+        ...(args.authorApiKeyId !== undefined
+          ? { apiKeyId: args.authorApiKeyId }
+          : {}),
         feedback: args.feedback,
         mentionSource: args.mentionSource ?? 'comment',
       },
@@ -2668,13 +2674,17 @@ export async function steerTaskAgentTurnImpl(
   // settle marks are exec-guarded and the slot release refuses while the
   // incarnation's op runs.
   // The restarted turn is the steering person's gesture: its spend books to
-  // them from here on, as a fresh run they kicked would.
+  // them — and to the key they wrote with — from here on, as a fresh run
+  // they kicked would.
   const rotated = await ctx.runMutation(
     internal.tasks.agent_runs.rotateTaskAgentRunExec,
     {
       runId: args.runId,
       fromExecId: args.execId,
       startedBy: args.authorId,
+      ...(args.authorApiKeyId !== undefined
+        ? { apiKeyId: args.authorApiKeyId }
+        : {}),
     },
   );
   if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer

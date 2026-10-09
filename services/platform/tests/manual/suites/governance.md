@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 90 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 91 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -253,6 +253,14 @@ agent.
   requests** at your monthly requests and start it again → the run fails
   at its start with the request limit named, and no subscription account
   is used. Delete the rule
+- [ ] `GOV-F61` · **An agent run started with a key counts toward the key**
+  — GOV-F4b-style give your own REST key a rule with **Max requests** 1.
+  With that key, comment on a task in a project that has an agent
+  (`POST /api/v1/projects/{id}/tasks/{taskId}/comments`, a body that
+  mentions the agent) → the agent starts working. Once its run has ended,
+  comment again the same way → the new run fails at its start with the API
+  key's limit named, while you can still start the agent from the task in
+  the app. Delete the rule
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the

@@ -189,6 +189,7 @@ const startWorkflowSchema = z.object({
   taskId: z.string().min(1),
   workflowSlug: z.string().min(1),
   startedByUserId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
 });
 
 const driveSchema = z.object({
@@ -230,6 +231,7 @@ const steerSchema = z.object({
   mentionSource: z.enum(['comment', 'description']).optional(),
   author: z.string(),
   authorId: z.string(),
+  authorApiKeyId: z.string().optional(),
   attempt: z.number(),
 });
 
@@ -450,6 +452,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             ? { modelProvider: agent.modelProvider }
             : {}),
           startedBy: newest.startedBy,
+          ...(newest.apiKeyId !== undefined
+            ? { apiKeyId: newest.apiKeyId }
+            : {}),
           trigger: 'auto_retry',
           ...(startedVia !== undefined
             ? { startedVia, inPlace: newest.inPlace }
@@ -1250,6 +1255,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         task,
         workflowSlug: input.workflowSlug,
         startedByUserId: input.startedByUserId,
+        ...(input.apiKeyId !== undefined
+          ? { startedVia: 'api-key' as const, apiKeyId: input.apiKeyId }
+          : {}),
       });
     },
 

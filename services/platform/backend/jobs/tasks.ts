@@ -60,6 +60,9 @@ export interface TaskPayloads {
     taskId: string;
     workflowSlug: string;
     startedByUserId: string;
+    /** The API key the comment was written with: the run is the key's
+     * spend too, started through the key's door. */
+    apiKeyId?: string;
   };
   /** Re-attach the drive chain of an abandoned (but still live) turn. */
   'task.agent_drive': {
@@ -97,6 +100,10 @@ export interface TaskPayloads {
     mentionSource?: 'comment' | 'description';
     author: string;
     authorId: string;
+    /** The API key the text was written with: the turn it restarts, or the
+     * run it kicks once the turn has ended, is the key's spend too. Absent
+     * from a steer queued before it was carried. */
+    authorApiKeyId?: string;
     attempt: number;
   };
   /** Daily sweep of idle rate-limit rows (cron). */

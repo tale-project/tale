@@ -506,6 +506,14 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           organizationId,
           startedBy: run.startedBy,
         });
+        // The key a keyed door started the automation run with: the agent
+        // it puts to work spends under it too.
+        const keys = await tx<{ apiKeyId: string | null }[]>`
+          SELECT api_key_id AS "apiKeyId" FROM app.automation_runs
+          WHERE org_id = ${organizationId} AND id = ${run.id}
+          LIMIT 1
+        `;
+        const apiKeyId = keys[0]?.apiKeyId ?? null;
         // Explicitly project-scoped: the run's own project, or the projects
         // its automation is bound to — an automation bound nowhere reaches no
         // project's agents.
@@ -518,6 +526,7 @@ export function pgTaskStore(sql: Sql): WorkflowTaskStore {
           scopeProjectIds,
           taskId,
           startedBy,
+          ...(apiKeyId !== null ? { apiKeyId } : {}),
           via: {
             kind: 'automation',
             runId: run.id,

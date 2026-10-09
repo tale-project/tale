@@ -753,8 +753,10 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         const agentId = binding.actorId;
         const execId = args.taskRunExecId;
         const outcome = await transactSerializable(sql, async (tx) => {
-          const runs = await tx<{ id: string; startedBy: string }[]>`
-            SELECT id, started_by AS "startedBy"
+          const runs = await tx<
+            { id: string; startedBy: string; apiKeyId: string | null }[]
+          >`
+            SELECT id, started_by AS "startedBy", api_key_id AS "apiKeyId"
             FROM app.project_agent_runs
             WHERE org_id = ${args.organizationId}
               AND session_id = ${args.sessionId} AND exec_id = ${execId}
@@ -775,6 +777,7 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             scopeProjectIds: [projectId],
             taskId: args.taskId,
             startedBy: run.startedBy,
+            ...(run.apiKeyId !== null ? { apiKeyId: run.apiKeyId } : {}),
             via: { kind: 'agent', runId: run.id, agentId },
             ...(args.agentId !== undefined ? { agentId: args.agentId } : {}),
             ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
