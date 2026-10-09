@@ -4110,6 +4110,22 @@ function quoteDescription(value: string | null): string | null {
 
 const SEARCH_MAX_RESULTS = 25;
 const SEARCH_SNIPPET_MAX = 600;
+/** How much of a text a snippet is read from: room for its 600 characters
+ * once markdown and mentions are read, without parsing a whole description
+ * of up to 20,000 characters for every hit of every palette query. */
+const SEARCH_SNIPPET_SOURCE_MAX = SEARCH_SNIPPET_MAX * 4;
+
+/** The head of a text a snippet is read from. A cut through a mention link
+ * drops that mention instead of leaving its address to be read as text. */
+function searchSnippetSource(text: string): string {
+  if (text.length <= SEARCH_SNIPPET_SOURCE_MAX) return text;
+  const head = text.slice(0, SEARCH_SNIPPET_SOURCE_MAX);
+  const open = head.lastIndexOf('[@');
+  if (open === -1 || /\]\(mention:[^)\s]*\)/.test(head.slice(open))) {
+    return head;
+  }
+  return head.slice(0, open);
+}
 
 /**
  * A search query's `LIKE ALL` patterns: its whitespace-separated tokens,
@@ -4256,7 +4272,7 @@ export async function searchTasks(
       projectId: hit.projectId,
       title: hit.title,
       status: hit.status,
-      snippet: taskMentionPlainText(snippetSource, names)
+      snippet: taskMentionPlainText(searchSnippetSource(snippetSource), names)
         .trim()
         .slice(0, SEARCH_SNIPPET_MAX),
       updatedAt: hit.updatedAt,
@@ -4271,7 +4287,7 @@ export async function searchTasks(
     sql,
     auth.organizationId,
     fieldHits.flatMap((hit) =>
-      hit.description === null ? [] : [hit.description],
+      hit.description === null ? [] : [searchSnippetSource(hit.description)],
     ),
   );
   const results: TaskSearchHit[] = fieldHits.map((hit) =>
@@ -4298,7 +4314,7 @@ export async function searchTasks(
     names = await currentMentionNames(
       sql,
       auth.organizationId,
-      commentHits.map((hit) => hit.body),
+      commentHits.map((hit) => searchSnippetSource(hit.body)),
     );
     for (const hit of commentHits) {
       if (results.length >= SEARCH_MAX_RESULTS) break;

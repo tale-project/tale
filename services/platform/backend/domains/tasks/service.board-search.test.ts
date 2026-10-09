@@ -322,4 +322,45 @@ describe('a search reads a mention by its name', () => {
     expect(hit?.snippet.endsWith('x @Ada Lovelace please check')).toBe(true);
     expect(hit?.snippet).not.toContain('mention:');
   });
+
+  it('reads a long text only as far as its snippet, never through half a mention', async () => {
+    // Mentions early on shrink to their names, so the snippet reads past
+    // 600 stored characters; the head it is read from ends inside the last
+    // mention, which is dropped rather than shown as its address.
+    const early = '[@Ada](mention:user/u-ada-with-a-long-id-to-shrink) '.repeat(
+      40,
+    );
+    const description = `${early}${'y'.repeat(2_400 - early.length - 20)}[@Grace Hopper](mention:user/u-grace) ${'z '.repeat(9_000)}`;
+    const { sql, statements } = recordingSql((text) => {
+      if (text.startsWith('SELECT t.id AS "taskId"')) {
+        return [
+          {
+            taskId: 'task-1',
+            projectId: 'proj-1',
+            title: 'Close the books',
+            status: 'todo',
+            description,
+            updatedAt: 1,
+            number: 1,
+            archivedAt: null,
+          },
+        ];
+      }
+      if (text.includes('FROM "user" u')) {
+        return [{ id: 'u-ada', name: 'Ada Lovelace', email: null }];
+      }
+      return [];
+    });
+    const [hit] = await searchTasks(sql, auth, {
+      query: 'books',
+      projectId: 'proj-1',
+    });
+    expect(hit?.snippet).not.toContain('mention:');
+    expect(hit?.snippet).not.toContain('Grace');
+    expect(hit?.snippet).not.toContain('z');
+    // Only the mentions in the head are looked up.
+    const lookup = statements.find((s) => s.text.includes('FROM "user" u'));
+    expect(lookup?.values).toContainEqual(['u-ada-with-a-long-id-to-shrink']);
+    expect(JSON.stringify(lookup?.values)).not.toContain('u-grace');
+  });
 });
