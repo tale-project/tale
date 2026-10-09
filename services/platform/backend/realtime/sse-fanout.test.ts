@@ -72,11 +72,13 @@ describe('createStreamWriter', () => {
     });
     writer.write('a'.repeat(600));
     writer.write('b'.repeat(400));
-    expect(overflowed).toBe(0);
-    // 1,100 queued characters would pass the 1,024 budget.
     writer.write('c'.repeat(100));
+    // 1,100 queued characters: past the 1,024 budget, so the next write is
+    // refused.
+    expect(overflowed).toBe(0);
+    writer.write('d');
     expect(overflowed).toBe(1);
-    expect(writer.pending()).toBe(2);
+    expect(writer.pending()).toBe(3);
   });
 
   it('gives up once the backlog passes its write count', () => {

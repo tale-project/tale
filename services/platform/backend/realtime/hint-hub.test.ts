@@ -31,6 +31,8 @@ function outboxWorld() {
     sessions: new Set<string>(),
     members: new Map<string, string>(),
     queries: [] as string[],
+    /** The ids of every late-commit look-up, in order. */
+    lookedFor: [] as number[][],
     insert(
       orgId: string,
       entity: string,
@@ -86,6 +88,7 @@ function outboxWorld() {
     }
     if (text.includes('id = ANY(')) {
       const ids = new Set((values[0] as string[]).map(Number));
+      world.lookedFor.push([...ids]);
       return world.rows
         .filter((row) => ids.has(row.id))
         .sort((a, b) => a.id - b.id)
@@ -468,6 +471,51 @@ describe('the shared hint tail', () => {
     expect(looked).toBeGreaterThan(0);
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(world.count('id = ANY(')).toBe(looked);
+    await stream.close();
+  });
+
+  test('a tail started on an empty outbox looks only just under its first row', async () => {
+    const { world, sql } = outboxWorld();
+    world.members.set('o1/u1', 'member');
+    const app = appFor(sql, FAST);
+    const stream = collect(await app.request('/events?orgId=o1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // Everything before was reclaimed: the sequence is far past zero.
+    world.nextId = 5_000_000;
+    const first = world.insert('o1', 'task');
+    expect(await stream.until((read) => read.includes(`id: ${first}`))).toBe(
+      true,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const ids = world.lookedFor.flat();
+    expect(ids.length).toBeGreaterThan(0);
+    expect(new Set(ids).size).toBeLessThanOrEqual(1_000);
+    expect(Math.min(...ids)).toBeGreaterThanOrEqual(first - 1_000);
+    await stream.close();
+  });
+
+  test('a hole still in flight as the tail starts arrives once it commits', async () => {
+    const { world, sql } = outboxWorld();
+    world.members.set('o1/u1', 'member');
+    world.insert('o1', 'task');
+    const late = world.nextId;
+    world.nextId += 1;
+    const latest = world.insert('o1', 'task');
+    const app = appFor(sql, FAST);
+    const stream = collect(await app.request('/events?orgId=o1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(world.count('ORDER BY id DESC')).toBeGreaterThan(0);
+    world.rows.push({
+      id: late,
+      org_id: 'o1',
+      user_id: null,
+      entity: 'document',
+      entity_id: `document-${late}`,
+    });
+    expect(
+      await stream.until((read) => read.includes(`document-${late}`)),
+    ).toBe(true);
+    expect(stream.text).not.toContain(`id: ${latest}\n`);
     await stream.close();
   });
 

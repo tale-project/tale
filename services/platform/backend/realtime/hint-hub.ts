@@ -64,9 +64,13 @@ const RECHECK_CHUNK = 500;
 const OLDEST_RETAINED_TTL_MS = 250;
 /** How long the tail keeps looking for an id it read past. */
 const DEFAULT_LATE_COMMIT_GRACE_MS = 30_000;
-/** Ids read past that the tail tracks at most: a bigger jump (a mass
- * rollback, a sequence reset) is not chased. */
+/** Ids read past that the tail tracks at most: of a bigger jump (a mass
+ * rollback, a sequence reset) only the newest are chased. */
 const LATE_COMMIT_MAX_TRACKED = 10_000;
+/** Newest preloaded rows whose gaps a starting tail checks for late commits. */
+const LATE_COMMIT_STARTUP_ROWS = 2_000;
+/** Ids under the first row a tail started on an empty outbox looks for. */
+const LATE_COMMIT_EMPTY_START_IDS = 1_000n;
 /**
  * How long the loop keeps reading after its last stream left. Zero by
  * default: a process without streams stops polling (the worker's reclaim
@@ -322,34 +326,55 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
    * leaves; either way it is looked for until `lateCommitGraceMs` is over.
    */
   function noteSkipped(from: bigint, rows: readonly TailRow[]): void {
+    // A tail that starts on an empty outbox starts at 0, and the first row
+    // can be millions of ids on (everything before it was reclaimed): only
+    // the ids just under it can belong to a transaction still in flight.
+    const head = rows[0];
+    if (head === undefined) return;
+    const floor = head.id - LATE_COMMIT_EMPTY_START_IDS - 1n;
     const now = Date.now();
-    let expected = from + 1n;
+    let expected = (from > 0n || floor < 0n ? from : floor) + 1n;
     for (const row of rows) {
-      for (let id = expected; id < row.id; id += 1n) {
-        if (skipped.size >= LATE_COMMIT_MAX_TRACKED) break;
-        skipped.set(id, now);
-      }
+      const budget = BigInt(LATE_COMMIT_MAX_TRACKED - skipped.size);
+      if (budget <= 0n) return;
+      // Of a jump bigger than the budget, keep the newest ids: a
+      // transaction still in flight took its id recently.
+      const first = row.id - expected > budget ? row.id - budget : expected;
+      for (let id = first; id < row.id; id += 1n) skipped.set(id, now);
       expected = row.id + 1n;
     }
   }
 
-  /** Hand rows that committed late to every stream of their orgs. */
+  /**
+   * Hand rows that committed late to every stream of their orgs: like
+   * `dispatch`, an org's org-wide hints are coalesced and framed once and
+   * every stream shares the string; only a user-targeted hint is framed
+   * for its user.
+   */
   function dispatchLate(rows: readonly TailRow[]): void {
-    const batches = new Map<Subscriber, string[]>();
+    const perOrg = new Map<string, TailRow[]>();
     for (const row of rows) {
-      const subscribers = byOrg.get(row.orgId);
+      const list = perOrg.get(row.orgId);
+      if (list === undefined) perOrg.set(row.orgId, [row]);
+      else list.push(row);
+    }
+    for (const [orgId, orgRows] of perOrg) {
+      const subscribers = byOrg.get(orgId);
       if (subscribers === undefined) continue;
-      const frame = lateHintFrame(row);
+      const orgWide = coalesceHints(orgRows.filter((r) => r.userId === null))
+        .map(lateHintFrame)
+        .join('');
+      const targeted = orgRows.filter((r) => r.userId !== null);
       for (const subscriber of subscribers) {
         if (subscriber.ended) continue;
-        if (row.userId !== null && row.userId !== subscriber.userId) continue;
-        const batch = batches.get(subscriber);
-        if (batch === undefined) batches.set(subscriber, [frame]);
-        else batch.push(frame);
+        const own = coalesceHints(
+          targeted.filter((r) => r.userId === subscriber.userId),
+        )
+          .map(lateHintFrame)
+          .join('');
+        const frames = orgWide + own;
+        if (frames !== '') subscriber.writer.write(frames);
       }
-    }
-    for (const [subscriber, frames] of batches) {
-      subscriber.writer.write(frames.join(''));
     }
   }
 
@@ -487,6 +512,12 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
       }))
       .reverse();
     cursor = latest;
+    // Ids among the newest rows that are not there yet may belong to
+    // transactions still in flight as the tail starts: give them the same
+    // grace as a hole the tail reads past.
+    const recent = ring.slice(-LATE_COMMIT_STARTUP_ROWS);
+    const [first, ...rest] = recent;
+    if (first !== undefined) noteSkipped(first.id, rest);
     // Streams that attached before the tail knew its position start here.
     for (const subscriber of all) {
       if (subscriber.live && subscriber.cursor === null) {

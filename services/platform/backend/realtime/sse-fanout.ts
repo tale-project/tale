@@ -14,8 +14,8 @@ import type { SSEStreamingApi } from 'hono/streaming';
  * client reconnects and resumes from its `Last-Event-ID`, which costs one
  * reconnect instead of the process's memory. A caller hands a whole batch
  * (a replay, a page of hints) over as ONE write, so the ceiling counts what
- * a slow client has not taken yet, never the size of one delivery; and a
- * write onto an empty backlog is always taken, however big.
+ * a slow client has not taken yet, never the size of one delivery: only a
+ * backlog already past the ceiling refuses the next write.
  */
 
 /** Writes a stream may have queued before it is treated as gone. */
@@ -82,10 +82,9 @@ export function createStreamWriter(
   return {
     write(text) {
       if (target.ended || target.stream.aborted) return;
-      if (
-        pending > 0 &&
-        (pending >= maxPending || pendingBytes + text.length > maxBytes)
-      ) {
+      // The backlog already queued decides, never the size of the write
+      // being added: a big delivery is not a stalled client.
+      if (pending > 0 && (pending >= maxPending || pendingBytes > maxBytes)) {
         if (!overflowed) {
           overflowed = true;
           options.onOverflow();

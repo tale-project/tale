@@ -37,6 +37,8 @@ import {
 /** Watched threads up to which the light read names them; past it, the
  * in-flight generations are few enough to read whole and filter here. */
 const NAMED_READ_LIMIT = 500;
+/** Characters a progress lane may have queued before it is treated as gone. */
+const PROGRESS_MAX_PENDING_BYTES = 16 * 1024 * 1024;
 
 export interface GenerationWatchOptions {
   pollIntervalMs: number;
@@ -433,6 +435,10 @@ export function createGenerationWatch(
         };
         const writer = createStreamWriter(state, {
           maxPendingWrites: options.maxPendingWrites,
+          // Every progress frame is the whole reply so far, so a long one
+          // is a few hundred kilobytes a tick: a client a few ticks behind
+          // is still reading, not gone.
+          maxPendingBytes: PROGRESS_MAX_PENDING_BYTES,
           onOverflow: () => {
             console.warn(
               '[chat] a progress lane stopped reading; ending it so it reconnects',
