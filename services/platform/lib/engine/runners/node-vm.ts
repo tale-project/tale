@@ -40,7 +40,12 @@ import { Socket } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 
-import type { CodeRunner, RunnerLimits } from '../core/runner';
+import {
+  type CodeRunner,
+  type RunnerLimits,
+  RunnerStopped,
+} from '../core/runner';
+import { probedExprSource, readProbedAnswer } from '../core/syntax/probe';
 
 /** Runner construction options — the backend's public shape. @public */
 export interface NodeVmRunnerOptions {
@@ -325,7 +330,7 @@ class RunnerProcess {
   private kill(entry: Pending): void {
     this.settle(entry);
     entry.reject(
-      new Error(
+      new RunnerStopped(
         `evaluation timed out after ${entry.request.timeoutMs}ms; the node-vm runner process was killed`,
       ),
     );
@@ -352,11 +357,11 @@ class RunnerProcess {
     for (const entry of this.pending.values()) {
       if (entry.started) {
         this.settle(entry);
-        entry.reject(new Error(reason));
+        entry.reject(new RunnerStopped(reason));
       } else if (entry.dispatches >= 2) {
         this.settle(entry);
         entry.reject(
-          new Error(
+          new RunnerStopped(
             `the node-vm runner process died twice before acknowledging this evaluation — it exceeded the ${this.maxHeapMb}MB heap cap or crashed the process`,
           ),
         );
@@ -382,7 +387,7 @@ class RunnerProcess {
       this.child = null;
       for (const entry of this.pending.values()) {
         this.settle(entry);
-        entry.reject(new Error(message));
+        entry.reject(new RunnerStopped(message));
       }
       return;
     }
@@ -431,6 +436,25 @@ export function nodeVmRunner(opts: NodeVmRunnerOptions = {}): CodeRunner {
         limits,
       );
       return unwrapEnvelope(valueJson);
+    },
+    // The same child, fresh context, deadline and kill as evalExpr: only the
+    // source differs. A timeout or a dead process still rejects; an error the
+    // expression throws comes back as data with the probes taken before it.
+    async evalExprProbed(instrumented, scope, limits) {
+      const keys = identifierKeys(scope);
+      const answer = readProbedAnswer(
+        await proc.evaluate(
+          probedExprSource(instrumented, keys),
+          false,
+          JSON.stringify(scope),
+          limits,
+        ),
+      );
+      return {
+        value: unwrapEnvelope(answer.valueJson),
+        probes: answer.probes,
+        ...(answer.error !== undefined && { error: answer.error }),
+      };
     },
     async runBody(code, scope, limits, bodyOpts) {
       const keys = identifierKeys(scope);

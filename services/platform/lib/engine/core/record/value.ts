@@ -106,7 +106,8 @@ export function unlimitedBudget(): RecordBudget {
 
 const encoder = new TextEncoder();
 
-function utf8Bytes(text: string): number {
+/** How many bytes `text` takes as UTF-8. */
+export function utf8Bytes(text: string): number {
   return encoder.encode(text).length;
 }
 
@@ -224,6 +225,114 @@ export function recordedSummary(value: unknown): ValueSummary {
     return { kind: 'redacted' };
   }
   return summaryOf(plain);
+}
+
+/** Bounds on reading the secrets out of a scope: the walk stops early
+ * rather than cost an evaluation its deadline. */
+const SECRET_SCAN = { entries: 20_000, depth: 12, chars: 1_000_000 } as const;
+
+/** Texts shorter than this are not looked for: they would match by chance. */
+const SECRET_MIN_LENGTH = 4;
+
+/**
+ * The texts in `value` that are secrets: every text and number under a
+ * member whose name marks a secret outright, text under a name that only
+ * mentions a token, and text that looks like a credential wherever it sits.
+ * For a value seen whole — the scope an expression is evaluated on — whose
+ * parts may reach a reader through what the expression made of them
+ * (`JSON.stringify(input.login)`, `Object.values(input.login)`). The walk is
+ * bounded; texts shorter than four characters are left out.
+ */
+export function secretTextsIn(value: unknown): string[] {
+  const found = new Set<string>();
+  let entries = 0;
+  let chars = 0;
+  const keep = (text: string): void => {
+    if (text.length < SECRET_MIN_LENGTH || chars > SECRET_SCAN.chars) return;
+    if (!found.has(text)) {
+      found.add(text);
+      chars += text.length;
+    }
+  };
+  /** Every text and number under a member that marks a secret outright. */
+  const all = (entry: unknown, depth: number): void => {
+    if (++entries > SECRET_SCAN.entries || depth > SECRET_SCAN.depth) return;
+    if (typeof entry === 'string') keep(entry);
+    else if (typeof entry === 'number' && Number.isFinite(entry)) {
+      keep(String(entry));
+    } else if (Array.isArray(entry)) {
+      for (const item of entry) all(item, depth + 1);
+    } else if (entry !== null && typeof entry === 'object') {
+      for (const item of Object.values(entry)) all(item, depth + 1);
+    }
+  };
+  const walk = (entry: unknown, depth: number, key?: string): void => {
+    if (++entries > SECRET_SCAN.entries || depth > SECRET_SCAN.depth) return;
+    if (typeof entry === 'string') {
+      if (looksLikeCredential(entry, key)) keep(entry);
+      return;
+    }
+    if (Array.isArray(entry)) {
+      for (const item of entry) walk(item, depth + 1);
+      return;
+    }
+    if (entry === null || typeof entry !== 'object') return;
+    for (const [member, item] of Object.entries(entry)) {
+      const kind = secretMemberName(member);
+      if (kind === 'strong') all(item, depth + 1);
+      else if (kind === 'weak' && typeof item === 'string') keep(item);
+      else walk(item, depth + 1, member);
+    }
+  };
+  walk(value, 0);
+  return [...found];
+}
+
+/** Whether `text` shows any of `secrets`, whole or — when the text was cut
+ * at its end — the start of one where it was cut. */
+function showsSecret(
+  text: string,
+  cut: boolean,
+  secrets: readonly string[],
+): boolean {
+  for (const secret of secrets) {
+    if (text.includes(secret)) return true;
+    if (!cut) continue;
+    for (
+      let k = Math.min(secret.length, text.length);
+      k >= SECRET_MIN_LENGTH;
+      k--
+    ) {
+      if (text.endsWith(secret.slice(0, k))) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether a summary shows one of `secrets` — in its text, a member name or
+ * an item's text. A flag or an absence never does.
+ */
+export function summaryShowsSecret(
+  summary: ValueSummary,
+  secrets: readonly string[],
+): boolean {
+  if (secrets.length === 0) return false;
+  if (summary.kind === 'boolean' || summary.kind === 'null') return false;
+  if (
+    summary.text !== undefined &&
+    showsSecret(summary.text, summary.cut === true, secrets)
+  ) {
+    return true;
+  }
+  if (
+    summary.names?.some((name) => showsSecret(name, true, secrets)) === true
+  ) {
+    return true;
+  }
+  return (
+    summary.items?.some((item) => summaryShowsSecret(item, secrets)) === true
+  );
 }
 
 /**

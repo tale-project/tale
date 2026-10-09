@@ -78,6 +78,11 @@ describe('exprFailureOf', () => {
       { callee: 'input.list.mapp' },
     ],
     [
+      'TypeError: input.n.filter is not a function',
+      'EXPR_NOT_FUNCTION',
+      { callee: 'input.n.filter' },
+    ],
+    [
       'Script execution timed out after 1000ms',
       'EXPR_TIMEOUT',
       { limitMs: 1000 },

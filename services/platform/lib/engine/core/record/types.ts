@@ -90,9 +90,11 @@ export interface EvalUnitTrace {
   range: [number, number];
   probes: Array<{ range: [number, number]; v: ValueSummary }>;
   error?: { message: string; name?: string };
-  /** `none`: the expression ran without probes (too large, or the runner
-   * cannot probe), so only its result is known. */
-  probed: 'full' | 'none';
+  /** `full`: every sub-expression worth a value was probed; `partial`: the
+   * probe plan was capped, so some were not; `none`: the expression ran
+   * without probes (the runner cannot probe, or probing was refused), so
+   * only its result is known. */
+  probed: 'full' | 'partial' | 'none';
 }
 
 export interface EvalTrace {

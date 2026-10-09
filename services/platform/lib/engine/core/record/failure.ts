@@ -206,7 +206,8 @@ const READ_MISSING_RE =
 const READ_MISSING_LEGACY_RE =
   /Cannot read property '((?:[^'\\]|\\.)*)' of (null|undefined)/;
 const NAME_UNKNOWN_RE = /(?:^|: )([A-Za-z_$][\w$]*) is not defined\b/;
-const NOT_FUNCTION_RE = /(?:^|: )(.+?) is not a function\b/;
+const NOT_FUNCTION_RE =
+  /^(?:(?:Type|Reference|Range|Syntax|Eval|URI)?Error: )?(.+?) is not a function\b/;
 const TIMEOUT_RE = /timed out after (\d+)\s*ms/;
 const SYNTAX_RE =
   /\bSyntaxError\b|^(?:Unexpected (?:token|identifier|end of input|string|number)|Invalid or unexpected token|missing \) after|Unterminated |Invalid regular expression|Invalid left-hand side)/;
