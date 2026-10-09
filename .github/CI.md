@@ -808,12 +808,32 @@ scope policy and passed, failed and incomplete readiness evidence.
 
 Source alone does not activate branch protection. Before requiring these contexts, observe
 their exact live names and GitHub Actions application identity (15368), positive and negative
-PR cases, and failed/latest rerun behavior. If a merge queue is configured, also observe
-positive and negative `merge_group` runs. Otherwise record live queue proof as not applicable,
-retain the source guards for that event and its full scope, and require live queue proof before
-enabling a queue. Bind the seven contexts to that app; generic candidate or skipped execution
+PR cases, and failed/latest rerun behavior. The merge queue is configured (see
+[Merge queue](#merge-queue)); observe positive and negative `merge_group` runs and record them
+here. Retain the source guards for that event and its full scope. Bind the seven contexts to that app; generic candidate or skipped execution
 jobs cannot substitute for them. Keep the coordinator's
 exact-head checks and independent review until enforcement is active and observed. Independent
 review remains a separate obligation; a CI readiness result does not certify it.
+
+### Merge queue
+
+`main` lands through a GitHub merge queue (ruleset **Tale required CI**, since 2026-10-09):
+squash merges, groups of up to five PRs, up to five PRs building at once, all-green grouping
+(a group merges only when every PR in it passes) and a 360-minute check timeout. The build cap
+and timeout follow from the runner budget: the public repository's free plan runs about 20 jobs at
+once across every PR and queue run, a full merge-group run needs dozens, so speculative builds
+beyond one group only starve PR runs, and a queued run can wait hours for a runner. Build's full
+merge-group run takes up to about 90 minutes. The ruleset no longer requires a branch to be up to
+date before merging; the queue checks the result that will actually land. With about 75 merges a
+day, "up to date" forced every other open PR to rebase and re-run CI after each merge.
+Each queued PR still gets its own squash commit on `main`, so the release gate's
+one-PR-per-merge-commit rule holds.
+
+The seven `CI ready (…)` contexts are what the queue waits for. Every workflow listens for
+`merge_group` and runs full scope there, and each concurrency group keys on the ref; a
+merge-group ref (`gh-readonly-queue/main/pr-<n>-<sha>`) is unique, so queued runs never cancel
+each other or a PR run. A PR that fails in its group leaves the queue, and the PRs behind it are
+rebuilt without it. Live proof is recorded under
+[Activation and observation](#activation-and-observation) as it is observed.
 
 The complete [release-candidate gate](RELEASING.md) remains required before tagging a release.
