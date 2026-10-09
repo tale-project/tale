@@ -129,7 +129,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
   what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
   never renumber.** Ship new behaviour with its box, or with a row in `reference/automation.md`
-  when a spec owns it end to end. The platform's `tests/manual/scripts/check-guide.ts` is the
+  when a spec owns it end to end — a box a spec takes over moves to
+  `reference/automation/<suite>.md`, one file per suite so parallel PRs do not append to the same
+  lines. The platform's `tests/manual/scripts/check-guide.ts` is the
   content half of the gate: it resolves the i18n keys, routes and spec names a suite cites, and is
   an authoring aid rather than a CI job — run it on every suite you touch.
 - **Judge the platform against its user docs** — the pages under `docs/en/platform/` are the
