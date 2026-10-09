@@ -115,11 +115,14 @@ export function valueWords(
         text: `${summary.text ?? ''}${summary.cut === true ? '…' : ''}`,
       });
     case 'number': {
-      // Written the way the sentence writes its own numbers ("1,000").
-      const number = Number(summary.text);
-      return Number.isFinite(number)
+      // Written the way the sentence writes its own numbers ("1,000") —
+      // unless reading the text back would change it (a 64-bit id), so a
+      // value is never shown as one it was not.
+      const text = summary.text ?? '';
+      const number = Number(text);
+      return Number.isFinite(number) && String(number) === text
         ? new Intl.NumberFormat(ctx.locale).format(number)
-        : (summary.text ?? '');
+        : text;
     }
     case 'boolean':
       return summary.text === 'true'

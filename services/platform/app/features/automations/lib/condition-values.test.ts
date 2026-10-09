@@ -126,6 +126,27 @@ describe('conditionWithValues', () => {
     );
   });
 
+  it('never rewrites a number it cannot read back exactly', () => {
+    const answer = conditionWithValues(
+      '{{ input.id > 1 }}',
+      [
+        {
+          range: [3, 11],
+          source: 'input.id',
+          kind: 'ref',
+          value: { kind: 'number', text: '12345678901234567890' },
+          evaluated: true,
+          children: [],
+        },
+      ],
+      true,
+      ctx('en'),
+    );
+    expect(answer.sentence).toBe(
+      'id of the run input (12345678901234567890) is greater than 1',
+    );
+  });
+
   it('keeps a condition written as code as code', () => {
     expect(
       conditionWithValues(
