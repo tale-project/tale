@@ -21,6 +21,12 @@ interface FakeOptions {
   projects?: { id: string; name: string }[];
   /** Readiness answers more than the read bound. */
   hugeReady?: boolean;
+  /** The smoke account's role: only owners and admins delete tasks. */
+  role?: 'owner' | 'member';
+  /** The chat turn is still generating when cleanup runs. */
+  turnStillRunning?: boolean;
+  /** Sign-in sets its cookie, but the session read then finds none. */
+  sessionCheckFails?: boolean;
 }
 
 interface Seen {
@@ -44,6 +50,9 @@ function fakeDeployment(options: FakeOptions = {}) {
   const projects = [...(options.projects ?? [{ id: 'p1', name: 'Roadmap' }])];
   const tasks = new Set<string>();
   const trashed = new Set<string>();
+  const archived = new Set<string>();
+  let cancelled = false;
+  let trashRefusals = options.turnStillRunning ? 1 : 0;
   let signedOut = false;
   const encoder = new TextEncoder();
   const json = (
@@ -86,7 +95,9 @@ function fakeDeployment(options: FakeOptions = {}) {
         });
       if (route === 'GET /api/auth/get-session')
         return json(
-          signedIn ? { user: { id: 'u1' }, session: { id: 'x' } } : null,
+          signedIn && !options.sessionCheckFails
+            ? { user: { id: 'u1' }, session: { id: 'x' } }
+            : null,
         );
       if (route === 'GET /events') {
         if (options.eventsFallsThrough) return shell(base);
@@ -145,7 +156,15 @@ function fakeDeployment(options: FakeOptions = {}) {
       const task = /^\/api\/app\/tasks\/([^/]+)$/.exec(path)?.[1];
       if (task !== undefined && tasks.has(task)) {
         if (request.method === 'GET') return json({ task: { id: task } });
+        if ((options.role ?? 'owner') !== 'owner')
+          return json({ error: 'ROLE_FORBIDDEN' }, 403);
         tasks.delete(task);
+        return json({ ok: true });
+      }
+      const archiving = /^\/api\/app\/tasks\/([^/]+)\/archive$/.exec(path)?.[1];
+      if (request.method === 'POST' && archiving !== undefined) {
+        tasks.delete(archiving);
+        archived.add(archiving);
         return json({ ok: true });
       }
       if (route === 'GET /api/app/chat/composer/models')
@@ -161,7 +180,17 @@ function fakeDeployment(options: FakeOptions = {}) {
             { role: 'assistant', parts: [{ type: 'text', text: 'ready' }] },
           ],
         });
+      if (route === 'POST /api/app/chat/threads/th1/cancel') {
+        cancelled = true;
+        return json({ ok: true });
+      }
       if (route === 'POST /api/app/chat/threads/th1/trash') {
+        // Mid-turn the trash refuses; a cancelled turn settles after one
+        // more refusal.
+        if (trashRefusals > 0 || (options.turnStillRunning && !cancelled)) {
+          if (cancelled) trashRefusals -= 1;
+          return json({ ok: false });
+        }
         trashed.add('th1');
         return json({ ok: true });
       }
@@ -181,6 +210,8 @@ function fakeDeployment(options: FakeOptions = {}) {
     seen,
     tasks,
     trashed,
+    archived,
+    cancelled: () => cancelled,
     signedOut: () => signedOut,
   };
 }
@@ -375,6 +406,44 @@ describe('the full journey', () => {
         (r) => r.method === 'POST' && r.path.startsWith('/api/app/'),
       ),
     ).toBe(false);
+    expect(deployment.signedOut()).toBe(true);
+  });
+});
+
+describe('cleanup the account is allowed', () => {
+  test('a member account archives the task it may not delete', async () => {
+    const deployment = fakeDeployment({ role: 'member' });
+    const report = await smoke(deployment.url, { credentials: account });
+    expect(report.passed).toBe(true);
+    expect(report.checks.find((c) => c.name === 'cleanup-task')?.detail).toBe(
+      'the smoke task is archived (the account may not delete tasks)',
+    );
+    expect(deployment.tasks.size).toBe(0);
+    expect(deployment.archived.size).toBe(1);
+  });
+
+  test('a turn still generating is stopped, then trashed', async () => {
+    const deployment = fakeDeployment({ turnStillRunning: true });
+    const report = await smoke(deployment.url, {
+      credentials: account,
+      chat: true,
+    });
+    expect(
+      report.checks.find((c) => c.name === 'cleanup-thread'),
+    ).toMatchObject({
+      status: 'pass',
+      detail: 'the smoke conversation was stopped and is in the trash',
+    });
+    expect(deployment.cancelled()).toBe(true);
+    expect(deployment.trashed.has('th1')).toBe(true);
+  });
+
+  test('a sign-in whose check failed still signs its cookie out', async () => {
+    const deployment = fakeDeployment({ sessionCheckFails: true });
+    const report = await smoke(deployment.url, { credentials: account });
+    expect(report.checks.find((c) => c.name === 'sign-in')?.status).toBe(
+      'fail',
+    );
     expect(deployment.signedOut()).toBe(true);
   });
 });

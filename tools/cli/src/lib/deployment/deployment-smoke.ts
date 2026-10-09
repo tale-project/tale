@@ -10,9 +10,11 @@
  *
  * The full journey signs a dedicated account in, holds the organization's
  * live-event stream, creates a task and waits for its realtime hint, reads
- * it back and deletes it; `--chat` adds one model turn, which spends tokens.
- * Whatever it created is removed (a chat thread goes to the trash, which is
- * all the app offers) and the session is signed out, even after a failure.
+ * it back and deletes it — or archives it, when the account may not delete
+ * tasks; `--chat` adds one model turn, which spends tokens. Whatever it
+ * created is removed (a chat thread goes to the trash, which is all the app
+ * offers, stopped first if its turn is still running) and the session is
+ * signed out, even after a failure.
  */
 
 import { createParser } from 'eventsource-parser';
@@ -144,6 +146,11 @@ class SmokeClient {
     this.#base = base;
     this.#request = request;
     this.#timeoutMs = timeoutMs;
+  }
+
+  /** Whether a response left this client holding a cookie. */
+  holdsCookies(): boolean {
+    return this.#cookies.size > 0;
   }
 
   url(path: string, query?: Record<string, string>): string {
@@ -722,8 +729,16 @@ export async function runDeploymentSmoke(
       });
   } finally {
     closeStream();
-    if (signedIn)
-      await cleanUp(client, check, organizationId, taskId, threadId);
+    // A sign-in that set a session cookie but then failed its check still
+    // left a session behind: sign that one out too.
+    if (signedIn || client.holdsCookies())
+      await cleanUp(
+        client,
+        check,
+        { organizationId, timeoutMs: options.timeoutMs },
+        taskId,
+        threadId,
+      );
   }
   return finish(base, 'full', version, checks);
 }
@@ -731,39 +746,60 @@ export async function runDeploymentSmoke(
 async function cleanUp(
   client: SmokeClient,
   check: (name: string, body: () => Promise<string>) => Promise<boolean>,
-  organizationId: string,
+  options: { organizationId: string; timeoutMs: number },
   taskId: string | null,
   threadId: string | null,
 ): Promise<void> {
-  const query = { orgId: organizationId };
+  const query = { orgId: options.organizationId };
   if (taskId !== null)
     await check('cleanup-task', async () => {
-      const reply = await client.call(
-        'DELETE',
-        `/api/app/tasks/${encodeURIComponent(taskId)}`,
-        { query },
-      );
-      expectSuccess(reply, 'DELETE /api/app/tasks/:taskId');
-      return 'the smoke task is deleted';
+      const path = `/api/app/tasks/${encodeURIComponent(taskId)}`;
+      const reply = await client.call('DELETE', path, { query });
+      if (reply.status !== 403) {
+        expectSuccess(reply, 'DELETE /api/app/tasks/:taskId');
+        return 'the smoke task is deleted';
+      }
+      // Owners and admins delete; the task's creator may archive it, which
+      // also takes it off every board.
+      const archived = await client.call('POST', `${path}/archive`, {
+        query,
+        json: {},
+      });
+      expectSuccess(archived, 'POST /api/app/tasks/:taskId/archive');
+      return 'the smoke task is archived (the account may not delete tasks)';
     });
   if (threadId !== null)
     await check('cleanup-thread', async () => {
-      const reply = await client.call(
-        'POST',
-        `/api/app/chat/threads/${encodeURIComponent(threadId)}/trash`,
-        { query, json: {} },
+      const path = `/api/app/chat/threads/${encodeURIComponent(threadId)}`;
+      const trash = async (): Promise<boolean> => {
+        const reply = await client.call('POST', `${path}/trash`, {
+          query,
+          json: {},
+        });
+        expectSuccess(reply, 'POST /api/app/chat/threads/:id/trash');
+        return parseJson(
+          reply,
+          z.object({ ok: z.boolean() }).passthrough(),
+          'POST /api/app/chat/threads/:id/trash',
+        ).ok;
+      };
+      if (await trash()) return 'the smoke conversation is in the trash';
+      // A turn that outlived the wait is still generating, and a thread
+      // mid-turn refuses the trash: stop it, then trash it once it settled.
+      const cancelled = await client.call('POST', `${path}/cancel`, {
+        query,
+        json: {},
+      });
+      expectSuccess(cancelled, 'POST /api/app/chat/threads/:id/cancel');
+      const deadline = Date.now() + options.timeoutMs;
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (await trash())
+          return 'the smoke conversation was stopped and is in the trash';
+      }
+      throw new SmokeFailure(
+        'The smoke conversation was stopped but did not settle in time; it stays in place.',
       );
-      expectSuccess(reply, 'POST /api/app/chat/threads/:id/trash');
-      const trashed = parseJson(
-        reply,
-        z.object({ ok: z.boolean() }).passthrough(),
-        'POST /api/app/chat/threads/:id/trash',
-      );
-      if (!trashed.ok)
-        throw new SmokeFailure(
-          'The smoke conversation is still mid-turn and stays in place.',
-        );
-      return 'the smoke conversation is in the trash';
     });
   await check('sign-out', async () => {
     const reply = await client.call('POST', '/api/auth/sign-out', { json: {} });
