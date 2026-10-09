@@ -831,6 +831,7 @@ describe('RunDetail starter and reason', () => {
     renderRun();
     expect(screen.getByText('Replay of run runsrc · from Score')).toBeVisible();
     expect(screen.getByRole('link', { name: 'Open run runsrc' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Compare with it' })).toBeVisible();
   });
 
   it('says when the run a replay ran again was deleted', () => {

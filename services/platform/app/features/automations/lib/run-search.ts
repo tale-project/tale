@@ -40,3 +40,9 @@ export function runSearchNode(search: RunSearch): string | undefined {
   if (target.kind === 'gate' || target.kind === 'node') return target.nodeId;
   return target.kind === 'start' ? '__start' : '__end';
 }
+
+/** The two runs a comparison shows, A and B, by their ids. */
+export const runCompareSearchSchema = z.object({
+  a: z.string().max(120).optional().catch(undefined),
+  b: z.string().max(120).optional().catch(undefined),
+});

@@ -14,10 +14,13 @@ import { shortRunId } from '../lib/run-view';
  * that run. A run whose source was deleted says so.
  */
 export function RunLineage({
+  runId,
   replayOf,
   runsPath,
   stepLabel,
 }: {
+  /** The replay itself, compared with the run it ran again. */
+  runId: string;
   replayOf: RunReplayOf;
   /** The automation's runs, where the source run's page hangs. */
   runsPath: string;
@@ -28,6 +31,7 @@ export function RunLineage({
   const source = replayOf.runId;
   const id = source === null ? '' : shortRunId(source);
   const sourceHref: string = `${runsPath}/${source}`;
+  const compareHref: string = `${runsPath}/compare`;
   const words =
     source === null
       ? t('lineage.deleted')
@@ -46,6 +50,15 @@ export function RunLineage({
           className="text-foreground inline-flex min-h-6 items-center font-medium underline underline-offset-2"
         >
           {t('lineage.open', { id })}
+        </Link>
+      )}
+      {source !== null && (
+        <Link
+          to={compareHref}
+          search={{ a: source, b: runId }}
+          className="text-foreground inline-flex min-h-6 items-center font-medium underline underline-offset-2"
+        >
+          {t('lineage.compare')}
         </Link>
       )}
     </p>

@@ -30,6 +30,7 @@ lineage:
   from: Relance de l’exécution {id} · à partir de l’étape {step}
   deleted: Relance d’une exécution supprimée
   open: Ouvrir l’exécution {id}
+  compare: Comparer avec elle
 playback:
   reason:
     when: 'Ignoré : condition non remplie'
@@ -59,6 +60,37 @@ conditions:
     yes: Oui
     no: Non
     notChecked: Non vérifié
+compare:
+  title: Comparer des exécutions
+  swap: Échanger A et B
+  same: Choisis deux exécutions différentes.
+  notFound: 'Ces deux exécutions ne peuvent pas être comparées : l’une d’elles n’existe plus, ou elles appartiennent à des automatisations différentes.'
+  loadFailed: Impossible de comparer ces exécutions.
+  run: Exécution {id}
+  differs:
+    title: Ce qui diffère
+    version: 'A a utilisé la v{a}, B la v{b} : {count, plural, =0 {aucune étape n’a changé entre les deux} one {# étape a changé entre les deux} other {# étapes ont changé entre les deux}}.'
+    input: '{count, plural, one {Entrée : # champ diffère.} other {Entrée : # champs diffèrent.}}'
+    split: 'Elles divergent à l’étape {step} : {why, select, missing {une seule des deux l’a atteinte} status {elle s’est terminée différemment} decision {sa condition n’a pas donné le même résultat} input {elle a reçu une autre entrée} other {elle a renvoyé autre chose}}.'
+    outcome: A {a, select, success {a réussi} failed {a échoué} cancelled {a été arrêtée} other {est toujours en cours}} ; B {b, select, success {a réussi} failed {a échoué} cancelled {a été arrêtée} other {est toujours en cours}}.
+    output: '{count, plural, one {Sortie : # champ diffère.} other {Sortie : # champs diffèrent.}}'
+    effects: 'Écritures : A {a}, B {b}.'
+    nothing: 'Même version, même entrée, même chemin : seules les durées diffèrent.'
+  table:
+    label: Étapes dans A et B
+    step: Étape
+    data: Données
+    same: identiques
+    differs: différentes
+    none: —
+  status:
+    ok: Réussie
+    failed: En échec
+    skipped: Ignorée
+    running: En cours
+    waiting: En attente
+    reused: Réutilisée
+    none: Non exécutée
 values:
   items: '{count, plural, one {# élément} other {# éléments}}'
   fields: '{count, plural, one {# champ} other {# champs}}'

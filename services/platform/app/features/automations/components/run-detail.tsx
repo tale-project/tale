@@ -528,6 +528,7 @@ function RunDetailBody({
         )}
         {run.replayOf !== undefined && (
           <RunLineage
+            runId={run.id}
             replayOf={run.replayOf}
             runsPath={runsPath}
             stepLabel={nodeTitle}

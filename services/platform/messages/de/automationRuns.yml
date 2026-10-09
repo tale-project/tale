@@ -30,6 +30,7 @@ lineage:
   from: Wiederholung von Lauf {id} · ab {step}
   deleted: Wiederholung eines gelöschten Laufs
   open: Lauf {id} öffnen
+  compare: Damit vergleichen
 playback:
   reason:
     when: 'Übersprungen: Bedingung traf nicht zu'
@@ -59,6 +60,37 @@ conditions:
     yes: Ja
     no: Nein
     notChecked: Nicht geprüft
+compare:
+  title: Läufe vergleichen
+  swap: A und B tauschen
+  same: Wähle zwei verschiedene Läufe.
+  notFound: 'Diese beiden Läufe lassen sich nicht vergleichen: Einer davon ist weg, oder sie gehören zu verschiedenen Automatisierungen.'
+  loadFailed: Die Läufe konnten nicht verglichen werden.
+  run: Lauf {id}
+  differs:
+    title: Was sich unterscheidet
+    version: 'A lief mit v{a}, B mit v{b}: {count, plural, =0 {dazwischen wurde kein Schritt geändert} one {dazwischen wurde # Schritt geändert} other {dazwischen wurden # Schritte geändert}}.'
+    input: '{count, plural, one {Eingabe: # Feld unterscheidet sich.} other {Eingabe: # Felder unterscheiden sich.}}'
+    split: 'Sie trennten sich bei {step}: {why, select, missing {nur einer der Läufe kam dort an} status {er endete unterschiedlich} decision {seine Bedingung ging anders aus} input {er erhielt eine andere Eingabe} other {er gab etwas anderes zurück}}.'
+    outcome: A {a, select, success {war erfolgreich} failed {ist fehlgeschlagen} cancelled {wurde gestoppt} other {läuft noch}}; B {b, select, success {war erfolgreich} failed {ist fehlgeschlagen} cancelled {wurde gestoppt} other {läuft noch}}.
+    output: '{count, plural, one {Ausgabe: # Feld unterscheidet sich.} other {Ausgabe: # Felder unterscheiden sich.}}'
+    effects: 'Schreibvorgänge: A {a}, B {b}.'
+    nothing: Gleiche Version, gleiche Eingabe, gleicher Pfad – nur die Zeiten unterscheiden sich.
+  table:
+    label: Schritte in A und B
+    step: Schritt
+    data: Daten
+    same: gleich
+    differs: unterschiedlich
+    none: –
+  status:
+    ok: Erfolgreich
+    failed: Fehlgeschlagen
+    skipped: Übersprungen
+    running: Läuft
+    waiting: Wartet
+    reused: Wiederverwendet
+    none: Nicht gelaufen
 values:
   items: '{count, plural, one {# Element} other {# Elemente}}'
   fields: '{count, plural, one {# Feld} other {# Felder}}'

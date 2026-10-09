@@ -30,6 +30,7 @@ lineage:
   from: Replay of run {id} · from {step}
   deleted: Replay of a run that was deleted
   open: Open run {id}
+  compare: Compare with it
 playback:
   reason:
     when: 'Skipped: condition was false'
@@ -59,6 +60,37 @@ conditions:
     yes: Yes
     no: No
     notChecked: Not checked
+compare:
+  title: Compare runs
+  swap: Swap A and B
+  same: Choose two different runs.
+  notFound: "These two runs can't be compared: one of them is gone, or they belong to different automations."
+  loadFailed: Couldn't compare these runs.
+  run: Run {id}
+  differs:
+    title: What differs
+    version: 'A ran v{a}, B ran v{b}: {count, plural, =0 {no step changed between them} one {# step changed between them} other {# steps changed between them}}.'
+    input: '{count, plural, one {Input: # field differs.} other {Input: # fields differ.}}'
+    split: 'They split at {step}: {why, select, missing {only one of them reached it} status {it ended differently} decision {its condition went the other way} input {it got a different input} other {it returned something else}}.'
+    outcome: A {a, select, success {succeeded} failed {failed} cancelled {was stopped} other {is still going}}; B {b, select, success {succeeded} failed {failed} cancelled {was stopped} other {is still going}}.
+    output: '{count, plural, one {Output: # field differs.} other {Output: # fields differ.}}'
+    effects: 'Writes: A made {a}, B made {b}.'
+    nothing: Same version, same input, same path — only the timing differs.
+  table:
+    label: Steps in A and B
+    step: Step
+    data: Data
+    same: same
+    differs: differs
+    none: —
+  status:
+    ok: Succeeded
+    failed: Failed
+    skipped: Skipped
+    running: Running
+    waiting: Waiting
+    reused: Reused
+    none: Not run
 values:
   items: '{count, plural, one {# item} other {# items}}'
   fields: '{count, plural, one {# field} other {# fields}}'
