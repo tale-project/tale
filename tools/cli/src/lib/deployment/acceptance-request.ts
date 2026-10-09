@@ -1,5 +1,6 @@
 import { Agent as HttpAgent, get as httpGet } from 'node:http';
 import { Agent as HttpsAgent, get as httpsGet } from 'node:https';
+import { isIPv4 } from 'node:net';
 
 /** A dedicated direct agent avoids ambient HTTP(S)_PROXY routing. Bun 1.4.2
  * fetch does not implement the newer proxy:false option. HTTPS keeps normal
@@ -7,6 +8,7 @@ import { Agent as HttpsAgent, get as httpsGet } from 'node:https';
 export async function acceptanceRequest(
   url: string,
   signal: AbortSignal,
+  address?: string,
 ): Promise<Response> {
   const target = new URL(url);
   const secure = target.protocol === 'https:';
@@ -15,6 +17,8 @@ export async function acceptanceRequest(
     !(target.protocol === 'http:' && target.hostname === '127.0.0.1')
   )
     throw new Error('Unsupported health observation URL');
+  if (address !== undefined && (!secure || !isIPv4(address)))
+    throw new Error('Invalid captured origin address');
   if (target.username || target.password)
     throw new Error('Health URL has credentials');
   const agent = secure
@@ -26,6 +30,18 @@ export async function acceptanceRequest(
         target,
         {
           agent,
+          // Replace only connection lookup. The URL still owns Host, SNI and
+          // certificate hostname validation; no ambient proxy is involved.
+          ...(address === undefined
+            ? {}
+            : {
+                lookup: (_hostname, options, callback) =>
+                  callback(
+                    null,
+                    options.all ? [{ address, family: 4 }] : address,
+                    4,
+                  ),
+              }),
           rejectUnauthorized: true,
           signal,
           maxHeaderSize: 8192,

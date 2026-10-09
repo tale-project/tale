@@ -15,6 +15,7 @@ Tale runs on Kubernetes when you translate the [service contract](/self-hosted/i
 | Nodes that grant `NET_ADMIN` and provide ip6tables, or allow the IPv6 sysctls | The egress proxy installs its firewall at start and refuses to start without it. |
 | Ports 80 and 443 reachable at the public address | Caddy obtains certificates itself in `selfsigned` and `letsencrypt` mode. Behind an Ingress that terminates TLS, set `TLS_MODE=external`. |
 | Pull access to `ghcr.io/tale-project/tale/*` on every node, including the sandbox runtime image | Session Pods start from `SANDBOX_RUNTIME_IMAGE`. A node that cannot pull it fails the first session scheduled there. |
+| A container runtime that unpacks zstd-compressed layers, such as containerd 1.5 or later | Tale's images have zstd-compressed layers. A node whose runtime cannot unpack them fails to pull the images, and no Pod starts from them there. |
 | A sysbox or kata RuntimeClass if agents need Docker inside their sandbox | Without one, keep `SANDBOX_DOCKER_IN_CONTAINER=false`. The `runc` tier would need privileged Pods. |
 | `kubectl` and `envsubst` on the machine that applies the manifests | The manifests carry one `${VERSION}` variable that kubectl does not expand. |
 
@@ -40,7 +41,7 @@ Every Pod below sets `enableServiceLinks: false`. Kubernetes otherwise injects D
 | `proxy` | Deployment with strategy `Recreate`; `hostPort` 80 and 443; PVC for `/data` | The certificate store survives restarts on the PVC. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment; Service on 8003 | `SANDBOX_BACKEND=kubernetes`; `config-data` read-only at `/app/platform-config`. No Docker socket. |
 | `sandbox-egress` | Deployment; Service on 3128 | The shipped capability set, no sysctls. |
-| `sandbox-llm-gateway` | Deployment with strategy `Recreate`, PVC at `/app/data`; Services `sandbox-llm-gateway` and `llm-gateway` on 8080 | The image runs as uid 1000; `fsGroup: 1000` lets it write its state. It reads `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` from `tale-env`: until it has an admin account, it creates one only for a caller that presents that secret. |
+| `sandbox-llm-gateway` | Deployment with strategy `Recreate`, PVC at `/app/data`; Services `sandbox-llm-gateway` and `llm-gateway` on 8080 | The image runs as uid 1000; `fsGroup: 1000` lets it write its state. It reads `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` from `tale-env`: until it has an admin account, it creates one only for a caller that presents that secret. With `terminationGracePeriodSeconds: 90`, a rollout gives the old Pod up to 90 seconds to finish the model calls in flight, streamed answers included; it saves its spend counters at the end only when they finish within 30 seconds of the stop. It takes no new call meanwhile, and the new Pod starts once it has exited. |
 | `bgutil-provider` | Deployment; Service on 4416 | Optional video-token provider. |
 
 The probes translate the Compose health checks:
@@ -545,6 +546,7 @@ spec:
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 90
       securityContext: { fsGroup: 1000 }
       containers:
         - name: gateway

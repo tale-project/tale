@@ -6,7 +6,9 @@ import { z } from 'zod';
 
 import {
   decodeFinishSource,
-  FINISH_SOURCE,
+  finishPaths,
+  finishProfile,
+  isFinishPath,
   finishJobsSafe,
   parseOrdinaryReceipt,
   sameFinishJobs,
@@ -114,7 +116,7 @@ export function boundedMergeGroupGithub(finish = false): Api {
         ];
         break;
       case 'source':
-        if (!finish || !Object.hasOwn(FINISH_SOURCE, request.path))
+        if (!finish || !isFinishPath(request.path))
           throw new Error('Finishing source refused.');
         args = [
           `${repository}/contents/${request.path}?ref=${sha.parse(request.head)}`,
@@ -226,27 +228,12 @@ function observe(
     .parse(api({ kind: 'ref', branch: before.head_branch }));
   let finishing: Observation['finish'];
   if (finish) {
-    if (
-      before.name !== 'Checks' ||
-      before.path !== '.github/workflows/checks.yml'
-    )
-      throw new Error('No reviewed finishing profile.');
-    const readSource = (path: FinishPath) =>
-      decodeFinishSource(
+    const source: FinishSource = {};
+    for (const path of finishPaths(before.name, before.path))
+      source[path] = decodeFinishSource(
         path,
         api({ kind: 'source', head: before.head_sha, path }),
       );
-    const source: FinishSource = {
-      '.github/workflows/checks.yml': readSource(
-        '.github/workflows/checks.yml',
-      ),
-      '.github/actions/ci-ready/action.yml': readSource(
-        '.github/actions/ci-ready/action.yml',
-      ),
-      'tools/cli/scripts/ci-ready.ts': readSource(
-        'tools/cli/scripts/ci-ready.ts',
-      ),
-    };
     const jobs = readNativeJobs(before, (_method, path) => {
       const page = Number(/&page=([1-5])$/.exec(path)?.[1]);
       return api({ kind: 'jobs', id, attempt: before.run_attempt, page });
@@ -272,7 +259,7 @@ function observe(
   };
 }
 
-export function decideMergeGroup(observation: Observation, now: number) {
+function decideMergeGroup(observation: Observation, now: number) {
   const { run, observedAt, activeHeads, refMissing } = observation;
   if (
     !Number.isFinite(now) ||
@@ -416,7 +403,10 @@ export function reconcileMergeGroup(
           }
         : {}),
       ...(initial.finish
-        ? { profile: FINISH_SOURCE, jobs: initial.finish.jobs }
+        ? {
+            profile: finishProfile(initial.finish.source)?.hashes,
+            jobs: initial.finish.jobs,
+          }
         : {}),
     };
     if (!options.apply || decision.action !== 'retire')

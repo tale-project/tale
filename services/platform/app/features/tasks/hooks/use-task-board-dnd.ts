@@ -19,6 +19,7 @@ import {
   createBoardCollisionDetection,
 } from '@/app/hooks/use-board-dnd';
 import { useT } from '@/lib/i18n/client';
+import { compareRank } from '@/lib/shared/task-rank-order';
 
 import type { TaskRow } from '../components/task-card';
 import { TASK_STATUS_ORDER, type TaskStatus } from '../lib/display';
@@ -86,7 +87,7 @@ function buildColumns(tasks: TaskRow[]): TaskColumns {
   const cols = emptyColumns();
   // Sort once globally by rank, then partition — each column inherits rank order
   // without a per-column O(n²) lookup.
-  const sorted = [...tasks].sort((a, b) => a.rank.localeCompare(b.rank));
+  const sorted = [...tasks].sort((a, b) => compareRank(a.rank, b.rank));
   for (const task of sorted) cols[task.status].push(task._id);
   return cols;
 }

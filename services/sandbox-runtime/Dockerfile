@@ -188,7 +188,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #       (e.g. *-zh-CN.md) typeset instead of dropping to tofu. The CJK *fonts*
 #       (Noto CJK) are already baked above for page rendering, so this adds
 #       only the macro packages; it also pulls texlive-latex-extra, handy for
-#       richer templates (fancyhdr, mdframed, …).
+#       richer templates (fancyhdr, mdframed, …). texlive-lang-cjk alone would
+#       be about 127 MiB smaller, but it cannot replace this: xeCJK loads
+#       `ctexhook.sty`, which only the ctex bundle here ships, so without it
+#       every xeCJK document (pandoc's CJKmainfont path included) stops with
+#       "File `ctexhook.sty' not found" (TeX Live 2022 on bookworm).
 #   lmodern                   — Latin Modern `lmodern.sty`. Pandoc's default
 #       LaTeX template does `\usepackage{lmodern}`, but it's only a *Recommends*
 #       of texlive-latex-recommended, so `--no-install-recommends` drops it and
@@ -639,9 +643,11 @@ COPY --from=exec-shim-build /tale-exec-shim /usr/local/bin/tale-exec-shim
 # (includeCoAuthoredBy:false — the byline is appended by the CLI at
 # commit/PR time and a cloned repo's CLAUDE.md can't override a harness
 # default; managed scope so a cloned app repo / BYO user can't re-enable
-# it), keep transcripts a year (cleanupPeriodDays — the CLI's ~30-day
-# janitor would silently break `--resume` on a standing session's older
-# tasks; the store lives on the org's own /agent volume), and register the
+# it), keep transcripts 60 days (cleanupPeriodDays — twice the CLI's 30-day
+# default, so a standing session's recent tasks still `--resume`, while the
+# store on the org's own /agent volume holds two months of conversations
+# rather than a year; a task resumed after its transcript is pruned restarts
+# fresh on its preserved files), and register the
 # steer hook (mid-turn message injection — hooks merge across settings
 # sources, so /agent configs can't shadow it). Two opt-outs keep what newer
 # CLIs added out of the sandbox: crossSessionInbound:"refuse" (2.1.224+

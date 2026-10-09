@@ -20,6 +20,7 @@ import {
 import { join } from 'node:path';
 
 import {
+  egressProxyAddress,
   listBuildkitOrganizations,
   retireLegacyBuildkitd,
 } from '../../buildkit-resources.ts';
@@ -30,6 +31,7 @@ import {
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from '../../buildkitd.ts';
+import { isIpv4Address } from '../../network-address.ts';
 import {
   operationSignal,
   outsideOperationBudget,
@@ -41,7 +43,10 @@ import {
   attachBuildkitNetwork,
   type BuildkitNetworkPlan,
 } from '../../session/buildkit-network-guard.ts';
-import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
+import {
+  buildDockerSessionRunArgs,
+  sessionPinsEgressAddress,
+} from '../../session/docker-session-args.ts';
 import {
   runnerdEnvPatch,
   runnerdHealth,
@@ -54,6 +59,7 @@ import {
   belongsToInstance,
   deriveRunnerdToken,
   isSessionWorkspaceDirName,
+  SESSION_EGRESS_LABEL,
   SESSION_INSTANCE_LABEL,
   sessionContainerName,
   sessionInstanceFilter,
@@ -155,9 +161,16 @@ export class DockerSessionBackend implements SessionBackend {
   ) {}
 
   private runtimeImageMissing: ((detail: string) => void) | null = null;
+  /** Dead incarnations whose inspect said the OOM killer ended processes in
+   * them, by session id: their creation stamp. */
+  private readonly outOfMemory = new Map<string, number>();
 
   onRuntimeImageMissing(listener: (detail: string) => void): void {
     this.runtimeImageMissing = listener;
+  }
+
+  egressAddress(): Promise<string | null> {
+    return egressProxyAddress(this.cfg);
   }
 
   /** runnerd token: derived from SANDBOX_TOKEN (always set — loadConfig fails
@@ -471,6 +484,27 @@ export class DockerSessionBackend implements SessionBackend {
       }
     }
 
+    // A create whose budget is spent starts no read it could not wait for.
+    signal.throwIfAborted();
+    // The egress proxy address this session will pin, read afresh right
+    // before its `docker run` (one inspect): an address read at the start of
+    // the create, or joined from an earlier read, could name a proxy a
+    // deploy recreated meanwhile, and the sweep would then recycle a session
+    // whose egress works. A read that fails leaves the session without the
+    // label: its drift then goes unnoticed, as for a session an older
+    // spawner created.
+    const pinnedEgress = sessionPinsEgressAddress(this.cfg, dind)
+      ? await egressProxyAddress(this.cfg, { fresh: true }).then(
+          (address) => address ?? undefined,
+          (error: unknown) => {
+            console.warn(
+              `[sandbox.session] egress proxy address unreadable for ${spec.sessionId}; a later move of the proxy goes unnoticed for it:`,
+              error instanceof Error ? error.message : error,
+            );
+            return undefined;
+          },
+        )
+      : undefined;
     signal.throwIfAborted();
     const token = this.tokenFor(spec.sessionId);
     const argv = buildDockerSessionRunArgs(this.cfg, {
@@ -491,6 +525,7 @@ export class DockerSessionBackend implements SessionBackend {
       ...(buildkitNetworkPlan
         ? { buildkitNetworkSubnets: buildkitNetworkPlan.subnets }
         : {}),
+      ...(pinnedEgress === undefined ? {} : { egressAddress: pinnedEgress }),
     });
     // The seed env is NOT passed on the `docker run` argv. A `--env
     // TALE_SESSION_ENV=…` would be readable by anyone with host Docker access
@@ -621,6 +656,7 @@ export class DockerSessionBackend implements SessionBackend {
       ...(readiness.incarnation === undefined
         ? {}
         : { incarnation: readiness.incarnation }),
+      ...(pinnedEgress === undefined ? {} : { egressAddress: pinnedEgress }),
     };
   }
 
@@ -735,18 +771,23 @@ export class DockerSessionBackend implements SessionBackend {
       [
         'inspect',
         '--format',
-        expectedCreatedAtMs === undefined
-          ? '{{.State.Running}}'
-          : '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
+        '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.OOMKilled}}',
         containerName,
       ],
       { timeoutMs: 5_000, priority: true },
     );
     if (inspect.exitCode === 0) {
-      const [running, created] = inspect.stdout
+      const [running, created, oomKilled] = inspect.stdout
         .replace(/\r?\n$/, '')
         .split('\t');
-      if (running !== 'true') return false;
+      if (running !== 'true') {
+        // A dead container the OOM killer hit: the routes say so to the
+        // exec it took down (takeOutOfMemory).
+        const stamp = Number(created);
+        if (oomKilled === 'true' && Number.isFinite(stamp))
+          this.outOfMemory.set(sessionId, stamp);
+        return false;
+      }
       if (expectedCreatedAtMs === undefined) return true;
       const stamp = Number(created);
       if (
@@ -766,6 +807,12 @@ export class DockerSessionBackend implements SessionBackend {
     throw new Error(
       `docker inspect ${containerName} failed: ${inspect.stderr.trim() || inspect.stdout.trim()}`,
     );
+  }
+
+  takeOutOfMemory(sessionId: string, createdAtMs: number): boolean {
+    const stamp = this.outOfMemory.get(sessionId);
+    this.outOfMemory.delete(sessionId);
+    return stamp === createdAtMs;
   }
 
   /** Current `State.Status` of the named container, or null when it can't be
@@ -1366,7 +1413,7 @@ export class DockerSessionBackend implements SessionBackend {
         '--all',
         ...filters,
         '--format',
-        `{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "${SESSION_INSTANCE_LABEL}"}}\t{{.Label "tale.docker"}}`,
+        `{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "${SESSION_INSTANCE_LABEL}"}}\t{{.Label "tale.docker"}}\t{{.Label "${SESSION_EGRESS_LABEL}"}}`,
       ],
       { timeoutMs: 10_000 },
     );
@@ -1384,8 +1431,16 @@ export class DockerSessionBackend implements SessionBackend {
     for (const line of res.stdout.split('\n')) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const [sessionId, org, profile, created, state, instance, docker] =
-        trimmed.split('\t');
+      const [
+        sessionId,
+        org,
+        profile,
+        created,
+        state,
+        instance,
+        docker,
+        egress,
+      ] = trimmed.split('\t');
       if (!sessionId) continue;
       // Another spawner on this Docker daemon (a connected device beside a
       // deployment) owns sessions labelled with its instance.
@@ -1403,6 +1458,7 @@ export class DockerSessionBackend implements SessionBackend {
         state: state === 'running' ? 'ready' : 'degraded',
         pinned: await this.isPinned(sessionId),
         ended: state !== undefined && isReapableContainerStatus(state),
+        ...(isIpv4Address(egress) ? { egressAddress: egress } : {}),
       });
     }
     return out;

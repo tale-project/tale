@@ -26,6 +26,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 import { appErrorHandler } from '../../error-reporting.ts';
 import { appJsonBody, INVALID_JSON_MESSAGE } from '../../lib/app-json-body.ts';
 import { checkUserRateLimit } from '../../lib/rate-limit.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 
 const service = vi.hoisted(() => ({
   createProject: vi.fn(),
@@ -37,6 +38,8 @@ const service = vi.hoisted(() => ({
   updateAgentInstructionsConfiguration: vi.fn(),
   readAgentToolsConfiguration: vi.fn(),
   updateAgentToolsConfiguration: vi.fn(),
+  readAgentModelConfiguration: vi.fn(),
+  updateAgentModelConfiguration: vi.fn(),
   deleteProject: vi.fn(),
   getProjectAuthContext: vi.fn(),
   assertCanCreateProjects: vi.fn(),
@@ -288,6 +291,26 @@ describe('project routes — the shared schemas guard the door', () => {
     expect(res.status).toBe(400);
     expect(service.deleteProject).not.toHaveBeenCalled();
   });
+
+  it('preserves a review context custody refusal on project deletion', async () => {
+    const refusal = new LegalHoldError(
+      'LEGAL_HOLD_ACTIVE',
+      'This task is owned by a user on a custodian legal hold. Release the user-level hold before deleting.',
+      409,
+    );
+    service.deleteProject.mockRejectedValueOnce(refusal);
+    const response = await send('DELETE', '/p1', { mode: 'detach' });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      error: refusal.code,
+      message: refusal.message,
+    });
+    expect(service.deleteProject).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1', userId: 'u1' }),
+      { projectId: 'p1', mode: 'detach' },
+    );
+  });
 });
 
 describe('duplicate — the name is optional, its JSON is not (#3599)', () => {
@@ -537,6 +560,63 @@ describe('managed tool routes [PROJ-R17]', () => {
     async (body) => {
       expect((await send('POST', path, body)).status).toBe(400);
       expect(service.updateAgentToolsConfiguration).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('managed model routes [PROJ-R20]', () => {
+  const path = '/p1/agents/a1/configuration/model';
+  const config = {
+    projectId: 'p1',
+    agentId: 'a1',
+    harness: 'codex',
+    model: 'next-model',
+    modelProvider: 'example',
+  };
+  const expectedHash = 'b'.repeat(64);
+  it('reads only the model tuple and sends exact identity/hash to its native writer', async () => {
+    service.readAgentModelConfiguration.mockResolvedValue({
+      config,
+      hash: expectedHash,
+    });
+    expect(await (await send('GET', path)).json()).toEqual({
+      config,
+      hash: expectedHash,
+    });
+    expect(service.readAgentModelConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'p1',
+      'a1',
+    );
+    expect((await send('POST', path, { config, expectedHash })).status).toBe(
+      200,
+    );
+    expect(service.updateAgentModelConfiguration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      config,
+      expectedHash,
+    );
+    expect(service.updateProjectAgent).not.toHaveBeenCalled();
+  });
+  it.each([
+    { config },
+    { config, expectedHash: null },
+    { config, expectedHash: 'bad' },
+    { config: { ...config, modelProvider: null }, expectedHash },
+    { config: { ...config, modelProvider: '' }, expectedHash },
+    { config: { ...config, projectId: 'other' }, expectedHash },
+    { config: { ...config, agentId: 'other' }, expectedHash },
+    { config: { ...config, secrets: [] }, expectedHash },
+    { config: { ...config, tools: [] }, expectedHash },
+    { config: { ...config, name: 'replacement' }, expectedHash },
+    { config, expectedHash, instructions: 'replacement' },
+  ])(
+    'refuses unowned fields, ambiguous provider and stale/missing identity: %j',
+    async (body) => {
+      expect((await send('POST', path, body)).status).toBe(400);
+      expect(service.updateAgentModelConfiguration).not.toHaveBeenCalled();
     },
   );
 });

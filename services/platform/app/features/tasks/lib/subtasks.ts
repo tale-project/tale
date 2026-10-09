@@ -1,3 +1,5 @@
+import { compareRank } from '@/lib/shared/task-rank-order';
+
 import type { TaskDoc } from './display';
 
 type TaskRow = TaskDoc;
@@ -33,7 +35,7 @@ export function partitionSubtasks(tasks: TaskRow[]): PartitionedTasks {
   }
 
   for (const siblings of childrenByParent.values()) {
-    siblings.sort((a, b) => a.rank.localeCompare(b.rank));
+    siblings.sort((a, b) => compareRank(a.rank, b.rank));
   }
 
   return { topLevel, childrenByParent };

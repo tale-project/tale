@@ -1,0 +1,265 @@
+name: Load
+
+# Manually triggered and never part of the merge gate: one profile of the
+# load harness (tools/load) against a self-contained stack on the runner —
+# tale-db and the object store as containers, N api and M worker processes of
+# the platform from this checkout, and the realistic mock model provider.
+#
+# A hosted runner has four cores shared by the generator, the platform and
+# the database, so its numbers say whether a change moved the platform's
+# cost per user, not what a production host holds. A distributed run against
+# a real deployment (many generators, one shard each, `merge` at the end) is
+# described in tools/load/README.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Load profile
+        type: choice
+        options:
+          - smoke
+          - load
+          - stress
+          - spike
+          - soak
+          - connections
+          - signin-storm
+        default: smoke
+      users:
+        description: Peak concurrent virtual users
+        type: string
+        default: '200'
+      ramp_seconds:
+        description: Seconds to reach the peak
+        type: string
+        default: '60'
+      hold_seconds:
+        description: Seconds to hold the peak (each stress step)
+        type: string
+        default: '180'
+      api_processes:
+        description: Platform api processes
+        type: string
+        default: '2'
+      worker_processes:
+        description: Platform worker processes
+        type: string
+        default: '1'
+      think_scale:
+        description: Multiply every think time (1 = human pace)
+        type: string
+        default: '1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: load-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  load:
+    name: Load (${{ inputs.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      LOAD_DB_PASSWORD: tale_load_ci
+      LOAD_S3_ACCESS_KEY: tale-load
+      LOAD_S3_SECRET_KEY: tale_load_object_store
+      PROFILE: ${{ inputs.profile }}
+      USERS: ${{ inputs.users }}
+      RAMP_SECONDS: ${{ inputs.ramp_seconds }}
+      HOLD_SECONDS: ${{ inputs.hold_seconds }}
+      API_PROCESSES: ${{ inputs.api_processes }}
+      WORKER_PROCESSES: ${{ inputs.worker_processes }}
+      THINK_SCALE: ${{ inputs.think_scale }}
+
+    steps:
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          for pair in "users:$USERS" "ramp_seconds:$RAMP_SECONDS" "hold_seconds:$HOLD_SECONDS" \
+            "api_processes:$API_PROCESSES" "worker_processes:$WORKER_PROCESSES"; do
+            value="${pair#*:}"
+            if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+              echo "::error::${pair%%:*} must be a whole number, got '${value}'"; exit 1
+            fi
+          done
+          if [[ ! "$THINK_SCALE" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "::error::think_scale must be a number, got '${THINK_SCALE}'"; exit 1
+          fi
+          if [ "$API_PROCESSES" -lt 1 ] || [ "$API_PROCESSES" -gt 8 ]; then
+            echo '::error::api_processes must be 1-8 on a hosted runner'; exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup toolchain
+        id: toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          start-turbo-cache: 'false'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          turbo-cache: 'false'
+
+      # Thousands of open streams need descriptors, a listen backlog that
+      # absorbs a ramp's connect bursts, and ephemeral ports beyond the
+      # default 28k.
+      - name: Raise network limits
+        run: |
+          set -euo pipefail
+          sudo sysctl -w net.core.somaxconn=8192 net.ipv4.tcp_max_syn_backlog=8192 \
+            net.ipv4.ip_local_port_range='10000 65000' net.ipv4.tcp_tw_reuse=1
+          echo "nofile: $(ulimit -n) -> $(ulimit -Hn)"
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          cleanup: false
+
+      # Build's own layer cache (scope `db`) is read, never written.
+      - name: Build tale-db from services/db
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/db/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: tale-db:load
+          cache-from: type=gha,scope=db
+          provenance: false
+
+      - name: Resolve the object-store pin
+        id: object-store
+        run: |
+          set -euo pipefail
+          image=$(bun -e "import { THIRD_PARTY_IMAGES } from './tools/cli/src/lib/compose/types.ts'; console.log(THIRD_PARTY_IMAGES['object-store'])")
+          if [ -z "$image" ]; then
+            echo '::error::THIRD_PARTY_IMAGES names no object-store image'; exit 1
+          fi
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+
+      - name: Start tale-db and the object store
+        env:
+          OBJECT_STORE_IMAGE: ${{ steps.object-store.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker run -d --name tale-load-db --shm-size 1g -p 127.0.0.1:5432:5432 \
+            -e DB_PASSWORD="$LOAD_DB_PASSWORD" -e DB_MAX_CONNECTIONS=400 \
+            -e DB_SHARED_BUFFERS=1GB -e DB_EFFECTIVE_CACHE_SIZE=4GB tale-db:load
+          docker run -d --name tale-load-object-store -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$LOAD_S3_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$LOAD_S3_SECRET_KEY" \
+            -e MINIO_BROWSER=off "$OBJECT_STORE_IMAGE" server /data --address ':9000'
+          for _ in $(seq 1 90); do
+            if docker exec tale-load-db test -f /tmp/.db_ready; then break; fi
+            sleep 2
+          done
+          docker exec tale-load-db test -f /tmp/.db_ready || { echo '::error::tale-db never became ready'; exit 1; }
+          for _ in $(seq 1 60); do
+            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
+            sleep 1
+          done
+
+      # Secrets are minted per run; the stack and the database are discarded
+      # with the runner.
+      - name: Write the stack environment
+        run: |
+          set -euo pipefail
+          LOAD_DIR="$RUNNER_TEMP/load"
+          mkdir -p "$LOAD_DIR/config" "$LOAD_DIR/report"
+          auth_secret="$(openssl rand -hex 24)"
+          echo "::add-mask::$auth_secret"
+          {
+            echo "LOAD_DIR=$LOAD_DIR"
+            echo "TALE_LOAD_AUTH_SECRET=$auth_secret"
+            echo "TALE_LOAD_DB_URL=postgres://tale:${LOAD_DB_PASSWORD}@127.0.0.1:5432/tale_app"
+            echo "TALE_LOAD_STATS_DB_URL=postgres://tale:${LOAD_DB_PASSWORD}@127.0.0.1:5432/tale"
+          } >> "$GITHUB_ENV"
+          cat > "$LOAD_DIR/stack.env" <<ENV
+          DATABASE_URL=postgres://tale:${LOAD_DB_PASSWORD}@127.0.0.1:5432/tale_app
+          KNOWLEDGE_DATABASE_URL=postgres://tale:${LOAD_DB_PASSWORD}@127.0.0.1:5432/tale_knowledge
+          BETTER_AUTH_SECRET=${auth_secret}
+          ENCRYPTION_SECRET_HEX=$(openssl rand -hex 32)
+          SITE_URL=http://127.0.0.1:4105
+          TALE_CONFIG_DIR=${LOAD_DIR}/config
+          TALE_CONFIG_BUILTIN_DIR=${GITHUB_WORKSPACE}/configs/platform
+          TALE_ALLOW_OPEN_SIGN_UP=true
+          TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1
+          TALE_PROVIDER_KEY_LOADMOCK=load-mock-key
+          OBJECT_STORE_ACCESS_KEY=${LOAD_S3_ACCESS_KEY}
+          OBJECT_STORE_SECRET_KEY=${LOAD_S3_SECRET_KEY}
+          OBJECT_STORE_BUCKET=tale-blobs
+          OBJECT_STORE_ENDPOINT=http://127.0.0.1:9000
+          OBJECT_STORE_PUBLIC_ENDPOINT=http://127.0.0.1:9000
+          OBJECT_STORE_REGION=us-east-1
+          OBJECT_STORE_FORCE_PATH_STYLE=true
+          DATABASE_POOL_MAX=20
+          AUTH_DATABASE_POOL_MAX=10
+          NODE_ENV=production
+          ENV
+          sed -i 's/^ *//' "$LOAD_DIR/stack.env"
+
+      - name: Start the platform stack
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          ulimit -n 65536
+          node tools/load/src/cli.ts stack up --platform services/platform \
+            --env-file "$LOAD_DIR/stack.env" --api "$API_PROCESSES" --workers "$WORKER_PROCESSES" \
+            --base-port 4105 --mock-port 4199 --mock-processes 2 \
+            --state "$LOAD_DIR/stack.json" --logs "$LOAD_DIR/logs"
+
+      - name: Seed the population
+        timeout-minutes: 30
+        run: |
+          set -euo pipefail
+          node tools/load/src/cli.ts seed --target http://127.0.0.1:4105 \
+            --users "$USERS" --org-size 50 --mega-org-size "$(( USERS / 10 ))" \
+            --provider-base-url http://127.0.0.1:4199/v1 --output "$LOAD_DIR/plan.json"
+
+      - name: Run the profile
+        timeout-minutes: 150
+        run: |
+          set -euo pipefail
+          ulimit -n 65536
+          targets="$(seq -s, -f 'http://127.0.0.1:%g' 4105 $(( 4105 + API_PROCESSES - 1 )))"
+          metrics="$(seq -s, -f 'http://127.0.0.1:%g/metrics' 4105 $(( 4105 + API_PROCESSES - 1 )))"
+          node tools/load/src/cli.ts run --plan "$LOAD_DIR/plan.json" --profile "$PROFILE" \
+            --users "$USERS" --ramp "$RAMP_SECONDS" --hold "$HOLD_SECONDS" \
+            --think-scale "$THINK_SCALE" --processes 2 --target "$targets" --metrics "$metrics" \
+            --report "$LOAD_DIR/report/report.json"
+
+      - name: Stop the platform stack
+        if: always()
+        run: |
+          if [ -f "$LOAD_DIR/stack.json" ]; then
+            node tools/load/src/cli.ts stack down --state "$LOAD_DIR/stack.json" || true
+          fi
+
+      - name: Summarize
+        if: always()
+        run: |
+          if [ -f "$LOAD_DIR/report/report.md" ]; then
+            cat "$LOAD_DIR/report/report.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No report was written; see the stack logs artifact.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the report and logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: load-${{ inputs.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.LOAD_DIR }}/report
+            ${{ env.LOAD_DIR }}/logs
+            ${{ env.LOAD_DIR }}/plan.json
+          retention-days: 14
+          if-no-files-found: warn

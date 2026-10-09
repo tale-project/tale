@@ -19,7 +19,15 @@ import {
   updateAgentInstructionsConfiguration,
   readAgentToolsConfiguration,
   updateAgentToolsConfiguration,
+  readAgentModelConfiguration,
+  updateAgentModelConfiguration,
 } from './service.ts';
+
+const { modelRefusal } = vi.hoisted(() => ({ modelRefusal: vi.fn() }));
+vi.mock('./agent-equipment.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./agent-equipment.ts')>()),
+  agentModelRefusal: modelRefusal,
+}));
 
 vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
@@ -161,7 +169,10 @@ function hash(value: unknown) {
   return managedConfigurationHash(value)!;
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  modelRefusal.mockResolvedValue(null);
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe('tools-only managed agent configuration [PROJ-R17]', () => {
@@ -740,5 +751,179 @@ describe('managed instruction adoption and preconditions', () => {
       ...archived.writes(),
       ...archivedTask.writes(),
     ]).toEqual([]);
+  });
+});
+
+describe('model-only managed agent configuration [PROJ-R20]', () => {
+  const current = {
+    projectId: project.id,
+    agentId: agent.id,
+    harness: agent.harness,
+    model: agent.model,
+    modelProvider: agent.modelProvider,
+  };
+  const desired = {
+    ...current,
+    model: 'next-model',
+    modelProvider: 'next-provider',
+  };
+  it('returns only the serving tuple and retains a legacy unpinned provider', async () => {
+    const db = database({ agent: { modelProvider: null as never } });
+    const observed = { ...current, modelProvider: null };
+    expect(
+      await readAgentModelConfiguration(db.tx, auth, project.id, agent.id),
+    ).toEqual({ config: observed, hash: hash(observed) });
+    expect(db.writes()).toEqual([]);
+  });
+  it.each(['owner', 'admin', 'editor'])(
+    'lets %s change future serving without equipment/run writes',
+    async (role) => {
+      const db = database();
+      await updateAgentModelConfiguration(
+        db.tx,
+        { ...auth, role },
+        desired,
+        hash(current),
+      );
+      expect(modelRefusal).toHaveBeenCalledWith(db.tx, {
+        organizationId: auth.organizationId,
+        userId: auth.userId,
+        harness: desired.harness,
+        model: desired.model,
+        modelProvider: desired.modelProvider,
+      });
+      expect(db.writes()).toHaveLength(1);
+      expect(db.writes()[0]!.text).toBe(
+        'UPDATE app.project_agents SET harness = ?, model = ?, model_provider = ?, updated_at_ms = ? WHERE id = ? AND project_id = ? AND org_id = ?',
+      );
+      expect(db.writes()[0]!.values).toEqual([
+        desired.harness,
+        desired.model,
+        desired.modelProvider,
+        expect.any(Number),
+        agent.id,
+        project.id,
+        auth.organizationId,
+      ]);
+      expect(createAuditLog).toHaveBeenCalledTimes(1);
+      expect(emitHintInTx).toHaveBeenCalledTimes(1);
+      expect(
+        JSON.stringify(vi.mocked(createAuditLog).mock.calls),
+      ).not.toContain('PRIVATE_TOKEN');
+    },
+  );
+  it('keeps equal serving quiet even if its catalog is temporarily unavailable, but refuses stale hashes', async () => {
+    modelRefusal.mockRejectedValue(new Error('catalog unavailable'));
+    const db = database();
+    await updateAgentModelConfiguration(db.tx, auth, current, hash(current));
+    expect(modelRefusal).not.toHaveBeenCalled();
+    expect(db.writes()).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+    await expect(
+      updateAgentModelConfiguration(db.tx, auth, desired, '0'.repeat(64)),
+    ).rejects.toMatchObject({ code: 'CONFIG_VERSION_CONFLICT' });
+    expect(db.writes()).toEqual([]);
+  });
+  it.each([0, 1, 100])(
+    'advances the full-save revision at wall time %i',
+    async (now) => {
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const db = database();
+      await updateAgentModelConfiguration(db.tx, auth, desired, hash(current));
+      expect(db.writes()[0]!.values[3]).toBe(
+        Math.max(now, agent.updatedAt + 1),
+      );
+    },
+  );
+  it.each(['PROJECT_AGENT_MODEL_INVALID', 'PROJECT_AGENT_PROVIDER_UNKNOWN'])(
+    'preserves catalog refusal %s without writes',
+    async (code) => {
+      modelRefusal.mockResolvedValue({
+        code,
+        message: 'Unsupported serving tuple',
+      });
+      const db = database();
+      await expect(
+        updateAgentModelConfiguration(db.tx, auth, desired, hash(current)),
+      ).rejects.toMatchObject({ code });
+      expect(db.writes()).toEqual([]);
+    },
+  );
+  it('does not fall back when the exact provider or catalog is unavailable', async () => {
+    modelRefusal.mockRejectedValue(new Error('catalog unavailable'));
+    const db = database();
+    await expect(
+      updateAgentModelConfiguration(db.tx, auth, desired, hash(current)),
+    ).rejects.toThrow('catalog unavailable');
+    expect(db.writes()).toEqual([]);
+  });
+  it.each([{ harness: 'unknown' }, { model: ' ' }, { modelProvider: ' ' }])(
+    'rejects invalid serving %j before writing',
+    async (fields) => {
+      const db = database();
+      await expect(
+        updateAgentModelConfiguration(
+          db.tx,
+          auth,
+          { ...desired, ...fields },
+          hash(current),
+        ),
+      ).rejects.toMatchObject({ status: 400 });
+      expect(db.writes()).toEqual([]);
+    },
+  );
+  it('retains native scope, permission, archive and standard-agent refusals', async () => {
+    for (const [db, caller, desiredConfig, code] of [
+      [
+        database(),
+        { ...auth, organizationId: 'foreign' },
+        desired,
+        'PROJECT_NOT_FOUND',
+      ],
+      [
+        database(),
+        auth,
+        { ...desired, agentId: 'missing' },
+        'PROJECT_AGENT_NOT_FOUND',
+      ],
+      [
+        database(),
+        auth,
+        { ...desired, projectId: 'missing' },
+        'PROJECT_NOT_FOUND',
+      ],
+      [database(), { ...auth, role: 'member' }, desired, 'RBAC_FORBIDDEN'],
+      [
+        database({ project: { archivedAt: 1 as never } }),
+        auth,
+        desired,
+        'PROJECT_ARCHIVED',
+      ],
+      [
+        database({ agent: { managed: true } }),
+        auth,
+        desired,
+        'PROJECT_AGENT_MANAGED',
+      ],
+    ] as const) {
+      await expect(
+        updateAgentModelConfiguration(
+          db.tx,
+          caller,
+          desiredConfig,
+          hash(current),
+        ),
+      ).rejects.toMatchObject({ code });
+      expect(db.writes()).toEqual([]);
+    }
+    const db = database();
+    expect(
+      await readAgentModelConfiguration(
+        db.tx,
+        { ...auth, role: 'member' },
+        project.id,
+        agent.id,
+      ),
+    ).toEqual({ config: current, hash: hash(current) });
   });
 });

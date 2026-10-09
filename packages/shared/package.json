@@ -42,6 +42,7 @@
     "./schemas/task-external-issue": "./src/schemas/task-external-issue.ts",
     "./schemas/task-external-status": "./src/schemas/task-external-status.ts",
     "./schemas/task-review": "./src/schemas/task-review.ts",
+    "./schemas/task-review-batch": "./src/schemas/task-review-batch.ts",
     "./schemas/schedule-rule": "./src/schemas/schedule-rule.ts",
     "./monitoring/privacy": "./src/monitoring/privacy.ts"
   },

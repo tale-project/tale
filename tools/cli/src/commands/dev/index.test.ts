@@ -40,7 +40,7 @@ async function run(scenario: string, args: string[]) {
 }
 
 describe('local dev lifecycle', () => {
-  test('detached launch requires Compose readiness and prints a usable stop command', async () => {
+  test('detached launch requires Compose readiness and a supported engine, and prints a usable stop command', async () => {
     const result = await run('ready', [
       '--detach',
       '--port',
@@ -54,6 +54,10 @@ describe('local dev lifecycle', () => {
     expect(result.stdout).toContain('"--wait"');
     expect(result.stdout).toContain('"--wait-timeout","600"');
     expect(result.stdout.indexOf('composePreflight')).toBeLessThan(
+      result.stdout.indexOf('runtimeImage'),
+    );
+    expect(result.stdout.indexOf('enginePreflight')).toBeGreaterThan(-1);
+    expect(result.stdout.indexOf('enginePreflight')).toBeLessThan(
       result.stdout.indexOf('runtimeImage'),
     );
   });

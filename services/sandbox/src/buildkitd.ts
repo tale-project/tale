@@ -99,7 +99,7 @@ export function parseDnsNameserver(tomlText: string): string | null {
 // which SERVFAILs Go's queries for EXTERNAL names on a user-defined network
 // ("server misbehaving") — and can't be fixed from inside the container
 // (resolv.conf / [dns] / GODEBUG all ignored for pulls). The robust fix is to
-// never resolve an upstream registry from buildkit at all: one `registry:2`
+// never resolve an upstream registry from buildkit at all: one registry
 // pull-through cache PER upstream registry, each referenced by its docker NAME
 // (a SIBLING name, which the embedded resolver answers locally without
 // forwarding → no SERVFAIL). buildkit pulls base images by name from the mirror;
@@ -142,13 +142,19 @@ export function buildkitdMirrorRef(
 ): string {
   return `${buildkitdMirrorContainerName(organizationId, registry)}:${MIRROR_PORT}`;
 }
-// registry:2 proxies ONE upstream per instance; Docker Hub's registry API host
+// A registry proxies ONE upstream per instance; Docker Hub's registry API host
 // differs from its canonical name.
 function mirrorUpstream(registry: string): string {
   return registry === 'docker.io'
     ? 'https://registry-1.docker.io'
     : `https://${registry}`;
 }
+
+/** How long a mirror keeps a pulled blob. Distribution v3 makes the proxy's
+ * expiry configurable (it was fixed at a week); two days keeps the base
+ * layers of an organization's active builds while letting what it stopped
+ * using go, and BuildKit's own cache keeps what its builds reuse. */
+const MIRROR_PROXY_TTL = '48h';
 
 /** Immutable mirror settings, also stamped so an existing helper adopts a
  * changed cleanup policy once its organization's builds finish. */
@@ -158,6 +164,7 @@ export function buildkitMirrorEnvironment(
 ): string[] {
   return [
     `REGISTRY_PROXY_REMOTEURL=${mirrorUpstream(registry)}`,
+    `REGISTRY_PROXY_TTL=${MIRROR_PROXY_TTL}`,
     // Distribution's proxy TTL scheduler calls the storage deletion path.
     // Its default is disabled: expiration otherwise fails before removing
     // any layer bytes, even though the scheduler forgets the expired entry.
@@ -1199,7 +1206,7 @@ interface ReusedHelper {
 }
 
 /**
- * Lazy, idempotent launch of every built-in pull-through mirror (one `registry:2`
+ * Lazy, idempotent launch of every built-in pull-through mirror (one registry
  * per MIRROR_REGISTRIES entry). Returns the `registry=ref;...` mapping the
  * buildkitd entrypoint turns into `[registry."<x>"]` blocks, and the mirrors
  * that were running as launched now and kept as they were. Best-effort per

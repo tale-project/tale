@@ -45,6 +45,8 @@ const KEYS = [
   'SANDBOX_PACKAGE_CACHE_RETENTION',
   'SANDBOX_MIN_FREE_DISK',
   'SANDBOX_CRITICAL_FREE_DISK',
+  'SANDBOX_CPU_PRESSURE_PERCENT',
+  'SANDBOX_EXEC_STALL_MINUTES',
   'TALE_PLATFORM_SHARED_CONFIG_DIR',
 ] as const;
 
@@ -358,6 +360,18 @@ test('the free space kept on the session disk is optional and validated', () => 
   expect(() => loadConfig()).toThrow(/SANDBOX_MIN_FREE_DISK/);
 });
 
+test('the CPU pressure admission waits from is 60 % unless set, and 0 turns it off', () => {
+  expect(loadConfig().session.cpuPressurePercent).toBe(60);
+  process.env.SANDBOX_CPU_PRESSURE_PERCENT = '35.5';
+  expect(loadConfig().session.cpuPressurePercent).toBe(35.5);
+  process.env.SANDBOX_CPU_PRESSURE_PERCENT = '0';
+  expect(loadConfig().session.cpuPressurePercent).toBe(0);
+  for (const refused of ['101', '-1', 'busy']) {
+    process.env.SANDBOX_CPU_PRESSURE_PERCENT = refused;
+    expect(() => loadConfig()).toThrow(/SANDBOX_CPU_PRESSURE_PERCENT/);
+  }
+});
+
 test('the critical tier of the session disk is optional and validated', () => {
   expect(loadConfig().session).not.toHaveProperty('criticalFreeDiskBytes');
   process.env.SANDBOX_CRITICAL_FREE_DISK = '3g';
@@ -533,6 +547,27 @@ describe('loadConfig — docker-in-container gating', () => {
     });
   });
 
+  describe('exec stall window', () => {
+    test('defaults to 45 minutes and takes whole minutes, 0 turning it off', () => {
+      expect(loadConfig().session.execStallMs).toBe(45 * 60_000);
+      process.env.SANDBOX_EXEC_STALL_MINUTES = '10';
+      expect(loadConfig().session.execStallMs).toBe(10 * 60_000);
+      process.env.SANDBOX_EXEC_STALL_MINUTES = '0';
+      expect(loadConfig().session.execStallMs).toBe(0);
+    });
+
+    test('admits new execs up to 90% of a session’s memory', () => {
+      expect(loadConfig().session.execAdmissionMemoryPercent).toBe(90);
+    });
+
+    test('refuses a window that is no whole number of minutes up to a day', () => {
+      for (const bad of ['-1', '1.5', 'soon', '1441']) {
+        process.env.SANDBOX_EXEC_STALL_MINUTES = bad;
+        expect(() => loadConfig()).toThrow(/SANDBOX_EXEC_STALL_MINUTES/);
+      }
+    });
+  });
+
   describe('tier-aware default (unset SANDBOX_DOCKER_IN_CONTAINER)', () => {
     test('sysbox / kata default ON (boundary-keeping → docker just works)', () => {
       process.env.SANDBOX_RUNTIME = 'sysbox';
@@ -568,7 +603,7 @@ describe('loadConfig — shared build cache', () => {
     expect(cfg.dockerBuildCache).toBe(false);
     expect(cfg.buildkitdImage).toBe('tale-sandbox-buildkitd:latest');
     expect(cfg.buildkitdMirrorImage).toBe(
-      'registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373',
+      'registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8',
     );
   });
 

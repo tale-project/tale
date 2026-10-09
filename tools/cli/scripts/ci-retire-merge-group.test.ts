@@ -16,6 +16,7 @@ import {
   decodeFinishSource,
   FINISH_SOURCE,
   parseOrdinaryReceipt,
+  type FinishSource,
 } from './ci-merge-group-finish';
 import {
   boundedMergeGroupGithub,
@@ -73,7 +74,7 @@ function harness() {
   };
   const requests: string[] = [];
   const events: object[] = [];
-  const source = {
+  const source: FinishSource = {
     '.github/workflows/checks.yml': readFileSync(
       new URL(
         './fixtures/ci-orphan-checks-6ad49e4/checks.yml.txt',
@@ -148,7 +149,7 @@ function harness() {
         case 'ref':
           return { missing: state.missing };
         case 'source': {
-          const bytes = Buffer.from(state.source[request.path]);
+          const bytes = Buffer.from(state.source[request.path] ?? '');
           return {
             type: 'file',
             path: request.path,
@@ -937,7 +938,7 @@ test('regular bounded ordinary receipt reads refuse directories, symlinks and ov
 test('finishing validates the exact native Git blob and source envelope', () => {
   const h = harness();
   const path = '.github/workflows/checks.yml';
-  const bytes = Buffer.from(h.state.source[path]);
+  const bytes = Buffer.from(h.state.source[path] ?? '');
   const native = {
     type: 'file',
     path,

@@ -249,6 +249,9 @@ export interface TurnStore {
      * flush after transform.flush(), and the tail RESET at a tool-round
      * boundary, which must land before the round's text lands on the parts. */
     flush?: boolean;
+    /** A stalled stream asking whether the user hit Stop: held only to the
+     * store's shortest write gap, never the longer one a long reply earns. */
+    poll?: boolean;
   }): Promise<void | { cancelRequested?: boolean }>;
   /**
    * Persist the turn's settled parts so far — the text segments, tool calls,
@@ -715,9 +718,10 @@ interface RoundObservation {
 }
 
 /** How often a stalled stream re-asks the store whether the user hit Stop.
- * Longer than the store's write throttle, so nearly every poll is a real
- * read; short enough that Stop answers within a second even when the
- * provider is between bytes. */
+ * Longer than the store's shortest write gap — which is all a poll is held
+ * to, however long the reply — so nearly every poll is a real read; short
+ * enough that Stop answers within a second even when the provider is
+ * between bytes. */
 const CANCEL_POLL_INTERVAL_MS = 750;
 
 const CANCEL_POLL_TICK = Symbol('cancel-poll-tick');
@@ -834,6 +838,7 @@ async function streamWithOutputGuardrails(
         text: cleared,
         ...(reasoning.length > 0 ? { reasoning } : {}),
         ...(flush ? { flush: true } : {}),
+        ...(options.poll === true ? { poll: true } : {}),
       });
       if (isNonEmpty) persistedNonEmpty = true;
       if (progress?.cancelRequested === true && !cancelled) {

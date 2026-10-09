@@ -272,6 +272,10 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_REVIEW_BUSY',
   'TASK_REVIEW_STALE',
   'TASK_REVIEW_FILE_UNAVAILABLE',
+  // Native review envelopes are admitted by task_review and inherited by
+  // native retries. REST start/review bodies carry no reviewBatchId or
+  // reviewBatch, so their ordinary task kicks never check that authority.
+  'TASK_REVIEW_FORBIDDEN',
   // Guarded repair admission is native-only; REST exposes no repair start.
   'TASK_REPAIR_STALE',
   'TASK_SCHEDULE_INVALID',

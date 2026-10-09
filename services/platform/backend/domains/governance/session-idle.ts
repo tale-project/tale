@@ -4,6 +4,7 @@ import {
 } from '@tale/shared/utils/session-idle';
 import type { Sql } from 'postgres';
 
+import { sessionCookieCacheSeconds } from '../../auth/session-cache.ts';
 import { shouldRevokeIdleSession } from '../../core/governance/session_idle_enforcement.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -40,6 +41,11 @@ export async function revokeIdleSessions(
 ): Promise<IdleSweepResult> {
   const now = options.now ?? Date.now();
   const envMinutes = parseSessionIdleTimeoutMinutes();
+  // With the session cookie cache on, a request answered from the cookie
+  // does not slide the row's `updatedAt`: an active session's stamp can lag
+  // by up to the cache's length, so the window is widened by exactly that
+  // (zero when the cache is off) instead of revoking a session in use.
+  const cacheLagMs = sessionCookieCacheSeconds() * 1000;
 
   const orgs = await sql<{ id: string }[]>`
     SELECT "id" FROM "organization" ORDER BY "id"
@@ -105,7 +111,7 @@ export async function revokeIdleSessions(
       shouldRevokeIdleSession({
         updatedAt: session.updatedAt.getTime(),
         expiresAt: session.expiresAt.getTime(),
-        windowMs: window.minutes * 60_000,
+        windowMs: window.minutes * 60_000 + cacheLagMs,
         now,
       })
     ) {

@@ -17,8 +17,8 @@ image; the only thing that varies is _when the session is destroyed_:
 Per-org fairness is the governance `sandbox_quota` policy (separate project-agent,
 workflow and render budgets, default 2 each). Their total is derived, and saving
 the policy requires that total to fit the current deployment capacity,
-`SANDBOX_MAX_SESSIONS` (sized from host memory on a local Docker host when
-unset, at least 8; 8 elsewhere), plus the slots of the organization's
+`SANDBOX_MAX_SESSIONS` (sized from host memory and CPUs on a local Docker host
+when unset, at least 8; 8 elsewhere), plus the slots of the organization's
 connected [devices](devices.md). There is no independent organization runtime
 ceiling. Concurrent executions of the same workflow each own a separate session;
 agent and script nodes within one execution share that session.
@@ -466,12 +466,21 @@ not bypass the limit.
 
 A file may carry an immutable `sourceId` (or `cacheKey`) supplied by the platform,
 or a `sha256` digest for content verification. runnerd
-keeps up to 4,096 source/digest entries in memory and skips an unchanged source
-only after hashing the actual destination again and verifying that the file
-and its workspace path still refer to the same unchanged regular file.
-Named pipes are rejected without waiting for a writer. A source-only entry probes
-that cache: a verified hit is `staged`; a miss reports `no_source` and requires
-the bytes or URL. Restarting runnerd loses the cache and causes a refresh.
+keeps up to 4,096 source/digest entries and skips an unchanged source only
+after verifying the actual destination: by hashing it again and checking that
+the file and its workspace path still refer to the same unchanged regular
+file, or, once such a hash has verified it, by the stat it had then (device,
+inode, size, nanosecond mtime and ctime, read twice through the path). A stat
+is recorded only from a verified hash, and only once the file's ctime is two
+seconds old, since a write in the same timestamp tick could leave it
+unchanged; the session's uid can set no ctime back. Named pipes are rejected
+without waiting for a writer. A source-only entry probes that cache: a
+verified hit is `staged`; a miss reports `no_source` and requires the bytes or
+URL. The entries persist across runnerd restarts in
+`/agent/.runtime/staged-sources.json`, written atomically through the
+link-free workspace path and signed with runnerd's token (HMAC-SHA256); a
+manifest that is edited, from another session or unreadable is ignored, and
+staging fetches and hashes as before.
 This does not cache grants, credentials or source authorization: callers must
 resolve those for the current turn.
 
@@ -596,6 +605,20 @@ hold memory in the line, but consume no additional session slot. These checks
 apply only where the Docker host's memory can be verified, and do not impose a
 hard aggregate memory limit on already-running work.
 
+The same reading carries the host's CPU pressure: `some avg10` of
+`/proc/pressure/cpu`, the share of the last ten seconds in which some
+runnable task waited for a CPU. While it is at or above
+`SANDBOX_CPU_PRESSURE_PERCENT` (60 by default; `0` turns the check off), a
+create or a warm acquisition is let in only from the front of the line and
+only once ten seconds have passed since the last start let in under
+pressure, so each start's own load shows in the average before the next; the
+others answer 429 `host_cpu` with their queue place and `retry-after`.
+Stopping an idle session frees no CPU, so none is reclaimed for it. Work
+already running is never slowed, and the line keeps moving when the load is
+not the sessions'. A kernel without pressure stall information (built
+without it, or booted with `psi=0`) leaves CPU out of admission, which the
+spawner logs once.
+
 On the Docker backend, admission also keeps a floor of free space on the
 workspace filesystem and Docker's metadata filesystem where it can be verified.
 `statfs` reads the session root and the verified Docker hostname bind every
@@ -648,7 +671,7 @@ admission of new work, not disk writes by existing work. Hard per-session
 quotas still require [operator-provisioned storage](docker-in-container.md#storage--lifecycle).
 
 **Room goes first come, first served.** A create refused for room (429
-`session_quota`, `host_memory` or `host_disk`) waits in a line, by session id, in the
+`session_quota`, `host_memory`, `host_cpu` or `host_disk`) waits in a line, by session id, in the
 order of its first refusal; asking again keeps its place. Room that frees
 next is the oldest waiters': a create gets in ahead of them only where there
 is a free slot for each of them as well, and memory for their planned

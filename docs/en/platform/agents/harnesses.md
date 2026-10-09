@@ -43,7 +43,7 @@ These model-credential rules do not mean the sandbox contains no secrets. Explic
 
 ## Understand files and connected tools
 
-A project agent reuses a persistent workspace across its tasks. Task attachments are available read-only under `/agent/inputs/<task>/attachments/`. Files written to `/agent/output/<task>/` are collected as task **Deliverables** when the turn ends. Automation agent output is collected from `/agent/output/`.
+A project agent reuses a persistent workspace across its tasks. Task attachments are available read-only under `/agent/inputs/<task>/attachments/`. The workspace keeps this copy only while the task can still use it: Tale removes it once the task is **Done** or **Cancelled**, archived or deleted, or hasn’t changed for 30 days, and the task’s next run copies the files in again. Files written to `/agent/output/<task>/` are collected as task **Deliverables** when the turn ends. Automation agent output is collected from `/agent/output/`.
 
 Equipped skill bundles are staged as files and named in the run’s instructions. Review their instructions and scripts before granting them; [Skills on agents](/platform/agents/skills) explains staging and visibility.
 

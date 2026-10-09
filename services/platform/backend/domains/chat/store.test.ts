@@ -45,6 +45,7 @@ import {
   createPgTurnStore,
   createPgUsageLedger,
   estimateTurnCostCents,
+  streamWriteIntervalMs,
 } from './store.ts';
 
 const OPENROUTER = {
@@ -199,6 +200,8 @@ function fakeChatSql(
     streamed?: { text: string; reasoning?: string };
     /** The placeholder's parts as stored before the finalize. */
     storedParts?: unknown[];
+    /** Progress writes of the text that fail, as a dropped connection does. */
+    failTextWrites?: number;
   } = {},
 ): {
   sql: Sql;
@@ -210,6 +213,7 @@ function fakeChatSql(
   const tx: Statement[] = [];
   const transactions: Array<'commit' | 'rollback'> = [];
   let messageRows = 0;
+  let textWriteFailures = options.failTextWrites ?? 0;
   const answer = (text: string): unknown[] => {
     if (text.includes('FOR UPDATE OF tm')) {
       return options.scopeChanged ? [] : [{ id: 'thread_1' }];
@@ -258,6 +262,14 @@ function fakeChatSql(
     const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?');
       log.push({ text, values });
+      if (
+        textWriteFailures > 0 &&
+        text.includes('UPDATE app.generations SET') &&
+        text.includes('text = ')
+      ) {
+        textWriteFailures -= 1;
+        return Promise.reject(new Error('Connection terminated unexpectedly'));
+      }
       return Promise.resolve(answer(text));
     };
     tag.json = (value: unknown) => ({ json: value });
@@ -771,5 +783,112 @@ describe('createPgTurnStore — the pre-minted placeholder id', () => {
       s.text.includes("generation_status = 'generating'"),
     );
     expect(metadata?.text).toContain('generation_queued_since_ms = NULL');
+  });
+});
+
+describe('createPgTurnStore.streamProgress write gap', () => {
+  it('keeps the shortest gap for most replies and grows it with a long one', () => {
+    expect(streamWriteIntervalMs(0)).toBe(250);
+    expect(streamWriteIntervalMs(2000)).toBe(250);
+    expect(streamWriteIntervalMs(4000)).toBe(500);
+    expect(streamWriteIntervalMs(8000)).toBe(1000);
+    expect(streamWriteIntervalMs(100_000)).toBe(1000);
+  });
+
+  it('skips writes inside the gap the streamed length allows, and always flushes', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000_000);
+      const f = fakeChatSql();
+      const store = createPgTurnStore(f.sql);
+      const progress = (text: string, flush?: boolean) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          ...(flush === undefined ? {} : { flush }),
+        });
+      const writes = () =>
+        f.pool.filter((s) => s.text.includes('UPDATE app.generations SET'))
+          .length;
+      const long = 'x'.repeat(4000);
+
+      await progress('short');
+      expect(writes()).toBe(1);
+      vi.advanceTimersByTime(300);
+      await progress('short and a bit');
+      expect(writes()).toBe(2);
+      // 4,000 characters wait 500 ms between writes.
+      vi.advanceTimersByTime(300);
+      await progress(long);
+      expect(writes()).toBe(2);
+      vi.advanceTimersByTime(250);
+      await progress(long);
+      expect(writes()).toBe(3);
+      await progress(`${long}!`, true);
+      expect(writes()).toBe(4);
+      // A stall's cancel poll waits only the shortest gap, however long the
+      // reply: 300 ms after the last write it reads the row again. With
+      // nothing new to store it touches only the heartbeat.
+      const poll = (text: string) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          poll: true,
+        });
+      const heartbeats = () =>
+        f.pool.filter((s) =>
+          s.text.includes('UPDATE app.generations SET heartbeat_at_ms'),
+        ).length;
+      vi.advanceTimersByTime(300);
+      await poll(`${long}!`);
+      expect(writes() - heartbeats()).toBe(4);
+      expect(heartbeats()).toBe(1);
+      // A tail the throttle held back is stored by the next poll.
+      await progress(`${long}!?`);
+      expect(writes() - heartbeats()).toBe(4);
+      vi.advanceTimersByTime(300);
+      await poll(`${long}!?`);
+      expect(writes() - heartbeats()).toBe(5);
+      expect(heartbeats()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('repairs a progress write that failed on the next poll', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000_000);
+      const f = fakeChatSql({ failTextWrites: 1 });
+      const store = createPgTurnStore(f.sql);
+      const update = (text: string, poll?: true) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          ...(poll === undefined ? {} : { poll }),
+        });
+      const textWrites = () =>
+        f.pool.filter(
+          (s) =>
+            s.text.includes('UPDATE app.generations SET') &&
+            s.text.includes('text = '),
+        ).length;
+      // The write of the newest text is lost to a dropped connection.
+      await expect(update('Hello world')).rejects.toThrow('terminated');
+      expect(textWrites()).toBe(1);
+      // The stall's poll carries the same text and writes it again.
+      vi.advanceTimersByTime(300);
+      await update('Hello world', true);
+      expect(textWrites()).toBe(2);
+      // Once stored, the next poll only touches the heartbeat.
+      vi.advanceTimersByTime(300);
+      await update('Hello world', true);
+      expect(textWrites()).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

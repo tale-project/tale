@@ -450,6 +450,18 @@ export function buildSessionPod(
               name: 'NO_PROXY',
               value: '127.0.0.1,localhost,sandbox-llm-gateway',
             },
+            // How long an exec may stay quiet and idle before runnerd ends
+            // it as stalled; 0 turns the watch off.
+            {
+              name: 'TALE_EXEC_STALL_MS',
+              value: String(cfg.session.execStallMs),
+            },
+            // The share of the memory limit past which runnerd refuses to
+            // start another exec.
+            {
+              name: 'TALE_EXEC_ADMISSION_MEMORY_PERCENT',
+              value: String(cfg.session.execAdmissionMemoryPercent),
+            },
             // DinD signal + tier for the entrypoint (sysbox/kata only).
             ...(dind
               ? [

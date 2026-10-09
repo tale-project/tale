@@ -9,11 +9,18 @@ async function createTwo(plant: {
   dockerInitiallyUnavailable?: boolean;
   /** The incarnation runnerd's readiness answers name, if any. */
   incarnation?: string;
+  /** Turns transparent egress on, with the egress proxy at this address on
+   * the sandbox network; `unreadable` fails its lookup. */
+  egress?: string;
 }): Promise<{
   calls: string[][][];
   error: string | null;
   healthChecks: number;
-  results: Array<{ resumed: boolean; incarnation?: string }>;
+  results: Array<{
+    resumed: boolean;
+    incarnation?: string;
+    egressAddress?: string;
+  }>;
 }> {
   const sourceRoot = resolve(import.meta.dir, '../..');
   const script = `
@@ -30,12 +37,21 @@ const spawnPath = join(source,'spawn-util.ts');
 const realSpawn = await import(spawnPath);
 // Every cache volume is there, with its label.
 const labelled = {...success, stdout:'{"tale.sandbox-cache":"1"}'};
+// The egress proxy on the sandbox network ('control'), named 'egress'.
+const egressId = 'e'.repeat(64);
+const egressNetwork = {...success, stdout: JSON.stringify({[egressId]: {Name: 'egress'}})};
+const egressContainer = {...success, stdout: JSON.stringify({id: egressId, name: '/egress', running: true, startedAt: '2026-10-01T00:00:00Z', networks: {control: {Aliases: ['egress'], IPAddress: planted.egress, NetworkID: 'f'.repeat(64)}}})};
 mock.module(spawnPath, () => ({...realSpawn,
   runDocker: async (args) => {
     calls.push(args);
+    if (planted.egress !== undefined && args.includes(egressId)) return egressContainer;
+    if (planted.egress !== undefined && args[0] === 'network' && args[1] === 'inspect') {
+      return planted.egress === 'unreadable' ? {...success, exitCode:1, stderr:'Cannot connect to the Docker daemon'} : egressNetwork;
+    }
     return args[0] === 'volume' && args[1] === 'inspect' ? labelled : success;
   },
 }));
+console.warn = () => {};
 mock.module(join(source,'session/runnerd-client.ts'), () => ({
   runnerdHealth: async () => ({dockerReady: !(++healthChecks === 1 && planted.dockerInitiallyUnavailable), ...(planted.incarnation === undefined ? {} : {incarnation: planted.incarnation})}),
   runnerdEnvPatch: async () => [],
@@ -47,7 +63,7 @@ for (const dir of planted.dirs ?? []) await mkdir(join(root,dir));
 for (const file of planted.files ?? []) await writeFile(join(root,file),'');
 const cfg = {
  backend:'docker', sandboxToken:'test',runtimeImage:'runtime:test',runtimeTier:'runc',dockerInContainer:false,dockerBuildCache:false,
- transparentEgress:false,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
+ transparentEgress:planted.egress !== undefined,hostSessionRoot:root,cacheVolumePrefix:{pip:'pip',npm:'npm',bun:'bun'},
  egressNetwork:'control',egressProxy:'http://egress:3128',
  session:{...TEST_SESSION_CONFIG,agentProfile:{...TEST_SESSION_CONFIG.agentProfile,uid:process.getuid() || 10001,gid:process.getgid() || 10001}},
 };
@@ -103,6 +119,39 @@ describe('what a session create asks the docker daemon', () => {
     expect(unnamed.error).toBeNull();
     expect(unnamed.results).toEqual([{ resumed: false }, { resumed: false }]);
   });
+  test('a session that pins the egress proxy records its address: one lookup, then one inspect per create', async () => {
+    const { calls, error, results } = await createTwo({ egress: '172.30.0.3' });
+    expect(error).toBeNull();
+    expect(results).toEqual([
+      { resumed: false, egressAddress: '172.30.0.3' },
+      { resumed: false, egressAddress: '172.30.0.3' },
+    ]);
+    const [first = [], second = []] = calls;
+    const egressCalls = (create: string[][]) =>
+      create.filter(
+        (args) => args[0] === 'network' || args.includes('e'.repeat(64)),
+      );
+    expect(egressCalls(first).map((args) => args[0])).toEqual([
+      'network',
+      'inspect',
+    ]);
+    expect(egressCalls(second).map((args) => args[0])).toEqual(['inspect']);
+    for (const create of [first, second]) {
+      const run = create.find((args) => args[0] === 'run') ?? [];
+      expect(run).toContain('tale.egress-ip=172.30.0.3');
+    }
+  });
+
+  test('an egress proxy that cannot be read leaves the session unlabelled, never uncreated', async () => {
+    const { calls, error, results } = await createTwo({ egress: 'unreadable' });
+    expect(error).toBeNull();
+    expect(results).toEqual([{ resumed: false }, { resumed: false }]);
+    for (const create of calls) {
+      const run = create.find((args) => args[0] === 'run') ?? [];
+      expect(run.some((arg) => arg.startsWith('tale.egress-ip='))).toBe(false);
+    }
+  });
+
   test('the cache volumes once per organization, and no legacy mount lookup on a flat root', async () => {
     const { calls, error } = await createTwo({});
     expect(error).toBeNull();

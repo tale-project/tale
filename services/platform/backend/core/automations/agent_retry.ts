@@ -24,6 +24,15 @@ import {
 export type WorkflowAgentFailureCode =
   | 'harness_error'
   | 'turn_crashed'
+  /** The sandbox ended the harness because it stalled: no output and
+   * almost no CPU for the sandbox's stall window. A re-kick at once would
+   * most likely hang the same way, so none follows. */
+  | 'turn_stalled'
+  /** The sandbox ran out of memory and the kernel's OOM killer ended the
+   * harness or its session. Re-kicked like any failure, but only after
+   * `resourceExhaustedRetryDelayMs` for the node's attempt: at once it
+   * would meet the same limit. */
+  | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
   | 'harvest_failed'
@@ -110,15 +119,17 @@ export function sandboxRoomRetryAtMs(args: {
   return args.now + hint + Math.round(draw * (window - hint));
 }
 
-/** Failures where a retry is pure waste: the turn burned its 12h window, or
- * the operator ignored the agent's question for the whole ask TTL — a fresh
- * turn would only ask again — or worse than waste: the run's workspace is
+/** Failures where a retry is pure waste: the turn burned its 12h window, its
+ * harness hung until the sandbox ended it, or the operator ignored the
+ * agent's question for the whole ask TTL — a fresh turn would only ask
+ * again — or worse than waste: the run's workspace is
  * being destroyed, and a retry after the Destroy would start over an empty
  * one. Everything else — provider errors, crashes, vanished sessions,
  * harvest hiccups — retries by DEFAULT, including an absent code, so a
  * future failure producer inherits the retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
+  'turn_stalled',
   'ask_expired',
   'budget_exceeded',
   'sandbox_destroying',

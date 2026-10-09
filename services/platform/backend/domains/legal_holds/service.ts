@@ -119,6 +119,7 @@ export async function listActiveHoldTargetIds(
 }
 
 export type GuardedTargetType =
+  | 'task'
   | 'thread'
   | 'document'
   | 'contact'

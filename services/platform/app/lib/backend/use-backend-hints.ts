@@ -34,6 +34,21 @@ const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_MAX_MS = 60_000;
 
 /**
+ * The wait before reopen attempt `attempt` (0-based): the capped doubling,
+ * spread over its upper half. A rolling deploy refuses every tab's
+ * handshake in the same second; without the spread they would all come back
+ * in the same second too, attempt after attempt, each wave a spike of
+ * session and membership reads on the replica that just came up.
+ */
+export function reconnectDelayMs(
+  attempt: number,
+  random: () => number = Math.random,
+): number {
+  const cap = Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** attempt);
+  return Math.round(cap / 2 + random() * (cap / 2));
+}
+
+/**
  * The Tier-2 realtime bridge: subscribe the org's `/events` hint stream and
  * invalidate the matching `['backend', orgId, entity]` queries — hints
  * carry identity, never data, so every refetch goes back through the
@@ -205,10 +220,7 @@ export function useBackendHints(orgId: string | undefined): void {
       }
       detach();
       replayLost = true;
-      const delay = Math.min(
-        RECONNECT_MAX_MS,
-        RECONNECT_BASE_MS * 2 ** attempt,
-      );
+      const delay = reconnectDelayMs(attempt);
       attempt += 1;
       retryTimer = setTimeout(connect, delay);
     };

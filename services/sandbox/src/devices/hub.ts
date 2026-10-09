@@ -114,8 +114,11 @@ interface ConnectedDevice {
   lastMessageAtMs: number;
   hello: DeviceHello | null;
   status: DeviceStatus | null;
-  /** Creates forwarded since the device's last STATUS counted them. */
-  inflightCreates: number;
+  /** The creates forwarded to the device that have not answered yet, by
+   * session id (concurrent retries of one id each hold their count). A slot
+   * counts an id once, and not at all once the device reports it (it says a
+   * create it is admitting is starting). */
+  inflightCreates: Map<string, number>;
   /** Passed over for new creates until then: its last one failed outright. */
   createFailedUntilMs: number;
 }
@@ -352,7 +355,7 @@ export class DeviceHub {
       lastMessageAtMs: now,
       hello: null,
       status: null,
-      inflightCreates: 0,
+      inflightCreates: new Map(),
       createFailedUntilMs: 0,
     };
     this.devices.set(ticket.deviceId, device);
@@ -497,7 +500,18 @@ export class DeviceHub {
     const used = d.status
       ? d.status.running + d.status.starting
       : d.hello.sessions.filter((s) => s.state !== 'stopped').length;
-    const slots = max - used - d.inflightCreates;
+    // A create in flight takes a slot until the device's own report names it:
+    // the device reports a create it is admitting as starting, and counting
+    // it there and here would pass over a device that still has room.
+    const reported = new Set(
+      (d.status?.sessions ?? d.hello.sessions)
+        .filter((s) => s.state !== 'stopped')
+        .map((s) => s.sessionId),
+    );
+    let unreported = 0;
+    for (const id of d.inflightCreates.keys())
+      if (!reported.has(id)) unreported += 1;
+    const slots = max - used - unreported;
     const memory = d.status?.resources.memory;
     if (
       memory === undefined ||
@@ -516,7 +530,9 @@ export class DeviceHub {
     const memorySlots = Math.floor(
       available / sessionWorkingSetBytes('agent', false),
     );
-    return Math.min(slots, memorySlots - d.inflightCreates);
+    // Its memory does not show a session that is still starting: every create
+    // in flight counts against it.
+    return Math.min(slots, memorySlots - d.inflightCreates.size);
   }
 
   private async routeCreate(
@@ -586,7 +602,10 @@ export class DeviceHub {
       this.noteCreate(create.sessionId);
       // Reserve before the durable write yields, so a burst cannot all
       // select the same device using its last free slot.
-      device.inflightCreates++;
+      device.inflightCreates.set(
+        create.sessionId,
+        (device.inflightCreates.get(create.sessionId) ?? 0) + 1,
+      );
       let attempt: ForwardAttempt;
       try {
         await this.placements.set(create.sessionId, {
@@ -602,7 +621,9 @@ export class DeviceHub {
           device,
         );
       } finally {
-        device.inflightCreates--;
+        const left = (device.inflightCreates.get(create.sessionId) ?? 1) - 1;
+        if (left > 0) device.inflightCreates.set(create.sessionId, left);
+        else device.inflightCreates.delete(create.sessionId);
       }
       const res = attempt.response;
       // The platform gave up on this create (its timeout, a restarting

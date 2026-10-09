@@ -1,5 +1,6 @@
 // Pure parsers for the Linux /proc files the spawner reads about its host:
-// CPU counters from /proc/stat and memory from /proc/meminfo. Kept apart from
+// CPU counters from /proc/stat, memory from /proc/meminfo and CPU pressure
+// from /proc/pressure/cpu. Kept apart from
 // the capacity reader and the memory guard so either can use them without
 // loading the other's dependencies.
 
@@ -64,4 +65,16 @@ export function parseMemory(meminfo: string): {
   )
     return null;
   return { totalBytes: total, usedBytes: total - available };
+}
+
+/** The `some avg10` of a pressure stall file (/proc/pressure/cpu): the share
+ * of the last ten seconds, in percent, in which at least one runnable task
+ * waited for a CPU. Null for a file without that line. */
+export function parsePressureSomeAvg10(pressure: string): number | null {
+  const match = pressure.match(/^some\b.*\bavg10=(\d+(?:\.\d+)?)\b/m);
+  if (match === null) return null;
+  const percent = Number(match[1]);
+  return Number.isFinite(percent) && percent >= 0 && percent <= 100
+    ? percent
+    : null;
 }
