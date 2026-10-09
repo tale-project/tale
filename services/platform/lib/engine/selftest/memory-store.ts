@@ -160,10 +160,23 @@ export function memoryStore(
         );
       }
       const cron = typeof trigger.cron === 'string' ? trigger.cron : undefined;
+      // A schedule reads as a repeat rule or as a cron expression, never
+      // both — the host's own rule (the repeat rule's shape is the host's to
+      // check; the engine keeps it as given).
+      const repeat: unknown = trigger.repeat;
+      const rule =
+        typeof repeat === 'object' && repeat !== null && !Array.isArray(repeat)
+          ? { ...repeat }
+          : undefined;
       const event =
         typeof trigger.event === 'string' ? trigger.event : undefined;
-      if (kind === 'schedule' && cron === undefined) {
-        throw new Error('a schedule trigger needs a cron expression');
+      if (
+        kind === 'schedule' &&
+        (cron === undefined) === (rule === undefined)
+      ) {
+        throw new Error(
+          'a schedule trigger needs a repeat rule or a cron expression, not both',
+        );
       }
       if (kind === 'event' && event === undefined) {
         throw new Error('an event trigger needs an event name');
@@ -172,6 +185,7 @@ export function memoryStore(
         name,
         kind,
         ...(cron !== undefined && { cron }),
+        ...(rule !== undefined && { repeat: rule }),
         ...(typeof trigger.timezone === 'string' && {
           timezone: trigger.timezone,
         }),
