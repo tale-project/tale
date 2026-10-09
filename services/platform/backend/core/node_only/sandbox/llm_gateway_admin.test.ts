@@ -31,6 +31,7 @@ interface RecordedCall {
  *   PUT  /api/providers/:p/keys/*     → rotate key
  *   POST /api/governance/virtual-keys → mint (returns id + value)
  *   GET  /api/config                  → current client_config
+ *   GET  /api/providers[/:p]          → the provider records (`providerRecords`)
  * Returns the recorded calls, in order.
  */
 function stubGateway(
@@ -53,6 +54,8 @@ function stubGateway(
     /** `POST /api/providers/:p/keys` answers the stored key under this id
      * (as the gateway does); otherwise an empty object. */
     createdKeyId?: string;
+    /** `GET /api/providers` lists these provider records. */
+    providerRecords?: Record<string, unknown>[];
   } = {},
 ): RecordedCall[] {
   const calls: RecordedCall[] = [];
@@ -82,6 +85,27 @@ function stubGateway(
             }),
             { status: 200 },
           ),
+        );
+      }
+      if (method === 'GET' && u.endsWith('/api/providers')) {
+        const providers = opts.providerRecords ?? [];
+        return Promise.resolve(
+          new Response(JSON.stringify({ providers, total: providers.length }), {
+            status: 200,
+          }),
+        );
+      }
+      if (
+        method === 'GET' &&
+        u.includes('/api/providers/') &&
+        opts.providerRecords !== undefined
+      ) {
+        const name = decodeURIComponent(u.split('/api/providers/')[1] ?? '');
+        const record = opts.providerRecords.find((r) => r.name === name);
+        return Promise.resolve(
+          record === undefined
+            ? new Response('Provider not found', { status: 404 })
+            : new Response(JSON.stringify(record), { status: 200 }),
         );
       }
       if (method === 'GET' && u.endsWith('/api/config')) {
@@ -857,6 +881,797 @@ describe('provisionProviders', () => {
     expect(calls).toHaveLength(0);
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining("skipping custom provider 'no-base'"),
+    );
+  });
+});
+
+describe('provisionProviders — request workers per provider record', () => {
+  const CUSTOM = {
+    name: 'org_1__my-vllm__llama-3.3-70b',
+    baseUrl: 'https://llm.example.com/v1',
+    apiKey: 'key-D',
+    models: ['llama-3.3-70b'],
+  };
+
+  /** The pool each provider record's config PUT carried, by record name. */
+  function pools(calls: RecordedCall[]): Record<string, unknown> {
+    return Object.fromEntries(
+      writes(calls)
+        .filter((c) => c.method === 'PUT' && !c.url.includes('/keys'))
+        .map((c) => [
+          decodeURIComponent(c.url.split('/api/providers/')[1] ?? ''),
+          c.body?.concurrency_and_buffer_size,
+        ]),
+    );
+  }
+
+  it('gives a shared standard record 512 workers and an org-scoped custom record 64, each with a queue 16 deep per worker', async () => {
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    // A standard connector on the Anthropic lane rides an org-scoped record
+    // of its own, so it is sized like any other custom record.
+    const lane = mod.resolveGatewayRouting(ORG, 'openrouter', 'm', {
+      anthropicHarnessLane: true,
+    }).gatewayProvider;
+    expect(
+      await mod.provisionProviders(ORG, [
+        PROVIDER,
+        CUSTOM,
+        {
+          name: lane,
+          baseUrl: 'https://openrouter.ai/api',
+          apiFormat: 'anthropic',
+          apiKey: 'key-A',
+          models: ['m'],
+        },
+      ]),
+    ).toEqual([]);
+    expect(pools(calls)).toEqual({
+      openrouter: { concurrency: 512, buffer_size: 8192 },
+      [CUSTOM.name]: { concurrency: 64, buffer_size: 1024 },
+      [lane]: { concurrency: 64, buffer_size: 1024 },
+    });
+  });
+
+  it('takes each kind of record’s worker count from its own setting', async () => {
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY', '200');
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY', ' 8 ');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER, CUSTOM]);
+    expect(pools(calls)).toEqual({
+      openrouter: { concurrency: 200, buffer_size: 3200 },
+      [CUSTOM.name]: { concurrency: 8, buffer_size: 128 },
+    });
+  });
+
+  it.each(['0', '-4', '1.5', 'many'])(
+    'keeps the default for a setting of %j, which the gateway would refuse, and says so once',
+    async (setting) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.stubEnv('SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY', setting);
+      const calls = stubGateway({ keyExists: false });
+      const mod = await loadModule();
+      await mod.provisionProviders(ORG, [CUSTOM]);
+      await mod.provisionProviders('org_2', [CUSTOM]);
+      expect(Object.values(pools(calls))).toEqual([
+        { concurrency: 64, buffer_size: 1024 },
+      ]);
+      expect(
+        warn.mock.calls.filter(([message]) =>
+          String(message).includes(
+            `SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY=${setting} is not a positive whole number; using 64`,
+          ),
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
+  it('holds a record to the 5,000 connections the gateway opens to one upstream host', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY', '20000');
+    const calls = stubGateway({ keyExists: false });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [PROVIDER]);
+    expect(pools(calls)).toEqual({
+      openrouter: { concurrency: 5000, buffer_size: 80_000 },
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'SANDBOX_LLM_GATEWAY_PROVIDER_CONCURRENCY=20000 is above',
+      ),
+    );
+  });
+
+  it('rewrites a provisioned record whose pool was resized, so the gateway restarts its workers at the new count', async () => {
+    const calls = stubGateway({
+      keyExists: true,
+      keyName: `tale-${ORG}-${CUSTOM.name}`,
+    });
+    const mod = await loadModule();
+    await mod.provisionProviders(ORG, [CUSTOM]);
+    calls.length = 0;
+    await mod.provisionProviders(ORG, [CUSTOM]);
+    expect(writes(calls)).toEqual([]);
+
+    vi.stubEnv('SANDBOX_LLM_GATEWAY_CUSTOM_PROVIDER_CONCURRENCY', '16');
+    await mod.provisionProviders(ORG, [CUSTOM]);
+    expect(pools(calls)).toEqual({
+      [CUSTOM.name]: { concurrency: 16, buffer_size: 256 },
+    });
+    expect(writes(calls)).toHaveLength(2);
+  });
+});
+
+describe('shrinkProviderPools — records no provision rewrites', () => {
+  const CUSTOM_NAME = 'org_9__my-vllm__llama-3.3-70b';
+  const CUSTOM_UPSTREAM = {
+    base_provider_type: 'openai',
+    allowed_requests: { chat_completion: true, chat_completion_stream: true },
+    request_path_overrides: {
+      chat_completion: '/chat/completions',
+      chat_completion_stream: '/chat/completions',
+    },
+  };
+  const CUSTOM_NETWORK = {
+    base_url: 'https://llm.example.com/v1',
+    default_request_timeout_in_seconds: 600,
+    stream_idle_timeout_in_seconds: 600,
+    allow_private_network: true,
+  };
+  /** A custom record stored with the gateway's former 1,000-worker pool, as
+   * `GET /api/providers` lists it: masked proxy secrets and status fields
+   * beside the config. */
+  const STALE_CUSTOM = {
+    name: CUSTOM_NAME,
+    network_config: CUSTOM_NETWORK,
+    concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
+    proxy_config: { type: 'http', url: '<redacted>' },
+    send_back_raw_request: false,
+    send_back_raw_response: false,
+    store_raw_request_response: false,
+    custom_provider_config: CUSTOM_UPSTREAM,
+    provider_status: 'active',
+    config_hash: 'hash-1',
+  };
+  const STALE_STANDARD = {
+    name: 'openai',
+    network_config: {
+      default_request_timeout_in_seconds: 600,
+      stream_idle_timeout_in_seconds: 600,
+    },
+    concurrency_and_buffer_size: { concurrency: 1000, buffer_size: 5000 },
+    proxy_config: null,
+    send_back_raw_request: true,
+    send_back_raw_response: false,
+    store_raw_request_response: false,
+    provider_status: 'active',
+  };
+  const SIZED_CUSTOM = {
+    name: 'org_9__my-vllm__qwen-3',
+    network_config: CUSTOM_NETWORK,
+    concurrency_and_buffer_size: { concurrency: 64, buffer_size: 1024 },
+    custom_provider_config: CUSTOM_UPSTREAM,
+    provider_status: 'active',
+  };
+
+  /** The provider-record writes, by record name, with what each carried. */
+  function recordWrites(calls: RecordedCall[]): [string, unknown][] {
+    return calls
+      .filter(
+        (c) =>
+          c.method === 'PUT' &&
+          c.url.includes('/api/providers/') &&
+          !c.url.includes('/keys'),
+      )
+      .map((c) => [
+        decodeURIComponent(c.url.split('/api/providers/')[1] ?? ''),
+        c.body,
+      ]);
+  }
+
+  /**
+   * A gateway whose `GET /api/providers` lists `listing` while
+   * `GET /api/providers/:name` answers the record from `current` (by
+   * default the listing itself; 404 for a name `current` lacks), and whose
+   * record PUTs succeed except for the `refuse`d name.
+   */
+  function stubRecords(
+    listing: Record<string, unknown>[],
+    opts: { current?: Record<string, unknown>[]; refuse?: string } = {},
+  ): RecordedCall[] {
+    const calls: RecordedCall[] = [];
+    const current = opts.current ?? listing;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        const method = init?.method ?? 'GET';
+        calls.push({
+          url: u,
+          method,
+          body:
+            typeof init?.body === 'string'
+              ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+                (JSON.parse(init.body) as Record<string, unknown>)
+              : undefined,
+          headers: {},
+        });
+        const name = decodeURIComponent(u.split('/api/providers/')[1] ?? '');
+        if (method === 'GET' && u.endsWith('/api/providers')) {
+          return Promise.resolve(
+            new Response(JSON.stringify({ providers: listing }), {
+              status: 200,
+            }),
+          );
+        }
+        if (method === 'GET') {
+          const record = current.find((r) => r.name === name);
+          return Promise.resolve(
+            record === undefined
+              ? new Response('Provider not found', { status: 404 })
+              : new Response(JSON.stringify(record), { status: 200 }),
+          );
+        }
+        return Promise.resolve(
+          name === opts.refuse
+            ? new Response('Invalid base URL', { status: 400 })
+            : new Response('{}', { status: 200 }),
+        );
+      }),
+    );
+    return calls;
+  }
+
+  /**
+   * A gateway whose `GET /api/providers` lists `listing` and which hands
+   * every other call to `answer`, with its method, the path under
+   * `/api/providers/` and its body.
+   */
+  function stubPass(
+    listing: Record<string, unknown>[],
+    answer: (
+      method: string,
+      name: string,
+      body: Record<string, unknown> | undefined,
+    ) => Response | Promise<Response>,
+  ): RecordedCall[] {
+    const calls: RecordedCall[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        const method = init?.method ?? 'GET';
+        const body =
+          typeof init?.body === 'string'
+            ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+              (JSON.parse(init.body) as Record<string, unknown>)
+            : undefined;
+        calls.push({ url: u, method, body, headers: {} });
+        if (method === 'GET' && u.endsWith('/api/providers')) {
+          return Response.json({ providers: listing });
+        }
+        return answer(
+          method,
+          decodeURIComponent(u.split('/api/providers/')[1] ?? ''),
+          body,
+        );
+      }),
+    );
+    return calls;
+  }
+
+  const TIMED_OUT = (): Promise<Response> =>
+    Promise.reject(
+      new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError',
+      ),
+    );
+
+  it('writes each oversized record back with its kind’s pool and its own network and upstream config', async () => {
+    const calls = stubGateway({
+      providerRecords: [STALE_STANDARD, STALE_CUSTOM, SIZED_CUSTOM],
+    });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls)).toEqual([
+      [
+        'openai',
+        {
+          concurrency_and_buffer_size: { concurrency: 512, buffer_size: 8192 },
+          network_config: STALE_STANDARD.network_config,
+          send_back_raw_request: true,
+          send_back_raw_response: false,
+          store_raw_request_response: false,
+        },
+      ],
+      [
+        CUSTOM_NAME,
+        {
+          concurrency_and_buffer_size: { concurrency: 64, buffer_size: 1024 },
+          network_config: CUSTOM_NETWORK,
+          custom_provider_config: CUSTOM_UPSTREAM,
+          send_back_raw_request: false,
+          send_back_raw_response: false,
+          store_raw_request_response: false,
+        },
+      ],
+    ]);
+  });
+
+  it('lists once per process', async () => {
+    const calls = stubGateway({ providerRecords: [STALE_CUSTOM] });
+    const mod = await loadModule();
+    await Promise.all([mod.shrinkProviderPools(), mod.shrinkProviderPools()]);
+    await mod.shrinkProviderPools();
+    expect(calls.filter((c) => c.url.endsWith('/api/providers'))).toHaveLength(
+      1,
+    );
+    expect(recordWrites(calls)).toHaveLength(1);
+  });
+
+  it('starts a scheduled pass two to five minutes later, at a moment drawn at random, and only once', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    const calls = stubGateway({ providerRecords: [STALE_CUSTOM] });
+    const mod = await loadModule();
+    const listings = () =>
+      calls.filter((c) => c.url.endsWith('/api/providers')).length;
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      mod.scheduleProviderPoolShrink();
+      mod.scheduleProviderPoolShrink();
+      // 2 minutes, plus half of the 3-minute spread.
+      await vi.advanceTimersByTimeAsync(210_000 - 1);
+      expect(listings()).toBe(0);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(listings()).toBe(1);
+      await vi.advanceTimersByTimeAsync(600_000);
+      mod.scheduleProviderPoolShrink();
+      await vi.advanceTimersByTimeAsync(600_000);
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(listings()).toBe(1);
+    expect(recordWrites(calls).map(([name]) => name)).toEqual([CUSTOM_NAME]);
+  });
+
+  it('schedules the pass again at the next call when its listing failed', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let listings = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        listings += 1;
+        return listings <= 4
+          ? new Response('down', { status: 503 })
+          : Response.json({ providers: [] });
+      }),
+    );
+    const mod = await loadModule();
+    vi.useFakeTimers({ toFake: ['setTimeout'] });
+    try {
+      mod.scheduleProviderPoolShrink();
+      await vi.advanceTimersByTimeAsync(130_000);
+      expect(listings).toBe(4);
+      mod.scheduleProviderPoolShrink();
+      await vi.advanceTimersByTimeAsync(120_000 - 1);
+      expect(listings).toBe(4);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(listings).toBe(5);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lists again at the next call when the listing failed, and never rejects', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('down', { status: 503 }))),
+    );
+    const mod = await loadModule();
+    await expect(
+      withRetryWaitsElapsed(() => mod.shrinkProviderPools()),
+    ).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('trying again at the next provision'),
+      expect.any(Error),
+    );
+
+    vi.unstubAllGlobals();
+    const calls = stubGateway({ providerRecords: [STALE_CUSTOM] });
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls).map(([name]) => name)).toEqual([CUSTOM_NAME]);
+  });
+
+  it('goes on past a record the gateway refuses, which keeps its pool, and never suggests deleting a built-in provider’s shared record', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const calls = stubRecords([STALE_STANDARD, STALE_CUSTOM], {
+      refuse: 'openai',
+    });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls).map(([name]) => name)).toEqual([
+      'openai',
+      CUSTOM_NAME,
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      "[llm-gateway] resizing provider 'openai' to 512 workers failed (400): Invalid base URL; it keeps its workers",
+    );
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 1 resized, 1 refused, 0 unconfirmed',
+    );
+  });
+
+  it('tells how to clear a record the gateway refuses because its upstream host no longer resolves', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    stubPass([STALE_CUSTOM], (method) =>
+      method === 'GET'
+        ? Response.json(STALE_CUSTOM)
+        : new Response(
+            'Invalid base URL: failed to resolve hostname llm.example.com',
+            { status: 400 },
+          ),
+    );
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(warn).toHaveBeenCalledWith(
+      `[llm-gateway] resizing provider '${CUSTOM_NAME}' to 64 workers failed (400): Invalid base URL: failed to resolve hostname llm.example.com; it keeps its workers. If its upstream is gone for good, delete it from the gateway (DELETE /api/providers/${CUSTOM_NAME}): a provision sets up a record still in use again`,
+    );
+  });
+
+  it('logs the end of a pass with its counts even when it resized nothing', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    stubGateway({ providerRecords: [SIZED_CUSTOM] });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 0 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
+  it('gives a resize 30 s, and counts one the gateway stored but answered too late as resized, from the record read back', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const bounds = vi.spyOn(AbortSignal, 'timeout');
+    let stored: Record<string, unknown> = STALE_CUSTOM;
+    stubPass([STALE_CUSTOM], (method, _name, body) => {
+      if (method === 'GET') return Response.json(stored);
+      stored = {
+        ...stored,
+        concurrency_and_buffer_size: body?.concurrency_and_buffer_size,
+      };
+      return TIMED_OUT();
+    });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(bounds.mock.calls.map(([ms]) => ms)).toEqual([
+      15_000, 15_000, 30_000, 15_000,
+    ]);
+    expect(warn).toHaveBeenCalledWith(
+      `[llm-gateway] resizing provider '${CUSTOM_NAME}' to 64 workers failed; reading it back:`,
+      expect.any(DOMException),
+    );
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 1 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
+  it('counts a resize as unconfirmed when the gateway failed it and the record read back keeps its old pool', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    stubPass([STALE_STANDARD, STALE_CUSTOM], (method, name) => {
+      if (method === 'GET') {
+        return Response.json(name === 'openai' ? STALE_STANDARD : STALE_CUSTOM);
+      }
+      return name === 'openai'
+        ? TIMED_OUT()
+        : new Response('upstream gone', { status: 503 });
+    });
+    const mod = await loadModule();
+    await withRetryWaitsElapsed(() => mod.shrinkProviderPools());
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 0 resized, 0 refused, 2 unconfirmed',
+    );
+  });
+
+  it('never sends a resize again to a record deleted while the gateway’s store turned the write away, since a PUT would create it anew', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    let deleted = false;
+    const calls = stubPass([STALE_CUSTOM], (method) => {
+      if (method === 'GET') {
+        return deleted
+          ? new Response('Provider not found', { status: 404 })
+          : Response.json(STALE_CUSTOM);
+      }
+      deleted = true;
+      return new Response(
+        '{"error":{"message":"failed to update: database is locked"}}',
+        { status: 500 },
+      );
+    });
+    const mod = await loadModule();
+    await withRetryWaitsElapsed(() => mod.shrinkProviderPools());
+    expect(recordWrites(calls)).toHaveLength(1);
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 0 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
+  it('sends a resize the gateway’s store turned away again with the record as it reads after the wait', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const newer = {
+      ...STALE_CUSTOM,
+      network_config: {
+        ...CUSTOM_NETWORK,
+        base_url: 'https://llm-new.example.com/v1',
+      },
+    };
+    let puts = 0;
+    const calls = stubPass([STALE_CUSTOM], (method) => {
+      if (method === 'GET')
+        return Response.json(puts === 0 ? STALE_CUSTOM : newer);
+      puts += 1;
+      return puts === 1
+        ? new Response(
+            '{"error":{"message":"failed to update: database is locked"}}',
+            { status: 500 },
+          )
+        : Response.json({});
+    });
+    const mod = await loadModule();
+    await withRetryWaitsElapsed(() => mod.shrinkProviderPools());
+    expect(recordWrites(calls)).toEqual([
+      [
+        CUSTOM_NAME,
+        expect.objectContaining({ network_config: CUSTOM_NETWORK }),
+      ],
+      [
+        CUSTOM_NAME,
+        expect.objectContaining({ network_config: newer.network_config }),
+      ],
+    ]);
+    expect(info).toHaveBeenCalledWith(
+      '[llm-gateway] provider worker resize finished: 1 resized, 0 refused, 0 unconfirmed',
+    );
+  });
+
+  it('leaves a record a provision of this process starts on while the pass reads it, and the provision waits for no write', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const provision = {
+      name: CUSTOM_NAME,
+      baseUrl: 'https://llm-new.example.com/v1',
+      apiKey: 'key-D',
+      models: ['llama-3.3-70b'],
+    };
+    let releaseRead: (() => void) | undefined;
+    const calls = stubPass([STALE_CUSTOM], (method, name) => {
+      if (method === 'GET' && name === CUSTOM_NAME) {
+        return new Promise<Response>((resolve) => {
+          releaseRead = () => resolve(Response.json(STALE_CUSTOM));
+        });
+      }
+      return Response.json(method === 'GET' ? { keys: [] } : {});
+    });
+    const mod = await loadModule();
+    const pass = mod.shrinkProviderPools();
+    await vi.waitFor(() => expect(releaseRead).toBeDefined());
+    expect(await mod.provisionProviders('org_9', [provision])).toEqual([]);
+
+    releaseRead?.();
+    await pass;
+    expect(recordWrites(calls)).toEqual([
+      [
+        CUSTOM_NAME,
+        expect.objectContaining({
+          network_config: expect.objectContaining({
+            base_url: provision.baseUrl,
+          }),
+        }),
+      ],
+    ]);
+  });
+
+  it('keeps a record the gateway answers without the network config a resize must send back', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { network_config: _dropped, ...withoutNetwork } = STALE_CUSTOM;
+    const calls = stubGateway({ providerRecords: [withoutNetwork] });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls)).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `provider '${CUSTOM_NAME}' came back without its network config`,
+      ),
+    );
+  });
+
+  it('reads each record again right before its write, so another process’s newer config is what it sends back', async () => {
+    const newer = {
+      ...STALE_CUSTOM,
+      network_config: {
+        ...CUSTOM_NETWORK,
+        base_url: 'https://llm-new.example.com/v1',
+      },
+    };
+    const calls = stubRecords([STALE_CUSTOM], { current: [newer] });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls)).toEqual([
+      [
+        CUSTOM_NAME,
+        expect.objectContaining({ network_config: newer.network_config }),
+      ],
+    ]);
+  });
+
+  it('a teardown waits for a resize already sent, then deletes the record, and nothing is written after', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    let releasePut!: () => void;
+    const putGate = new Promise<void>((resolve) => {
+      releasePut = resolve;
+    });
+    let putSent!: () => void;
+    const putStarted = new Promise<void>((resolve) => {
+      putSent = resolve;
+    });
+    let deleted = false;
+    const calls = stubPass([STALE_CUSTOM], async (method) => {
+      if (method === 'GET') {
+        return deleted
+          ? new Response('Provider not found', { status: 404 })
+          : Response.json(STALE_CUSTOM);
+      }
+      if (method === 'PUT') {
+        putSent();
+        await putGate;
+        return Response.json({});
+      }
+      if (method === 'DELETE') {
+        deleted = true;
+        return Response.json({});
+      }
+      return new Response('unexpected', { status: 500 });
+    });
+    const mod = await loadModule();
+    const pass = mod.shrinkProviderPools();
+    await putStarted;
+    const teardown = mod.removeOrganizationFromGateway('org_9');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Deleting now would let the resize land after it and create the
+    // record anew; the teardown waits for it instead.
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+    releasePut();
+    await Promise.all([pass, teardown]);
+    expect(
+      calls
+        .filter((c) => c.method === 'PUT' || c.method === 'DELETE')
+        .map((c) => c.method),
+    ).toEqual(['PUT', 'DELETE']);
+  });
+
+  it('never writes back a record a teardown deleted, even when its read still answers it', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const calls = stubPass([STALE_CUSTOM], (method) =>
+      method === 'GET' ? Response.json(STALE_CUSTOM) : Response.json({}),
+    );
+    const mod = await loadModule();
+    await mod.removeOrganizationFromGateway('org_9');
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls)).toEqual([]);
+  });
+
+  it('leaves a record another process resized since the listing, or deleted', async () => {
+    const resized = {
+      ...STALE_CUSTOM,
+      concurrency_and_buffer_size: { concurrency: 64, buffer_size: 1024 },
+    };
+    const calls = stubRecords([STALE_CUSTOM, STALE_STANDARD], {
+      current: [resized],
+    });
+    const mod = await loadModule();
+    await mod.shrinkProviderPools();
+    expect(calls.filter((c) => c.method === 'GET').map((c) => c.url)).toEqual([
+      'http://sandbox-llm-gateway:8080/api/providers',
+      `http://sandbox-llm-gateway:8080/api/providers/${CUSTOM_NAME}`,
+      'http://sandbox-llm-gateway:8080/api/providers/openai',
+    ]);
+    expect(recordWrites(calls)).toEqual([]);
+  });
+
+  it('leaves a record this process already provisioned, whose config is newer than the listing', async () => {
+    const provision = {
+      name: CUSTOM_NAME,
+      baseUrl: 'https://llm-new.example.com/v1',
+      apiKey: 'key-D',
+      models: ['llama-3.3-70b'],
+    };
+    const calls = stubGateway({ providerRecords: [STALE_CUSTOM] });
+    const mod = await loadModule();
+    await mod.provisionProviders('org_9', [provision]);
+    calls.length = 0;
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls)).toEqual([]);
+  });
+
+  it('holds a provision of a record until the pass’s write to it lands, so the provision’s config is the one that stays', async () => {
+    const provision = {
+      name: CUSTOM_NAME,
+      baseUrl: 'https://llm-new.example.com/v1',
+      apiKey: 'key-D',
+      models: ['llama-3.3-70b'],
+    };
+    const writesSent: { name: string; body: Record<string, unknown> }[] = [];
+    let releaseResize: (() => void) | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        const method = init?.method ?? 'GET';
+        if (method === 'GET') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify(
+                u.endsWith('/api/providers')
+                  ? { providers: [STALE_CUSTOM] }
+                  : u.endsWith('/keys')
+                    ? { keys: [] }
+                    : STALE_CUSTOM,
+              ),
+              { status: 200 },
+            ),
+          );
+        }
+        if (
+          method === 'PUT' &&
+          !u.includes('/keys') &&
+          typeof init?.body === 'string'
+        ) {
+          writesSent.push({
+            name: decodeURIComponent(u.split('/api/providers/')[1] ?? ''),
+            // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+            body: JSON.parse(init.body) as Record<string, unknown>,
+          });
+          if (releaseResize === undefined) {
+            return new Promise<Response>((resolve) => {
+              releaseResize = () => resolve(new Response('{}'));
+            });
+          }
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }));
+      }),
+    );
+    const mod = await loadModule();
+    const pass = mod.shrinkProviderPools();
+    await vi.waitFor(() => expect(releaseResize).toBeDefined());
+    const provisioned = mod.provisionProviders('org_9', [provision]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(writesSent).toHaveLength(1);
+
+    releaseResize?.();
+    await pass;
+    expect(await provisioned).toEqual([]);
+    const baseUrlOf = (body: Record<string, unknown>): unknown => {
+      const network = body.network_config;
+      return network !== null &&
+        typeof network === 'object' &&
+        'base_url' in network
+        ? network.base_url
+        : undefined;
+    };
+    expect(writesSent.map(({ name, body }) => [name, baseUrlOf(body)])).toEqual(
+      [
+        [CUSTOM_NAME, CUSTOM_NETWORK.base_url],
+        [CUSTOM_NAME, provision.baseUrl],
+      ],
     );
   });
 });
@@ -1716,6 +2531,7 @@ describe('applyGatewayConfig', () => {
         max_request_body_size_mb: 100,
         enforce_auth_on_inference: true,
         disable_content_logging: true,
+        drop_excess_requests: false,
       },
       // First-time bootstrap (GET reports auth not yet enabled): the plaintext
       // password is sent to establish it — the gateway hashes it on store. A
@@ -1812,6 +2628,29 @@ describe('applyGatewayConfig — a request-scoped key reuses a recent apply', ()
     await mod.applyGatewayConfig();
     await mod.applyGatewayConfig();
     expect(calls.map((call) => call.method)).toEqual(['GET', 'GET']);
+  });
+
+  it('turns off a gateway’s dropping of requests its full queue cannot take, so a burst past a record’s pool waits instead of failing', async () => {
+    const calls = stubGateway({
+      authEnabled: true,
+      clientConfig: {
+        log_retention_days: 30,
+        enforce_auth_on_inference: true,
+        disable_content_logging: true,
+        drop_excess_requests: true,
+      },
+    });
+    const mod = await loadModule();
+    await mod.applyGatewayConfig();
+    const put = calls.find(
+      (c) => c.method === 'PUT' && c.url.endsWith('/api/config'),
+    );
+    expect(put?.body?.client_config).toEqual({
+      log_retention_days: 30,
+      enforce_auth_on_inference: true,
+      disable_content_logging: true,
+      drop_excess_requests: false,
+    });
   });
 
   it('shares a concurrent auth verification, without caching a later sandbox create', async () => {

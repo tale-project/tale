@@ -45,6 +45,7 @@ import {
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import {
+  agentRunWorkerNumber,
   cancelAgentRun,
   getAgentRunSandboxOp,
   getLatestAgentRunCardForTask,
@@ -1256,7 +1257,12 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         auth.organizationId,
         task.id,
       );
-      return c.json({ runs });
+      const listed: Array<(typeof runs)[number] & { worker?: number }> = runs;
+      for (const run of listed) {
+        const worker = agentRunWorkerNumber(run);
+        if (worker !== undefined) run.worker = worker;
+      }
+      return c.json({ runs: listed });
     } catch (error) {
       return handleError(c, error);
     }

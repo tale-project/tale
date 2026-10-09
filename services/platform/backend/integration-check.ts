@@ -81,6 +81,7 @@ import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
@@ -136,7 +137,9 @@ import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integrati
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
+import { checkAgentRunApiKeys } from './domains/tasks/agent-run-keys.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts';
 import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
@@ -8921,6 +8924,92 @@ async function checkKnowledge(
       `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
     );
 
+    // Embeddings are spend: the indexing above is booked under
+    // `__embedding__` as its uploader's, and a search as the searcher's. A
+    // reached limit parks the next file (`usage_limit`) and refuses the
+    // search with the coded 429; once the limit is lifted, the hourly pass
+    // puts the file back in the queue and it indexes.
+    const embeddingUsers = await sql<{ userId: string; requests: number }[]>`
+      SELECT user_id AS "userId", sum(request_count)::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = '__embedding__'
+        AND granularity = 'monthly'
+      GROUP BY user_id
+    `;
+    const quarterlyUploader = await sql<{ uploadedBy: string | null }[]>`
+      SELECT uploaded_by AS "uploadedBy" FROM app.file_metadata
+      WHERE id = ${quarterlyFileId}
+    `;
+    const { clearOrgConfigCaches: clearLimitCaches } =
+      await import('./lib/org-config.ts');
+    const limitGovernanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(limitGovernanceDir, { recursive: true });
+    const limitBudgetsFile = path.join(limitGovernanceDir, 'budgets.yml');
+    await writeFile(
+      limitBudgetsFile,
+      [
+        'enabled: true',
+        'rules:',
+        '  - scope: org',
+        '    period: monthly',
+        '    maxRequests: 1',
+      ].join('\n'),
+    );
+    clearLimitCaches();
+    let parkedCode: string | null = null;
+    let refusedSearch = { status: 0, code: '' };
+    let resumed = false;
+    let requeued = 0;
+    try {
+      const limited = await uploadTextDocument(
+        'limited.txt',
+        'The limit probe: a document uploaded while the usage limit is reached.',
+      );
+      await waitFor(
+        async () => (await ragRow(limited.fileId)).code === 'usage_limit',
+        20_000,
+      );
+      parkedCode = (await ragRow(limited.fileId)).code;
+      const refused = await send(
+        'POST',
+        `/api/app/knowledge/search?orgId=${orgId}`,
+        { query: 'verdigris zeppelin ledger', limit: 5 },
+      );
+      const refusedBody = z
+        .object({ error: z.string() })
+        .loose()
+        .safeParse(await refused.json());
+      refusedSearch = {
+        status: refused.status,
+        code: refusedBody.success ? refusedBody.data.error : 'ERR',
+      };
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+      const { requeueUsageLimitedFiles } =
+        await import('./domains/knowledge/usage-limit-resume.ts');
+      requeued = await requeueUsageLimitedFiles(sql);
+      resumed = await waitFor(
+        async () => (await ragRow(limited.fileId)).status === 'completed',
+        20_000,
+      );
+    } finally {
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+    }
+    record(
+      'knowledge embeddings are booked, wait at a reached limit, and resume once it lifts',
+      embeddingUsers.some(
+        (row) =>
+          row.userId === quarterlyUploader[0]?.uploadedBy && row.requests > 0,
+      ) &&
+        parkedCode === 'usage_limit' &&
+        refusedSearch.status === 429 &&
+        refusedSearch.code === 'BUDGET_EXCEEDED' &&
+        requeued >= 1 &&
+        resumed,
+      `embedding usage=${JSON.stringify(embeddingUsers)} (want the uploader with requests), parked=${parkedCode} (want usage_limit), search=${refusedSearch.status}/${refusedSearch.code} (want 429/BUDGET_EXCEEDED), requeued=${requeued} (want >= 1), resumed=${resumed}`,
+    );
+
     // Round h, h4 (S2): a document of one repeated passage is embedded once
     // per DISTINCT passage — its repeats are stored without a vector and
     // flagged, out of both legs — so it neither crowds the shared vector
@@ -15954,15 +16043,16 @@ async function checkGovernance(
     `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
   );
 
-  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
-  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // Budget scope alignment over the live 0.5 enforcer (`checkOrgBudget`,
+  // the shared gate every lane measures with): a default-tier
   // token cap is a PERSONAL cap, measured against the member's own usage;
   // a team rule is a SHARED cap, measured against the usage of the team's
   // CURRENT members with the team rule's own values — read through
   // membership, never the ledger's `team_id`, which most lanes do not book.
   // Two members whose combined tokens exceed the per-member cap must both
   // stay allowed; the team's own cost cap must still bind the aggregate.
-  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const { checkOrgBudget } =
+    await import('./domains/governance/budget-gate.ts');
   const teammate = 'itest-budget-teammate';
   await sql`
     INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
@@ -16041,9 +16131,9 @@ async function checkGovernance(
     prospectiveCostCents: 0,
     prospectiveRequests: 0,
   };
-  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  const mixedScopes = await checkOrgBudget(sql, budgetArgs);
   await seedTeamUsage(teammate, 0, 150);
-  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  const teamCapHit = await checkOrgBudget(sql, budgetArgs);
   await unlink(path.join(governanceDir, 'budgets.yml'));
   orgConfig.clearOrgConfigCaches();
   record(
@@ -24539,7 +24629,7 @@ async function checkTasksCollabIntegrity(
   // leg failing rejects (MENTION_DIRECTORY_UNAVAILABLE, 503) instead of
   // answering a partial directory that turns `@teammate` into plain text;
   // the healthy resolution still names the teammate.
-  const { MentionDirectoryError, resolveSurfaceMentions } =
+  const { MentionDirectoryError, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const instanceLegDown = Object.assign(
     (strings: TemplateStringsArray, ...values: unknown[]): unknown => {
@@ -24555,18 +24645,26 @@ async function checkTasksCollabIntegrity(
     },
     { json: sql.json.bind(sql), unsafe: sql.unsafe.bind(sql) },
   );
-  const degraded: unknown = await resolveSurfaceMentions(
+  const degraded: unknown = await prepareSurfaceText(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tag + json/unsafe stand-in over the real handle
     instanceLegDown as unknown as Sql,
-    { organizationId: orgId, body: `@${reviewer} please look`, projectId },
+    {
+      organizationId: orgId,
+      body: `@${reviewer} please look`,
+      projectId,
+      cap: 10_000,
+      mode: 'full',
+    },
   ).then(
     () => 'resolved',
     (error: unknown) => error,
   );
-  const healthy = await resolveSurfaceMentions(sql, {
+  const healthy = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: `@${reviewer} please look`,
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   // Typed against the module's export so the probe stays a plain FAIL (not
   // a crash) on a tree that has no `MentionDirectoryError` yet.
@@ -24648,26 +24746,25 @@ async function checkCollabMentions(
   `;
   const agentInstanceId = agentRows[0]?.id ?? '';
 
-  const { buildMentionDirectory, resolveSurfaceMentions } =
+  const { buildMentionDirectory, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const directory = await buildMentionDirectory(sql, {
     organizationId: orgId,
     projectId,
   });
-  const handleOwners = new Map<string, string>();
-  for (const entry of directory.entries) {
-    for (const handle of entry.handles) {
-      handleOwners.set(handle, `${entry.type}:${entry.id}`);
-    }
-  }
-  // The instance goes LAST so its handle wins a clash.
+  // The agent answers to its older name form as well as its handle.
+  const resolvedReviewer = directory.index.resolve('pr.reviewer');
   const instanceShadows =
-    handleOwners.get('pr.reviewer') === `agent:${agentInstanceId}`;
+    resolvedReviewer !== null &&
+    `${resolvedReviewer.kind}:${resolvedReviewer.id}` ===
+      `agent:${agentInstanceId}`;
 
-  const resolved = await resolveSurfaceMentions(sql, {
+  const resolved = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: '@mention-teammate-1 and @pr.reviewer please look; @nobody-here too',
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   const mentionKeys = resolved.mentions.map(
     (mention) => `${mention.type}:${mention.id}`,
@@ -24675,7 +24772,7 @@ async function checkCollabMentions(
   record(
     'mentions: the directory scopes to the project and resolves agent instances',
     directory.entries.some(
-      (entry) => entry.type === 'user' && entry.id === teammate,
+      (entry) => entry.kind === 'user' && entry.id === teammate,
     ) &&
       instanceShadows &&
       mentionKeys.includes(`user:${teammate}`) &&
@@ -54583,6 +54680,119 @@ async function checkArena(
     voteRows.length === 1 && voteRows[0]?.rating === 'negative',
     `rows=${voteRows.length} rating=${voteRows[0]?.rating}`,
   );
+
+  // ---- a comparison started in a new chat is named once ------------------
+  // Its first message lands in both columns while both are untitled: only
+  // the visible column queues a title, and that title names the visible
+  // column alone. A hidden column that wins takes its partner's name as it
+  // stands then — a rename included — and one that wins while its partner's
+  // title is still being made is named from its own first message.
+  const { setThreadTitleIfAbsent } = await import('./domains/chat/threads.ts');
+  const newPair = async (): Promise<{ a: string; b: string }> => {
+    const thread = z
+      .object({ id: z.string() })
+      .safeParse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, { kind: 'direct' })
+        ).json(),
+      );
+    const a = thread.success ? thread.data.id : '';
+    const pair = z
+      .object({ threadIdB: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${a}/arena/ensure?orgId=${orgId}`,
+            {},
+          )
+        ).json(),
+      );
+    return { a, b: pair.success ? pair.data.threadIdB : '' };
+  };
+  const titleOf = async (threadId: string): Promise<string | null> =>
+    (
+      await sql<{ title: string | null }[]>`
+        SELECT title FROM app.threads WHERE id = ${threadId}
+      `
+    )[0]?.title ?? null;
+  const titleJobsFor = async (threadIds: string[]): Promise<string[]> =>
+    (
+      await sql<{ threadId: string }[]>`
+        SELECT data ->> 'threadId' AS "threadId" FROM pgboss.job
+        WHERE name = 'chat.generate_title'
+          AND data ->> 'threadId' = ANY(${threadIds})
+      `
+    ).map((job) => job.threadId);
+  const openWith = async (pair: { a: string; b: string }): Promise<void> => {
+    for (const threadId of [pair.a, pair.b]) {
+      await appendMessageRow(sql, {
+        organizationId: orgId,
+        threadId,
+        role: 'user',
+        parts: [{ type: 'text', text: 'Plan the launch' }],
+        text: 'Plan the launch',
+        status: 'complete',
+      });
+    }
+  };
+  const settleForB = async (pair: { a: string; b: string }) =>
+    z
+      .object({ continueThreadId: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${pair.a}/arena/settle?orgId=${orgId}`,
+            { verdict: 'b_better' },
+          )
+        ).json(),
+      );
+
+  const named = await newPair();
+  await openWith(named);
+  const titleJobs = await titleJobsFor([named.a, named.b]);
+  await setThreadTitleIfAbsent(sql, orgId, named.a, 'Launch plan');
+  const namedTitles = [await titleOf(named.a), await titleOf(named.b)];
+
+  const renamed = await newPair();
+  await sql`
+    UPDATE app.threads SET title = 'Renamed launch' WHERE id = ${renamed.a}
+  `;
+  await seedArenaRoundReplies(sql, orgId, renamed.a, renamed.b);
+  const wonByB = await settleForB(renamed);
+  const winnerTitle = await titleOf(renamed.b);
+
+  // B wins before A's title is written: B queues its own, and A's title,
+  // landing late, names A alone.
+  const early = await newPair();
+  await openWith(early);
+  // A's title still being made: its job not run, A untitled.
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'chat.generate_title' AND data ->> 'threadId' = ${early.a}
+  `;
+  await sql`UPDATE app.threads SET title = NULL WHERE id = ${early.a}`;
+  await seedArenaRoundReplies(sql, orgId, early.a, early.b);
+  const wonEarly = await settleForB(early);
+  const earlyJobs = await titleJobsFor([early.b]);
+  await setThreadTitleIfAbsent(sql, orgId, early.a, 'Late title');
+  const earlyWinnerTitle = await titleOf(early.b);
+  record(
+    'arena: a comparison in a new chat queues one title, for its visible column; a winning hidden column takes its partner’s name, or queues its own while that is not written yet',
+    named.a !== '' &&
+      named.b !== '' &&
+      titleJobs.length === 1 &&
+      titleJobs[0] === named.a &&
+      namedTitles[0] !== null &&
+      namedTitles[1] === null &&
+      wonByB.success &&
+      wonByB.data.continueThreadId === renamed.b &&
+      winnerTitle === 'Renamed launch' &&
+      wonEarly.success &&
+      wonEarly.data.continueThreadId === early.b &&
+      earlyJobs.length === 1 &&
+      earlyWinnerTitle !== 'Late title',
+    `title jobs=${JSON.stringify(titleJobs.map((id) => (id === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want the visible column's, the hidden untitled), renamed pair's winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch"), early winner's title jobs=${earlyJobs.length} (want 1) and title after A's late one=${JSON.stringify(earlyWinnerTitle)} (want anything but "Late title")`,
+  );
 }
 
 async function checkGovernanceEnforcement(
@@ -62369,6 +62579,24 @@ async function main(): Promise<void> {
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
       [
+        'checkMentionHandles',
+        async () =>
+          checkMentionHandles(
+            sql,
+            {
+              ...authCtx,
+              base: baseUrl,
+              orgSlug: `itest-${orgSuffix}`,
+              restKey: await mintRestKey(
+                baseUrl,
+                authCtx.cookie,
+                'Mention handles proof',
+              ),
+            },
+            record,
+          ),
+      ],
+      [
         'checkTaskDescriptionMentions',
         () => checkTaskDescriptionMentions(sql, authCtx, record),
       ],
@@ -62507,6 +62735,10 @@ async function main(): Promise<void> {
         () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
       ],
       [
+        'checkAgentRunApiKeys',
+        () => checkAgentRunApiKeys(sql, baseUrl, authCtx, record),
+      ],
+      [
         'checkWorkerDrainHandOff',
         () => checkWorkerDrainHandOff(sql, boss, record),
       ],
@@ -62555,6 +62787,7 @@ async function main(): Promise<void> {
         'checkExecLimitPark',
         () => checkExecLimitPark(sql, baseUrl, authCtx, record),
       ],
+      ['checkAgentWorkers', () => checkAgentWorkers(sql, authCtx, record)],
       [
         'checkTaskRunConnectorCaller',
         () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),

@@ -77,6 +77,37 @@ function priceToCentsPerMillion(raw: unknown): number | undefined {
   return Math.round(dollarsPerToken * 1e8 * 1e6) / 1e6;
 }
 
+/** The most a duration-priced transcription can plausibly cost per second
+ * of audio, in USD — a listing above it means some other unit, and the
+ * entry stays unpriced rather than mispriced. */
+const MAX_TRANSCRIPTION_USD_PER_SECOND = 0.01;
+
+/**
+ * A speech-to-text entry's price per audio minute, in cents, when its
+ * listing bills by duration: OpenRouter publishes such a model's USD per
+ * second of audio as its `prompt` price, with a zero `completion` price.
+ * A token-billed model (a non-zero `completion`), an implausible per-second
+ * figure, or no price at all leaves the entry unpriced: its transcriptions
+ * count toward request limits only.
+ */
+function transcriptionCentsPerAudioMinute(
+  pricing: Record<string, unknown> | null,
+): number | undefined {
+  if (pricing === null) return undefined;
+  const perSecond = Number.parseFloat(String(pricing.prompt ?? ''));
+  const completion = Number.parseFloat(String(pricing.completion ?? '0'));
+  if (
+    !Number.isFinite(perSecond) ||
+    perSecond <= 0 ||
+    perSecond > MAX_TRANSCRIPTION_USD_PER_SECOND ||
+    !Number.isFinite(completion) ||
+    completion !== 0
+  ) {
+    return undefined;
+  }
+  return Math.round(perSecond * 60 * 100 * 1e6) / 1e6;
+}
+
 function positiveInt(value: unknown): number | undefined {
   const n = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
@@ -237,6 +268,9 @@ export function normalizeCatalogModel(
       : undefined;
 
   const pricing = isTranscription ? null : asRecord(m.pricing);
+  const centsPerAudioMinute = isTranscription
+    ? transcriptionCentsPerAudioMinute(asRecord(m.pricing))
+    : undefined;
   const inputCentsPerMillion = priceToCentsPerMillion(
     pricing?.prompt ?? pricing?.input,
   );
@@ -276,6 +310,9 @@ export function normalizeCatalogModel(
     ...(reportsReasoning && { reasoning: { knob: 'effort' as const } }),
     contextWindow,
     ...(maxOutputTokens !== undefined && { maxOutputTokens }),
+    ...(centsPerAudioMinute !== undefined && {
+      transcription: { centsPerAudioMinute },
+    }),
     ...(inputCentsPerMillion !== undefined &&
       outputCentsPerMillion !== undefined && {
         pricing: {

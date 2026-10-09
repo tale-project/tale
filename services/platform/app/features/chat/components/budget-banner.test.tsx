@@ -8,7 +8,9 @@ import { render, screen } from '@/tests/utils/render';
 
 interface TestBudgetWarning {
   code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
-  scope?: 'user' | 'org' | 'apiKey';
+  scope?: 'user' | 'org' | 'apiKey' | 'project';
+  projectId?: string;
+  projectName?: string | null;
   period: string;
   used: number;
   limit: number;
@@ -27,10 +29,15 @@ interface TestBudgetStatus {
 
 const budgetStatusMock = vi.hoisted(() => ({
   value: null as unknown,
+  /** The arguments of the last read. */
+  read: [] as unknown[],
 }));
 
 vi.mock('../../settings/governance/hooks/queries', () => ({
-  useMyBudgetStatus: () => ({ data: budgetStatusMock.value }),
+  useMyBudgetStatus: (...args: unknown[]) => {
+    budgetStatusMock.read = args;
+    return { data: budgetStatusMock.value };
+  },
 }));
 
 vi.mock('@tanstack/react-router', () => ({
@@ -249,6 +256,61 @@ describe('BudgetBanner', () => {
   ])('links to the usage page while a budget is %s', (_state, status) => {
     budgetStatusMock.value = status;
     render(<BudgetBanner organizationId="org-1" />);
+
+    expect(screen.getByRole('link', { name: 'View usage' })).toHaveAttribute(
+      'href',
+      '/dashboard/org-1/settings/usage',
+    );
+  });
+
+  it('names the project in a project chat, and reads the standing with the project [GOV-R6]', () => {
+    budgetStatusMock.value = {
+      ...WARNING_STATUS,
+      warnings: [
+        {
+          code: 'COST_WARNING',
+          scope: 'project',
+          projectId: 'project-1',
+          projectName: 'Website relaunch',
+          period: 'monthly',
+          used: 850,
+          limit: 1_000,
+          percent: 85,
+        },
+      ],
+    };
+    render(<BudgetBanner organizationId="org-1" projectId="project-1" />);
+
+    expect(budgetStatusMock.read).toEqual(['org-1', 'project-1']);
+    expect(
+      screen.getByText(
+        /Project Website relaunch: \$1\.50 of \$10\.00 cost left this month/,
+      ),
+    ).toBeInTheDocument();
+    // The usage page lists the reader's own caps, never a project's.
+    expect(screen.queryByRole('link', { name: 'View usage' })).toBeNull();
+  });
+
+  it('names the project whose reached limit blocks the chat [GOV-R14]', () => {
+    budgetStatusMock.value = {
+      ...EXCEEDED_STATUS,
+      scope: 'project',
+      projectId: 'project-1',
+      projectName: 'Website relaunch',
+    };
+    render(<BudgetBanner organizationId="org-1" projectId="project-1" />);
+
+    expect(
+      screen.getByText(
+        /Project Website relaunch: usage limit reached · resets monthly/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'View usage' })).toBeNull();
+  });
+
+  it('keeps the usage link while a warning is the reader’s own', () => {
+    budgetStatusMock.value = WARNING_STATUS;
+    render(<BudgetBanner organizationId="org-1" projectId="project-1" />);
 
     expect(screen.getByRole('link', { name: 'View usage' })).toHaveAttribute(
       'href',

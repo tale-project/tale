@@ -291,9 +291,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Done** → the first session's row reads **Done** without a reload. A chat
   that handed nothing over shows no such region.
 - [ ] `CHAT-F54` · **Every state of a handed-over task** — From one chat,
-  hand over tasks that end each way → a run queued while the organization's
-  sandbox slots are full reads **Waiting for a sandbox slot**
-  (`chat.taskTray.waitingForSlot`); a failed run the platform retries by
+  hand over tasks that end each way → a run waiting while every agent
+  worker of the organization is busy reads **Waiting for a worker**
+  (`tasks.agentRun.waiting.org_limit`); a failed run the platform retries by
   itself reads **Trying again…** (`chat.taskTray.retrying`), and one that
   stopped for good reads **The agent couldn't finish**
   (`chat.taskTray.failed`) on an amber-edged row; a task made with **Create
@@ -372,7 +372,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   (`chat.picker.ariaLabel`) now reads **Model B**'s name, so
   the next message goes to the model just judged better; reload → the
   picker shows the model saved before the round again (the switch is not
-  saved as the sticky pick)
+  saved as the sticky pick). Started in a new chat, the pair is named once:
+  **Usage analytics** counts one request under `thread-title` for it, and
+  after **B is better** the chat keeps that name
 - [ ] `CHAT-F25` · **Voice output (TTS)** — Toggle the composer's **Voice
   mode** (`chat.voice.voiceModeLabel`, `aria-pressed`; tooltips
   `chat.voice.voiceModeEnable` / `chat.voice.voiceModeDisable`); send (**mode

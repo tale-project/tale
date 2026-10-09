@@ -34,8 +34,8 @@ vi.mock('../../jobs/enqueue.ts', () => ({
 vi.mock('../audit_logs/service.ts', () => ({
   createAuditLog: vi.fn(() => Promise.resolve()),
 }));
-vi.mock('../tts/service.ts', () => ({
-  checkTtsBudget: vi.fn(() => Promise.resolve({ allowed: true })),
+vi.mock('../governance/direct-calls.ts', () => ({
+  directCallBlocked: vi.fn(() => Promise.resolve(null)),
 }));
 vi.mock('../../auth/membership.ts', () => ({
   findOrganizationMember: vi.fn(() => Promise.resolve(null)),

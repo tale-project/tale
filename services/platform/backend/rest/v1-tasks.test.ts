@@ -106,6 +106,10 @@ function mount(
     /** The deployed automation's task contract — none unless the case
      * says (a member starts only an automation built for tasks). */
     taskContract?: unknown;
+    /** The task's description — none unless the case says. */
+    taskDescription?: string;
+    /** The people a mention lookup finds, by id. */
+    mentionedUsers?: { id: string; name: string; email: string | null }[];
     /** Whose the task is — nobody's (an import's) unless the case says. */
     taskOwner?: {
       createdBy?: string;
@@ -142,6 +146,9 @@ function mount(
               {
                 ...task,
                 ...options.taskOwner,
+                ...(options.taskDescription !== undefined
+                  ? { description: options.taskDescription }
+                  : {}),
                 projectId:
                   (inTransaction ? options.taskProjectIdInTx : undefined) ??
                   options.taskProjectId ??
@@ -168,6 +175,9 @@ function mount(
               },
             ],
       );
+    }
+    if (text.includes('FROM "user" u')) {
+      return Promise.resolve(options.mentionedUsers ?? []);
     }
     if (text.includes('FROM app.folders')) {
       return Promise.resolve(
@@ -987,6 +997,7 @@ describe('project-scoped task reads and operations', () => {
           authorType: 'user',
           authorId: 'user-1',
           body: 'Filed.',
+          bodyText: 'Filed.',
           createdAt: 3,
         },
       ],
@@ -1038,6 +1049,39 @@ describe('project-scoped task reads and operations', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
       comments: [{ body: 'Geprüft.', bodyByLocale: bodies }],
+    });
+  });
+
+  it('reads mentions as stored in body and as current names in bodyText [COLLAB-R10]', async () => {
+    const body = '[@Ada Byron](mention:user/u-ada) please check, @mia';
+    service.listTaskComments.mockResolvedValue({
+      comments: [
+        {
+          messageId: 'comment-1',
+          authorType: 'user',
+          authorId: 'user-1',
+          body,
+          createdAt: 3,
+          editedAt: null,
+        },
+      ],
+      hasMore: false,
+      nextCursor: null,
+    });
+    const { request } = mount({
+      mentionedUsers: [{ id: 'u-ada', name: 'Ada Lovelace', email: null }],
+      taskDescription: '[@Ada Byron](mention:user/u-ada) owns this',
+    });
+    const comments = await request(`${item}/comments`);
+    expect(await comments.json()).toMatchObject({
+      comments: [{ body, bodyText: '@Ada Lovelace please check, @mia' }],
+    });
+    const read = await request(item);
+    expect(await read.json()).toMatchObject({
+      task: {
+        description: '[@Ada Byron](mention:user/u-ada) owns this',
+        descriptionText: '@Ada Lovelace owns this',
+      },
     });
   });
 

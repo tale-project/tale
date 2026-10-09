@@ -10,7 +10,7 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { incrementUsageLedger } from './service.ts';
+import { incrementUsageLedger, recordConnectorUsage } from './service.ts';
 
 function capturingSql(): {
   sql: Sql;
@@ -120,5 +120,49 @@ describe('incrementUsageLedger', () => {
       'project_2',
       'project_2',
     ]);
+  });
+
+  it('counts a connector call as one, never as a model request [GOV-R15]', async () => {
+    const { sql, statements, bindings } = capturingSql();
+    await recordConnectorUsage(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      agentSlug: 'invoices/monthly',
+      apiKeyId: 'key_1',
+      connectorName: 'gmail',
+      connectorOperation: 'send_message',
+      costEstimateCents: 0,
+      timestamp: Date.UTC(2026, 9, 8, 12),
+      projectIds: ['project_1'],
+    });
+
+    // The three ledger buckets alone: a project's buckets count requests,
+    // tokens and cost, and a connector call adds none of them.
+    expect(statements).toHaveLength(3);
+    for (const [index, text] of statements.entries()) {
+      expect(text).toContain('INSERT INTO app.usage_ledger');
+      expect(text).toContain(
+        'request_count = app.usage_ledger.request_count + EXCLUDED.request_count',
+      );
+      const values = bindings[index] ?? [];
+      // api_key_id, connector_name, connector_operation …
+      expect(values.slice(8, 11)).toEqual(['key_1', 'gmail', 'send_message']);
+      // … request_count 0, connector_call_count 1.
+      expect(values.slice(15, 17)).toEqual([0, 1]);
+    }
+  });
+
+  it('books a model call as one request by default', async () => {
+    const { sql, bindings } = capturingSql();
+    await incrementUsageLedger(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+      inputTokens: 1,
+      outputTokens: 1,
+      costEstimateCents: 1,
+      timestamp: Date.now(),
+    });
+    // request_count 1, connector_call_count 0.
+    expect(bindings[0]?.slice(15, 17)).toEqual([1, 0]);
   });
 });

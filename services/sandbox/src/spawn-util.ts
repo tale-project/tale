@@ -456,6 +456,23 @@ export async function dockerRm(
   return runDocker(['rm', '--force', containerName], { timeoutMs: 30_000 });
 }
 
+/**
+ * `docker stop -t <graceSeconds> <name>`: SIGTERM to the container's init,
+ * SIGKILL once the grace has passed. The CLI returns when the container has
+ * stopped, so its budget is the grace plus 15 s for the daemon to answer; a
+ * wedged one costs no more than that. Never rejects. A stop only prepares a
+ * removal: whatever it answers, the caller removes the container with
+ * {@link dockerRm}, whose result is the one that counts.
+ */
+export async function dockerStop(
+  containerName: string,
+  graceSeconds: number,
+): Promise<RunDockerResult> {
+  return runDocker(['stop', '-t', String(graceSeconds), containerName], {
+    timeoutMs: graceSeconds * 1000 + 15_000,
+  });
+}
+
 /** Did a `dockerRm` leave the object gone? A clean exit, or a "no such
  * container" refusal (already gone — the idempotent success). A timeout (124)
  * or any other daemon error is a FAILURE: the container may still be running. */

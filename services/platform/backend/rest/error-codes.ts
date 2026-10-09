@@ -116,6 +116,7 @@ export const REST_ERROR_CODES = [
   'KNOWLEDGE_ENTRY_STORE_TIMEOUT',
   'KNOWLEDGE_ENTRY_SUPERSEDED',
   'LEGAL_HOLD_ACTIVE',
+  'MENTION_DIRECTORY_UNAVAILABLE',
   'MESSAGE_NOT_FOUND',
   'METHOD_NOT_ALLOWED',
   // The model endpoints for API keys (`/api/v1/openai`, `/api/v1/anthropic`,

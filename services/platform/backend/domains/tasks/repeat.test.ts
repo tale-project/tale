@@ -48,6 +48,7 @@ vi.mock('./reviews.ts', () => ({
 vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
   kickAgentRun: vi.fn(),
+  withdrawWaitingAgentRunInTx: vi.fn(async () => false),
 }));
 vi.mock('../projects/service.ts', () => ({
   listProjects: vi.fn(),

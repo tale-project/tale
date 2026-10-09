@@ -29,6 +29,9 @@ Each organization also gets a separate pull-through mirror for `docker.io`,
 image copies are pinned by version and digest as well. The daemon and mirrors
 join only their organization's bridge, without published ports. Sessions also
 retain the shared control network for runnerd, Platform, and the model gateway.
+A session's inner Docker engine uses the `docker.io` mirror as its registry
+mirror too (`TALE_DOCKER_HUB_MIRROR`), so its own Docker Hub pulls share that
+cache.
 
 ## Keep build traffic isolated
 
@@ -42,7 +45,10 @@ allowed.
 Build RUN steps use the builder's network namespace. Its entrypoint installs
 transparent egress through the proxy and pins DNS to that proxy's current IP.
 Provisioning and adoption check for an absent or stale egress setup and recreate
-the affected builder with the same cache volume.
+the affected builder with the same cache volume. The marker, the live config and
+the proxy's current address are read in one `docker exec`; for a minute after a
+full check finds everything current, a create confirms with one inspect that
+neither the builder nor the proxy restarted or moved instead.
 
 The runtime selects a buildx builder whose name is derived from the full
 `TALE_BUILDKITD_ENDPOINT`, so a resumed workspace cannot reuse the old global
@@ -53,13 +59,26 @@ available in the session's inner Docker engine.
 ## Upgrade from the global cache
 
 New sessions start with organization-specific caches. Existing global volumes
-and buildx configuration are retained and are never imported into an
-organization's cache.
+and buildx configuration are never imported into an organization's cache.
 
 The spawner stops only the known global helper containers carrying the legacy
 `tale.buildkitd=1` ownership label, and only after no running, paused, restarting,
 or starting session still depends on the global endpoint. It checks during
-provisioning and maintenance. It does not remove their containers or volumes.
+provisioning and maintenance; only the maintenance sweep removes anything, so a
+session create never waits on a removal. Once those helpers have all been
+stopped longer than `SANDBOX_BUILDKITD_CACHE_RETENTION` (14 days by default;
+`off` keeps them), read from their stop times, and still no such session
+depends on the global endpoint, it removes exactly those containers, by the ids it just inspected
+them under, and the four legacy cache volumes `tale-buildkitd-cache`,
+`tale-buildkitd-mirror-cache-docker-io`, `tale-buildkitd-mirror-cache-ghcr-io`
+and `tale-buildkitd-mirror-cache-quay-io`. A container or volume qualifies only
+while it carries `tale.buildkitd=1` and no `tale.org` label; anything else is
+refused and logged, and every removal is logged. Until the retention could
+have passed, the spawner does not inspect them again. A legacy volume that
+cannot be removed once its helpers are gone (a Docker error or timeout) is
+tried again an hour later, for as long as the spawner runs. Volumes whose
+containers an operator already removed are left alone: their stop time cannot
+be read.
 
 Pinned legacy sessions must finish their work and stop before the old helpers
 can retire. Until that drain completes, the old global service remains reachable
@@ -72,17 +91,27 @@ for the operator to review.
 The builder runs privileged for its mount and namespace operations. Its private
 bridge and the egress firewall are required boundaries; the API has no separate
 client authentication. The GC policy in [buildkitd.toml](buildkitd.toml) caps
-each organization's cache at 20 GB (least recently used records go first) and,
-while the builder runs, prunes it further while the disk it shares with every
-session has less than 5% free, but never below 2 GB: each builder prunes its
+each organization's cache (least recently used records go first) and, while the
+builder runs, prunes it further while the disk it shares with every session has
+less than 5% free, but never below a floor. The shipped cap is 20 GB with a
+2 GB floor; the spawner replaces both at launch with `TALE_BUILDKITD_MAX_USED`
+and `TALE_BUILDKITD_RESERVED` (bytes): `SANDBOX_BUILDKITD_MAX_CACHE`, or a
+tenth of the session disk between 1 GiB and 20 GiB, and a tenth of that as the
+floor, at most 2 GiB, so N building organizations cannot hold N times 20 GB
+on a small disk. The floor matters because each builder prunes its
 own cache by the whole shortfall, so without that floor a disk other data
 filled would wipe every building organization's cache. Cache mounts, build
 contexts and git checkouts unused for two days go first. GC runs at start and
 about a minute after a build. Registry mirror storage is separate from the
-BuildKit cache.
+BuildKit cache, and only lasts while the organization builds: when its helpers
+stop for want of agent sessions, the spawner removes the three mirrors and
+their volumes (the builder's pruned cache keeps the base layers its builds
+used), and the next build recreates them empty.
 
 GC runs only in a running builder, and the spawner stops an organization's
-helpers once no agent session of it has run for the idle window. Right before
+helpers once no agent session of it has run for `SANDBOX_BUILDKITD_IDLE_MS`
+(10 minutes by default). The next build starts a stopped helper launched with
+the current image and settings again instead of recreating it. Right before
 that stop it prunes the builder's cache down to `SANDBOX_BUILDKITD_IDLE_CACHE`
 (5 GB by default) with `buildctl prune --all --keep-storage`, least recently
 used records first; the prune is bounded to two minutes, and one that fails is

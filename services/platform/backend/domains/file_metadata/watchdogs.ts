@@ -4,7 +4,7 @@ import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
 } from '../../core/knowledge/pool.ts';
-import { INDEX_PARKED_RAG_ERROR_CODES } from '../../core/knowledge/rag_error_codes.ts';
+import { PARKED_RAG_ERROR_CODES } from '../../core/knowledge/rag_error_codes.ts';
 import {
   HELD_BY_DOCUMENT_SQL,
   hintDocumentLists,
@@ -263,8 +263,10 @@ export async function recoverStuckRagIndexing(
   // the one read longest ago first, a row not read yet counting as read when
   // its run was queued, so a burst of fresh failures cannot starve the older
   // ones either. A row parked while its corpus's index is bad is left to the
-  // index health report: its re-queue skips a row another transaction holds
-  // (`FOR UPDATE SKIP LOCKED`), and a stamp holding it would leave it parked.
+  // index health report, and one parked by a usage limit to the hourly
+  // usage-limit re-queue: the index report's re-queue skips a row another
+  // transaction holds (`FOR UPDATE SKIP LOCKED`), and a stamp holding it
+  // would leave it parked.
   const candidates = await sql<RagCandidate[]>`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
            rag_status AS "ragStatus", rag_error AS "ragError",
@@ -277,7 +279,7 @@ export async function recoverStuckRagIndexing(
         OR (rag_status = 'failed'
           AND coalesce(status_changed_at_ms, created_at_ms) > ${failedAfter}
           AND (rag_error_code IS NULL
-            OR rag_error_code <> ALL(${[...INDEX_PARKED_RAG_ERROR_CODES]})))
+            OR rag_error_code <> ALL(${[...PARKED_RAG_ERROR_CODES]})))
       )
     ORDER BY (rag_status = 'failed'),
              CASE WHEN rag_status = 'failed'

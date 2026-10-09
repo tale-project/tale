@@ -506,7 +506,16 @@
       "sourcePath": "services/platform/backend/core/sandbox/session_naming.ts",
       "names": ["sessionIdForWorkflowExecution"],
       "blob": "ebd604f9b61d83cc33080db10b3d7eff944749b6",
-      "sha256": "8c5d8b86ced48b05704903573b0a69b47d3d6a124b3047f6756f34633dd41fc4"
+      "sections": [
+        {
+          "name": "fnv1a64Hex",
+          "sha256": "a17fad7c6be97350b4566068511a375b9b2d1ae13aad2f4cf929a1ac1d24060a"
+        },
+        {
+          "name": "sessionIdForWorkflowExecution",
+          "sha256": "8f553141d4b57197c10d9a127a6507cedabd5c95622d3f4e33dc0321f4edfda9"
+        }
+      ]
     },
     {
       "sourcePath": "services/platform/backend/core/sandbox/tool_names.ts",

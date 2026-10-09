@@ -54,12 +54,21 @@ export interface WorkflowTaskView {
   externalSystem?: string;
   externalId?: string;
   externalUrl?: string;
+  /** The description as stored, each mention a mention link. */
+  description?: string;
+  /** The same text with each mention as `@` and the current name of whoever
+   * it names. */
+  descriptionText?: string;
 }
 
 export interface WorkflowTaskComment {
   authorType: 'user' | 'agent';
   authorId: string;
+  /** The comment as stored, each mention a mention link. */
   body: string;
+  /** The same text with each mention as `@` and the current name of whoever
+   * it names. */
+  bodyText: string;
   bodyByLocale?: Record<string, string>;
   createdAt: number;
 }
@@ -198,27 +207,27 @@ interface WorkflowImportCursorSave {
 /** What `task.start_agent` answers: the run it started (or found), or why
  * it started none without failing — the task's live run already carries the
  * work, an in-place start met a card waiting for a person's review or a
- * closed one, the agent is busy on another task, an open dependency blocks
- * the task, or the task's circuit breaker is open. */
+ * closed one, an open dependency blocks the task, or the task's circuit
+ * breaker is open. An agent busy on other tasks is started all the same: its
+ * run works in a worker of its own, or waits for one (`waitingReason`). */
 export interface WorkflowAgentStart {
   started: boolean;
-  /** The run started, the one already working the task, or the agent's
-   * run on the other task (`agent_busy`); null when none applies. */
+  /** The run started, or the one already working the task; null when none
+   * applies. */
   runId: string | null;
   taskId: string;
   agentId: string;
-  reason?:
-    | 'already_running'
-    | 'in_review'
-    | 'closed'
-    | 'agent_busy'
-    | 'blocked'
-    | 'paused';
+  reason?: 'already_running' | 'in_review' | 'closed' | 'blocked' | 'paused';
   /** The step's first delivery started this run; this delivery found it. */
   replayed?: boolean;
+  /** A started run that waits for room instead of working yet, and why:
+   * `org_limit` (every agent worker of the organization is in use), `host`
+   * (the sandbox host is full), `destroy_pending` (its workspace is being
+   * deleted) or `exec_limit` (its sandbox is still ending an earlier
+   * process). It starts by itself once room frees. */
+  waitingReason?: 'org_limit' | 'host' | 'destroy_pending' | 'exec_limit';
   /** The closed card's status (`closed`): done or cancelled. */
   taskStatus?: string;
-  busyTaskId?: string;
   blockedBy?: string[];
   /** When the circuit breaker admits the next start (epoch ms). */
   retryAfter?: number;
@@ -516,10 +525,14 @@ export function platformTaskNatives(
     let window = all;
     if (afterMarker !== undefined) {
       // The marker names a delivery anchor; only what people said AFTER the
-      // last one counts as fresh feedback.
+      // last one counts as fresh feedback. Either form of the text counts: a
+      // marker may name someone, and the stored form holds that as a link.
       const lastAnchor = all.reduce(
         (found, entry, index) =>
-          entry.body.includes(afterMarker) ? index : found,
+          entry.body.includes(afterMarker) ||
+          entry.bodyText.includes(afterMarker)
+            ? index
+            : found,
         -1,
       );
       window = all.slice(lastAnchor + 1);
@@ -541,6 +554,7 @@ export function platformTaskNatives(
           authorType: entry.authorType,
           authorId: entry.authorId,
           body: entry.body,
+          bodyText: entry.bodyText,
           createdAt: entry.createdAt,
         };
         if (entry.bodyByLocale !== undefined)

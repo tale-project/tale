@@ -287,6 +287,37 @@ describe('normalizeCatalogModel', () => {
     },
   );
 
+  // A duration-billed speech-to-text model publishes its USD per audio
+  // second as its prompt price (Voxtral Mini: $0.001 a minute); a
+  // token-billed one, or an implausible per-second figure, stays unpriced
+  // and its transcriptions count toward request limits only.
+  it('prices a duration-billed OpenRouter STT model per audio minute, and nothing else', () => {
+    const stt = (pricing: Record<string, string>) =>
+      normalizeCatalogModel(
+        {
+          id: 'mistralai/voxtral-mini-3b-2507',
+          context_length: 0,
+          architecture: {
+            input_modalities: ['audio'],
+            output_modalities: ['transcription'],
+          },
+          pricing,
+        },
+        'openrouter',
+      );
+    expect(
+      stt({ prompt: '0.0000166667', completion: '0' })?.transcription,
+    ).toEqual({ centsPerAudioMinute: 0.1 });
+    // Token-billed (Gemini-style): no per-minute figure to read.
+    expect(
+      stt({ prompt: '0.000002', completion: '0.000012' }),
+    ).not.toHaveProperty('transcription');
+    // $0.10 a second is no plausible per-second rate.
+    expect(stt({ prompt: '0.1', completion: '0' })).not.toHaveProperty(
+      'transcription',
+    );
+  });
+
   it('keeps pure STT out of chat, vision, tools and reasoning selection', () => {
     const entry = normalizeCatalogModel(
       {

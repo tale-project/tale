@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 144 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 156 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -138,8 +138,8 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   (**Comment**, `tasks.actions.comment`) containing `@` → the mention listbox
   (`tasks.mentionPicker.title`) → pick a member; edit then delete a comment →
   The listbox offers only actors with project access (members + this project's
-  agents, `tasks.assignee.agents` section); the posted comment renders the
-  mention highlighted; a mentioned agent shows the preview chip **{slug} will
+  agents, `tasks.assignee.agents` section); the field shows the picked
+  member's name; the posted comment renders the mention as a chip; a mentioned agent shows the preview chip **{slug} will
   respond** (`tasks.mentionPreview.willRespond`); an edited comment is marked
   (`tasks.comment.edited`); delete confirms (`tasks.comment.deleteConfirm`);
   the conversation survives reload (`tasks.detail.conversation`). On a task assigned to
@@ -834,6 +834,32 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   the sum of the costs on the runs' lines in the conversation, in the board's
   dialog and on the task's page; reassign the task to a person → the total
   stays; a task whose runs cost nothing shows no such row.
+- [ ] `TASK-F78` · **Mention by name, saved as whom it names** — With a
+  project agent named "My Opus Agent #3" and a second member B, type
+  `@my opus` in a task comment → the listbox (`tasks.mentionPicker.title`)
+  offers the agent with the caption **@my-opus-agent-3 · Agents**
+  (`tasks.assignee.agents`), and `@my-opus-agent-3`, B's name and B's email
+  find them too; pick both → the field shows **@My Opus Agent #3** and B's
+  name on a tint, never an id or a handle; send → the comment shows both as
+  chips with those names (hovering the agent's shows its handle), B's bell
+  shows **You were mentioned** (`inbox.mention`), and a reload reads the same.
+- [ ] `TASK-F79` · **A rename follows every mention** — After TASK-F78, rename
+  the agent "Release Reviewer" on the project's Agents tab, then reopen the
+  task → the earlier comment, and a description that mentions the agent, read
+  **@Release Reviewer**; editing that comment shows the new name in the field;
+  `@release` in the composer finds the agent with the caption
+  **@release-reviewer**, and `@my-opus-agent-3` finds nobody.
+- [ ] `TASK-F80` · **Edit around mentions** — Edit a comment that mentions two
+  people → both names show on a tint; Backspace right after one removes the
+  whole name in one keystroke and a screen reader hears **Removed the mention
+  of {name}** (`mentions.removed`); typing inside the other turns it into plain
+  words (the tint goes); ⌘/Ctrl+Z brings the removed name back on its tint;
+  save → only a person the edit newly mentions gets a bell. Repeat on an
+  iPhone and on an Android phone with Gboard: the tint sits exactly on the
+  name while typing and scrolling, a deletion that reaches into a name removes
+  all of it, and an autocorrect never rewrites a name; with VoiceOver the
+  field reads as the plain text with the names, and keyboard-only picking
+  works.
 
 - [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
   lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with
@@ -861,6 +887,40 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Done** and the rail's count grows. Select the rail (**Expand Done**,
   `tasks.board.expandLane`) → the lane opens with its cards. Before the cards
   load, the placeholder already shows the rails.
+
+### One agent on several tasks
+
+These boxes need a project agent that can run, and an Owner or Admin who can
+set **Agent workers** (`sandboxes.quota.budgets.project`) under
+`/dashboard/{org}/settings/sandboxes`; leave it at 2 unless a box says
+otherwise. Mark them **ENVIRONMENT** without a runnable harness.
+
+- [ ] `TASK-F81` · **One agent works two tasks at once** — Start the same
+  agent on two tasks → both Run rows read **Working…**
+  (`tasks.agentRun.status.running`) at the same time and each task gets its
+  own report; on `/dashboard/{org}/settings/sandboxes` the agent has two
+  rows, its name over **Worker 1** and **Worker 2**
+  (`sandboxes.worker.agent`), each naming its own task under **Current
+  tasks** (`sandboxes.columns.task`).
+- [ ] `TASK-F82` · **A third start waits for a worker, then starts on its
+  own** — With both workers of `TASK-F81` busy, start the agent on a third
+  task → its Run row and its timeline row read **Waiting for a worker**
+  (`tasks.agentRun.waiting.org_limit`) with the sentence that all agent
+  workers are busy (`tasks.agentRun.waitingWhy.org_limit`), and no retry
+  caption appears. Let one of the first two finish → the third reads
+  **Working…** without a reload and without anyone pressing **Start agent**,
+  in the worker the finished run left: no **Worker 3** row appears. Start a
+  fourth task and, while it waits, press **Cancel run**
+  (`tasks.agentRun.cancel`) → it is cancelled without having worked; start
+  it again and, while it waits, assign the task to another agent → the
+  reassignment goes through and the waiting run is cancelled.
+- [ ] `TASK-F83` · **A manager starts a busy agent** — With the manager of
+  `TASK-F53`, while the second agent works one task, have the manager start
+  it on another → the answer is `started`, the second task's timeline lists
+  the delegated run (`tasks.agentRuns.trigger.delegated`) and shows no **Run
+  refused** (`tasks.activity.agentRunRefused`) row, and both tasks are
+  worked at once. Ask the manager to start itself on a further task → the
+  answer is `self_start` and nothing starts.
 
 ## Boundary & error tests
 
@@ -1250,6 +1310,32 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   second tab that still shows the task as it was before the archive gets one
   error toast for a comment it sends, and after reload nothing has landed.
   **Restore** (`tasks.actions.restore`) → the comment field is back.
+- [ ] `TASK-B50` · **Every waiting reason reads its own words** — Make
+  runs wait for each reason: every agent worker busy (`TASK-F82`), the
+  deployment full (lower `SANDBOX_MAX_SESSIONS` below the running sessions),
+  and the agent's only workspace being destroyed ([settings](settings.md)
+  `SET-B30`) → the Run row and the timeline row read **Waiting for a
+  worker**, **Waiting for room** and **Waiting for a workspace**
+  (`tasks.agentRun.waiting.org_limit`, `….host`, `….destroy_pending`), each
+  with its own sentence (`tasks.agentRun.waitingWhy.*`), in EN, DE and FR.
+  **Manage agent workers** (`tasks.agentRun.manageWorkers`) shows only under
+  the first, only for an Owner or Admin, and opens
+  `/dashboard/{org}/settings/sandboxes`; an Editor reads the same sentence
+  without the link.
+- [ ] `TASK-B51` · **A task's next run goes back to its worker** — On a
+  task the agent finished in **Worker 2**, ask for changes while Worker 2 is
+  free → the run works in Worker 2 again (its row on
+  `/dashboard/{org}/settings/sandboxes` names the task) and continues the
+  agent's conversation. Ask again while Worker 2 works another task → the
+  run takes another worker, starts fresh, and still has the task's
+  description, discussion, attachments and deliverables.
+- [ ] `TASK-B52` · **A member's two runs work in the member's own workers** —
+  As the Member of `TASK-F49`, start the agent on two of their own tasks at
+  once → both work; `/dashboard/{org}/settings/sandboxes` lists the agent
+  over **Member worker 1** and **Member worker 2**
+  (`sandboxes.worker.member`); each run keeps to its task without the
+  agent's secrets as in `TASK-F50`, and neither lands in a **Worker** row of
+  the agent's own.
 
 - [ ] `TASK-B41` · **Dates the server would refuse are named before Create** —
   **Create task** → keep today's start, pick a due date of yesterday → under the
@@ -1268,6 +1354,21 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   entry → the run's **Details** shows `knowledge_entry_write` refused as
   `member_run`, **Knowledge entries** is unchanged, and the agent's report says
   an editor must save the fact. The same request from an Editor's run saves it.
+- [ ] `TASK-B47` · **Mentions only where they read as mentions** — With B's
+  email name typed as a handle (B = Ada, so `@ada`), post a comment that
+  mentions B in a heading, a table cell, bold text and a list item, and also
+  holds `@ada` in inline code, `@ada` in a fenced code block, "Pay $5 to @ada
+  and $10" and `\@ada` → the heading, cell, bold, list and dollar-sentence
+  mentions render as chips with B's name; the code and the escaped one stay
+  literal text; no **Mention not recognized** toast
+  (`common.mentions.unresolvedTitle`) and no bell come from them.
+- [ ] `TASK-B48` · **A mention of someone gone never shows an id** — Mention a
+  project agent in a comment, then delete the agent; also open an older
+  comment that typed a deleted agent's id after `@` → both show a muted chip,
+  the first with the agent's name and the second reading **@Deleted agent**
+  (`tasks.timeline.deletedAgent`); hovering a chip names why it is muted, a
+  screen reader reads the reason after the name, and no id appears anywhere.
+  In light and dark themes the muted chip's text keeps AA contrast.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -1,16 +1,21 @@
 import type { Sql } from 'postgres';
 
+import { estimateTokens } from '../../../lib/chat/types.ts';
 import { EmptyReplyError } from '../../core/automations_builder/chat_wire';
 import { createBuilderModel } from '../../core/automations_builder/model_call';
 import {
-  pickDirectModel,
+  resolveDirectModel,
   type PreferredChatModel,
 } from '../../core/chat/generate_title';
 import type { ActionCtx } from '../../core/lib/ctx';
 import { internal } from '../../core/lib/handler_names';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
-import { createPgUsageLedger } from '../chat/store.ts';
+import {
+  openTokenCall,
+  releaseDirectCall,
+  settleTokenCall,
+} from '../governance/direct-calls.ts';
 import { ConversationError } from './service.ts';
 
 /**
@@ -67,10 +72,19 @@ export function buildImprovePrompt(args: {
   ];
 }
 
+/** The longest a rewrite may hold its worst case: its own deadline, with
+ * room to spare. */
+const IMPROVE_CALL_MAX_MS = IMPROVE_TIMEOUT_MS + 60_000;
+
 /**
  * Rewrites the draft. Refuses with `IMPROVE_UNAVAILABLE` (409) when no
- * direct-credentialed provider can serve a model in this organization, and
- * with `IMPROVE_FAILED` (502) when the provider answered nothing usable.
+ * direct-credentialed provider serves a model in this organization, with
+ * `IMPROVE_NO_MODEL_ACCESS` (403) when the models served are all closed to
+ * the writer by its model access rules, with `BUDGET_EXCEEDED` (429) when a limit that binds the
+ * writer has too little room for the rewrite's worst case — the call is a
+ * direct call (`governance/direct-calls.ts`), held against their limits
+ * while it runs and booked in its hold's place — and with `IMPROVE_FAILED`
+ * (502) when the provider answered nothing usable.
  */
 export async function improveConversationMessage(
   sql: Sql,
@@ -89,35 +103,67 @@ export async function improveConversationMessage(
     internal.user_preferences.queries.getChatModelInternal,
     { userId: args.userId, organizationId: args.organizationId },
   );
-  const target = await pickDirectModel(ctx, args.organizationId, preferred);
-  if (target === null) {
-    throw new ConversationError(
-      'IMPROVE_UNAVAILABLE',
-      'No AI provider can rewrite messages in this organization yet — connect one under Settings › AI providers',
-      409,
-    );
+  const picked = await resolveDirectModel(
+    ctx,
+    args.organizationId,
+    preferred,
+    args.userId,
+  );
+  if ('missing' in picked) {
+    throw picked.missing === 'model-access'
+      ? new ConversationError(
+          'IMPROVE_NO_MODEL_ACCESS',
+          'None of the models that could rewrite this message is open to you under the organization’s model access rules',
+          403,
+        )
+      : new ConversationError(
+          'IMPROVE_UNAVAILABLE',
+          'No AI provider can rewrite messages in this organization yet — connect one under Settings › AI providers',
+          409,
+        );
   }
-  const deadline = new AbortController();
-  const timer = setTimeout(() => deadline.abort(), IMPROVE_TIMEOUT_MS);
-  const ledger = createPgUsageLedger(sql);
+  const { target } = picked;
+  const messages = buildImprovePrompt(args);
+  const call = {
+    organizationId: args.organizationId,
+    provider: target.providerSlug,
+    model: target.modelId,
+  };
+  const admission = await openTokenCall(sql, {
+    ...call,
+    lane: 'improve',
+    subject: { userId: args.userId, agentSlug: IMPROVE_AGENT_SLUG },
+    promptTokens: estimateTokens(
+      messages.map((message) => message.content).join('\n'),
+    ),
+    maxOutputTokens: IMPROVE_MAX_OUTPUT_TOKENS,
+    maxDurationMs: IMPROVE_CALL_MAX_MS,
+  });
+  if (!admission.allowed) {
+    throw new ConversationError('BUDGET_EXCEEDED', admission.reason, 429);
+  }
+  const { lease } = admission;
   const book = async (usage: { prompt: number; completion: number }) => {
     // The call happened whether or not the reply was usable — the org paid
     // for it. Best-effort: a ledger failure must not cost the rewrite.
-    await ledger
-      .record({
-        organizationId: args.organizationId,
-        userId: args.userId,
-        agentSlug: IMPROVE_AGENT_SLUG,
-        model: target.modelId,
-        provider: target.providerSlug,
-        inputTokens: usage.prompt,
-        outputTokens: usage.completion,
-        totalTokens: usage.prompt + usage.completion,
-      })
-      .catch((error: unknown) => {
-        console.warn('[improveConversationMessage] usage write failed:', error);
-      });
+    await settleTokenCall(sql, lease, {
+      ...call,
+      inputTokens: usage.prompt,
+      outputTokens: usage.completion,
+    }).catch((error: unknown) => {
+      console.warn('[improveConversationMessage] usage write failed:', error);
+    });
   };
+  const release = async () => {
+    await releaseDirectCall(sql, lease).catch((error: unknown) => {
+      console.warn(
+        "[improveConversationMessage] releasing the call's hold failed; it lapses at its deadline:",
+        error,
+      );
+    });
+  };
+  const deadline = new AbortController();
+  const timer = setTimeout(() => deadline.abort(), IMPROVE_TIMEOUT_MS);
   try {
     const model = createBuilderModel(ctx, {
       organizationId: args.organizationId,
@@ -125,12 +171,23 @@ export async function improveConversationMessage(
       maxTokens: IMPROVE_MAX_OUTPUT_TOKENS,
       signal: deadline.signal,
     });
-    const reply = await model({
-      messages: buildImprovePrompt(args),
-      temperature: IMPROVE_TEMPERATURE,
-      turn: 1,
-    });
+    let reply: Awaited<ReturnType<typeof model>>;
+    try {
+      reply = await model({
+        messages,
+        temperature: IMPROVE_TEMPERATURE,
+        turn: 1,
+      });
+    } catch (error) {
+      if (error instanceof EmptyReplyError && error.usage !== undefined) {
+        await book(error.usage);
+      } else {
+        await release();
+      }
+      throw error;
+    }
     if (reply.usage !== undefined) await book(reply.usage);
+    else await release();
     const improved = reply.content.trim();
     if (improved.length === 0) {
       throw new ConversationError(
@@ -142,9 +199,6 @@ export async function improveConversationMessage(
     return { improvedMessage: improved };
   } catch (error) {
     if (error instanceof ConversationError) throw error;
-    if (error instanceof EmptyReplyError && error.usage !== undefined) {
-      await book(error.usage);
-    }
     console.error('[improveConversationMessage] model call failed:', error);
     throw new ConversationError(
       'IMPROVE_FAILED',

@@ -16,6 +16,11 @@ import { mintCursorFor, verifyCursorFor } from '../core/lib/signed_cursor.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
+  budgetRetryAfterSeconds,
+  type ChatBudgetExceededError,
+} from '../domains/chat/budget-admission.ts';
+import { MentionDirectoryError } from '../domains/collab/mention-directory.ts';
+import {
   DocumentError,
   type DocumentRow,
 } from '../domains/documents/service.ts';
@@ -286,6 +291,20 @@ export function domainErrorResponse(
   if (limited !== null) {
     return restRateLimited(c, limited);
   }
+  // Who a comment or a task description mentions could not be read: nothing
+  // was written, and the same request can be sent again — a 503, never the
+  // 500 an unmapped error becomes.
+  if (error instanceof MentionDirectoryError) {
+    noteRestErrorCode(error.code);
+    return c.json(
+      {
+        error:
+          'Who the text mentions could not be looked up, so nothing was saved. Send it again.',
+        code: error.code,
+      },
+      503,
+    );
+  }
   if (isDomainError(error)) {
     // Every domain error carries a client-mappable status; NOT_FOUND-ish
     // codes read as 404 rather than leaking existence semantics. A domain
@@ -301,6 +320,32 @@ export function domainErrorResponse(
     );
   }
   throw error;
+}
+
+/** A reached budget cap: 429 with the cap that binds in `data` — whose
+ * bucket, which period and limit, the usage and the limit, and when the
+ * period resets (epoch ms) — and that wait as `Retry-After`. */
+export function restBudgetExceeded(
+  c: Context<RestEnv>,
+  error: ChatBudgetExceededError,
+): Response {
+  const refusal = error.data;
+  c.header('Retry-After', String(budgetRetryAfterSeconds(refusal.resetsAt)));
+  return c.json(
+    {
+      error: refusal.message,
+      code: refusal.code,
+      data: {
+        scope: refusal.scope,
+        period: refusal.period,
+        limitCode: refusal.limitCode,
+        used: refusal.used,
+        limit: refusal.limit,
+        resetsAt: refusal.resetsAt,
+      },
+    },
+    429,
+  );
 }
 
 /** The `{data}` a domain error carries, when it is a plain object. */
@@ -1238,6 +1283,7 @@ export function readPageLimit(
  * own key reaches that project alone. */
 export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
   const owner = c.get('apiKeyOwner');
+  const apiKeyId = restApiKeyId(c);
   return getProjectAuthContext(
     sql,
     {
@@ -1246,9 +1292,14 @@ export async function restProjectAuth(sql: Sql, c: Context<RestEnv>) {
       role: c.get('role'),
     },
     undefined,
-    owner?.kind === 'project' && owner.projectId !== null
-      ? { projectScope: owner.projectId }
-      : {},
+    {
+      ...(owner?.kind === 'project' && owner.projectId !== null
+        ? { projectScope: owner.projectId }
+        : {}),
+      // What the caller starts — an agent's run from a start, a comment or
+      // a review — is the key's spend too.
+      ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+    },
   );
 }
 

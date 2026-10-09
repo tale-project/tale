@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 
+import { formatMentionToken } from '@tale/ui/mentions/mention-token';
 import type { Sql } from 'postgres';
 
 import { memberSessionIdForProjectAgent } from '../../core/sandbox/session_naming.ts';
@@ -661,13 +662,22 @@ export async function checkAgentTaskReadTools(
       SELECT count(*)::int AS n FROM app.project_agent_runs
       WHERE project_id = ${projectA}
     `;
-    const questionBody =
+    // The worker names the manager by its id; the comment stores whom it
+    // names, so it reads back with the manager's name in a mention link.
+    const questionText = (mention: string) =>
       `Routine question (key q-${suffix}, source run ${workerRun.runId}): ` +
-      `should the retry budget stay per task? @${manager} ` +
+      `should the retry budget stay per task? ${mention} ` +
       'Evidence: backend/core/tasks/task_auto_retry.ts.';
+    const questionBody = questionText(
+      formatMentionToken({
+        kind: 'agent',
+        id: manager,
+        label: 'Fleet manager',
+      }),
+    );
     const asked = await dispatch(workerRun.token, 'task_comment', {
       taskId: questionTask,
-      body: questionBody,
+      body: questionText(`@${manager}`),
     });
     const questionId = textAt(out(asked), 'messageId');
     await settle(workerRun.runId);
@@ -1221,9 +1231,12 @@ export async function checkAgentTaskReadTools(
     // ---- what stays a person's ---------------------------------------------
     // The answer names the task's own agent while nothing runs on the task:
     // the case in which a person's @mention starts a rework run.
-    const answerBody =
+    const answerText = (mention: string) =>
       `Answer (to comment ${questionId}, question q-${suffix}, source run ` +
-      `${workerRun.runId}): @${worker} yes, keep the budget per task.`;
+      `${workerRun.runId}): ${mention} yes, keep the budget per task.`;
+    const answerBody = answerText(
+      formatMentionToken({ kind: 'agent', id: worker, label: 'Implementer' }),
+    );
     const countRuns = async () =>
       (
         await sql<{ n: number }[]>`
@@ -1245,7 +1258,7 @@ export async function checkAgentTaskReadTools(
     const runsBeforeAnswer = await countRuns();
     const answered = await dispatch(m1, 'task_comment', {
       taskId: questionTask,
-      body: answerBody,
+      body: answerText(`@${worker}`),
     });
     const answerId = textAt(out(answered), 'messageId');
     const runsAfterAnswer = await countRuns();

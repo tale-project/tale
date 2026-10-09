@@ -4,6 +4,7 @@ import {
   taskAgentReviewReceiptSchema,
   taskReviewerSchema,
 } from '@tale/shared/schemas/task-review';
+import { mentionPlainText } from '@tale/ui/mentions/scan-mentions';
 import { ThreadEvent, ThreadEventActor } from '@tale/ui/thread/thread-event';
 import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -27,11 +28,13 @@ import {
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { MENTION_KINDS } from '@/lib/shared/mention-handles';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import {
   useTaskActorDirectory,
+  useTaskMentionActors,
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
 import {
@@ -52,6 +55,10 @@ import {
 } from '../utils/task-timeline';
 import { TaskActorName } from './task-actor-preview-popover';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
+import {
+  isAgentRunWaiting,
+  TaskAgentRunWaitingNote,
+} from './task-agent-run-waiting';
 import { TaskStatusGlyph } from './task-status-glyph';
 
 /** An agent run's cost, as the conversation and the details panel show it. */
@@ -177,6 +184,7 @@ function TaskTimelineEntryContent({
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
   } = useTaskActorDirectory(organizationId, projectId);
+  const mentions = useTaskMentionActors(organizationId, projectId);
   const { formatDate } = useFormatDate();
   const repeatLabel = useTaskRepeatLabel();
   const { never: repeatNever } = useRecurrenceFormat();
@@ -195,50 +203,61 @@ function TaskTimelineEntryContent({
         ? resolveActor('agent', run.delegatedByAgentId).name
         : undefined;
     return (
-      <ThreadEvent
-        className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
-        glyph={
-          <span
-            className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
-            aria-hidden
-          >
-            <Bot className="size-3" />
+      <>
+        <ThreadEvent
+          className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
+          glyph={
+            <span
+              className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
+              aria-hidden
+            >
+              <Bot className="size-3" />
+            </span>
+          }
+          time={<ThreadTime value={run.startedAt} format={timeFormat} />}
+          trailing={
+            <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
+          }
+        >
+          <ThreadEventActor>
+            <TaskActorName preview={agentPreview} name={agentPreview.name} />
+          </ThreadEventActor>{' '}
+          {t('timeline.runLabel')}
+          <span aria-hidden="true"> · </span>
+          <span>
+            {t(`agentRuns.trigger.${run.trigger}`)}
+            {run.durationMs !== undefined
+              ? ` · ${Math.round(run.durationMs / 1000)}s`
+              : ''}
+            {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
           </span>
-        }
-        time={<ThreadTime value={run.startedAt} format={timeFormat} />}
-        trailing={
-          <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
-        }
-      >
-        <ThreadEventActor>
-          <TaskActorName preview={agentPreview} name={agentPreview.name} />
-        </ThreadEventActor>{' '}
-        {t('timeline.runLabel')}
-        <span aria-hidden="true"> · </span>
-        <span>
-          {t(`agentRuns.trigger.${run.trigger}`)}
-          {run.durationMs !== undefined
-            ? ` · ${Math.round(run.durationMs / 1000)}s`
-            : ''}
-          {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
-        </span>
-        {workflowPreview ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            <TaskActorName
-              preview={workflowPreview}
-              name={workflowPreview.name}
+          {workflowPreview ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              <TaskActorName
+                preview={workflowPreview}
+                name={workflowPreview.name}
+              />
+            </>
+          ) : null}
+          {delegatorName !== undefined ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {t('timeline.startedByAgent')}{' '}
+              <TaskActorName preview={delegatorPreview} name={delegatorName} />
+            </>
+          ) : null}
+        </ThreadEvent>
+        {isAgentRunWaiting(run) ? (
+          // Why the run waits, under its line, in the sentence's column.
+          <div className="pl-8">
+            <TaskAgentRunWaitingNote
+              organizationId={organizationId}
+              reason={run.waitingReason}
             />
-          </>
+          </div>
         ) : null}
-        {delegatorName !== undefined ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            {t('timeline.startedByAgent')}{' '}
-            <TaskActorName preview={delegatorPreview} name={delegatorName} />
-          </>
-        ) : null}
-      </ThreadEvent>
+      </>
     );
   }
 
@@ -344,8 +363,16 @@ function TaskTimelineEntryContent({
         return key ? t(key) : value;
       }
       default:
-        // Titles, descriptions, label and file names, task keys: as stored.
-        return quoteActivityText(value);
+        // Titles, label and file names, task keys: as stored. A description
+        // reads its mentions as `@` and today's names.
+        return quoteActivityText(
+          entry.action === 'description.changed'
+            ? mentionPlainText(value, {
+                kinds: MENTION_KINDS,
+                nameOf: (ref) => mentions.byRef(ref)?.name,
+              })
+            : value,
+        );
     }
   };
   // Empty on both sides (an assignee cleared that was already clear) names no

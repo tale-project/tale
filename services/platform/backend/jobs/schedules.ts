@@ -97,6 +97,10 @@ export const SCHEDULES: CronSchedule[] = [
   // host down with it.
   { name: 'watchdog.transcriptions', cron: '*/5 * * * *' },
   { name: 'watchdog.rag_indexing', cron: '2-59/5 * * * *' },
+  // Knowledge work a usage limit parked: tried again hourly, as the limit
+  // may have reset or been raised (work still over it is parked again by
+  // its budget check, before any bytes are read).
+  { name: 'knowledge.resume_usage_limited', cron: '33 * * * *' },
   { name: 'watchdog.erasures', cron: '4-59/5 * * * *' },
   // Repeating tasks that continue on their due date: the next task appears
   // within five minutes of the due day's start in the rule's zone. Offset so

@@ -4,7 +4,10 @@ import { createServer, type Server, type RequestListener } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { InnerDockerHealth } from './inner-docker-health.ts';
+import {
+  type DockerEngineState,
+  InnerDockerHealth,
+} from './inner-docker-health.ts';
 
 const servers: Server[] = [];
 const roots: string[] = [];
@@ -214,6 +217,52 @@ describe('inner Docker readiness', () => {
       });
     },
   );
+
+  test.each<
+    [string | undefined, { engine: DockerEngineState; used: boolean }?]
+  >([
+    ['cold', { engine: 'cold', used: false }],
+    ['running', { engine: 'running', used: true }],
+    ['stopped', { engine: 'stopped', used: true }],
+    ['warm', undefined],
+    [undefined, undefined],
+  ])(
+    'the supervisor engine state %s reaches the snapshot as %j',
+    async (header, docker) => {
+      const { socketPath } = await engine((_req, res) => {
+        res.setHeader('x-tale-docker-recovery-required', 'false');
+        if (header !== undefined) res.setHeader('x-tale-docker-engine', header);
+        res.end('OK');
+      });
+      expect(
+        await new InnerDockerHealth(true, {
+          socketPath,
+          supervisor: true,
+        }).snapshot(),
+      ).toEqual({
+        dockerReady: true,
+        dockerRecoveryRequired: false,
+        ...(docker ? { docker } : {}),
+      });
+    },
+  );
+
+  test('an engine state on a response the supervisor did not validate is ignored', async () => {
+    const { socketPath } = await engine((_req, res) => {
+      res.setHeader('x-tale-docker-engine', 'running');
+      res.end('OK');
+    });
+    for (const supervisor of [true, false]) {
+      expect(
+        (
+          await new InnerDockerHealth(true, {
+            socketPath,
+            supervisor,
+          }).snapshot()
+        ).docker,
+      ).toBeUndefined();
+    }
+  });
 
   test('recovery permission is never reused from the supervisor cache after it becomes healthy', async () => {
     let available = false;

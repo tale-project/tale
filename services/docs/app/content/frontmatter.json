@@ -722,7 +722,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Projektagenten erstellen und verwalten",
-      "description": "Konfiguriere einen wiederverwendbaren Agenten, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis."
+      "description": "Konfiguriere einen Agenten für die Aufgaben eines Projekts, vergib seine Ausstattung und starte eine Aufgabe mit prüfbarem Ergebnis."
     }
   },
   "de:platform/projects/task-automation": {
@@ -1874,7 +1874,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Create and manage project agents",
-      "description": "Configure a reusable worker, grant its equipment and start a task whose result you can review."
+      "description": "Configure an agent for a project's tasks, grant its equipment and start a task whose result you can review."
     }
   },
   "en:platform/projects/task-automation": {
@@ -3026,7 +3026,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Créer et gérer des agents de projet",
-      "description": "Configure un agent réutilisable, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat."
+      "description": "Configure un agent pour les tâches d’un projet, accorde son équipement et démarre une tâche dont tu peux vérifier le résultat."
     }
   },
   "fr:platform/projects/task-automation": {

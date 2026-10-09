@@ -8,6 +8,10 @@ import {
 } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
 import {
   defaultTaskLabelColor,
@@ -38,14 +42,20 @@ import {
 } from '../../core/tasks/audit_actions.ts';
 import {
   TASK_ATTACHMENTS_MAX,
+  TASK_DESCRIPTION_MAX,
   taskDescriptionRefusal,
   taskLabelCountRefusal,
   taskLabelNameRefusal,
   taskTitleRefusal,
 } from '../../core/tasks/helpers.ts';
 import {
+  cutTaskText,
+  descriptionMentionMode,
+  editIntroducesMentions,
+  MENTION_URL_SQL_PATTERN,
   type MentionSource,
-  parseMentionTokens,
+  type ResolvedMention,
+  taskMentionPlainText,
 } from '../../core/tasks/mentions.ts';
 import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
@@ -54,7 +64,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
+import {
+  currentMentionNames,
+  prepareSurfaceText,
+} from '../collab/mention-directory.ts';
 import {
   autoSubscribe,
   dismissReviewerAssignedNotifications,
@@ -74,9 +87,13 @@ import {
 } from '../projects/service.ts';
 import { readStandardAgentAvailability } from '../projects/standard-agent.ts';
 import {
+  agentRunWorkerNumber,
   cancelAgentRunInTx,
   isStandardAgentRefusal,
   kickAgentRun,
+  parkedRunSql,
+  parkedWaitingReasonSql,
+  withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
 import { assertAutomationForTask } from './automation-access.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
@@ -1346,7 +1363,7 @@ export async function createTask(
   assertTaskCreatable(project, auth);
 
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const labelIds = await resolveProjectLabels(tx, {
     organizationId: auth.organizationId,
     projectId: args.projectId,
@@ -1409,6 +1426,21 @@ export async function createTask(
       throw new TaskError('TASK_PARENT_ARCHIVED', 'Parent archived');
     }
   }
+
+  // The description is stored with its mentions as whom they name, before
+  // the row is written.
+  const prepared =
+    sentDescription === undefined ||
+    !editIntroducesMentions(sentDescription, '')
+      ? undefined
+      : await prepareSurfaceText(tx, {
+          organizationId: auth.organizationId,
+          projectId: args.projectId,
+          body: sentDescription,
+          cap: TASK_DESCRIPTION_MAX,
+          mode: 'full',
+        });
+  const description = prepared?.text ?? sentDescription;
 
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
@@ -1503,11 +1535,12 @@ export async function createTask(
   }
   // After the In progress kick, so an agent the card was born working for
   // keeps its run: one engine per task, and the dispatcher yields to it.
-  if (description !== undefined) {
+  if (prepared !== undefined && description !== undefined) {
     await fanOutDescriptionMentions(tx, auth, {
       taskId,
       project,
       description,
+      added: prepared.added,
     });
   }
   // Before the review gate: a named agent put to work moves the card to In
@@ -1652,12 +1685,31 @@ export async function updateTaskInstructionsConfiguration(
     expectedHash,
   );
   if ((task.description ?? '') === description) return;
+  // Stored exactly as sent, so the hash the caller reads back is the one it
+  // wrote; a mention token it adds must still name someone who can be
+  // mentioned on the task.
+  const check = await prepareSurfaceText(tx, {
+    organizationId: auth.organizationId,
+    projectId: config.projectId,
+    body: description,
+    cap: TASK_DESCRIPTION_MAX,
+    mode: 'verbatim',
+    previousBody: task.description ?? '',
+  });
+  if (check.invalidTokens.length > 0) {
+    throw new TaskError(
+      'TASK_MENTION_INVALID',
+      'The description mentions someone who cannot be mentioned on this task.',
+      400,
+      { mentions: check.invalidTokens },
+    );
+  }
   await updateTaskFields(
     tx,
     auth,
     { taskId: config.taskId, description },
     undefined,
-    { notifyDescriptionMentions: false },
+    { notifyDescriptionMentions: false, storeVerbatim: true },
   );
 }
 
@@ -1676,7 +1728,12 @@ async function updateTaskFields(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
   agentId?: string,
-  options: { notifyDescriptionMentions?: boolean } = {},
+  options: {
+    notifyDescriptionMentions?: boolean;
+    /** Store the description exactly as sent (the managed lane, which has
+     * checked its mentions itself). */
+    storeVerbatim?: boolean;
+  } = {},
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
@@ -1704,11 +1761,32 @@ async function updateTaskFields(
     }
   }
   let description = task.description;
+  let addedMentions: ResolvedMention[] = [];
   if (args.description !== undefined) {
     description =
       args.description === null
         ? null
         : (validateDescription(args.description) ?? null);
+    // An edit is a new write: what it adds is stored as whom it names, while
+    // the mentions already there stay as written. Most edits add none, and
+    // then no directory is built.
+    if (
+      description !== null &&
+      description !== task.description &&
+      options.storeVerbatim !== true &&
+      editIntroducesMentions(description, task.description ?? '')
+    ) {
+      const prepared = await prepareSurfaceText(tx, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        body: description,
+        cap: TASK_DESCRIPTION_MAX,
+        mode: descriptionMentionMode(task.externalSystem),
+        previousBody: task.description ?? '',
+      });
+      description = prepared.text;
+      addedMentions = prepared.added;
+    }
     if (description !== task.description) {
       previousState.description = task.description;
       newState.description = description;
@@ -2000,7 +2078,7 @@ async function updateTaskFields(
       taskId: task.id,
       project,
       description,
-      previousDescription: task.description ?? '',
+      added: addedMentions,
     });
   }
 }
@@ -2428,6 +2506,7 @@ async function kickAssignedAgentRun(
       ? { modelProvider: agent.modelProvider }
       : {}),
     startedBy: auth.userId,
+    ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
     trigger: 'manual',
   });
 }
@@ -2498,7 +2577,7 @@ export async function agentCreateTaskTrusted(
     throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
   }
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const status = args.status ?? 'backlog';
 
   if (args.parentTaskId !== undefined) {
@@ -2527,6 +2606,20 @@ export async function agentCreateTaskTrusted(
       createdBy: args.actorId,
       createIfMissing: args.mintLabels ?? true,
     })) ?? [];
+  // An agent's description stores its mentions as whom they name, as a
+  // person's does; it notifies nobody, as before.
+  const description =
+    sentDescription === undefined
+      ? undefined
+      : (
+          await prepareSurfaceText(tx, {
+            organizationId: args.organizationId,
+            projectId: args.projectId,
+            body: sentDescription,
+            cap: TASK_DESCRIPTION_MAX,
+            mode: 'full',
+          })
+        ).text;
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
   const number = await nextTaskNumber(tx, args.projectId);
@@ -2861,7 +2954,9 @@ export async function agentUpdateTaskPriorityTrusted(
  * `workflow` sentinel) as the actor: the assignee, the activity line, the
  * audit row (`viaAgent`, as the agent's other writes) and the assignment
  * bells. A live run holds the task for its current worker, so a transfer
- * under one is refused exactly as the picker refuses it.
+ * under one is refused exactly as the picker refuses it — unless that run
+ * still waits for a worker and never launched: then the transfer withdraws
+ * it, as the picker's does.
  */
 export async function agentAssignTaskToAgentTrusted(
   tx: TransactionSql,
@@ -2876,6 +2971,7 @@ export async function agentAssignTaskToAgentTrusted(
           assigneeId: args.agentId,
         };
   if (!assigneeChanges(task, assignee)) return;
+  await withdrawWaitingAgentRunInTx(tx, task);
   if (await taskHasLiveRun(tx, task)) {
     throw new TaskError(
       'TASK_HAS_LIVE_RUN',
@@ -3052,13 +3148,17 @@ export async function assignTask(
   // in_review park) a card that now shows someone else's name, and "Run
   // agent" answering already_running for the wrong agent. The refusal
   // names itself — the picker cancels the run first, then reassigns (its
-  // confirmed-handoff flow).
-  if (assigneeChanges(task, assignee) && (await taskHasLiveRun(tx, task))) {
-    throw new TaskError(
-      'TASK_HAS_LIVE_RUN',
-      'A live run holds this task; cancel it before reassigning',
-      409,
-    );
+  // confirmed-handoff flow). A run that still waits for a worker and never
+  // launched has done nothing yet: the reassignment withdraws it instead.
+  if (assigneeChanges(task, assignee)) {
+    await withdrawWaitingAgentRunInTx(tx, task);
+    if (await taskHasLiveRun(tx, task)) {
+      throw new TaskError(
+        'TASK_HAS_LIVE_RUN',
+        'A live run holds this task; cancel it before reassigning',
+        409,
+      );
+    }
   }
 
   await tx`
@@ -4009,7 +4109,8 @@ export async function listTaskActivity(
   return rows;
 }
 
-/** The head of a description, never cut inside a character. */
+/** The head of a description, never cut inside a character or inside a
+ * mention, whose reader would otherwise show half its address. */
 function quoteDescription(value: string | null): string | null {
   if (value === null || value.length <= ACTIVITY_DESCRIPTION_QUOTE_MAX) {
     return value;
@@ -4017,7 +4118,7 @@ function quoteDescription(value: string | null): string | null {
   const end = ACTIVITY_DESCRIPTION_QUOTE_MAX;
   // A high surrogate at the cut opens a pair the cut would split.
   const code = value.charCodeAt(end - 1);
-  return value.slice(0, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
+  return cutTaskText(value, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
 }
 
 // ---------------------------------------------------------------------------
@@ -4026,6 +4127,22 @@ function quoteDescription(value: string | null): string | null {
 
 const SEARCH_MAX_RESULTS = 25;
 const SEARCH_SNIPPET_MAX = 600;
+/** How much of a text a snippet is read from: room for its 600 characters
+ * once markdown and mentions are read, without parsing a whole description
+ * of up to 20,000 characters for every hit of every palette query. */
+const SEARCH_SNIPPET_SOURCE_MAX = SEARCH_SNIPPET_MAX * 4;
+
+/** The head of a text a snippet is read from. A cut through a mention link
+ * drops that mention instead of leaving its address to be read as text. */
+function searchSnippetSource(text: string): string {
+  if (text.length <= SEARCH_SNIPPET_SOURCE_MAX) return text;
+  const head = text.slice(0, SEARCH_SNIPPET_SOURCE_MAX);
+  const open = head.lastIndexOf('[@');
+  if (open === -1 || /\]\(mention:[^)\s]*\)/.test(head.slice(open))) {
+    return head;
+  }
+  return head.slice(0, open);
+}
 
 /**
  * A search query's `LIKE ALL` patterns: its whitespace-separated tokens,
@@ -4043,11 +4160,16 @@ export function taskSearchPatterns(query: string): string[] {
 
 /**
  * A task's own fields hold every token: title, description, external id and
- * `KEY-number`, read together. `t` is the `app.tasks` row.
+ * `KEY-number`, read together. `t` is the `app.tasks` row. A mention in the
+ * description counts by the name it was saved with, never by its address
+ * (`mention:agent/<id>`), so "agent" does not find every task that mentions
+ * one; a mention of someone renamed since is found by the older name only.
  */
 function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   return sql`lower(
-    t.title || ' ' || coalesce(t.description, '') || ' ' ||
+    t.title || ' ' ||
+    regexp_replace(coalesce(t.description, ''), ${MENTION_URL_SQL_PATTERN},
+                   ']', 'g') || ' ' ||
     coalesce(t.external_id, '') || ' ' ||
     coalesce(
       (SELECT p.key FROM app.projects p WHERE p.id = t.project_id) || '-' ||
@@ -4057,9 +4179,10 @@ function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   ) LIKE ALL(${patterns})`;
 }
 
-/** One discussion comment holds every token; `m` is its `app.messages` row. */
+/** One discussion comment holds every token; `m` is its `app.messages` row.
+ * Its mentions count by name, as in {@link taskFieldsSearchMatch}. */
 function commentSearchMatch(sql: Sql, patterns: string[]) {
-  return sql`lower(coalesce(m.text, '')) LIKE ALL(${patterns})`;
+  return sql`lower(regexp_replace(coalesce(m.text, ''), ${MENTION_URL_SQL_PATTERN}, ']', 'g')) LIKE ALL(${patterns})`;
 }
 
 /**
@@ -4156,6 +4279,9 @@ export async function searchTasks(
   `;
   const seen = new Set(fieldHits.map((hit) => hit.taskId));
 
+  // A snippet reads each mention as the CURRENT name of whoever it names,
+  // and is cut after that, so it never ends in half a mention.
+  let names: Map<string, string> = new Map();
   const toHit = (hit: FieldHit, snippetSource: string): TaskSearchHit => {
     const key = projectKeys.get(hit.projectId) ?? null;
     const row: TaskSearchHit = {
@@ -4163,7 +4289,9 @@ export async function searchTasks(
       projectId: hit.projectId,
       title: hit.title,
       status: hit.status,
-      snippet: snippetSource.trim().slice(0, SEARCH_SNIPPET_MAX),
+      snippet: taskMentionPlainText(searchSnippetSource(snippetSource), names)
+        .trim()
+        .slice(0, SEARCH_SNIPPET_MAX),
       updatedAt: hit.updatedAt,
     };
     if (hit.number !== null) row.number = hit.number;
@@ -4172,6 +4300,13 @@ export async function searchTasks(
     if (archivedProjectIds.has(hit.projectId)) row.projectArchived = true;
     return row;
   };
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    fieldHits.flatMap((hit) =>
+      hit.description === null ? [] : [searchSnippetSource(hit.description)],
+    ),
+  );
   const results: TaskSearchHit[] = fieldHits.map((hit) =>
     toHit(hit, hit.description ?? hit.title),
   );
@@ -4193,6 +4328,11 @@ export async function searchTasks(
                m.created_at_ms DESC
       LIMIT ${SEARCH_MAX_RESULTS}
     `;
+    names = await currentMentionNames(
+      sql,
+      auth.organizationId,
+      commentHits.map((hit) => searchSnippetSource(hit.body)),
+    );
     for (const hit of commentHits) {
       if (results.length >= SEARCH_MAX_RESULTS) break;
       if (seen.has(hit.taskId)) continue;
@@ -4387,30 +4527,14 @@ async function fanOutDescriptionMentions(
   args: {
     taskId: string;
     project: ProjectRow;
+    /** The description as stored. */
     description: string;
-    /** The text an edit replaces; absent on create. */
-    previousDescription?: string;
+    /** Who the text names that it did not before (`prepareSurfaceText`): on
+     * create, everyone it names. */
+    added: ResolvedMention[];
   },
 ): Promise<void> {
-  // Most descriptions name nobody, and most edits add no `@token`: the token
-  // pre-check keeps the directory build (an org-wide member scan, and more
-  // reads for a SERIALIZABLE save to conflict on) off both. Resolution maps
-  // each token on its own, so a text whose tokens the replaced text already
-  // had resolves to nobody new — the answer a build would give.
-  const tokens = parseMentionTokens(args.description);
-  if (tokens.length === 0) return;
-  if (args.previousDescription !== undefined) {
-    const before = new Set(parseMentionTokens(args.previousDescription));
-    if (tokens.every((token) => before.has(token))) return;
-  }
-  const { added } = await resolveSurfaceMentions(tx, {
-    organizationId: auth.organizationId,
-    projectId: args.project.id,
-    body: args.description,
-    ...(args.previousDescription !== undefined
-      ? { previousBody: args.previousDescription }
-      : {}),
-  });
+  const added = args.added;
   if (added.length === 0) return;
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   await dispatchMentionedProjectAgent(tx, {
@@ -4574,6 +4698,9 @@ export async function dispatchMentionedProjectAgent(
       mentionSource: args.source,
       author,
       authorId: args.authorId,
+      ...(args.auth.apiKeyId !== undefined
+        ? { authorApiKeyId: args.auth.apiKeyId }
+        : {}),
       attempt: 0,
     });
     return;
@@ -4656,6 +4783,9 @@ export async function dispatchMentionedProjectAgent(
           ? { modelProvider: agent.modelProvider }
           : {}),
         startedBy: args.auth.userId,
+        ...(args.auth.apiKeyId !== undefined
+          ? { apiKeyId: args.auth.apiKeyId }
+          : {}),
         trigger: 'mention',
         mentionSource: args.source,
         ...(args.source === 'comment' ? { feedback: args.text } : {}),
@@ -4746,6 +4876,7 @@ export async function startTaskAgentRunManual(
       ? { modelProvider: agent.modelProvider }
       : {}),
     startedBy: auth.userId,
+    ...(auth.apiKeyId !== undefined ? { apiKeyId: auth.apiKeyId } : {}),
     trigger: 'manual',
   });
   if (kicked.reused) {
@@ -4829,6 +4960,25 @@ export async function deferredAgentKickRefusal(
 const TASK_OPS_INDICATOR_CAP = 50;
 const TASK_OPS_RUN_SCAN_CAP = 100;
 
+/** One live agent run, as the board shows it beside its card. */
+export interface TaskOpsRun {
+  taskId: string;
+  runId: string;
+  agentId: string;
+  status: 'queued' | 'running';
+  /** It waits for room: a worker, the host, a Destroy, or its sandbox. */
+  waiting: boolean;
+  /** Why it waits, while it waits and a reason was kept. */
+  waitingReason?: AgentRunWaitingReason;
+  /** When it was asked for. */
+  startedAt: number;
+  /** When it began work in its sandbox. */
+  launchedAt?: number;
+  /** The worker it works in, once it took one: its number among the
+   * agent's workers (or the member's, for a run a member started). */
+  worker?: number;
+}
+
 export interface TaskOpsIndicators {
   runningTaskIds: string[];
   askingTaskIds: string[];
@@ -4838,6 +4988,69 @@ export interface TaskOpsIndicators {
     requestedFor?: string;
     reviewer: TaskReviewRecipient | null;
   }[];
+  /** Live agent runs, running first, then waiting and queued ones oldest
+   * first; at most {@link TASK_OPS_INDICATOR_CAP}. */
+  runs: TaskOpsRun[];
+  /** More live runs exist than `runs` lists. A card whose task is missing
+   * from a truncated list may still have a run, waiting or working: read it
+   * as unknown, never as idle, and count the list as "50+". */
+  runsTruncated: boolean;
+}
+
+/** The live agent runs of the given projects (`TaskOpsIndicators.runs`):
+ * one bounded read, the cap plus one row to tell a truncated list. */
+async function readLiveAgentRuns(
+  sql: Sql,
+  organizationId: string,
+  projectIds: readonly string[],
+): Promise<Pick<TaskOpsIndicators, 'runs' | 'runsTruncated'>> {
+  const rows = await sql<
+    {
+      runId: string;
+      taskId: string;
+      agentId: string;
+      status: 'queued' | 'running';
+      sessionId: string;
+      sessionClaimedAt: number | null;
+      waitingForCapacityAt: number | null;
+      waiting: boolean;
+      waitingReason: string | null;
+      startedAt: number;
+      launchedAt: number | null;
+    }[]
+  >`
+    SELECT id AS "runId", task_id AS "taskId", agent_id AS "agentId", status,
+           session_id AS "sessionId",
+           session_claimed_at_ms::float8 AS "sessionClaimedAt",
+           waiting_for_capacity_at_ms::float8 AS "waitingForCapacityAt",
+           ${sql.unsafe(parkedRunSql())} AS waiting,
+           ${sql.unsafe(parkedWaitingReasonSql())} AS "waitingReason",
+           started_at_ms::float8 AS "startedAt",
+           launched_at_ms::float8 AS "launchedAt"
+    FROM app.project_agent_runs
+    WHERE org_id = ${organizationId} AND project_id = ANY(${projectIds})
+      AND status IN ('queued', 'running')
+    ORDER BY (status = 'running') DESC, started_at_ms, seq
+    LIMIT ${TASK_OPS_INDICATOR_CAP + 1}
+  `;
+  const runs = rows.slice(0, TASK_OPS_INDICATOR_CAP).map((row): TaskOpsRun => {
+    const worker = agentRunWorkerNumber(row);
+    const run: TaskOpsRun = {
+      taskId: row.taskId,
+      runId: row.runId,
+      agentId: row.agentId,
+      status: row.status,
+      waiting: row.waiting,
+      startedAt: row.startedAt,
+    };
+    if (row.waiting && isAgentRunWaitingReason(row.waitingReason)) {
+      run.waitingReason = row.waitingReason;
+    }
+    if (row.launchedAt !== null) run.launchedAt = row.launchedAt;
+    if (worker !== undefined) run.worker = worker;
+    return run;
+  });
+  return { runs, runsTruncated: rows.length > TASK_OPS_INDICATOR_CAP };
 }
 
 function projectPendingReviews(
@@ -4915,6 +5128,7 @@ export async function getTaskOpsIndicators(
     runningTaskIds,
     askingTaskIds,
     pendingReviews: projectPendingReviews(pending),
+    ...(await readLiveAgentRuns(sql, auth.organizationId, [projectId])),
   };
 }
 
@@ -4929,7 +5143,13 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
 ): Promise<TaskOpsIndicators> {
   const projects = await listProjects(sql, auth, { summary: true });
   if (projects.length === 0) {
-    return { runningTaskIds: [], askingTaskIds: [], pendingReviews: [] };
+    return {
+      runningTaskIds: [],
+      askingTaskIds: [],
+      pendingReviews: [],
+      runs: [],
+      runsTruncated: false,
+    };
   }
   const projectIds = projects.map((project) => project.id);
   const running = await sql<{ taskId: string }[]>`
@@ -4947,6 +5167,7 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
     runningTaskIds: running.map((row) => row.taskId),
     askingTaskIds: [],
     pendingReviews: projectPendingReviews(pending),
+    ...(await readLiveAgentRuns(sql, auth.organizationId, projectIds)),
   };
 }
 

@@ -36,6 +36,7 @@ import {
 } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { projectChatAccess } from '../chat/threads.ts';
 import { ContactError } from '../contacts/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
@@ -482,6 +483,10 @@ export function createGovernanceRoutes(deps: {
    * standing the gate measures (`readBudgetStanding`), so the banner and the
    * gate can never disagree. A team bucket's warning names the team.
    *
+   * `projectId` is the project of the chat the member writes in: its cap
+   * binds that chat's sends too, so it joins the standing there, by name. A
+   * project the member cannot read reads as none.
+   *
    * `selectedTeamId` is accepted and ignored: the account-menu team switcher
    * that used to narrow this view is gone — a member's standing is the
    * whole of what binds them, not one team's slice of it.
@@ -489,10 +494,30 @@ export function createGovernanceRoutes(deps: {
   app.get('/my/budget-status', async (c) => {
     const organizationId = c.get('orgId');
     const userId = c.get('sessionBundle').user.id;
+    const requestedProjectId = c.req.query('projectId');
+    const projectId =
+      requestedProjectId !== undefined &&
+      requestedProjectId !== '' &&
+      (await projectChatAccess(deps.sql, {
+        projectId: requestedProjectId,
+        organizationId,
+        userId,
+      })) === 'ok'
+        ? requestedProjectId
+        : undefined;
     const subject = await loadBudgetSubject(deps.sql, {
       organizationId,
       userId,
+      ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
     });
+    const projectName = async (): Promise<string | null> => {
+      if (projectId === undefined) return null;
+      const rows = await deps.sql<{ name: string }[]>`
+        SELECT name FROM app.projects
+        WHERE id = ${projectId} AND org_id = ${organizationId}
+      `;
+      return rows[0]?.name ?? null;
+    };
     const violation = await findBudgetViolation(deps.sql, subject, {
       reservations: await readInFlightReservations(deps.sql, subject),
     });
@@ -506,6 +531,10 @@ export function createGovernanceRoutes(deps: {
           limit: violation.limit,
           reason: violation.reason,
           warnings: null,
+          scope: violation.scope,
+          ...(violation.scope === 'project'
+            ? { projectId, projectName: await projectName() }
+            : {}),
         },
       });
     }
@@ -529,16 +558,24 @@ export function createGovernanceRoutes(deps: {
             SELECT "id", "name" FROM "team" WHERE "id" = ANY(${teamIds})
           `;
     const teamName = new Map(teams.map((team) => [team.id, team.name]));
-    const named: (BudgetWarning & { teamName?: string | null })[] = [];
+    const project = warnings.some((warning) => warning.projectId !== undefined)
+      ? await projectName()
+      : null;
+    const named: (BudgetWarning & {
+      teamName?: string | null;
+      projectName?: string | null;
+    })[] = [];
     for (const warning of warnings) {
-      if (warning.teamId === undefined) {
+      if (warning.teamId !== undefined) {
+        named.push({
+          ...warning,
+          teamName: teamName.get(warning.teamId) ?? null,
+        });
+      } else if (warning.projectId !== undefined) {
+        named.push({ ...warning, projectName: project });
+      } else {
         named.push(warning);
-        continue;
       }
-      named.push({
-        ...warning,
-        teamName: teamName.get(warning.teamId) ?? null,
-      });
     }
     return c.json({
       status: {

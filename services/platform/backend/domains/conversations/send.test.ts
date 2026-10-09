@@ -183,6 +183,25 @@ describe('runSendMessageJob — the claim', () => {
     expect(statements[settleIndex]?.text).toContain('RETURNING id');
   });
 
+  it('counts the delivery as its sender’s connector call [GOV-R15]', async () => {
+    runConnectorAction.mockResolvedValue({
+      status: 'ok',
+      output: { messageId: '<smtp-1@door.test>' },
+    });
+    const { sql } = fakeSql({
+      [CLAIM]: [QUEUED_ROW],
+      [SETTLE]: [{ id: 'm1' }],
+    });
+    await runSendMessageJob(sql, { ...JOB_PAYLOAD, sentBy: { userId: 'u1' } });
+    expect(runConnectorAction).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        caller: { kind: 'system', reason: 'conversation email reply' },
+        spender: { userId: 'u1' },
+      }),
+    );
+  });
+
   it('hands the chosen From to the connector send', async () => {
     runConnectorAction.mockResolvedValue({
       status: 'ok',
@@ -302,6 +321,9 @@ describe('composeEmailConversation — one transaction', () => {
     expect(conversationInsert?.begin).toBe(0);
     expect(messageInsert?.begin).toBe(0);
     expect(addJobInTx).toHaveBeenCalledTimes(1);
+    // The delivery is the sender's connector call.
+    const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
+    expect(payload).toMatchObject({ sentBy: { userId: 'u1' } });
   });
 
   it('a failed enqueue rolls the conversation back too — no empty outbound thread', async () => {
@@ -403,6 +425,8 @@ describe('retrySendMessage — the mailbox', () => {
     });
     const [payload] = addJobInTx.mock.calls[0]?.slice(2) ?? [];
     expect(payload).toMatchObject({ credentialId: 'cred-b' });
+    // A retry is a new delivery, the retrying member's call.
+    expect(payload).toMatchObject({ sentBy: { userId: 'u1' } });
   });
 
   it('leaves the credential unset for a message that recorded none', async () => {

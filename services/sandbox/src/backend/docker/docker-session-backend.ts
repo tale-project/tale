@@ -25,6 +25,7 @@ import {
 } from '../../buildkit-resources.ts';
 import {
   ensureBuildkitd,
+  provisionBuildkitd,
   removeOrganizationBuildkit,
   retainBuildkitd,
   sweepIdleBuildkitd,
@@ -38,7 +39,6 @@ import {
 import { holdPackageCaches } from '../../package-cache-retention.ts';
 import {
   attachBuildkitNetwork,
-  readBuildkitNetworkPlan,
   type BuildkitNetworkPlan,
 } from '../../session/buildkit-network-guard.ts';
 import { buildDockerSessionRunArgs } from '../../session/docker-session-args.ts';
@@ -72,8 +72,13 @@ import {
   type WorkspaceTrash,
 } from '../../session/workspace-trash.ts';
 import {
+  largestWorkspaces,
+  type LargestWorkspaces,
+} from '../../session/workspace-usage.ts';
+import {
   dockerRm,
   dockerRmSucceeded,
+  dockerStop,
   isDockerMissingImage,
   isDockerNoSuchObject,
   runDocker,
@@ -98,6 +103,7 @@ import {
   type OrganizationTeardownResult,
   type SessionBackend,
   type SessionSpec,
+  type StopSessionOptions,
   type WorkspaceDeletion,
 } from '../types.ts';
 
@@ -439,6 +445,7 @@ export class DockerSessionBackend implements SessionBackend {
     // on error we proceed with no endpoint and the session falls back to its own
     // inner builder (cold cache). Only when DinD + the flag are both on.
     let buildkitdEndpoint: string | undefined;
+    let dockerHubMirror: string | undefined;
     let buildkitNetworkPlan: BuildkitNetworkPlan | undefined;
     if (dind && this.cfg.dockerBuildCache) {
       try {
@@ -449,14 +456,12 @@ export class DockerSessionBackend implements SessionBackend {
           ),
           () =>
             waitWithinOperation(
-              (async () => ({
-                endpoint: await ensureBuildkitd(this.cfg, spec.organizationId),
-                plan: await readBuildkitNetworkPlan(spec.organizationId),
-              }))(),
+              provisionBuildkitd(this.cfg, spec.organizationId),
             ),
         );
         buildkitNetworkPlan = ready.plan;
         buildkitdEndpoint = ready.endpoint;
+        dockerHubMirror = ready.dockerHubMirror;
       } catch (err) {
         console.warn(
           `[sandbox.session] shared buildkitd unavailable for ${spec.sessionId}; ` +
@@ -482,6 +487,7 @@ export class DockerSessionBackend implements SessionBackend {
       createdAtMs: spec.createdAtMs,
       dockerStorageVolume,
       ...(buildkitdEndpoint ? { buildkitdEndpoint } : {}),
+      ...(dockerHubMirror ? { dockerHubMirror } : {}),
       ...(buildkitNetworkPlan
         ? { buildkitNetworkSubnets: buildkitNetworkPlan.subnets }
         : {}),
@@ -900,6 +906,7 @@ export class DockerSessionBackend implements SessionBackend {
     sessionId: string,
     expectedCreatedAtMs?: number,
     expectedCreateAttemptId?: string,
+    graceMs = 0,
   ): Promise<{ existed: boolean; docker: boolean }> {
     const containerName = sessionContainerName(sessionId);
     let removalTarget = containerName;
@@ -939,6 +946,20 @@ export class DockerSessionBackend implements SessionBackend {
       }
     } catch {
       existed = false;
+    }
+    if (existed && graceMs > 0) {
+      // `rm --force` kills at once. A busy session gets its init's SIGTERM
+      // first, which runnerd passes on to its execs; the removal below then
+      // takes what the grace left, and its result is the one that counts.
+      const stop = await dockerStop(
+        removalTarget,
+        Math.max(1, Math.ceil(graceMs / 1000)),
+      );
+      if (stop.exitCode !== 0 && !isDockerNoSuchObject(stop.stderr)) {
+        console.warn(
+          `[sandbox.session] graceful stop of ${containerName} failed (exit ${stop.exitCode}); removing it at once: ${stop.stderr.trim() || 'no output'}`,
+        );
+      }
     }
     const removal = await dockerRm(removalTarget);
     if (!dockerRmSucceeded(removal)) {
@@ -1084,6 +1105,7 @@ export class DockerSessionBackend implements SessionBackend {
   async stopSession(
     sessionId: string,
     expectedCreatedAtMs?: number,
+    options: StopSessionOptions = {},
   ): Promise<boolean> {
     // Release compute but PRESERVE the host workspace dir — a later
     // createSession with the same sessionId re-mounts it (resume). The inner
@@ -1091,6 +1113,8 @@ export class DockerSessionBackend implements SessionBackend {
     const { existed, docker } = await this.removeContainer(
       sessionId,
       expectedCreatedAtMs,
+      undefined,
+      options.graceMs,
     );
     if (docker) await this.removeDindVolume(sessionId);
     // The pin belongs to the container that just went away; the resume's
@@ -1384,6 +1408,12 @@ export class DockerSessionBackend implements SessionBackend {
     return out;
   }
 
+  /** One bounded, lowest-priority `du` over every workspace dir under the
+   * session root (workspace-usage.ts). */
+  largestWorkspaces(limit: number): Promise<LargestWorkspaces> {
+    return largestWorkspaces(this.cfg.hostSessionRoot, { limit });
+  }
+
   /** Every workspace dir under the host session root, joined with the
    * session containers beside them; the organization is the container's
    * label, or else the workspace's own marker. `listSessions` THROWS on a
@@ -1451,12 +1481,14 @@ export class DockerSessionBackend implements SessionBackend {
     orgIds: readonly string[],
     upkeep: BuildCacheUpkeep = {},
   ): Promise<void> {
-    await retireLegacyBuildkitd().catch((error: unknown) => {
-      console.warn(
-        '[sandbox.session] legacy build-cache retirement deferred:',
-        error,
-      );
-    });
+    await retireLegacyBuildkitd(this.cfg.buildkitdCacheRetentionMs).catch(
+      (error: unknown) => {
+        console.warn(
+          '[sandbox.session] legacy build-cache retirement deferred:',
+          error,
+        );
+      },
+    );
     await sweepIdleBuildkitd(this.cfg, Date.now(), upkeep).catch(
       (error: unknown) => {
         console.warn(
@@ -1468,7 +1500,9 @@ export class DockerSessionBackend implements SessionBackend {
     if (!(this.cfg.dockerInContainer && this.cfg.dockerBuildCache)) return;
     for (const organizationId of new Set(orgIds)) {
       try {
-        await ensureBuildkitd(this.cfg, organizationId);
+        // In full: an adopted session's builder may predate a stack restart
+        // that moved the egress proxy.
+        await ensureBuildkitd(this.cfg, organizationId, { fresh: true });
       } catch (err) {
         console.warn(
           `[sandbox.session] build-cache reconcile for org ${organizationId} ` +

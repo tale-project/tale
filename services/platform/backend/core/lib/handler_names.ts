@@ -189,9 +189,12 @@ interface HandlerNames {
       bindFileToConversation: FunctionRef;
       bindStorageIdsToThread: FunctionRef;
       linkDocumentToFile: FunctionRef;
+      openTranscriptionCall: FunctionRef;
       queueRagIndexIfUnstarted: FunctionRef;
+      releaseTranscriptionCall: FunctionRef;
       releaseTranscriptionLock: FunctionRef;
       saveFileMetadata: FunctionRef;
+      settleTranscriptionCall: FunctionRef;
       updateFileTranscription: FunctionRef;
     };
     internal_queries: FunctionRef & {
@@ -219,7 +222,6 @@ interface HandlerNames {
     internal_mutations: FunctionRef & {
       recordChatFilterEvent: FunctionRef;
       recordConnectorUsage: FunctionRef;
-      recordTranscriptionUsage: FunctionRef;
     };
     internal_queries: FunctionRef & {
       getPolicyConfigInternal: FunctionRef;
@@ -410,6 +412,7 @@ interface HandlerNames {
     };
     internal_mutations: FunctionRef & {
       clearScanFailures: FunctionRef;
+      recordEmbeddingLimit: FunctionRef;
       recordScanFailure: FunctionRef;
     };
     internal_queries: FunctionRef & {

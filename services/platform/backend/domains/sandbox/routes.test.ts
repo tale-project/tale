@@ -20,6 +20,7 @@ const {
   scheduleDestroy,
   destroyStates,
   deletions,
+  waitingRuns,
 } = vi.hoisted(() => ({
   caller: { role: 'admin' },
   capacity: vi.fn(),
@@ -46,6 +47,7 @@ const {
   scheduleDestroy: vi.fn(),
   destroyStates: vi.fn(),
   deletions: vi.fn(),
+  waitingRuns: vi.fn(),
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -93,6 +95,7 @@ vi.mock('./workspace-cleanup.ts', () => ({
   unusedWorkspaceDeletions: deletions,
 }));
 vi.mock('./sessions.ts', () => ({
+  countWaitingAgentRuns: waitingRuns,
   listSandboxViewsForOrg: listViews,
   listRunningOpsBySession: vi.fn(),
   getAgentNodeSandboxOp: agentNodeOp,
@@ -234,6 +237,28 @@ describe('sandbox settings read and write authority', () => {
       ['pa-busy', null],
       ['wf-run', null],
     ]);
+  });
+
+  it('counts every run waiting for room beside the rows [SBX-R17]', async () => {
+    listViews.mockResolvedValue([]);
+    const counts = {
+      total: 3,
+      byReason: {
+        org_limit: 2,
+        host: 0,
+        destroy_pending: 0,
+        exec_limit: 0,
+        unknown: 1,
+      },
+    };
+    waitingRuns.mockResolvedValue(counts);
+    const response = await app().request('/sessions/view');
+    expect(response.status).toBe(200);
+    expect(waitingRuns).toHaveBeenCalledWith(query, 'member-org');
+    expect(await response.json()).toEqual({
+      sessions: [],
+      waitingRuns: counts,
+    });
   });
 
   it('keeps developers read-only for every sandbox mutation [SBX-R2]', async () => {

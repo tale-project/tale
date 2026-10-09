@@ -57,7 +57,7 @@ Tes instructions ne remplacent jamais les instructions obligatoires de l’organ
 
 ## Consulter tes limites d’utilisation {#usage-limits}
 
-Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des limites que ton organisation t’applique. Si aucune limite ne te concerne, la page l’indique. La limite d’un projet, qui plafonne tout ce qui est dépensé dans ce projet, n’y figure pas ; une requête qu’elle refuse le dit.
+Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des limites que ton organisation t’applique. Si aucune limite ne te concerne, la page l’indique. La limite d’un projet, qui plafonne tout ce qui est dépensé dans ce projet, n’y figure pas : dans les chats du projet, le bandeau au-dessus de la zone de saisie la signale, et une requête qu’elle refuse le dit.
 
 <Frame caption="Paramètres > Utilisation affiche chaque limite qui te concerne, avec son utilisation et sa prochaine réinitialisation.">
 
@@ -69,7 +69,7 @@ Ouvre **Paramètres > Utilisation** pour voir ce que tu as déjà utilisé des l
 - **Limites partagées** comptent l’utilisation de toutes les personnes qu’elles couvrent, par exemple une équipe dont tu fais partie ou l’organisation entière. Elles peuvent donc être atteintes avant tes propres limites.
 - **Stockage** compare les fichiers que tu as téléversés avec ta limite de stockage. Une fois celle-ci atteinte, les nouveaux téléversements de documents sont refusés.
 
-Chaque limite d’utilisation indique la quantité utilisée, la limite et le moment de sa réinitialisation, dans ton fuseau horaire. Les périodes suivent l’heure UTC : les limites quotidiennes repartent à minuit, les limites hebdomadaires le lundi et les limites mensuelles le premier du mois. Si un admin a défini un seuil d’alerte, la barre passe à l’orange dès que ton utilisation l’atteint. Quand un bandeau au-dessus de la zone de saisie signale une limite, **Voir l'utilisation** ouvre cette page. Les admins voient aussi **Gérer les limites**, qui ouvre **Gouvernance > Politiques et limites**.
+Chaque limite d’utilisation indique la quantité utilisée, la limite et le moment de sa réinitialisation, dans ton fuseau horaire. Les périodes suivent l’heure UTC : les limites quotidiennes repartent à minuit, les limites hebdomadaires le lundi et les limites mensuelles le premier du mois. Si un admin a défini un seuil d’alerte, la barre passe à l’orange dès que ton utilisation l’atteint. Quand un bandeau au-dessus de la zone de saisie signale une limite, **Voir l'utilisation** ouvre cette page ; un bandeau sur la limite d’un projet nomme plutôt le projet. Les admins voient aussi **Gérer les limites**, qui ouvre **Gouvernance > Politiques et limites**.
 
 ## Archiver des chats ou se déconnecter
 

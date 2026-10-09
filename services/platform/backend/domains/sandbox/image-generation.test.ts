@@ -405,23 +405,29 @@ describe('admitImageGeneration', () => {
     ).toBe(true);
   });
 
-  it('measures a subscription turn against the deployment’s default allowance', async () => {
-    const { sql } = opSql({ budgetCents: null, imageSpentCents: 450 });
-    await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toMatchObject(
-      { admitted: false, code: 'turn_allowance' },
-    );
-    await expect(
-      admitImageGeneration(sql, { ...ADMIT, images: 2 }, deps),
-    ).resolves.toMatchObject({ admitted: true });
-    // Its model spend is the vendor's: no gateway key to read, or to cap.
-    expect(mocks.readVirtualKeySpend).not.toHaveBeenCalled();
-    expect(mocks.setVirtualKeyBudget).not.toHaveBeenCalled();
+  it.each([
+    ['one that reserved nothing', null],
+    ['one holding its request at no cost [GOV-R16]', 0],
+  ])(
+    'measures a subscription turn — %s — against the deployment’s default allowance',
+    async (_label, budgetCents) => {
+      const { sql } = opSql({ budgetCents, imageSpentCents: 450 });
+      await expect(
+        admitImageGeneration(sql, ADMIT, deps),
+      ).resolves.toMatchObject({ admitted: false, code: 'turn_allowance' });
+      await expect(
+        admitImageGeneration(sql, { ...ADMIT, images: 2 }, deps),
+      ).resolves.toMatchObject({ admitted: true });
+      // Its model spend is the vendor's: no gateway key to read, or to cap.
+      expect(mocks.readVirtualKeySpend).not.toHaveBeenCalled();
+      expect(mocks.setVirtualKeyBudget).not.toHaveBeenCalled();
 
-    process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS = '1000';
-    await expect(admitImageGeneration(sql, ADMIT, deps)).resolves.toMatchObject(
-      { admitted: true },
-    );
-  });
+      process.env.TALE_AUTOMATION_AGENT_BUDGET_CENTS = '1000';
+      await expect(
+        admitImageGeneration(sql, ADMIT, deps),
+      ).resolves.toMatchObject({ admitted: true });
+    },
+  );
 
   it('refuses a second call while one is in flight, and takes over one whose process died', async () => {
     const running = opSql({ callStartedAt: NOW - 60_000 });

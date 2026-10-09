@@ -54,6 +54,46 @@ function bucket(periodKey: string, index: number) {
 describe('getOrgUsageMetricsPg', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('counts a connector call as no request, a row booked before that rule included [GOV-R15]', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-08T12:00:00Z'));
+    const today = '2026-10-08';
+    const modelRow = Object.assign(bucket(today, 1), {
+      agentSlug: 'assistant',
+    });
+    // A search the assistant ran: booked with a request before connector
+    // calls stopped carrying one.
+    const toolRow = Object.assign(bucket(today, 2), {
+      agentSlug: 'assistant',
+      connectorName: 'chat-tools',
+      model: null,
+      provider: null,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      costEstimate: 0,
+    });
+    const { sql } = fakeSql((statement) =>
+      statement.text.includes('FROM app.usage_ledger')
+        ? [modelRow, toolRow]
+        : [],
+    );
+
+    const metrics = await getOrgUsageMetricsPg(sql, 'org_1', {
+      granularity: 'daily',
+      periodDays: 7,
+    });
+
+    expect(metrics.summary.totalRequests).toBe(1);
+    // Calling a connector alone makes nobody an active user.
+    expect(metrics.summary.activeUsers).toBe(1);
+    expect(metrics.topAgents).toEqual([
+      expect.objectContaining({ agentSlug: 'assistant', requests: 1 }),
+    ]);
+    expect(metrics.series.reduce((sum, point) => sum + point.requests, 0)).toBe(
+      1,
+    );
+  });
+
   it('keeps seven-day totals and prior spend isolated across chart granularities', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-28T12:00:00Z'));
     // All three granularities exist on write. The September monthly bucket

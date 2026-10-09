@@ -65,7 +65,7 @@ import { internal } from '../lib/handler_names';
 import { readOrgEmbeddingConfig } from './connection';
 import { DocumentCorpusReader, WebCorpusReader } from './corpus';
 import { assertVectorWidthSupported } from './dimensions';
-import { embedderForOrg } from './embedding';
+import { embedderForOrg, type EmbeddingMeter } from './embedding';
 import { getKnowledgePoolForOrg } from './pool';
 
 /** Which organization a search runs for. Both identifiers are required: one
@@ -89,6 +89,13 @@ export type SearchKnowledgeArgs = KnowledgeOrg &
      * floor unless they send one.
      */
     readonly floorByDefault?: boolean;
+    /**
+     * Where the query's embedding is held and booked, as the searcher's
+     * spend — the member, their API key and the project they search in. A
+     * limit with too little room refuses the search before the provider
+     * hears the query (`EmbeddingBudgetExceeded`).
+     */
+    readonly meter?: EmbeddingMeter;
   };
 
 /**
@@ -103,7 +110,7 @@ export async function searchKnowledge(
   args: SearchKnowledgeArgs,
 ): Promise<KnowledgeResult> {
   const config = await readOrgEmbeddingConfig(args.orgSlug);
-  const { readers, embedder } = await bindOrg(ctx, args, config);
+  const { readers, embedder } = await bindOrg(ctx, args, config, args.meter);
   const minSimilarity =
     args.minSimilarity ??
     (args.floorByDefault === true
@@ -199,6 +206,7 @@ async function bindOrg(
   ctx: ActionCtx,
   org: KnowledgeOrg & { readonly corpus?: KnowledgeQuery['corpus'] },
   config: KnowledgeEmbeddingConfig | null,
+  meter: EmbeddingMeter | undefined,
 ): Promise<{
   readers: CorpusReader[];
   embedder: Awaited<ReturnType<typeof embedderForOrg>>;
@@ -209,6 +217,7 @@ async function bindOrg(
       organizationId: org.organizationId,
       orgSlug: org.orgSlug,
       config,
+      ...(meter !== undefined ? { meter } : {}),
     }),
   ]);
 

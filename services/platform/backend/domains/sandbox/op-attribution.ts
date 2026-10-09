@@ -10,8 +10,9 @@ import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
  * `domains/governance/README.md`; in short:
  *
  *  - a task-agent op is one project-agent run: the person who started the
- *    run (a retry continues its starter's kick), under the agent's ID — or
- *    `__automation__` when a schedule began it (`trigger:<id>`);
+ *    run (a retry continues its starter's kick), under the agent's ID, plus
+ *    the API key the run was started with — or `__automation__` when a
+ *    schedule began it (`trigger:<id>`);
  *  - a workflow-agent op runs in a per-execution session whose owner is the
  *    automation run: the person the run's starter names, under the
  *    automation's name, plus the API key when a keyed door started it; a run
@@ -55,10 +56,15 @@ export async function resolveSessionOpAttribution(
 ): Promise<SessionOpAttribution | null> {
   if (args.kind === 'task-agent') {
     const rows = await sql<
-      { startedBy: string; agentId: string; projectId: string | null }[]
+      {
+        startedBy: string;
+        agentId: string;
+        apiKeyId: string | null;
+        projectId: string | null;
+      }[]
     >`
       SELECT r.started_by AS "startedBy", r.agent_id AS "agentId",
-             r.project_id AS "projectId"
+             r.api_key_id AS "apiKeyId", r.project_id AS "projectId"
       FROM app.project_agent_runs r
       WHERE r.org_id = ${args.organizationId}
         AND r.session_id = ${args.sessionId} AND r.exec_id = ${args.execId}
@@ -68,10 +74,13 @@ export async function resolveSessionOpAttribution(
     const row = rows[0];
     if (row !== undefined) {
       const starter = parseRunStarter(row.startedBy);
+      // A run started with an API key — through a keyed door, or by a run
+      // or an automation run that was — is the key's spend too.
       if (starter.kind === 'user' || starter.kind === 'api-key') {
         return {
           userId: starter.userId,
           agentSlug: row.agentId,
+          ...(row.apiKeyId !== null ? { apiKeyId: row.apiKeyId } : {}),
           ...inProjects([row.projectId]),
         };
       }
@@ -176,8 +185,10 @@ function automationRunAttribution(
     row.projectId != null ? [row.projectId] : row.boundProjectIds,
   );
   switch (starter.kind) {
+    // A run started with an API key is the key's spend too, whichever door
+    // started it: the REST and MCP doors write `api-key:`, the capability
+    // an MCP call invokes writes `user:` beside the key it came with.
     case 'user':
-      return { userId: starter.userId, agentSlug: row.name, ...projects };
     case 'api-key':
       return {
         userId: starter.userId,

@@ -955,7 +955,7 @@ const documentIndexing: Json = {
         'skipped',
       ],
       description:
-        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
+        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, `usage_limit` resumes by itself once the usage limit allows it, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
     },
     indexedAt: {
       ...epochMs,
@@ -970,7 +970,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
+        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for a usage limit (`failed`): `usage_limit` — a limit that binds whoever the file is indexed for (its uploader, a synced drive’s owner, the organization for an emailed attachment) has too little room for its embeddings; indexing resumes by itself within the hour after the limit resets or is raised, after what it already embedded. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
     },
   },
 };
@@ -4245,7 +4245,10 @@ export function buildSpec(): Json {
         'Setup-folder binding a folder-driven automation reads off its task input — ' +
         'on the create and again on every repeat. It cannot be sent beside ' +
         '`externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project ' +
-        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.',
+        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created. ' +
+        'While who can be mentioned in the project cannot be read, a ' +
+        'description with a mention answers 503 ' +
+        '`MENTION_DIRECTORY_UNAVAILABLE`, nothing created; send it again.',
       operationId: 'createTask',
       security: sec,
       parameters: taskCollectionParameters,
@@ -4279,7 +4282,21 @@ export function buildSpec(): Json {
               'Trimmed; the board’s title cap — a longer title is refused ' +
               'with 400 `INVALID_BODY`, never clipped',
           },
-          description: { type: 'string', maxLength: 20000 },
+          description: {
+            type: 'string',
+            maxLength: 20000,
+            description:
+              'Markdown. A mention is stored as a markdown link naming whom it mentions, ' +
+              '`[@Ada Lovelace](mention:user/<userId>)` — the kind is `user`, ' +
+              '`agent` (a project agent id) or `automation` (its store name), the ' +
+              'text in brackets the name when it was saved. A plain `@handle` ' +
+              '(an agent handle, a member’s email name, an automation store name, an ' +
+              'id, or an older name form) that names someone who can be mentioned on ' +
+              'the task is stored that way (notifying nobody); a mention link naming nobody who can is ' +
+              'stored as plain text. Mentions in code, math or a link’s text are text.' +
+              ' A task from GitHub or GlitchTip (`externalSystem`) keeps its ' +
+              '`@names` as written: they are that tracker’s people.',
+          },
           labels: {
             type: 'array',
             items: {
@@ -4555,12 +4572,31 @@ export function buildSpec(): Json {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['id', 'authorType', 'authorId', 'body', 'createdAt'],
+                required: [
+                  'id',
+                  'authorType',
+                  'authorId',
+                  'body',
+                  'bodyText',
+                  'createdAt',
+                ],
                 properties: {
                   id: str,
                   authorType: { type: 'string', enum: ['user', 'agent'] },
                   authorId: str,
-                  body: str,
+                  body: {
+                    type: 'string',
+                    description:
+                      'The comment as stored: each mention a mention link, ' +
+                      '`[@Ada Lovelace](mention:user/<userId>)`',
+                  },
+                  bodyText: {
+                    type: 'string',
+                    description:
+                      'The same text with each mention read as `@` and the ' +
+                      'current name of whoever it names — for matching ' +
+                      'words or showing the comment as plain text',
+                  },
                   bodyByLocale: {
                     type: 'object',
                     additionalProperties: { type: 'string' },
@@ -4591,7 +4627,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Comment on a project task as the key holder',
       description:
-        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior. A later plain-text edit clears the old translations.',
+        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior: a plain `@handle` that names someone who can be mentioned on the task (an agent handle, a member’s email name, an automation store name, an id, or an older name form) notifies them and is stored as a mention link, `[@Ada Lovelace](mention:user/<userId>)`, which every later read returns; a mention link naming nobody who can be mentioned there is stored as plain text. Mentions in code, math or a link’s text are text. A later plain-text edit clears the old translations. While who can be mentioned on the task cannot be read, a body with a mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` and nothing is posted; send it again.',
       operationId: 'addTaskComment',
       security: sec,
       parameters: taskParameters,
@@ -4604,7 +4640,9 @@ export function buildSpec(): Json {
             type: 'string',
             minLength: 1,
             maxLength: 10000,
-            description: 'Trimmed; whitespace alone is refused',
+            description:
+              'Trimmed; whitespace alone is refused. The limit counts the ' +
+              'text as sent; resolving its mentions never takes it past it',
           },
           bodyByLocale: {
             type: 'object',
@@ -6766,6 +6804,12 @@ export function buildSpec(): Json {
               '`Retry-After` names the wait, retry with backoff',
           ),
           ...standardErrors,
+          '429': withDoorRefusal(
+            standardErrors['429'],
+            'embedding the query is a model request the key holder pays for, and a budget cap that binds it — the key holder’s own, one of their teams’, ' +
+              (scope.project ? 'the project’s, ' : '') +
+              'the organization’s or this API key’s — is reached (`BUDGET_EXCEEDED`): nothing is searched, `data` names the cap — `scope`, `period`, `limitCode`, `used`, `limit`, `resetsAt` — and `Retry-After` the wait in whole seconds until its period resets',
+          ),
         },
       },
     };
@@ -9157,7 +9201,19 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'and trimmed at intake',
             },
             externalUrl: { type: 'string' },
-            description: { type: 'string' },
+            description: {
+              type: 'string',
+              description:
+                'Markdown, as stored: each mention a mention link, ' +
+                '`[@Ada Lovelace](mention:user/<userId>)`',
+            },
+            descriptionText: {
+              type: 'string',
+              description:
+                'Present with `description`: the same text with each ' +
+                'mention read as `@` and the current name of whoever it ' +
+                'names — for matching words or showing it as plain text',
+            },
             labels: {
               type: 'array',
               items: { type: 'string' },
@@ -10540,6 +10596,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'organizationId',
             'projectId',
             'name',
+            'handle',
             'harness',
             'model',
             'modelProvider',
@@ -10558,6 +10615,22 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizationId: str,
             projectId: str,
             name: str,
+            handle: {
+              type: 'string',
+              pattern: '^[a-z0-9]+(-[a-z0-9]+)*$',
+              maxLength: 52,
+              description:
+                'The agent’s mention handle: lowercase letters, digits and ' +
+                'single hyphens, made from its current name ("My Opus Agent ' +
+                '#3" → `my-opus-agent-3`) and unique in the project (a second ' +
+                'agent whose name gives the same handle gets `-02`, then ' +
+                '`-03` …). It changes when the agent is renamed, and when a ' +
+                'member or an automation of the organization comes to answer ' +
+                'to it (an email name or a store name is the stronger claim). ' +
+                'Address an ' +
+                'agent by `id`; type `@handle` in a comment or a task ' +
+                'description to mention it.',
+            },
             harness: str,
             model: str,
             modelProvider: nullable(str),

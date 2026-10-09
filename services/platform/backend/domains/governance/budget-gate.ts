@@ -1,6 +1,8 @@
 import {
   allBudgetRules,
+  type BudgetConfig,
   type BudgetRule,
+  effectiveBudgetConfig,
 } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -77,6 +79,13 @@ export type UsageScope =
  * starter — so a cap sees the member's whole spend, whichever door it came
  * through (`governance/README.md`).
  */
+/**
+ * What a bucket used this period. Its requests are model requests: a
+ * connector call is counted on `connector_call_count` and never as a
+ * request, so a ledger row a connector names is skipped — rows booked before
+ * connector calls stopped carrying a request included. A project's buckets
+ * (`app.project_usage`) never take a connector call at all.
+ */
 async function periodUsage(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -89,7 +98,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND user_id = ANY(${usageLedgerSubjectForms(scope.userId)})
@@ -101,7 +111,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND regexp_replace(user_id, '^(user|api-key):', '') IN (
@@ -121,7 +132,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND (api_key_id = ${scope.apiKeyId}
@@ -148,7 +160,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
       `;
@@ -262,6 +275,28 @@ function inProjects(projectIds: readonly string[] | undefined): {
     : {};
 }
 
+/**
+ * The organization's budget policy, the one read every cap goes through:
+ * the budgets file's switch and rules, with the project caps of their own
+ * file (`effectiveBudgetConfig`). Null when there is no budgets file — its
+ * switch is the policy's, so project caps alone bind nothing.
+ */
+async function readBudgetPolicy(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+): Promise<BudgetConfig | null> {
+  const budgets = await readGovernancePolicyForOrg(
+    sql,
+    organizationId,
+    'budgets',
+  );
+  if (budgets === null) return null;
+  return effectiveBudgetConfig(
+    budgets,
+    await readGovernancePolicyForOrg(sql, organizationId, 'project_budgets'),
+  );
+}
+
 /** Whether the organization's budget policy is on with at least one rule —
  * when it is not, no cap binds anyone and an admission has nothing to
  * serialize. */
@@ -269,11 +304,7 @@ export async function budgetPolicyActive(
   sql: Sql | TransactionSql,
   organizationId: string,
 ): Promise<boolean> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    organizationId,
-    'budgets',
-  );
+  const config = await readBudgetPolicy(sql, organizationId);
   return config !== null && config.enabled && allBudgetRules(config).length > 0;
 }
 
@@ -459,11 +490,7 @@ async function applicableLimitsByPeriod(
   sql: Sql | TransactionSql,
   subject: OrgBudgetSubject,
 ): Promise<{ period: BudgetRule['period']; limits: Limits }[]> {
-  const config = await readGovernancePolicyForOrg(
-    sql,
-    subject.organizationId,
-    'budgets',
-  );
+  const config = await readBudgetPolicy(sql, subject.organizationId);
   const rules = config?.enabled === true ? allBudgetRules(config) : [];
   if (rules.length === 0) return [];
   const applicableRules = collectAllApplicableRules(
@@ -600,17 +627,20 @@ export async function checkOrgBudget(
  * measures it against. */
 export interface BudgetStanding {
   /** Whose usage counts: the subject's own, one of their teams' combined
-   * usage, or the whole organization's. */
-  scope: 'user' | 'team' | 'org';
+   * usage, everything spent in a project the subject works in, or the whole
+   * organization's. */
+  scope: 'user' | 'team' | 'org' | 'project';
   /** The team whose shared cap this is — team scope only. */
   teamId?: string;
+  /** The project whose cap this is — project scope only. */
+  projectId?: string;
   period: BudgetRule['period'];
   periodKey: string;
   /** When the period rolls over and this usage starts again from zero. */
   resetsAt: number;
   /** The share of a cap the budget banner starts warning at, when a rule
-   * for this bucket sets one (a team's shared cap warns at its own rule's
-   * threshold). */
+   * for this bucket sets one (a team's or a project's cap warns at its own
+   * rule's threshold). */
   warningThresholdPercent?: number;
   maxTokens?: number;
   maxCostCents?: number;
@@ -624,7 +654,8 @@ export interface BudgetStanding {
  * prospective spend, so a reader sees exactly the numbers that would refuse
  * their next request. Only buckets that carry a cap are returned; `[]` when
  * no budget policy binds. A session reader carries no API key, so key caps
- * never appear here.
+ * never appear here; a project's cap appears for a subject that names the
+ * project — a reader writing in one of its chats.
  */
 export async function readBudgetStanding(
   sql: Sql | TransactionSql,
@@ -637,10 +668,10 @@ export async function readBudgetStanding(
     subject,
   )) {
     const buckets = await bucketsFor(sql, subject, period, limits, {}, now);
-    for (const { scope, teamId, rule, usage } of buckets) {
-      // A reader's standing is their own: an API key's caps and a
-      // project's bind the work, not the person reading.
-      if (scope === 'apiKey' || scope === 'project') continue;
+    for (const { scope, teamId, projectId, rule, usage } of buckets) {
+      // A reader's standing is their own: an API key's caps bind the work,
+      // not the person reading.
+      if (scope === 'apiKey') continue;
       if (
         rule.maxTokens == null &&
         rule.maxCostCents == null &&
@@ -653,11 +684,16 @@ export async function readBudgetStanding(
           ? limits.warningThresholdPercent
           : scope === 'org'
             ? limits.orgWarningThresholdPercent
-            : limits.teamLimits.find((team) => team.teamId === teamId)
-                ?.warningThresholdPercent;
+            : scope === 'project'
+              ? limits.projectLimits.find(
+                  (project) => project.projectId === projectId,
+                )?.warningThresholdPercent
+              : limits.teamLimits.find((team) => team.teamId === teamId)
+                  ?.warningThresholdPercent;
       standings.push({
         scope,
         ...(teamId !== undefined ? { teamId } : {}),
+        ...(projectId !== undefined ? { projectId } : {}),
         period,
         periodKey: buildPeriodKeyFromTimestamp(period, now),
         resetsAt: buildPeriodEndFromTimestamp(period, now),
@@ -750,6 +786,12 @@ function violationOf(
   };
 }
 
+/** A rule as a turn that costs nothing reads it: its cost cap set aside. */
+function withoutCostCap(rule: BudgetRule): BudgetRule {
+  const { maxCostCents: _cost, ...uncapped } = rule;
+  return uncapped;
+}
+
 /**
  * The gateway allowance a managed turn may be minted with: the deployment's
  * per-turn default, capped by what remains under every cost rule that binds
@@ -774,6 +816,11 @@ export async function resolveTurnAllowance(
      * managed turns alike (`readInFlightReservations`). */
     reservations: BudgetReservations;
     whole?: { prospectiveTokens: number };
+    /** A flat-rate turn — a subscription the organization pays its vendor
+     * for apart from Tale — adds requests and tokens but no cost: it is
+     * admitted while every request and token cap has room, whatever the
+     * cost caps read, and holds no cents. */
+    costFree?: boolean;
   },
 ): Promise<TurnAllowance> {
   const { reservations } = args;
@@ -799,9 +846,11 @@ export async function resolveTurnAllowance(
       // cost and tokens are measured whole below, and its request is the
       // one a request cap still has room for.
       const violation =
-        args.whole !== undefined
-          ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
-          : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
+        args.costFree === true
+          ? checkRuleAgainstUsage(withoutCostCap(bucket.rule), bucket.usage)
+          : args.whole !== undefined
+            ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
+            : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
       if (violation?.code !== undefined) {
         // The rule's own wording, and whose cap it is: a key's cap and the
         // organization's read alike otherwise.
@@ -842,6 +891,8 @@ export async function resolveTurnAllowance(
       }
     }
   }
+  // Every request and token cap has room, and cost caps cannot bind it.
+  if (args.costFree === true) return { allowed: true, budgetCents: 0 };
   const room = {
     ...(tightestCost !== undefined
       ? { cents: Math.max(0, tightestCost.room) }

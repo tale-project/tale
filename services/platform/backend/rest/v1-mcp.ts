@@ -80,6 +80,7 @@ function mcpShimHandlers(sql: Sql): ShimHandlers {
       const args = raw as {
         organizationId: string;
         userId: string;
+        apiKeyId?: string;
         method: string;
         params?: unknown;
       };

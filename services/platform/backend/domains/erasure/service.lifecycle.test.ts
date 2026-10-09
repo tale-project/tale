@@ -597,6 +597,107 @@ describe('processErasure', () => {
     expect(settle?.values[2]).toMatchObject({ modelApiRequests: 3 });
   });
 
+  /**
+   * A call the platform made straight to a provider for the subject is an
+   * op row the settlement books from. A booked or cancelled one goes; one
+   * still running keeps its row under the pseudonym, so its late booking
+   * never lands under the subject after the ledger was cleared.
+   */
+  it('deletes the subject’s finished direct-call rows and pseudonymises the ones still running, before the ledger pass [ERASE-R5]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('DELETE FROM app.sandbox_session_ops'))
+        return [{ id: 'op-booked' }];
+      if (text.startsWith('UPDATE app.sandbox_session_ops'))
+        return [{ id: 'op-running' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const ofKind = (prefix: string) =>
+      fake.statements.findIndex(
+        (s) => s.text.startsWith(prefix) && s.values.includes('direct-call'),
+      );
+    const removed =
+      fake.statements[ofKind('DELETE FROM app.sandbox_session_ops')];
+    expect(removed?.text).toBe(
+      "DELETE FROM app.sandbox_session_ops WHERE org_id = ? AND kind = ? AND user_id = ? AND (spent_cents IS NOT NULL OR status = 'cancelled') RETURNING id",
+    );
+    expect(removed?.values).toEqual(['org_1', 'direct-call', 'subject']);
+    const pseudonymised =
+      fake.statements[ofKind('UPDATE app.sandbox_session_ops')];
+    expect(pseudonymised?.values).toEqual([
+      'erased-user',
+      'org_1',
+      'direct-call',
+      'subject',
+    ]);
+    const ledger = fake.statements.findIndex((s) =>
+      s.text.startsWith('DELETE FROM app.usage_ledger'),
+    );
+    expect(ofKind('UPDATE app.sandbox_session_ops')).toBeGreaterThan(
+      ofKind('DELETE FROM app.sandbox_session_ops'),
+    );
+    expect(ledger).toBeGreaterThan(ofKind('UPDATE app.sandbox_session_ops'));
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ directCalls: 2 });
+  });
+
+  it('takes the subject’s name off a website note a usage limit left, keeping the note [ERASE-R5]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('UPDATE app.websites')) return [{ id: 'site-1' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const stripped = fake.statements.find((s) =>
+      s.text.startsWith('UPDATE app.websites'),
+    );
+    expect(stripped?.text).toContain(
+      "SET metadata = metadata - 'embeddingLimitRequestedBy'",
+    );
+    expect(stripped?.values).toEqual(['org_1', 'subject']);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ websiteScanNotes: 1 });
+  });
+
   it.each(['automationRuns', 'modelApiRequests'] as const)(
     'keeps dependent identity and ledger passes retryable after %s fails [ERASE-R5]',
     async (failedPass) => {
@@ -741,6 +842,73 @@ describe('processErasure', () => {
  * subject excluded, and only what still names the subject afterwards is
  * pseudonymized.
  */
+describe('processErasure — mentions of the subject in other people’s text', () => {
+  it('rewrites each stored mention of the subject to the pseudonym, wherever the text is kept', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'u.subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('UPDATE app.messages m'))
+        return [{ id: 'm-1' }, { id: 'm-2' }];
+      if (text.startsWith('UPDATE app.tasks SET description'))
+        return [{ id: 't-1' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const pattern = String.raw`\[@([^][\\]|\\.)*\]\(mention:user/u\.subject\)`;
+    const pseudonym = '[@erased-user](mention:user/erased-user)';
+    const rewrites = fake.statements.filter((statement) =>
+      statement.values.includes(pattern),
+    );
+    expect(
+      rewrites.map((statement) => statement.text.split(' SET ')[0]),
+    ).toEqual([
+      'UPDATE app.messages m',
+      'UPDATE app.task_discussion_message_meta meta',
+      'UPDATE app.tasks',
+      'UPDATE app.task_activity',
+      'UPDATE app.project_agent_runs',
+    ]);
+    for (const statement of rewrites) {
+      expect(statement.values).toContain(pseudonym);
+      expect(statement.values).toContain('org_1');
+    }
+    const notified = fake.statements.find((statement) =>
+      statement.text.startsWith(
+        'UPDATE app.task_discussion_message_meta meta SET mentions',
+      ),
+    );
+    expect(notified?.values).toEqual(
+      expect.arrayContaining([
+        'u.subject',
+        'erased-user',
+        'org_1',
+        [{ type: 'user', id: 'u.subject' }],
+      ]),
+    );
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[0]).toBe('done');
+    expect(settle?.values[2]).toMatchObject({ mentions: 3 });
+  });
+});
+
 describe('processErasure — the review pass [ERASE-R6]', () => {
   it('hands a waiting review on through the cleared chain, then pseudonymizes what still names the subject', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);

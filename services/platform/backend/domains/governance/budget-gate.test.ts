@@ -14,10 +14,19 @@ const policy = vi.hoisted(() => ({
     rules: unknown[];
     projectRules?: unknown[];
   },
+  /** The project caps file; null while it was never written, when a
+   * scripted `projectRules` reads as an earlier release's copy of them. */
+  projectBudgets: null as null | { rules: unknown[] },
 }));
 
 vi.mock('../../lib/org-config.ts', () => ({
-  readGovernancePolicyForOrg: vi.fn(async () => policy.config),
+  readGovernancePolicyForOrg: vi.fn(async (_sql, _org, type: string) =>
+    type === 'budgets'
+      ? policy.config
+      : type === 'project_budgets'
+        ? policy.projectBudgets
+        : null,
+  ),
 }));
 
 const {
@@ -90,6 +99,7 @@ function holds(orgCents: number, userCents: number) {
 
 beforeEach(() => {
   policy.config = null;
+  policy.projectBudgets = null;
 });
 
 describe('resolveTurnAllowance', () => {
@@ -118,6 +128,67 @@ describe('resolveTurnAllowance', () => {
     );
     // 10_000 − 9_000 − 700 = 300 < the 500 default.
     expect(allowance).toEqual({ allowed: true, budgetCents: 300 });
+  });
+
+  describe('a subscription turn, which costs nothing per call', () => {
+    it('is admitted past a reached cost cap while requests have room, holding no cents [GOV-R16]', async () => {
+      policy.config = {
+        enabled: true,
+        rules: [
+          {
+            scope: 'org',
+            period: 'monthly',
+            maxCostCents: 1_000,
+            maxRequests: 50,
+          },
+        ],
+      };
+      const allowance = await resolveTurnAllowance(
+        ledger({
+          org: { totalTokens: 0, costEstimate: 1_000, requestCount: 10 },
+        }),
+        {
+          ...SUBJECT,
+          defaultCents: 0,
+          reservations: holds(0, 0),
+          costFree: true,
+        },
+      );
+      expect(allowance).toEqual({ allowed: true, budgetCents: 0 });
+    });
+
+    it.each([
+      [
+        'a request cap',
+        { maxRequests: 10 },
+        { totalTokens: 0, costEstimate: 0, requestCount: 10 },
+        'REQUEST_LIMIT',
+      ],
+      [
+        'a token cap',
+        { maxTokens: 5_000 },
+        { totalTokens: 5_000, costEstimate: 0, requestCount: 3 },
+        'TOKEN_LIMIT',
+      ],
+    ] as const)(
+      'is refused once %s it adds to is reached [GOV-R16]',
+      async (_label, cap, org, code) => {
+        policy.config = {
+          enabled: true,
+          rules: [{ scope: 'org', period: 'monthly', ...cap }],
+        };
+        const allowance = await resolveTurnAllowance(ledger({ org }), {
+          ...SUBJECT,
+          defaultCents: 0,
+          reservations: holds(0, 0),
+          costFree: true,
+        });
+        expect(allowance.allowed).toBe(false);
+        if (!allowance.allowed) {
+          expect(allowance.violation).toMatchObject({ scope: 'org', code });
+        }
+      },
+    );
   });
 
   it('refuses when the org cap is reached, with the cap’s own wording [GOV-R4]', async () => {
@@ -484,6 +555,30 @@ describe('readBudgetStanding', () => {
     );
   });
 
+  it('counts model requests alone toward a request cap, never connector calls [GOV-R15]', async () => {
+    policy.config = {
+      enabled: true,
+      rules: [
+        { scope: 'default', period: 'monthly', maxRequests: 20 },
+        { scope: 'org', period: 'monthly', maxRequests: 500 },
+      ],
+    };
+    const recorded = recordingLedger({});
+
+    await readBudgetStanding(recorded.sql, SUBJECT, NOW);
+
+    const ledgerReads = recorded.queries.filter((text) =>
+      text.includes('FROM app.usage_ledger'),
+    );
+    expect(ledgerReads.length).toBeGreaterThan(0);
+    for (const text of ledgerReads) {
+      // A row a connector names is a connector call, old rows included.
+      expect(text).toContain(
+        'sum(request_count) FILTER (WHERE connector_name IS NULL)',
+      );
+    }
+  });
+
   it('reads the personal and organization buckets the gate checks', async () => {
     policy.config = {
       enabled: true,
@@ -618,7 +713,7 @@ describe('readBudgetStanding', () => {
     ]);
   });
 
-  it('leaves a project’s cap out of what binds a reader in general', async () => {
+  it('counts a project’s cap in the standing of a reader writing in it, at its rule’s threshold [GOV-R6]', async () => {
     policy.config = {
       enabled: true,
       rules: [{ scope: 'org', period: 'monthly', maxCostCents: 10_000 }],
@@ -628,15 +723,60 @@ describe('readBudgetStanding', () => {
           scopeId: 'project-1',
           period: 'monthly',
           maxCostCents: 1_000,
+          warningThresholdPercent: 80,
         },
       ],
     };
-    const standing = await readBudgetStanding(
-      ledger({}),
+    const usage = {
+      projects: {
+        'project-1': { totalTokens: 0, costEstimate: 850, requestCount: 4 },
+      },
+    };
+    const inProject = await readBudgetStanding(
+      ledger(usage),
       { ...SUBJECT, projectIds: ['project-1'] },
       NOW,
     );
-    expect(standing.map((bucket) => bucket.scope)).toEqual(['org']);
+    expect(inProject.map((bucket) => bucket.scope)).toEqual(['project', 'org']);
+    expect(inProject[0]).toEqual(
+      expect.objectContaining({
+        scope: 'project',
+        projectId: 'project-1',
+        maxCostCents: 1_000,
+        warningThresholdPercent: 80,
+        usage: { totalTokens: 0, costEstimate: 850, requestCount: 4 },
+      }),
+    );
+    // Elsewhere the project's cap binds nothing the reader does.
+    const elsewhere = await readBudgetStanding(ledger(usage), SUBJECT, NOW);
+    expect(elsewhere.map((bucket) => bucket.scope)).toEqual(['org']);
+  });
+
+  it('reads project caps from their own file, the budgets file’s copy only while that file was never written [GOV-R14]', async () => {
+    const cap = (maxCostCents: number) => ({
+      scope: 'project',
+      scopeId: 'project-1',
+      period: 'monthly',
+      maxCostCents,
+    });
+    policy.config = { enabled: true, rules: [], projectRules: [cap(1_000)] };
+    const subject = { ...SUBJECT, projectIds: ['project-1'] };
+
+    const legacy = await readBudgetStanding(ledger({}), subject, NOW);
+    expect(legacy.map((bucket) => bucket.maxCostCents)).toEqual([1_000]);
+
+    policy.projectBudgets = { rules: [cap(500)] };
+    const own = await readBudgetStanding(ledger({}), subject, NOW);
+    expect(own.map((bucket) => bucket.maxCostCents)).toEqual([500]);
+
+    // An emptied file is the whole truth: no project cap binds.
+    policy.projectBudgets = { rules: [] };
+    expect(await readBudgetStanding(ledger({}), subject, NOW)).toEqual([]);
+
+    // They follow the budgets file's switch.
+    policy.projectBudgets = { rules: [cap(500)] };
+    policy.config = { enabled: false, rules: [] };
+    expect(await readBudgetStanding(ledger({}), subject, NOW)).toEqual([]);
   });
 
   it('lists periods from the shortest to the longest', async () => {

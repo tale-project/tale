@@ -952,6 +952,7 @@ describe('handler statuses and bodies match the documented operation', () => {
         organizationId: 'org-1',
         projectId: 'p-1',
         name: 'Reviewer',
+        handle: 'reviewer',
         harness: 'claude-code',
         model: 'test-model',
         modelProvider: null,

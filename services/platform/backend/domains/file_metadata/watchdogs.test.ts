@@ -439,10 +439,11 @@ describe('recoverStuckRagIndexing — the interrupted text [FMETA-R2]', () => {
     );
   });
 
-  // Index health re-queues a parked file under `FOR UPDATE SKIP LOCKED` and
-  // stops at a short batch: a stamp holding the row's lock at that moment
-  // would leave it parked until the next healthy report.
-  it('leaves a file parked by a bad search index to the index health report', async () => {
+  // Index health — and the hourly usage-limit pass — re-queue a parked file
+  // under `FOR UPDATE SKIP LOCKED` and stop at a short batch: a stamp
+  // holding the row's lock at that moment would leave it parked until the
+  // next pass.
+  it('leaves a file parked by a bad search index, or by a usage limit, to the pass that resumes it', async () => {
     const { sql, statements } = fakeSql([]);
     corpusAnswering([]);
 
@@ -455,6 +456,7 @@ describe('recoverStuckRagIndexing — the interrupted text [FMETA-R2]', () => {
     expect(read?.values).toContainEqual([
       'index_rebuilding',
       'index_repair_failed',
+      'usage_limit',
     ]);
   });
 });

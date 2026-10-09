@@ -201,6 +201,23 @@ describe('POST /files/register', () => {
     expect(markRagQueued).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
   });
+
+  it('hands a new chat’s project to the registration, which checks it [GOV-R14]', async () => {
+    const res = await register({
+      fileName: 'memo.m4a',
+      contentType: 'audio/mp4',
+      projectId: 'project_1',
+    });
+
+    expect(res.status).toBe(200);
+    expect(registerUpload).toHaveBeenCalledWith(
+      expect.anything(),
+      db.tx,
+      { organizationId: 'org_1', userId: 'user_1' },
+      expect.objectContaining({ projectId: 'project_1' }),
+      { kind: 'app', purpose: 'file' },
+    );
+  });
 });
 
 describe('POST /files/register — a file no lane will index', () => {

@@ -217,15 +217,15 @@ nodes:
       feedback: 'Scheduled occurrence {{ input.firedAt }}.'
 ```
 
-Der Schritt liefert den gestarteten Lauf zurück, und die Zeitleiste der Aufgabe führt diesen Lauf als **Automatisierung** mit einem Link zum Automatisierungslauf. Startet der Schritt nichts, ist er trotzdem erfolgreich und nennt den Grund. So bleibt der Termin festgehalten, statt für später eingereiht zu werden:
+Der Schritt liefert den gestarteten Lauf zurück, und die Zeitleiste der Aufgabe führt diesen Lauf als **Automatisierung** mit einem Link zum Automatisierungslauf. Ein Agent, der gerade an anderen Aufgaben arbeitet, wird trotzdem gestartet: Sein Lauf arbeitet in einem eigenen [Worker](/de/platform/projects/project-agents#run-one-agent-on-several-tasks), und sind alle Agenten-Worker deiner Organisation belegt, wartet er auf einen und startet von selbst. Startet der Schritt nichts, ist er trotzdem erfolgreich und nennt den Grund. So bleibt der Termin festgehalten, statt für später eingereiht zu werden:
 
 | Antwort | Bedeutung |
 | --- | --- |
-| `started: true` | Der Lauf des Agenten wurde gestartet; `runId` nennt ihn. |
+| `started: true` | Der Lauf des Agenten wurde gestartet; `runId` nennt ihn. Mit `waitingReason` wartet der Lauf auf Platz, bevor er arbeitet: `org_limit`, wenn alle Agenten-Worker deiner Organisation belegt sind, `host`, wenn der Sandbox-Host voll ist, `destroy_pending`, wenn der Arbeitsbereich, den er nutzen würde, gerade gelöscht wird, `exec_limit`, wenn seine Sandbox noch einen früheren Prozess beendet. Er startet von selbst, sobald Platz frei wird. |
 | `already_running` | Der vorherige Lauf der Aufgabe arbeitet noch und trägt die Arbeit weiter. Es startet nichts Neues, und der Termin wartet nicht darauf, dass dieser Lauf endet. |
 | `in_review` | Mit `moveToInProgress: false` wartet die Karte auf ihren erfassten Prüfer, eine Person oder einen Agenten. Es wird nichts zugewiesen oder gestartet, und die Prüfung behält diesen Empfänger. |
 | `closed` | Mit `moveToInProgress: false` steht die Karte auf **Erledigt** oder **Abgebrochen** (`taskStatus`). Es wird nichts zugewiesen oder gestartet. |
-| `agent_busy` | Der Agent arbeitet an einer anderen Aufgabe (`busyTaskId`). Ein Agent bearbeitet in seinem Arbeitsbereich jeweils nur eine Aufgabe. |
+| `agent_busy` | Kommt nicht mehr vor: Ein Agent, der an einer anderen Aufgabe arbeitet, wird in einem eigenen Worker gestartet oder wartet auf einen. Ältere Läufe einer Automatisierung können die Antwort noch zeigen. |
 | `blocked` | Eine Aufgabe, von der diese abhängt, ist noch offen (`blockedBy`). |
 | `paused` | Die Aufgabe hat in der letzten Stunde schon drei Starts durch Automatisierungen und Agenten erhalten, gewöhnliche automatische Wiederholungen eingerechnet. Eine Broker-Wartezeit unmittelbar nach einem HTTP-429-Fehler desselben Agenten erhöht die Zahl nicht; aufeinanderfolgende Wartezeiten zählen weiterhin. `retryAfter` gibt an, wann die Stundengrenze einen weiteren Start zulässt; die übrigen Startprüfungen gelten weiterhin. |
 

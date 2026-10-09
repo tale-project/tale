@@ -28,7 +28,7 @@ export const REPLAY_WRITE_WATERMARK = 128 * 1024;
 const WRITE_VECTORS = 64;
 const READ_CHUNK = 64 * 1024;
 
-type ReplayFailure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE';
+type ReplayFailure = 'OUTPUT_LIMIT' | 'REPLAY_UNAVAILABLE' | 'REPLAY_DISK_FULL';
 export class ReplayError extends Error {
   constructor(
     readonly code: ReplayFailure,
@@ -38,9 +38,25 @@ export class ReplayError extends Error {
       message ??
         (code === 'OUTPUT_LIMIT'
           ? 'Execution output exceeded its replay storage limit.'
-          : 'The complete execution transcript is unavailable.'),
+          : code === 'REPLAY_DISK_FULL'
+            ? 'The sandbox host ran out of disk space.'
+            : 'The complete execution transcript is unavailable.'),
     );
   }
+}
+
+/** The replay failure a failed journal write is. A full disk (or a spent
+ * quota) is the host's condition, not a lost transcript, and is named as
+ * such, so whoever reads the failure can say what to free. */
+function journalFailure(error: unknown): ReplayError {
+  if (error instanceof ReplayError) return error;
+  const code =
+    error instanceof Error && 'code' in error ? error.code : undefined;
+  return new ReplayError(
+    code === 'ENOSPC' || code === 'EDQUOT'
+      ? 'REPLAY_DISK_FULL'
+      : 'REPLAY_UNAVAILABLE',
+  );
 }
 
 /** Queued output may already have reached a live reader; later output cannot. */
@@ -378,10 +394,7 @@ export class ExecReplay {
         start = end;
       }
     } catch (error) {
-      this.failure =
-        error instanceof ReplayError
-          ? error
-          : new ReplayError('REPLAY_UNAVAILABLE');
+      this.failure = journalFailure(error);
       throw this.failure;
     }
   }
@@ -463,12 +476,13 @@ export class ExecReplay {
         this.checkpoint = checkpoint;
         await this.prune();
         return true;
-      } catch {
+      } catch (error) {
         // A failure after the rename has exposed the newer checkpoint (while
         // pruning the output it covers) leaves the commit uncertain. Never
         // let an older in-memory cursor authorize a stale overwrite, or prune
-        // output against it.
-        this.failure = new ReplayError('REPLAY_UNAVAILABLE');
+        // output against it. A checkpoint the disk refuses for want of space
+        // is named as such, like a refused output write.
+        this.failure = journalFailure(error);
         throw this.failure;
       } finally {
         if (!committed) {

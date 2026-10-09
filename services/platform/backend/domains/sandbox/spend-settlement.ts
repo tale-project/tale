@@ -71,12 +71,14 @@ export interface SessionOpSettlementRow {
   organizationId: string;
   kind: string;
   mintedKeyId: string | null;
+  /** The hold the op took: 0 for a subscription turn's request, null when
+   * it reserved nothing. */
+  budgetCents: number | null;
   finalized: boolean;
   spendSettled: boolean;
   keyRevoked: boolean;
   hints: SpendHints;
   startedAtMs: number;
-  budgetCents: number | null;
   reservedTokens: number | null;
 }
 
@@ -266,6 +268,52 @@ export async function settleSessionOpSpend(
   });
 }
 
+/**
+ * Book a subscription turn — its hold a single request at no cost, its op
+ * keyless — as the request it was, once, with the tokens its harness
+ * reported when the caller has them. Any other op is left alone: a gateway
+ * turn books what its key spent, and a start that died before its mint
+ * spent nothing.
+ */
+export async function settleCostFreeTurn(
+  sql: Sql,
+  args: {
+    sessionId: string;
+    execId: string;
+    usage?: { inputTokens: number; outputTokens: number };
+  },
+): Promise<void> {
+  const rows = await sql<
+    {
+      budgetCents: number | null;
+      mintedKeyId: string | null;
+      spendSettledAt: number | null;
+    }[]
+  >`
+    SELECT budget_cents::float8 AS "budgetCents",
+           minted_key_id AS "mintedKeyId",
+           spend_settled_at_ms::float8 AS "spendSettledAt"
+    FROM app.sandbox_session_ops
+    WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
+    LIMIT 1
+  `;
+  const op = rows[0];
+  if (
+    op === undefined ||
+    op.budgetCents !== 0 ||
+    op.mintedKeyId !== null ||
+    op.spendSettledAt !== null
+  ) {
+    return;
+  }
+  await settleSessionOpSpend(sql, {
+    sessionId: args.sessionId,
+    execId: args.execId,
+    spentCents: 0,
+    ...(args.usage !== undefined ? { usage: args.usage } : {}),
+  });
+}
+
 /** Stamp the revoke fact on the token row(s) carrying the key and on the op
  * that minted it. Only ever called once the gateway confirmed the delete
  * (or reported the key unknown). */
@@ -324,8 +372,10 @@ export function pgGatewayKeySettlementPort(
 
 /**
  * Finish one op's settlement from wherever it stopped. An op that never
- * minted a key (the subscription lane, a start that died before its mint)
- * has nothing to settle: its facts are closed so its reservation frees.
+ * minted a key has no spend to read: a subscription turn — its hold a single
+ * request at no cost — is booked as that request, with whatever tokens its
+ * row carries, and a gateway start that died before its mint is closed with
+ * no booking; either way its reservation frees.
  */
 export async function reconcileSessionOpKey(
   sql: Sql,
@@ -389,7 +439,12 @@ export async function reconcileSessionOpKey(
     return { spendSettled: op.spendSettled, keyRevoked: op.keyRevoked };
   }
   if (op.mintedKeyId === null) {
-    if (!op.spendSettled) {
+    if (!op.spendSettled && op.budgetCents === 0) {
+      await settleCostFreeTurn(sql, {
+        sessionId: args.sessionId,
+        execId: args.execId,
+      });
+    } else if (!op.spendSettled) {
       await sql`
         UPDATE app.sandbox_session_ops SET spend_settled_at_ms = ${Date.now()}
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}

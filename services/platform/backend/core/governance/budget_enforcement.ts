@@ -3,15 +3,17 @@ import type { BudgetRule } from '@tale/shared/schemas/governance';
 import { matchingTeamRules, strictestCap } from './rule_precedence.ts';
 
 /** Whose bucket a warning is about: the caller's own usage, one of their
- * teams' shared usage, the whole organization's, or the authenticating API
- * key's. */
-export type BudgetWarningScope = 'user' | 'team' | 'org' | 'apiKey';
+ * teams' shared usage, the whole organization's, the authenticating API
+ * key's, or everything spent in the project the caller works in. */
+export type BudgetWarningScope = 'user' | 'team' | 'org' | 'apiKey' | 'project';
 
 export interface BudgetWarning {
   code: 'TOKEN_WARNING' | 'COST_WARNING' | 'REQUEST_WARNING';
   scope: BudgetWarningScope;
   /** The team whose shared cap this is — team scope only. */
   teamId?: string;
+  /** The project whose cap this is — project scope only. */
+  projectId?: string;
   period: string;
   used: number;
   limit: number;
@@ -478,9 +480,11 @@ export function collectApiKeyWarnings(
 /** One cap that binds a subject with the usage measured against it — the
  * shape `readBudgetStanding` answers (`budget-gate.ts`). */
 export interface StandingBucket {
-  scope: 'user' | 'team' | 'org';
+  scope: 'user' | 'team' | 'org' | 'project';
   /** The team whose shared cap this is — team scope only. */
   teamId?: string;
+  /** The project whose cap this is — project scope only. */
+  projectId?: string;
   period: string;
   warningThresholdPercent?: number;
   maxTokens?: number;
@@ -494,7 +498,8 @@ export interface StandingBucket {
  * buckets the admission gate walks, so the banner can never announce a
  * standing the gate would not enforce: the personal cap against the
  * subject's own usage, each team's shared cap against that team's aggregate
- * (at the team rule's own threshold), the organization's against the
+ * (at the team rule's own threshold), a project's against everything spent
+ * in it (at the project rule's), the organization's against the
  * organization's.
  */
 export function collectStandingWarnings(
@@ -508,8 +513,11 @@ export function collectStandingWarnings(
       standing.usage,
       standing.period,
     );
-    if (standing.teamId !== undefined) {
-      for (const warning of warnings) warning.teamId = standing.teamId;
+    for (const warning of warnings) {
+      if (standing.teamId !== undefined) warning.teamId = standing.teamId;
+      if (standing.projectId !== undefined) {
+        warning.projectId = standing.projectId;
+      }
     }
     return warnings;
   });

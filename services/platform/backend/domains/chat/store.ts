@@ -15,6 +15,7 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { budgetPolicyActive } from '../governance/budget-gate.ts';
+import { lockBudgetAdmission } from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
 import {
@@ -111,6 +112,12 @@ export async function appendMessageRow(
     error?: string;
     truncation?: { droppedMessages: number };
     status?: string;
+    /** The API key that sent a user message: naming the thread it opens is
+     * the key's spend too. */
+    apiKeyId?: string;
+    /** A guardrail refused the user message: the thread it opens is named
+     * from its own words, with no model call. */
+    nameWithoutModel?: boolean;
   },
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
@@ -150,10 +157,15 @@ export async function appendMessageRow(
     WHERE id = ${message.threadId}
   `;
   const meta = await sql<
-    { branchRootId: string | null; chatType: string; userId: string }[]
+    {
+      branchRootId: string | null;
+      chatType: string;
+      userId: string;
+      arenaRole: string | null;
+    }[]
   >`
     SELECT branch_root_id AS "branchRootId", chat_type AS "chatType",
-           user_id AS "userId"
+           user_id AS "userId", arena ->> 'role' AS "arenaRole"
     FROM app.thread_metadata WHERE thread_id = ${message.threadId}
     LIMIT 1
   `;
@@ -178,8 +190,15 @@ export async function appendMessageRow(
   // The thread's first user message names the conversation: fire the AI
   // title generation exactly once — for the opening user message of an
   // untitled thread (a branch copy or an explicitly titled thread keeps
-  // what it has).
-  if (message.role === 'user' && row.order === 0 && meta[0] !== undefined) {
+  // what it has). The hidden column of a model comparison takes the title
+  // its visible partner is given (`setThreadTitleIfAbsent`): naming it too
+  // would pay for a second title nobody reads.
+  if (
+    message.role === 'user' &&
+    row.order === 0 &&
+    meta[0] !== undefined &&
+    meta[0].arenaRole !== 'b'
+  ) {
     const firstMessage = (message.text ?? '').trim();
     if (firstMessage.length > 0) {
       const untitled = await sql<{ id: string }[]>`
@@ -193,6 +212,12 @@ export async function appendMessageRow(
           threadId: message.threadId,
           userId: meta[0].userId,
           firstMessage,
+          ...(message.apiKeyId !== undefined
+            ? { apiKeyId: message.apiKeyId }
+            : {}),
+          ...(message.nameWithoutModel === true
+            ? { nameWithoutModel: true }
+            : {}),
         });
       }
     }
@@ -470,6 +495,9 @@ function pgTurnStore(
             ...(setup.truncation !== undefined
               ? { truncation: setup.truncation }
               : {}),
+            ...(setup.spend?.apiKeyId !== undefined
+              ? { apiKeyId: setup.spend.apiKeyId }
+              : {}),
           });
         }
         const assistantMessage = await appendMessageRow(tx, {
@@ -523,6 +551,23 @@ function pgTurnStore(
       return scope === undefined
         ? sql.begin(open)
         : transactSerializable(sql, open);
+    },
+
+    async holdNextRound(round) {
+      // Holds count only where a budget policy binds; the lock orders the
+      // raise with every admission that reads it.
+      if (!(await budgetPolicyActive(sql, round.organizationId))) return;
+      await sql.begin(async (tx) => {
+        await lockBudgetAdmission(tx, round.organizationId);
+        await tx`
+          UPDATE app.generations SET
+            reserved_cost_cents = reserved_cost_cents + ${round.costCents},
+            reserved_tokens = reserved_tokens + ${Math.ceil(round.tokens)},
+            updated_at_ms = ${Date.now()}
+          WHERE thread_id = ${round.threadId}
+            AND org_id = ${round.organizationId}
+        `;
+      });
     },
 
     async endGeneration(generation) {
