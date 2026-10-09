@@ -727,6 +727,21 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
     );
   });
 
+  it('binds an exact requested run to both the organization and task', async () => {
+    const { sql, statements } = recording();
+    await listTaskAgentRunSummaries(sql, {
+      organizationId: 'org-1',
+      taskId: 'task-1',
+      limit: 1,
+      runId: 'old-run',
+    });
+    expect(statements[0]?.text).toContain('WHERE org_id = ? AND task_id = ?');
+    expect(statements[0]?.text).toContain('AND (?::text IS NULL OR id = ?)');
+    expect(statements[0]?.values).toEqual(
+      expect.arrayContaining(['org-1', 'task-1', 'old-run', 1]),
+    );
+  });
+
   it('reads identity, status, timing and a feedback excerpt — never the transcript or the workspace', async () => {
     const { sql, statements } = recording();
     await listTaskAgentRunSummaries(sql, {
@@ -803,6 +818,7 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
     rows: Row[],
     retryHistory: Row[],
     beforeSeq?: number,
+    runId?: string,
   ) {
     const { sql, statements } = fakeSql((text) =>
       text.includes('auto_retry_refused_at_ms::float8') ? retryHistory : rows,
@@ -812,6 +828,7 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       taskId: 'task-1',
       limit: 5,
       ...(beforeSeq !== undefined ? { beforeSeq } : {}),
+      ...(runId !== undefined ? { runId } : {}),
     });
     return { runs, statements };
   }
@@ -865,6 +882,16 @@ describe('listTaskAgentRunSummaries — the runs an agent reading its task sees'
       3,
     );
     expect(runs[0]?.retryPending).toBe(false);
+  });
+
+  it('does not lend a newer armed retry to an exact historical requested run', async () => {
+    const { runs } = await readRetryState(
+      [summary({ id: 'old-run' })],
+      [history()],
+      undefined,
+      'old-run',
+    );
+    expect(runs[0]).toMatchObject({ id: 'old-run', retryPending: false });
   });
 
   it('only the newest row can have a pending retry, with one budget read per page', async () => {

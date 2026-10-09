@@ -15,6 +15,7 @@
     "components/schedule-occurrence-list",
     "components/schema-tree",
     "components/tabs-and-navigation",
+    "components/thread",
     "components/time-field",
     "components/toast",
     "components/workflow-canvas",

@@ -22,9 +22,11 @@ import { InnerDockerHealth } from './inner-docker-health.ts';
 
 const workspace = realpathSync(mkdtempSync(`${tmpdir()}/runnerd-http-`));
 const token = 'runnerd-http-test-token';
+const incarnation = '1760000000000';
 const previous = {
   workspace: process.env.TALE_WORKSPACE_ROOT,
   token: process.env.TALE_RUNNERD_TOKEN,
+  incarnation: process.env.TALE_RUNNERD_INCARNATION,
   browser: process.env.TALE_BROWSER_CDP,
 };
 let server: Server;
@@ -33,6 +35,7 @@ let baseUrl: string;
 beforeAll(async () => {
   process.env.TALE_WORKSPACE_ROOT = workspace;
   process.env.TALE_RUNNERD_TOKEN = token;
+  process.env.TALE_RUNNERD_INCARNATION = incarnation;
   // An old deployment's leftover env cannot revive the retired stack.
   process.env.TALE_BROWSER_CDP = '1';
   ({ server } = await import('./main.ts'));
@@ -51,6 +54,7 @@ afterAll(async () => {
   for (const [name, value] of [
     ['TALE_WORKSPACE_ROOT', previous.workspace],
     ['TALE_RUNNERD_TOKEN', previous.token],
+    ['TALE_RUNNERD_INCARNATION', previous.incarnation],
     ['TALE_BROWSER_CDP', previous.browser],
   ] as const) {
     if (value === undefined) delete process.env[name];
@@ -206,6 +210,7 @@ describe('runnerd HTTP service', () => {
     expect(await response.json()).toEqual({
       ok: true,
       bootedAtMs: expect.any(Number),
+      incarnation,
       lastActivityAtMs: expect.any(Number),
       liveExecs: 0,
       activity: {
@@ -353,10 +358,10 @@ describe('runnerd HTTP service', () => {
       expect(activeOperations).toBe(1);
       expect(
         (await activityPost('/release', await releaseTicket())).value,
-      ).toEqual({ released: false });
+      ).toEqual({ released: false, incarnation });
       expect(
         (await activityPost('/reclaim', { claimId: 'upload' })).value,
-      ).toEqual({ claimed: false });
+      ).toEqual({ claimed: false, incarnation });
     } finally {
       upload.end('}');
     }
@@ -383,10 +388,10 @@ describe('runnerd HTTP service', () => {
       await fetched.promise;
       expect(
         (await activityPost('/release', await releaseTicket())).value,
-      ).toEqual({ released: false });
+      ).toEqual({ released: false, incarnation });
       expect(
         (await activityPost('/reclaim', { claimId: 'staging' })).value,
-      ).toEqual({ claimed: false });
+      ).toEqual({ claimed: false, incarnation });
       complete.resolve();
       expect((await staging).value).toEqual({
         staged: [{ path: 'pressure.txt', bytes: 9 }],
@@ -792,6 +797,57 @@ describe('runnerd HTTP service', () => {
     },
   );
 
+  test('activity answers name the incarnation, and a request meant for another is refused before it changes anything', async () => {
+    const before = await releaseTicket();
+    expect(before).toEqual({ generation: expect.any(String), incarnation });
+    const other = { ...headers, 'x-tale-runnerd-incarnation': '1' };
+    for (const [method, path, body] of [
+      ['GET', '/release', undefined],
+      ['POST', '/acquire', undefined],
+      ['POST', '/release', { generation: before.generation }],
+      ['POST', '/pin', { pinned: true }],
+      [
+        'POST',
+        '/reclaim',
+        { claimId: 'replacement', generation: before.generation },
+      ],
+    ] as const) {
+      const refused = await fetch(`${baseUrl}${path}`, {
+        method,
+        headers: other,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      expect(refused.status).toBe(409);
+      expect(await refused.json()).toEqual({
+        error: 'incarnation_mismatch',
+        incarnation,
+      });
+    }
+    const health = record(
+      await (await fetch(`${baseUrl}/healthz`, { headers })).json(),
+    );
+    expect(health.incarnation).toBe(incarnation);
+    expect(record(health.activity)).toMatchObject({
+      generation: before.generation,
+      pinned: false,
+      reclaiming: false,
+    });
+    const own = await fetch(`${baseUrl}/acquire`, {
+      method: 'POST',
+      headers: { ...headers, 'x-tale-runnerd-incarnation': incarnation },
+    });
+    expect(own.status).toBe(200);
+    const acquired = record(await own.json());
+    expect(acquired).toEqual({ generation: expect.any(String), incarnation });
+    expect(acquired.generation).not.toBe(before.generation);
+    // Whether it releases depends on work earlier tests left in flight; the
+    // answer names the incarnation either way.
+    expect(
+      (await activityPost('/release', { generation: acquired.generation }))
+        .value,
+    ).toEqual({ released: expect.any(Boolean), incarnation });
+  });
+
   // KEEP LAST: the claim below freezes the one daemon this file shares —
   // by design a successful claim never expires — so every request a later
   // test would make answers 503 `reclaiming`.
@@ -800,6 +856,7 @@ describe('runnerd HTTP service', () => {
     expect((await activityPost('/acquire')).status).toBe(200);
     expect((await activityPost('/release', stale)).value).toEqual({
       released: false,
+      incarnation,
     });
     const current = await releaseTicket();
     for (const idleBeforeMs of [null, '0', -1, 1.5]) {
@@ -819,20 +876,21 @@ describe('runnerd HTTP service', () => {
           idleBeforeMs: 0,
         })
       ).value,
-    ).toEqual({ claimed: false });
+    ).toEqual({ claimed: false, incarnation });
     expect((await activityPost('/release', current)).value).toEqual({
       released: true,
+      incarnation,
     });
     expect((await activityPost('/pin', { pinned: true })).status).toBe(200);
     expect(
       (await activityPost('/reclaim', { claimId: 'pressure' })).value,
-    ).toEqual({ claimed: false });
+    ).toEqual({ claimed: false, incarnation });
     expect((await activityPost('/pin', { pinned: false })).status).toBe(200);
     expect(
       (await activityPost('/reclaim', { claimId: 'pressure' })).value,
-    ).toEqual({ claimed: true });
+    ).toEqual({ claimed: true, incarnation });
     expect((await activityPost('/reclaim', { claimId: 'peer' })).value).toEqual(
-      { claimed: true },
+      { claimed: true, incarnation },
     );
     for (const [path, body] of [
       ['/acquire', {}],

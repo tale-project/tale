@@ -114,7 +114,7 @@ settings:
               label: Strict checklist
 ```
 
-Si le projet n’est pas encore configuré, les formulaires obligatoires précèdent les champs de la tâche. **Enregistrer et continuer** les écrit puis reprend la création. **Paramètres** les rouvre ensuite sous forme d’onglets. Un point signale les modifications non enregistrées ; **Enregistrer** écrit tous les formulaires modifiés. Fermer avec des changements en attente demande confirmation.
+Si le projet n’est pas encore configuré, les formulaires obligatoires précèdent les champs de la tâche. **Enregistrer et continuer** les écrit puis reprend la création. **Paramètres** les rouvre ensuite sous forme d’onglets. Un point signale les modifications non enregistrées ; **Enregistrer** écrit tous les formulaires modifiés. Fermer avec des changements en attente demande confirmation. La `description` d’un formulaire s’affiche au-dessus de ses champs ; au-delà de trois lignes, tu en vois le début et **Lire la suite** ouvre le reste.
 
 L’enregistrement remplace le fichier YAML plat du formulaire, par exemple `Setup/validation-policy.yaml`. Les valeurs existantes préremplissent le formulaire, y compris celles d’un fichier téléversé manuellement. Les types admis sont `text`, `number`, `boolean` et `select` ; les valeurs sont stockées comme chaînes. Un champ texte peut imposer un `pattern`. Des blocs `i18n` par entrée traduisent titres, libellés, aide et options. Place les listes et structures imbriquées dans des fichiers séparés que le workflow lira en complément.
 

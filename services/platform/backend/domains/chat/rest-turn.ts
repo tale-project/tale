@@ -181,6 +181,9 @@ async function runAcceptedTurn(
             role: 'user',
             parts: [{ type: 'text', text: payload.userText }],
             text: payload.userText,
+            ...(payload.apiKeyId !== undefined
+              ? { apiKeyId: payload.apiKeyId }
+              : {}),
           });
         }
         const reply = {

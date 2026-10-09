@@ -81,7 +81,9 @@ writeFileSync(
 );
 writeFileSync(
   join(bin, 'redsocks'),
-  '#!/bin/sh\nprintf "redsocks diagnostic\\n" >&2\n',
+  // Ends the restart loop the session runs it under, so a test's `wait`
+  // returns once this one run has printed its diagnostic.
+  '#!/bin/sh\nprintf "redsocks diagnostic\\n" >&2\nkill -TERM "$PPID" 2>/dev/null\n',
   { mode: 0o755 },
 );
 writeFileSync(

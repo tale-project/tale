@@ -2,7 +2,38 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TaskActivityRow, TaskAgentRunRow } from '../utils/task-timeline';
-import { TaskTimeline } from './task-timeline';
+import {
+  TaskTimelineEntry,
+  timelineItemKey,
+  useTaskTimeline,
+} from './task-timeline';
+
+/** Every line of a task's history, each as the conversation draws it. */
+function TaskTimeline({
+  taskId,
+  organizationId,
+  projectId,
+}: {
+  taskId: string;
+  organizationId: string;
+  projectId: string;
+}) {
+  const { timeline, runs } = useTaskTimeline(taskId);
+  return (
+    <ul>
+      {timeline.map((item) => (
+        <li key={timelineItemKey(item)}>
+          <TaskTimelineEntry
+            item={item}
+            runs={runs}
+            organizationId={organizationId}
+            projectId={projectId}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 // Typed as the row the timeline actually consumes, so a fixture can carry any
 // real `actorType` and the shape cannot drift from `TaskActivityRow`.
@@ -332,11 +363,11 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
 
     expect(
       screen.getByText(
-        'repeat changed: Never → sentence.monthly({"count":1,"day":15})',
+        'Repeat changed: Never → sentence.monthly({"count":1,"day":15})',
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('repeat changed: sentence.daily({"count":2}) → Never'),
+      screen.getByText('Repeat changed: sentence.daily({"count":2}) → Never'),
     ).toBeInTheDocument();
   });
 
@@ -373,7 +404,7 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
     const sentence = 'sentence.monthly({"count":1,"day":30})';
     const onDue = `repeat.ruleOnDue(${JSON.stringify({ rule: sentence })})`;
     expect(
-      screen.getByText(`repeat changed: ${sentence} → ${onDue}`),
+      screen.getByText(`Repeat changed: ${sentence} → ${onDue}`),
     ).toBeInTheDocument();
   });
 
@@ -397,7 +428,7 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
       />,
     );
 
-    expect(screen.getByText('next task created: OPS-12')).toBeInTheDocument();
+    expect(screen.getByText('Next task created: OPS-12')).toBeInTheDocument();
   });
 });
 

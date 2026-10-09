@@ -53,12 +53,16 @@ without a new approval. A request that has finished in the meantime is not run a
 
 | What the person started | What happens to it |
 | --- | --- |
-| automation runs | deleted |
+| automation runs | deleted unless preserved by an unresolved legacy execution hold (`ERASE-R9`) |
 | runs of a project agent | kept, with the person's identity replaced by a pseudonym |
-| finished requests to the model API | deleted |
-| requests to the model API still in progress | kept, with the person's identity replaced by a pseudonym |
+| finished model API and direct automation model requests | deleted |
+| model API and direct automation model requests still in progress | kept, with the person's identity replaced by a pseudonym |
+| finished model calls Tale made for them (a chat title, Improve with AI) | deleted |
+| such model calls still in progress | kept, with the person's identity replaced by a pseudonym, so their cost is booked under it |
 
-The receipt counts each of these steps.
+The receipt counts each of these steps. Automation runs are retired before their model
+requests lose the identity, so an admitted call that finishes later books only under the
+pseudonym. A failed prerequisite keeps the affected cleanup partial and retryable.
 
 - **Example**: Noah started twelve automation runs. Ada's erasure of Noah completes → the
   twelve runs are gone, and the receipt counts them.
@@ -89,12 +93,25 @@ be checked, the request fails with an error; it is not recorded as a denial.
 - **Example**: A script files erasure requests in a loop → after the limit they are refused,
   and each refusal is in the audit log.
 
+## Preserved automation runs
+
+### ERASE-R9 · An erasure preserves held runs and deletes other eligible runs
+
+The erasure removes the person's unheld automation runs in this organization and counts
+deleted and preserved runs separately. Any preserved legacy run keeps the receipt partial
+with an execution-hold reason. A stop request or a retry does not release that hold, erase
+its evidence or allow its task to restart. This is separate from a legal hold. Summary counters
+and the category breakdown read both historical count shapes and agree on erased rows.
+
+- **Example**: Noah started two runs and one is held after an upgrade. Ada's erasure removes
+  the unheld run → the receipt shows one erased, one preserved and a partial result.
+
 ## Not yet
 
 - **Who can file, approve and retry a request**, and the second admin's approval itself: see
   the approvals spec for who can decide an erasure approval.
-- **Everything else an erasure removes**: chats, documents, files, preferences and the rest
-  (`service.ts`). An integration lane covers the hand-over of reviews; the guard does not read
-  it.
+- **Everything else an erasure removes**: chats, documents, files, preferences, the person's
+  name and id in other people's mentions of them, and the rest (`service.ts`). An integration
+  lane covers the hand-over of reviews; the guard does not read it.
 - **The waiting period** before an approved request runs, and the receipt's states.
 - **A request that takes too long**: it is ended with a message and can be retried.

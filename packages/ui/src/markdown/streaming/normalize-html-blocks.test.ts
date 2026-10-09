@@ -2,7 +2,11 @@ import { micromark } from 'micromark';
 import { describe, expect, it } from 'vitest';
 
 import { micromarkCjkAttention } from '../plugins/micromark-cjk-attention';
-import { normalizeHtmlBlocks } from './normalize-html-blocks';
+import {
+  normalizeHtmlBlocks,
+  normalizeHtmlBlocksWithOffsets,
+  toInputOffset,
+} from './normalize-html-blocks';
 
 const renderHtml = (md: string): string =>
   micromark(md, {
@@ -132,5 +136,25 @@ describe('normalizeHtmlBlocks — edge cases', () => {
     const input = '<DIV>\n**x**\n</DIV>';
     const out = normalizeHtmlBlocks(input);
     expect(renderHtml(out)).toContain('<strong>x</strong>');
+  });
+});
+
+describe('normalizeHtmlBlocksWithOffsets — mapping back to the input', () => {
+  it('records where each blank line went, so offsets map back', () => {
+    const input = '<div>\nfoo\n</div>';
+    const { text, inserted } = normalizeHtmlBlocksWithOffsets(input);
+    expect(text).toBe('<div>\n\nfoo\n\n</div>');
+    expect(inserted).toEqual([6, 11]);
+    expect(input[toInputOffset(inserted, text.indexOf('foo'))]).toBe('f');
+    expect(input.slice(toInputOffset(inserted, text.indexOf('</div>')))).toBe(
+      '</div>',
+    );
+  });
+
+  it('inserts nothing and maps every offset to itself for plain text', () => {
+    const { text, inserted } = normalizeHtmlBlocksWithOffsets('just @ada');
+    expect(text).toBe('just @ada');
+    expect(inserted).toEqual([]);
+    expect(toInputOffset(inserted, 5)).toBe(5);
   });
 });

@@ -26,7 +26,11 @@ actions:
         title: Aufgabe abrufen
       fr:
         title: Récupérer une tâche
-    description: Read one task's title, status, project, and external linkage.
+    description: >-
+      Read one task's title, status, project, external linkage, and
+      description. description is the text as stored, each mention a link
+      `[@Name](mention:<kind>/<id>)`; descriptionText is the same text with
+      each mention as `@` and the current name of whoever it names.
     effects: read
     input:
       type: object
@@ -34,7 +38,7 @@ actions:
       additionalProperties: false
       properties:
         taskId: { type: string, description: The task id. }
-    output: '{ taskId: string, title: string, status: string, projectId: string, externalSystem?: string, externalId?: string, externalUrl?: string }'
+    output: '{ taskId: string, title: string, status: string, projectId: string, externalSystem?: string, externalId?: string, externalUrl?: string, description?: string, descriptionText?: string }'
     mock: |
       return {
         taskId: String(input.taskId),
@@ -123,7 +127,9 @@ actions:
     description: >-
       Read the task's discussion comments, optionally only those newer than
       the last comment containing a marker (a delivery anchor) and only from
-      certain author kinds.
+      certain author kinds. body is each comment as stored, each mention a
+      link `[@Name](mention:<kind>/<id>)`; bodyText is the same text with each
+      mention as `@` and the current name of whoever it names.
     effects: read
     input:
       type: object
@@ -137,15 +143,15 @@ actions:
           description: Keep only these author kinds.
         afterMarker:
           type: string
-          description: Only comments newer than the last one containing this text.
+          description: Only comments newer than the last one whose body or bodyText contains this text.
         limit: { type: number, description: 'Newest N comments (max 100).' }
-    output: '{ count: number, truncated: boolean, comments: Array<{ authorType: string, authorId: string, body: string, bodyByLocale?: Record<string, string>, createdAt: number }> }'
+    output: '{ count: number, truncated: boolean, comments: Array<{ authorType: string, authorId: string, body: string, bodyText: string, bodyByLocale?: Record<string, string>, createdAt: number }> }'
     mock: |
       return {
         count: 1,
         truncated: false,
         comments: [
-          { authorType: 'user', authorId: 'usr_mock', body: 'Please re-check page 3.', createdAt: 1_750_000_000_000 },
+          { authorType: 'user', authorId: 'usr_mock', body: 'Please re-check page 3.', bodyText: 'Please re-check page 3.', createdAt: 1_750_000_000_000 },
         ],
       };
     backend:

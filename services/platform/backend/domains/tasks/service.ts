@@ -38,14 +38,20 @@ import {
 } from '../../core/tasks/audit_actions.ts';
 import {
   TASK_ATTACHMENTS_MAX,
+  TASK_DESCRIPTION_MAX,
   taskDescriptionRefusal,
   taskLabelCountRefusal,
   taskLabelNameRefusal,
   taskTitleRefusal,
 } from '../../core/tasks/helpers.ts';
 import {
+  cutTaskText,
+  descriptionMentionMode,
+  editIntroducesMentions,
+  MENTION_URL_SQL_PATTERN,
   type MentionSource,
-  parseMentionTokens,
+  type ResolvedMention,
+  taskMentionPlainText,
 } from '../../core/tasks/mentions.ts';
 import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
@@ -54,7 +60,10 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
-import { resolveSurfaceMentions } from '../collab/mention-directory.ts';
+import {
+  currentMentionNames,
+  prepareSurfaceText,
+} from '../collab/mention-directory.ts';
 import {
   autoSubscribe,
   dismissReviewerAssignedNotifications,
@@ -1345,7 +1354,7 @@ export async function createTask(
   assertTaskCreatable(project, auth);
 
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const labelIds = await resolveProjectLabels(tx, {
     organizationId: auth.organizationId,
     projectId: args.projectId,
@@ -1408,6 +1417,21 @@ export async function createTask(
       throw new TaskError('TASK_PARENT_ARCHIVED', 'Parent archived');
     }
   }
+
+  // The description is stored with its mentions as whom they name, before
+  // the row is written.
+  const prepared =
+    sentDescription === undefined ||
+    !editIntroducesMentions(sentDescription, '')
+      ? undefined
+      : await prepareSurfaceText(tx, {
+          organizationId: auth.organizationId,
+          projectId: args.projectId,
+          body: sentDescription,
+          cap: TASK_DESCRIPTION_MAX,
+          mode: 'full',
+        });
+  const description = prepared?.text ?? sentDescription;
 
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
@@ -1502,11 +1526,12 @@ export async function createTask(
   }
   // After the In progress kick, so an agent the card was born working for
   // keeps its run: one engine per task, and the dispatcher yields to it.
-  if (description !== undefined) {
+  if (prepared !== undefined && description !== undefined) {
     await fanOutDescriptionMentions(tx, auth, {
       taskId,
       project,
       description,
+      added: prepared.added,
     });
   }
   // Before the review gate: a named agent put to work moves the card to In
@@ -1651,12 +1676,31 @@ export async function updateTaskInstructionsConfiguration(
     expectedHash,
   );
   if ((task.description ?? '') === description) return;
+  // Stored exactly as sent, so the hash the caller reads back is the one it
+  // wrote; a mention token it adds must still name someone who can be
+  // mentioned on the task.
+  const check = await prepareSurfaceText(tx, {
+    organizationId: auth.organizationId,
+    projectId: config.projectId,
+    body: description,
+    cap: TASK_DESCRIPTION_MAX,
+    mode: 'verbatim',
+    previousBody: task.description ?? '',
+  });
+  if (check.invalidTokens.length > 0) {
+    throw new TaskError(
+      'TASK_MENTION_INVALID',
+      'The description mentions someone who cannot be mentioned on this task.',
+      400,
+      { mentions: check.invalidTokens },
+    );
+  }
   await updateTaskFields(
     tx,
     auth,
     { taskId: config.taskId, description },
     undefined,
-    { notifyDescriptionMentions: false },
+    { notifyDescriptionMentions: false, storeVerbatim: true },
   );
 }
 
@@ -1675,7 +1719,12 @@ async function updateTaskFields(
   auth: ProjectAuthContext,
   args: UpdateTaskArgs,
   agentId?: string,
-  options: { notifyDescriptionMentions?: boolean } = {},
+  options: {
+    notifyDescriptionMentions?: boolean;
+    /** Store the description exactly as sent (the managed lane, which has
+     * checked its mentions itself). */
+    storeVerbatim?: boolean;
+  } = {},
 ): Promise<void> {
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   const project = await loadProjectOrThrow(tx, task.projectId);
@@ -1703,11 +1752,32 @@ async function updateTaskFields(
     }
   }
   let description = task.description;
+  let addedMentions: ResolvedMention[] = [];
   if (args.description !== undefined) {
     description =
       args.description === null
         ? null
         : (validateDescription(args.description) ?? null);
+    // An edit is a new write: what it adds is stored as whom it names, while
+    // the mentions already there stay as written. Most edits add none, and
+    // then no directory is built.
+    if (
+      description !== null &&
+      description !== task.description &&
+      options.storeVerbatim !== true &&
+      editIntroducesMentions(description, task.description ?? '')
+    ) {
+      const prepared = await prepareSurfaceText(tx, {
+        organizationId: auth.organizationId,
+        projectId: task.projectId,
+        body: description,
+        cap: TASK_DESCRIPTION_MAX,
+        mode: descriptionMentionMode(task.externalSystem),
+        previousBody: task.description ?? '',
+      });
+      description = prepared.text;
+      addedMentions = prepared.added;
+    }
     if (description !== task.description) {
       previousState.description = task.description;
       newState.description = description;
@@ -1999,7 +2069,7 @@ async function updateTaskFields(
       taskId: task.id,
       project,
       description,
-      previousDescription: task.description ?? '',
+      added: addedMentions,
     });
   }
 }
@@ -2497,7 +2567,7 @@ export async function agentCreateTaskTrusted(
     throw new TaskError('PROJECT_NOT_FOUND', 'Project not found', 404);
   }
   const title = validateTitle(args.title);
-  const description = validateDescription(args.description);
+  const sentDescription = validateDescription(args.description);
   const status = args.status ?? 'backlog';
 
   if (args.parentTaskId !== undefined) {
@@ -2526,6 +2596,20 @@ export async function agentCreateTaskTrusted(
       createdBy: args.actorId,
       createIfMissing: args.mintLabels ?? true,
     })) ?? [];
+  // An agent's description stores its mentions as whom they name, as a
+  // person's does; it notifies nobody, as before.
+  const description =
+    sentDescription === undefined
+      ? undefined
+      : (
+          await prepareSurfaceText(tx, {
+            organizationId: args.organizationId,
+            projectId: args.projectId,
+            body: sentDescription,
+            cap: TASK_DESCRIPTION_MAX,
+            mode: 'full',
+          })
+        ).text;
   const now = Date.now();
   const rank = await computeEndRank(tx, args.projectId, status);
   const number = await nextTaskNumber(tx, args.projectId);
@@ -4008,7 +4092,8 @@ export async function listTaskActivity(
   return rows;
 }
 
-/** The head of a description, never cut inside a character. */
+/** The head of a description, never cut inside a character or inside a
+ * mention, whose reader would otherwise show half its address. */
 function quoteDescription(value: string | null): string | null {
   if (value === null || value.length <= ACTIVITY_DESCRIPTION_QUOTE_MAX) {
     return value;
@@ -4016,7 +4101,7 @@ function quoteDescription(value: string | null): string | null {
   const end = ACTIVITY_DESCRIPTION_QUOTE_MAX;
   // A high surrogate at the cut opens a pair the cut would split.
   const code = value.charCodeAt(end - 1);
-  return value.slice(0, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
+  return cutTaskText(value, code >= 0xd800 && code <= 0xdbff ? end - 1 : end);
 }
 
 // ---------------------------------------------------------------------------
@@ -4025,6 +4110,22 @@ function quoteDescription(value: string | null): string | null {
 
 const SEARCH_MAX_RESULTS = 25;
 const SEARCH_SNIPPET_MAX = 600;
+/** How much of a text a snippet is read from: room for its 600 characters
+ * once markdown and mentions are read, without parsing a whole description
+ * of up to 20,000 characters for every hit of every palette query. */
+const SEARCH_SNIPPET_SOURCE_MAX = SEARCH_SNIPPET_MAX * 4;
+
+/** The head of a text a snippet is read from. A cut through a mention link
+ * drops that mention instead of leaving its address to be read as text. */
+function searchSnippetSource(text: string): string {
+  if (text.length <= SEARCH_SNIPPET_SOURCE_MAX) return text;
+  const head = text.slice(0, SEARCH_SNIPPET_SOURCE_MAX);
+  const open = head.lastIndexOf('[@');
+  if (open === -1 || /\]\(mention:[^)\s]*\)/.test(head.slice(open))) {
+    return head;
+  }
+  return head.slice(0, open);
+}
 
 /**
  * A search query's `LIKE ALL` patterns: its whitespace-separated tokens,
@@ -4042,11 +4143,16 @@ export function taskSearchPatterns(query: string): string[] {
 
 /**
  * A task's own fields hold every token: title, description, external id and
- * `KEY-number`, read together. `t` is the `app.tasks` row.
+ * `KEY-number`, read together. `t` is the `app.tasks` row. A mention in the
+ * description counts by the name it was saved with, never by its address
+ * (`mention:agent/<id>`), so "agent" does not find every task that mentions
+ * one; a mention of someone renamed since is found by the older name only.
  */
 function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   return sql`lower(
-    t.title || ' ' || coalesce(t.description, '') || ' ' ||
+    t.title || ' ' ||
+    regexp_replace(coalesce(t.description, ''), ${MENTION_URL_SQL_PATTERN},
+                   ']', 'g') || ' ' ||
     coalesce(t.external_id, '') || ' ' ||
     coalesce(
       (SELECT p.key FROM app.projects p WHERE p.id = t.project_id) || '-' ||
@@ -4056,9 +4162,10 @@ function taskFieldsSearchMatch(sql: Sql, patterns: string[]) {
   ) LIKE ALL(${patterns})`;
 }
 
-/** One discussion comment holds every token; `m` is its `app.messages` row. */
+/** One discussion comment holds every token; `m` is its `app.messages` row.
+ * Its mentions count by name, as in {@link taskFieldsSearchMatch}. */
 function commentSearchMatch(sql: Sql, patterns: string[]) {
-  return sql`lower(coalesce(m.text, '')) LIKE ALL(${patterns})`;
+  return sql`lower(regexp_replace(coalesce(m.text, ''), ${MENTION_URL_SQL_PATTERN}, ']', 'g')) LIKE ALL(${patterns})`;
 }
 
 /**
@@ -4155,6 +4262,9 @@ export async function searchTasks(
   `;
   const seen = new Set(fieldHits.map((hit) => hit.taskId));
 
+  // A snippet reads each mention as the CURRENT name of whoever it names,
+  // and is cut after that, so it never ends in half a mention.
+  let names: Map<string, string> = new Map();
   const toHit = (hit: FieldHit, snippetSource: string): TaskSearchHit => {
     const key = projectKeys.get(hit.projectId) ?? null;
     const row: TaskSearchHit = {
@@ -4162,7 +4272,9 @@ export async function searchTasks(
       projectId: hit.projectId,
       title: hit.title,
       status: hit.status,
-      snippet: snippetSource.trim().slice(0, SEARCH_SNIPPET_MAX),
+      snippet: taskMentionPlainText(searchSnippetSource(snippetSource), names)
+        .trim()
+        .slice(0, SEARCH_SNIPPET_MAX),
       updatedAt: hit.updatedAt,
     };
     if (hit.number !== null) row.number = hit.number;
@@ -4171,6 +4283,13 @@ export async function searchTasks(
     if (archivedProjectIds.has(hit.projectId)) row.projectArchived = true;
     return row;
   };
+  names = await currentMentionNames(
+    sql,
+    auth.organizationId,
+    fieldHits.flatMap((hit) =>
+      hit.description === null ? [] : [searchSnippetSource(hit.description)],
+    ),
+  );
   const results: TaskSearchHit[] = fieldHits.map((hit) =>
     toHit(hit, hit.description ?? hit.title),
   );
@@ -4192,6 +4311,11 @@ export async function searchTasks(
                m.created_at_ms DESC
       LIMIT ${SEARCH_MAX_RESULTS}
     `;
+    names = await currentMentionNames(
+      sql,
+      auth.organizationId,
+      commentHits.map((hit) => searchSnippetSource(hit.body)),
+    );
     for (const hit of commentHits) {
       if (results.length >= SEARCH_MAX_RESULTS) break;
       if (seen.has(hit.taskId)) continue;
@@ -4386,30 +4510,14 @@ async function fanOutDescriptionMentions(
   args: {
     taskId: string;
     project: ProjectRow;
+    /** The description as stored. */
     description: string;
-    /** The text an edit replaces; absent on create. */
-    previousDescription?: string;
+    /** Who the text names that it did not before (`prepareSurfaceText`): on
+     * create, everyone it names. */
+    added: ResolvedMention[];
   },
 ): Promise<void> {
-  // Most descriptions name nobody, and most edits add no `@token`: the token
-  // pre-check keeps the directory build (an org-wide member scan, and more
-  // reads for a SERIALIZABLE save to conflict on) off both. Resolution maps
-  // each token on its own, so a text whose tokens the replaced text already
-  // had resolves to nobody new — the answer a build would give.
-  const tokens = parseMentionTokens(args.description);
-  if (tokens.length === 0) return;
-  if (args.previousDescription !== undefined) {
-    const before = new Set(parseMentionTokens(args.previousDescription));
-    if (tokens.every((token) => before.has(token))) return;
-  }
-  const { added } = await resolveSurfaceMentions(tx, {
-    organizationId: auth.organizationId,
-    projectId: args.project.id,
-    body: args.description,
-    ...(args.previousDescription !== undefined
-      ? { previousBody: args.previousDescription }
-      : {}),
-  });
+  const added = args.added;
   if (added.length === 0) return;
   const task = await loadTaskOrThrow(tx, args.taskId, auth.organizationId);
   await dispatchMentionedProjectAgent(tx, {

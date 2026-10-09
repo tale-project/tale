@@ -203,7 +203,8 @@ decide whether to continue.
 
 - **New behaviour earns a box** wherever a human still has to judge it — and
   **loses one** once a spec owns it end to end (move the row into
-  [`automation.md`](reference/automation.md) instead).
+  [`automation/<suite>.md`](reference/automation/) instead — see
+  [`automation.md`](reference/automation.md#moving-a-box-here)).
 - **Append IDs; never renumber one.**
 - **Keep a box about the product**, not about the round that wrote it: the
   round belongs in [`runs/`](runs), the reason a box is worded oddly belongs in

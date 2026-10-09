@@ -55,6 +55,13 @@ interface SkillsMenuProps {
   connectors: readonly SkillOption[];
   /** Grantable platform tools (task/document reads and writes). */
   tools: readonly SkillOption[];
+  /**
+   * Capabilities every agent has without a grant — knowledge search on the
+   * managed lanes. Listed checked and locked in their `group`, ahead of the
+   * grantable tools there, so the menu shows the whole equipment, not just
+   * what can be toggled. Never part of `value`.
+   */
+  lockedTools?: readonly SkillOption[];
   value: SkillsSelection;
   onChange: (next: SkillsSelection) => void;
   disabled?: boolean;
@@ -67,6 +74,9 @@ interface SkillsMenuProps {
   /** Set when the menu is opened from inside a modal Dialog. */
   modal?: boolean;
 }
+
+/** Stable empty default, so the memoised groups do not rebuild per render. */
+const NO_LOCKED_TOOLS: readonly SkillOption[] = [];
 
 function toggle(
   values: readonly string[],
@@ -81,6 +91,7 @@ export function SkillsMenu({
   skills,
   connectors,
   tools,
+  lockedTools = NO_LOCKED_TOOLS,
   value,
   onChange,
   disabled,
@@ -143,12 +154,26 @@ export function SkillsMenu({
         : options.map((option) => checkbox(option, selected, apply))),
     ];
 
+    // An always-on capability: checked, not switchable, its description
+    // saying why.
+    const locked = (option: SkillOption) => ({
+      type: 'checkbox' as const,
+      label: option.label,
+      ...(option.description !== undefined
+        ? { description: option.description }
+        : {}),
+      checked: true,
+      locked: true,
+      onCheckedChange: () => undefined,
+    });
+
     // The tools section, sub-grouped by each option's `group` (its module):
     // one label per distinct module, in first-seen order, so the picker reads
     // as Tasks / Documents / Knowledge / … instead of one flat list. Tools
-    // with no `group` fall under the generic section label.
+    // with no `group` fall under the generic section label. Locked tools lead
+    // their group.
     const toolGroups = (): DropdownMenuGroup[] => {
-      if (tools.length === 0) {
+      if (tools.length === 0 && lockedTools.length === 0) {
         return [
           group(
             t('skills.sectionTools'),
@@ -164,21 +189,28 @@ export function SkillsMenu({
         tools: slugs,
       });
       const order: string[] = [];
-      const byGroup = new Map<string, SkillOption[]>();
-      for (const option of tools) {
+      const byGroup = new Map<
+        string,
+        { locked: SkillOption[]; grantable: SkillOption[] }
+      >();
+      const slot = (option: SkillOption) => {
         const key = option.group ?? t('skills.sectionTools');
-        if (!byGroup.has(key)) {
-          byGroup.set(key, []);
+        let entry = byGroup.get(key);
+        if (entry === undefined) {
+          entry = { locked: [], grantable: [] };
+          byGroup.set(key, entry);
           order.push(key);
         }
-        byGroup.get(key)?.push(option);
-      }
+        return entry;
+      };
+      for (const option of tools) slot(option).grantable.push(option);
+      for (const option of lockedTools) slot(option).locked.push(option);
       return order.map((key): DropdownMenuGroup => {
+        const entry = byGroup.get(key) ?? { locked: [], grantable: [] };
         const header: DropdownMenuGroup = [{ type: 'label', content: key }];
         return header.concat(
-          (byGroup.get(key) ?? []).map((option) =>
-            checkbox(option, value.tools, apply),
-          ),
+          entry.locked.map(locked),
+          entry.grantable.map((option) => checkbox(option, value.tools, apply)),
         );
       });
     };
@@ -217,7 +249,7 @@ export function SkillsMenu({
       ),
       ...toolGroups(),
     ];
-  }, [skills, connectors, tools, value, onChange, t, creatorHint]);
+  }, [skills, connectors, tools, lockedTools, value, onChange, t, creatorHint]);
 
   const count =
     value.skills.length + value.connectors.length + value.tools.length;
@@ -228,6 +260,11 @@ export function SkillsMenu({
       align={asField ? 'start' : align}
       disabled={disabled}
       modal={modal}
+      search={{
+        label: t('skills.searchLabel'),
+        placeholder: t('skills.searchPlaceholder'),
+        emptyText: t('skills.searchEmpty'),
+      }}
       trigger={
         <Button
           variant={variant}

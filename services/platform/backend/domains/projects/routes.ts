@@ -51,7 +51,7 @@ import {
   getProject,
   getProjectAuthContext,
   listAccessibleUserIds,
-  listProjectAgents,
+  listProjectAgentsForApp,
   listProjects,
   listProjectsOverview,
   listSidebarProjects,
@@ -548,7 +548,11 @@ export function createProjectRoutes(deps: {
     try {
       const auth = await authCtx(c);
       return c.json({
-        agents: await listProjectAgents(deps.sql, auth, c.req.param('id')),
+        agents: await listProjectAgentsForApp(
+          deps.sql,
+          auth,
+          c.req.param('id'),
+        ),
       });
     } catch (error) {
       return handleError(c, error);

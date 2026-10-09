@@ -301,8 +301,6 @@ fallback:
   image: Image
 loadingConversation: Chargement de la conversation…
 speakOutLoud: Lire à voix haute
-showMore: Voir plus
-showLess: Voir moins
 scrollToBottom: Défiler vers le bas
 messageInfo:
   title: Informations sur le message
@@ -464,6 +462,9 @@ skills:
   emptyConnectors: Aucun connector activé pour l’instant — ajoutes-en un
     dans Paramètres → Connectors.
   emptyTools: Aucun outil de la plateforme disponible.
+  searchLabel: Rechercher des skills, connectors et outils
+  searchPlaceholder: Rechercher…
+  searchEmpty: Rien ne correspond à ta recherche.
 generation:
   regionLabel: État de la réponse
   queued: En file d’attente — démarrage imminent

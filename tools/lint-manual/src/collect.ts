@@ -111,6 +111,15 @@ function collectRoot(root: string, manual: string): ManualRoot {
         const doc = read(root, path.join(manual, 'reference', name));
         return doc ? [doc] : [];
       }),
+    automationShards: names(path.join(root, manual, 'reference', 'automation'))
+      .filter((name) => name.endsWith('.md'))
+      .flatMap((name) => {
+        const doc = read(
+          root,
+          path.join(manual, 'reference', 'automation', name),
+        );
+        return doc ? [doc] : [];
+      }),
     runEntries: names(path.join(root, manual, 'runs')),
     journal: read(root, path.join(manual, 'runs', 'readme.md')),
   };

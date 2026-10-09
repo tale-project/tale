@@ -114,9 +114,11 @@ common:
     deleting: Lösche...
     discard: Verwerfen
     openMenu: Menü öffnen
+    readMore: Weiterlesen
     reset: Zurücksetzen
     save: Speichern
     saved: Gespeichert
+    showLess: Weniger anzeigen
     source: Quelle
     tryAgain: Erneut versuchen
     loading: Lädt...
@@ -595,3 +597,8 @@ flow:
     valueText: '{position} – {events}'
     live: Live
     followLive: Live folgen
+mentions:
+  listboxLabel: Jemanden erwähnen
+  empty: Keine Treffer
+  inserted: '{name} erwähnt'
+  removed: Erwähnung von {name} entfernt

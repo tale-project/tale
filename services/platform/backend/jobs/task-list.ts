@@ -9,7 +9,10 @@ import {
   startWorkflowAgentTurnImpl,
 } from '../core/automations/agent_host.ts';
 import { stepRunImpl } from '../core/automations/stepper.ts';
-import { generateThreadTitleImpl } from '../core/chat/generate_title.ts';
+import {
+  generateThreadTitleImpl,
+  TITLE_AGENT_SLUG,
+} from '../core/chat/generate_title.ts';
 import {
   driveTaskAgentTurnImpl,
   startTaskAgentTurnImpl,
@@ -32,8 +35,8 @@ import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
-import { createPgUsageLedger } from '../domains/chat/store.ts';
 import { readThreadProjectId } from '../domains/chat/threads.ts';
+import { titleMeter } from '../domains/chat/title-meter.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { isBackendDraining } from '../domains/control/service.ts';
 import { runTranscribeJob } from '../domains/files/transcription.ts';
@@ -1052,32 +1055,41 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           threadId: z.string().min(1),
           userId: z.string().min(1),
           firstMessage: z.string().min(1),
+          /** The API key that sent the message, when one did. */
+          apiKeyId: z.string().min(1).optional(),
+          /** A guardrail refused the message: no model may see it. */
+          nameWithoutModel: z.boolean().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 naming attempt on the chat shim — one small model
       // call raced against its timeout; any miss falls back to the derived
       // title, and the write fills only an absent title.
       const shim = createCtxShim(chatShimHandlers(deps.sql));
+      // Naming a thread is a model call the organization pays for, held
+      // against the member's limits — the key's that sent the message and
+      // the thread's project's too — and booked under its own agent slug, so
+      // analytics can separate "what the conversation cost" from "what
+      // naming it cost".
+      const projectId = await readThreadProjectId(
+        deps.sql,
+        input.organizationId,
+        input.threadId,
+      );
       await generateThreadTitleImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 action; every ctx facility it touches is covered by chatShimHandlers
         shim as unknown as Parameters<typeof generateThreadTitleImpl>[0],
         input,
-        // Naming a thread is a model call the org pays for. The shim has no
-        // ledger of its own, so the door hands it the same one the turn
-        // writes through — booked under its own agent slug so analytics can
-        // separate "what the conversation cost" from "what naming it cost".
-        // A project's thread is named on the project's budget too.
-        async (entry) => {
-          const projectId = await readThreadProjectId(
-            deps.sql,
-            input.organizationId,
-            input.threadId,
-          );
-          await createPgUsageLedger(deps.sql).record({
-            ...entry,
+        titleMeter(deps.sql, {
+          organizationId: input.organizationId,
+          subject: {
+            userId: input.userId,
+            agentSlug: TITLE_AGENT_SLUG,
+            ...(input.apiKeyId !== undefined
+              ? { apiKeyId: input.apiKeyId }
+              : {}),
             ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
-          });
-        },
+          },
+        }),
       );
     },
     'chat.api_turn': async (payload) => {

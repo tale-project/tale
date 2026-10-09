@@ -20,7 +20,12 @@ import type {
  * gone when the turn settles or the watchdog clears it); a managed turn
  * holds its gateway allowance on its op row until its spend is booked
  * (`app.sandbox_session_ops`), and while one of its `generate_image` calls
- * runs, that call's estimate and image requests on top. An admission adds
+ * runs, that call's estimate and image requests on top; an automation's
+ * `llm` step holds its worst case on an op row of its own
+ * (`automations/llm-metering.ts`), and so does a call the platform makes
+ * straight to a provider for a chat title or the Inbox's Improve
+ * (`direct-calls.ts`), until each is booked; a voice output chunk holds its
+ * estimate on its pending row (`app.tts_audio_chunks`). An admission adds
  * every other hold to the booked usage under the organization's admission
  * lock, so the holds it reads cannot change until its own is written.
  */
@@ -102,10 +107,11 @@ interface HoldRow {
  * in one of its threads, and every op row its reservation stamped with it
  * (an automation run's op, with every project the run belongs to). A chat
  * turn's hold, a managed turn's
- * allowance and a model-endpoint request count as one request each; an
- * image generation in flight counts one per image it may make. Costs count
- * as reserved, tokens where the work sized them (a chat turn's round, a
- * model-endpoint request's prompt and output cap; an agent turn holds no
+ * allowance, a model-endpoint request, a direct call and a pending voice
+ * chunk count as one request each; an image generation in flight counts one
+ * per image it may make. Costs count as reserved, tokens where the work
+ * sized them (a chat turn's round, a model-endpoint request's or a direct
+ * call's prompt and output cap; an agent turn and a voice chunk hold no
  * token figure). `exclude` leaves out the admission's own row when it
  * already exists.
  */
@@ -115,6 +121,7 @@ export async function readInFlightReservations(
   exclude: {
     threadId?: string;
     op?: { sessionId: string; execId: string };
+    tts?: { chunkId: string; attemptCreatedAt: number };
   } = {},
 ): Promise<BudgetReservations> {
   const org = subject.organizationId;
@@ -124,15 +131,18 @@ export async function readInFlightReservations(
   const projectIds = [...(subject.projectIds ?? [])];
   const rows = await sql<HoldRow[]>`
     WITH holds AS (
-      -- A chat turn belongs to its thread's project.
+      -- New turns keep the projects captured with the request. Only legacy
+      -- unstamped rows follow the thread's current project.
       SELECT g.user_id, g.api_key_id,
-             CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
-                  ELSE ARRAY[tm.project_id] END AS project_ids,
+             coalesce(g.project_ids,
+               CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                    ELSE ARRAY[tm.project_id] END) AS project_ids,
              g.reserved_cost_cents::float8 AS cost_cents,
              g.reserved_tokens::float8 AS tokens,
              1::float8 AS requests
       FROM app.generations g
-      LEFT JOIN app.thread_metadata tm ON tm.thread_id = g.thread_id
+      LEFT JOIN app.thread_metadata tm
+        ON tm.thread_id = g.thread_id AND tm.org_id = g.org_id
       WHERE g.org_id = ${org} AND g.user_id IS NOT NULL
         AND g.thread_id <> ${exclude.threadId ?? ''}
       UNION ALL
@@ -151,6 +161,21 @@ export async function readInFlightReservations(
         AND spend_settled_at_ms IS NULL
         AND NOT (session_id = ${exclude.op?.sessionId ?? ''}
                  AND exec_id = ${exclude.op?.execId ?? ''})
+      UNION ALL
+      -- Pending voice attempts hold one request and their admitted cost.
+      -- Legacy rows have no known cost; keep their request visible anyway.
+      SELECT c.user_id, NULL::text,
+             coalesce(c.project_ids,
+               CASE WHEN tm.project_id IS NULL THEN '{}'::text[]
+                    ELSE ARRAY[tm.project_id] END),
+             coalesce(c.reserved_cost_cents, 0)::float8,
+             0::float8, 1::float8
+      FROM app.tts_audio_chunks c
+      LEFT JOIN app.thread_metadata tm
+        ON tm.thread_id = c.thread_id AND tm.org_id = c.org_id
+      WHERE c.org_id = ${org} AND c.status = 'pending'
+        AND NOT (c.id = ${exclude.tts?.chunkId ?? ''}
+          AND c.attempt_created_at_ms = ${exclude.tts?.attemptCreatedAt ?? -1})
     ),
     -- Who spends for a team: its current members, and the keys it owns.
     team_spenders AS (

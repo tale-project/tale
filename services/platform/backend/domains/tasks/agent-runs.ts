@@ -5,7 +5,11 @@ import type { Sql, TransactionSql } from 'postgres';
 import { sessionCancelExec } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { BROKER_RATE_LIMIT_COOLDOWN_MS } from '../../core/provider_credentials/broker_pool.ts';
 import { TASK_AGENT_OP_KIND } from '../../core/sandbox/session_constants.ts';
-import type { MentionSource } from '../../core/tasks/mentions.ts';
+import {
+  dropPartialTaskMention,
+  type MentionSource,
+  relabelTaskMentions,
+} from '../../core/tasks/mentions.ts';
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
   MODEL_CAPACITY_RETRY_DELAY_MS,
@@ -14,6 +18,7 @@ import {
 } from '../../core/tasks/task_auto_retry.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import { ProjectError } from '../projects/service.ts';
 import {
   STANDARD_AGENT_REFUSAL_CODES,
@@ -1151,6 +1156,8 @@ export async function listTaskAgentRunSummaries(
     taskId: string;
     limit: number;
     beforeSeq?: number;
+    /** Exact requested run, still bound to this organization and task. */
+    runId?: string;
   },
 ): Promise<TaskAgentRunSummary[]> {
   const rows = await sql<
@@ -1173,6 +1180,7 @@ export async function listTaskAgentRunSummaries(
                     false) AS "feedbackTruncated"
     FROM app.project_agent_runs
     WHERE org_id = ${args.organizationId} AND task_id = ${args.taskId}
+      AND (${args.runId ?? null}::text IS NULL OR id = ${args.runId ?? null})
       AND (${args.beforeSeq ?? null}::bigint IS NULL
            OR seq < ${args.beforeSeq ?? null}::bigint)
     ORDER BY seq DESC
@@ -1186,9 +1194,22 @@ export async function listTaskAgentRunSummaries(
     newest?.status === 'failed' && newest.agentExists
       ? await failedRunRetryPending(sql, args.taskId, newest.id)
       : false;
-  return rows.map(({ agentExists: _agentExists, ...run }, index) =>
-    Object.assign(run, { retryPending: index === 0 && retryPending }),
+  // A start's message reads each mention with the CURRENT name of whoever it
+  // names, and an excerpt never ends in half of one.
+  const names = await currentMentionNames(
+    sql,
+    args.organizationId,
+    rows.flatMap((run) => (run.feedback === null ? [] : [run.feedback])),
   );
+  return rows.map(({ agentExists: _agentExists, ...run }, index) => {
+    if (run.feedback !== null) {
+      const excerpt = run.feedbackTruncated
+        ? dropPartialTaskMention(run.feedback)
+        : run.feedback;
+      run.feedback = relabelTaskMentions(excerpt, names);
+    }
+    return Object.assign(run, { retryPending: index === 0 && retryPending });
+  });
 }
 
 /** The 0.4 sandbox-op wire for one run's live transcript. */

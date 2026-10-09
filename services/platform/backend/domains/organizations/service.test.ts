@@ -38,6 +38,7 @@ interface Scenario {
   memberRole: string | null;
   slug: string | null;
   holds: { targetType: string; targetId: string }[];
+  legacyHeld?: boolean;
   /** Rows the final `DELETE FROM "organization" … RETURNING` answers. */
   orgDeleteReturns?: { id: string }[];
   /** What `information_schema.columns` lists as org_id-bearing app tables. */
@@ -106,6 +107,9 @@ function createRecordingTx(scenario: Scenario): {
     }
     if (text.includes('FROM app.legal_holds')) {
       return scenario.holds;
+    }
+    if (text.includes('FROM app.automation_runs')) {
+      return scenario.legacyHeld ? [{ id: 'held-run' }] : [];
     }
     if (
       text === "SELECT set_config('tale.automation_writer_protocol', $, true)"
@@ -364,6 +368,29 @@ describe('deleteOrganization', () => {
     ).rejects.toBeInstanceOf(LegalHoldError);
     expect(statements.filter(isWrite)).toEqual([]);
     expect(sends).toEqual([]);
+  });
+
+  it('refuses a legacy execution hold before audit, cancellation or deletion [ORG-R12]', async () => {
+    const sends = installFakeBoss();
+    const { tx, statements } = createRecordingTx({
+      memberRole: 'owner',
+      slug: 'acme',
+      holds: [],
+      legacyHeld: true,
+    });
+    await expect(
+      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
+    ).rejects.toMatchObject({
+      code: 'ORG_LEGACY_AUTOMATION_HELD',
+      status: 409,
+    });
+    expect(statements.filter(isWrite)).toEqual([]);
+    expect(sends).toEqual([]);
+    const probe = statements.find((s) =>
+      s.text.includes('FROM app.automation_runs'),
+    );
+    expect(probe?.text).toContain('legacy_quarantine IS NOT NULL');
+    expect(probe?.values).toEqual([ORG_ID]);
   });
 
   it('refuses non-owners and the default organization before any write [ORG-R4] [ORG-R6]', async () => {

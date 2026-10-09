@@ -13,6 +13,7 @@ import { lockOrgAdmission } from './admission-lock.ts';
 import {
   resolveSessionOpAttribution,
   type SessionOpAttribution,
+  withSessionOpBillingProjects,
 } from './op-attribution.ts';
 
 /**
@@ -44,8 +45,16 @@ export async function reserveTurnBudget(
     execId: string;
     /** `model-api`: one request through the model endpoints for API keys
      * (`domains/model_api`), which has no run behind it and names its
-     * subject itself. */
-    kind: 'task-agent' | 'workflow-agent' | 'model-api';
+     * subject itself. `automation-llm`: one effect attempt of an
+     * automation's `llm` step, whose live attempt names its subject.
+     * `direct-call`: one call the platform makes straight to a provider
+     * (`domains/governance/direct-calls.ts`), which names its subject too. */
+    kind:
+      | 'task-agent'
+      | 'workflow-agent'
+      | 'model-api'
+      | 'automation-llm'
+      | 'direct-call';
     defaultBudgetCents: number;
     modelRef?: string;
     /** The harness this turn runs on — the op row's own record, which the
@@ -56,6 +65,10 @@ export async function reserveTurnBudget(
      * `__direct_api__`, with the key. Stamped on the op row, where the
      * settlement's attribution finds it (`resolveSessionOpAttribution`). */
     subject?: SessionOpAttribution;
+    /** Backend-only direct LLM admission: validate the live effect attempt
+     * and resolve its billing subject under the shared budget lock. Throw
+     * on a stale/replayed call to roll back the entire reservation. */
+    prepareSubject?: (tx: TransactionSql) => Promise<SessionOpAttribution>;
     /** Admit the default whole or not at all, with this many tokens: the
      * model endpoints' hold is the request's worst case, never a budget to
      * shrink to what remains (`resolveTurnAllowance`'s `whole`). The tokens
@@ -66,15 +79,43 @@ export async function reserveTurnBudget(
      * API key — may be running in the organization at once; one more is
      * refused before anything is held. */
     concurrencyLimit?: number;
+    /** When the hold lapses if nothing settles it — a direct call's process
+     * may die mid-call, and the watchdog releases its hold past this. */
+    deadlineAtMs?: number;
   },
 ): Promise<TurnAllowance> {
+  if (args.kind === 'automation-llm') {
+    if (
+      args.whole === undefined ||
+      args.prepareSubject === undefined ||
+      args.subject !== undefined
+    ) {
+      throw new Error(
+        'A direct automation LLM reservation needs its complete estimate and live attempt subject',
+      );
+    }
+  } else if (args.prepareSubject !== undefined) {
+    throw new Error(
+      'Only a direct automation LLM reservation can prepare an effect subject',
+    );
+  }
   const defaultCents = Math.max(1, Math.floor(args.defaultBudgetCents));
   return sql.begin(async (tx) => {
-    if (args.kind !== 'model-api') {
+    // Only a managed turn admits a sandbox; a request with no run behind
+    // it takes the budget-admission lock alone.
+    if (args.kind === 'task-agent' || args.kind === 'workflow-agent') {
       await lockOrgAdmission(tx, args.organizationId);
     }
-    const attribution =
-      args.subject ?? (await resolveSessionOpAttribution(tx, args));
+    // Read after the shared lock: a prior admission of this op may have
+    // committed its projects while this transaction waited.
+    await lockBudgetAdmission(tx, args.organizationId);
+    const attribution = await withSessionOpBillingProjects(
+      tx,
+      args,
+      args.prepareSubject !== undefined
+        ? await args.prepareSubject(tx)
+        : (args.subject ?? (await resolveSessionOpAttribution(tx, args))),
+    );
     const userId = attribution?.userId ?? '';
     // Nobody to measure — an op without a run to attribute, or a run a
     // trigger started — is evaluated against the organization's caps (and
@@ -89,7 +130,6 @@ export async function reserveTurnBudget(
     // The chat lane's opens take the same budget-admission lock and hold on
     // their generation rows: the allowance counts live chat turns as well
     // as the unsettled ops, and they count it.
-    await lockBudgetAdmission(tx, args.organizationId);
     if (args.concurrencyLimit !== undefined && userId !== '') {
       const busy = await runningRequestsOf(tx, {
         organizationId: args.organizationId,
@@ -129,16 +169,16 @@ export async function reserveTurnBudget(
       INSERT INTO app.sandbox_session_ops (
         org_id, session_id, exec_id, kind, status, user_id, agent_slug,
         api_key_id, project_ids, model_ref, harness, budget_cents,
-        reserved_tokens, heartbeat_at_ms, started_at_ms
+        reserved_tokens, deadline_ms, heartbeat_at_ms, started_at_ms
       ) VALUES (
         ${args.organizationId}, ${args.sessionId}, ${args.execId},
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
-        ${subject.projectIds !== undefined ? [...subject.projectIds] : null},
+        ${[...(subject.projectIds ?? [])]},
         ${args.modelRef ?? null}, ${args.harness ?? null},
         ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
-        ${now}, ${now}
+        ${args.deadlineAtMs ?? null}, ${now}, ${now}
       )
       ON CONFLICT (session_id, exec_id) DO UPDATE SET
         budget_cents = EXCLUDED.budget_cents,

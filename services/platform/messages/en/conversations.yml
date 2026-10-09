@@ -140,6 +140,9 @@ editor:
   noContent: No content to improve
   improveFailed: Couldn't improve content. Try again.
   improveUnavailable: No AI provider can rewrite messages yet — connect one under Settings › AI providers.
+  improveLimitReached: Usage limit reached
+  improveLimitReachedDescription: A usage limit that applies to you has been reached. Settings > Usage shows when it resets, and your administrator can raise it.
+  improveNoModelAccess: None of the models that could rewrite this message is open to you. An admin can allow one under Settings → Governance → Models → Model access.
   sendFailed: Couldn't send message. Try again.
   backToEditor: Back to editor
   improving: Improving...

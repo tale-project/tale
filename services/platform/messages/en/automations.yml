@@ -610,8 +610,6 @@ settings:
   loadFailed: Couldn't load settings — close the dialog and try again.
   save: Save
   saveAndContinue: Save and continue
-  showMore: Show more
-  showLess: Show less
   dialogTitle: '{name} — settings'
   tabsLabel: Settings sections
   moreTabs: More settings sections

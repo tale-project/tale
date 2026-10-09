@@ -1,44 +1,44 @@
 'use client';
 
-import { cn } from '@tale/ui/cn';
-import { Text } from '@tale/ui/text';
-import { Textarea } from '@tale/ui/textarea';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { MentionOption } from '@tale/ui/mentions/mention-options';
+import { MentionTextarea as MentionField } from '@tale/ui/mentions/mention-textarea';
+import type { MentionRef } from '@tale/ui/mentions/mention-token';
+import type { TextareaProps } from '@tale/ui/textarea';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import {
-  detectMentionTrigger,
-  type MentionTrigger,
-} from '@/app/features/shared/mentions/mention-trigger';
 import { useT } from '@/lib/i18n/client';
+import { MENTION_KINDS, type MentionKind } from '@/lib/shared/mention-handles';
 
 import {
-  filterMentionActorOptions,
+  useTaskMentionActors,
+  useTaskMentionsPending,
+  withTaskActorDirectory,
+} from '../hooks/task-actor-directory-context';
+import {
   type MentionActorOption,
   useMentionActorOptions,
 } from '../lib/mention-actor-options';
+import { plainMentionReader } from '../lib/plain-mentions';
 import { AssigneeAvatar } from './assignee-avatar';
 
 interface MentionTextareaProps extends Omit<
-  React.ComponentPropsWithoutRef<'textarea'>,
-  'value' | 'onChange'
+  TextareaProps,
+  'value' | 'defaultValue' | 'onChange' | 'overlay'
 > {
   organizationId: string;
   projectId: string;
+  /** The text in its stored form: each mention as whom it names. */
   value: string;
   onValueChange: (value: string) => void;
-  label?: string;
-  /** Why the value cannot be saved as it stands, shown under the field and
-   *  tied to it (`aria-describedby`, `aria-invalid`) by the `Textarea`. */
-  errorMessage?: string;
-  /** The `Textarea`'s own `used / max` counter, outside its live error
-   *  region — for a running length an `errorMessage` must not carry. */
-  counterMax?: number;
-  /** The length that counter shows, when it is measured differently from
-   *  the raw value (trimmed, as a save sends it). */
-  counterValue?: number;
   /** Popover side. Composers at the bottom of a panel want 'above' (default);
    *  fields near the top of a dialog want 'below'. */
   placement?: 'above' | 'below';
+  /** Whom the text named when it was saved (a comment being edited): a typed
+   * `@handle` shows as one of them, the one it named, or as text. */
+  mentions?: ReadonlyArray<{ type: MentionKind; id: string }>;
+  /** False for a text whose `@names` are another system's people (a task
+   * mirrored from GitHub or GlitchTip): typed handles show as typed. */
+  plainMentions?: boolean;
 }
 
 const NO_MENTION_OPTIONS: readonly MentionActorOption[] = [];
@@ -78,170 +78,123 @@ function MentionOptionsSource({
 }
 
 /**
- * A {@link Textarea} with an `@`-mention autocomplete over the project's
- * mentionable actors (org members + project agents). The native multiline
- * textbox keeps focus; typing `@` opens the listbox, Up/Down navigate,
- * Enter/Tab insert the selected actor's plain-text `@handle` (the format the
- * task mutations parse), Escape closes. Caret moves only update/close an
- * already-open picker, so clicking into existing `@handle` prose doesn't
- * reopen it.
+ * The task field that mentions people, agents and automations of the
+ * project: `@` opens a picker that finds them by name or handle, and a
+ * picked mention reads as `@` and the name while the value it hands back
+ * stores whom it names (`@tale/ui/mentions/mention-textarea`). Text written
+ * before that — `@handle`s — shows the names of whom the handles name, as
+ * the saved text shows them ({@link MentionText}), and keeps the handles as
+ * typed: whom one names is the saving server's call.
  */
-export function MentionTextarea({
+export const MentionTextarea = withTaskActorDirectory(MentionTextareaContent);
+
+function MentionTextareaContent({
   organizationId,
   projectId,
-  value,
-  onValueChange,
-  placement = 'above',
-  onKeyDown,
-  onKeyUp,
-  onClick,
-  onBlur,
-  onFocus,
   id,
-  ...textareaProps
+  mentions,
+  plainMentions = true,
+  ...fieldProps
 }: MentionTextareaProps) {
   const { t } = useT('tasks');
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  const [trigger, setTrigger] = useState<MentionTrigger | null>(null);
-  const [highlight, setHighlight] = useState(0);
+  const index = useTaskMentionActors(organizationId, projectId);
+  const pending = useTaskMentionsPending(organizationId, projectId);
 
   // The mentionable people, agents and automations are read once the field
   // is first focused: a task's comment composer is on screen with every task
   // opened, and reading its candidates then cost every open their requests.
   const [optionsWanted, setOptionsWanted] = useState(false);
-  const [options, setOptions] =
+  const [candidates, setCandidates] =
     useState<readonly MentionActorOption[]>(NO_MENTION_OPTIONS);
   // The same candidates handed over again change nothing, so a reader that
   // rebuilds its list on every render can never keep this one re-rendering.
   const receiveOptions = useCallback(
     (next: readonly MentionActorOption[]) =>
-      setOptions((current) => (sameOptions(current, next) ? current : next)),
+      setCandidates((current) => (sameOptions(current, next) ? current : next)),
     [],
   );
-  const results = useMemo(
-    () => filterMentionActorOptions(options, trigger?.query ?? ''),
-    [options, trigger?.query],
+  const options = useMemo<MentionOption<MentionKind>[]>(
+    () =>
+      candidates.map((candidate) => {
+        const handle =
+          candidate.handle === undefined ? undefined : `@${candidate.handle}`;
+        const kind =
+          candidate.type === 'agent'
+            ? t('assignee.agents')
+            : candidate.type === 'automation'
+              ? t('assignee.automations')
+              : undefined;
+        return {
+          kind: candidate.type,
+          id: candidate.id,
+          name: candidate.name,
+          caption:
+            candidate.type === 'user'
+              ? (candidate.email ?? handle)
+              : [handle, kind].filter(Boolean).join(' · '),
+          keywords: [
+            ...(candidate.handle === undefined ? [] : [candidate.handle]),
+            ...(candidate.email === undefined ? [] : [candidate.email]),
+            ...(candidate.keywords ?? []),
+          ],
+          avatar: (
+            <AssigneeAvatar
+              // The avatar speaks the task worker vocabulary, where an
+              // automation is `app`.
+              assigneeType={
+                candidate.type === 'automation' ? 'app' : candidate.type
+              }
+              assigneeId={candidate.id}
+              name={candidate.name}
+            />
+          ),
+        };
+      }),
+    [candidates, t],
   );
-  const clampedHighlight = Math.min(highlight, Math.max(results.length - 1, 0));
 
-  const generatedId = `mention-textarea-${projectId}`;
-  const textareaId = id ?? generatedId;
-  const listboxId = `${textareaId}-mention-listbox`;
-  const optionId = (index: number) => `${textareaId}-mention-option-${index}`;
-  const open = trigger !== null && !textareaProps.disabled;
-
-  /** Re-evaluate the `@` trigger from the caret. `onlyWhenOpen` restricts
-   *  caret-move events (clicks, arrows) to updating/closing an open picker —
-   *  only typing opens it. */
-  const updateTrigger = useCallback((onlyWhenOpen: boolean) => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-    const next = detectMentionTrigger(
-      textarea.value,
-      textarea.selectionStart ?? textarea.value.length,
-    );
-    setTrigger((prev) => {
-      if (onlyWhenOpen && prev === null) return prev;
-      if (prev === null || next === null || prev.query !== next.query) {
-        setHighlight(0);
-      }
-      return next;
+  // Names come from the directory the task already reads; the field shows a
+  // stored mention by today's name until someone starts typing in it.
+  const nameOf = useCallback(
+    (ref: MentionRef<MentionKind>) => index.byRef(ref)?.name,
+    [index],
+  );
+  const resolvePlain = useMemo(() => {
+    const read = plainMentionReader(index, {
+      ...(mentions === undefined ? {} : { saved: mentions }),
+      plain: plainMentions,
     });
-  }, []);
-
-  const selectOption = useCallback(
-    (option: MentionActorOption) => {
-      const textarea = textareaRef.current;
-      if (!textarea || !trigger) return;
-      // setRangeText on the DOM node keeps the caret + undo stack intact
-      // (same rationale as the chat composer's mention insert).
-      textarea.setRangeText(
-        `@${option.handle} `,
-        trigger.start,
-        trigger.end,
-        'end',
-      );
-      onValueChange(textarea.value);
-      setTrigger(null);
-      setHighlight(0);
-    },
-    [trigger, onValueChange],
-  );
-
-  // Keep the highlighted option visible while navigating with the keyboard.
-  useEffect(() => {
-    const active = listRef.current?.querySelector('[aria-selected="true"]');
-    active?.scrollIntoView({ block: 'nearest' });
-  }, [clampedHighlight]);
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // An IME commit (Enter/arrow during composition) must never drive the
-    // picker — `keyCode === 229` is the legacy Safari path.
-    const isComposing = e.nativeEvent.isComposing || e.keyCode === 229;
-    if (open && !isComposing && results.length > 0) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setHighlight((i) => Math.min(i + 1, results.length - 1));
-        return;
+    return (handle: string) => {
+      const plain = read(handle);
+      if (plain === null) return null;
+      if (plain.type === 'actor') {
+        const { kind, id: actorId, name } = plain.entry;
+        return { kind, id: actorId, name };
       }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setHighlight((i) => Math.max(i - 1, 0));
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        setTrigger(null);
-        return;
-      }
-      // Bare Enter / Tab select; modified Enter (⌘/Ctrl/Shift) falls through
-      // to the caller (comment composers submit on ⌘Enter).
-      if (
-        (e.key === 'Enter' && !e.metaKey && !e.ctrlKey && !e.shiftKey) ||
-        e.key === 'Tab'
-      ) {
-        e.preventDefault();
-        selectOption(results[clampedHighlight]);
-        return;
-      }
-    }
-    onKeyDown?.(e);
-  };
+      // An agent's id reads as the agent, never as an id; the field writes
+      // it back as it was typed.
+      return {
+        kind: 'agent' as const,
+        id: handle,
+        name: pending
+          ? t('mentionChip.kind.agent')
+          : t('timeline.deletedAgent'),
+      };
+    };
+  }, [index, mentions, plainMentions, pending, t]);
 
   return (
-    <div className="relative">
-      <Textarea
-        {...textareaProps}
-        id={textareaId}
-        ref={textareaRef}
-        value={value}
-        onChange={(e) => {
-          onValueChange(e.target.value);
-          updateTrigger(false);
-        }}
-        onKeyDown={handleKeyDown}
-        onKeyUp={(e) => {
-          updateTrigger(true);
-          onKeyUp?.(e);
-        }}
-        onClick={(e) => {
-          updateTrigger(true);
-          onClick?.(e);
-        }}
-        onBlur={(e) => {
-          setTrigger(null);
-          onBlur?.(e);
-        }}
-        onFocus={(e) => {
-          setOptionsWanted(true);
-          onFocus?.(e);
-        }}
-        aria-autocomplete="list"
-        aria-controls={open && results.length > 0 ? listboxId : undefined}
-        aria-activedescendant={
-          open && results.length > 0 ? optionId(clampedHighlight) : undefined
-        }
+    <>
+      <MentionField
+        {...fieldProps}
+        id={id ?? `mention-textarea-${projectId}`}
+        kinds={MENTION_KINDS}
+        options={options}
+        nameOf={nameOf}
+        resolvePlain={resolvePlain}
+        onOptionsWanted={() => setOptionsWanted(true)}
+        listboxLabel={t('mentionPicker.title')}
+        emptyLabel={t('mentionPicker.empty')}
       />
       {optionsWanted && (
         <MentionOptionsSource
@@ -250,85 +203,6 @@ export function MentionTextarea({
           onOptions={receiveOptions}
         />
       )}
-      {open && (
-        <div
-          className={cn(
-            'border-border bg-popover text-popover-foreground absolute right-0 left-0 z-50 overflow-hidden rounded-xl border shadow-lg',
-            placement === 'above' ? 'bottom-full mb-2' : 'top-full mt-2',
-          )}
-        >
-          {results.length === 0 ? (
-            <Text
-              as="div"
-              variant="caption"
-              className="text-muted-foreground px-3 py-2.5"
-            >
-              {t('mentionPicker.empty')}
-            </Text>
-          ) : (
-            <ul
-              ref={listRef}
-              id={listboxId}
-              role="listbox"
-              aria-label={t('mentionPicker.title')}
-              className="max-h-56 overflow-y-auto py-1"
-            >
-              {results.map((option, index) => {
-                const isActive = index === clampedHighlight;
-                return (
-                  <li
-                    key={`${option.type}:${option.id}`}
-                    id={optionId(index)}
-                    role="option"
-                    aria-selected={isActive}
-                    className={cn(
-                      'flex cursor-pointer items-center gap-2.5 px-3 py-1.5',
-                      isActive && 'bg-accent text-accent-foreground',
-                    )}
-                    // Select on mousedown (and prevent default) so the click
-                    // doesn't blur the textarea and close the picker first.
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      selectOption(option);
-                    }}
-                    onMouseEnter={() => setHighlight(index)}
-                  >
-                    <AssigneeAvatar
-                      // The avatar speaks the task worker vocabulary, where
-                      // an automation is `app`.
-                      assigneeType={
-                        option.type === 'automation' ? 'app' : option.type
-                      }
-                      assigneeId={option.id}
-                      name={option.name}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <Text
-                        as="span"
-                        variant="label"
-                        className="block truncate"
-                      >
-                        {option.name}
-                      </Text>
-                      <Text
-                        as="span"
-                        variant="caption"
-                        className="text-muted-foreground block truncate"
-                      >
-                        @{option.handle}
-                        {option.type === 'agent' &&
-                          ` · ${t('assignee.agents')}`}
-                        {option.type === 'automation' &&
-                          ` · ${t('assignee.automations')}`}
-                      </Text>
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
+    </>
   );
 }

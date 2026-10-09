@@ -239,6 +239,9 @@ board:
   agentWorking: '{name} is working'
   addTask: Add task
   addToLane: 'Add task to {status}'
+  collapseLane: 'Collapse {status}'
+  expandLane: 'Expand {status}'
+  laneCount: '{count, plural, one {# task} other {# tasks}}'
   quickAddLabel: New task title
   quickAdded: 'Added “{title}”'
   noTasks: No tasks
@@ -291,7 +294,6 @@ delete:
   error: "Couldn't delete task"
 detail:
   overview: Overview
-  comments: Comments
   commentCount: '{count, plural, one {# comment} other {# comments}}'
   noComments: No comments yet.
   conversation: Conversation
@@ -306,7 +308,6 @@ detail:
   copyKey: 'Copy {key}'
   keyCopied: '{key} copied'
   showEarlierComments: Show earlier comments
-  activity: Activity
   subtasks: Subtasks
   addSubtask: Add a subtask…
   addDescription: Add a description…
@@ -326,6 +327,7 @@ detail:
   notFound: We couldn't find that task. It may have been deleted.
 comment:
   edited: edited
+  agentBadge: Agent
   deleteConfirm: Delete this comment?
 assignee:
   unassigned: Unassigned
@@ -448,6 +450,7 @@ agentRuns:
   working: Agent is working…
   needsAnswer: Waiting for your answer
   totalCost: '{amount} total'
+  costLabel: Agent cost
   status:
     queued: Queued
     running: Running
@@ -481,6 +484,7 @@ agentRuns:
     completedTitle: '{agent} — run details'
     noLiveDetail: No live transcript is available for this run.
 timeline:
+  updates: '{count, plural, one {# update} other {# updates}}'
   runLabel: Agent run
   startedByAgent: started by
   systemActor: System
@@ -544,6 +548,14 @@ mentionPreview:
 mentionPicker:
   title: Mention a member, agent, or automation
   empty: No matches
+mentionChip:
+  kind:
+    user: Person
+    agent: Agent
+    automation: Automation
+  missing:
+    user: No longer a member
+    automation: Automation not available
 metrics:
   title: Project metrics
   description: Delivery, intervention, and cost metrics for this project's tasks.

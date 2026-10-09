@@ -9,13 +9,16 @@ import { addTaskComment, addTaskReviewFeedback } from './comments.ts';
 import { dispatchMentionedProjectAgent } from './service.ts';
 
 vi.mock('../collab/mention-directory.ts', () => ({
-  resolveSurfaceMentions: vi.fn().mockResolvedValue({
+  prepareSurfaceText: vi.fn(async (_sql: unknown, args: { body: string }) => ({
+    text: args.body,
     mentions: [
       { type: 'agent', id: 'implementation' },
       { type: 'automation', id: 'workflow' },
     ],
-    unresolvedTokens: [],
-  }),
+    added: [],
+    unresolvedMentionTokens: [],
+    invalidTokens: [],
+  })),
 }));
 vi.mock('../collab/service.ts', () => ({ notifyTaskComment: vi.fn() }));
 vi.mock('../events/emit.ts', () => ({ emitEvent: vi.fn() }));

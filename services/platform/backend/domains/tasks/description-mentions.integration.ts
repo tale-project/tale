@@ -109,7 +109,7 @@ export async function checkTaskDescriptionMentions(
         const strings = argArray[0];
         if (
           Array.isArray(strings) &&
-          strings.join('').includes('SELECT id, name FROM app.project_agents')
+          strings.join('').includes('legacy_handles AS "legacyHandles"')
         ) {
           throw new Error('itest: instance listing down');
         }
@@ -170,6 +170,13 @@ export async function checkTaskDescriptionMentions(
         AND reason = 'mention'
     `;
     const adaBells = await mentionBells(ada, taskId);
+    // The description is stored naming whom it mentions [COLLAB-R10].
+    const storedBrief = `[@Ada Brief](mention:user/${ada}) and [@Brief Writer](mention:agent/${agentId}): draft the launch brief in German`;
+    record(
+      'description mentions: a new task stores its mentions as whom they name',
+      created?.description === storedBrief,
+      `stored=${JSON.stringify(created?.description)} (want ${JSON.stringify(storedBrief)})`,
+    );
     record(
       'description mentions: a new task bells the named teammate and puts the named agent to work',
       adaBells === 1 &&
@@ -265,6 +272,7 @@ export async function checkTaskDescriptionMentions(
     // ---- edit: prose reworded around the same mentions fires nothing ----
     const reworded = `${retold} by Friday`;
     await edit(taskId, reworded);
+    const rewordedStored = (await taskState(taskId))?.description ?? null;
     const rewordedRuns = await agentRuns(taskId);
     const rewordedBells = await mentionBells(ada, taskId);
     record(
@@ -306,9 +314,9 @@ export async function checkTaskDescriptionMentions(
       downCreate === 'MENTION_DIRECTORY_UNAVAILABLE/503' &&
         downCards[0]?.count === 0 &&
         downEdit === 'MENTION_DIRECTORY_UNAVAILABLE/503' &&
-        afterDownEdit?.description === reworded &&
+        afterDownEdit?.description === rewordedStored &&
         bobBellsDown === 0,
-      `create → ${downCreate} (want MENTION_DIRECTORY_UNAVAILABLE/503), cards=${downCards[0]?.count} (want 0); edit → ${downEdit} (want MENTION_DIRECTORY_UNAVAILABLE/503), description kept=${afterDownEdit?.description === reworded}, bells=${bobBellsDown} (want 0)`,
+      `create → ${downCreate} (want MENTION_DIRECTORY_UNAVAILABLE/503), cards=${downCards[0]?.count} (want 0); edit → ${downEdit} (want MENTION_DIRECTORY_UNAVAILABLE/503), description kept=${afterDownEdit?.description === rewordedStored}, bells=${bobBellsDown} (want 0)`,
     );
 
     // ---- edit: only the mention the edit adds fans out -------------------

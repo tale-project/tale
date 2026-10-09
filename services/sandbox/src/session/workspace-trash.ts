@@ -111,6 +111,30 @@ export class WorkspaceTrash {
   }
 
   /**
+   * Move `path` into the trash as `<name>.<uuid>` for the background pass to
+   * delete. Unlike {@link discard} it never deletes in place: a caller that
+   * must not wait on a large tree (a session stop) gets the rename or
+   * nothing. True once the tree is in the trash; false when nothing was there
+   * or the rename failed (another filesystem, a permission), which is logged.
+   */
+  async moveIn(path: string, name: string): Promise<boolean> {
+    try {
+      await mkdir(this.dir, { recursive: true, mode: 0o700 });
+      await rename(path, join(this.dir, `${name}.${randomUUID()}`));
+    } catch (err) {
+      if (!isMissing(err)) {
+        console.warn(
+          `[sandbox.trash] cannot move ${path} into ${this.dir}; it stays where it is:`,
+          err,
+        );
+      }
+      return false;
+    }
+    void this.empty();
+    return true;
+  }
+
+  /**
    * Delete everything in the trash, one entry after another. One pass runs at
    * a time: a call while one runs shares its promise, and the pass reads the
    * trash again before it ends, so whatever was discarded meanwhile goes too.

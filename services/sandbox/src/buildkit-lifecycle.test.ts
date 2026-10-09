@@ -397,7 +397,11 @@ describe('organization build-cache lifecycle', () => {
       Object.keys(initial.containers).sort(byName),
     );
     expect(updates.find((args) => args.at(-1) === builder)).toEqual(
-      expect.arrayContaining(['--cpus=2', '--pids-limit=16384']),
+      expect.arrayContaining([
+        '--cpus=2',
+        '--cpu-shares=256',
+        '--pids-limit=16384',
+      ]),
     );
     expect(updates.flat().some((arg) => arg.startsWith('--memory'))).toBe(
       false,

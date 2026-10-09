@@ -84,9 +84,13 @@ export function ProjectAgentDetailsContent({
     },
     {
       label: t('agents.detailsTools'),
-      values: (agent.tools ?? []).map((name) =>
-        t(`agents.tool.${name}`, { defaultValue: titleFromSlug(name) }),
-      ),
+      // Knowledge search needs no grant, so it leads every agent's list.
+      values: [
+        t('agents.tool.knowledge_search'),
+        ...(agent.tools ?? []).map((name) =>
+          t(`agents.tool.${name}`, { defaultValue: titleFromSlug(name) }),
+        ),
+      ],
     },
   ];
   return (

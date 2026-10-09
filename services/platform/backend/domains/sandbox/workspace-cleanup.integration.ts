@@ -72,6 +72,7 @@ export async function checkWorkspaceCleanup(
     teardownOrganization: async () => null,
     disconnectDevice: async () => ({}),
     revokeKey: async () => {},
+    removeOrganizationFromGateway: async () => ({ records: 0, keys: 0 }),
     unpin: async (sessionId) => {
       unpinCalls.push(sessionId);
     },

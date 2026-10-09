@@ -25,6 +25,7 @@ import { isAgentSessionProfile } from '../../session/session-profile.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { ID_ALPHABET_RE } from '../../wire.ts';
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type BackendWorkspace,
@@ -56,13 +57,37 @@ const ORGANIZATION_ID_ANNOTATION = 'tale.dev/organization-id';
 /** Pod annotation carrying the durable "always-on" pin (see setPinned). */
 const PINNED_ANNOTATION = 'tale.dev/pinned';
 
-/** A create that lost the deterministic-name race. The route answers 502 and
- * the platform retries; by then adoption has made the live session routable. */
-function conflictError(sessionId: string, cause: unknown): Error {
+/** A create that lost the deterministic-name race. A live Pod under the name
+ * is a session the route answers as a duplicate, so the platform adopts it.
+ * Anything else (a Pod terminating or ended, a peer's Secret whose Pod is not
+ * there yet, a Pod that cannot be read) answers 502 and the platform retries;
+ * by then adoption or the orphan reaps have settled the name. */
+function conflictError(
+  sessionId: string,
+  cause: unknown,
+  livePod: boolean,
+): Error {
+  if (livePod) {
+    return new SessionExistsError(sessionId, 'a live Pod holds its name', {
+      cause,
+    });
+  }
   return new Error(
     `session ${sessionId} already exists (concurrent create or unadopted live Pod)`,
     { cause },
   );
+}
+
+/** The scheduler's reason a Pod has no node yet, when it reported one: its
+ * PodScheduled condition, False with reason Unschedulable. */
+function unschedulableReason(pod: V1Pod | undefined): string | undefined {
+  const scheduled = pod?.status?.conditions?.find(
+    (condition) => condition.type === 'PodScheduled',
+  );
+  if (scheduled?.status !== 'False' || scheduled.reason !== 'Unschedulable') {
+    return undefined;
+  }
+  return scheduled.message?.trim() || 'no reason given';
 }
 
 /** Margin past a create's budget before a Pod-less Secret counts as an
@@ -73,6 +98,53 @@ interface CreateOwnership {
   podUid?: string;
   secretUid?: string;
   podConflict?: boolean;
+}
+
+/** How often a create's start-failure watch reads the Pod. */
+const START_FAILURE_POLL_MS = 1_000;
+/** How often a create asks runnerd whether it is ready, as on Docker. */
+const RUNNERD_READY_POLL_MS = 100;
+
+/** Waiting reasons a session container does not recover from within a create:
+ * the kubelet backs off a crashing container or an image it cannot pull, and
+ * an invalid image or configuration never starts. */
+const UNSTARTABLE_REASONS: ReadonlySet<string> = new Set([
+  'CrashLoopBackOff',
+  'ErrImagePull',
+  'ImagePullBackOff',
+  'ErrImageNeverPull',
+  'InvalidImageName',
+  'CreateContainerConfigError',
+  'CreateContainerError',
+]);
+
+/** Why a session Pod's containers (the egress sidecar included) cannot
+ * start, or undefined while they still may: the waiting reason, its message
+ * and, for a crash, the last exit and the tail of its termination message. */
+export function unstartableReason(pod: V1Pod): string | undefined {
+  const statuses = [
+    ...(pod.status?.initContainerStatuses ?? []),
+    ...(pod.status?.containerStatuses ?? []),
+  ];
+  for (const status of statuses) {
+    const waiting = status.state?.waiting;
+    if (
+      waiting?.reason === undefined ||
+      !UNSTARTABLE_REASONS.has(waiting.reason)
+    )
+      continue;
+    const last = status.lastState?.terminated;
+    const details = [
+      waiting.message?.trim(),
+      last === undefined
+        ? undefined
+        : `last exit ${last.exitCode}${last.reason ? ` (${last.reason})` : ''}${
+            last.message?.trim() ? `: ${last.message.trim().slice(-500)}` : ''
+          }`,
+    ].filter((detail): detail is string => Boolean(detail));
+    return `container ${status.name} ${waiting.reason}${details.length > 0 ? `: ${details.join('; ')}` : ''}`;
+  }
+  return undefined;
 }
 
 export class KubernetesSessionBackend implements SessionBackend {
@@ -201,7 +273,13 @@ export class KubernetesSessionBackend implements SessionBackend {
       // may own). Surface the conflict without any cleanup — parity with the
       // Docker backend's name-conflict rule; adoptExisting / the route's
       // registry-miss re-resolve pick the live session up on a later turn.
-      if (httpStatusCode(err) === 409) throw conflictError(spec.sessionId, err);
+      if (httpStatusCode(err) === 409) {
+        throw conflictError(
+          spec.sessionId,
+          err,
+          await this.livePodHolds(spec.sessionId),
+        );
+      }
       // An ambiguous response does not establish ownership. Preserve every
       // object without an acknowledged UID, and every workspace PVC.
       throw err;
@@ -237,7 +315,11 @@ export class KubernetesSessionBackend implements SessionBackend {
           // only the Secret THIS call created is ours, and leaving it behind
           // would 409 every future create of this session forever.
           ownership.podConflict = true;
-          throw conflictError(spec.sessionId, err);
+          throw conflictError(
+            spec.sessionId,
+            err,
+            await this.livePodHolds(spec.sessionId),
+          );
         }
       } else {
         throw err;
@@ -247,13 +329,30 @@ export class KubernetesSessionBackend implements SessionBackend {
     // Poll runnerd readiness via the Pod IP (which appears once scheduled).
     // waitForEndpoint and waitForRunnerd share ONE budget: the time spent
     // waiting for the Pod IP is deducted from what runnerd readiness gets, so
-    // a slow scheduler can't double-spend createHealthTimeoutMs.
-    const endpoint = await this.waitForEndpoint(spec.sessionId, deadline);
-    const remainingMs = Math.max(0, deadline - Date.now());
-    await waitForRunnerd(
-      { baseUrl: endpoint, token: this.tokenFor(spec.sessionId) },
-      remainingMs,
-    );
+    // a slow scheduler can't double-spend createHealthTimeoutMs. A container
+    // that cannot start (a crash loop, an image the node cannot pull, a bad
+    // configuration) ends both waits with its reason instead of letting them
+    // run out the budget; a crash-looping container still gets a Pod IP, so
+    // the watch runs beside the runnerd poll too.
+    const startFailure = this.watchStartFailure(spec.sessionId, deadline);
+    try {
+      const endpoint = await Promise.race([
+        this.waitForEndpoint(spec.sessionId, deadline, startFailure.signal),
+        startFailure.failed,
+      ]);
+      const remainingMs = Math.max(0, deadline - Date.now());
+      await Promise.race([
+        waitForRunnerd(
+          { baseUrl: endpoint, token: this.tokenFor(spec.sessionId) },
+          remainingMs,
+          RUNNERD_READY_POLL_MS,
+          startFailure.signal,
+        ),
+        startFailure.failed,
+      ]);
+    } finally {
+      startFailure.stop();
+    }
     return { resumed: preexisting };
   }
 
@@ -275,6 +374,29 @@ export class KubernetesSessionBackend implements SessionBackend {
         `[sandbox.session] cannot tell whose pod holds ${sessionId}'s name:`,
         error,
       );
+      return false;
+    }
+  }
+
+  /** Does a live Pod hold the session's name — one neither being deleted nor
+   * ended (Succeeded/Failed)? A Pending Pod counts: a peer replica is still
+   * starting it. A read that fails is "no". */
+  private async livePodHolds(sessionId: string): Promise<boolean> {
+    try {
+      const pod = await this.readPod(sessionId);
+      const phase = pod.status?.phase;
+      return (
+        pod.metadata?.deletionTimestamp == null &&
+        phase !== 'Succeeded' &&
+        phase !== 'Failed'
+      );
+    } catch (error) {
+      if (httpStatusCode(error) !== 404) {
+        console.warn(
+          `[sandbox.session] cannot tell whether a live pod holds ${sessionId}'s name:`,
+          error,
+        );
+      }
       return false;
     }
   }
@@ -469,19 +591,91 @@ export class KubernetesSessionBackend implements SessionBackend {
     }
   }
 
-  /** Read the Pod until status.podIP is assigned, then return the runnerd URL. */
+  /** Watch the session's Pod while a create waits on it: `failed` rejects
+   * with the reason once a container cannot start, and `signal` aborts then
+   * or at stop(), so the waits beside it end too. A read that fails says
+   * nothing about the containers; the next one, a second later, asks again. */
+  private watchStartFailure(
+    sessionId: string,
+    deadlineMs: number,
+  ): { failed: Promise<never>; signal: AbortSignal; stop: () => void } {
+    const ended = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const failed = new Promise<never>((_, reject) => {
+      const look = async () => {
+        if (ended.signal.aborted || Date.now() > deadlineMs) return;
+        try {
+          const reason = unstartableReason(await this.readPod(sessionId));
+          if (reason !== undefined) {
+            const error = new Error(
+              `session ${sessionId} cannot start: ${reason}`,
+            );
+            ended.abort(error);
+            reject(error);
+            return;
+          }
+        } catch (err) {
+          console.warn(
+            `[sandbox.k8s] reading session ${sessionId}'s Pod while it starts failed (asked again in ${START_FAILURE_POLL_MS} ms):`,
+            err,
+          );
+        }
+        if (!ended.signal.aborted) {
+          timer = setTimeout(() => void look(), START_FAILURE_POLL_MS);
+        }
+      };
+      timer = setTimeout(() => void look(), START_FAILURE_POLL_MS);
+    });
+    // Raced by the create; a rejection after the race settled is not lost.
+    failed.catch(() => undefined);
+    return {
+      failed,
+      signal: ended.signal,
+      stop: () => {
+        if (timer !== undefined) clearTimeout(timer);
+        if (!ended.signal.aborted) ended.abort();
+      },
+    };
+  }
+
+  /** Read the Pod until status.podIP is assigned, then return the runnerd URL.
+   * A Pod the scheduler cannot place (a selector no node matches, a taint it
+   * does not tolerate, a disk request on a node with no capacity) keeps
+   * waiting, since an autoscaler can still add a node; but the scheduler's
+   * reason is logged once and carried by the error the wait ends with, so an
+   * operator need not reach for `kubectl describe pod`. */
   private async waitForEndpoint(
     sessionId: string,
     deadlineMs: number,
+    giveUp?: AbortSignal,
   ): Promise<string> {
-    for (;;) {
-      operationSignal()?.throwIfAborted();
-      const ip = (await this.readPod(sessionId))?.status?.podIP;
-      if (ip) return `http://${ip}:${RUNNERD_PORT}`;
-      if (Date.now() > deadlineMs) {
-        throw new Error(`session ${sessionId} pod never got an IP`);
+    let unschedulable: string | undefined;
+    let logged = false;
+    try {
+      for (;;) {
+        operationSignal()?.throwIfAborted();
+        giveUp?.throwIfAborted();
+        const pod = await this.readPod(sessionId);
+        const ip = pod?.status?.podIP;
+        if (ip) return `http://${ip}:${RUNNERD_PORT}`;
+        unschedulable = unschedulableReason(pod);
+        if (unschedulable !== undefined && !logged) {
+          logged = true;
+          console.warn(
+            `[sandbox.session] session ${sessionId} pod unschedulable: ${unschedulable}`,
+          );
+        }
+        if (Date.now() > deadlineMs) {
+          throw new Error(`session ${sessionId} pod never got an IP`);
+        }
+        await new Promise((r) => setTimeout(r, 500));
       }
-      await new Promise((r) => setTimeout(r, 500));
+    } catch (error) {
+      if (unschedulable === undefined) throw error;
+      throw new Error(
+        `session ${sessionId} pod never got an IP: pod unschedulable: ${unschedulable}`,
+        { cause: error },
+      );
     }
   }
 

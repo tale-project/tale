@@ -15,6 +15,7 @@ import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { budgetPolicyActive } from '../governance/budget-gate.ts';
+import { lockBudgetAdmission } from '../governance/budget-reservations.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import { claimMessageSlot, type SlotClaimOptions } from '../threads/store.ts';
 import {
@@ -111,6 +112,12 @@ export async function appendMessageRow(
     error?: string;
     truncation?: { droppedMessages: number };
     status?: string;
+    /** The API key that sent a user message: naming the thread it opens is
+     * the key's spend too. */
+    apiKeyId?: string;
+    /** A guardrail refused the user message: the thread it opens is named
+     * from its own words, with no model call. */
+    nameWithoutModel?: boolean;
   },
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
@@ -193,6 +200,12 @@ export async function appendMessageRow(
           threadId: message.threadId,
           userId: meta[0].userId,
           firstMessage,
+          ...(message.apiKeyId !== undefined
+            ? { apiKeyId: message.apiKeyId }
+            : {}),
+          ...(message.nameWithoutModel === true
+            ? { nameWithoutModel: true }
+            : {}),
         });
       }
     }
@@ -445,6 +458,7 @@ function pgTurnStore(
                 ? { apiKeyId: admission.apiKeyId }
                 : {}),
               threadId: setup.threadId,
+              projectIds: admission.projectIds ?? [],
             },
             admissionExclude,
           );
@@ -469,6 +483,9 @@ function pgTurnStore(
             ...(setup.truncation !== undefined
               ? { truncation: setup.truncation }
               : {}),
+            ...(setup.spend?.apiKeyId !== undefined
+              ? { apiKeyId: setup.spend.apiKeyId }
+              : {}),
           });
         }
         const assistantMessage = await appendMessageRow(tx, {
@@ -492,12 +509,13 @@ function pgTurnStore(
           INSERT INTO app.generations (
             thread_id, org_id, message_id, started_at_ms, heartbeat_at_ms,
             updated_at_ms, user_id, api_key_id, reserved_cost_cents,
-            reserved_tokens
+            reserved_tokens, project_ids
           ) VALUES (
             ${setup.threadId}, ${setup.organizationId}, ${assistantMessage.id},
             ${now}, ${now}, ${now}, ${setup.spend?.userId ?? null},
             ${setup.spend?.apiKeyId ?? null}, ${setup.spend?.costCents ?? 0},
-            ${Math.ceil(setup.spend?.tokens ?? 0)}
+            ${Math.ceil(setup.spend?.tokens ?? 0)},
+            ${[...(setup.spend?.projectIds ?? [])]}
           )
           ON CONFLICT (thread_id) DO NOTHING
           RETURNING thread_id AS "threadId"
@@ -521,6 +539,23 @@ function pgTurnStore(
       return scope === undefined
         ? sql.begin(open)
         : transactSerializable(sql, open);
+    },
+
+    async holdNextRound(round) {
+      // Holds count only where a budget policy binds; the lock orders the
+      // raise with every admission that reads it.
+      if (!(await budgetPolicyActive(sql, round.organizationId))) return;
+      await sql.begin(async (tx) => {
+        await lockBudgetAdmission(tx, round.organizationId);
+        await tx`
+          UPDATE app.generations SET
+            reserved_cost_cents = reserved_cost_cents + ${round.costCents},
+            reserved_tokens = reserved_tokens + ${Math.ceil(round.tokens)},
+            updated_at_ms = ${Date.now()}
+          WHERE thread_id = ${round.threadId}
+            AND org_id = ${round.organizationId}
+        `;
+      });
     },
 
     async endGeneration(generation) {

@@ -54,12 +54,21 @@ export interface WorkflowTaskView {
   externalSystem?: string;
   externalId?: string;
   externalUrl?: string;
+  /** The description as stored, each mention a mention link. */
+  description?: string;
+  /** The same text with each mention as `@` and the current name of whoever
+   * it names. */
+  descriptionText?: string;
 }
 
 export interface WorkflowTaskComment {
   authorType: 'user' | 'agent';
   authorId: string;
+  /** The comment as stored, each mention a mention link. */
   body: string;
+  /** The same text with each mention as `@` and the current name of whoever
+   * it names. */
+  bodyText: string;
   bodyByLocale?: Record<string, string>;
   createdAt: number;
 }
@@ -516,10 +525,14 @@ export function platformTaskNatives(
     let window = all;
     if (afterMarker !== undefined) {
       // The marker names a delivery anchor; only what people said AFTER the
-      // last one counts as fresh feedback.
+      // last one counts as fresh feedback. Either form of the text counts: a
+      // marker may name someone, and the stored form holds that as a link.
       const lastAnchor = all.reduce(
         (found, entry, index) =>
-          entry.body.includes(afterMarker) ? index : found,
+          entry.body.includes(afterMarker) ||
+          entry.bodyText.includes(afterMarker)
+            ? index
+            : found,
         -1,
       );
       window = all.slice(lastAnchor + 1);
@@ -541,6 +554,7 @@ export function platformTaskNatives(
           authorType: entry.authorType,
           authorId: entry.authorId,
           body: entry.body,
+          bodyText: entry.bodyText,
           createdAt: entry.createdAt,
         };
         if (entry.bodyByLocale !== undefined)

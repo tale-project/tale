@@ -15,6 +15,7 @@ import { isRecord } from '../../lib/utils/type-utils.ts';
 import { mintCursorFor, verifyCursorFor } from '../core/lib/signed_cursor.ts';
 import { EDITOR_ROLES } from '../core/projects/access.ts';
 import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
+import { MentionDirectoryError } from '../domains/collab/mention-directory.ts';
 import {
   DocumentError,
   type DocumentRow,
@@ -285,6 +286,20 @@ export function domainErrorResponse(
   const limited = rateLimitExceededCause(error);
   if (limited !== null) {
     return restRateLimited(c, limited);
+  }
+  // Who a comment or a task description mentions could not be read: nothing
+  // was written, and the same request can be sent again — a 503, never the
+  // 500 an unmapped error becomes.
+  if (error instanceof MentionDirectoryError) {
+    noteRestErrorCode(error.code);
+    return c.json(
+      {
+        error:
+          'Who the text mentions could not be looked up, so nothing was saved. Send it again.',
+        code: error.code,
+      },
+      503,
+    );
   }
   if (isDomainError(error)) {
     // Every domain error carries a client-mappable status; NOT_FOUND-ish

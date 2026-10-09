@@ -93,6 +93,13 @@ export interface RuntimeDependencies {
   sleep?: (milliseconds: number) => Promise<void>;
   /** Isolated tests must not create the production host workspace. */
   ensureSandboxWorkspace?: () => void;
+  /** Persistent, private psql transport; substituted only by isolated tests. */
+  automationSession?: (containerId: string) => Promise<RuntimeSqlSession>;
+}
+export interface RuntimeSqlSession {
+  query: (sql: string) => Promise<string>;
+  healthy: () => boolean;
+  close: () => Promise<void>;
 }
 export interface PrepareRuntimeOptions {
   repoRoot: string;
