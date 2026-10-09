@@ -5,7 +5,10 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
-import type { CodeEditorDiagnosticsStatus } from '@tale/ui/code-editor';
+import {
+  preloadCodeEditor,
+  type CodeEditorDiagnosticsStatus,
+} from '@tale/ui/code-editor';
 import { locateYamlPointer } from '@tale/ui/code-editor/locate';
 import { ContentArea } from '@tale/ui/content-area';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -216,6 +219,11 @@ function usePausedDraft(draft: Automation | null): Automation | null {
  * canvas is the route's search, so it already belongs to the new URL — while
  * the shared dirty guard still confirms navigation before these props change. */
 export function AutomationEditor(props: AutomationEditorProps) {
+  // The inspector's fields are code: start loading the editor with the page,
+  // so the first node opened finds it ready.
+  useEffect(() => {
+    preloadCodeEditor();
+  }, []);
   return (
     // "Go to" a problem: the Problems list asks, the inspector's controls
     // answer — one registry for the page, the node sheet included.
@@ -1573,7 +1581,13 @@ function AutomationEditorScope({
     return place === 'panel' ? (
       <NodeInspector id={inspectorId} variant="panel" {...props} />
     ) : (
-      <NodeFields headingId={inspectorId} {...props} />
+      <NodeFields
+        // As in the panel: each node opens on its own fields, so no
+        // half-typed text follows the reader to the next node.
+        key={selectedNode.id}
+        headingId={inspectorId}
+        {...props}
+      />
     );
   };
 

@@ -33,6 +33,7 @@ import { useIsMac } from '../../../hooks/use-is-mac';
 import { usePrefersReducedMotion } from '../../../hooks/use-prefers-reduced-motion';
 import { useT } from '../../../i18n/client';
 import { cn } from '../../../lib/cn';
+import { ErrorBoundaryBase } from '../../error-boundaries/core/error-boundary-base';
 import {
   DisabledReasonTooltip,
   hasDisabledReason,
@@ -66,7 +67,16 @@ export type {
 export type { CodeLanguage } from '../../../lib/code-roles';
 
 const loadView = () => import('./code-editor-view');
-const CodeEditorView = lazy(loadView);
+/** The editor's implementation, shared by every field. React keeps a lazy
+ * component whose load failed failed for good, so a retry swaps in a fresh
+ * one (`retryView`). */
+let CodeEditorView = lazy(loadView);
+let viewFailed = false;
+function retryView(): void {
+  if (!viewFailed) return;
+  viewFailed = false;
+  CodeEditorView = lazy(loadView);
+}
 
 /**
  * Starts loading the editor's implementation, so the first code field a
@@ -346,28 +356,56 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
           className,
         )}
       >
-        <Suspense
-          fallback={
-            <LoadingText
+        {/* A failed load stays in the field: the value goes on in plain
+            text, and the page around it — a draft — keeps working. */}
+        <ErrorBoundaryBase
+          onError={(error) => {
+            viewFailed = true;
+            console.warn('[code-editor] the editor did not load', error);
+          }}
+          onReset={retryView}
+          fallback={({ reset }) => (
+            <PlainTextFallback
               value={value}
+              onChange={props.onChange}
+              editable={editable}
               placeholder={placeholder}
-              wraps={wraps}
               font={font}
-              lineNumbers={lineNumbers}
               minRows={minRows}
               maxRows={maxRows}
               fillHeight={fillHeight}
-              loadingLabel={t('loading')}
+              id={props.id}
+              label={props['aria-label']}
+              labelledBy={props['aria-labelledby']}
+              describedBy={props['aria-describedby']}
+              invalid={invalid}
+              onRetry={reset}
             />
-          }
+          )}
         >
-          <CodeEditorView
-            {...props}
-            describedBy={describedBy}
-            reducedMotion={reducedMotion}
-            onView={onView}
-          />
-        </Suspense>
+          <Suspense
+            fallback={
+              <LoadingText
+                value={value}
+                placeholder={placeholder}
+                wraps={wraps}
+                font={font}
+                lineNumbers={lineNumbers}
+                minRows={minRows}
+                maxRows={maxRows}
+                fillHeight={fillHeight}
+                loadingLabel={t('loading')}
+              />
+            }
+          >
+            <CodeEditorView
+              {...props}
+              describedBy={describedBy}
+              reducedMotion={reducedMotion}
+              onView={onView}
+            />
+          </Suspense>
+        </ErrorBoundaryBase>
         {expandable !== false ? (
           <IconButton
             icon={Maximize2}
@@ -464,6 +502,79 @@ const CodeEditorBase = forwardRef<CodeEditorHandle, CodeEditorProps>(
     );
   },
 );
+
+/**
+ * What a field shows when the editor's implementation could not load: the
+ * same value in a plain text area, still edited through `onChange`, and a
+ * way to try the editor again.
+ */
+function PlainTextFallback({
+  value,
+  onChange,
+  editable,
+  placeholder,
+  font,
+  minRows,
+  maxRows,
+  fillHeight,
+  id,
+  label,
+  labelledBy,
+  describedBy,
+  invalid,
+  onRetry,
+}: {
+  value: string;
+  onChange: ((value: string) => void) | undefined;
+  editable: boolean;
+  placeholder: string | undefined;
+  font: 'mono' | 'prose';
+  minRows: number;
+  maxRows: number;
+  fillHeight: boolean;
+  id: string | undefined;
+  label: string | undefined;
+  labelledBy: string | undefined;
+  describedBy: string | undefined;
+  invalid: boolean;
+  onRetry: () => void;
+}) {
+  const { t } = useT('codeEditor');
+  const noticeId = useId();
+  return (
+    <div className={cn('flex flex-col', fillHeight && 'h-full min-h-0')}>
+      <textarea
+        id={id}
+        value={value}
+        onChange={(event) => onChange?.(event.target.value)}
+        readOnly={!editable}
+        placeholder={placeholder}
+        spellCheck={false}
+        aria-label={label}
+        aria-labelledby={labelledBy}
+        aria-describedby={[describedBy, noticeId].filter(Boolean).join(' ')}
+        aria-invalid={invalid || undefined}
+        rows={minRows}
+        className={cn(
+          'block w-full resize-y bg-transparent px-3 py-2 leading-[1.6] outline-none',
+          font === 'prose' ? 'font-sans' : 'font-mono',
+          fillHeight && 'min-h-0 flex-1',
+        )}
+        style={
+          fillHeight
+            ? undefined
+            : { maxHeight: `calc(${maxRows} * 1.6em + 1rem)` }
+        }
+      />
+      <div className="border-border text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-1.5 text-xs">
+        <span id={noticeId}>{t('loadFailed')}</span>
+        <Button type="button" variant="secondary" size="sm" onClick={onRetry}>
+          {t('retry')}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 /**
  * What shows while the editor's implementation loads: the value in the

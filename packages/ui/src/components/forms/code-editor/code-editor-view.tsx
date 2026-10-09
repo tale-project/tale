@@ -219,6 +219,9 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
     hover: new Compartment(),
   };
   const applied = useRef<Partial<Record<SlotName, string>>>({});
+  // Undo history in a slot of its own, so a value replaced from outside
+  // starts it afresh (`applyValue`).
+  const [historySlot] = useState(() => new Compartment());
 
   useLayoutEffect(() => {
     latest.current = props;
@@ -494,7 +497,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
           slotExtensions,
           indentUnit.of('  '),
           EditorState.tabSize.of(2),
-          history(),
+          historySlot.of(history()),
           highlightSpecialChars(),
           highlightActiveLine(),
           bracketMatching(),
@@ -535,7 +538,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
                   return;
                 }
                 pendingValue.current = null;
-                applyValue(current, waiting);
+                applyValue(current, waiting, historySlot);
               }, 0);
             },
           }),
@@ -616,7 +619,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       pendingValue.current = props.value;
       return;
     }
-    applyValue(view, props.value);
+    applyValue(view, props.value, historySlot);
   }, [props.value]);
 
   return (
@@ -681,11 +684,29 @@ function hasReason(reason: unknown): boolean {
   return typeof reason !== 'string' || reason.trim() !== '';
 }
 
-function applyValue(view: EditorView, value: string): void {
+/**
+ * A value set from outside, applied as the smallest change. While the reader
+ * is in the field it is the host answering their typing (a host may tidy
+ * what they type), and their undo history carries on. Otherwise it replaced
+ * the text — a discard, another version, an agent's edit — and it is a hard
+ * edge for undo: the history of the text it replaced is dropped (the slot is
+ * emptied, then filled with a fresh history), since undoing an old edit into
+ * the new text would put back text the reader never saw there.
+ */
+function applyValue(
+  view: EditorView,
+  value: string,
+  historySlot: Compartment,
+): void {
   const current = view.state.doc.toString();
   if (current === value) return;
+  const replaced = !view.hasFocus;
   view.dispatch({
     changes: minimalChange(current, value),
     annotations: [external.of(true), Transaction.addToHistory.of(false)],
+    ...(replaced && { effects: historySlot.reconfigure([]) }),
   });
+  if (replaced) {
+    view.dispatch({ effects: historySlot.reconfigure(history()) });
+  }
 }

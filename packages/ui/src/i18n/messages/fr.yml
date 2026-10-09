@@ -449,6 +449,8 @@ codeEditor:
   tabFocusOff: Tab indente maintenant.
   expand: Agrandir l'éditeur
   collapse: Revenir au champ
+  loadFailed: 'L’éditeur ne s’est pas chargé. Tu peux continuer à modifier ici en texte brut.'
+  retry: 'Recharger l’éditeur'
   diagnostics:
     atCursor: '{severity} à la ligne {line} : {message}'
     severity:
