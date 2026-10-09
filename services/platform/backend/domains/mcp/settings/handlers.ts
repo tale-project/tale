@@ -6,8 +6,10 @@
  */
 
 import { governanceSettings } from '../../governance/settings-resource.ts';
+import { knowledgeEmbeddingSettings } from '../../knowledge/settings-resource.ts';
 import type { SettingsRegistry } from './registry.ts';
 
 export const SETTINGS_HANDLERS: SettingsRegistry = {
   governance: governanceSettings,
+  'knowledge-embedding': knowledgeEmbeddingSettings,
 };

@@ -224,6 +224,19 @@ enters a new secret in Tale.
   agent reads the policy → the prompt reads as masked; the agent changes another field and sends
   the masked prompt back → the prompt is kept as Ben wrote it.
 
+### MCP-R28 · An agent changes the embedding model only while the knowledge base is empty
+
+Vectors of two embedding models must never meet in one search, so an agent's change to the model
+itself — its provider, credential, model, vector width or endpoint — is taken only while the
+organization holds no document and no website, as a declaration applied with the CLI is. With
+anything indexed it is refused, naming how many documents and websites there are
+(`EMBEDDING_CORPUS_NOT_EMPTY`), and the person changes the model in Tale, where what is indexed
+is queued again. The similarity floor and the serving limits change at any time.
+
+- **Example**: Ada's agent proposes a larger embedding model while 40 documents are indexed →
+  refused, naming the 40 documents; her agent lowers the similarity floor instead → it is
+  changed, and nothing is indexed again.
+
 ## Answers and refusals
 
 ### MCP-R18 · A refusal comes back as an answer the agent can read, not a protocol error

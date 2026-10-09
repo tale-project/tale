@@ -447,6 +447,33 @@ function embeddingAuditFields(actor: KnowledgeAuditActor) {
 }
 
 /**
+ * Check an embedding model as a save checks it, writing nothing: the
+ * config is the file's own shape, its endpoint passes the deployment's
+ * host policy, and its provider does not declare that it cannot embed.
+ * Answers the config as the write reads it.
+ */
+export function checkKnowledgeEmbedding(
+  orgSlug: string,
+  config: unknown,
+): KnowledgeEmbeddingWrite {
+  // The similarity floor and the serving limits are settings the Settings
+  // form does not carry (see `resolveKeptEmbeddingSettings`), so the body
+  // may say `null` for them — clear — as well as a value.
+  const parsed = knowledgeEmbeddingWriteSchema.safeParse(config);
+  if (!parsed.success) {
+    throw new KnowledgeAdminError(
+      'INVALID_EMBEDDING',
+      zodErrorMessage('Invalid knowledge embedding config', parsed.error),
+    );
+  }
+  if (parsed.data.baseUrl) {
+    assertHostAllowed(parsed.data.baseUrl);
+  }
+  assertProviderCanEmbed(orgSlug, parsed.data.providerSlug);
+  return parsed.data;
+}
+
+/**
  * Save the organization's embedding model, compare-and-set on the hash a
  * change names. With an actor, a save that changes the stored model leaves
  * one audit row (`knowledge_embedding.saved`) with the model before and
@@ -462,27 +489,14 @@ export async function writeKnowledgeEmbedding(
   expectedHash?: string | null,
   actor?: KnowledgeAuditActor,
 ): Promise<void> {
-  // The similarity floor and the serving limits are settings the Settings
-  // form does not carry (see `resolveKeptEmbeddingSettings`), so the body
-  // may say `null` for them — clear — as well as a value.
-  const parsed = knowledgeEmbeddingWriteSchema.safeParse(config);
-  if (!parsed.success) {
-    throw new KnowledgeAdminError(
-      'INVALID_EMBEDDING',
-      zodErrorMessage('Invalid knowledge embedding config', parsed.error),
-    );
-  }
-  if (parsed.data.baseUrl) {
-    assertHostAllowed(parsed.data.baseUrl);
-  }
-  assertProviderCanEmbed(orgSlug, parsed.data.providerSlug);
+  const written = checkKnowledgeEmbedding(orgSlug, config);
   await sql.begin((tx) =>
     withConfigWriteLock(tx, orgSlug, 'knowledge', async () => {
       const current = await readKnowledgeEmbeddingView(orgSlug);
       if (expectedHash !== undefined)
         assertExpectedHash(current.hash, expectedHash);
       const filePath = embeddingFilePath(orgSlug);
-      const next = resolveKeptEmbeddingSettings(parsed.data, current.config);
+      const next = resolveKeptEmbeddingSettings(written, current.config);
       const serialized = serializeEmbeddingJson(next);
       const currentContent = await readFileSafe(filePath);
       if (actor !== undefined && currentContent !== serialized) {

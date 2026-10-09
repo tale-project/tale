@@ -31,12 +31,17 @@ export interface EmbeddingOrganization {
 }
 
 /**
- * Who may manage the organization's knowledge configuration — its
- * database connection and its embedding model: a role with the
+ * Whether a role may manage the organization's knowledge configuration —
+ * its database connection and its embedding model: a role with the
  * org-settings capability, which owners and admins hold.
  */
+export function mayManageKnowledge(role: string): boolean {
+  return defineAbilityFor(role).can('write', 'orgSettings');
+}
+
+/** Refuse a role that may not manage the knowledge configuration. */
 export function assertKnowledgeAdmin(role: string): void {
-  if (defineAbilityFor(role).cannot('write', 'orgSettings')) {
+  if (!mayManageKnowledge(role)) {
     throw new ConfigurationError(
       'ORG_FORBIDDEN',
       `Role "${role}" cannot manage the knowledge configuration.`,
