@@ -48,6 +48,16 @@ measurements remain unavailable: the namespace-scoped ServiceAccount cannot
 read node capacity or the metrics API, and the spawner Pod's own resources
 would not describe the cluster.
 
+A create reads its Pod about once a second while it waits for an address and
+for runnerd (which it asks every 100 ms). When the runner or the egress sidecar
+shows a state it does not recover from within a create (`CrashLoopBackOff`,
+`ErrImagePull`, `ImagePullBackOff`, `ErrImageNeverPull`, `InvalidImageName`,
+`CreateContainerConfigError` or `CreateContainerError`), the create fails at
+once with that reason, the container's last exit and the end of its log (the
+runner reports its logs as its termination message), instead of waiting out
+`SANDBOX_SESSION_CREATE_TIMEOUT_MS`. A container still being created or pulled
+keeps the create waiting.
+
 Pending Pods count against admission even before runnerd has an address. A
 spawner restart therefore cannot admit another full set beside the Pods still
 starting. After a crashed create, maintenance can remove a Pod that remains

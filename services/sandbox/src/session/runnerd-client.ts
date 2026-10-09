@@ -167,11 +167,16 @@ export async function waitForRunnerd(
   opts: RunnerdClientOptions,
   deadlineMs: number,
   pollIntervalMs = 500,
+  giveUp?: AbortSignal,
 ): Promise<void> {
   const deadline = performance.now() + deadlineMs;
   const timeout = AbortSignal.timeout(Math.max(0, Math.ceil(deadlineMs)));
   const operation = operationSignal();
-  const signal = operation ? AbortSignal.any([operation, timeout]) : timeout;
+  const signal = AbortSignal.any(
+    [operation, timeout, giveUp].filter(
+      (stop): stop is AbortSignal => stop !== undefined,
+    ),
+  );
   for (;;) {
     operationSignal()?.throwIfAborted();
     try {
@@ -181,6 +186,7 @@ export async function waitForRunnerd(
       // A failed health probe may recover while the overall budget remains.
     }
     operation?.throwIfAborted();
+    giveUp?.throwIfAborted();
     const remaining = deadline - performance.now();
     if (remaining <= 0 || signal.aborted)
       throw new Error(`runnerd did not become ready within ${deadlineMs}ms`);

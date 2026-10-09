@@ -16,7 +16,10 @@ import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
 import { SessionIncarnationChangedError, type SessionSpec } from '../types.ts';
 import type { K8sClient } from './k8s-client.ts';
-import { KubernetesSessionBackend } from './k8s-session-backend.ts';
+import {
+  KubernetesSessionBackend,
+  unstartableReason,
+} from './k8s-session-backend.ts';
 import {
   sessionPodNameFor,
   sessionSecretNameFor,
@@ -1668,5 +1671,95 @@ describe('Kubernetes terminal recovery identity fencing', () => {
       ),
     ).not.toBeNull();
     expect(deletes).toBe(0);
+  });
+});
+
+/** A session Pod whose runner shows `waiting`, after crashing with `crash`. */
+function podWaiting(
+  reason: string,
+  crash?: { exitCode: number; reason?: string; message?: string },
+  where: 'containerStatuses' | 'initContainerStatuses' = 'containerStatuses',
+): V1Pod {
+  const status = {
+    name: where === 'containerStatuses' ? 'runner' : 'egress',
+    ready: false,
+    restartCount: crash === undefined ? 0 : 3,
+    image: cfg.runtimeImage,
+    imageID: '',
+    state: { waiting: { reason, message: `${reason} detail` } },
+    ...(crash === undefined ? {} : { lastState: { terminated: crash } }),
+  };
+  return {
+    metadata: {
+      name: sessionPodNameFor(spec.sessionId),
+      annotations: { 'tale.dev/created-at': String(spec.createdAtMs) },
+    },
+    // An address nothing answers on: runnerd never becomes ready here.
+    status: { phase: 'Running', podIP: '192.0.2.10', [where]: [status] },
+  };
+}
+
+describe('a session container that cannot start', () => {
+  test.each([
+    'CrashLoopBackOff',
+    'ErrImagePull',
+    'ImagePullBackOff',
+    'InvalidImageName',
+    'CreateContainerConfigError',
+  ])('%s is a reason to give up the create', (reason) => {
+    expect(unstartableReason(podWaiting(reason))).toBe(
+      `container runner ${reason}: ${reason} detail`,
+    );
+  });
+
+  test('a crash names its last exit and the end of its log', () => {
+    expect(
+      unstartableReason(
+        podWaiting('CrashLoopBackOff', {
+          exitCode: 1,
+          reason: 'Error',
+          message: '[entrypoint] FATAL: no egress\n',
+        }),
+      ),
+    ).toBe(
+      'container runner CrashLoopBackOff: CrashLoopBackOff detail; last exit 1 (Error): [entrypoint] FATAL: no egress',
+    );
+  });
+
+  test('the egress sidecar counts as well', () => {
+    expect(
+      unstartableReason(
+        podWaiting('ImagePullBackOff', undefined, 'initContainerStatuses'),
+      ),
+    ).toBe('container egress ImagePullBackOff: ImagePullBackOff detail');
+  });
+
+  test('a container still being created or pulled may yet start', () => {
+    expect(unstartableReason(podWaiting('ContainerCreating'))).toBeUndefined();
+    expect(unstartableReason(podWaiting('PodInitializing'))).toBeUndefined();
+    expect(unstartableReason({ status: { phase: 'Pending' } })).toBeUndefined();
+  });
+
+  test('a create fails fast with the reason instead of waiting out its budget', async () => {
+    const { client } = stub(
+      () => Promise.resolve({ metadata: { uid: 'secret-uid' } }),
+      () => Promise.resolve({ metadata: { uid: 'pod-uid' } }),
+      {
+        pod: podWaiting('CrashLoopBackOff', {
+          exitCode: 1,
+          reason: 'Error',
+          message: '[entrypoint] FATAL: no egress',
+        }),
+      },
+    );
+    const backend = new KubernetesSessionBackend(cfg, client);
+    const started = performance.now();
+    const error = await rejection(backend.createSession(spec));
+    expect(error?.message).toContain(
+      `session ${spec.sessionId} cannot start: container runner CrashLoopBackOff`,
+    );
+    expect(error?.message).toContain('[entrypoint] FATAL: no egress');
+    // The create budget is 180 s; the watch reads the Pod every second.
+    expect(performance.now() - started).toBeLessThan(10_000);
   });
 });
