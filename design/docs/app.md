@@ -82,6 +82,11 @@ what is there, and the page shows the one thing you opened.
   same colour on a board card, in a task's conversation and in a contact list; filled primary for "you"), an
   agent's bot on the soft primary tint, an automation's workflow glyph, a dashed outline for nobody.
   `AssigneeAvatar` and `ContactInitials` are thin wrappers over it.
+- **A task reads the same everywhere** — the board's dialog and the task's page render one reading
+  column (`TaskThreadColumn`): the brief as a card, the conversation (comments and history merged, oldest
+  first, opening on the discussion's newest page and anchored at the newest end) and the chat composer
+  pinned under it; the dialog adds only its header and the details panel beside it. There is no separate
+  comment list or Activity list.
 - **Conversation entries** — one anatomy for chats and task discussions, built from `@tale/ui/thread/*`:
   the viewer's own words as a right-aligned muted bubble (`ThreadMessage variant="own"` — a chat's turns
   and a task's comments alike, with the time and actions revealed under it and a chat's ‹ 2/3 › branch

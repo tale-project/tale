@@ -293,7 +293,6 @@ delete:
   error: Aufgabe konnte nicht gelöscht werden
 detail:
   overview: Übersicht
-  comments: Kommentare
   commentCount: '{count, plural, one {# Kommentar} other {# Kommentare}}'
   noComments: Noch keine Kommentare.
   conversation: Unterhaltung
@@ -308,7 +307,6 @@ detail:
   copyKey: '{key} kopieren'
   keyCopied: '{key} kopiert'
   showEarlierComments: Frühere Kommentare anzeigen
-  activity: Aktivität
   subtasks: Teilaufgaben
   addSubtask: Teilaufgabe hinzufügen…
   addDescription: Beschreibung hinzufügen…
@@ -457,6 +455,7 @@ agentRuns:
   working: Agent arbeitet…
   needsAnswer: Wartet auf deine Antwort
   totalCost: '{amount} gesamt'
+  costLabel: Agentenkosten
   status:
     queued: Wartet
     running: Läuft

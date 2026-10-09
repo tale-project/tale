@@ -19,7 +19,6 @@ import { useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { taskRunFailureClass } from '@/lib/shared/task-run-failure';
 
-import { useTaskLogRowActivity } from '../hooks/use-task-log-window';
 import type { TaskAgentRunRow } from '../utils/task-timeline';
 
 type AgentRunVariant = 'outline' | 'green' | 'destructive' | 'yellow';
@@ -46,7 +45,6 @@ export function TaskAgentRunStatusBadge({
 }) {
   const { t } = useT('tasks');
   const [open, setOpen] = useState(false);
-  useTaskLogRowActivity(open);
   const statusLabel = t(`agentRuns.status.${run.status}`);
   const canOpen = OPENABLE_STATUSES.has(run.status);
 

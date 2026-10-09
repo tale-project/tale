@@ -121,14 +121,10 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
 }));
 vi.mock('./task-comments', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./task-comments')>()),
-  TaskComments: () => null,
   TaskCommentComposer: () => null,
   TaskCommentComposerSkeleton: () => null,
 }));
-vi.mock('./task-timeline', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./task-timeline')>()),
-  TaskTimeline: () => null,
-}));
+vi.mock('./task-conversation', () => ({ TaskConversation: () => null }));
 vi.mock('./task-attachments', () => ({ TaskAttachments: () => null }));
 
 function Harness({
