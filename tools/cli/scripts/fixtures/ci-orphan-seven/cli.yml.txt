@@ -1,0 +1,633 @@
+name: CLI
+
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
+on:
+  merge_group:
+    types: [checks_requested]
+  repository_dispatch:
+    types: [release-candidate]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag to attach binary to (e.g., v1.0.0)'
+        required: true
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - '.gitattributes'
+      - '.github/release-candidate-contract.json'
+      - 'tools/cli/**'
+      - 'services/platform/backend/core/**'
+      - 'services/platform/backend/auth/membership.ts'
+      - 'services/platform/backend/auth/oidc.ts'
+      - 'services/platform/backend/db/sql.ts'
+      - 'services/platform/backend/db/ssl.ts'
+      - 'services/platform/backend/domains/api_keys/owners.ts'
+      - 'services/platform/backend/domains/api_keys/retire.ts'
+      - 'services/platform/backend/domains/audit_logs/**'
+      - 'services/platform/backend/domains/sandbox/retirement-schedule.ts'
+      - 'services/platform/backend/domains/two_factor/service.ts'
+      - 'services/platform/backend/jobs/enqueue.ts'
+      - 'services/platform/backend/jobs/tasks.ts'
+      - 'services/platform/backend/lib/org-config.ts'
+      - 'services/platform/backend/realtime/outbox.ts'
+      - 'services/platform/lib/**'
+      - 'configs/platform/**'
+      - 'packages/shared/**'
+      - 'bun.lock'
+      - 'package.json'
+      - 'bunfig.toml'
+      - 'patches/**'
+      - 'tsconfig*.json'
+      - 'scripts/install-cli.*'
+      - '.github/workflows/cli.yml'
+      - '.github/actions/setup-cli/**'
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' && github.event_name != 'workflow_dispatch' }}
+
+jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: cli
+          queue-only: 'true'
+
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
+  candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
+  # ---------------------------------------------------------------------------
+  # Resolve the version string for the build matrix.
+  # ---------------------------------------------------------------------------
+  prepare:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    needs: [candidate-source, pr-scope]
+    name: Prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      source_sha: ${{ steps.version.outputs.source_sha }}
+
+    steps:
+      - name: Resolve version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          SOURCE_SHA=
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            VERSION="${RELEASE_TAG#v}"
+            if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+              echo '::error::Release tag must be an exact semantic version'; exit 1
+            fi
+            # Tag-bound publication evidence must describe the actual checkout.
+            # The commits endpoint peels both lightweight and annotated tags.
+            # Branch/main manual recovery may still explicitly build a tag.
+            if [[ "${GITHUB_REF:-}" == refs/tags/* ]] && [ "$GITHUB_REF" != "refs/tags/$RELEASE_TAG" ]; then
+              echo '::error::The dispatch tag must match release_tag exactly'; exit 1
+            fi
+            if ! SOURCE_SHA=$(gh api "repos/${REPOSITORY}/commits/refs%2Ftags%2F${RELEASE_TAG}" --jq .sha); then
+              echo '::error::Could not resolve the release tag commit'; exit 1
+            fi
+            if [[ ! "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              echo '::error::The release tag did not resolve to a full commit SHA'; exit 1
+            fi
+            if [[ "${GITHUB_REF:-}" == refs/tags/* ]] && [ "$SOURCE_SHA" != "$GITHUB_SHA" ]; then
+              echo '::error::The release tag no longer matches the dispatched commit'; exit 1
+            fi
+          else
+            VERSION="dev"
+          fi
+          {
+            echo "version=$VERSION"
+            echo "source_sha=$SOURCE_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Build the CLI binary for each target platform.
+  # All platforms run on GitHub-hosted runners (free for public repos).
+  # ---------------------------------------------------------------------------
+  build:
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.prepare.result == 'success' &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    name: Build (${{ matrix.platform }})
+    needs: [candidate-source, prepare, pr-scope]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # `cross: true` marks binaries compiled for a different architecture
+        # than the build host: they cannot execute there, so the run-the-binary
+        # steps (Verify binary, smoke tests) are skipped for those entries.
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            build_script: build:linux
+            binary: tale
+            artifact: tale_linux
+          - os: ubuntu-latest
+            platform: linux-arm64
+            build_script: build:linux-arm64
+            binary: tale
+            artifact: tale_linux_arm64
+            cross: true
+          - os: macos-latest
+            platform: macos
+            build_script: build:mac
+            binary: tale
+            artifact: tale_macos
+          - os: macos-latest
+            platform: macos-x64
+            build_script: build:mac-x64
+            binary: tale
+            artifact: tale_macos_x64
+            cross: true
+          - os: windows-latest
+            platform: windows
+            # "Generate embedded files" captures the clean checkout before version
+            # injection changes package.json. Compile those exact sources.
+            build_script: build:windows:compile
+            binary: tale.exe
+            artifact: tale_windows.exe
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          # A manual release dispatch may be started from another branch.
+          # Prepare resolves that tag once; every binary builds its exact commit.
+          ref: ${{ needs.candidate-source.outputs.candidate_sha || needs.prepare.outputs.source_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          # 1.3.12's `bun build --compile` emits a truncated macOS code
+          # signature (oven-sh/bun#29120): users' kernels SIGKILL the binary
+          # while CI's SIP-disabled runners run it fine. Keep >= 1.3.13 and
+          # keep the "Verify macOS code signature" step below.
+          bun-version: '1.4.2'
+
+      - name: Configure Bun install cache
+        if: matrix.cross || runner.os == 'Windows'
+        env:
+          CROSS: ${{ matrix.cross }}
+        run: |
+          set -euo pipefail
+          if [ "$CROSS" = true ]; then
+            # Cross legs only compile the CLI. Keep their smaller dependency
+            # cache separate from the native suites' complete monorepo cache.
+            printf 'BUN_INSTALL_CACHE_DIR=%s/bun-cli-cache\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          else
+            # Windows' home and checkout can live on different volumes. Bun
+            # hardlinks packages only within one volume; keep this native store
+            # beside the checkout, outside its clean-source identity boundary.
+            # Cache glob inputs reject literal '.' and '..' path segments.
+            cache_path=$(bun -e 'process.stdout.write(require("node:path").win32.resolve(process.env.GITHUB_WORKSPACE, "..", ".tale-bun-install-cache"))')
+            printf 'BUN_INSTALL_CACHE_DIR=%s\n' "$cache_path" >> "$GITHUB_ENV"
+          fi
+
+      - name: Restore Bun install cache
+        # The measured warm Windows archive still costs more than a fresh install.
+        # Cross legs retain their separate archive; Setup Bun keeps its binary cache.
+        if: matrix.cross || runner.os != 'Windows'
+        id: bun-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          key: ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('bun.lock', 'package.json', 'packages/*/package.json', 'services/*/package.json', 'services/sandbox-runtime/daemon/package.json', 'configs/platform/custom/skills/*/package.json', 'tools/*/package.json', 'patches/**', 'bunfig.toml') }}
+          restore-keys: |
+            ${{ matrix.cross && 'bun-cli-install' || 'bun-install' }}-${{ runner.os }}-${{ runner.arch }}-1.4.2-
+
+      - name: Install dependencies
+        working-directory: tools/cli
+        env:
+          CROSS: ${{ matrix.cross }}
+        run: |
+          if [ "$CROSS" = true ]; then
+            bun install --frozen-lockfile --filter @tale/cli
+          else
+            # Source tests/typecheck import platform modules outside the CLI's
+            # dependency closure, so native legs retain the complete install.
+            bun install --frozen-lockfile
+          fi
+
+      - name: Save installed Bun downloads
+        if: (matrix.cross || runner.os != 'Windows') && steps.bun-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ (matrix.cross || runner.os == 'Windows') && env.BUN_INSTALL_CACHE_DIR || '~/.bun/install/cache' }}
+          key: ${{ steps.bun-cache.outputs.cache-primary-key }}
+
+      - name: Observe Windows Bun cache locality
+        if: runner.os == 'Windows' && !matrix.cross
+        working-directory: tools/cli
+        run: |
+          bun_cache_path="$(bun pm cache)"
+          # PowerShell variables remain literal inside the inline Bun program.
+          # shellcheck disable=SC2016
+          BUN_INSTALL_CACHE_OBSERVED="$bun_cache_path" bun -e '
+            import { spawnSync } from "node:child_process";
+            import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+            import { homedir } from "node:os";
+            import { dirname, join } from "node:path";
+            const optional = (read) => {
+              try { return read(); }
+              catch (error) {
+                if (error.code === "ENOENT" || error.code === "ENOTDIR") return undefined;
+                throw error;
+              }
+            };
+            const fileSystems = new Map();
+            const inspect = (path) => {
+              const sample = path ? optional(() => {
+                const resolved = realpathSync(path);
+                const info = statSync(resolved, { bigint: true });
+                return { path: resolved, regular: info.isFile(), directory: info.isDirectory(),
+                  dev: info.dev, ino: info.ino, nlink: info.nlink, size: info.size };
+              }) : undefined;
+              if (sample?.regular && process.platform === "win32") {
+                if (!fileSystems.has(sample.path)) {
+                  const query = spawnSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+                    "$ErrorActionPreference = \"Stop\"; $volumes = @(Get-Volume -FilePath $env:TALE_BUN_PROBE_FILE -ErrorAction Stop); if ($volumes.Count -eq 1) { [string]$volumes[0].FileSystem }"],
+                    { encoding: "utf8", env: { ...process.env, TALE_BUN_PROBE_FILE: sample.path } });
+                  if (query.error) throw query.error;
+                  if (query.status !== 0) throw new Error("Volume filesystem query failed: " + query.stderr);
+                  fileSystems.set(sample.path, query.stdout.trim() || null);
+                }
+                sample.fileSystem = fileSystems.get(sample.path);
+              }
+              return sample;
+            };
+            const cachePath = process.env.BUN_INSTALL_CACHE_OBSERVED;
+            if (!cachePath) throw new Error("bun pm cache returned an empty path.");
+            const paths = {
+              home: inspect(homedir()), workspace: inspect(process.env.GITHUB_WORKSPACE),
+              cache: inspect(cachePath), runnerTemp: inspect(process.env.RUNNER_TEMP),
+            };
+            let manifestPath, metadata;
+            for (const root of [process.cwd(), process.env.GITHUB_WORKSPACE].filter(Boolean)) {
+              const path = join(root, "node_modules/typescript/package.json");
+              const found = optional(() => JSON.parse(readFileSync(path, "utf8")));
+              if (found?.name === "typescript" && typeof found.version === "string") {
+                manifestPath = path; metadata = found; break;
+              }
+            }
+            const installed = manifestPath && inspect(join(dirname(manifestPath), "lib/typescript.js"));
+            const candidates = [];
+            if (metadata?.name === "typescript" && typeof metadata.version === "string") {
+              for (const entry of optional(() => readdirSync(cachePath)) ?? []) {
+                if (!entry.startsWith("typescript@")) continue;
+                const root = join(cachePath, entry);
+                const cachedMetadata = optional(() => JSON.parse(readFileSync(join(root, "package.json"), "utf8")));
+                if (cachedMetadata?.name !== metadata.name || cachedMetadata.version !== metadata.version) continue;
+                const cached = inspect(join(root, "lib/typescript.js"));
+                const comparable = installed?.regular && cached?.regular && installed.dev !== 0n && cached.dev !== 0n
+                  && installed.ino !== 0n && cached.ino !== 0n;
+                const samePath = installed && cached && (process.platform === "win32"
+                  ? installed.path.toLowerCase() === cached.path.toLowerCase() : installed.path === cached.path);
+                const sameIdentity = comparable && installed.dev === cached.dev && installed.ino === cached.ino;
+                const supportedIdentity = process.platform !== "win32"
+                  || installed?.fileSystem === "NTFS" && cached?.fileSystem === "NTFS";
+                const status = !comparable || samePath || !supportedIdentity ? "unknown"
+                  : sameIdentity && installed.nlink >= 2n && cached.nlink >= 2n ? "hardlinked"
+                  : sameIdentity ? "unknown" : "not-linked-to-sampled-cache-file";
+                candidates.push({ cached, status });
+              }
+            }
+            const status = candidates.some((entry) => entry.status === "hardlinked") ? "hardlinked"
+              : candidates.some((entry) => entry.status === "not-linked-to-sampled-cache-file")
+                ? "not-linked-to-sampled-cache-file" : "unknown";
+            const cacheWorkspaceSameVolume = paths.cache?.dev && paths.workspace?.dev
+              ? paths.cache.dev === paths.workspace.dev : null;
+            console.log(JSON.stringify({ selectedCache: process.env.BUN_INSTALL_CACHE_DIR, observedCache: cachePath,
+              paths, cacheWorkspaceSameVolume, package: metadata && { name: metadata.name, version: metadata.version },
+              installed, candidates, candidateCount: candidates.length, status },
+              (_key, value) => typeof value === "bigint" ? value.toString() : value));
+          '
+
+      - name: Generate embedded files
+        working-directory: tools/cli
+        run: bun run generate
+
+      # Smoke tests in tests/ are discovered too but skip cleanly here —
+      # TALE_BINARY is only set after the binary is built.
+      # Cross-compilation rows use the same Linux/macOS hosts as their native
+      # counterparts. Run source tests once per host OS; all binaries still build.
+      - name: Run unit tests
+        if: ${{ !matrix.cross }}
+        working-directory: tools/cli
+        env:
+          TALE_BINARY: ''
+        # The package script carries the per-test budget: the git fixtures
+        # spawn git several times per build, and Windows runners stall on
+        # git for seconds at a time — bun test's 5 s default killed passing
+        # tests mid-commit.
+        # Native two-worker runs did not reliably finish within the existing
+        # budgets. Keep every host's complete source suite serial, retaining
+        # the same per-test limits and job deadline.
+        run: bun run test
+
+      - name: Run type check
+        if: matrix.platform == 'linux'
+        working-directory: tools/cli
+        run: bun run typecheck
+
+      - name: Inject version into package.json
+        working-directory: tools/cli
+        run: |
+          jq '.version = "${{ needs.prepare.outputs.version }}"' package.json > package.json.tmp
+          mv package.json.tmp package.json
+
+      - name: Build binary
+        working-directory: tools/cli
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BUILD_SCRIPT: ${{ matrix.build_script }}
+        run: |
+          if [ "$PLATFORM" = windows ]; then
+            # The trusted workflow may build an older candidate/tag checkout.
+            # Reuse that source's compiler/checker without generating again.
+            bun -e '
+              const file = "package.json";
+              const manifest = await Bun.file(file).json();
+              const scripts = manifest.scripts;
+              const helper = "build:windows:compile";
+              if (!scripts || typeof scripts !== "object" || Array.isArray(scripts))
+                throw new Error("Selected source has no Windows build scripts.");
+              if (Object.hasOwn(scripts, helper)) {
+                if (typeof scripts[helper] !== "string" || !scripts[helper].trim())
+                  throw new Error("Selected source has an invalid Windows compile helper.");
+              } else {
+                const legacy = scripts["build:windows"];
+                const prefix = "bun run generate && ";
+                const compile = "bun build --compile ";
+                if (typeof legacy !== "string" || !legacy.startsWith(prefix))
+                  throw new Error("Selected source has no supported Windows compile entry.");
+                const command = legacy.slice(prefix.length);
+                if (!command.startsWith(compile) || !command.slice(compile.length).trim())
+                  throw new Error("Selected source has no supported Windows compile entry.");
+                scripts[helper] = command;
+                await Bun.write(file, JSON.stringify(manifest, null, 2) + "\n");
+              }
+            '
+          fi
+          bun run "$BUILD_SCRIPT"
+
+      - name: Rename binary
+        working-directory: tools/cli/dist
+        run: mv ${{ matrix.binary }} ${{ matrix.artifact }}
+
+      # Bun finalizes the compiled binary after signing it, so the signature
+      # never seals the shipped bytes (and 1.3.12's was outright truncated —
+      # oven-sh/bun#29120). Strip and ad-hoc re-sign so the final file carries
+      # a valid seal; without one, stock macOS kernels SIGKILL the binary.
+      # codesign inspects the Mach-O on disk, so it covers the cross-compiled
+      # x64 binary on the arm64 runner just as well as the native one.
+      - name: Normalize macOS code signature
+        if: startsWith(matrix.platform, 'macos')
+        working-directory: tools/cli/dist
+        run: |
+          codesign --remove-signature ${{ matrix.artifact }}
+          codesign -s - ${{ matrix.artifact }}
+
+      # Cross-compiled binaries cannot execute on the build host — static
+      # checks (codesign below) are all CI can do for those.
+      - name: Verify binary
+        if: ${{ !matrix.cross }}
+        working-directory: tools/cli/dist
+        run: |
+          if [ "${{ matrix.platform }}" != "windows" ]; then
+            chmod +x ${{ matrix.artifact }}
+          fi
+          ./${{ matrix.artifact }} --version
+
+      # Running the binary is not enough on macOS: GitHub runners have SIP
+      # disabled, so they execute binaries whose signature the stock kernel
+      # rejects with SIGKILL. Validate the signature statically instead.
+      - name: Verify macOS code signature
+        if: startsWith(matrix.platform, 'macos')
+        working-directory: tools/cli/dist
+        run: codesign --verify --strict --verbose=2 ${{ matrix.artifact }}
+
+      - name: Run smoke tests
+        if: ${{ !matrix.cross }}
+        working-directory: tools/cli
+        env:
+          TALE_BINARY: dist/${{ matrix.artifact }}
+        # TALE_BINARY selects the compiled target; the source cases already ran
+        # above. Discover every command suite so new compiled cases cannot skip.
+        run: bun run test tests/
+
+      - name: Upload artifact
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: tools/cli/dist/${{ matrix.artifact }}
+          # Fast compression retains the large saving on embedded source and
+          # runtime bytes without the default level's extra CPU work.
+          compression-level: 1
+          retention-days: 30
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Attach built binaries to the GitHub release (dispatch only).
+  # ---------------------------------------------------------------------------
+  release:
+    name: Attach to release
+    needs: [candidate-source, prepare, build]
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      needs.prepare.result == 'success' &&
+      needs.build.result == 'success' &&
+      (github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          path: artifacts
+          pattern: '{tale_linux,tale_linux_arm64,tale_macos,tale_macos_x64,tale_windows.exe}'
+
+      - name: List artifacts
+        run: find artifacts -type f
+
+      - name: Wait for release to exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          REPO: ${{ github.repository }}
+          EXPECTED_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: |
+          TAG="$RELEASE_TAG"
+          MAX_ATTEMPTS=10
+          DELAY=15
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            if gh release view "$TAG" --repo "$REPO" > /dev/null 2>&1; then
+              CURRENT_SOURCE_SHA=$(gh api "repos/${REPO}/commits/refs%2Ftags%2F${TAG}" --jq .sha)
+              if [ "$CURRENT_SOURCE_SHA" != "$EXPECTED_SOURCE_SHA" ] || [[ ! "$CURRENT_SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+                echo '::error::Release tag changed after CLI preparation'; exit 1
+              fi
+              echo "Release $TAG found."
+              exit 0
+            fi
+            if [ "$i" -eq "$MAX_ATTEMPTS" ]; then
+              break
+            fi
+            echo "Release $TAG not found yet (attempt $i/$MAX_ATTEMPTS). Waiting ${DELAY}s..."
+            sleep $DELAY
+            DELAY=$((DELAY * 2 > 30 ? 30 : DELAY * 2))
+          done
+          echo "::error::Release $TAG not found after $MAX_ATTEMPTS attempts."
+          exit 1
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          binaries=(tale_linux tale_linux_arm64 tale_macos tale_macos_x64 tale_windows.exe)
+          directories=(artifacts/*)
+          if [ ! -d artifacts ] || [ -L artifacts ] || [ "${#directories[@]}" -ne "${#binaries[@]}" ]; then
+            echo '::error::Expected exactly five CLI binary artifacts'; exit 1
+          fi
+          # Validate every artifact before creating checksums or copying bytes.
+          for binary in "${binaries[@]}"; do
+            directory="artifacts/$binary"
+            files=("$directory"/*)
+            if [ ! -d "$directory" ] || [ -L "$directory" ] || [ "${#files[@]}" -ne 1 ] || [ "${files[0]:-}" != "$directory/$binary" ] || [ ! -f "$directory/$binary" ] || [ -L "$directory/$binary" ] || [ ! -s "$directory/$binary" ]; then
+              echo "::error::Invalid CLI artifact: $binary"; exit 1
+            fi
+          done
+          mkdir release
+          for binary in "${binaries[@]}"; do
+            cp -- "artifacts/$binary/$binary" "release/$binary"
+          done
+          cd release
+          sha256sum tale_linux tale_linux_arm64 tale_macos tale_macos_x64 tale_windows.exe > tale_checksums.txt
+          cat tale_checksums.txt
+
+      - name: Upload binaries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Pass workflow inputs through the environment and quote them in the
+          # shell, so the tag is treated as data — never interpolated as code.
+          RELEASE_TAG: ${{ github.event.inputs.release_tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          gh release upload "$RELEASE_TAG" \
+            release/tale_linux \
+            release/tale_linux_arm64 \
+            release/tale_macos \
+            release/tale_macos_x64 \
+            release/tale_windows.exe \
+            release/tale_checksums.txt \
+            --repo "$REPO" \
+            --clobber
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, prepare, build]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/cli.yml
+      jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (CLI)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, prepare, build, release, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: cli
+          jobs: ${{ toJSON(needs) }}

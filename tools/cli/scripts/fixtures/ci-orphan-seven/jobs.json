@@ -1,0 +1,427 @@
+[
+  {
+    "workflow": "CLI",
+    "jobs": [
+      {
+        "name": "Prepare",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "PR scope",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "Candidate source",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "CI ready (CLI)",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "Build (${{ matrix.platform }})",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Attach to release",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Candidate gate",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      }
+    ]
+  },
+  {
+    "workflow": "Checks",
+    "jobs": [
+      {
+        "name": "Unit (platform 1/2)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Unit (platform 2/2)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Browser",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Unit (workspaces)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Build",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Type check",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Performance",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Format",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Integration scope",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "UI (platform 1/4)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Knip",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "UI (platform 3/4)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "UI (platform 2/4)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "UI (platform 4/4)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Lint",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Candidate source",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "Unit",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "UI",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "Backend integration",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      }
+    ]
+  },
+  {
+    "workflow": "SAST",
+    "jobs": [
+      {
+        "name": "Opengrep",
+        "status": "completed",
+        "conclusion": "success",
+        "runner_id": 1000292804
+      },
+      {
+        "name": "Candidate source",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "CI ready (SAST)",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "Candidate gate",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      }
+    ]
+  },
+  {
+    "workflow": "E2E",
+    "jobs": [
+      {
+        "name": "E2E scope",
+        "status": "completed",
+        "conclusion": "success",
+        "runner_id": 1000292917
+      },
+      {
+        "name": "PR scope",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "Candidate source",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "Build platform (E2E preview bundle)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Playwright (docs)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Playwright (web)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "CI ready (E2E)",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "Playwright (platform ${{ matrix.shard }}/4)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Candidate gate",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      }
+    ]
+  },
+  {
+    "workflow": "Commitlint",
+    "jobs": [
+      {
+        "name": "Lint commits",
+        "status": "completed",
+        "conclusion": "success",
+        "runner_id": 1000292964
+      },
+      {
+        "name": "Candidate source",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "CI ready (Commitlint)",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "Candidate gate",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      }
+    ]
+  },
+  {
+    "workflow": "Build",
+    "jobs": [
+      {
+        "name": "Detect changes",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": 0
+      },
+      {
+        "name": "Candidate source",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "PR scope",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "Validate images (fork PR)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "AI gateway container test",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Web container test",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Docs container test",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "CI ready (Build)",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "Smoke test (fork PR)",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Storybook",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Scan ${{ matrix.service }}",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "UI docs container test",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Build ${{ matrix.service }}",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Validate images",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Candidate gate",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      },
+      {
+        "name": "Smoke test",
+        "status": "completed",
+        "conclusion": "cancelled",
+        "runner_id": null
+      }
+    ]
+  },
+  {
+    "workflow": "Security",
+    "jobs": [
+      {
+        "name": "Trivy filesystem scan",
+        "status": "completed",
+        "conclusion": "success",
+        "runner_id": 1000292898
+      },
+      {
+        "name": "PR scope",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "Bun audit",
+        "status": "completed",
+        "conclusion": "success",
+        "runner_id": 1000292933
+      },
+      {
+        "name": "Candidate source",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      },
+      {
+        "name": "CI ready (Security)",
+        "status": "queued",
+        "conclusion": null,
+        "runner_id": 0
+      },
+      {
+        "name": "Candidate gate",
+        "status": "completed",
+        "conclusion": "skipped",
+        "runner_id": null
+      }
+    ]
+  }
+]
