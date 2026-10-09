@@ -180,6 +180,56 @@ describe('runnerd HTTP service', () => {
     expect(response.status).toBe(401);
   });
 
+  test('refuses a new exec while the session’s memory is nearly spent, and runs it once there is room', async () => {
+    const cgroup = mkdtempSync(`${tmpdir()}/runnerd-cgroup-`);
+    const previousRoot = process.env.TALE_CGROUP_ROOT;
+    process.env.TALE_CGROUP_ROOT = cgroup;
+    const fill = (currentMiB: number, inactiveFileMiB: number) => {
+      writeFileSync(`${cgroup}/memory.current`, `${currentMiB * 1048576}\n`);
+      writeFileSync(`${cgroup}/memory.max`, `${1024 * 1048576}\n`);
+      writeFileSync(
+        `${cgroup}/memory.stat`,
+        `anon 1\ninactive_file ${inactiveFileMiB * 1048576}\nactive_file 0\n`,
+      );
+    };
+    const post = (execId: string) =>
+      fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          execId,
+          command: ['/bin/echo', 'ran'],
+          timeoutMs: 5_000,
+          stdoutMaxBytes: 1_000,
+          stderrMaxBytes: 1_000,
+        }),
+      });
+    try {
+      // 950 MiB of 1 GiB in use, none of it cache the kernel can drop.
+      fill(950, 0);
+      const refused = await post('memory-busy');
+      expect(refused.status).toBe(429);
+      expect(refused.headers.get('retry-after')).toBe('5');
+      expect(await refused.json()).toEqual({
+        error: 'session_memory_busy',
+        code: 'SESSION_MEMORY_BUSY',
+        message: 'the session is using 90% or more of its memory limit',
+      });
+      const status = await fetch(`${baseUrl}/execs/memory-busy`, { headers });
+      expect(status.status).toBe(404);
+
+      // The same 950 MiB, 300 of them inactive file cache: room.
+      fill(950, 300);
+      const admitted = await post('memory-room');
+      expect(admitted.status).toBe(200);
+      expect(await admitted.text()).toContain('"t":"exit"');
+    } finally {
+      if (previousRoot === undefined) delete process.env.TALE_CGROUP_ROOT;
+      else process.env.TALE_CGROUP_ROOT = previousRoot;
+      rmSync(cgroup, { recursive: true, force: true });
+    }
+  });
+
   test.each(['-1', '1.5', 'Infinity', 'not-a-number', '9007199254740992'])(
     'refuses malformed replay cursor %s before attachment',
     async (cursor) => {

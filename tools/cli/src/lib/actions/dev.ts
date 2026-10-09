@@ -56,7 +56,10 @@ import { getContainerHealth } from '../docker/get-container-health';
 import { isContainerRunning } from '../docker/is-container-running';
 import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
-import { assertComposeAvailable } from '../docker/setup-checks';
+import {
+  assertComposeAvailable,
+  assertDockerEngineSupported,
+} from '../docker/setup-checks';
 import { findChildProject, findProject } from '../project/find-project';
 import {
   resolveOrAssignProjectContext,
@@ -252,6 +255,7 @@ export async function runDev(options: DevOptions): Promise<void> {
   }
   await assertDockerAvailable();
   await assertComposeAvailable();
+  await assertDockerEngineSupported();
 
   const imageVersion = pkg.version.includes('-dev') ? 'latest' : pkg.version;
   const appImage = `${env.GHCR_REGISTRY}/tale-platform:${imageVersion}`;

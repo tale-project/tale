@@ -10,6 +10,7 @@ import {
   readTaskInstructionsConfiguration,
   updateTaskInstructionsConfiguration,
 } from '../tasks/service.ts';
+import { checkManagedAgentModel } from './managed-model.integration.ts';
 import { checkManagedAgentTools } from './managed-tools.integration.ts';
 import {
   readProjectInstructionsConfiguration,
@@ -259,4 +260,5 @@ export async function checkManagedInstructions(
     );
   }
   await checkManagedAgentTools(sql, base, ctx, ids, record);
+  await checkManagedAgentModel(sql, base, ctx, ids, record);
 }

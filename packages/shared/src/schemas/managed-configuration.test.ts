@@ -4,9 +4,67 @@ import { AGENT_TOOL_CATALOG } from '../agent-tool-grants';
 import {
   managedAgentToolsSchema,
   managedAutomationScheduleSchema,
+  managedAgentModelSchema,
+  managedAgentModelObservationSchema,
   managedPlatformResourceSchema,
 } from './managed-configuration';
 import { PROJECT_AGENT_BINDINGS_MAX } from './projects';
+
+describe('explicit managed review-context creation', () => {
+  const resource = {
+    kind: 'task-review-context',
+    config: {
+      projectId: 'project-a',
+      taskId: '2045dc63-4934-40fc-89f8-f66b82a30152',
+      reviewerAgentId: 'reviewer-a',
+      enabled: true,
+    },
+  };
+  it('keeps creation separate from the stored config and preserves adoption-only IDs', () => {
+    expect(
+      managedPlatformResourceSchema.parse({
+        ...resource,
+        createIfMissing: true,
+      }),
+    ).toEqual({ ...resource, createIfMissing: true });
+    const adoption = {
+      ...resource,
+      config: { ...resource.config, taskId: 'existing-context' },
+    };
+    expect(managedPlatformResourceSchema.parse(adoption)).toEqual(adoption);
+    expect(
+      managedPlatformResourceSchema.safeParse({
+        ...adoption,
+        createIfMissing: true,
+      }).success,
+    ).toBe(false);
+  });
+  it.each([false, null, 'true', 1])(
+    'refuses implicit or malformed creation policy %j',
+    (createIfMissing) => {
+      expect(
+        managedPlatformResourceSchema.safeParse({
+          ...resource,
+          createIfMissing,
+        }).success,
+      ).toBe(false);
+    },
+  );
+  it('does not accept task titles, caller IDs, permissions or creation policy inside config', () => {
+    for (const extra of [
+      { createIfMissing: true },
+      { title: 'Caller title' },
+      { createdBy: 'another-user' },
+      { tools: ['task_start_agent'] },
+    ])
+      expect(
+        managedPlatformResourceSchema.safeParse({
+          ...resource,
+          config: { ...resource.config, ...extra },
+        }).success,
+      ).toBe(false);
+  });
+});
 
 describe('managed agent tool declarations', () => {
   const identity = { projectId: 'project-a', agentId: 'agent-a' };
@@ -87,4 +145,56 @@ describe('managed schedule slot-wake opt-in (#4540)', () => {
       ).toBe(false);
     },
   );
+});
+
+describe('managed agent model declarations', () => {
+  const config = {
+    projectId: 'project-a',
+    agentId: 'agent-a',
+    harness: 'codex',
+    model: 'model-a',
+    modelProvider: 'provider-a',
+  };
+  it('requires an explicit provider and preserves nullable legacy observations', () => {
+    expect(
+      managedPlatformResourceSchema.parse({ kind: 'agent-model', config }),
+    ).toEqual({ kind: 'agent-model', config });
+    expect(
+      managedAgentModelSchema.parse({
+        ...config,
+        model: ' model-a ',
+        modelProvider: ' provider-a ',
+      }),
+    ).toEqual(config);
+    expect(
+      managedAgentModelObservationSchema.parse({
+        ...config,
+        modelProvider: null,
+      }).modelProvider,
+    ).toBeNull();
+    expect(
+      managedAgentModelObservationSchema.parse({
+        ...config,
+        model: ' legacy ',
+        modelProvider: ' legacy-provider ',
+      }).model,
+    ).toBe(' legacy ');
+  });
+  it.each([
+    { modelProvider: undefined },
+    { modelProvider: null },
+    { modelProvider: '' },
+    { modelProvider: ' ' },
+    { model: ' ' },
+    { harness: '' },
+    { agentId: '' },
+    { secrets: [] },
+    { tools: [] },
+    { instructions: 'overwrite' },
+    { name: 'overwrite' },
+  ])('rejects incomplete or unrelated fields %j', (fields) => {
+    expect(
+      managedAgentModelSchema.safeParse({ ...config, ...fields }).success,
+    ).toBe(false);
+  });
 });

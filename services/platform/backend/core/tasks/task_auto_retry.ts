@@ -27,6 +27,28 @@ export const AUTO_RETRY_MAX_ATTEMPTS = 3;
  * account cooldown or a promise that provider capacity returns in a minute. */
 export const MODEL_CAPACITY_RETRY_DELAY_MS = 60_000;
 
+/** How long the retry of a run whose sandbox ran out of memory waits, by
+ * the attempt the failed run showed: 2, then 10, then 30 minutes. A re-run
+ * at once would meet the same memory limit; the pause lets the session's
+ * other work settle and gives an Admin time to raise the limit. */
+export const RESOURCE_EXHAUSTED_RETRY_DELAYS_MS = [
+  2 * 60_000,
+  10 * 60_000,
+  30 * 60_000,
+] as const;
+
+/** The wait before retrying a run that ran out of memory, for the failed
+ * run's attempt (0 or absent for a first run). */
+export function resourceExhaustedRetryDelayMs(
+  attempt: number | null | undefined,
+): number {
+  const index = Math.min(
+    Math.max(attempt ?? 0, 0),
+    RESOURCE_EXHAUSTED_RETRY_DELAYS_MS.length - 1,
+  );
+  return RESOURCE_EXHAUSTED_RETRY_DELAYS_MS[index] ?? 30 * 60_000;
+}
+
 /** Producer-side failure classification, stamped where each failure is
  * PRODUCED (`settleTaskAgentTurn` callers, the park watchdog, the capacity
  * wake) — never regex-derived from the free-text reason. */
@@ -36,6 +58,17 @@ export type TaskRunFailureCode =
    * waits briefly, still counts, and keeps the prior account eligible. */
   | 'model_capacity'
   | 'turn_crashed'
+  /** The sandbox ended the harness because it stalled: it printed nothing
+   * and used almost no CPU for the sandbox's stall window (45 minutes by
+   * default). A hang, not a crash — a retry at once would most likely hang
+   * the same way and hold a worker for another window, so none follows; a
+   * person decides whether to start the agent again. */
+  | 'turn_stalled'
+  /** The sandbox ran out of memory: the kernel's OOM killer ended the
+   * harness, or the session's container with it. Retried, but only after
+   * {@link resourceExhaustedRetryDelayMs}: at once it would meet the same
+   * limit. */
+  | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
   | 'harvest_failed'
@@ -77,13 +110,15 @@ export type TaskRunFailureCode =
   | 'credential_cooldown';
 
 /** Failures where a retry is pure waste: the run burned its 12h window
- * (either executing or parked), or the agent configuration itself is gone.
+ * (either executing or parked), its harness hung until the sandbox ended it,
+ * or the agent configuration itself is gone.
  * Everything else — provider errors, crashes, vanished sessions, harvest
  * hiccups — retries by DEFAULT, including an absent code, so a future
  * failure producer inherits the retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
   'park_deadline',
+  'turn_stalled',
   'agent_deleted',
   'agent_model_missing',
   'equipment_missing',

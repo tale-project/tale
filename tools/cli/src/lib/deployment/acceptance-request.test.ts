@@ -4,6 +4,7 @@ import { acceptanceHttpProbe } from './acceptance-test-helper';
 
 for (const mode of [
   'tls',
+  'tls-origin',
   'proxy',
   'redirect',
   'missing',
@@ -11,7 +12,7 @@ for (const mode of [
   'stalled',
   'duplicate',
 ])
-  test.skipIf(mode === 'tls' && process.platform === 'win32')(
+  test.skipIf(mode.startsWith('tls') && process.platform === 'win32')(
     `actual ${mode} transport preserves its trust and response bounds in an isolated process`,
     async () => {
       const result = await acceptanceHttpProbe(mode);

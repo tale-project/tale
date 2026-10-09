@@ -91,13 +91,19 @@ returns the configured `maxSessions` without requiring a Docker or Kubernetes
 inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
 organizations; unset, a Docker spawner that can read its host's memory sizes
 it from that memory (one session per 768 MiB beyond the reserve, or per
-1.5 GiB where agent sessions run Docker inside, at least 8, at most 256; at
-boot, or at the first sweep that can read it), and 8 applies elsewhere. On
+1.5 GiB where agent sessions run Docker inside, at most two per CPU the
+daemon reports, at least 8, at most 256; at boot, or at the first sweep that
+can read it), and 8 applies elsewhere. On
 such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
 the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
 still growing into: a create that would cut into it reclaims a released idle
-session or answers 429 `host_memory`. Admission also keeps
+session or answers 429 `host_memory`. While the host's CPU pressure (PSI
+`some avg10` of `/proc/pressure/cpu`) is at or above
+`SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns it off), creates and warm
+acquisitions start one at a time, one every ten seconds from the front of
+the line, and the rest answer 429 `host_cpu`; a kernel without PSI leaves CPU
+out, logged once. Admission also keeps
 `SANDBOX_MIN_FREE_DISK` free on the workspace filesystem and, where the
 spawner's Docker hostname bind can be verified, Docker's metadata filesystem
 (a twentieth of each, at least 2 GiB, at most 20 GiB; `0` turns it off). This
@@ -129,6 +135,30 @@ There is no independently configured organization runtime ceiling. With
 `?organizationId=` the answer adds `deviceSessions`, the slots that
 organization's connected devices offer; the platform's ceiling for that
 organization is `maxSessions + deviceSessions`.
+
+A session exec that prints nothing for `SANDBOX_EXEC_STALL_MINUTES` (45 unless
+set, `0` turns it off) while its processes use under 1% of one CPU has hung,
+and runnerd ends it: every session container gets the window as
+`TALE_EXEC_STALL_MS`, and the exec's result reads `failed` with the error code
+`EXEC_STALLED`, even when the command exited 0 on the SIGTERM
+(../sandbox-runtime/README.md).
+
+A session whose memory is nearly spent starts no new exec: every session
+container gets `TALE_EXEC_ADMISSION_MEMORY_PERCENT=90`, and once the session's
+working set has reached that share of its limit runnerd refuses a new exec
+before it starts. `POST /v1/sessions/:id/exec` then answers `429`
+`{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with runnerd's
+`retry-after`, before any stream: the spawner starts the exec before it answers,
+so a refused exec never shows up as a failed one. Running execs are untouched.
+
+An exec the kernel's OOM killer ended reads `failed` with the error code
+`OOM_KILLED` (runnerd saw its SIGKILL while the session counted a new OOM
+kill), and an exec whose session container died with it reads `SESSION_OOM`
+instead of `SESSION_LOST` when Docker recorded that the OOM killer hit the
+container (`State.OOMKilled`, read by the inspect that evicts the dead
+session). The platform settles such a run as `resource_exhausted` and retries
+it after 2, 10, then 30 minutes rather than at once. Kubernetes restarts an
+OOM-killed runner inside its Pod, so a session there ends as `SESSION_LOST`.
 
 Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
 CPU for the `default` profile) and a CPU weight below the control plane's:
@@ -288,8 +318,11 @@ ships with; the floor low disk space never prunes below is a tenth of the cap,
 at most 2 GiB. The spawner passes both in bytes, and they are part of the
 builder's stamp.
 
-The mirrors enable registry storage deletion so the registry can expire cached
-image layers after its seven-day lifetime. Without this setting, its expiry
+The mirrors run distribution v3, whose pull-through proxy takes a configurable
+lifetime, set to 48 hours (`REGISTRY_PROXY_TTL`): a blob an organization stopped
+pulling goes two days later instead of a week, and BuildKit's own cache keeps
+the base layers its builds reuse. They enable registry storage deletion so the
+registry can expire those layers at all. Without this setting, its expiry
 scheduler forgets failed deletions and the layers remain on disk. A spawner
 upgrade replaces older mirrors once no build is running, preserving their cache
 volumes. Layers whose expiry already failed are not scheduled again by the
@@ -424,7 +457,8 @@ runtime image. A volume whose mode could not be set is removed again, and the
 next create makes it afresh.
 
 Reactivating a released session reserves its expected memory growth and checks
-disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.
+disk headroom and CPU pressure. Both create and acquire can return 429
+`host_memory`, `host_cpu` or `host_disk`.
 Docker's metadata filesystem is observed through its existing `/etc/hostname`
 bind when that mount can be verified against the selected daemon. Otherwise,
 workspace admission remains active and Docker disk pressure is unavailable.

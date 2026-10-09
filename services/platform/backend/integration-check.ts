@@ -12911,7 +12911,8 @@ async function checkAutomations(
         llmBooked[0].requests === 1 &&
         capped?.status === 'failed' &&
         capped.failureCode === 'budget_exceeded' &&
-        (capped.detail ?? '').includes('monthly request limit') &&
+        /request limit/i.test(capped.detail ?? '') &&
+        /monthly/i.test(capped.detail ?? '') &&
         llmRequestsAfter[0]?.requests === 1,
       `booked=${JSON.stringify(llmBooked)} (want one row: the starter, 18 tokens, 1 request), capped run=${JSON.stringify(capped)} (want failed, budget_exceeded, naming the monthly request limit), llm requests after=${llmRequestsAfter[0]?.requests} (want still 1)`,
     );
@@ -56370,9 +56371,11 @@ async function checkArena(
       winnerTitle === 'Renamed launch' &&
       wonEarly.success &&
       wonEarly.data.continueThreadId === early.b &&
-      earlyJobs.length === 1 &&
+      // Its own title is queued, or already written by the time we look.
+      (earlyJobs.length === 1 ||
+        (earlyWinnerTitle !== null && earlyWinnerTitle !== 'Late title')) &&
       earlyWinnerTitle !== 'Late title',
-    `title jobs=${JSON.stringify(titleJobs.map((id) => (id === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want the visible column's, the hidden untitled), renamed pair's winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch"), early winner's title jobs=${earlyJobs.length} (want 1) and title after A's late one=${JSON.stringify(earlyWinnerTitle)} (want anything but "Late title")`,
+    `title jobs=${JSON.stringify(titleJobs.map((id) => (id === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want the visible column's, the hidden untitled), renamed pair's winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch"), early winner's title jobs=${earlyJobs.length} and title after A's late one=${JSON.stringify(earlyWinnerTitle)} (want its own title queued or written, never "Late title")`,
   );
 }
 
@@ -63547,6 +63550,23 @@ async function main(): Promise<void> {
       rawTeamInsert === 'landed' &&
       teamCount[0]?.memberCount === 0,
     `default=${teamDefault[0]?.def ?? 'NONE'} (want 0), insert=${rawTeamInsert} (want landed), memberCount=${String(teamCount[0]?.memberCount)} (want 0)`,
+  );
+
+  // 1a'. Sign-in, the member and user doors and the owner checks all match
+  //      `lower("email")`, which Better Auth's raw-column unique index
+  //      cannot serve. `indexUserEmailLower` in `db/migrate.ts` builds an
+  //      expression index at boot (concurrently, rebuilt when a crashed
+  //      build left it invalid); this proves it exists and is usable.
+  const emailIndex = await sql<{ valid: boolean; def: string }[]>`
+    SELECT i.indisvalid AS valid, pg_get_indexdef(i.indexrelid) AS def
+    FROM pg_index i
+    WHERE i.indexrelid = to_regclass('"user_email_lower_idx"')
+  `;
+  record(
+    'sign-in finds users through a valid index on lower(email)',
+    (emailIndex[0]?.valid ?? false) &&
+      /lower\(\(?email/i.test(emailIndex[0]?.def ?? ''),
+    `index=${emailIndex[0] === undefined ? 'MISSING' : `${emailIndex[0].valid ? 'valid' : 'INVALID'} ${emailIndex[0].def}`}`,
   );
 
   // 1b. The boot backfill: accounts this deployment provisioned before a

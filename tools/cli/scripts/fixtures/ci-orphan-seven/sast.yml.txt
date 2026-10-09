@@ -1,0 +1,179 @@
+name: SAST
+
+# Strict, blocking source-level SAST (Opengrep). Unlike the dependency scans in
+# security.yml (scoped to lockfiles + main), this runs on EVERY pull request
+# (any target branch) whenever source changes, so feature branches can't slip
+# code past the gate. The ruleset and pinned engine live in tools/opengrep/.
+
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
+on:
+  merge_group:
+    types: [checks_requested]
+  repository_dispatch:
+    types: [release-candidate]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: '0 3 * * 2' # Tuesday 03:00 UTC (offset from the Monday dep scan)
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
+  candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
+  sast:
+    needs: candidate-source
+    name: Opengrep
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Cache Opengrep binary
+        id: scanner-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
+        with:
+          path: ~/.cache/opengrep
+          key: opengrep-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tools/opengrep/run.sh') }}
+          restore-keys: |
+            opengrep-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup Bun for scanner regressions
+        if: hashFiles('tools/opengrep/run.test.ts') != ''
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      # The blocking gate: downloads the pinned engine (cached above), runs the
+      # vendored ruleset, writes SARIF, and exits non-zero on any finding.
+      # Repos without the opengrep port keep this identical file and self-skip.
+      - name: Run Opengrep
+        id: scanner
+        env:
+          # Candidates cannot upload against moving main. Both modes enforce
+          # the same blocking scan; normal runs also serialize its SARIF.
+          OPENGREP_SARIF_OUTPUT: ${{ github.event_name != 'repository_dispatch' && 'opengrep.sarif' || '' }}
+        run: |
+          if [ ! -f tools/opengrep/run.sh ]; then
+            echo "No tools/opengrep/run.sh in this repository — skipping the SAST gate."
+            exit 0
+          fi
+          bash tools/opengrep/run.sh
+
+      # Run against the exact binary provisioned above, including after a
+      # finding. This builtin-only suite needs no workspace dependency install.
+      - name: Verify scanner reporting and blocking behavior
+        id: scanner-regressions
+        if: always() && !cancelled() && hashFiles('tools/opengrep/run.test.ts') != ''
+        run: bun test tools/opengrep/run.test.ts
+
+      # A source finding must not discard a valid provisioned engine. The real
+      # engine regressions still prove its reporting and blocking semantics.
+      - name: Save Opengrep binary
+        if: >-
+          !cancelled() && steps.scanner-cache.outputs.cache-hit != 'true' &&
+          (steps.scanner.outcome == 'success' || steps.scanner-regressions.outcome == 'success')
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/opengrep
+          key: ${{ steps.scanner-cache.outputs.cache-primary-key }}
+
+      - name: Upload SARIF
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''
+        timeout-minutes: 1
+        # Repos without code scanning (private plans lacking Advanced
+        # Security) can't receive SARIF — the gate is the scan step above.
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4.35.3
+        with:
+          sarif_file: opengrep.sarif
+          category: opengrep
+
+      - name: Retain scanner evidence
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('opengrep.sarif') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: opengrep-attempt-${{ github.run_attempt }}
+          path: opengrep.sarif
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Opengrep SAST" >> "$GITHUB_STEP_SUMMARY"
+          echo "Vendored ruleset (tools/opengrep/config.yml). Findings fail this required check; normal runs also upload them to the Security tab under \`opengrep\`." >> "$GITHUB_STEP_SUMMARY"
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, sast]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/sast.yml
+      jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (SAST)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [candidate-source, sast, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: sast
+          jobs: ${{ toJSON(needs) }}

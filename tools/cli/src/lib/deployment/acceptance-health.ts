@@ -90,6 +90,7 @@ export async function acceptanceHealth(
   expected: ServingProcess,
   timeoutMs: number,
   request?: typeof fetch,
+  address?: string,
 ) {
   const endpoint = SERVING_ENDPOINTS[expected.service as ServingService];
   if (!endpoint)
@@ -109,7 +110,7 @@ export async function acceptanceHealth(
           credentials: 'omit',
           headers: { 'Cache-Control': 'no-cache' },
         })
-      : await acceptanceRequest(`${origin}${endpoint.path}`, signal);
+      : await acceptanceRequest(`${origin}${endpoint.path}`, signal, address);
     if (response.status !== 200 || !response.body)
       throw new Error('health status');
     const observed = servingIdentity(

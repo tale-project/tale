@@ -43,7 +43,7 @@ Diese Regeln für Modellzugänge bedeuten nicht, dass die Sandbox keinerlei Gehe
 
 ## Dateien und verbundene Werkzeuge verstehen
 
-Ein Projektagent verwendet seinen dauerhaften Workspace über mehrere Aufgaben hinweg. Aufgabenanhänge liegen schreibgeschützt unter `/agent/inputs/<task>/attachments/`. Dateien aus `/agent/output/<task>/` werden am Ende des Durchlaufs als **Ergebnisdateien** an die Aufgabe angehängt. Agent-Nodes sammeln ihre Ausgabe aus `/agent/output/`.
+Ein Projektagent verwendet seinen dauerhaften Workspace über mehrere Aufgaben hinweg. Aufgabenanhänge liegen schreibgeschützt unter `/agent/inputs/<task>/attachments/`. Der Workspace behält diese Kopie nur, solange die Aufgabe sie noch brauchen kann: Tale entfernt sie, sobald die Aufgabe auf **Erledigt** oder **Abgebrochen** steht, archiviert oder gelöscht ist oder 30 Tage lang nicht geändert wurde, und der nächste Durchlauf der Aufgabe legt die Dateien wieder ab. Dateien aus `/agent/output/<task>/` werden am Ende des Durchlaufs als **Ergebnisdateien** an die Aufgabe angehängt. Agent-Nodes sammeln ihre Ausgabe aus `/agent/output/`.
 
 Zugeordnete Skill-Bundles liegen als Dateien vor und werden in den Laufanweisungen genannt. Prüfe ihre Anweisungen und Skripte vor der Freigabe. [Skills für Agenten](/de/platform/agents/skills) erklärt Bereitstellung und Sichtbarkeit.
 

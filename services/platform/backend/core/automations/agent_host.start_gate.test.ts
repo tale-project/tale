@@ -17,7 +17,10 @@ import { describe, expect, it } from 'vitest';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs.ts';
 import type { ActionCtx } from '../lib/ctx.ts';
-import { SpawnerBusyError } from '../node_only/sandbox/helpers/session_client.ts';
+import {
+  SessionMemoryBusyError,
+  SpawnerBusyError,
+} from '../node_only/sandbox/helpers/session_client.ts';
 import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants.ts';
 import {
   classifyWorkflowStartFailure,
@@ -260,6 +263,26 @@ describe('classifyWorkflowStartFailure', () => {
     ).toMatchObject({
       failureCode: 'sandbox_capacity',
       retryAtMs: NOW + 15_000,
+    });
+  });
+
+  it('waits for room in a run sandbox short of memory, and says so', () => {
+    expect(
+      classifyWorkflowStartFailure(
+        new SessionMemoryBusyError(
+          'wf-run-1',
+          'exec_2',
+          5_000,
+          'the session is using 90% or more of its memory limit',
+        ),
+        NOW,
+      ),
+    ).toEqual({
+      reason:
+        "the agent turn is waiting for sandbox room: the run's sandbox is short of memory",
+      failureCode: 'sandbox_capacity',
+      retryAtMs: NOW + 15_000,
+      retryAfterMs: 15_000,
     });
   });
 

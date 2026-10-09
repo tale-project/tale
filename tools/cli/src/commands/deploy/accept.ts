@@ -17,6 +17,10 @@ export function createAcceptCommand(): Command {
     .option('--bundle <directory>', 'Prepared Tale deployment bundle')
     .option('--cli-ref <sha>', 'Expected full CLI source commit')
     .option('--deployment-ref <sha>', 'Expected full orchestrator commit')
+    .option(
+      '--origin-container <id>',
+      'Full ID of the running private-origin gateway container',
+    )
     .requiredOption(
       '--expected-version <version>',
       'Expected stable release version, also verified from runtime image labels',

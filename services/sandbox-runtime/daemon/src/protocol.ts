@@ -20,6 +20,16 @@ export const RUNNERD_INCARNATION_ENV = 'TALE_RUNNERD_INCARNATION';
 export const RUNNERD_INCARNATION_HEADER = 'x-tale-runnerd-incarnation';
 
 export const RUNNERD_MAX_LIVE_EXECS = 4;
+/** POST /execs refused because the session's memory is nearly spent: its
+ * working set reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of its limit.
+ * HTTP 429 with a {@link RunnerdMemoryBusy} body and a `retry-after` header
+ * in seconds. Nothing started; the execs already running are untouched. */
+export const RUNNERD_MEMORY_BUSY_ERROR = 'session_memory_busy';
+export interface RunnerdMemoryBusy {
+  error: typeof RUNNERD_MEMORY_BUSY_ERROR;
+  code: 'SESSION_MEMORY_BUSY';
+  message: string;
+}
 /** Per-consumer in-flight write ceiling. A slow/stalled (but still attached)
  * SSE consumer would otherwise let Node buffer un-drained stdout in the HTTP
  * response unboundedly — the only thing the old fixed stdout cap incidentally
@@ -74,6 +84,16 @@ export interface RunnerdHealth {
   liveExecs: number;
   /** Optional dependency diagnostics; do not affect daemon liveness. */
   dependencies?: { docker?: { ok: boolean }; egress?: { ok: boolean } };
+  /** The session's memory as its cgroup counts it: in use, the limit (null
+   * for none), the peak since the container started where the kernel
+   * reports one, and how many processes the OOM killer has ended in it.
+   * Absent where the cgroup cannot be read and on older runtime images. */
+  memory?: {
+    currentBytes: number;
+    maxBytes: number | null;
+    peakBytes?: number;
+    oomKills?: number;
+  };
   /** Absent on older runtime images; pressure reclamation then fails closed. */
   activity?: {
     generation: string;
@@ -163,6 +183,20 @@ export type RunnerdExecEvent = (
       truncated: { stdout: boolean; stderr: boolean };
       timedOut: boolean;
       cancelled: boolean;
+      /** Why runnerd itself ended the exec, when it did: `EXEC_STALLED` —
+       * it printed nothing and its processes used under 1% of one CPU for
+       * the whole stall window (`TALE_EXEC_STALL_MS`). Absent on a natural
+       * exit, a cancel and the orphan deadline. */
+      failure?: 'EXEC_STALLED';
+      /** The kernel's OOM killer ended the exec: it died of SIGKILL that
+       * neither a cancel, its deadline nor the stall watch sent, while the
+       * session's `memory.events` counted a new `oom_kill`. Absent
+       * otherwise. */
+      oomKilled?: true;
+      /** The session's memory peak (`memory.peak`) when the exec ended, where
+       * the kernel reports one: since the container started, not this exec's
+       * own. */
+      sessionMemoryPeakBytes?: number;
     }
   | {
       t: 'fail';
@@ -222,7 +256,12 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
         typeof value.cancelled === 'boolean' &&
         isObject(value.truncated) &&
         typeof value.truncated.stdout === 'boolean' &&
-        typeof value.truncated.stderr === 'boolean'
+        typeof value.truncated.stderr === 'boolean' &&
+        (value.failure === undefined || value.failure === 'EXEC_STALLED') &&
+        (value.oomKilled === undefined || value.oomKilled === true) &&
+        (value.sessionMemoryPeakBytes === undefined ||
+          (nonNegativeNumber(value.sessionMemoryPeakBytes) &&
+            Number.isSafeInteger(value.sessionMemoryPeakBytes)))
       );
     case 'fail':
       return (

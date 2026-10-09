@@ -1,6 +1,7 @@
 import { expectedConfigurationHashSchema } from '@tale/shared/schemas/configuration';
 import {
   managedPlatformResourceSchema,
+  managedAgentModelObservationSchema,
   type ManagedPlatformResource,
 } from '@tale/shared/schemas/managed-configuration';
 import { z } from 'zod';
@@ -17,7 +18,9 @@ export function isManagedResource(
     resource.kind === 'project-instructions' ||
     resource.kind === 'agent-instructions' ||
     resource.kind === 'agent-tools' ||
+    resource.kind === 'agent-model' ||
     resource.kind === 'task-instructions' ||
+    resource.kind === 'task-review-context' ||
     resource.kind === 'automation-definition' ||
     resource.kind === 'automation-deployment' ||
     resource.kind === 'automation-schedule'
@@ -31,10 +34,14 @@ function resourcePath(resource: ManagedPlatformResource, read = false): string {
       return `/api/app/projects/${encodeURIComponent(projectId)}/configuration/instructions`;
     case 'agent-instructions':
       return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/instructions`;
+    case 'agent-model':
+      return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/model`;
     case 'agent-tools':
       return `/api/app/projects/${encodeURIComponent(projectId)}/agents/${encodeURIComponent(resource.config.agentId)}/configuration/tools`;
     case 'task-instructions':
       return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/instructions?projectId=${encodeURIComponent(projectId)}`;
+    case 'task-review-context':
+      return `/api/app/tasks/${encodeURIComponent(resource.config.taskId)}/configuration/review-context?projectId=${encodeURIComponent(projectId)}${read && resource.createIfMissing === true ? '&createIfMissing=true' : ''}`;
     default:
       return `/api/app/automations/${encodeURIComponent(resource.config.name)}/configuration${read ? `?projectId=${encodeURIComponent(projectId)}&kind=${resource.kind}` : ''}`;
   }
@@ -48,16 +55,26 @@ export async function readManagedResource(
     .object({ config: z.unknown(), hash: expectedConfigurationHashSchema })
     .parse(await client.request(resourcePath(resource, true)));
   if (view.config === null) {
-    if (view.hash !== null || !resource.kind.startsWith('automation-'))
+    if (
+      view.hash !== null ||
+      (!resource.kind.startsWith('automation-') &&
+        resource.kind !== 'task-review-context')
+    )
       throw preconditionError(
         'Managed configuration target is missing or inconsistent.',
       );
     return { config: null, revision: null };
   }
-  const observed = managedPlatformResourceSchema.parse({
-    kind: resource.kind,
-    config: view.config,
-  });
+  const observed =
+    resource.kind === 'agent-model'
+      ? {
+          kind: resource.kind,
+          config: managedAgentModelObservationSchema.parse(view.config),
+        }
+      : managedPlatformResourceSchema.parse({
+          kind: resource.kind,
+          config: view.config,
+        });
   // Stored legacy agent text may predate write-time trimming. Its preimage
   // must retain those bytes, otherwise a legitimate native hash cannot be used
   // to adopt and normalize that existing target.
@@ -97,6 +114,14 @@ export async function readManagedResource(
       observed.config.taskId !== resource.config.taskId)
   )
     throw preconditionError('Managed task readback names another task.');
+  if (
+    resource.kind === 'task-review-context' &&
+    (observed.kind !== 'task-review-context' ||
+      observed.config.reviewerAgentId !== resource.config.reviewerAgentId)
+  )
+    throw preconditionError(
+      'Managed review context readback names another reviewer.',
+    );
   return { config: observedConfig, revision: view.hash };
 }
 
@@ -110,6 +135,10 @@ export async function writeManagedResource(
     await client.request(resourcePath(resource), 'POST', {
       config: resource.config,
       expectedHash,
+      ...(resource.kind === 'task-review-context' &&
+      resource.createIfMissing === true
+        ? { createIfMissing: true }
+        : {}),
     });
     return;
   }

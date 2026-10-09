@@ -24,6 +24,7 @@ describe('taskRunFailureClass', () => {
     ['start_failed', 'start'],
     ['session_gone', 'interrupted'],
     ['turn_crashed', 'interrupted'],
+    ['turn_stalled', 'stalled'],
     ['harvest_failed', 'interrupted'],
     ['steer_restart_failed', 'interrupted'],
   ])('reads %s as %s', (code, failureClass) => {

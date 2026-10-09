@@ -729,6 +729,69 @@ describe('task.agent_retry admission', () => {
     },
   );
 
+  it('keeps the exact stored review envelope when retrying an operational context', async () => {
+    const via = { kind: 'agent', runId: 'run-manager', agentId: 'agent-9' };
+    startedViaOfRun.mockResolvedValueOnce(via);
+    await deliver({ status: 'todo' }, 'user-starter', {
+      inPlace: true,
+      inPlaceRetryStatus: 'todo',
+      inPlaceRetryActivityId: '41',
+      reviewBatchId: 'batch-original',
+    });
+
+    expect(kickAgentRun).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        startedVia: via,
+        inPlace: true,
+        reviewBatchId: 'batch-original',
+      }),
+    );
+    expect(retireAutoRetry).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    new TaskError(
+      'TASK_REVIEW_FORBIDDEN',
+      'The envelope no longer matches',
+      403,
+    ),
+    Object.assign(new Error('An enrolled context requires its native batch'), {
+      code: '23514',
+    }),
+  ])(
+    'does not retire retry evidence after a review-binding failure: %s',
+    async (error) => {
+      startedViaOfRun.mockResolvedValueOnce({
+        kind: 'agent',
+        runId: 'run-manager',
+        agentId: 'agent-9',
+      });
+      kickAgentRun.mockRejectedValueOnce(error);
+      const handler = createTaskList({
+        sql: sqlWith(
+          [
+            failedRun('run-failed', 'turn_crashed', {
+              inPlace: true,
+              inPlaceRetryStatus: 'todo',
+              inPlaceRetryActivityId: '41',
+              reviewBatchId: 'batch-original',
+            }),
+          ],
+          { status: 'todo' },
+        ),
+      })['task.agent_retry'];
+
+      await expect(handler?.(PAYLOAD)).rejects.toBe(error);
+      expect(retireAutoRetry).not.toHaveBeenCalled();
+      expect(announceAgentRunFailed).not.toHaveBeenCalled();
+      expect(addJobInTx).not.toHaveBeenCalled();
+      expect(
+        statements.some((text) => text.includes('auto_retry_refused_at_ms =')),
+      ).toBe(false);
+    },
+  );
+
   it.each([
     ['task_moved', { status: 'todo' }],
     ['reassigned', { assigneeId: 'agent-2' }],

@@ -188,6 +188,7 @@ describe.skipIf(process.platform === 'win32')(
       );
       expect(result.readyReceiptSha256).toBe(sha256(readFileSync(f.ready)));
       expect(f.fetched()).toBe(4);
+      expect(result.serving.originRoute).toBeUndefined();
       expect(result.serving.frontend.instance).toBe(f.instances.platform);
       expect(result.serving.backend.instance).toBe(f.instances['backend-api']);
       expect(
@@ -196,6 +197,139 @@ describe.skipIf(process.platform === 'win32')(
         ),
       ).toBe(true);
     }, 30_000);
+    test('binds a private gateway full identity and its only network through final acceptance', async () => {
+      const f = await fixture();
+      const id = 'f'.repeat(64);
+      const gateway = {
+        Id: id,
+        Image: `sha256:${'e'.repeat(64)}`,
+        RestartCount: 0,
+        State: { Running: true, StartedAt: '2026-10-01T00:00:00Z' },
+        NetworkSettings: {
+          Networks: {
+            private: { NetworkID: 'd'.repeat(64), IPAddress: '172.20.0.2' },
+          },
+        },
+      };
+      let observations = 0;
+      const result = await acceptDeployment(
+        { ...f.options, originContainer: id },
+        {
+          ...f.dependencies,
+          exec: async (command, args, options) => {
+            if (args.join(' ') === `container inspect ${id}`) {
+              observations++;
+              return {
+                success: true,
+                exitCode: 0,
+                stdout: JSON.stringify([gateway]),
+                stderr: '',
+              };
+            }
+            return f.dependencies.exec(command, args, options);
+          },
+        },
+      );
+      expect(result.serving.origin).toBe(f.f.options.origin);
+      expect(result.serving.originRoute).toEqual({
+        kind: 'container',
+        containerId: id,
+        networkId: 'd'.repeat(64),
+        address: '172.20.0.2',
+      });
+      expect(observations).toBe(6);
+      expect(f.fetched()).toBe(4);
+    });
+    for (const mode of [
+      'wrong-id',
+      'stopped',
+      'missing',
+      'multi-address',
+      'invalid-address',
+      'changed-image',
+      'changed-start',
+      'changed-network',
+      'changed-address',
+      'restarted',
+      'changed-final',
+    ])
+      test(`refuses private origin ${mode} without accepting stale gateway proof`, async () => {
+        const f = await fixture();
+        const id = 'f'.repeat(64);
+        let observations = 0;
+        await expect(
+          acceptDeployment(
+            { ...f.options, originContainer: id },
+            {
+              ...f.dependencies,
+              exec: async (command, args, options) => {
+                if (args.join(' ') === `container inspect ${id}`) {
+                  observations++;
+                  const changed =
+                    mode === 'changed-final'
+                      ? observations === 6
+                      : observations > 1;
+                  const gateway = {
+                    Id: mode === 'wrong-id' ? 'a'.repeat(64) : id,
+                    Image: `sha256:${(changed && (mode === 'changed-image' || mode === 'changed-final') ? 'a' : 'e').repeat(64)}`,
+                    RestartCount: changed && mode === 'restarted' ? 1 : 0,
+                    State: {
+                      Running: mode !== 'stopped',
+                      StartedAt:
+                        changed && mode === 'changed-start'
+                          ? '2026-10-02T00:00:00Z'
+                          : '2026-10-01T00:00:00Z',
+                    },
+                    NetworkSettings: {
+                      Networks: {
+                        private: {
+                          NetworkID: (changed && mode === 'changed-network'
+                            ? 'a'
+                            : 'd'
+                          ).repeat(64),
+                          IPAddress:
+                            mode === 'invalid-address'
+                              ? ''
+                              : changed && mode === 'changed-address'
+                                ? '172.20.0.3'
+                                : '172.20.0.2',
+                        },
+                        ...(mode === 'multi-address'
+                          ? {
+                              other: {
+                                NetworkID: 'b'.repeat(64),
+                                IPAddress: '172.21.0.2',
+                              },
+                            }
+                          : {}),
+                      },
+                    },
+                  };
+                  return {
+                    success: true,
+                    exitCode: 0,
+                    stdout: JSON.stringify(mode === 'missing' ? [] : [gateway]),
+                    stderr: '',
+                  };
+                }
+                return f.dependencies.exec(command, args, options);
+              },
+            },
+          ),
+        ).rejects.toThrow();
+        expect(f.fetched()).toBe(mode === 'changed-final' ? 4 : 0);
+      });
+    test('refuses short private-origin names before Docker or health calls', async () => {
+      const f = await fixture();
+      await expect(
+        acceptDeployment(
+          { ...f.options, originContainer: 'gateway' },
+          f.dependencies,
+        ),
+      ).rejects.toThrow();
+      expect(f.docker.calls).toEqual([]);
+      expect(f.fetched()).toBe(0);
+    });
     test('accepts a third-party registry image when Docker omits Labels', async () => {
       const f = await fixture();
       const registry = [...f.docker.imageMetadata].find(([reference]) =>

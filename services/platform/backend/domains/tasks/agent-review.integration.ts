@@ -26,6 +26,7 @@ import {
   type Recorder,
 } from './delegated-start.integration.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
+import { checkReviewBatches } from './review-batches.integration.ts';
 import { checkReviewDelegation } from './review-delegation.integration.ts';
 import { checkReviewRepair } from './review-repair.integration.ts';
 import { getPendingReviewForTask, requestTaskReview } from './reviews.ts';
@@ -851,6 +852,22 @@ export async function checkAgentTaskReviews(
       reviewerToken: token,
       record,
       submit: submitted,
+      inputFor,
+      dispatch,
+      tokenFor,
+      addRun,
+    });
+    await checkReviewBatches({
+      sql,
+      base,
+      cookie: ctx.cookie,
+      orgId,
+      projectId: project,
+      implementerId: author,
+      auth,
+      fx,
+      sessions,
+      record,
       inputFor,
       dispatch,
       tokenFor,

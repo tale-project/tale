@@ -2659,7 +2659,10 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
         ...(options.confined ? { confinedToTaskId: 'own-task' } : {}),
       },
       runMutation: vi.fn(async (ref, args) => {
-        if (fnName(ref) === 'tasks/internal_mutations:agentReviewTask') {
+        if (
+          fnName(ref) === 'tasks/internal_mutations:agentReviewTask' ||
+          fnName(ref) === 'tasks/internal_mutations:agentReviewBatch'
+        ) {
           mutations.push(args);
           return { decision: 'approve', status: 'done' };
         }
@@ -2751,6 +2754,71 @@ describe('dispatchWorkspaceToolImpl — task_review', () => {
     expect(result.status).toBe('invalid_args');
     expect(mutations).toEqual([]);
   });
+  const batchStart = {
+    operation: 'start_batch',
+    requestId: '00000000-0000-4000-8000-000000000001',
+    contextTaskId: '00000000-0000-4000-8000-000000000002',
+    targets: [
+      {
+        taskId: '00000000-0000-4000-8000-000000000003',
+        expected: review.expected,
+      },
+    ],
+  };
+  it.each([
+    batchStart,
+    {
+      operation: 'read_batch',
+      batchId: '00000000-0000-4000-8000-000000000004',
+    },
+  ])(
+    'forwards a strict native batch request with token authority only',
+    async (request) => {
+      const { result, mutations, actions } = await call(request);
+      expect(result.status).toBe('ok');
+      expect(actions).toEqual([]);
+      expect(mutations).toEqual([
+        {
+          organizationId: 'org_1',
+          sessionId: 'sid_1',
+          taskRunExecId: 'issuer-exec',
+          request,
+        },
+      ]);
+    },
+  );
+  it.each([
+    { ...batchStart, reviewerAgentId: 'forged' },
+    { ...batchStart, issuerRunId: 'forged' },
+    { ...batchStart, targets: [] },
+    { ...batchStart, targets: [...batchStart.targets, ...batchStart.targets] },
+    {
+      ...batchStart,
+      targets: Array.from({ length: 21 }, () => batchStart.targets[0]),
+    },
+    { ...batchStart, requestId: 'not-a-uuid' },
+    {
+      operation: 'read_batch',
+      batchId: '00000000-0000-4000-8000-000000000004',
+      complete: true,
+    },
+  ])(
+    'refuses widened, duplicate or unbounded batch requests before any mutation',
+    async (request) => {
+      const { result, mutations, actions } = await call(request);
+      expect(result.status).toBe('invalid_args');
+      expect(mutations).toEqual([]);
+      expect(actions).toEqual([]);
+    },
+  );
+  it.each([{ confined: true }, { orgScope: true }, { noExec: true }])(
+    'does not grant batch authority to unsupported native callers %j',
+    async (options) => {
+      const { result, mutations } = await call(batchStart, options);
+      expect(result.status).toBe('unavailable');
+      expect(mutations).toEqual([]);
+    },
+  );
 });
 
 describe('dispatchWorkspaceToolImpl — task_delegate_review', () => {

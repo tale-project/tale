@@ -17,6 +17,10 @@
  *  - a Gemini turn's staged subscription credential leaves the session when
  *    the turn settles or is orphaned, unless a steer moved the run onto a
  *    newer exec that staged its own;
+ *  - an OpenCode turn's instructions file, named for its exec, leaves the
+ *    session whenever that exec's turn ends, a steer's included;
+ *  - a start drops the copies of other tasks' inputs its worker holds once
+ *    the tasks domain names them stale, before it stages its own;
  *  - a window that ends with the spawner out of reach hands the turn to its
  *    next window after a pause, carrying when the outage began, and the run
  *    settles once — failed only once the outage outlasts its budget.
@@ -42,6 +46,11 @@ const io = vi.hoisted(() => ({
   terminal: undefined as Record<string, unknown> | undefined,
   /** Every directory the harvest listed, in order. */
   listings: [] as string[],
+  /** What a directory lists, by path; empty when absent. */
+  dirEntries: {} as Record<
+    string,
+    Array<{ name: string; type: 'file' | 'dir'; size: number; mtimeMs: number }>
+  >,
   /** Every path set the session was asked to delete, in order. */
   deletes: [] as string[][],
   /** Windows the drain answers, in order, before any other knob. */
@@ -139,7 +148,7 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
     },
     sessionListFiles: async (_sessionId: string, dir: string) => {
       io.listings.push(dir);
-      return [];
+      return io.dirEntries[dir] ?? [];
     },
     sessionStageFiles: async () => ({ staged: [], skipped: [] }),
   };
@@ -227,6 +236,10 @@ function makeCtx(run: RunState) {
         return { userId: 'user-starter' };
       }
       if (name === 'governance/queries:getContextCapInternal') return null;
+      // Of the other tasks' input copies, the domain names these stale.
+      if (name === 'tasks/agent_runs:listStaleTaskInputMirrors') {
+        return { taskIds: ['task-closed'], reviewHashes: [] };
+      }
       throw new Error(`unexpected query ${name}`);
     },
     runMutation: async (ref: unknown, args: Record<string, unknown>) => {
@@ -287,6 +300,7 @@ beforeEach(() => {
   io.afterDrain = undefined;
   io.terminal = undefined;
   io.listings = [];
+  io.dirEntries = {};
   io.deletes = [];
   io.windows = [];
   io.drainOutageArgs = [];
@@ -544,6 +558,94 @@ describe('a Gemini turn’s staged subscription credential', () => {
   });
 });
 
+describe('an OpenCode turn’s staged instructions', () => {
+  const OPENCODE = { ...KEYS, harness: 'opencode' };
+  const instructionsOf = (execId: string) => [
+    `.runtime/tale/instructions/${execId}.md`,
+  ];
+
+  it('leave the session when the turn settles', async () => {
+    io.terminal = {
+      kind: 'terminal',
+      text: 'Done.',
+      timeline: [],
+      ended: { type: 'turn-ended', status: 'completed', finalText: 'Done.' },
+      exited: true,
+    };
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, OPENCODE as never);
+
+    expect(io.deletes).toEqual([instructionsOf('exec-old')]);
+  });
+
+  it('leave the session when a Stop orphans the turn', async () => {
+    const run: RunState = { status: 'cancelled', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, OPENCODE as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.deletes).toEqual([instructionsOf('exec-old')]);
+  });
+
+  it('of the old exec leave when a steer restarted the run onto a new one', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-rotated' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, OPENCODE as never);
+
+    // Only the old exec's own file: the new exec's stays with its turn.
+    expect(io.deletes).toEqual([instructionsOf('exec-old')]);
+  });
+
+  it('of an exec its workspace refused for want of room leave with it', async () => {
+    // The runtime refuses the exec before it spawns (`EXEC_LIMIT`): the run
+    // parks onto a fresh exec, which stages its own file when it starts.
+    io.windows = [
+      {
+        kind: 'terminal',
+        text: '',
+        timeline: [],
+        exited: true,
+        execResult: {
+          status: 'failed',
+          exitCode: null,
+          durationMs: 0,
+          stdoutBase64: '',
+          stderrBase64: '',
+          truncated: { stdout: false, stderr: false },
+          errorCode: 'EXEC_LIMIT',
+          errorMessage: 'live exec cap 4 reached',
+        },
+      },
+    ];
+    const run: RunState = { status: 'queued', execId: 'exec-new' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...OPENCODE,
+      runId: 'run-new',
+      execId: 'exec-new',
+      model: 'gpt-5',
+      modelProvider: 'openai',
+      skills: [],
+      connectors: [],
+      tools: [],
+      secrets: [],
+      sweep: true,
+      inspectNote: false,
+    } as never);
+
+    expect(
+      mutations.find((m) => m.name.endsWith(':parkTaskAgentRunForCapacity'))
+        ?.args,
+    ).toMatchObject({ execId: 'exec-new', execRefused: true });
+    expect(io.deletes).toEqual([instructionsOf('exec-new')]);
+  });
+});
+
 describe('start after a harness switch', () => {
   it('reaps the predecessor and waits for it to be gone before launching', async () => {
     const run: RunState = { status: 'queued', execId: 'exec-new' };
@@ -602,6 +704,43 @@ describe('start after a harness switch', () => {
 
     expect(io.cancels).toEqual([]);
     expect(io.statusPolls).toEqual([]);
+    expect(io.starts.map((s) => s.execId)).toEqual(['exec-first']);
+  });
+});
+
+describe('a start’s pass over other tasks’ input copies', () => {
+  it('drops the stale ones before staging its own task’s inputs', async () => {
+    const dir = (name: string) => ({
+      name,
+      type: 'dir' as const,
+      size: 0,
+      mtimeMs: 1,
+    });
+    io.dirEntries['/agent/inputs'] = [
+      dir('task-1'),
+      dir('task-closed'),
+      dir('task-open'),
+    ];
+    const run: RunState = { status: 'queued', execId: 'exec-first' };
+    const { ctx } = makeCtx(run);
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      runId: 'run-first',
+      execId: 'exec-first',
+      harness: 'codex',
+      model: 'gpt-5',
+      modelProvider: 'openai',
+      skills: [],
+      connectors: [],
+      tools: [],
+      secrets: [],
+      sweep: false,
+      inspectNote: false,
+    } as never);
+
+    expect(io.deletes).toEqual([['/agent/inputs/task-closed']]);
+    // The run still starts.
     expect(io.starts.map((s) => s.execId)).toEqual(['exec-first']);
   });
 });

@@ -7,6 +7,7 @@ import {
 } from '../node_only/sandbox/capacity_refusal';
 import {
   SessionExecLimitError,
+  SessionMemoryBusyError,
   SpawnerBusyError,
 } from '../node_only/sandbox/helpers/session_client';
 import { runParkReason, SANDBOX_SESSION_HELD_REASON } from './run_park_reason';
@@ -44,6 +45,19 @@ describe('why a parked agent run waits', () => {
     expect(reasonFor(new SessionExecLimitError('pa-agent-w2', 'exec-1'))).toBe(
       'exec_limit',
     );
+  });
+
+  it('names the room, not an earlier process, for a sandbox short of memory', () => {
+    expect(
+      reasonFor(
+        new SessionMemoryBusyError(
+          'pa-agent-w2',
+          'exec-1',
+          5_000,
+          'the session is using 90% or more of its memory limit',
+        ),
+      ),
+    ).toBe('host');
   });
 
   it('blames no limit for a start that raced into a worker already held', () => {

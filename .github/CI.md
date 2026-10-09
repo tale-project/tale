@@ -100,14 +100,26 @@ bun tools/cli/scripts/ci-retire-merge-group.ts --run 1000 --finish \
   --ordinary-receipt /absolute/private/ordinary-run-attempt.jsonl
 ```
 
-This remains read-only. Finishing currently recognizes only the exact reviewed Checks
-workflow from `6ad49e4714cd895c5c1cc79e12b6987a0fecbec5` and its verdict action/script
-closure. Every real job, including all matrix shards and backend integration, must
-have a terminal native row. Only the reviewed `Unit`, `UI` and `CI ready (Checks)`
-verdict jobs may remain queued and unassigned; candidate-only jobs are inapplicable.
-Different source, a missing real job, an assigned verdict, incomplete pagination or
-changed run identity preserves the workflow. The five-minute interval permits normal
-cancellation to settle; elapsed time alone does not prove work has stopped.
+This remains read-only. Finishing recognizes the reviewed source profiles for all seven
+validation workflows, including the retained older Checks profile. Each profile pins the
+whole workflow and its verdict action/script. Every substantive job must have a terminal
+native row. Only the reviewed `CI ready` jobs, plus Checks' `Unit` and `UI` aggregates,
+may remain queued and unassigned; event-inapplicable jobs cannot start in a merge group.
+
+A matrix normally requires every exact child. GitHub can instead record one cancelled or
+skipped literal matrix placeholder before expansion. That representation is accepted only
+when the pinned node requires a named predecessor to succeed, that predecessor is terminal
+without success, and no expanded child exists. Missing or mixed children, an unknown matrix
+value or a successful predecessor preserve the run. This is a fixed source-reviewed rule,
+not a general interpretation of workflow expressions.
+
+Different source, a missing real job, an assigned verdict, incomplete pagination or changed
+run identity preserves the workflow. The five-minute interval permits normal cancellation
+to settle; elapsed time alone does not prove work has stopped. The current-source guard in
+`ci-merge-group-finish.test.ts` requires each workflow and its verdict closure to match a
+profile. When these files change, review the complete future graph and add its profile;
+retain historical profiles for obsolete runs. Never update a digest merely to silence the
+guard or add an arbitrary job-name override.
 
 After reviewing that manifest, add `--apply --receipt /absolute/private/finish-run-attempt.jsonl`
 with a **new** receipt path. This repeats the complete source, queue, deleted-ref and

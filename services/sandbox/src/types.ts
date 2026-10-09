@@ -196,6 +196,11 @@ export interface SessionConfig {
   /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
    * unset is a tenth of the host, at least 1 GiB. */
   minFreeMemoryBytes?: number;
+  /** CPU pressure (the host's PSI `some avg10`, in percent) at and above
+   * which admission lets sessions start only one at a time
+   * (SANDBOX_CPU_PRESSURE_PERCENT; 0 turns the gate off); unset is 60. Read
+   * where the host's memory is. */
+  cpuPressurePercent?: number;
   /** Free space admission keeps on the workspace and verified Docker metadata filesystems
    * (SANDBOX_MIN_FREE_DISK; 0 turns the floor off); unset is a twentieth of
    * each filesystem, at least 2 GiB and at most 20 GiB (host-disk.ts). */
@@ -223,6 +228,16 @@ export interface SessionConfig {
   /** Default + ceiling for per-exec timeoutMs inside a session. */
   execDefaultTimeoutMs: number;
   execMaxTimeoutMs: number;
+  /** How long a session exec may print nothing while its processes use
+   * under 1% of one CPU before runnerd ends it as stalled
+   * (SANDBOX_EXEC_STALL_MINUTES, passed as `TALE_EXEC_STALL_MS`); 0 turns
+   * the watch off. */
+  execStallMs: number;
+  /** The share of a session's memory limit its working set may reach
+   * before runnerd refuses to start another exec in it (passed as
+   * `TALE_EXEC_ADMISSION_MEMORY_PERCENT`); running execs are never
+   * touched. */
+  execAdmissionMemoryPercent: number;
   /** Docker's total provisioning/readiness/seed-environment budget. On K8s,
    * the runtime readiness budget includes a cold image pull. */
   createHealthTimeoutMs: number;

@@ -48,6 +48,7 @@ import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
+import { resourceExhaustedRetryDelayMs } from '../tasks/task_auto_retry';
 import {
   automationAgentHost,
   type AutomationAgentHost,
@@ -2082,6 +2083,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       // more with each refusal in a row; any other refusal with a hint (a
       // broker pool cooling down) waits for exactly that.
       const now = Date.now();
+      // One whose sandbox ran out of memory waits 2, 10, then 30 minutes:
+      // at once it would meet the same limit.
       const notBefore = waitingForRoom
         ? sandboxRoomRetryAtMs({
             now,
@@ -2091,7 +2094,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
             refusals: plan.roomRefusals ?? 1,
             queued: settled.roomQueued === true,
           })
-        : settled.retryAtMs;
+        : settled.failureCode === 'resource_exhausted'
+          ? now + resourceExhaustedRetryDelayMs(parked.attempt)
+          : settled.retryAtMs;
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,

@@ -1,0 +1,326 @@
+name: Security
+
+run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
+
+on:
+  merge_group:
+    types: [checks_requested]
+  repository_dispatch:
+    types: [release-candidate]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'bun.lock'
+      - 'package.json'
+      - 'services/*/package.json'
+      - 'services/sandbox-runtime/document-node/**'
+      - 'services/sandbox-runtime/document-python-requirements.txt'
+      - 'services/*/Dockerfile'
+      - 'services/*/Dockerfile.dockerignore'
+      - '.trivyignore.yaml'
+      - '.github/workflows/security.yml'
+  schedule:
+    - cron: '0 3 * * 1' # Monday 03:00 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'repository_dispatch' }}
+
+jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: security
+
+  # Only candidates need remote source validation; ordinary jobs keep their event SHA.
+  candidate-source:
+    if: >-
+      github.event_name == 'repository_dispatch'
+    name: Candidate source
+    uses: ./.github/workflows/release-candidate-source.yml
+    permissions:
+      contents: read
+    with:
+      candidate: ${{ github.event_name == 'repository_dispatch' }}
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+
+  # ---------------------------------------------------------------------------
+  # Audit JS dependencies for known advisories.
+  # Reports the full advisory list (all severities) in the job summary, then a
+  # gate fails the build on HIGH or CRITICAL production advisories. If an
+  # advisory has no fixed release, suppress it explicitly: a dated accept-risk
+  # entry in .trivyignore.yaml for the Trivy gate, and --ignore=<advisory-id>
+  # on the gate command below for bun audit.
+  # ---------------------------------------------------------------------------
+  bun-audit:
+    needs: [candidate-source, pr-scope]
+    name: Bun audit
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    runs-on: ubuntu-latest
+    # Each registry lookup is capped at 4 minutes; a degraded registry retains
+    # the existing three bounded attempts.
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          # The test toolchain's pin (`.github/actions/setup-turbo`); the audit
+          # itself needs 1.4 or newer: before 1.4, `bun audit --prod` run from
+          # a workspace root reported workspace
+          # members' devDependencies as production (oven-sh/bun#26675, fixed
+          # in 1.4 by oven-sh/bun#38333). That made the gate below fail on
+          # @faker-js/faker 5.5.3, reachable only through the dev-only
+          # @stoplight/prism-http mock server (postman-collection pins it and
+          # no upstream release lifts the pin). 1.4.0 keeps reporting real
+          # production findings (verified against the fast-uri/mysql2 lock).
+          bun-version: '1.4.2'
+
+      - name: Gate on high/critical advisories
+        # JSON retains every advisory severity; Bun's native threshold judges
+        # the same registry response. One lookup supplies report and gate.
+        # Fail on HIGH or CRITICAL production advisories.
+        # pipefail so tee does not mask a non-zero exit. The advisory lookup is
+        # one POST to registry.npmjs.org's bulk endpoint, which on 2026-09-04
+        # alternated between 503s and minute-long hangs; a registry outage must
+        # not read as a finding, so a hung (exit 124) or transport-error attempt
+        # is retried up to three times, 30 s apart. A run that lists advisories
+        # exits 1 with no transport error line and keeps the red on the first
+        # pass, exactly as before.
+        run: |
+          set +e -o pipefail
+          for attempt in 1 2 3; do
+            attempt_log="bun-audit-gate-attempt-${attempt}.txt"
+            timeout 240 bun audit --prod --audit-level=high --json 2>&1 | tee "$attempt_log"
+            statuses=("${PIPESTATUS[@]}")
+            status=${statuses[0]}
+            if [ "${statuses[1]}" -ne 0 ]; then
+              echo '::error::Could not retain the advisory gate output'; exit 1
+            fi
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
+            if [ "$status" -ne 124 ] && ! grep -q -E '^error: (GET|POST) https?://' "$attempt_log"; then
+              exit 1
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "advisory registry request failed or hung (attempt $attempt/3, exit $status); retrying in 30s"
+              sleep 30
+            fi
+          done
+          echo "advisory registry unreachable after 3 attempts" >&2
+          exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Bun audit" >> "$GITHUB_STEP_SUMMARY"
+          for report in bun-audit*.txt; do
+            [ -f "$report" ] || continue
+            {
+              printf '\n### %s\n\n```\n' "$report"
+              tail -n 50 "$report"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+
+      - name: Retain advisory evidence
+        if: >-
+          !cancelled() && hashFiles('bun-audit*.txt') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: bun-audit-attempt-${{ github.run_attempt }}
+          path: bun-audit*.txt
+          retention-days: 14
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Scan source tree for known CVEs in dependencies + misconfigurations + secrets.
+  # Uploads SARIF to GitHub Security (all scanners, HIGH+CRITICAL, informational),
+  # then a vuln-only gate fails the build on FIXABLE HIGH or CRITICAL dependency
+  # CVEs. Secret/misconfig findings stay informational (SARIF) to avoid blocking
+  # on scanner noise. Unlike bun audit, this scans the whole tree (bun.lock,
+  # every workspace) with no prod/dev split; unfixable findings are suppressed
+  # via dated accept-risk entries in .trivyignore.yaml.
+  # ---------------------------------------------------------------------------
+  trivy-fs:
+    needs: [candidate-source, pr-scope]
+    name: Trivy filesystem scan
+    if: >-
+      !cancelled() &&
+      (((github.event_name == 'repository_dispatch') &&
+      needs.candidate-source.result == 'success') ||
+      ((github.event_name != 'repository_dispatch') &&
+      needs.candidate-source.result == 'skipped')) &&
+      (github.event.pull_request.draft != true) &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        id: source
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ needs.candidate-source.outputs.candidate_sha }}
+          persist-credentials: false
+
+      - name: Run Trivy filesystem scan
+        id: report
+        # Candidates do not upload SARIF against moving main. The standalone
+        # blocking vulnerability gate below still installs Trivy and scans.
+        if: github.event_name != 'repository_dispatch'
+        timeout-minutes: 3
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+          scanners: 'vuln,secret,misconfig'
+          ignore-unfixed: true
+          # Per-path misconfig suppressions live in .trivyignore.yaml; the
+          # plain .trivyignore is auto-detected but cannot scope by path.
+          trivyignores: '.trivyignore.yaml'
+          # Skip handlebars Dockerfile templates: handlebars syntax confuses
+          # the misconfig scanner. The generated Dockerfiles are scanned
+          # downstream when each service runs its own build.
+          skip-files: 'tools/plop/templates/**/Dockerfile.hbs'
+
+      # Blocking gate: fail the build on FIXABLE high or critical dependency
+      # vulnerabilities. Runs vuln-only (secret/misconfig stay informational via
+      # the SARIF upload above) and honours the same path-scoped ignore file, so
+      # a real, patchable high/critical CVE cannot merge silently.
+      - name: Trivy vulnerability gate (HIGH/CRITICAL)
+        # Reporting/upload failures must never suppress the blocking scan.
+        if: >-
+          !cancelled() && steps.source.outcome == 'success'
+        timeout-minutes: 5
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          # A successful report already provisioned this exact action's engine
+          # and database cache. Failed or skipped reports keep full provisioning.
+          skip-setup-trivy: ${{ steps.report.outcome == 'success' }}
+          cache: ${{ steps.report.outcome != 'success' }}
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          scanners: 'vuln'
+          ignore-unfixed: true
+          trivyignores: '.trivyignore.yaml'
+          skip-files: 'tools/plop/templates/**/Dockerfile.hbs'
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@e46ed2cbd01164d986452f91f178727624ae40d7 # v4
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('trivy-fs.sarif') != ''
+        timeout-minutes: 1
+        # The vulnerability scan above is the gate; SARIF is informational.
+        continue-on-error: true
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+
+      - name: Retain filesystem scan evidence
+        if: >-
+          !cancelled() && github.event_name != 'repository_dispatch' && hashFiles('trivy-fs.sarif') != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: trivy-fs-attempt-${{ github.run_attempt }}
+          path: trivy-fs.sarif
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Trivy filesystem scan complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "Normal runs upload results to the Security tab under category \`trivy-fs\`." >> "$GITHUB_STEP_SUMMARY"
+
+  candidate-gate:
+    name: Candidate gate
+    needs: [candidate-source, bun-audit, trivy-fs]
+    if: always() && github.event_name == 'repository_dispatch'
+    uses: ./.github/workflows/release-candidate-receipt.yml
+    permissions: {}
+    with:
+      candidate_sha: ${{ github.event.client_payload.candidate_sha }}
+      workflow: .github/workflows/security.yml
+      jobs: ${{ toJSON(needs) }}
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (Security)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, candidate-source, bun-audit, trivy-fs, candidate-gate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: security
+          jobs: ${{ toJSON(needs) }}

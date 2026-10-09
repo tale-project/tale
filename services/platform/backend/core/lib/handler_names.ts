@@ -341,6 +341,7 @@ interface HandlerNames {
       getTaskAgentRunAuthority: FunctionRef;
       getTaskAgentRunForDrive: FunctionRef;
       getTaskBriefForAgentRun: FunctionRef;
+      listStaleTaskInputMirrors: FunctionRef;
       markTaskAgentRunFailed: FunctionRef;
       markTaskAgentRunSettled: FunctionRef;
       parkTaskAgentRunForCapacity: FunctionRef;
@@ -353,6 +354,7 @@ interface HandlerNames {
       agentCreateTask: FunctionRef;
       agentRecordTaskOutputs: FunctionRef;
       agentReviewTask: FunctionRef;
+      agentReviewBatch: FunctionRef;
       agentStartTaskAgent: FunctionRef;
       agentUpdateTaskMetadata: FunctionRef;
       agentUpdateTaskStatus: FunctionRef;

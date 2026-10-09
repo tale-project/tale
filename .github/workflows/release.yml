@@ -197,6 +197,14 @@ jobs:
           file: services/${{ matrix.service.name }}/Dockerfile
           platforms: ${{ matrix.arch.platform }}
           push: true
+          # zstd layers unpack several times faster than gzip ones, at a
+          # slightly better ratio. Docker pulls them from Engine 23.0 on (the
+          # CLI refuses engines older than 24) and Kubernetes nodes from
+          # containerd 1.5; only OCI media types name them. force-compression
+          # re-encodes a layer the cache still holds as gzip. Level 3 is
+          # zstd's default and the level AWS measured faster Fargate starts
+          # with.
+          outputs: type=image,compression=zstd,compression-level=3,force-compression=true,oci-mediatypes=true
           tags: |
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
@@ -213,7 +221,12 @@ jobs:
           # none.
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
           # A cache outage must not invalidate a successfully pushed image.
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true
+          # The cache keeps the zstd blobs the image shipped, so the next
+          # release reuses an unchanged layer's exact bytes. A gzip cache would
+          # be re-encoded on every release, and a zstd encoder only promises
+          # the same output from the same code version: a BuildKit update could
+          # change every layer's digest and re-ship each image in full.
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true,compression=zstd,compression-level=3,force-compression=true
           # `labels:` replaces Dockerfile LABEL (not merges). The CLI reads
           # org.opencontainers.image.version to detect the running instance;
           # omitting it made every in-place 0.4.x deploy look like an unknown

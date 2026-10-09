@@ -21,6 +21,7 @@ import {
   type SessionDiskState,
 } from '../host-disk.ts';
 import {
+  DEFAULT_CPU_PRESSURE_PERCENT,
   memoryReserveBytes,
   sessionWorkingSetBytes,
   type HostMemory,
@@ -43,6 +44,7 @@ import type {
 import {
   RunnerdActivityError,
   RunnerdAttachBusyError,
+  RunnerdMemoryBusyError,
   RunnerdOutputGapError,
   RunnerdProtocolError,
   RunnerdStageBusyError,
@@ -52,11 +54,11 @@ import {
   runnerdCancelExec,
   runnerdDeleteFiles,
   runnerdEnvPatch,
-  runnerdExec,
   runnerdExecStatus,
   runnerdExecCheckpoint,
   runnerdHealth,
   runnerdListDir,
+  runnerdOpenExec,
   runnerdReadFile,
   runnerdStageFiles,
   runnerdWriteStdin,
@@ -138,6 +140,14 @@ function reclaimable(health: RunnerdHealth): boolean {
  * image answers not-found (the caller retries) rather than a client timeout. */
 const ACQUIRE_WAITS_FOR_CREATE_MS = 10_000;
 
+/** How long a sweep waits for the egress proxy's address. The read is one
+ * inspect; a Docker daemon too slow for it checks nothing for a moved proxy
+ * this time rather than hold up the idle reaper behind it. */
+const EGRESS_READ_BUDGET_MS = 5_000;
+
+/** Why a sweep leaves a session whose egress proxy moved running for now. */
+const BUSY_DRIFT = 'it is in use, and is recycled once it is released and idle';
+
 /** Sessions one sweep probes at once: a pass is bounded by the slowest few
  * daemons, not by the sum of every probe (5 s each when a daemon hangs). */
 const SWEEP_CONCURRENCY = 8;
@@ -188,6 +198,13 @@ const GIB = 1024 ** 3;
  * linearly to nothing over this window. */
 const YOUNG_SESSION_RESERVE_MS = 90_000;
 
+/** While the Docker host's CPU is under pressure, at most one session starts
+ * (a create or an idle session's activation) in this long: each start's own
+ * load (a container, its runtime, an agent CLI booting) shows in the
+ * ten-second pressure average before the next is let in, and the line still
+ * moves when the load is not the sessions'. */
+const CPU_PRESSURED_START_SPACING_MS = 10_000;
+
 /** The first-come line for host room. A create refused for want of room
  * waits its turn: the room that frees next goes to the oldest waiter still
  * asking, not to whichever create happens to arrive first — a waiter that
@@ -216,6 +233,15 @@ interface RoomWaiter {
   workingSetBytes: number;
   /** A warm activation already holds a runtime slot; only creates need one. */
   needsSlot: boolean;
+  /** Its last refusal was for the host's CPU: only such waiters hold a start
+   * under CPU pressure back. One waiting for a slot or memory that will not
+   * free must not stop a start it would never take anyway. */
+  waitsForCpu: boolean;
+}
+
+/** How many of `ahead` wait for the host's CPU (RoomWaiter.waitsForCpu). */
+function cpuWaiters(ahead: readonly RoomWaiter[]): number {
+  return ahead.filter((waiter) => waiter.waitsForCpu).length;
 }
 
 /** A sweep's idle decision, checked again atomically by runnerd before it
@@ -262,10 +288,12 @@ const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
  * inside the 30 s the platform gives a destroy, and enough for most. */
 const DESTROY_AWAITS_DELETION_MS = 10_000;
 
-/** Where admission reads the host's memory from. */
+/** Where admission reads the host's memory, and its CPU pressure, from. */
 export interface HostMemorySource {
   latest(): HostMemory | null;
   read(fresh?: boolean): Promise<HostMemory | null>;
+  /** The host's CPU pressure in percent (PSI `some avg10`), null unknown. */
+  cpuPressure?(): number | null;
 }
 
 const NO_HOST_MEMORY: HostMemorySource = {
@@ -337,6 +365,9 @@ export class SessionRoutes {
   // refusal — the map's own order (QUEUE_FRONT_HINT_MS). Memory only: a
   // restart starts it afresh.
   private readonly waiters = new Map<string, RoomWaiter>();
+  // When the last session was let in while the host's CPU was under
+  // pressure (CPU_PRESSURED_START_SPACING_MS).
+  private pressuredStartAtMs = Number.NEGATIVE_INFINITY;
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
   // of answering a false not-found that the caller would turn into a
@@ -422,6 +453,9 @@ export class SessionRoutes {
   // The registry object is the fence: a recreate of the same id never joins
   // an old probe, even when both creations share a millisecond timestamp.
   // No settled liveness verdict is cached.
+  // Incarnations whose container died after the OOM killer hit it, as the
+  // eviction's check read it: the exec it took down says so.
+  private readonly lostToOutOfMemory = new WeakSet<RegistrySession>();
   private readonly checkingLiveness = new Map<
     RegistrySession,
     Promise<boolean>
@@ -453,6 +487,10 @@ export class SessionRoutes {
     string,
     { count: number; createdAtMs: number }
   >();
+  // The incarnation whose egress drift a sweep last logged as waiting (a
+  // busy or always-on session), so a session busy for an hour logs it once,
+  // not once a minute.
+  private readonly egressDriftNoted = new Map<string, number>();
   // Ended compute whose removal failed, by failure time: retried after a
   // back-off rather than on (and logged by) every sweep.
   private readonly endedReapFailedAtMs = new Map<string, number>();
@@ -491,6 +529,37 @@ export class SessionRoutes {
   /** Creates that may not have a container/Pod yet, for capacity reporting. */
   pendingCreates(): ReadonlyMap<string, string> {
     return new Map(this.creating);
+  }
+
+  /** What this spawner holds for an organization, from memory alone (no
+   * backend call): creates in flight and objects the last sweep found but
+   * has not adopted yet as starting (or running, where the object runs),
+   * registered sessions as running once ready —
+   * the same sessions admission counts as occupying a slot. A connected
+   * device reports it every few seconds. */
+  inventory(
+    organizationId: string,
+  ): Array<{ sessionId: string; state: 'running' | 'starting' }> {
+    const states = new Map<string, 'running' | 'starting'>();
+    for (const [sessionId, session] of this.unregistered) {
+      if (session.organizationId !== organizationId) continue;
+      states.set(
+        sessionId,
+        session.state === 'degraded' ? 'starting' : 'running',
+      );
+    }
+    for (const session of this.registry.list(organizationId)) {
+      states.set(
+        session.sessionId,
+        session.state === 'ready' ? 'running' : 'starting',
+      );
+    }
+    for (const [sessionId, org] of this.creating) {
+      if (org === organizationId) states.set(sessionId, 'starting');
+    }
+    return [...states]
+      .map(([sessionId, state]) => ({ sessionId, state }))
+      .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
   }
 
   /** Does this spawner hold the session right now (live, or mid-create)? */
@@ -676,15 +745,16 @@ export class SessionRoutes {
   /** The admission decision for one create: a duplicate id → 409, a disk
    * the workspaces live on below its floor → `'disk'`, a full host →
    * `'full'`, a host whose memory would drop below its reserve with every
-   * create in flight at its planned working set → `'short'`, else the id is
-   * reserved in `creating`. Synchronous, under the admission lock: each
-   * create sees exactly the ones admitted before it. */
+   * create in flight at its planned working set → `'short'`, a host whose
+   * CPU is under pressure while another start had its turn → `'cpu'`, else
+   * the id is reserved in `creating`. Synchronous, under the admission lock:
+   * each create sees exactly the ones admitted before it. */
   private admit(
     sessionId: string,
     organizationId: string,
     workingSetBytes: number,
     occupancy: BackendOccupancy | null,
-  ): Response | 'disk' | 'full' | 'short' | null {
+  ): Response | 'disk' | 'full' | 'short' | 'cpu' | null {
     if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
       return jsonResponse(
         {
@@ -742,6 +812,8 @@ export class SessionRoutes {
     }
     if (occupied >= this.cfg.session.maxSessions) return 'full';
     if (this.memoryShort(workingSetBytes)) return 'short';
+    if (this.cpuPressured() && !this.takePressuredStart(cpuWaiters(ahead)))
+      return 'cpu';
     this.waiters.delete(sessionId);
     this.creating.set(sessionId, organizationId);
     this.creatingBytes.set(sessionId, workingSetBytes);
@@ -764,6 +836,37 @@ export class SessionRoutes {
       memory.totalBytes -
       memoryReserveBytes(memory.totalBytes, this.cfg.session.minFreeMemoryBytes)
     );
+  }
+
+  /** Is the Docker host's CPU at or above SANDBOX_CPU_PRESSURE_PERCENT (the
+   * probe's last reading)? Unknown pressure never refuses. */
+  private cpuPressured(): boolean {
+    const threshold =
+      this.cfg.session.cpuPressurePercent ?? DEFAULT_CPU_PRESSURE_PERCENT;
+    if (threshold <= 0) return false;
+    let pressure: number | null;
+    try {
+      pressure = this.hostMemory.cpuPressure?.() ?? null;
+    } catch (error) {
+      console.warn('[sandbox.session] host CPU pressure unreadable:', error);
+      return false;
+    }
+    return pressure !== null && pressure >= threshold;
+  }
+
+  /** Under CPU pressure, let one start in: the front of the CPU line (no
+   * waiter ahead that waits for the CPU), once
+   * {@link CPU_PRESSURED_START_SPACING_MS} has passed since the last start let
+   * in under pressure. */
+  private takePressuredStart(cpuWaitersAhead: number): boolean {
+    const now = Date.now();
+    if (
+      cpuWaitersAhead > 0 ||
+      now - this.pressuredStartAtMs < CPU_PRESSURED_START_SPACING_MS
+    )
+      return false;
+    this.pressuredStartAtMs = now;
+    return true;
   }
 
   /** Is the disk the workspaces live on below its floor (the probe's last
@@ -979,10 +1082,34 @@ export class SessionRoutes {
         this.admit(sessionId, organizationId, workingSet, occupancy),
       );
     }
-    if (decision === 'full' || decision === 'short' || decision === 'disk') {
-      const place = this.waitInLine(sessionId, workingSet, Date.now());
+    if (
+      decision === 'full' ||
+      decision === 'short' ||
+      decision === 'disk' ||
+      decision === 'cpu'
+    ) {
+      const place = this.waitInLine(
+        sessionId,
+        workingSet,
+        Date.now(),
+        true,
+        decision === 'cpu',
+      );
       const retryAfter = String(Math.ceil(place.hintMs / 1000));
       const queue = { position: place.position, waiting: place.waiting };
+      if (decision === 'cpu') {
+        // An idle session uses no CPU: stopping one frees none.
+        return jsonResponse(
+          {
+            error: 'host_cpu',
+            message:
+              'the sandbox host is short of CPU; the session starts once its load eases',
+            queue,
+          },
+          429,
+          { 'retry-after': retryAfter },
+        );
+      }
       if (decision === 'disk') {
         // Stopping an idle session frees no disk (its workspace stays for
         // its resume): the build-cache upkeep gives back what it can.
@@ -1049,6 +1176,7 @@ export class SessionRoutes {
     workingSetBytes: number,
     now: number,
     needsSlot = true,
+    waitsForCpu = false,
   ): { position: number; waiting: number; hintMs: number } {
     const position = this.waitersAhead(sessionId, now).length;
     const hintMs = Math.min(
@@ -1061,6 +1189,7 @@ export class SessionRoutes {
       known.hintMs = hintMs;
       known.workingSetBytes = workingSetBytes;
       known.needsSlot = needsSlot;
+      known.waitsForCpu = waitsForCpu;
     } else {
       if (this.waiters.size >= QUEUE_CAP) this.dropStalestWaiter();
       this.waiters.set(sessionId, {
@@ -1068,6 +1197,7 @@ export class SessionRoutes {
         hintMs,
         workingSetBytes,
         needsSlot,
+        waitsForCpu,
       });
     }
     return { position, waiting: this.waiters.size, hintMs };
@@ -1330,6 +1460,7 @@ export class SessionRoutes {
     this.probeFailedAtMs.delete(sessionId);
     this.reclaimSeen.delete(sessionId);
     this.probeFailures.delete(sessionId);
+    this.egressDriftNoted.delete(sessionId);
     // Its memory is the host's again: no reservation for it either.
     this.youngBytes.delete(sessionId);
     this.activeGenerations.delete(sessionId);
@@ -1608,6 +1739,9 @@ export class SessionRoutes {
       // record: a restart used to rebuild entries unpinned, and an always-on
       // session older than maxLifetime was TTL-stopped on the first sweep.
       pinned: s.pinned === true,
+      ...(s.egressAddress === undefined
+        ? {}
+        : { egressAddress: s.egressAddress }),
     };
     // Both endpoint and listed metadata describe the same verified stamp.
     // Abort old streams and drop their lifecycle marks, never the peer's compute.
@@ -1739,11 +1873,19 @@ export class SessionRoutes {
     let reaped = 0;
     const critical = this.diskCritical();
     if (critical.workspace) this.logLargestWorkspaces();
+    const egressAddress = await this.currentEgressAddress();
     await forEachLimited(
       this.registry.list(),
       SWEEP_CONCURRENCY,
       async (session) => {
-        if (await this.sweepSession(session, nowMs, critical.dockerData))
+        if (
+          await this.sweepSession(
+            session,
+            nowMs,
+            critical.dockerData,
+            egressAddress,
+          )
+        )
           reaped += 1;
       },
     );
@@ -1784,17 +1926,81 @@ export class SessionRoutes {
     return count;
   }
 
+  /**
+   * The egress proxy's address now, read once per sweep, and only while a
+   * registered session recorded the address it pinned. Null when the backend
+   * has no address that can move (Kubernetes), or when it cannot be read: the
+   * proxy being recreated right now is the usual reason, and the next sweep
+   * reads it again.
+   */
+  private async currentEgressAddress(): Promise<string | null> {
+    const backend = this.backend;
+    if (backend.egressAddress === undefined) return null;
+    if (!this.registry.list().some((s) => s.egressAddress !== undefined))
+      return null;
+    try {
+      return await withOperationBudget(EGRESS_READ_BUDGET_MS, async () =>
+        waitWithinOperation(backend.egressAddress?.() ?? Promise.resolve(null)),
+      );
+    } catch (error) {
+      console.warn(
+        '[sandbox.session] egress proxy address unreadable; sessions are checked for a moved proxy on the next sweep:',
+        error instanceof Error ? error.message : error,
+      );
+      return null;
+    }
+  }
+
+  /** The address this session pinned and the proxy's now, when they differ. */
+  private egressDrift(
+    s: RegistrySession,
+    current: string | null,
+  ): { pinned: string; current: string } | null {
+    return current === null ||
+      s.egressAddress === undefined ||
+      s.egressAddress === current
+      ? null
+      : { pinned: s.egressAddress, current };
+  }
+
+  /** Log, once per incarnation, a drifted session the sweep leaves running
+   * for now. */
+  private noteEgressDrift(
+    s: RegistrySession,
+    drift: { pinned: string; current: string } | null,
+    waitingFor: string,
+  ): void {
+    if (drift === null) return;
+    if (this.egressDriftNoted.get(s.sessionId) === s.createdAtMs) return;
+    this.egressDriftNoted.set(s.sessionId, s.createdAtMs);
+    console.warn(
+      `[sandbox.session] ${s.sessionId} has no egress: it relays to the egress proxy at ${drift.pinned}, which is at ${drift.current} now (sandbox-egress was recreated); ${waitingFor}`,
+    );
+  }
+
   /** The sweep's decision for one session: true when it stopped. */
   private async sweepSession(
     s: RegistrySession,
     nowMs: number,
     diskCritical = false,
+    egressAddress: string | null = null,
   ): Promise<boolean> {
     if (this.reclaimClaims.has(s.sessionId)) return this.reclaimIdle(s);
+    // A session whose egress proxy moved since it booted relays every public
+    // connection and DNS query to an address nothing serves any more. It is
+    // recycled as soon as it is released and doing nothing (below): a normal
+    // stop, after which its next use starts it again against the proxy's
+    // address now, with its workspace. Until then it is left alone.
+    const drift = this.egressDrift(s, egressAddress);
     // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
     // Unprobed, a streak of failed probes from before no longer describes
     // the daemon, so it starts over.
     if (s.pinned || this.pinProtection.get(s.sessionId) === s) {
+      this.noteEgressDrift(
+        s,
+        drift,
+        'it is always-on, so it keeps running until it is unpinned or stopped',
+      );
       this.probeFailures.delete(s.sessionId);
       // Always-on exempts live compute from idle stops, not confirmed-dead
       // backend objects from reconciliation. Unknown still stays held.
@@ -1809,6 +2015,7 @@ export class SessionRoutes {
     // backstop for a re-adopted busy session. An exec running through this
     // replica shows its runnerd answers: any streak of failed probes ends.
     if (s.liveExecs.size > 0) {
+      this.noteEgressDrift(s, drift, BUSY_DRIFT);
       this.probeFailures.delete(s.sessionId);
       return false;
     }
@@ -1842,6 +2049,7 @@ export class SessionRoutes {
         health.liveExecs > 0 ||
         (health.activity?.activeOperations ?? 0) > 0
       ) {
+        this.noteEgressDrift(s, drift, BUSY_DRIFT);
         return false;
       }
       if (
@@ -1863,6 +2071,15 @@ export class SessionRoutes {
           health,
           beforeMs: reason === 'lifetime' ? nowMs - 1 : nowMs - s.idleTimeoutMs,
         });
+      }
+      if (drift !== null && !expired) {
+        if (reclaimable(health)) {
+          console.warn(
+            `[sandbox.session] recycling ${s.sessionId}: it relays to the egress proxy at ${drift.pinned}, which is at ${drift.current} now (sandbox-egress was recreated); its next use starts it again with egress (workspace preserved)`,
+          );
+          return this.reclaimIdle(s);
+        }
+        this.noteEgressDrift(s, drift, BUSY_DRIFT);
       }
       // Released by the platform (its turn or run settled, nothing holds it):
       // a few idle minutes are enough. The stop goes through runnerd's
@@ -2031,7 +2248,16 @@ export class SessionRoutes {
       );
       return false;
     }
-    return !alive && this.evictStale(session, 'backend object gone');
+    if (alive) return false;
+    const outOfMemory =
+      this.backend.takeOutOfMemory?.(sessionId, session.createdAtMs) === true;
+    if (outOfMemory) this.lostToOutOfMemory.add(session);
+    return this.evictStale(
+      session,
+      outOfMemory
+        ? "backend object gone: the kernel's OOM killer ended processes in it"
+        : 'backend object gone',
+    );
   }
 
   /** Drop a registry entry whose incarnation is confirmed gone, keeping its
@@ -2300,6 +2526,9 @@ export class SessionRoutes {
         idleTimeoutMs: req.idleTimeoutMs,
         endpoint,
         liveExecs: new Map(),
+        ...(created.egressAddress === undefined
+          ? {}
+          : { egressAddress: created.egressAddress }),
       };
       this.registry.set(entry);
       // The readiness answer the create waited for is a runnerd answer like
@@ -2760,6 +2989,11 @@ export class SessionRoutes {
         0,
       );
       if (this.memoryShort(workingSet + held, sessionId)) return false;
+      if (
+        this.cpuPressured() &&
+        !this.takePressuredStart(cpuWaiters(this.waitersAhead(sessionId, now)))
+      )
+        return 'cpu';
       this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
       this.waiters.delete(sessionId);
       return true;
@@ -2772,8 +3006,26 @@ export class SessionRoutes {
     }
     if (admitted === 'replaced')
       return jsonResponse({ error: 'not_found' }, 404);
-    if (admitted) return null;
-    const place = this.waitInLine(sessionId, workingSet, Date.now(), false);
+    if (admitted === true) return null;
+    const place = this.waitInLine(
+      sessionId,
+      workingSet,
+      Date.now(),
+      false,
+      admitted === 'cpu',
+    );
+    if (admitted === 'cpu') {
+      return jsonResponse(
+        {
+          error: 'host_cpu',
+          message:
+            'the sandbox host is short of CPU; work resumes once its load eases',
+          queue: { position: place.position, waiting: place.waiting },
+        },
+        429,
+        { 'retry-after': String(Math.ceil(place.hintMs / 1000)) },
+      );
+    }
     return jsonResponse(
       {
         error: 'host_memory',
@@ -3119,6 +3371,58 @@ export class SessionRoutes {
     const collect = execReq.collectOutput ?? true;
     const binaryOutput =
       req.headers.get('accept')?.includes('tale-output=base64') === true;
+    const opts = { baseUrl: session.endpoint, token };
+    // Start the exec before the stream answers: a session short of memory
+    // refuses it before it starts, and the caller hears that as a 429 it
+    // waits out like any other "not now", never as a failed exec. Any other
+    // failure is reported on the stream, as before. The stream's consumer
+    // leaving detaches from the exec, never ends it.
+    const consumer = new AbortController();
+    const opened = replayOnly
+      ? undefined
+      : runnerdOpenExec(
+          opts,
+          {
+            execId: execReq.execId,
+            ...(execReq.command ? { command: execReq.command } : {}),
+            ...(execReq.shell ? { shell: execReq.shell } : {}),
+            ...(execReq.cwd ? { cwd: execReq.cwd } : {}),
+            ...(execReq.env ? { env: execReq.env } : {}),
+            ...(execReq.stdinBase64
+              ? { stdinBase64: execReq.stdinBase64 }
+              : {}),
+            ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
+            timeoutMs: execReq.timeoutMs,
+            // 0 = unlimited for streaming execs (collect=false): runnerd never
+            // truncates the live stream; memory stays bounded by replay and consumer queues.
+            stdoutMaxBytes: collect ? this.cfg.stdoutMaxBytes : 0,
+            stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
+          },
+          AbortSignal.any([ac.signal, consumer.signal]),
+        );
+    try {
+      await opened;
+    } catch (error) {
+      // Any other failure surfaces where the stream awaits the exec below.
+      if (error instanceof RunnerdMemoryBusyError) {
+        if (this.registry.get(sessionId) === session)
+          this.registry.unregisterExec(sessionId, execReq.execId);
+        req.signal.removeEventListener('abort', abortHandler);
+        return jsonResponse(
+          {
+            error: 'session_memory_busy',
+            code: 'SESSION_MEMORY_BUSY',
+            message: error.message,
+          },
+          429,
+          {
+            'retry-after': String(
+              Math.max(1, Math.ceil(error.retryAfterMs / 1000)),
+            ),
+          },
+        );
+      }
+    }
     return sseResponse(async ({ send, signal }) => {
       // Terminal-state accumulation so the SSE `result` event matches the
       // one-shot ExecuteResponse contract (the runnerd `exit` carries
@@ -3175,7 +3479,7 @@ export class SessionRoutes {
             result = {
               status: e.cancelled
                 ? 'cancelled'
-                : e.exitCode === 0
+                : e.exitCode === 0 && e.failure === undefined
                   ? 'completed'
                   : 'failed',
               exitCode: e.exitCode,
@@ -3189,6 +3493,7 @@ export class SessionRoutes {
               ...(e.timedOut && e.exitCode !== 0
                 ? { errorCode: 'TIMEOUT' as const }
                 : {}),
+              ...execExitFailure(e),
             };
             break;
           case 'gap':
@@ -3211,34 +3516,21 @@ export class SessionRoutes {
             break;
         }
       };
+      const detach = () => consumer.abort();
+      signal.addEventListener('abort', detach, { once: true });
+      if (signal.aborted) detach();
       try {
-        const opts = { baseUrl: session.endpoint, token };
         const execSignal = AbortSignal.any([ac.signal, signal]);
-        if (replayOnly) {
+        if (opened === undefined) {
           if (!(await runnerdAttach(opts, execReq.execId, onEvent, execSignal)))
             throw new Error(`exec ${execReq.execId} not found`);
         } else {
-          await runnerdExec(
-            opts,
-            {
-              execId: execReq.execId,
-              ...(execReq.command ? { command: execReq.command } : {}),
-              ...(execReq.shell ? { shell: execReq.shell } : {}),
-              ...(execReq.cwd ? { cwd: execReq.cwd } : {}),
-              ...(execReq.env ? { env: execReq.env } : {}),
-              ...(execReq.stdinBase64
-                ? { stdinBase64: execReq.stdinBase64 }
-                : {}),
-              ...(execReq.stdinMode ? { stdinMode: execReq.stdinMode } : {}),
-              timeoutMs: execReq.timeoutMs,
-              // 0 = unlimited for streaming execs (collect=false): runnerd never
-              // truncates the live stream; memory stays bounded by replay and consumer queues.
-              stdoutMaxBytes: collect ? this.cfg.stdoutMaxBytes : 0,
-              stderrMaxBytes: collect ? this.cfg.stderrMaxBytes : 0,
-            },
-            onEvent,
-            execSignal,
-          );
+          const stream = await opened;
+          try {
+            await stream.pump(onEvent);
+          } finally {
+            stream.close();
+          }
         }
         // An acknowledged-prefix gap asks the platform to restore a newer
         // checkpoint. It is not evidence that the daemon or session died.
@@ -3247,6 +3539,12 @@ export class SessionRoutes {
           await send('result', result);
         } else {
           // Stream ended without a terminal event — runnerd/ container died.
+          // Evict the zombie first, so the platform's reconnect/next turn
+          // gets the definitive 404 instead of retrying a dead address — and
+          // so the result can say when the OOM killer took the container
+          // (read by the same check).
+          await this.evictIfBackendGone(sessionId);
+          const outOfMemory = this.lostToOutOfMemory.has(session);
           await send('result', {
             status: 'failed',
             exitCode: null,
@@ -3256,13 +3554,11 @@ export class SessionRoutes {
             stdoutBase64: concatBase64(stdoutChunks),
             stderrBase64: concatBase64(stderrChunks),
             truncated: { stdout: false, stderr: false },
-            errorCode: 'SESSION_LOST',
-            errorMessage: 'runnerd stream ended without a terminal event',
+            errorCode: outOfMemory ? 'SESSION_OOM' : 'SESSION_LOST',
+            errorMessage: outOfMemory
+              ? SESSION_OOM_MESSAGE
+              : 'runnerd stream ended without a terminal event',
           } satisfies SessionExecResponse);
-          // Mid-exec container death: evict the zombie now so the platform's
-          // reconnect/next turn gets the definitive 404 instead of retrying a
-          // dead address.
-          await this.evictIfBackendGone(sessionId);
         }
       } catch (err) {
         // The caller hung up (the platform ends its stream at every drain
@@ -3288,6 +3584,8 @@ export class SessionRoutes {
         )
           await this.evictIfBackendGone(sessionId);
       } finally {
+        signal.removeEventListener('abort', detach);
+        consumer.abort();
         if (this.registry.get(sessionId) === session)
           this.registry.unregisterExec(sessionId, execReq.execId);
         req.signal.removeEventListener('abort', abortHandler);
@@ -3465,22 +3763,36 @@ export class SessionRoutes {
     req.signal.addEventListener('abort', onAbort, { once: true });
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send, signal }) => {
+      // Whether the exec's end came through: a stream that stops short of it
+      // lost its container, and the eviction's check says whether the OOM
+      // killer took it — as handleExec says for the first window.
+      let ended = false;
+      const outOfMemory = async (): Promise<boolean> => {
+        if (ended || req.signal.aborted || signal.aborted) return false;
+        await this.evictIfBackendGone(sessionId);
+        if (!this.lostToOutOfMemory.has(session)) return false;
+        await send('result', sessionOutOfMemoryResult());
+        return true;
+      };
       try {
         const found = await runnerdAttach(
           { baseUrl: session.endpoint, token },
           execId,
-          (e) =>
-            forwardExecEvent(
+          (e) => {
+            if (e.t === 'exit' || e.t === 'fail') ended = true;
+            return forwardExecEvent(
               e,
               send,
               req.headers.get('accept')?.includes('tale-output=base64') ===
                 true,
-            ),
+            );
+          },
           AbortSignal.any([ac.signal, signal]),
           sinceSeq,
         );
         if (!found)
           await send('error', { message: `exec ${execId} not found` });
+        else await outOfMemory();
       } catch (err) {
         // The caller hung up: see handleExec.
         if (req.signal.aborted || signal.aborted) return;
@@ -3488,20 +3800,19 @@ export class SessionRoutes {
           await send('error', { code: 'ATTACH_BUSY', message: err.message });
           return;
         }
+        const code =
+          err instanceof RunnerdProtocolError ||
+          err instanceof RunnerdOutputGapError
+            ? err.code
+            : undefined;
+        // See handleExec: a dead backend object must surface as 404 on the
+        // next reconnect, not as an endless transport error — or, when the
+        // OOM killer took it, as the exec's end.
+        if (code === undefined && (await outOfMemory())) return;
         await send('error', {
           message: err instanceof Error ? err.message : String(err),
-          ...(err instanceof RunnerdProtocolError ||
-          err instanceof RunnerdOutputGapError
-            ? { code: err.code }
-            : {}),
+          ...(code !== undefined ? { code } : {}),
         });
-        // See handleExec: a dead backend object must surface as 404 on the
-        // next reconnect, not as an endless transport error.
-        if (
-          !(err instanceof RunnerdProtocolError) &&
-          !(err instanceof RunnerdOutputGapError)
-        )
-          await this.evictIfBackendGone(sessionId);
       } finally {
         req.signal.removeEventListener('abort', onAbort);
       }
@@ -3852,6 +4163,48 @@ function execFailErrorCode(
     : 'RUNTIME_ERROR';
 }
 
+/** Why an exec whose container the OOM killer took ended. */
+const SESSION_OOM_MESSAGE =
+  "the session ran out of memory: the kernel's OOM killer ended processes in its container, which stopped";
+
+/** The result of an exec whose container died after the OOM killer hit it,
+ * for an attach that never saw the exec's end: its output already went to
+ * the stream, and no measurement survived the container. */
+function sessionOutOfMemoryResult(): SessionExecResponse {
+  return {
+    status: 'failed',
+    exitCode: null,
+    // Sentinel: the terminal `exit` line was lost with the container
+    // (wire.ts contract).
+    durationMs: 0,
+    stdoutBase64: '',
+    stderrBase64: '',
+    truncated: { stdout: false, stderr: false },
+    errorCode: 'SESSION_OOM',
+    errorMessage: SESSION_OOM_MESSAGE,
+  };
+}
+
+/** The error of an exec runnerd itself ended, for its result: one that
+ * stalled — no output and under 1% of one CPU for its whole stall window —
+ * reads `EXEC_STALLED`, never an ordinary failure with a signal's exit
+ * code. Nothing for an exec that ended any other way. */
+function execExitFailure(
+  e: Extract<RunnerdExecEvent, { t: 'exit' }>,
+): Pick<SessionExecResponse, 'errorCode' | 'errorMessage'> {
+  if (e.oomKilled === true)
+    return {
+      errorCode: 'OOM_KILLED',
+      errorMessage: `the session ran out of memory: the kernel's OOM killer ended the exec${e.sessionMemoryPeakBytes === undefined ? '' : ` (session peak ${Math.round(e.sessionMemoryPeakBytes / 1_048_576)} MiB)`}`,
+    };
+  if (e.failure !== 'EXEC_STALLED') return {};
+  return {
+    errorCode: 'EXEC_STALLED',
+    errorMessage:
+      'the exec printed nothing and its processes used under 1% of one CPU for the whole stall window, so the sandbox ended it',
+  };
+}
+
 /** Translate a runnerd exec NDJSON event into the SSE event grammar used by
  * both /exec and /exec/:id/attach. */
 async function forwardExecEvent(
@@ -3899,7 +4252,7 @@ async function forwardExecEvent(
       await send('result', {
         status: e.cancelled
           ? 'cancelled'
-          : e.exitCode === 0
+          : e.exitCode === 0 && e.failure === undefined
             ? 'completed'
             : 'failed',
         exitCode: e.exitCode,
@@ -3912,6 +4265,7 @@ async function forwardExecEvent(
         ...(e.timedOut && e.exitCode !== 0
           ? { errorCode: 'TIMEOUT' as const }
           : {}),
+        ...execExitFailure(e),
       } satisfies SessionExecResponse);
       break;
     case 'gap':

@@ -5,6 +5,7 @@ import { queueRefRelease } from '../knowledge/release-queue.ts';
 import { cancelAgentRunInTx } from './agent-runs.ts';
 import { taskHoldsBlobRef } from './blob-holders.ts';
 import { TaskError } from './errors.ts';
+import { assertReviewContextsRetirable } from './review-context-retention.ts';
 
 /**
  * The ONE retirement walk for a set of tasks that are about to be hard
@@ -50,6 +51,7 @@ export async function retireTasksInTx(
 ): Promise<RetireTasksResult> {
   const ids = args.taskIds;
   if (ids.length === 0) return { cancelledRunCount: 0, releasedRefs: [] };
+  await assertReviewContextsRetirable(tx, args);
   const rows = await tx<
     {
       id: string;
@@ -129,6 +131,12 @@ export async function retireTasksInTx(
         OR metadata->>'taskId' = ANY(${ids})
       )
   `;
+  // Only actual retirement can remove an enrolled purpose. This follows the
+  // custody guard and run cancellations above, in the same transaction.
+  // RESTRICT prevents an old generic writer from skipping that guard.
+  await tx`DELETE FROM app.task_review_contexts
+    WHERE org_id = ${args.organizationId} AND project_id = ${args.projectId}
+      AND task_id = ANY(${ids})`;
   await tx`DELETE FROM app.tasks WHERE id = ANY(${ids})`;
 
   // Blob reclaim through the shared release seam. A ref some SURVIVING task
