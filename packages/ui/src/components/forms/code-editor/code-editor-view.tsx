@@ -61,6 +61,7 @@ import {
   applyFix,
   diagnosticsExtension,
   goToDiagnostic,
+  mapperFrom,
   placeDiagnostics,
   setDiagnostics,
   type DiagnosticWords,
@@ -550,7 +551,17 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       view,
       focus(range, part) {
         view.focus();
-        const target = range ?? locatePart(view, latest.current.language, part);
+        // A range from the check indexes into the text it checked: mapped
+        // through the edits made since, as the underlines are; one inside
+        // what changed selects nothing rather than the wrong characters.
+        const checked = latest.current.diagnosticsFor;
+        const mapped =
+          range === undefined || checked === undefined
+            ? range
+            : (mapperFrom(checked, view.state.doc)(range[0], range[1]) ?? null);
+        if (mapped === null) return;
+        const target =
+          mapped ?? locatePart(view, latest.current.language, part);
         if (target === undefined) return;
         const [from, to] = clampRange(view.state, target);
         view.dispatch({
@@ -577,7 +588,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [portals]);
+  }, [portals, historySlot]);
 
   // Reconfigure the parts whose props changed.
   useEffect(() => {
@@ -620,7 +631,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       return;
     }
     applyValue(view, props.value, historySlot);
-  }, [props.value]);
+  }, [props.value, historySlot]);
 
   return (
     <>
