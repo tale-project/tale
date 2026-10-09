@@ -85,6 +85,7 @@ vi.mock('../hooks/queries', async (importOriginal) => {
     useRunPendingAsk: () => ({ data: null }),
     useAutomationRuns: () => ({ data: [] }),
     useRunRecord: () => ({ data: state.record }),
+    useRunNode: () => ({ data: undefined }),
     useReplayPlan: () => ({
       data: undefined,
       isPending: true,

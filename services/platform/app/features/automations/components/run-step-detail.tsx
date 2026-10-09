@@ -7,13 +7,17 @@ import { Stack } from '@tale/ui/layout';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 
-import type { RecordedStep } from '@/app/lib/backend/contract/automations';
+import type {
+  NodeRunDetail,
+  RecordedStep,
+} from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodeRunView } from '../lib/run-view';
 import { EffectList } from './effect-list';
 import { RunStatusBadge } from './run-status-badge';
 import { RunStepConditions } from './run-step-conditions';
+import { RunStepData } from './run-step-data';
 
 /**
  * What ONE step of a run did: its status, why it was skipped or how it failed,
@@ -26,12 +30,16 @@ import { RunStepConditions } from './run-step-conditions';
 export function RunStepDetail({
   runView,
   step,
+  detail,
   heading,
   badge,
 }: {
   runView: NodeRunView;
   /** The step as the run's record keeps it: why it ran or not. */
   step?: RecordedStep;
+  /** The step read whole from the record: what it read, received and
+   *  returned. In place of the trace's input and output. */
+  detail?: NodeRunDetail;
   /** Section title: the run dialog names the step. The inspector's Last
    *  run tab already says what this is, so it gives none. */
   heading?: string;
@@ -67,7 +75,8 @@ export function RunStepDetail({
           {runView.note}
         </Text>
       )}
-      {runView.input !== undefined && (
+      {detail !== undefined && <RunStepData detail={detail} />}
+      {detail === undefined && runView.input !== undefined && (
         <div>
           <Text as="p" className="mb-1 text-xs font-medium">
             {t('editor.resolvedInput')}
@@ -75,7 +84,7 @@ export function RunStepDetail({
           <JsonViewer data={runView.input} collapsed={1} />
         </div>
       )}
-      {runView.output !== undefined && (
+      {detail === undefined && runView.output !== undefined && (
         <div>
           <Text as="p" className="mb-1 text-xs font-medium">
             {t('editor.output')}

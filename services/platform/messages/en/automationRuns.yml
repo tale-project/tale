@@ -92,6 +92,14 @@ compare:
     waiting: Waiting
     reused: Reused
     none: Not run
+data:
+  reads: What was read
+  readValue: '{operand}: {value}'
+  received: Received
+  returned: Returned
+  elided: Some values were too large to keep in full.
+  redacted: Secrets are hidden.
+  notReached: This step didn't run, so there's no data.
 values:
   items: '{count, plural, one {# item} other {# items}}'
   fields: '{count, plural, one {# field} other {# fields}}'

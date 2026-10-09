@@ -92,6 +92,14 @@ compare:
     waiting: En attente
     reused: Réutilisée
     none: Non exécutée
+data:
+  reads: Ce qui a été lu
+  readValue: '{operand} : {value}'
+  received: Reçu
+  returned: Renvoyé
+  elided: Certaines valeurs étaient trop volumineuses pour être conservées en entier.
+  redacted: Les secrets sont masqués.
+  notReached: 'Cette étape ne s’est pas exécutée : il n’y a donc pas de données.'
 values:
   items: '{count, plural, one {# élément} other {# éléments}}'
   fields: '{count, plural, one {# champ} other {# champs}}'

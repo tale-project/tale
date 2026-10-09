@@ -29,7 +29,10 @@ import { useCopyButton } from '@tale/ui/use-copy';
 import { AlertTriangle, Check, Copy, X } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import type { RecordedStep } from '@/app/lib/backend/contract/automations';
+import type {
+  NodeRunDetail,
+  RecordedStep,
+} from '@/app/lib/backend/contract/automations';
 import type { FlowFacts } from '@/lib/engine/core/analysis/flow';
 import { ptr } from '@/lib/engine/core/syntax/pointer';
 import type { Automation, NodeDef } from '@/lib/engine/core/types';
@@ -514,6 +517,8 @@ export interface NodeInspectorProps {
   runView?: NodeRunView | undefined;
   /** The node's step in the run's record: why it ran or not. */
   recordStep?: RecordedStep | undefined;
+  /** The node's step read whole: what it read, received and returned. */
+  recordDetail?: NodeRunDetail | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   /** For the agent node's equipment pickers (skills/connectors/tools/secrets
@@ -635,6 +640,7 @@ export interface NodeFieldsProps {
   catalogUnavailable?: boolean;
   runView?: NodeRunView | undefined;
   recordStep?: RecordedStep | undefined;
+  recordDetail?: NodeRunDetail | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
   organizationId: string;
@@ -756,6 +762,7 @@ export function NodeFields({
   catalogUnavailable = false,
   runView,
   recordStep,
+  recordDetail,
   readOnly,
   onChange,
   organizationId,
@@ -1256,6 +1263,7 @@ export function NodeFields({
             <RunStepDetail
               runView={runView}
               {...(recordStep !== undefined && { step: recordStep })}
+              {...(recordDetail !== undefined && { detail: recordDetail })}
             />
           ),
         })}

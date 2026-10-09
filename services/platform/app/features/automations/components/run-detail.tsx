@@ -33,6 +33,7 @@ import {
   useAutomationRun,
   useAutomationRuns,
   useNodeTypeCatalog,
+  useRunNode,
   useRunPendingAsk,
   useRunRecord,
 } from '../hooks/queries';
@@ -236,6 +237,12 @@ function RunDetailBody({
   const catalog = useMemo(
     () => nodeCatalogView(nodeTypes, catalogQuery.data?.connectors ?? []),
     [nodeTypes, catalogQuery.data?.connectors],
+  );
+  // The selected step read whole: what it read, received and returned.
+  const nodeQuery = useRunNode(
+    organizationId,
+    recordQuery.data ? runId : undefined,
+    selectedNodeId === null ? undefined : { node: selectedNodeId },
   );
   // The step the run failed at, as its record tells it: a step of this
   // version (not one inside a subautomation), the last to fail.
@@ -764,6 +771,7 @@ function RunDetailBody({
             recordStep={recordQuery.data?.nodes.find(
               (step) => step.path === selectedNode.id,
             )}
+            recordDetail={nodeQuery.data ?? undefined}
             readOnly
             onChange={() => {
               // A recorded run is history: the inspector renders it read-only.
