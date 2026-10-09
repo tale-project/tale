@@ -2,10 +2,9 @@
 
 /**
  * A thread's opening user message queues the AI title that names it, once.
- * A model comparison's hidden column is never named on its own: it takes the
- * title its visible partner is given (`setThreadTitleIfAbsent`), so its
- * opening message queues nothing — a second title would be paid for and
- * never read.
+ * A model comparison's hidden column is never named on its own: when it wins
+ * it takes the visible column's name (`settleArenaPair`), so its opening
+ * message queues nothing — a second title would be paid for and never read.
  */
 
 import type { Sql } from 'postgres';
@@ -81,7 +80,7 @@ describe('appendMessageRow — naming a new conversation', () => {
     );
   });
 
-  it('queues none for the hidden column, which its partner’s title names', async () => {
+  it('queues none for the hidden column, which takes its partner’s name when it wins', async () => {
     await appendMessageRow(untitledThread('b'), OPENING);
 
     expect(addJobInTx).not.toHaveBeenCalled();
