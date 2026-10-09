@@ -291,9 +291,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Done** → the first session's row reads **Done** without a reload. A chat
   that handed nothing over shows no such region.
 - [ ] `CHAT-F54` · **Every state of a handed-over task** — From one chat,
-  hand over tasks that end each way → a run queued while the organization's
-  sandbox slots are full reads **Waiting for a sandbox slot**
-  (`chat.taskTray.waitingForSlot`); a failed run the platform retries by
+  hand over tasks that end each way → a run waiting while every agent
+  worker of the organization is busy reads **Waiting for a worker**
+  (`tasks.agentRun.waiting.org_limit`); a failed run the platform retries by
   itself reads **Trying again…** (`chat.taskTray.retrying`), and one that
   stopped for good reads **The agent couldn't finish**
   (`chat.taskTray.failed`) on an amber-edged row; a task made with **Create

@@ -180,13 +180,17 @@ test('a stalled checkpoint bounds queued callers while its actual write remains 
   const entered = Promise.withResolvers<void>();
   const gate = Promise.withResolvers<void>();
   const originalOpen = fs.open;
+  // The checkpoint's write into its temporary file stalls in the kernel.
   const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
     const file = await originalOpen(...args);
-    if (String(args[0]).endsWith('checkpoint.tmp'))
-      file.sync = async () => {
+    if (String(args[0]).endsWith('checkpoint.tmp')) {
+      const writeFile = file.writeFile.bind(file);
+      file.writeFile = async (...writeArgs) => {
         entered.resolve();
         await gate.promise;
+        return writeFile(...writeArgs);
       };
+    }
     return file;
   });
   try {

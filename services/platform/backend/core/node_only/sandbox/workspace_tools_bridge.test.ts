@@ -2182,6 +2182,34 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     },
   );
 
+  it('starts a busy agent and says its run waits for a free worker [TASK-R26]', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = startCtx({
+      answer: {
+        outcome: 'started',
+        runId: 'run_9',
+        taskId: 'task_1',
+        agentId: 'agent_worker',
+        waiting: { reason: 'org_limit' },
+      },
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      ...TASK_RUN,
+      tool: 'task_start_agent',
+      callArgs: { taskId: 'task_1', agentId: 'agent_worker' },
+    });
+    expect(result.status).toBe('ok');
+    const output = result.output as Record<string, unknown>;
+    expect(output).toMatchObject({
+      started: true,
+      runId: 'run_9',
+      waitingReason: 'org_limit',
+    });
+    expect(output).not.toHaveProperty('waiting');
+    expect(String(output.guidance)).toContain('starts by itself');
+  });
+
   it.each([
     ['stale_question', { staleBecause: 'review_changed' }],
     // A resumption naming no agent and a run that is not the task's has no
@@ -2190,7 +2218,7 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     ['already_running', { runId: 'run_live' }],
     ['in_review', {}],
     ['closed', { taskStatus: 'done' }],
-    ['agent_busy', { runId: 'run_other', busyTaskId: 'task_2' }],
+    ['self_start', {}],
     ['blocked', { blockedBy: ['task_3'] }],
     ['paused', { retryAfter: 1_790_000_000_000 }],
   ])(
@@ -2379,7 +2407,8 @@ describe('dispatchWorkspaceToolImpl — task_start_agent', () => {
     expect(tools[0]?.readOnly).toBe(false);
     expect(tools[0]?.description).toContain('the task was decided');
     for (const word of [
-      'agent_busy',
+      'self_start',
+      'waitingReason',
       'blocked',
       'already_running',
       'paused',

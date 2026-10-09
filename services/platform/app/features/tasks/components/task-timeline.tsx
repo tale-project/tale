@@ -4,8 +4,7 @@ import {
   taskAgentReviewReceiptSchema,
   taskReviewerSchema,
 } from '@tale/shared/schemas/task-review';
-import { Stack } from '@tale/ui/layout';
-import { Text } from '@tale/ui/text';
+import { mentionPlainText } from '@tale/ui/mentions/scan-mentions';
 import { ThreadEvent, ThreadEventActor } from '@tale/ui/thread/thread-event';
 import { ThreadTime } from '@tale/ui/thread/thread-time';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -26,18 +25,18 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
-import { Fragment, useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { MENTION_KINDS } from '@/lib/shared/mention-handles';
 import { parseTaskRepeat, type TaskRepeat } from '@/lib/shared/task-repeat';
 
 import { useTaskActivity, useTaskAgentRuns } from '../hooks/queries';
 import {
   useTaskActorDirectory,
+  useTaskMentionActors,
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
-import { useFirstFrameSlice } from '../hooks/use-first-frame-slice';
-import { TaskLogRow, useTaskLogWindow } from '../hooks/use-task-log-window';
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
@@ -56,9 +55,14 @@ import {
 } from '../utils/task-timeline';
 import { TaskActorName } from './task-actor-preview-popover';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
+import {
+  isAgentRunWaiting,
+  TaskAgentRunWaitingNote,
+} from './task-agent-run-waiting';
 import { TaskStatusGlyph } from './task-status-glyph';
 
-function formatCents(cents: number): string {
+/** An agent run's cost, as the conversation and the details panel show it. */
+export function formatCents(cents: number): string {
   return (cents / 100).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
@@ -66,9 +70,6 @@ function formatCents(cents: number): string {
 }
 
 type TimelineItem = ReturnType<typeof mergeTaskTimeline>[number];
-
-/** How many history lines the opening frame renders before its background pass. */
-const FIRST_FRAME_LINES = 20;
 
 /** How much of a changed text a timeline line quotes. A description change
  *  records both whole descriptions (up to 20,000 characters each), and a
@@ -101,7 +102,7 @@ function storedRepeatRule(value: string): TaskRepeat | null {
 }
 
 /** A task's activity and its agent runs, merged newest first, with the runs'
- * total cost — what the Activity log and the task page's conversation read. */
+ * total cost — what the conversation and the details panel read. */
 export function useTaskTimeline(taskId: string) {
   const { activity } = useTaskActivity(taskId);
   const { runs } = useTaskAgentRuns(taskId);
@@ -183,6 +184,7 @@ function TaskTimelineEntryContent({
     resolveAgentRunPreview,
     resolveWorkflowRunPreview,
   } = useTaskActorDirectory(organizationId, projectId);
+  const mentions = useTaskMentionActors(organizationId, projectId);
   const { formatDate } = useFormatDate();
   const repeatLabel = useTaskRepeatLabel();
   const { never: repeatNever } = useRecurrenceFormat();
@@ -201,50 +203,61 @@ function TaskTimelineEntryContent({
         ? resolveActor('agent', run.delegatedByAgentId).name
         : undefined;
     return (
-      <ThreadEvent
-        className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
-        glyph={
-          <span
-            className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
-            aria-hidden
-          >
-            <Bot className="size-3" />
+      <>
+        <ThreadEvent
+          className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
+          glyph={
+            <span
+              className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
+              aria-hidden
+            >
+              <Bot className="size-3" />
+            </span>
+          }
+          time={<ThreadTime value={run.startedAt} format={timeFormat} />}
+          trailing={
+            <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
+          }
+        >
+          <ThreadEventActor>
+            <TaskActorName preview={agentPreview} name={agentPreview.name} />
+          </ThreadEventActor>{' '}
+          {t('timeline.runLabel')}
+          <span aria-hidden="true"> · </span>
+          <span>
+            {t(`agentRuns.trigger.${run.trigger}`)}
+            {run.durationMs !== undefined
+              ? ` · ${Math.round(run.durationMs / 1000)}s`
+              : ''}
+            {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
           </span>
-        }
-        time={<ThreadTime value={run.startedAt} format={timeFormat} />}
-        trailing={
-          <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
-        }
-      >
-        <ThreadEventActor>
-          <TaskActorName preview={agentPreview} name={agentPreview.name} />
-        </ThreadEventActor>{' '}
-        {t('timeline.runLabel')}
-        <span aria-hidden="true"> · </span>
-        <span>
-          {t(`agentRuns.trigger.${run.trigger}`)}
-          {run.durationMs !== undefined
-            ? ` · ${Math.round(run.durationMs / 1000)}s`
-            : ''}
-          {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
-        </span>
-        {workflowPreview ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            <TaskActorName
-              preview={workflowPreview}
-              name={workflowPreview.name}
+          {workflowPreview ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              <TaskActorName
+                preview={workflowPreview}
+                name={workflowPreview.name}
+              />
+            </>
+          ) : null}
+          {delegatorName !== undefined ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {t('timeline.startedByAgent')}{' '}
+              <TaskActorName preview={delegatorPreview} name={delegatorName} />
+            </>
+          ) : null}
+        </ThreadEvent>
+        {isAgentRunWaiting(run) ? (
+          // Why the run waits, under its line, in the sentence's column.
+          <div className="pl-8">
+            <TaskAgentRunWaitingNote
+              organizationId={organizationId}
+              reason={run.waitingReason}
             />
-          </>
+          </div>
         ) : null}
-        {delegatorName !== undefined ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            {t('timeline.startedByAgent')}{' '}
-            <TaskActorName preview={delegatorPreview} name={delegatorName} />
-          </>
-        ) : null}
-      </ThreadEvent>
+      </>
     );
   }
 
@@ -350,8 +363,16 @@ function TaskTimelineEntryContent({
         return key ? t(key) : value;
       }
       default:
-        // Titles, descriptions, label and file names, task keys: as stored.
-        return quoteActivityText(value);
+        // Titles, label and file names, task keys: as stored. A description
+        // reads its mentions as `@` and today's names.
+        return quoteActivityText(
+          entry.action === 'description.changed'
+            ? mentionPlainText(value, {
+                kinds: MENTION_KINDS,
+                nameOf: (ref) => mentions.byRef(ref)?.name,
+              })
+            : value,
+        );
     }
   };
   // Empty on both sides (an assignee cleared that was already clear) names no
@@ -386,100 +407,5 @@ function TaskTimelineEntryContent({
         <TaskActorName preview={preview} name={displayName} />
       </ThreadEventActor>
     </ThreadEvent>
-  );
-}
-
-export const TaskTimeline = withTaskActorDirectory(TaskTimelineContent);
-
-function TaskTimelineContent({
-  taskId,
-  organizationId,
-  projectId,
-}: {
-  taskId: string;
-  organizationId: string;
-  projectId: string;
-}) {
-  const { t } = useT('tasks');
-  const { timeline, runs, totalCostCents } = useTaskTimeline(taskId);
-  // The newest lines mount with the task, the older ones right after — a
-  // long history sits below the comments, out of the opening screen.
-  const shownTimeline = useFirstFrameSlice(timeline, FIRST_FRAME_LINES, taskId);
-  const getItemKey = useCallback(
-    (index: number) => timelineItemKey(shownTimeline[index]),
-    [shownTimeline],
-  );
-  const estimateSize = useCallback(() => 40, []);
-  const window = useTaskLogWindow({
-    count: shownTimeline.length,
-    getItemKey,
-    estimateSize,
-    gap: 12,
-  });
-
-  if (timeline.length === 0) return null;
-
-  return (
-    <section>
-      <Stack gap={2}>
-        <div className="flex items-center justify-between gap-2">
-          <Text as="h3" variant="label">
-            {t('detail.activity')}
-          </Text>
-          {totalCostCents > 0 && (
-            <Text as="span" variant="muted" className="text-xs tabular-nums">
-              {t('agentRuns.totalCost', {
-                amount: formatCents(totalCostCents),
-              })}
-            </Text>
-          )}
-        </div>
-        <Stack as="ul" ref={window.listRef} gap={0}>
-          {window.items.map((row) => (
-            <Fragment key={row.key}>
-              {row.paddingBefore > 0 && (
-                <li
-                  aria-hidden
-                  role="presentation"
-                  style={{ height: row.paddingBefore, flexShrink: 0 }}
-                />
-              )}
-              <li
-                data-index={row.index}
-                ref={window.measureElement}
-                onFocusCapture={window.onFocusCapture}
-                onBlurCapture={window.onBlurCapture}
-                aria-posinset={window.virtualized ? row.index + 1 : undefined}
-                aria-setsize={window.virtualized ? timeline.length : undefined}
-                style={
-                  window.virtualized
-                    ? undefined
-                    : {
-                        contentVisibility: 'auto',
-                        containIntrinsicSize: 'auto 40px',
-                      }
-                }
-              >
-                <TaskLogRow rowKey={row.key} setRowActive={window.setRowActive}>
-                  <TaskTimelineEntry
-                    item={shownTimeline[row.index]}
-                    runs={runs}
-                    organizationId={organizationId}
-                    projectId={projectId}
-                  />
-                </TaskLogRow>
-              </li>
-            </Fragment>
-          ))}
-          {window.paddingAfter > 0 && (
-            <li
-              aria-hidden
-              role="presentation"
-              style={{ height: window.paddingAfter, flexShrink: 0 }}
-            />
-          )}
-        </Stack>
-      </Stack>
-    </section>
   );
 }

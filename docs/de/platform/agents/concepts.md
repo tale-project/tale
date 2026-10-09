@@ -3,14 +3,14 @@ title: Projektagenten verstehen
 description: Lege den Aufgabenbereich eines Agenten fest und verstehe das Zusammenspiel von Laufzeit, Modell, Anweisungen und Ausstattung.
 ---
 
-Ein Projektagent bearbeitet Aufgaben in einem bestimmten Projekt. Du legst fest, wie er arbeitet und worauf er zugreifen darf, und gibst ihm eine Aufgabe mit einem prüfbaren Ergebnis. In seiner Sandbox kann er Dateien bearbeiten und Befehle ausführen. Der [festgelegte Prüfer](/de/platform/projects/tasks#review-default), eine Person oder ein unabhängiger Projektagent, prüft das Ergebnis vor dem Abschluss der Aufgabe. Neue Prüfungen, die menschliche Unabhängigkeit oder Kompetenznachweise voraussetzen, gehen in die menschliche Prüferkette; eine bereits einem Agenten zugewiesene Prüfung muss ausdrücklich an eine berechtigte Person übertragen werden.
+Ein Projektagent ist eine benannte Konfiguration für Aufgaben in einem bestimmten Projekt. Du legst fest, wie er arbeitet und worauf er zugreifen darf, und gibst ihm eine Aufgabe mit einem prüfbaren Ergebnis. Jede Aufgabe, an der er arbeitet, läuft in einem Worker, einer laufenden Kopie des Agenten, die in einer eigenen Sandbox Dateien bearbeitet und Befehle ausführt. So kann ein Agent an mehreren Aufgaben gleichzeitig arbeiten. Der [festgelegte Prüfer](/de/platform/projects/tasks#review-default), eine Person oder ein unabhängiger Projektagent, prüft das Ergebnis vor dem Abschluss der Aufgabe. Neue Prüfungen, die menschliche Unabhängigkeit oder Kompetenznachweise voraussetzen, gehen in die menschliche Prüferkette; eine bereits einem Agenten zugewiesene Prüfung muss ausdrücklich an eine berechtigte Person übertragen werden.
 
 ## Die passende Arbeitsform wählen
 
 | Arbeitsform | Geeignete Arbeit | Was du festlegst |
 | --- | --- | --- |
 | Chat | Fragen stellen, Wissen abrufen oder einen Text entwerfen. | Nachricht, Modell und gegebenenfalls Projektkontext. |
-| Projektagent | Ein Repository prüfen, Dateien erstellen oder eine Aufgabe über mehrere Durchläufe bearbeiten. | Einen wiederverwendbaren Agenten im Projekt. |
+| Projektagent | Ein Repository prüfen, Dateien erstellen oder eine Aufgabe über mehrere Durchläufe bearbeiten. | Eine wiederverwendbare Agentenkonfiguration im Projekt. |
 | Automatisierung | Festgelegte Schritte ausführen, auf Ereignisse reagieren oder zwischen Aktionen eine Freigabe einholen. | Einen versionierten Workflow und seine Eingaben. |
 
 Auch ein Projektchat verwendet den eingebauten Chat-Assistenten. Die Wahl eines Projekts im Chat aktiviert keinen Projektagenten. Eine Agent-Node in einer Automatisierung hat wiederum ihre eigene Konfiguration.
@@ -45,6 +45,6 @@ flowchart LR
 
 ## Vor der Zuweisung die Voraussetzungen prüfen
 
-Die Provider-Zugangsdaten müssen zur gewählten Laufzeit und zum Modell passen. Außerdem muss Sandbox-Kapazität verfügbar sein. Eine erfolgreiche Chat-Antwort belegt diese Voraussetzungen nicht. Beschreibe in der Aufgabe das erwartete Ergebnis und füge das zu prüfende Material hinzu.
+Die Provider-Zugangsdaten müssen zur gewählten Laufzeit und zum Modell passen. Außerdem muss Sandbox-Kapazität verfügbar sein: Ein Lauf wartet, bis einer der [Agenten-Worker](/de/platform/projects/project-agents#run-one-agent-on-several-tasks) deiner Organisation frei ist. Eine erfolgreiche Chat-Antwort belegt diese Voraussetzungen nicht. Beschreibe in der Aufgabe das erwartete Ergebnis und füge das zu prüfende Material hinzu.
 
 Sind diese Entscheidungen getroffen, [erstelle einen Projektagenten](/de/platform/projects/project-agents). Die [Aufgaben-Automatisierung](/de/platform/projects/task-automation) erklärt Start, Steuerung und Prüfung seiner Arbeit.

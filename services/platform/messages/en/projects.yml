@@ -234,6 +234,7 @@ agents:
   dialogEditTitle: Edit agent
   nameLabel: Name
   namePlaceholder: e.g. PR reviewer
+  handleHint: Mention it with @{handle}. Renaming the agent changes this.
   harnessLabel: Agent runtime
   harnessPlaceholder: Choose the agent runtime
   modelLabel: Model

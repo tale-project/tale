@@ -4,9 +4,10 @@
 
 A sandbox is the isolated environment an agent works in, and its workspace is the files it
 keeps between turns. These rules cover who can see and manage workspaces, what an agent in a
-sandbox can reach, how many sandboxes run at once, when a workspace is deleted, and how a
-turn's spend is booked. Connected devices and agent secrets have their own specs. Egress, the
-health checks, image generation and how waiting work resumes are not covered; see Not yet.
+sandbox can reach, how many sandboxes run at once, what is left of a workspace whose sandbox
+disappears, when a workspace is deleted, and how a turn's spend is booked. Connected devices
+and agent secrets have their own specs. Egress, the health checks, image generation and how
+waiting work resumes are not covered; see Not yet.
 
 ## Who can do what
 
@@ -97,7 +98,7 @@ Three kinds of work are counted separately, each against a limit the organizatio
 
 | Kind of work | Limit unless changed |
 | --- | --- |
-| Project agent sessions | 2 |
+| Agent workers | 2 |
 | Workflow sessions (automation runs) | 2 |
 | Render sessions (website crawling) | 2 |
 
@@ -108,7 +109,7 @@ none, and takes a slot again when it resumes. At the limit, the next start or re
 refused (`QUOTA_EXCEEDED`) before any sandbox is created; the other kinds are not affected.
 The refusal means "no room yet, ask again", not that the work failed.
 
-- **Example**: Ada's organization keeps the limit of 2 project agent sessions, and two agents
+- **Example**: Ada's organization keeps the limit of 2 agent workers, and two agents
   are working. A third agent is started on a task → refused as `QUOTA_EXCEEDED`. An
   automation run can still get its sandbox.
 
@@ -121,6 +122,51 @@ limit, because what frees is an empty workspace, not room.
 
 - **Example**: Ada destroys an agent's workspace. While its row reads **Destroying**, Mia
   starts the agent on a task → the start is refused with the reason `destroy_pending`.
+
+## Agent workers
+
+Every run of a project agent that works at the same time as another works in a sandbox of its
+own, a worker. One agent working three tasks at once has three workers.
+
+### SBX-R17 · Every agent worker is one sandbox and holds one agent-worker slot
+
+The limit of agent workers counts workers, not agents: one agent working three tasks at once
+holds three slots. A run that would need one more worker than the limit allows waits for a
+slot; a burst of starts opens no more workers than there are slots left.
+
+- **Example**: Ada's organization allows 2 agent workers. Scribe works two tasks → 2 of 2 are
+  in use. Lector is started on a task → its run waits until one of Scribe's workers frees.
+
+### SBX-R18 · A worker gives its slot back as soon as its own run ends
+
+A worker stops and frees its slot once no run of its own is left: none working in it, and none
+that has taken it and not started yet. The agent's other workers do not keep it up. A pinned
+worker keeps its slot (`SBX-R10`), and a worker whose last process is still ending keeps it
+until that process has ended.
+
+- **Example**: Ada's agent Scribe works "Release notes" in one worker and "Changelog" in
+  another. "Release notes" finishes → its worker stops and its slot is free at once, while
+  "Changelog" keeps working.
+
+### SBX-R19 · A run takes a free worker before a new one is opened
+
+A starting run takes, in order: its task's previous worker, a worker that is still up, a
+stopped worker (lowest number first), and only then a new one. When the only free worker is
+being destroyed, the run waits for the Destroy (`SBX-R9`) instead of opening a worker beside
+it.
+
+- **Example**: Scribe's workers 1 and 2 are stopped. Ada starts Scribe on a new task → it
+  works in worker 1, and no worker 3 is created.
+
+### SBX-R20 · A member's runs work in that member's own workers
+
+The runs a member starts work in workers kept for that member and the agent, apart from the
+workers of the runs editors start, and stay limited to their own task (`SBX-R7`) in whichever
+of them they work. A run whose starter lost the editor role while it waited moves into that
+member's workers when it starts. An editor's run never lands in a member's worker.
+
+- **Example**: Mia, a member, starts Scribe on two of her tasks → both work at once, each in
+  one of Mia's workers, without Scribe's secrets.
 
 ## Pinning and destroying a workspace
 
@@ -151,6 +197,23 @@ every attempt has failed, its row says so.
 - **Example**: Ada destroys a pinned workspace while the sandbox service is down → the
   workspace stays in the list, now unpinned, and the Destroy is tried again.
 
+## When a sandbox disappears
+
+A sandbox can end without a Destroy, for example when its host restarts or it runs out of
+memory. A pinned workspace gets a new sandbox (`SBX-R10`); this covers the others.
+
+### SBX-R17 · A workspace outlives the sandbox it ran in
+
+When the sandbox of a project agent or an automation run on the Tale server disappears
+without a Destroy, for example because the host restarted or the sandbox ran out of memory, its
+workspace is kept and reads as stopped. The next turn goes on in its files. A start that fails
+after that removes only the sandbox it began, never the files. A crawler's temporary sandbox is
+closed instead, and so is a workspace the sandbox service no longer holds, or one on a
+connected device, which it does not list.
+
+- **Example**: Ada's agent is working on a task when the host restarts → the workspace reads
+  **Stopped**, and the agent's next turn finds its files and goes on with its conversation.
+
 ## Automatic deletion
 
 Tale deletes a workspace on its own in two cases: nobody has used it for a while, or what it
@@ -175,13 +238,16 @@ shows the day a stopped workspace will be deleted.
 Deleting a project agent deletes its workspaces, without waiting for the unused period.
 Removing a member from the organization deletes the workspaces kept for that member's runs.
 A pinned workspace goes too. Deleting the organization deletes every sandbox it had, whatever
-is running in it, revokes the gateway keys issued to them and disconnects its devices; the
-deletion counts as finished only once the files are confirmed deleted.
+is running in it, revokes the gateway keys issued to them, removes the provider keys it gave the
+gateway and disconnects its devices; the deletion counts as finished only once the files are
+confirmed deleted and the gateway holds none of its provider keys.
 
 - **Example**: Ada deletes an agent whose workspace is pinned → the workspace is deleted with
   the agent.
 - **Example**: Noah is removed from the organization → the workspaces kept for his runs are
   deleted.
+- **Example**: An organization that brought its own OpenRouter key is deleted while one of its
+  devices is offline → the gateway drops that key at once; the device is let go once it is back.
 
 ## What a turn costs
 
@@ -228,10 +294,10 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
 - **Waiting for room**: what a task run, an automation step and a crawl do after `SBX-R8` and
   `SBX-R9` belongs to the tasks, automations and websites domains. Not covered here: a
   deployment that is full or short of memory, a workspace whose runtime already runs four execs,
-  the place in line a waiting start gets, giving a slot back when a turn ends, and waking the
-  waiting runs (`sessions.ts`, `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
+  the place in line a waiting start gets, and waking the waiting runs (`sessions.ts`,
+  `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
 - **Health checks and repair**: ending a session after its lifetime while sparing a turn that
-  is still working, closing a workspace whose sandbox disappeared, collecting failed starts,
+  is still working, closing a crawler's sandbox that disappeared, collecting failed starts,
   reclaiming the sandboxes of ended runs and crawls, and picking a turn up again after a
   restart (`watchdogs.ts`, `recovery.ts`, `service.ts`, `wait-retention.ts`,
   `retirement-schedule.ts`).

@@ -62,6 +62,19 @@ describe('Avatar', () => {
     );
   });
 
+  it('keeps the widest initial pairs inside the smallest circle', () => {
+    const { rerender } = render(
+      <Avatar name="Walter White" size="xs" label="Walter White" />,
+    );
+    const avatar = screen.getByRole('img', { name: 'Walter White' });
+    expect(avatar).toHaveTextContent(/^W$/);
+
+    rerender(<Avatar name="Walter White" size="sm" label="Walter White" />);
+    expect(avatar).toHaveTextContent(/^WW$/);
+    rerender(<Avatar name="Ada Lovelace" size="xs" label="Ada Lovelace" />);
+    expect(avatar).toHaveTextContent(/^AL$/);
+  });
+
   it('falls back to a glyph for a person with no name', () => {
     render(<Avatar label="Someone" />);
     const avatar = screen.getByRole('img', { name: 'Someone' });

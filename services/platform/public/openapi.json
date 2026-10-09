@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Tale Platform API",
-    "version": "3.24.0",
+    "version": "3.26.0",
     "contact": {
       "name": "Tale",
       "url": "https://tale.dev"
@@ -17711,7 +17711,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Create a project task from an external ref (idempotent)",
-        "description": "Uses the project in the URL. Every member who can read an active project may create a task through it, Members included; a repeat changes the task it names, so it takes that task’s work gate — an editor of the project (the Editor role or higher), or the member who created the task or is its person assignee (403 `RBAC_FORBIDDEN` otherwise, nothing written). The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200) — both keys are compared after NFC normalization and trimming, the form they are stored in, so a padded or differently normalized repeat is still the same task. An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 `AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee without replacing an existing one. A member who is not an editor of the project may name, in `automationSlug` and `runWorkflowSlug`, only an automation built for tasks (one whose deployed version declares a task contract) or the automation that already owns the task — 403 `RBAC_FORBIDDEN` otherwise, nothing written. `runWorkflowSlug` starts only a freshly created task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). An undeployed workflow or a start failure after the task committed returns `runId` null. An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body. `setupFolderName` binds the task to a root folder of the project by name (matched without regard to case): that folder’s id is stored as the task’s `externalUrl` — the Setup-folder binding a folder-driven automation reads off its task input — on the create and again on every repeat. It cannot be sent beside `externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.",
+        "description": "Uses the project in the URL. Every member who can read an active project may create a task through it, Members included; a repeat changes the task it names, so it takes that task’s work gate — an editor of the project (the Editor role or higher), or the member who created the task or is its person assignee (403 `RBAC_FORBIDDEN` otherwise, nothing written). The first `(project, externalSystem, externalId)` intake creates a task (201); a repeat returns the same task (200) — both keys are compared after NFC normalization and trimming, the form they are stored in, so a padded or differently normalized repeat is still the same task. An active task takes the new title and description (omitting description clears it); labels change only when supplied. An archived task stays unchanged. An archived project refuses intake. The key holder creates the task. `automationSlug` must name an automation that exists (404 `AUTOMATION_NOT_FOUND`), has a deployed version (409 `AUTOMATION_NOT_DEPLOYED`) and applies to this project (403 `AUTOMATION_PROJECT_FORBIDDEN`); it fills an empty assignee without replacing an existing one. A member who is not an editor of the project may name, in `automationSlug` and `runWorkflowSlug`, only an automation built for tasks (one whose deployed version declares a task contract) or the automation that already owns the task — 403 `RBAC_FORBIDDEN` otherwise, nothing written. `runWorkflowSlug` starts only a freshly created task; poll its `runId` at `GET /api/v1/projects/{id}/runs/{runId}` (`executionId` carries the same value and is deprecated). An undeployed workflow or a start failure after the task committed returns `runId` null. An idempotent repeat omits `runId` and does not re-validate `runWorkflowSlug` (a stable retry payload reconciles the task as documented). Supplying runWorkflowSlug charges the execute bucket before intake, in addition to the general REST bucket. Scope selectors such as projectId are refused in the body. `setupFolderName` binds the task to a root folder of the project by name (matched without regard to case): that folder’s id is stored as the task’s `externalUrl` — the Setup-folder binding a folder-driven automation reads off its task input — on the create and again on every repeat. It cannot be sent beside `externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created. While who can be mentioned in the project cannot be read, a description with a mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE`, nothing created; send it again.",
         "operationId": "createTask",
         "security": [
           {
@@ -17777,7 +17777,8 @@
                   },
                   "description": {
                     "type": "string",
-                    "maxLength": 20000
+                    "maxLength": 20000,
+                    "description": "Markdown. A mention is stored as a markdown link naming whom it mentions, `[@Ada Lovelace](mention:user/<userId>)` — the kind is `user`, `agent` (a project agent id) or `automation` (its store name), the text in brackets the name when it was saved. A plain `@handle` (an agent handle, a member’s email name, an automation store name, an id, or an older name form) that names someone who can be mentioned on the task is stored that way (notifying nobody); a mention link naming nobody who can is stored as plain text. Mentions in code, math or a link’s text are text. A task from GitHub or GlitchTip (`externalSystem`) keeps its `@names` as written: they are that tracker’s people."
                   },
                   "labels": {
                     "type": "array",
@@ -19262,6 +19263,7 @@
                           "authorType",
                           "authorId",
                           "body",
+                          "bodyText",
                           "createdAt"
                         ],
                         "properties": {
@@ -19276,7 +19278,12 @@
                             "type": "string"
                           },
                           "body": {
-                            "type": "string"
+                            "type": "string",
+                            "description": "The comment as stored: each mention a mention link, `[@Ada Lovelace](mention:user/<userId>)`"
+                          },
+                          "bodyText": {
+                            "type": "string",
+                            "description": "The same text with each mention read as `@` and the current name of whoever it names — for matching words or showing the comment as plain text"
                           },
                           "bodyByLocale": {
                             "type": "object",
@@ -19503,7 +19510,7 @@
       "post": {
         "tags": ["Tasks"],
         "summary": "Comment on a project task as the key holder",
-        "description": "Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior. A later plain-text edit clears the old translations.",
+        "description": "Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior: a plain `@handle` that names someone who can be mentioned on the task (an agent handle, a member’s email name, an automation store name, an id, or an older name form) notifies them and is stored as a mention link, `[@Ada Lovelace](mention:user/<userId>)`, which every later read returns; a mention link naming nobody who can be mentioned there is stored as plain text. Mentions in code, math or a link’s text are text. A later plain-text edit clears the old translations. While who can be mentioned on the task cannot be read, a body with a mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` and nothing is posted; send it again.",
         "operationId": "addTaskComment",
         "security": [
           {
@@ -19562,7 +19569,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 10000,
-                    "description": "Trimmed; whitespace alone is refused"
+                    "description": "Trimmed; whitespace alone is refused. The limit counts the text as sent; resolving its mentions never takes it past it"
                   },
                   "bodyByLocale": {
                     "type": "object",
@@ -39470,7 +39477,7 @@
         "description": "The version of this contract (`info.version`) the serving instance implements — semver for the wire",
         "schema": {
           "type": "string",
-          "example": "3.24.0"
+          "example": "3.26.0"
         }
       },
       "Location": {
@@ -39676,6 +39683,7 @@
                   "KNOWLEDGE_ENTRY_STORE_TIMEOUT",
                   "KNOWLEDGE_ENTRY_SUPERSEDED",
                   "LEGAL_HOLD_ACTIVE",
+                  "MENTION_DIRECTORY_UNAVAILABLE",
                   "MESSAGE_NOT_FOUND",
                   "METHOD_NOT_ALLOWED",
                   "MODEL_API_CONCURRENCY_EXCEEDED",
@@ -39907,6 +39915,7 @@
                   "KNOWLEDGE_ENTRY_STORE_TIMEOUT",
                   "KNOWLEDGE_ENTRY_SUPERSEDED",
                   "LEGAL_HOLD_ACTIVE",
+                  "MENTION_DIRECTORY_UNAVAILABLE",
                   "MESSAGE_NOT_FOUND",
                   "METHOD_NOT_ALLOWED",
                   "MODEL_API_CONCURRENCY_EXCEEDED",
@@ -40129,6 +40138,7 @@
               "KNOWLEDGE_ENTRY_STORE_TIMEOUT",
               "KNOWLEDGE_ENTRY_SUPERSEDED",
               "LEGAL_HOLD_ACTIVE",
+              "MENTION_DIRECTORY_UNAVAILABLE",
               "MESSAGE_NOT_FOUND",
               "METHOD_NOT_ALLOWED",
               "MODEL_API_CONCURRENCY_EXCEEDED",
@@ -42230,7 +42240,12 @@
             "type": "string"
           },
           "description": {
-            "type": "string"
+            "type": "string",
+            "description": "Markdown, as stored: each mention a mention link, `[@Ada Lovelace](mention:user/<userId>)`"
+          },
+          "descriptionText": {
+            "type": "string",
+            "description": "Present with `description`: the same text with each mention read as `@` and the current name of whoever it names — for matching words or showing it as plain text"
           },
           "labels": {
             "type": "array",
@@ -44781,6 +44796,7 @@
           "organizationId",
           "projectId",
           "name",
+          "handle",
           "harness",
           "model",
           "modelProvider",
@@ -44806,6 +44822,12 @@
           },
           "name": {
             "type": "string"
+          },
+          "handle": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "maxLength": 52,
+            "description": "The agent’s mention handle: lowercase letters, digits and single hyphens, made from its current name (\"My Opus Agent #3\" → `my-opus-agent-3`) and unique in the project (a second agent whose name gives the same handle gets `-02`, then `-03` …). It changes when the agent is renamed, and when a member or an automation of the organization comes to answer to it (an email name or a store name is the stronger claim). Address an agent by `id`; type `@handle` in a comment or a task description to mention it."
           },
           "harness": {
             "type": "string"

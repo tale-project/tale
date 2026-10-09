@@ -227,6 +227,12 @@ export interface TurnStore {
     /** Older history was dropped assembling this turn's context — recorded
      * silently on the reply row for telemetry; never rendered. */
     truncation?: { droppedMessages: number };
+    /** The API key that sent a user message: naming the thread it opens is
+     * the key's spend too. */
+    apiKeyId?: string;
+    /** A guardrail refused this user message: a thread it opens is named
+     * from its own words, never by sending them to a model. */
+    nameWithoutModel?: boolean;
   }): Promise<{ id: string; sequence: number }>;
   /** Persist streaming progress: the full cleared text (and reasoning) so
    * far, which doubles as the turn's proof of life. Called once per cleared
@@ -314,6 +320,21 @@ export interface TurnStore {
     /** The placeholder the turn streams into. */
     assistantMessage: { id: string; sequence: number };
   }>;
+  /**
+   * Raise the turn's hold before a further tool round: the opening held the
+   * first round's worst case, and every round is booked only when the turn
+   * settles, so each later round adds its own — the transcript as it now
+   * stands plus the round's output reserve — and a send racing this turn
+   * counts what it may still spend. A turn admitted at its open runs to its
+   * end; the hold is not a second admission. Optional: a host that enforces
+   * no budget caps holds nothing.
+   */
+  holdNextRound?(round: {
+    organizationId: string;
+    threadId: string;
+    tokens: number;
+    costCents: number;
+  }): Promise<void>;
   /** Deletes the row: its absence is what tells every reader the turn
    * settled. Runs whether the turn succeeded, refused, or threw. */
   endGeneration(generation: {
@@ -1288,6 +1309,11 @@ export async function runTurn(
         threadId: request.threadId,
         role: 'user',
         parts: userTurnParts(userText, request.attachments),
+        ...(request.apiKeyId !== undefined
+          ? { apiKeyId: request.apiKeyId }
+          : {}),
+        // What a guardrail refused never reaches a model, a title's either.
+        ...(refusal !== undefined ? { nameWithoutModel: true } : {}),
       });
     }
     await deps.store.appendMessage({
@@ -1687,6 +1713,35 @@ export async function runTurn(
       }
       if (streamed.cancelled === true) break;
       toolRounds += 1;
+      // The next round spends on top of what is held: its worst case joins
+      // the turn's hold before it runs. Best-effort — the reply is never
+      // cut over its own bookkeeping.
+      if (deps.store.holdNextRound !== undefined) {
+        const promptTokens =
+          context.estimatedTokens +
+          estimateMessageTokens({
+            role: 'assistant',
+            parts: [...settledParts],
+          });
+        const reserveOutput = request.budget?.reserveOutputTokens ?? 0;
+        await deps.store
+          .holdNextRound({
+            organizationId: request.organizationId,
+            threadId: request.threadId,
+            tokens: promptTokens + reserveOutput,
+            costCents: estimateCostCents(
+              promptTokens,
+              reserveOutput,
+              request.model.pricing,
+            ),
+          })
+          .catch((error: unknown) => {
+            console.warn(
+              `[chat] raising the hold of thread ${request.threadId} for its next round failed:`,
+              error,
+            );
+          });
+      }
       // The caller's `maxOutputTokens` bounds the TURN, not each round: the
       // next round gets what this one and its predecessors left of the cap,
       // and a round that would start with nothing left is not run — the

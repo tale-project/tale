@@ -10,7 +10,13 @@
  *    new CLI launches on the same workspace and delivery box;
  *  - a steer's restart cancels the old exec as a rotation, keeping what the
  *    turn started outside its own processes for the restarted turn, while
- *    every other cancel (a Stop, a crash) ends everything.
+ *    every other cancel (a Stop, a crash) ends everything;
+ *  - the settle's harvest takes the first listing of a turn whose exec
+ *    exited on its own, and re-reads an empty box after a reaped linger,
+ *    whose processes may still be writing;
+ *  - a Gemini turn's staged subscription credential leaves the session when
+ *    the turn settles or is orphaned, unless a steer moved the run onto a
+ *    newer exec that staged its own.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -28,6 +34,12 @@ const io = vi.hoisted(() => ({
   predecessorRunningPolls: 0,
   drainThrows: false,
   afterDrain: undefined as (() => void) | undefined,
+  /** A terminal window the drain answers instead of `running`. */
+  terminal: undefined as Record<string, unknown> | undefined,
+  /** Every directory the harvest listed, in order. */
+  listings: [] as string[],
+  /** Every path set the session was asked to delete, in order. */
+  deletes: [] as string[][],
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -51,6 +63,7 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
           ended: { finalText: 'Late completion', isError: false },
         };
       }
+      if (io.terminal !== undefined) return io.terminal;
       if (args.start !== undefined) {
         io.starts.push({
           execId: args.execId,
@@ -103,11 +116,21 @@ vi.mock('../node_only/sandbox/helpers/session_client', async (importActual) => {
       }
       return { state: 'exited', exitCode: 137 };
     },
-    sessionDeleteFiles: async () => undefined,
-    sessionListFiles: async () => [],
+    sessionDeleteFiles: async (_sessionId: string, paths: string[]) => {
+      io.deletes.push(paths);
+      return { deleted: paths, skipped: [] };
+    },
+    sessionListFiles: async (_sessionId: string, dir: string) => {
+      io.listings.push(dir);
+      return [];
+    },
     sessionStageFiles: async () => ({ staged: [], skipped: [] }),
   };
 });
+// The settle's harvest stores into the organization's own bucket.
+vi.mock('../lib/helpers/org_slug', () => ({
+  orgSlugFromIdOrNull: async () => 'acme',
+}));
 vi.mock('../node_only/sandbox/agent_session', () => ({
   ensureAgentSession: async () => ({ liveCreatedAt: 1000 }),
 }));
@@ -233,6 +256,9 @@ beforeEach(() => {
   io.predecessorRunningPolls = 0;
   io.drainThrows = false;
   io.afterDrain = undefined;
+  io.terminal = undefined;
+  io.listings = [];
+  io.deletes = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -277,6 +303,87 @@ describe('drive window failure', () => {
     expect(failed?.args.failureCode).toBe('turn_crashed');
     // The cancel precedes the settle's key release.
     expect(io.released).toEqual([{ execId: 'exec-old', status: 'failed' }]);
+  });
+});
+
+describe('settle harvest', () => {
+  const reported = (exited: boolean) => ({
+    kind: 'terminal',
+    text: 'Reviewed, nothing to change.',
+    timeline: [],
+    ended: {
+      type: 'turn-ended',
+      status: 'completed',
+      finalText: 'Reviewed, nothing to change.',
+    },
+    exited,
+  });
+
+  it('takes the first empty listing of a turn whose exec exited on its own', async () => {
+    io.terminal = reported(true);
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.listings).toEqual(['/agent/output/task-1']);
+    expect(
+      mutations.some((m) => m.name.endsWith(':completeTaskAgentRun')),
+    ).toBe(true);
+  });
+
+  it('re-reads an empty delivery box after a reaped linger', async () => {
+    io.terminal = reported(false);
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.listings).toEqual(Array(4).fill('/agent/output/task-1'));
+    expect(
+      mutations.some((m) => m.name.endsWith(':completeTaskAgentRun')),
+    ).toBe(true);
+  });
+});
+
+describe('a Gemini turn’s staged subscription credential', () => {
+  const GEMINI = { ...KEYS, harness: 'gemini' };
+  const CREDENTIAL = ['.runtime/home/.gemini/oauth_creds.json'];
+
+  it('leaves the session when the turn settles', async () => {
+    io.terminal = {
+      kind: 'terminal',
+      text: 'Done.',
+      timeline: [],
+      ended: { type: 'turn-ended', status: 'completed', finalText: 'Done.' },
+      exited: true,
+    };
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, GEMINI as never);
+
+    expect(io.deletes).toEqual([CREDENTIAL]);
+  });
+
+  it('leaves the session when a Stop orphans the turn', async () => {
+    const run: RunState = { status: 'cancelled', execId: 'exec-old' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, GEMINI as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.deletes).toEqual([CREDENTIAL]);
+  });
+
+  it('stays for the exec a steer restarted the run onto', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-rotated' };
+    const { ctx } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, GEMINI as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.deletes).toEqual([]);
   });
 });
 

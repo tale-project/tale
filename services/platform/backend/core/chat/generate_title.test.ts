@@ -15,6 +15,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../lib/ctx';
 
 const resolveProvidersMock = vi.fn();
@@ -36,7 +37,7 @@ vi.mock('../automations_builder/model_call', () => ({
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
-import { generateThreadTitleImpl, TITLE_AGENT_SLUG } from './generate_title';
+import { generateThreadTitleImpl, resolveDirectModel } from './generate_title';
 
 const ORG = 'org_a';
 const THREAD = 'thread_1';
@@ -59,6 +60,8 @@ function fakeCtx(args: {
   preferredModelId: string | null;
   preferredProviderSlug?: string;
   rows: Record<string, unknown>;
+  /** Models the organization's model access rules keep from the member. */
+  blocked?: readonly string[];
 }) {
   const preferred =
     args.preferredModelId === null
@@ -71,17 +74,41 @@ function fakeCtx(args: {
         };
   const runQuery = vi.fn(
     async (
-      _ref: unknown,
-      queryArgs: { userId?: string; providerSlug?: string },
-    ) =>
-      queryArgs.userId !== undefined
+      ref: unknown,
+      queryArgs: {
+        userId?: string;
+        providerSlug?: string;
+        supportedModels?: string[];
+      },
+    ) => {
+      if (
+        functionRefName(ref) ===
+        'governance/internal_queries:resolveModelGovernanceInternal'
+      ) {
+        return {
+          accessibleModelRefs: (queryArgs.supportedModels ?? []).filter(
+            (id) => !(args.blocked ?? []).includes(id),
+          ),
+        };
+      }
+      return queryArgs.userId !== undefined
         ? preferred
-        : (args.rows[queryArgs.providerSlug ?? ''] ?? null),
+        : (args.rows[queryArgs.providerSlug ?? ''] ?? null);
+    },
   );
   const runMutation = vi.fn(async () => null);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery/runMutation are exercised by this module
   const ctx = { runQuery, runMutation } as unknown as ActionCtx;
   return { ctx, runMutation };
+}
+
+/** A meter that admits (or refuses) every call, recording what it books. */
+function fakeMeter(admits = true) {
+  return {
+    open: vi.fn(async () => (admits ? { lease: 'lease-1' } : null)),
+    settle: vi.fn(async () => undefined),
+    release: vi.fn(async () => undefined),
+  };
 }
 
 /** An org with one active, direct-capable openai credential serving
@@ -326,7 +353,7 @@ describe('generateThreadTitleImpl — model choice', () => {
       Promise.reject(new EmptyReplyError({ prompt: 40, completion: 48 })),
     );
     const { ctx, runMutation } = servingCtx();
-    const recordUsage = vi.fn().mockResolvedValue(undefined);
+    const meter = fakeMeter();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     await generateThreadTitleImpl(
@@ -337,20 +364,16 @@ describe('generateThreadTitleImpl — model choice', () => {
         userId: USER,
         firstMessage: FIRST_MESSAGE,
       },
-      recordUsage,
+      meter,
     );
 
     // The call was paid for whether or not a title came back.
-    expect(recordUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentSlug: TITLE_AGENT_SLUG,
-        model: 'gpt-4o-mini',
-        provider: 'openai',
-        inputTokens: 40,
-        outputTokens: 48,
-        totalTokens: 88,
-      }),
-    );
+    expect(meter.settle).toHaveBeenCalledWith('lease-1', {
+      model: 'gpt-4o-mini',
+      provider: 'openai',
+      inputTokens: 40,
+      outputTokens: 48,
+    });
     expect(runMutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -393,6 +416,105 @@ describe('generateThreadTitleImpl — model choice', () => {
   });
 });
 
+describe('generateThreadTitleImpl — limits and model access', () => {
+  it('writes the derived title without a model call when a limit refuses the naming call [GOV-R4]', async () => {
+    const { ctx, runMutation } = servingCtx();
+    const meter = fakeMeter(false);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await generateThreadTitleImpl(
+      ctx,
+      {
+        organizationId: ORG,
+        threadId: THREAD,
+        userId: USER,
+        firstMessage: FIRST_MESSAGE,
+      },
+      meter,
+    );
+
+    expect(createBuilderModelMock).not.toHaveBeenCalled();
+    expect(meter.settle).not.toHaveBeenCalled();
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: deriveFallbackTitle(FIRST_MESSAGE) }),
+    );
+  });
+
+  it('never names a thread on a model the member may not use [GOV-R8]', async () => {
+    const { ctx } = fakeCtx({
+      preferredModelId: 'gpt-4o-mini',
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+      blocked: ['gpt-4o-mini'],
+    });
+
+    await generateThreadTitleImpl(ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      userId: USER,
+      firstMessage: FIRST_MESSAGE,
+    });
+
+    expect(createBuilderModelMock).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        target: { providerSlug: 'openai', modelId: 'gpt-5' },
+      }),
+    );
+  });
+});
+
+describe('generateThreadTitleImpl — a message a guardrail refused', () => {
+  it('names the thread from its own words, and never sends them to a model', async () => {
+    const { ctx, runMutation } = servingCtx();
+    const meter = fakeMeter();
+
+    await generateThreadTitleImpl(
+      ctx,
+      {
+        organizationId: ORG,
+        threadId: THREAD,
+        userId: USER,
+        firstMessage: FIRST_MESSAGE,
+        nameWithoutModel: true,
+      },
+      meter,
+    );
+
+    expect(createBuilderModelMock).not.toHaveBeenCalled();
+    expect(meter.open).not.toHaveBeenCalled();
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: deriveFallbackTitle(FIRST_MESSAGE) }),
+    );
+  });
+});
+
+describe('resolveDirectModel — why there is no model', () => {
+  it('says model access when the served models are all closed to the member, and provider when nothing serves [GOV-R8]', async () => {
+    const blocked = fakeCtx({
+      preferredModelId: null,
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+      blocked: ['gpt-5', 'gpt-4o-mini'],
+    });
+    await expect(
+      resolveDirectModel(blocked.ctx, ORG, null, USER),
+    ).resolves.toEqual({ missing: 'model-access' });
+
+    const unconnected = fakeCtx({ preferredModelId: null, rows: {} });
+    await expect(
+      resolveDirectModel(unconnected.ctx, ORG, null, USER),
+    ).resolves.toEqual({ missing: 'provider' });
+
+    const serving = servingCtx();
+    await expect(
+      resolveDirectModel(serving.ctx, ORG, null, USER),
+    ).resolves.toEqual({
+      target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
+    });
+  });
+});
+
 describe('generateThreadTitleImpl — the deadline race', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -412,7 +534,7 @@ describe('generateThreadTitleImpl — the deadline race', () => {
       },
     );
     const { ctx, runMutation } = servingCtx();
-    const recordUsage = vi.fn().mockResolvedValue(undefined);
+    const meter = fakeMeter();
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const done = generateThreadTitleImpl(
@@ -423,7 +545,7 @@ describe('generateThreadTitleImpl — the deadline race', () => {
         userId: USER,
         firstMessage: FIRST_MESSAGE,
       },
-      recordUsage,
+      meter,
     );
     await vi.advanceTimersByTimeAsync(10_000);
     await done;
@@ -438,8 +560,9 @@ describe('generateThreadTitleImpl — the deadline race', () => {
         title: deriveFallbackTitle(FIRST_MESSAGE),
       }),
     );
-    // Nothing was spent: the call never produced usage.
-    expect(recordUsage).not.toHaveBeenCalled();
+    // Nothing was reported: the hold is released without a booking.
+    expect(meter.settle).not.toHaveBeenCalled();
+    expect(meter.release).toHaveBeenCalledWith('lease-1');
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('aborted after 10000ms'),
     );
@@ -458,7 +581,7 @@ describe('generateThreadTitleImpl — the deadline race', () => {
       },
     );
     const { ctx, runMutation } = servingCtx();
-    const recordUsage = vi.fn().mockResolvedValue(undefined);
+    const meter = fakeMeter();
 
     const done = generateThreadTitleImpl(
       ctx,
@@ -468,22 +591,24 @@ describe('generateThreadTitleImpl — the deadline race', () => {
         userId: USER,
         firstMessage: FIRST_MESSAGE,
       },
-      recordUsage,
+      meter,
     );
     await vi.advanceTimersByTimeAsync(0);
     await done;
 
     expect(observedSignal?.aborted).toBe(false);
-    expect(recordUsage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentSlug: TITLE_AGENT_SLUG,
-        model: 'gpt-4o-mini',
-        provider: 'openai',
-        inputTokens: 40,
-        outputTokens: 6,
-        totalTokens: 46,
-      }),
-    );
+    expect(meter.open).toHaveBeenCalledWith({
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      promptTokens: expect.any(Number),
+      maxOutputTokens: 48,
+    });
+    expect(meter.settle).toHaveBeenCalledWith('lease-1', {
+      model: 'gpt-4o-mini',
+      provider: 'openai',
+      inputTokens: 40,
+      outputTokens: 6,
+    });
     expect(runMutation).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ title: 'Damaged Order Return' }),

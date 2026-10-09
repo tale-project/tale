@@ -13,6 +13,10 @@ import { foldBreakdownEntries } from '../../core/governance/erasure_counts.ts';
 import { normalizeAuthEmail } from '../../core/lib/auth/normalize_auth_email.ts';
 import { parseBlobRef } from '../../core/lib/storage/blob_ref.ts';
 import { MODEL_API_OP_KIND } from '../../core/sandbox/session_constants.ts';
+import {
+  formatTaskMention,
+  mentionTokenSqlPattern,
+} from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { deleteOrgObject } from '../../lib/object-store.ts';
@@ -27,6 +31,7 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
+import { DIRECT_CALL_OP_KIND } from '../governance/direct-call-kind.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
@@ -890,6 +895,7 @@ export async function processErasure(
   let legacyHeldAutomationRuns = 0;
   let automationRunsRetired = false;
   let modelRequestsDeidentified = false;
+  let directCallsDeidentified = false;
   const pass = async (
     name: string,
     run: () => Promise<number>,
@@ -1129,6 +1135,34 @@ export async function processErasure(
     return removed.length + pseudonymised.length;
   });
 
+  // Calls the platform made straight to a provider for the subject — a
+  // chat title, Improve, a transcription: one op row each (kind
+  // `direct-call`), the settlement's record of whose call it is. A row whose
+  // call was booked, or closed having spent nothing, has done its work and
+  // is deleted. A call still running — or past its deadline, which a late
+  // end still books — keeps its row and loses the identity, so it books
+  // under the pseudonym. After the requests above, and before the ledger
+  // pass: a hold or a failure that stopped them stops this pass too.
+  await pass('directCalls', async () => {
+    if (!modelRequestsDeidentified)
+      throw new Error('Model request de-identification did not complete');
+    const removed = await sql<{ id: string }[]>`
+      DELETE FROM app.sandbox_session_ops
+      WHERE org_id = ${organizationId} AND kind = ${DIRECT_CALL_OP_KIND}
+        AND user_id = ${targetUserId}
+        AND (spent_cents IS NOT NULL OR status = 'cancelled')
+      RETURNING id
+    `;
+    const pseudonymised = await sql<{ id: string }[]>`
+      UPDATE app.sandbox_session_ops SET user_id = ${ERASED_SUBJECT}
+      WHERE org_id = ${organizationId} AND kind = ${DIRECT_CALL_OP_KIND}
+        AND user_id = ${targetUserId}
+      RETURNING id
+    `;
+    directCallsDeidentified = true;
+    return removed.length + pseudonymised.length;
+  });
+
   // The ledger names its subject by bare user id (`governance/README.md`);
   // rows the workflow lane booked before it derived the person from the
   // run's starter carry the door forms (`user:<id>`, `api-key:<id>`) and are
@@ -1136,6 +1170,8 @@ export async function processErasure(
   await pass('usageLedger', async () => {
     if (!modelRequestsDeidentified)
       throw new Error('Model request de-identification did not complete');
+    if (!directCallsDeidentified)
+      throw new Error('Direct call de-identification did not complete');
     const removed = await sql<{ orgId: string }[]>`
       DELETE FROM app.usage_ledger
       WHERE org_id = ${organizationId}
@@ -1285,6 +1321,88 @@ export async function processErasure(
       RETURNING id
     `;
     return changed.length;
+  });
+
+  // Other people's task text that mentions the subject stores their name and
+  // id in the mention (`[@Ada Lovelace](mention:user/<id>)`). Both give way
+  // to the pseudonym wherever such text is kept: comments and their
+  // translations, the people a comment notified, task descriptions, the
+  // description history of the activity log and a run's start message. A
+  // pending review's evidence hash reads the comments and the description,
+  // so a review of a task whose text named the subject sees its evidence
+  // change: the erasure takes precedence.
+  await pass('mentions', async () => {
+    const pattern = mentionTokenSqlPattern({ kind: 'user', id: targetUserId });
+    const pseudonym = formatTaskMention({
+      kind: 'user',
+      id: ERASED_SUBJECT,
+      label: ERASED_SUBJECT,
+    });
+    const named = [{ type: 'user', id: targetUserId }];
+    const comments = await sql<{ id: string }[]>`
+      UPDATE app.messages m
+      SET text = regexp_replace(m.text, ${pattern}, ${pseudonym}, 'g')
+      FROM app.task_discussion_message_meta meta
+      WHERE meta.message_id = m.id AND meta.org_id = ${organizationId}
+        AND m.text ~ ${pattern}
+      RETURNING m.id
+    `;
+    const translations = await sql<{ id: string }[]>`
+      UPDATE app.task_discussion_message_meta meta
+      SET body_by_locale = (
+        SELECT jsonb_object_agg(
+          e.key, regexp_replace(e.value, ${pattern}, ${pseudonym}, 'g'))
+        FROM jsonb_each_text(meta.body_by_locale) e
+      )
+      WHERE meta.org_id = ${organizationId}
+        AND jsonb_typeof(meta.body_by_locale) = 'object'
+        AND EXISTS (SELECT 1 FROM jsonb_each_text(meta.body_by_locale) e
+                    WHERE e.value ~ ${pattern})
+      RETURNING meta.message_id AS id
+    `;
+    const notified = await sql<{ id: string }[]>`
+      UPDATE app.task_discussion_message_meta meta
+      SET mentions = (
+        SELECT jsonb_agg(
+          CASE WHEN x.e ->> 'type' = 'user' AND x.e ->> 'id' = ${targetUserId}
+               THEN jsonb_build_object('type', 'user', 'id', ${ERASED_SUBJECT}::text)
+               ELSE x.e END
+          ORDER BY x.ord)
+        FROM jsonb_array_elements(meta.mentions) WITH ORDINALITY AS x(e, ord)
+      )
+      WHERE meta.org_id = ${organizationId}
+        AND jsonb_typeof(meta.mentions) = 'array'
+        AND meta.mentions @> ${sql.json(named)}
+      RETURNING meta.message_id AS id
+    `;
+    const descriptions = await sql<{ id: string }[]>`
+      UPDATE app.tasks
+      SET description = regexp_replace(description, ${pattern}, ${pseudonym}, 'g')
+      WHERE org_id = ${organizationId} AND description ~ ${pattern}
+      RETURNING id
+    `;
+    const history = await sql<{ id: string }[]>`
+      UPDATE app.task_activity
+      SET from_value = regexp_replace(from_value, ${pattern}, ${pseudonym}, 'g'),
+          to_value = regexp_replace(to_value, ${pattern}, ${pseudonym}, 'g')
+      WHERE org_id = ${organizationId}
+        AND (from_value ~ ${pattern} OR to_value ~ ${pattern})
+      RETURNING id::text AS id
+    `;
+    const starts = await sql<{ id: string }[]>`
+      UPDATE app.project_agent_runs
+      SET feedback = regexp_replace(feedback, ${pattern}, ${pseudonym}, 'g')
+      WHERE org_id = ${organizationId} AND feedback ~ ${pattern}
+      RETURNING id
+    `;
+    return (
+      comments.length +
+      translations.length +
+      notified.length +
+      descriptions.length +
+      history.length +
+      starts.length
+    );
   });
 
   // Review decisions are pseudonymized rather than deleted: the decision is

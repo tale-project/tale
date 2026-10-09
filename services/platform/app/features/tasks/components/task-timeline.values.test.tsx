@@ -13,7 +13,38 @@ import { render, screen } from '@/tests/utils/render';
 
 import { TASK_STATUS_ORDER } from '../lib/display';
 import type { TaskActivityRow } from '../utils/task-timeline';
-import { TaskTimeline } from './task-timeline';
+import {
+  TaskTimelineEntry,
+  timelineItemKey,
+  useTaskTimeline,
+} from './task-timeline';
+
+/** Every line of a task's history, each as the conversation draws it. */
+function TaskTimeline({
+  taskId,
+  organizationId,
+  projectId,
+}: {
+  taskId: string;
+  organizationId: string;
+  projectId: string;
+}) {
+  const { timeline, runs } = useTaskTimeline(taskId);
+  return (
+    <ul>
+      {timeline.map((item) => (
+        <li key={timelineItemKey(item)}>
+          <TaskTimelineEntry
+            item={item}
+            runs={runs}
+            organizationId={organizationId}
+            projectId={projectId}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /**
  * The history reads each stored value as the field it belongs to. These rows

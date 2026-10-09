@@ -4,6 +4,7 @@
 // lifecycle and runnerd addressing; runnerd owns the actual exec.
 
 import {
+  SessionExistsError,
   SessionIncarnationChangedError,
   type BackendSession,
   type CreateSessionResult,
@@ -42,6 +43,7 @@ import {
   RunnerdOutputGapError,
   RunnerdProtocolError,
   RunnerdStageBusyError,
+  answeringIncarnation,
   runnerdActivity,
   runnerdAttach,
   runnerdCancelExec,
@@ -137,6 +139,12 @@ const SWEEP_CONCURRENCY = 8;
  * kept, so a slot and its limits are not held for the rest of a day-long TTL
  * by a container nothing can use. */
 const WEDGED_PROBE_FAILURES = 5;
+
+/** How long a liveness read waits for runnerd to name its incarnation before
+ * asking the backend instead. A live daemon answers in milliseconds; one that
+ * vanished can hold a connect for seconds (a cached address of a removed
+ * container), and the platform's pre-turn probe must not wait that out. */
+const LIVENESS_PROBE_TIMEOUT_MS = 1_500;
 
 /** How long removing an ended container/Pod that failed waits to be tried
  * again. */
@@ -377,6 +385,16 @@ export class SessionRoutes {
     RegistrySession,
     Promise<boolean>
   >();
+  // Entries whose runnerd has named the incarnation they registered. Docker
+  // reaches runnerd only through the running container of the session's
+  // name, so such an answer proves what the backend's existence check would
+  // (a `docker inspect` fork, 30-60 ms and ~28 MB): their acquire, release
+  // ticket and release skip that check, since the request names the
+  // incarnation and runnerd refuses it when a replacement answers, and their
+  // session reads ask runnerd instead. Keyed by the entry, so a replacement
+  // starts unproven; an answer naming none (an older runtime image) leaves
+  // the entry on the backend's check.
+  private readonly namingIncarnation = new WeakSet<RegistrySession>();
 
   // The maintenance pass in flight: a pass slower than its interval (hung
   // daemons, a slow dockerd) must not stack copies of itself.
@@ -967,7 +985,11 @@ export class SessionRoutes {
     idle?: IdleReclaim,
   ): Promise<boolean> {
     const sessionId = session.sessionId;
-    const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
+    const opts = {
+      baseUrl: session.endpoint,
+      token: this.tokenFor(sessionId),
+      incarnation: session.createdAtMs,
+    };
     const held = this.reclaimClaims.get(sessionId);
     if (held !== undefined && held.createdAtMs !== session.createdAtMs) {
       // Taken on an incarnation that has since left the registry; it must
@@ -1023,7 +1045,10 @@ export class SessionRoutes {
         this.noteReclaimable(sessionId, false);
         return false;
       }
-      if (error instanceof SessionIncarnationChangedError) {
+      if (
+        error instanceof SessionIncarnationChangedError ||
+        this.refusedAsReplaced(session, error)
+      ) {
         // The backend object under this id is no longer the incarnation we
         // registered (a peer replica recreated it): our entry and claim are
         // stale, and the replacement is not ours to count as freed — the
@@ -1508,11 +1533,18 @@ export class SessionRoutes {
 
   /** Does this session keep the full idle window once released? A
    * Docker-in-sandbox session's resume starts its inner daemon on an empty
-   * image store, so stopping it early would cost every turn a re-pull. */
-  private keepsFullIdleWindow(session: RegistrySession): boolean {
+   * image store, so stopping it early would cost every turn a re-pull. An
+   * engine that never started has no store to lose, so that session gets the
+   * short window; a runtime that does not report its engine keeps the full
+   * one. */
+  private keepsFullIdleWindow(
+    session: RegistrySession,
+    health: RunnerdHealth,
+  ): boolean {
     return (
       (session.docker ?? this.cfg.dockerInContainer) &&
-      session.profile === 'agent'
+      session.profile === 'agent' &&
+      health.docker?.used !== false
     );
   }
 
@@ -1543,7 +1575,7 @@ export class SessionRoutes {
       this.probeFailures.delete(s.sessionId);
       // Always-on exempts live compute from idle stops, not confirmed-dead
       // backend objects from reconciliation. Unknown still stays held.
-      return this.evictIfBackendGone(s.sessionId);
+      return this.evictUnlessRunnerdNamesIt(s);
     }
     if (this.activating.has(s.sessionId)) return false;
     // A session with a live exec is NEVER reaped — a long, QUIET tool (no
@@ -1571,6 +1603,10 @@ export class SessionRoutes {
         token: this.tokenFor(s.sessionId),
       });
       if (this.registry.get(s.sessionId) !== s) return false;
+      // A replacement under the session's name answered: what it reports is
+      // not this entry's to act on, and the entry's incarnation is gone.
+      if (this.noteIncarnation(s, health.incarnation) === 'replaced')
+        return this.evictStale(s, 'was replaced under its name');
       this.probeFailures.delete(s.sessionId);
       s.lastActivityAtMs = health.lastActivityAtMs;
       // What the sweep saw spares a create at capacity a probe of its own.
@@ -1611,7 +1647,7 @@ export class SessionRoutes {
       if (
         !expired &&
         health.activity?.released === true &&
-        !this.keepsFullIdleWindow(s) &&
+        !this.keepsFullIdleWindow(s, health) &&
         idleForMs > Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)
       ) {
         return this.reclaimIdle(s);
@@ -1726,7 +1762,8 @@ export class SessionRoutes {
    * errors instead of the definitive 404 its phantom self-heal keys on, so
    * every turn fails without recovery.
    *
-   * Called from runnerd-failure paths and the aliveness probe: verifies the
+   * Called from runnerd-failure paths, and wherever a runnerd answer cannot
+   * prove the registered incarnation (provesIncarnation): verifies the
    * backend object with the DEFINITIVE `sessionExists` check; on
    * confirmed-gone it evicts only the stale registry entry so this and
    * subsequent calls resolve to 404 → `SessionNotFoundError` → the platform
@@ -1765,16 +1802,22 @@ export class SessionRoutes {
       );
       return false;
     }
-    // The probe describes the entry captured before the await. A destroy /
-    // recreate or a stop that began meanwhile owns its new state and capacity.
+    return !alive && this.evictStale(session, 'backend object gone');
+  }
+
+  /** Drop a registry entry whose incarnation is confirmed gone, keeping its
+   * workspace for the resume; true when it did. The verdict describes the
+   * entry it was reached for: a destroy / recreate or a stop that began
+   * meanwhile owns its new state and capacity. */
+  private evictStale(session: RegistrySession, reason: string): boolean {
+    const { sessionId } = session;
     if (
-      alive ||
       this.registry.get(sessionId) !== session ||
       this.stopping.has(sessionId)
     )
       return false;
     console.warn(
-      `[sandbox.session] ${sessionId} backend object gone; evicting stale registry entry (workspace preserved for resume)`,
+      `[sandbox.session] ${sessionId} ${reason}; evicting stale registry entry (workspace preserved for resume)`,
     );
     this.registry.delete(sessionId);
     const unregistered = this.unregistered.get(sessionId);
@@ -1785,6 +1828,72 @@ export class SessionRoutes {
       this.unregistered.delete(sessionId);
     this.forgetReclaimMarks(sessionId);
     return true;
+  }
+
+  /** Record which incarnation a runnerd answer named for this entry. Only an
+   * answer that names the registered one proves it; one naming none (an older
+   * runtime image, or a replacement launched without a stamp) returns the
+   * entry to the backend's check. */
+  private noteIncarnation(
+    session: RegistrySession,
+    named: unknown,
+  ): ReturnType<typeof answeringIncarnation> {
+    const answer = answeringIncarnation(session.createdAtMs, named);
+    if (answer === 'registered') this.namingIncarnation.add(session);
+    else this.namingIncarnation.delete(session);
+    return answer;
+  }
+
+  /** Can a runnerd answer stand in for the backend's existence check of this
+   * entry? Only on Docker, where runnerd is reached through the running
+   * container of the session's name, and only once runnerd has named the
+   * registered incarnation. A terminating Pod still answers through its IP
+   * while the backend already counts it gone, so Kubernetes keeps the
+   * backend's check. */
+  private provesIncarnation(session: RegistrySession): boolean {
+    return (
+      this.backend.kind === 'docker' && this.namingIncarnation.has(session)
+    );
+  }
+
+  /** Did runnerd refuse a request for this entry because it serves another
+   * incarnation of the session? */
+  private refusedAsReplaced(session: RegistrySession, error: unknown): boolean {
+    return (
+      error instanceof RunnerdActivityError &&
+      answeringIncarnation(session.createdAtMs, error.incarnation) ===
+        'replaced'
+    );
+  }
+
+  /** Liveness of a registered entry, evicting it when its incarnation is
+   * gone; true when it did. On Docker a /healthz answer naming the
+   * registered incarnation proves it without the backend's check, and one
+   * naming another proves it gone. No answer, or one naming none, asks the
+   * backend. */
+  private async evictUnlessRunnerdNamesIt(
+    session: RegistrySession,
+  ): Promise<boolean> {
+    const { sessionId } = session;
+    if (this.backend.kind === 'docker' && !this.stopping.has(sessionId)) {
+      try {
+        const health = await runnerdHealth(
+          { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+          AbortSignal.timeout(LIVENESS_PROBE_TIMEOUT_MS),
+        );
+        const named = this.noteIncarnation(session, health.incarnation);
+        if (named === 'registered') return false;
+        if (named === 'replaced')
+          return this.evictStale(session, 'was replaced under its name');
+      } catch (error) {
+        console.warn(
+          `[sandbox.session] runnerd of ${sessionId} did not answer a liveness probe; asking the backend:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
+    if (this.registry.get(sessionId) !== session) return false;
+    return this.evictIfBackendGone(sessionId);
   }
 
   async handleCreate(body: string, signal?: AbortSignal): Promise<Response> {
@@ -1897,6 +2006,15 @@ export class SessionRoutes {
           signal: operationSignal(),
         });
       } catch (err) {
+        // A live session the registry does not hold already runs under the
+        // id: a duplicate, which the caller adopts through acquire. As a
+        // failed create, its cleanup would remove that session's compute.
+        if (err instanceof SessionExistsError) {
+          return jsonResponse(
+            { error: 'duplicate', message: err.message },
+            409,
+          );
+        }
         return jsonResponse(
           {
             error: 'create_failed',
@@ -1942,7 +2060,7 @@ export class SessionRoutes {
           502,
         );
       }
-      this.registry.set({
+      const entry: RegistrySession = {
         sessionId: req.sessionId,
         organizationId: req.organizationId,
         profile: req.profile,
@@ -1953,7 +2071,12 @@ export class SessionRoutes {
         idleTimeoutMs: req.idleTimeoutMs,
         endpoint,
         liveExecs: new Map(),
-      });
+      };
+      this.registry.set(entry);
+      // The readiness answer the create waited for is a runnerd answer like
+      // any other: naming this incarnation, it spares the session's first
+      // ticket or acquire the backend's existence check.
+      this.noteIncarnation(entry, created.incarnation);
       const planned = this.creatingBytes.get(req.sessionId);
       if (planned !== undefined) {
         this.youngBytes.set(req.sessionId, {
@@ -1973,14 +2096,20 @@ export class SessionRoutes {
   /** GET /v1/sessions/:id — the platform's pre-turn aliveness probe keys its
    * phantom-recreate on this route's 404, so a registry hit must be verified
    * against the backend object: answering from the cache alone turns a dead
-   * container into "alive" and the turn then fails on a dead address. */
+   * container into "alive" and the turn then fails on a dead address. Once
+   * runnerd has named the registered incarnation, its /healthz verifies it
+   * instead. */
   async handleGet(sessionId: string): Promise<Response> {
     const session = await this.ensureRegistered(sessionId);
     if (session instanceof Response) return session;
     if (session === undefined) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
-    if (await this.evictIfBackendGone(sessionId)) {
+    if (
+      this.provesIncarnation(session)
+        ? await this.evictUnlessRunnerdNamesIt(session)
+        : await this.evictIfBackendGone(sessionId)
+    ) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
     const info = this.toInfo(sessionId);
@@ -2214,12 +2343,21 @@ export class SessionRoutes {
     // its session. Its health and request must never acquire that successor.
     if (knownHealth !== undefined && knownHealth.session !== session)
       return jsonResponse({ error: 'not_found' }, 404);
-    if (!session || (await this.evictIfBackendGone(sessionId))) {
+    if (!session) return jsonResponse({ error: 'not_found' }, 404);
+    // An entry whose runnerd already named the registered incarnation skips
+    // the backend's check: the request below names that incarnation, runnerd
+    // refuses it when a replacement answers, and a failure asks the backend.
+    const proven = this.provesIncarnation(session);
+    if (!proven && (await this.evictIfBackendGone(sessionId))) {
       return jsonResponse({ error: 'not_found' }, 404);
     }
     if (this.registry.get(sessionId) !== session)
       return jsonResponse({ error: 'not_found' }, 404);
-    const opts = { baseUrl: session.endpoint, token: this.tokenFor(sessionId) };
+    const opts = {
+      baseUrl: session.endpoint,
+      token: this.tokenFor(sessionId),
+      incarnation: session.createdAtMs,
+    };
     try {
       if (action === 'acquire') {
         this.activating.set(sessionId, session);
@@ -2237,6 +2375,20 @@ export class SessionRoutes {
         generation === undefined ? undefined : { generation },
       );
       if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'not_found' }, 404);
+      const named = this.noteIncarnation(session, result.incarnation);
+      if (named === 'replaced') {
+        this.evictStale(session, 'was replaced under its name');
+        return jsonResponse({ error: 'not_found' }, 404);
+      }
+      // The check skipped above runs after all when the answer proves
+      // nothing: a replacement launched without a stamp answered instead.
+      if (
+        named === 'unnamed' &&
+        proven &&
+        ((await this.evictIfBackendGone(sessionId)) ||
+          this.registry.get(sessionId) !== session)
+      )
         return jsonResponse({ error: 'not_found' }, 404);
       if (action === 'release') {
         if (typeof result.released !== 'boolean')
@@ -2270,6 +2422,13 @@ export class SessionRoutes {
       return jsonResponse({ generation: result.generation }, 200);
     } catch (error) {
       if (this.registry.get(sessionId) !== session)
+        return jsonResponse({ error: 'not_found' }, 404);
+      // Refused by a replacement under the session's name: the registered
+      // incarnation is gone, and the request changed nothing.
+      if (
+        this.refusedAsReplaced(session, error) &&
+        this.evictStale(session, 'was replaced under its name')
+      )
         return jsonResponse({ error: 'not_found' }, 404);
       if (await this.evictIfBackendGone(sessionId))
         return jsonResponse({ error: 'not_found' }, 404);
@@ -2423,6 +2582,7 @@ export class SessionRoutes {
       ifIdle?: boolean;
       ifStopped?: boolean;
       awaitDeletion?: boolean;
+      keepWorkspace?: boolean;
     } = {},
   ): Promise<Response> {
     // A destroyed session asks for no room any more.
@@ -2441,6 +2601,12 @@ export class SessionRoutes {
     // session goes. Any compute under the id — a container a turn just
     // resumed, before its first exec — or a create in flight means someone
     // came back to it, and the cleanup must leave it alone.
+    //
+    // `?keep_workspace=1` removes the compute alone (`backend.stopSession`)
+    // and keeps the workspace: the platform's cleanup after a failed create
+    // of an agent session, whose id may name a workspace preserved for its
+    // next turn. Deleting a workspace nothing owns is the workspace
+    // cleanup's, through a plain destroy.
     //
     // Either condition also refuses while a create of the id is in flight:
     // the create is laying out the very workspace this would delete. The
@@ -2463,7 +2629,10 @@ export class SessionRoutes {
           this.creating.has(sessionId);
         if (busy) return jsonResponse({ destroyed: false, busy: true }, 200);
       }
-      const outcome = await this.destroyNow(sessionId);
+      const outcome = await this.destroyNow(
+        sessionId,
+        opts.keepWorkspace === true,
+      );
       if (outcome instanceof Response) return outcome;
       destroyed = outcome.destroyed;
     } finally {
@@ -2471,6 +2640,14 @@ export class SessionRoutes {
       if (this.destroySettled.get(sessionId) === settled) {
         this.destroySettled.delete(sessionId);
       }
+    }
+    // Nothing was deleted: the answer says the workspace stays, so a device
+    // hub keeps routing the id to the machine holding it.
+    if (opts.keepWorkspace === true) {
+      return jsonResponse(
+        { stopped: destroyed, busy: false, workspaceKept: true },
+        200,
+      );
     }
     // Out of use is not deleted: `deletion` says how far the workspace's
     // bytes came, on every answer that is not busy — an erasure or a
@@ -2512,9 +2689,11 @@ export class SessionRoutes {
   }
 
   /** The destroy itself: whether it reached anything under the id, or the
-   * 502 a failed backend destroy answers. */
+   * 502 a failed backend destroy answers. `keepWorkspace` stops the session
+   * instead — its compute removed, its workspace kept. */
   private async destroyNow(
     sessionId: string,
+    keepWorkspace = false,
   ): Promise<Response | { destroyed: boolean }> {
     // Delete from the registry BEFORE awaiting the backend so a concurrent
     // destroy of the same id sees an empty cache and can't double-call
@@ -2527,7 +2706,9 @@ export class SessionRoutes {
     // the incarnation and follow the deterministic id onto a later resume.
     this.forgetReclaimMarks(sessionId);
     try {
-      const backendExisted = await this.backend.destroySession(sessionId);
+      const backendExisted = keepWorkspace
+        ? await this.backend.stopSession(sessionId)
+        : await this.backend.destroySession(sessionId);
       this.unregistered.delete(sessionId);
       return { destroyed: had || backendExisted };
     } catch (err) {
@@ -2537,11 +2718,12 @@ export class SessionRoutes {
       // user's data lives on — the "success toast, workspace survives" defect.
       // Restore the registry entry so the session isn't lost, and surface the
       // failure so the caller retries.
-      console.error('[sandbox.session] destroy backend failed:', err);
-      reportSandboxError(err, 'session-destroy');
+      const verb = keepWorkspace ? 'stop' : 'destroy';
+      console.error(`[sandbox.session] ${verb} backend failed:`, err);
+      reportSandboxError(err, `session-${verb}`);
       if (entry !== undefined) this.registry.set(entry);
       return jsonResponse(
-        { destroyed: false, busy: false, error: 'backend destroy failed' },
+        { destroyed: false, busy: false, error: `backend ${verb} failed` },
         502,
       );
     }
@@ -3186,7 +3368,11 @@ export class SessionRoutes {
     try {
       try {
         const applied = await runnerdActivity(
-          { baseUrl: session.endpoint, token: this.tokenFor(sessionId) },
+          {
+            baseUrl: session.endpoint,
+            token: this.tokenFor(sessionId),
+            incarnation: session.createdAtMs,
+          },
           'pin',
           { pinned },
         );
@@ -3215,7 +3401,10 @@ export class SessionRoutes {
         `[sandbox.session] pin=${pinned} for ${sessionId} was not durably acknowledged:`,
         error,
       );
-      if (error instanceof SessionIncarnationChangedError) {
+      if (
+        error instanceof SessionIncarnationChangedError ||
+        this.refusedAsReplaced(session, error)
+      ) {
         this.forgetReclaimed(session);
         return jsonResponse({ error: 'session_unavailable' }, 503, {
           'retry-after': '1',

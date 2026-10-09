@@ -149,6 +149,21 @@ describe('idle release worker', () => {
     );
   });
 
+  it('lets only a live run that names the stopped worker keep it [SBX-R18]', async () => {
+    const texts: string[] = [];
+    const query = (strings: TemplateStringsArray) => {
+      texts.push(strings.join('?').replaceAll(/\s+/g, ' '));
+      return Promise.resolve([]);
+    };
+
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- scripted postgres tag
+    await releaseIdleSession(query as unknown as Sql, args);
+
+    expect(texts[0]).toContain('r.session_id = s.session_id');
+    expect(texts[0]).not.toContain('r.agent_id = s.owner_id');
+    expect(sessionReleaseIdle).not.toHaveBeenCalled();
+  });
+
   it('does nothing when the committed allocation or live-owner guard refuses eligibility', async () => {
     await releaseIdleSession(scriptedSql([[]]), args);
     expect(sessionReleaseIdle).not.toHaveBeenCalled();

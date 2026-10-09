@@ -299,9 +299,10 @@ describe('container build boundaries', () => {
     const image = build.jobs.build!.steps!.find(
       (step) => step.name === 'Build and push',
     )!;
-    expect(image.with?.['cache-from']).toBe(
+    expect(String(image.with?.['cache-from']).trim().split('\n')).toEqual([
       'type=gha,scope=${{ matrix.service }}',
-    );
+      'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}-buildcache:amd64',
+    ]);
     expect(image.with?.['cache-to']).toBe(
       "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=gha,scope={0},mode=max,ghtoken={1},repository={2}', matrix.service, secrets.GITHUB_TOKEN, github.repository) || '' }}",
     );
@@ -314,9 +315,10 @@ describe('container build boundaries', () => {
     )!;
     const cache =
       'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}';
+    // A release reads its own cache alone, so a reused layer keeps the bytes
+    // the previous release shipped.
     expect(String(image.with?.['cache-from']).trim().split('\n')).toEqual([
       cache,
-      "${{ matrix.arch.name == 'amd64' && format('type=gha,scope={0}', matrix.service.name) || '' }}",
     ]);
     expect(image.with?.['cache-to']).toBe(
       `${cache},mode=max,ignore-error=true`,

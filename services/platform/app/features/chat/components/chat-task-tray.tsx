@@ -12,7 +12,12 @@ import {
   Loader2,
 } from 'lucide-react';
 
+import {
+  isAgentRunWaiting,
+  waitingCopyKey,
+} from '@/app/features/tasks/components/task-agent-run-waiting';
 import { useT } from '@/lib/i18n/client';
+import type { AgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
 
 import { useChatQuery } from '../data/chat-backend';
 
@@ -31,6 +36,7 @@ type TrayTask = {
     status: string;
     retryPending?: boolean;
     waitingForCapacity?: boolean;
+    waitingReason?: AgentRunWaitingReason;
   };
 };
 
@@ -59,10 +65,10 @@ function trayState(
   if (agentTask && run !== undefined) {
     if (run.status === 'queued' || run.status === 'running') {
       return {
-        text:
-          run.status === 'queued' && run.waitingForCapacity === true
-            ? t('taskTray.waitingForSlot')
-            : t('taskTray.working'),
+        // A waiting run reads the task's own short state for its reason.
+        text: isAgentRunWaiting(run)
+          ? tTasks(`agentRun.waiting.${waitingCopyKey(run.waitingReason)}`)
+          : t('taskTray.working'),
         tone: 'working',
       };
     }
@@ -104,7 +110,7 @@ function TrayIcon({ tone }: { tone: TrayTone }) {
 
 /**
  * The tasks this conversation handed over, above its composer: each with
- * what it is doing now — the agent working, waiting for a sandbox slot,
+ * what it is doing now — the agent working, waiting for a worker,
  * retrying, stuck on a failure, ready for review with its files — and a way
  * into it. Hand-over used to end at a toast that was gone in ten seconds;
  * the person who asked for the work now watches it where they asked.

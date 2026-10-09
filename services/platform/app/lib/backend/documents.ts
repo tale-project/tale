@@ -776,6 +776,9 @@ export const documentWriteAdapters: Record<string, WriteAdapter> = {
           ...(typeof args.threadId === 'string'
             ? { threadId: args.threadId }
             : {}),
+          ...(typeof args.projectId === 'string'
+            ? { projectId: args.projectId }
+            : {}),
           ...(typeof args.source === 'string' ? { source: args.source } : {}),
           ...(args.skipRagIndexing === true ? { skipRagIndexing: true } : {}),
         },

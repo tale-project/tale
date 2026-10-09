@@ -49,6 +49,7 @@ import {
   harnessMountsMcp,
   harnessResumesConversations,
   isManagedHarness,
+  removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
 } from '../chat/external_turn_shared';
@@ -1720,6 +1721,23 @@ export function isWorkflowTurnLive(
   );
 }
 
+/** Whether a newer agent exec of a live run holds its session now (a retry
+ * of the node, or the next agent node): that exec stages its own
+ * subscription credential, so an older turn must leave the file alone. */
+function heldByNewerExec(
+  state: AgentCursorState | null,
+  execId: string,
+): boolean {
+  const agent = state?.cursor?.agent;
+  return (
+    state !== null &&
+    LIVE_RUN_STATUSES.has(state.status) &&
+    agent !== undefined &&
+    agent.execId !== execId &&
+    agent.result === undefined
+  );
+}
+
 /**
  * Why a scheduled start must not run, or null when it may. Deliberately
  * LENIENT where `isWorkflowTurnLive` is strict: the kick enqueues the start
@@ -1840,6 +1858,9 @@ export async function driveWorkflowAgentTurnImpl(
       execId: args.execId,
       status: 'cancelled',
     });
+    if (!heldByNewerExec(state, args.execId)) {
+      await removeStagedSubscription(args.sessionId, args.harness);
+    }
     // The run went terminal while this turn was live, so the terminal
     // hooks' hibernate skipped past it — the op is terminal now.
     await ctx
@@ -2571,6 +2592,8 @@ async function continueOrSettle(
         ? { exitCode: window.execResult.exitCode }
         : {}),
     });
+    // The turn that answers the question stages its credential again.
+    await removeStagedSubscription(args.sessionId, args.harness);
     return;
   }
   if (pendingAsk !== null) {
@@ -2635,6 +2658,7 @@ async function continueOrSettle(
         ? { agentResultStatus: ended.status }
         : {}),
       harvest: true,
+      execExited: window.exited,
     },
   );
 }
@@ -2653,6 +2677,9 @@ async function settleWorkflowAgentTurn(
     exitCode?: number;
     agentResultStatus?: string;
     harvest?: boolean;
+    /** The turn's exec exited on its own before the settle, so the harvest
+     * reads a box nothing is still writing to. */
+    execExited?: boolean;
   } = {},
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
@@ -2673,23 +2700,27 @@ async function settleWorkflowAgentTurn(
     // write. The record has its own first-wins gate, so finishing the dead
     // winner's job is safe: when the result is already there this returns
     // without touching anything.
-    const state = await ctx.runQuery(
-      internal.automations.queries.readAgentCursor,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      { organizationId: args.organizationId, runId: args.runId as never },
-    );
+    const state = await readCursorState(ctx, args);
     const agent = state?.cursor?.agent;
     if (
       agent === undefined ||
       agent.execId !== args.execId ||
       agent.result !== undefined
     ) {
+      // Settled by someone else (a cancel, the watchdog), but this turn's
+      // exec is over all the same.
+      if (!heldByNewerExec(state, args.execId)) {
+        await removeStagedSubscription(args.sessionId, args.harness);
+      }
       return;
     }
     console.warn(
       `[agent-host] finalize claim for ${args.execId} was burned with no recorded result — completing the dead settle's record`,
     );
   }
+  // The turn is over: its staged subscription credential leaves the session
+  // with it.
+  await removeStagedSubscription(args.sessionId, args.harness);
 
   // The broker account that served this exec, when one did: a 429 cools it
   // down, and a 401 on it is the broker refreshing the account under the
@@ -2739,6 +2770,7 @@ async function settleWorkflowAgentTurn(
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         execId: args.execId,
+        ...(opts.execExited === true ? { execExited: true } : {}),
       });
       files = harvested.files.map((file) => ({
         name: file.path.split('/').at(-1) ?? file.path,

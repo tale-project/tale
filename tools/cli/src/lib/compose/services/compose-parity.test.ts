@@ -21,6 +21,7 @@ import { generateStatefulCompose } from '../generators/generate-stateful-compose
 import type { ComposeService, ServiceConfig } from '../types';
 import {
   ALL_SERVICES,
+  BUILDKITD_MIRROR_IMAGE,
   THIRD_PARTY_IMAGES,
   imagePlatform,
   imageRef,
@@ -250,6 +251,35 @@ describe('SSRF egress-firewall cap parity (NET_ADMIN — R1.17 guard)', () => {
   });
 });
 
+describe('buildkitd mirror image parity', () => {
+  // The spawner pulls the pull-through registry mirror itself, so its default
+  // lives in three places: compose.yml, the CLI generator and the spawner's
+  // config. All three name the same version and digest, never a moving tag.
+  const expected = `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`;
+
+  test('the mirror default is pinned by version and digest', () => {
+    expect(BUILDKITD_MIRROR_IMAGE).toMatch(
+      /^registry:\d+\.\d+\.\d+@sha256:[a-f0-9]{64}$/,
+    );
+  });
+
+  test('both compose pipelines and the spawner default to it', () => {
+    expect(
+      compose.services['sandbox']?.environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    expect(
+      createSandboxService(config).environment?.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+    ).toBe(expected);
+    const spawnerConfig = readFileSync(
+      resolve(repoRoot, 'services/sandbox/src/config.ts'),
+      'utf8',
+    );
+    expect(spawnerConfig.replace(/\s+/g, ' ')).toContain(
+      `process.env.SANDBOX_BUILDKITD_MIRROR_IMAGE ?? '${BUILDKITD_MIRROR_IMAGE}'`,
+    );
+  });
+});
+
 describe('egress connection capacity parity', () => {
   const expected = '${SANDBOX_EGRESS_MAX_CLIENTS:-2000}';
   const egress = createSandboxEgressService(config);
@@ -310,6 +340,22 @@ describe('egress readiness probe parity (log-flood guard)', () => {
       expect(command).not.toMatch(/nc\s+-z/);
     });
   }
+
+  // Nested containers and BuildKit RUN steps resolve names only through the
+  // proxy's dnsmasq, so the probe asks it too: for a name it answers from its
+  // own configuration, on loopback, never through an upstream resolver.
+  test('the probe asks dnsmasq for the name the entrypoint has it answer itself', () => {
+    const query =
+      /nslookup -type=a -timeout=1 (\S+\.invalid) 127\.0\.0\.1 /.exec(
+        EGRESS_HEALTH_PROBE,
+      );
+    expect(query).not.toBeNull();
+    const entrypoint = readFileSync(
+      resolve(repoRoot, 'services/sandbox-egress/entrypoint.sh'),
+      'utf8',
+    );
+    expect(entrypoint).toContain(`--host-record=${query?.[1]},127.0.0.1`);
+  });
 });
 
 describe('sandbox spawner URL parity', () => {

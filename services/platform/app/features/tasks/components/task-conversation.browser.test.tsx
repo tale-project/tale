@@ -6,7 +6,7 @@ import { page, userEvent } from 'vitest/browser';
 import { i18n } from '@/lib/i18n/i18n';
 import { act, cleanup, render, screen, waitFor } from '@/tests/utils/render';
 
-import { TaskComments, type TaskCommentData } from './task-comments';
+import type { TaskCommentData } from './task-comments';
 import { TaskConversation } from './task-conversation';
 
 import '@/app/globals.css';
@@ -37,6 +37,7 @@ const comments: TaskCommentData[] = Array.from(
 );
 
 vi.mock('../hooks/queries', () => ({
+  TASK_DISCUSSION_PAGE_SIZE: 50,
   useTaskDiscussion: () => {
     const [count, setCount] = useState(50);
     const [isLoadingEarlier, setLoadingEarlier] = useState(false);
@@ -102,10 +103,7 @@ vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
   },
 }));
 
-function renderHistory(
-  reverse = true,
-  surface: 'conversation' | 'comments' = 'conversation',
-) {
+function renderHistory(reverse = true) {
   const rendered = render(
     <div
       data-testid="task-history-scroll"
@@ -113,23 +111,13 @@ function renderHistory(
     >
       <div className="flex shrink-0 flex-col gap-8 p-6">
         <div className="h-48 shrink-0">Task brief</div>
-        {surface === 'conversation' ? (
-          <TaskConversation
-            taskId="task-1"
-            organizationId="org-1"
-            projectId="proj-1"
-            canComment
-            currentUserId="user-1"
-          />
-        ) : (
-          <TaskComments
-            taskId="task-1"
-            organizationId="org-1"
-            projectId="proj-1"
-            canComment={false}
-            currentUserId="user-1"
-          />
-        )}
+        <TaskConversation
+          taskId="task-1"
+          organizationId="org-1"
+          projectId="proj-1"
+          canComment
+          currentUserId="user-1"
+        />
       </div>
     </div>,
   );
@@ -170,12 +158,12 @@ afterEach(() => {
 });
 
 describe('TaskConversation long history (Chromium)', () => {
-  it.each(['conversation', 'comments'] as const)(
-    'keeps the earlier-history button focused through a pending %s page and blocks repeat activation',
-    async (surface) => {
+  it.each([false, true])(
+    'keeps the earlier-history button focused through a pending page and blocks repeat activation (reverse scrollport: %s)',
+    async (reverse) => {
       const pending = Promise.withResolvers<void>();
       reads.pendingPage = pending.promise;
-      renderHistory(false, surface);
+      renderHistory(reverse);
       const earlier = screen.getByRole('button', {
         name: 'Show earlier comments',
       });

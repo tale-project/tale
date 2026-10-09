@@ -119,6 +119,31 @@ records how many.
 - **Example**: An agent is assigned to four tasks. Noah deletes the agent → the four tasks
   are unassigned.
 
+### PROJ-R18 · An agent's mention handle is its name in plain letters, unique in its project
+
+The handle is what a person types after `@` to find the agent: lowercase letters, digits and
+single hyphens, with German umlauts and ß spelled out and other accents dropped, at most 48
+characters before a suffix. When another agent of the project already holds it, or a person or
+an automation of the organization answers to it, the agent gets the next free one: `-02`,
+`-03` and on. A name with no letter or digit that can be spelled this way gives `agent`.
+
+- **Example**: Mia adds an agent named "My Opus Agent #3" → it answers to `@my-opus-agent-3`.
+  Noah then adds "My Opus Agent 3" → it answers to `@my-opus-agent-3-02`.
+
+### PROJ-R19 · Renaming an agent gives it the handle of its new name
+
+A rename that changes only upper and lower case or punctuation keeps the handle, and so does
+every other save. The old handle is free for another agent. A mention names the agent itself,
+so what was written about it shows its new name. An agent whose handle a person or an automation
+of the organization comes to answer to later (a member joins, an automation is saved) moves on
+the same way: it answers to the next free handle at once, the Agents tab and the API show that
+one, and the project's next agent save stores it.
+
+- **Example**: Mia renames the agent Research Bot to QA Bot → it answers to `@qa-bot`, and
+  `@research-bot` is free for a new agent.
+- **Example**: Ines's agent "Invoice checker" answers to `@invoice-checker`; Marco then saves
+  an automation named `invoice-checker` → the agent answers to `@invoice-checker-02`.
+
 ## Secrets
 
 ### PROJ-R13 · Only owners and admins can change a project's secrets

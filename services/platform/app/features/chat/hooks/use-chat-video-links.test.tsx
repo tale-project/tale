@@ -323,3 +323,101 @@ describe('Try again on a failed video chip', () => {
     expect(screen.getByRole('group', { name: CHIP })).toBeInTheDocument();
   });
 });
+
+describe('Pasting a link in a project’s new chat', () => {
+  /** Answers the ingest with `answer` and the unbound-chip read with none,
+   * keeping what each ingest sent. */
+  function stubIngest(answer: () => Response): unknown[] {
+    const sent: unknown[] = [];
+    vi.mocked(window.fetch).mockImplementation(async (input, init) => {
+      const path = pathOf(input);
+      if (
+        init?.method === 'POST' &&
+        path.startsWith('/api/app/video-links/ingest')
+      ) {
+        sent.push(
+          typeof init.body === 'string' ? JSON.parse(init.body) : init.body,
+        );
+        return answer();
+      }
+      if (path.startsWith('/api/app/video-links/unbound')) {
+        return json({ jobs: [] });
+      }
+      return json({ error: 'Not Found' }, 404);
+    });
+    return sent;
+  }
+
+  /** The composer of a project's new chat, before the first send. */
+  function PasteBox() {
+    const videoLinks = useChatVideoLinks({
+      threadId: undefined,
+      projectId: 'project-1',
+      organizationId: ORG,
+      locale: 'en',
+    });
+    return (
+      <button
+        type="button"
+        onClick={() =>
+          void videoLinks.ingestUrlsFromText(
+            'https://www.youtube.com/watch?v=abcdefghijk',
+          )
+        }
+      >
+        Paste
+      </button>
+    );
+  }
+
+  function renderPasteBox() {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    return render(
+      <QueryClientProvider client={client}>
+        <PasteBox />
+        <Toaster />
+      </QueryClientProvider>,
+    );
+  }
+
+  it('names the project, so the transcription counts toward it', async () => {
+    const sent = stubIngest(() => json({ jobId: 'job-1' }));
+    const { user } = renderPasteBox();
+
+    await user.click(screen.getByRole('button', { name: 'Paste' }));
+
+    await waitFor(() => {
+      expect(sent).toEqual([
+        expect.objectContaining({
+          projectId: 'project-1',
+          url: 'https://www.youtube.com/watch?v=abcdefghijk',
+        }),
+      ]);
+    });
+    expect(sent[0]).not.toHaveProperty('threadId');
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('says so when the project is no longer the member’s to chat in', async () => {
+    stubIngest(() =>
+      json(
+        { error: 'projectUnavailable', message: 'Project unavailable' },
+        403,
+      ),
+    );
+    const { user } = renderPasteBox();
+
+    await user.click(screen.getByRole('button', { name: 'Paste' }));
+
+    expect(
+      await screen.findByText(
+        i18n.t('videoLink.errors.projectUnavailable', { ns: 'chat' }),
+      ),
+    ).toBeVisible();
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'destructive' }),
+    );
+  });
+});

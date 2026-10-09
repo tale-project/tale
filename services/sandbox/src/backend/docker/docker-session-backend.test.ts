@@ -8,12 +8,14 @@ import { afterAll, beforeAll, describe, expect, spyOn, test } from 'bun:test';
 import { randomUUID } from 'node:crypto';
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -1182,5 +1184,121 @@ describe('DockerSessionBackend durable pin (survives a spawner restart)', () => 
     expect(
       await exists(join(hostSessionRoot, '.pins', 'pin-destroy.pinned')),
     ).toBe(false);
+  });
+});
+
+describe('a stop retires the exec temp', () => {
+  /** A workspace with exec temp (a replay spool, pip staging) beside the
+   * session's own files. */
+  async function workspaceWithTemp(root: string, id: string): Promise<string> {
+    const workspace = join(root, `ses-${id}`);
+    await mkdir(join(workspace, '.runtime', 'tmp', 'pip-staging'), {
+      recursive: true,
+    });
+    await writeFile(
+      join(workspace, '.runtime', 'tmp', 'runnerd-spool'),
+      'replay',
+    );
+    await mkdir(join(workspace, '.runtime', 'home'), { recursive: true });
+    await writeFile(join(workspace, '.runtime', 'home', '.gitconfig'), 'kept');
+    await writeFile(join(workspace, 'keep.txt'), 'user data');
+    return workspace;
+  }
+
+  test('once the container is gone, the temp goes to the trash and the rest of the workspace stays', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const root = await freshRoot();
+    const workspace = await workspaceWithTemp(root, 'tmp-stop');
+    const gate = Promise.withResolvers<void>();
+    const trash = new WorkspaceTrash(root, async (path) => {
+      await gate.promise;
+      await rm(path, { recursive: true, force: true });
+    });
+    const backend = new DockerSessionBackend(rootedConfig(root), trash);
+    expect(await backend.stopSession('tmp-stop', 1_700_000_000_000)).toBe(true);
+    // The next start has nothing to delete before runnerd comes up.
+    expect(await exists(join(workspace, '.runtime', 'tmp'))).toBe(false);
+    expect(await readFile(join(workspace, 'keep.txt'), 'utf8')).toBe(
+      'user data',
+    );
+    expect(
+      await readFile(join(workspace, '.runtime', 'home', '.gitconfig'), 'utf8'),
+    ).toBe('kept');
+    const entries = await readdir(trash.dir);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatch(/^ses-tmp-stop\.tmp\./);
+    gate.resolve();
+    await trash.empty();
+    expect(await readdir(trash.dir)).toEqual([]);
+  });
+
+  test('a stop that could not remove the container leaves the temp where it is', async () => {
+    await fakeDocker({ present: true, rm: 'busy' });
+    const root = await freshRoot();
+    const workspace = await workspaceWithTemp(root, 'tmp-busy');
+    const backend = new DockerSessionBackend(rootedConfig(root));
+    expect(await rejection(backend.stopSession('tmp-busy'))).toBeInstanceOf(
+      Error,
+    );
+    expect(
+      await readFile(
+        join(workspace, '.runtime', 'tmp', 'runnerd-spool'),
+        'utf8',
+      ),
+    ).toBe('replay');
+  });
+
+  test('a planted symbolic link is never followed: what it points to stays, and so does the link', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const root = await freshRoot();
+    // Another session's workspace, which a link in this one names.
+    const victim = join(root, 'ses-victim');
+    await mkdir(join(victim, 'tmp'), { recursive: true });
+    await writeFile(join(victim, 'tmp', 'data.txt'), 'not yours');
+    const runtimeLinked = join(root, 'ses-runtime-link');
+    await mkdir(runtimeLinked);
+    await symlink(victim, join(runtimeLinked, '.runtime'));
+    const tmpLinked = join(root, 'ses-tmp-link');
+    await mkdir(join(tmpLinked, '.runtime'), { recursive: true });
+    await symlink(join(victim, 'tmp'), join(tmpLinked, '.runtime', 'tmp'));
+
+    const warn = console.warn;
+    const warnings: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(' '));
+    };
+    try {
+      const backend = new DockerSessionBackend(rootedConfig(root));
+      await backend.stopSession('runtime-link');
+      await backend.stopSession('tmp-link');
+    } finally {
+      console.warn = warn;
+    }
+    expect(await readFile(join(victim, 'tmp', 'data.txt'), 'utf8')).toBe(
+      'not yours',
+    );
+    expect(
+      (await lstat(join(tmpLinked, '.runtime', 'tmp'))).isSymbolicLink(),
+    ).toBe(true);
+    expect(await exists(join(root, '.trash'))).toBe(false);
+    expect(
+      warnings.filter((line) => line.includes('is a symbolic link')),
+    ).toHaveLength(2);
+  });
+
+  test('a workspace without exec temp, or no workspace at all, is nothing to do', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    const root = await freshRoot();
+    await mkdir(join(root, 'ses-no-temp', '.runtime'), { recursive: true });
+    const warn = spyOn(console, 'warn');
+    try {
+      const backend = new DockerSessionBackend(rootedConfig(root));
+      expect(await backend.stopSession('no-temp')).toBe(true);
+      expect(await backend.stopSession('no-workspace')).toBe(true);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+    expect(await exists(join(root, '.trash'))).toBe(false);
   });
 });

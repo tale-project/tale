@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 85 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 87 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -192,6 +192,34 @@ agent.
   scheduled run is refused naming **This project's** request limit: the
   first one counted toward P2 too, not only toward P1. **Delete the rule
   after**
+- [ ] `GOV-F56` · **Improve with AI and a chat's title are held to the
+  budget** — read your monthly requests under **Settings → Usage**, then
+  GOV-F4-style give yourself a **User** rule with **Max requests** one above
+  them. Send the first message of a new chat → the reply comes, and the
+  chat is named from the first words of the message, not by a model: the
+  reply took the last request, so the naming call was refused, and **Usage
+  analytics** books no `thread-title` request for it. In the Inbox, choose
+  **Improve with AI** on a draft → it is refused with **Usage limit
+  reached** (`conversations.editor.improveLimitReached`), its description
+  sending you to **Settings → Usage**
+  (`conversations.editor.improveLimitReachedDescription`) — in your
+  language, German and French too, never the server's English. **Delete
+  the rule after**
+- [ ] `GOV-F57` · **A transcription is held to the limits of whoever added
+  the recording** — with an OpenAI credential serving `whisper-1`, read
+  your monthly cost under **Settings → Usage**, then GOV-F4-style give
+  yourself a **User** rule with **Max cost** a cent above it. In a
+  project's new chat, add a recording longer than two minutes before the
+  first send → its chip reads **Usage limit reached**
+  (`chat.transcription.limitReached`), its tooltip saying where to see the
+  limit (`chat.transcription.limitReachedHint`), in German and French too,
+  and it never retries by itself. In a browser without built-in speech
+  recognition (Firefox), dictate into the composer → the toast reads
+  `chat.dictation.limitReached`. Paste a YouTube link → refused before any
+  download. Delete the rule, choose **Try again**
+  (`chat.transcription.retry`) on the chip → it transcribes, and **Usage
+  analytics** books **Transcription** under you at 0.6¢ a minute — and the
+  project's usage counts it too, though the chat had no thread yet
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the
@@ -248,8 +276,8 @@ agent.
   tab** — rows are auto-purged at the end of their grace window
   (`governance.trash.empty` describes this)
 - [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
-  **Organization limits** (`sandboxes.limits.title`) → change **Project agent
-  sessions**, **Workflow sessions**, and **Render sessions**
+  **Organization limits** (`sandboxes.limits.title`) → change **Agent
+  workers**, **Workflow sessions**, and **Render sessions**
   (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) within the
   displayed deployment capacity → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
@@ -707,7 +735,7 @@ agent.
   scope row; no rule row is added (reload confirms). The same guard already
   covers the user/team/role scopes.
 - [ ] `GOV-B7` · **Sandbox quota bounds** — `/dashboard/{org}/settings/sandboxes` →
-  **Project agent sessions** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
+  **Agent workers** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
   Save → Validation message **"Must be a whole number between 1 and 500."**
   (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
   workflow and render limits.

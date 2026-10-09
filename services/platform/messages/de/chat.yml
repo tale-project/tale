@@ -47,7 +47,6 @@ createTask:
 taskTray:
   label: Aufgaben aus diesem Chat
   working: Der Agent arbeitet
-  waitingForSlot: Wartet auf einen Sandbox-Platz
   retrying: Wird erneut versucht…
   failed: Der Agent konnte sie nicht fertigstellen
   ready: Bereit zur Prüfung
@@ -217,6 +216,8 @@ transcription:
   transcribing: Transkribiere…
   transcribed: Transkribiert
   couldNotTranscribe: Transkription fehlgeschlagen
+  limitReached: Nutzungslimit erreicht
+  limitReachedHint: Ein Nutzungslimit, das für dich gilt, ist erreicht. Unter Einstellungen > Nutzung siehst du, wann es zurückgesetzt wird; wähle Erneut versuchen, sobald es zurückgesetzt oder erhöht wurde.
   viewTranscript: Transkript anzeigen
   previewSubtitle: '{seconds}s transkribiert'
   retry: Erneut versuchen
@@ -286,6 +287,7 @@ videoLink:
     notUploader: Nur die Person, die dieses Video hinzugefügt hat, kann es ändern
     notRetryable: Erneuter Versuch gerade nicht möglich — das Video wird womöglich schon wieder verarbeitet
     threadNotFound: Dieser Chat ist nicht mehr verfügbar
+    projectUnavailable: Dieses Projekt ist für dich nicht mehr verfügbar. Füge den Link in einen anderen Chat ein.
   actions:
     removeLink: Entfernen
     retry: Erneut versuchen
@@ -387,6 +389,7 @@ dictation:
   discard: Aufnahme verwerfen
   permissionDenied: Mikrofonzugriff verweigert. Erlaube ihn in den Browsereinstellungen.
   serviceUnavailable: Diktat ist gerade nicht verfügbar. Der Browser erreicht seinen Sprachdienst nicht; prüfe die Verbindung und versuche es erneut.
+  limitReached: Nutzungslimit erreicht. Versuche die Aufnahme erneut, sobald das Limit zurückgesetzt oder erhöht wurde.
 citations:
   source: Quelle {number}
   page: Seite {page}

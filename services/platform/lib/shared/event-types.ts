@@ -83,7 +83,11 @@ export interface EventMention {
 
 /** A task comment as its events carry it. */
 export interface EventComment {
+  /** The comment as stored: a mention is a mention token,
+   * `[@Ada Lovelace](mention:user/<id>)`. */
   body: string;
+  /** The same text with every mention read as `@` and the name. */
+  bodyText: string;
   projectId: string;
   taskId: string;
   mentions: EventMention[];
@@ -135,7 +139,8 @@ const EXAMPLE_USER = 'c41d7e88-2b3a-4f95-8e60-7d5a9b1c0f23';
 const EXAMPLE_CONTACT = '9a8b7c6d-1e2f-4a3b-8c4d-5e6f7a8b9c0d';
 const EXAMPLE_CONVERSATION = '3f1e2d4c-6b5a-4978-8a1b-2c3d4e5f6a7b';
 const EXAMPLE_COMMENT: EventComment = {
-  body: 'Can you check the invoice total?',
+  body: `[@Ada Lovelace](mention:user/${EXAMPLE_USER}) can you check the invoice total?`,
+  bodyText: '@Ada Lovelace can you check the invoice total?',
   projectId: EXAMPLE_PROJECT,
   taskId: EXAMPLE_TASK,
   mentions: [{ type: 'user', id: EXAMPLE_USER }],

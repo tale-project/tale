@@ -19,6 +19,7 @@ import {
   assertChatTurnBudget,
   ChatBudgetExceededError,
 } from '../chat/budget-admission.ts';
+import { createPgTurnStore } from '../chat/store.ts';
 import {
   loadProjectSharedThread,
   projectChatAccess,
@@ -26,11 +27,21 @@ import {
 } from '../chat/threads.ts';
 import { processErasure } from '../erasure/service.ts';
 import {
+  openTranscriptionCall,
+  settleTranscriptionCall,
+  uploadTranscriptionSubject,
+} from '../files/transcription-metering.ts';
+import {
   reconcilePendingSessionOpKeys,
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
+import {
+  openDirectCall,
+  releaseStaleDirectCalls,
+  settleDirectCall,
+} from './direct-calls.ts';
 import { incrementUsageLedger } from './service.ts';
 
 const createdSchema = z.object({ id: z.string() });
@@ -42,7 +53,8 @@ const createdSchema = z.object({ id: z.string() });
  * turns in flight there; a model request in the project is held to it and
  * stamps the project on its op, whose hold then counts toward the project;
  * an automation run spends in every project it is in, its agent steps and
- * its llm steps alike; and nothing outside the project is bound by it.
+ * its llm steps alike; a recording added to one of its chats is transcribed
+ * on its budget; and nothing outside the project is bound by it.
  *
  * `ctx` is the suite's owner. The lane makes its own project and threads,
  * and removes them with its budgets file and its bookings.
@@ -167,6 +179,66 @@ export async function checkProjectBudgets(
   };
 
   try {
+    // Before any budget binds the organization: a direct call is recorded
+    // on a row that holds nothing, and booked from that row exactly once.
+    const unheldSlug = `itest-unheld-${suffix}`;
+    const memberHolds = async (): Promise<number> =>
+      (
+        await readInFlightReservations(sql, {
+          organizationId: orgId,
+          userId,
+          userTeamIds: [],
+        })
+      ).user?.requests ?? 0;
+    const holdsBefore = await memberHolds();
+    const unheld = await openDirectCall(sql, {
+      organizationId: orgId,
+      lane: 'itest',
+      // No project: its booking stays out of the project buckets below.
+      subject: { userId, agentSlug: unheldSlug },
+      worstCase: { cents: 5, tokens: 10 },
+      maxDurationMs: 60_000,
+    });
+    const unheldRows = unheld.allowed
+      ? await sql<{ budgetCents: number | null; userId: string | null }[]>`
+          SELECT budget_cents AS "budgetCents", user_id AS "userId"
+          FROM app.sandbox_session_ops
+          WHERE org_id = ${orgId} AND session_id = ${unheld.lease.sessionId}
+            AND exec_id = ${unheld.lease.execId}
+        `
+      : [];
+    const holdsWhileUnheld = await memberHolds();
+    const unheldSpend = {
+      provider: 'itest',
+      model: `itest-model-${suffix}`,
+      inputTokens: 4,
+      outputTokens: 2,
+      costCents: 0.5,
+    };
+    const unheldSettles = unheld.allowed
+      ? [
+          await settleDirectCall(sql, unheld.lease, unheldSpend),
+          await settleDirectCall(sql, unheld.lease, unheldSpend),
+        ]
+      : [];
+    const unheldBooked = await sql<{ cost: number }[]>`
+      SELECT cost_estimate_cents::float8 AS cost FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${unheldSlug}
+        AND granularity = 'monthly'
+    `;
+    record(
+      'project budgets: with no budget bound, a direct call is recorded without a hold and booked from its row once',
+      unheld.allowed &&
+        unheldRows.length === 1 &&
+        unheldRows[0]?.budgetCents === null &&
+        unheldRows[0].userId === userId &&
+        holdsWhileUnheld === holdsBefore &&
+        unheldSettles.join() === 'settled,already_settled' &&
+        unheldBooked.length === 1 &&
+        unheldBooked[0]?.cost === 0.5,
+      `admitted=${unheld.allowed} row=${JSON.stringify(unheldRows)} (want one, no budget_cents, the member) member's holds ${holdsBefore} then ${holdsWhileUnheld} (want unchanged) settles=${unheldSettles.join()} (want settled,already_settled) booked=${JSON.stringify(unheldBooked)} (want 0.5 cents, once)`,
+    );
+
     await mkdir(governanceDir, { recursive: true });
     await writeFile(
       budgetsFile,
@@ -856,6 +928,160 @@ export async function checkProjectBudgets(
         afterLateSettlement,
       }),
     );
+
+    // The other holds, on the real schema: a direct call past its deadline
+    // stops holding, and is still booked when it ends; a reply's later round
+    // raises its hold.
+    const inProject = {
+      organizationId: orgId,
+      userId,
+      userTeamIds: [],
+      projectIds: [projectId],
+    };
+    const heldInProject = async (): Promise<number> =>
+      (await readInFlightReservations(sql, inProject)).projects?.[projectId]
+        ?.costCents ?? 0;
+    const baseline = await heldInProject();
+
+    const directSlug = `itest-direct-${suffix}`;
+    const lost = await openDirectCall(sql, {
+      organizationId: orgId,
+      lane: 'itest',
+      subject: { userId, agentSlug: directSlug, projectIds: [projectId] },
+      worstCase: { cents: 5, tokens: 10 },
+      // Already past its deadline: its process "died" at once.
+      maxDurationMs: -1_000,
+    });
+    const whileDirect = await heldInProject();
+    const released = await releaseStaleDirectCalls(sql);
+    const afterRelease = await heldInProject();
+    if (lost.allowed) {
+      await settleDirectCall(sql, lost.lease, {
+        provider: 'itest',
+        model: `itest-model-${suffix}`,
+        inputTokens: 4,
+        outputTokens: 2,
+        costCents: 1.5,
+      });
+    }
+    const lateBooking = await sql<{ cost: number }[]>`
+      SELECT cost_estimate_cents::float8 AS cost FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${directSlug}
+        AND granularity = 'monthly'
+    `;
+
+    await sql`
+      INSERT INTO app.generations (
+        thread_id, org_id, user_id, reserved_cost_cents, reserved_tokens,
+        started_at_ms, heartbeat_at_ms, updated_at_ms
+      ) VALUES (${projectThread}, ${orgId}, ${userId}, 0, 0, ${now}, ${now},
+                ${now})
+    `;
+    const beforeRound = await heldInProject();
+    await createPgTurnStore(sql).holdNextRound?.({
+      organizationId: orgId,
+      threadId: projectThread,
+      tokens: 100,
+      costCents: 4,
+    });
+    const afterRound = await heldInProject();
+    await sql`DELETE FROM app.generations WHERE thread_id = ${projectThread}`;
+    record(
+      'project budgets: a direct call and a reply’s later round hold in the project, and a lost direct call stops holding',
+      lost.allowed &&
+        whileDirect - baseline === 5 &&
+        released >= 1 &&
+        afterRelease === baseline &&
+        lateBooking[0]?.cost === 1.5 &&
+        afterRound - beforeRound === 4,
+      `direct call held ${whileDirect - baseline} (want 5), released=${released} then ${afterRelease - baseline} (want ≥1 then 0), late booking=${JSON.stringify(lateBooking)} (want 1.5 cents), next round raised the reply's hold by ${afterRound - beforeRound} (want 4)`,
+    );
+
+    // A recording added to the project's chat: its transcription is its
+    // uploader's spend and the project's, held at its whole length (ten
+    // minutes at 0.6¢ a minute) while it runs and booked at the minutes the
+    // provider transcribed.
+    const recording = `s3:itest/recording-${suffix}`;
+    // Added to the project's new chat, before its thread exists: the
+    // composer named the project when it registered the file (0158). A
+    // second recording claims a thread its uploader does not own, which
+    // names no project; a third was removed before its transcription.
+    const strangerRecording = `s3:itest/recording-stranger-${suffix}`;
+    const removedRecording = `s3:itest/recording-removed-${suffix}`;
+    await sql`
+      INSERT INTO app.file_metadata (
+        org_id, storage_ref, file_name, content_type, size, uploaded_by,
+        thread_id, project_id, transcription_status, created_at_ms
+      ) VALUES
+        (${orgId}, ${recording}, 'call.m4a', 'audio/mp4', 1, ${userId},
+         NULL, ${projectId}, 'queued', ${now}),
+        (${orgId}, ${strangerRecording}, 'call.m4a', 'audio/mp4', 1,
+         ${`itest-stranger-${suffix}`}, ${projectThread}, NULL, 'queued',
+         ${now}),
+        (${orgId}, ${removedRecording}, 'call.m4a', 'audio/mp4', 1, ${userId},
+         NULL, ${projectId}, 'skipped', ${now})
+    `;
+    const transcriptionSubject = await uploadTranscriptionSubject(sql, {
+      organizationId: orgId,
+      storageId: recording,
+    });
+    const strangerSubject = await uploadTranscriptionSubject(sql, {
+      organizationId: orgId,
+      storageId: strangerRecording,
+    });
+    const removedSubject = await uploadTranscriptionSubject(sql, {
+      organizationId: orgId,
+      storageId: removedRecording,
+    });
+    const whisper = {
+      organizationId: orgId,
+      provider: 'itest',
+      model: `itest-whisper-${suffix}`,
+      centsPerAudioMinute: 0.6,
+    };
+    const beforeTranscription = await heldInProject();
+    const transcription = await openTranscriptionCall(sql, {
+      ...whisper,
+      subject: transcriptionSubject ?? {
+        userId: '__automation__',
+        agentSlug: '__transcription__',
+      },
+      audioDurationSec: 600,
+    });
+    const whileTranscribing = await heldInProject();
+    if (transcription.allowed) {
+      await settleTranscriptionCall(sql, {
+        ...whisper,
+        lease: transcription.lease,
+        audioDurationSec: 88,
+      });
+    }
+    const afterTranscription = await heldInProject();
+    const transcriptionBooked = await sql<
+      { userId: string; cost: number; seconds: number }[]
+    >`
+      SELECT user_id AS "userId", cost_estimate_cents::float8 AS cost,
+             audio_duration_sec::float8 AS seconds
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND model = ${whisper.model}
+        AND agent_slug = '__transcription__' AND granularity = 'monthly'
+    `;
+    record(
+      'project budgets: a recording’s transcription is held in its chat’s project at its whole length and booked under its uploader',
+      transcriptionSubject?.userId === userId &&
+        transcriptionSubject.projectIds?.[0] === projectId &&
+        strangerSubject !== null &&
+        strangerSubject.projectIds === undefined &&
+        removedSubject === null &&
+        transcription.allowed &&
+        whileTranscribing - beforeTranscription === 6 &&
+        afterTranscription === beforeTranscription &&
+        transcriptionBooked.length === 1 &&
+        transcriptionBooked[0]?.userId === userId &&
+        Math.abs((transcriptionBooked[0]?.cost ?? 0) - 0.88) < 1e-9 &&
+        transcriptionBooked[0]?.seconds === 88,
+      `subject=${JSON.stringify(transcriptionSubject)} (want the uploader in the project) stranger=${JSON.stringify(strangerSubject)} (want no project) removed=${JSON.stringify(removedSubject)} (want null) held ${whileTranscribing - beforeTranscription} then ${afterTranscription - beforeTranscription} (want 6 then 0) booked=${JSON.stringify(transcriptionBooked)} (want 0.88 cents, 88 s, the uploader)`,
+    );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {
       console.warn('[itest] project budgets: budgets file not removed', error);
@@ -864,6 +1090,26 @@ export async function checkProjectBudgets(
     await sql`
       DELETE FROM app.sandbox_session_ops
       WHERE org_id = ${orgId} AND session_id = ANY(${[opSession, runSession, llmSession, erasureSession]})
+    `;
+    await sql`
+      DELETE FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId}
+        AND (session_id = 'direct-call:itest'
+          OR (session_id = 'direct-call:transcription'
+              AND model_ref = ${`itest/itest-whisper-${suffix}`}))
+    `;
+    await sql`
+      DELETE FROM app.file_metadata
+      WHERE org_id = ${orgId}
+        AND storage_ref = ANY(${[
+          `s3:itest/recording-${suffix}`,
+          `s3:itest/recording-stranger-${suffix}`,
+          `s3:itest/recording-removed-${suffix}`,
+        ]})
+    `;
+    await sql`
+      DELETE FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND model = ${`itest-whisper-${suffix}`}
     `;
     await sql`
       DELETE FROM app.sandbox_sessions
@@ -885,7 +1131,7 @@ export async function checkProjectBudgets(
     `;
     await sql`
       DELETE FROM app.usage_ledger
-      WHERE org_id = ${orgId} AND agent_slug = ANY(${[agentSlug, automationName, erasureAutomation]})
+      WHERE org_id = ${orgId} AND agent_slug = ANY(${[agentSlug, automationName, erasureAutomation, `itest-direct-${suffix}`, `itest-unheld-${suffix}`]})
     `;
     await sql`
       DELETE FROM app.project_usage

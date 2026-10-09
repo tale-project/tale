@@ -80,9 +80,24 @@ agentRun:
     settled: Fertig
     failed: Fehlgeschlagen
     cancelled: Abgebrochen
-  # Ersetzt „Wartet", solange das Sandbox-Kontingent der Organisation voll
-  # ist — der Lauf startet von selbst, sobald ein Platz frei wird.
-  waitingForSlot: Wartet auf einen Sandbox-Platz
+  # Ersetzt „Wartet", solange der Lauf auf Platz wartet: ein kurzer Zustand
+  # pro Grund; `unknown` ist ein Warten ohne gespeicherten Grund (meist auf
+  # einen Worker). Der Lauf startet von selbst, sobald der Platz frei wird.
+  waiting:
+    org_limit: Wartet auf einen Worker
+    host: Wartet auf freien Platz
+    destroy_pending: Wartet auf einen Arbeitsbereich
+    exec_limit: Wartet auf seine Sandbox
+    unknown: Wartet auf einen Worker
+  # Was der kurze Zustand bedeutet, darunter, solange der Lauf wartet.
+  waitingWhy:
+    org_limit: Alle Agenten-Worker deiner Organisation sind belegt. Der Lauf startet von selbst, sobald einer frei ist.
+    host: Der Sandbox-Host ist voll oder hat zu wenig Arbeitsspeicher oder Speicherplatz. Der Lauf startet von selbst, sobald wieder Platz ist.
+    destroy_pending: Ein Admin löscht gerade den Arbeitsbereich, den dieser Lauf nutzen würde. Danach startet der Lauf in einem neuen.
+    exec_limit: Seine Sandbox beendet noch einen früheren Prozess. Der Lauf startet gleich von selbst.
+    unknown: Der Lauf startet von selbst, sobald Platz für ihn frei ist.
+  # Für Owner und Admins neben „Alle … Agenten-Worker sind belegt".
+  manageWorkers: Agenten-Worker verwalten
   # Zeile unter dem Status, während die Plattform einen fehlgeschlagenen
   # Lauf von selbst neu startet — damit klar ist, dass nicht du es warst.
   autoRetrying: 'Automatischer Versuch {n} von {max}'
@@ -102,7 +117,7 @@ agentRun:
     setup: 'Dem Agenten fehlt etwas, das er braucht — sein Modell, einer seiner Skills oder der Agent selbst. Ein Redakteur oder Admin kann das im Tab "Agenten" des Projekts beheben.'
     input: 'Ein Anhang dieser Aufgabe ist nicht mehr im Speicher — unter "Details" steht, welcher. Entferne ihn aus der Aufgabe oder lade ihn erneut hoch, und starte den Agenten dann erneut.'
     time_limit: Der Lauf hat sein Zeitlimit erreicht, bevor der Agent fertig war. Starte den Agenten erneut oder teile die Aufgabe in kleinere auf.
-    capacity: Der Lauf hat zu lange auf eine freie Sandbox gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
+    capacity: Der Lauf hat zu lange auf einen freien Worker gewartet. Starte den Agenten erneut, wenn weniger Agenten beschäftigt sind.
     model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
     start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
     interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
@@ -293,7 +308,6 @@ delete:
   error: Aufgabe konnte nicht gelöscht werden
 detail:
   overview: Übersicht
-  comments: Kommentare
   commentCount: '{count, plural, one {# Kommentar} other {# Kommentare}}'
   noComments: Noch keine Kommentare.
   conversation: Unterhaltung
@@ -308,7 +322,6 @@ detail:
   copyKey: '{key} kopieren'
   keyCopied: '{key} kopiert'
   showEarlierComments: Frühere Kommentare anzeigen
-  activity: Aktivität
   subtasks: Teilaufgaben
   addSubtask: Teilaufgabe hinzufügen…
   addDescription: Beschreibung hinzufügen…
@@ -457,6 +470,7 @@ agentRuns:
   working: Agent arbeitet…
   needsAnswer: Wartet auf deine Antwort
   totalCost: '{amount} gesamt'
+  costLabel: Agentenkosten
   status:
     queued: Wartet
     running: Läuft
@@ -554,6 +568,14 @@ mentionPreview:
 mentionPicker:
   title: Mitglied, Agent oder Automatisierung erwähnen
   empty: Keine Treffer
+mentionChip:
+  kind:
+    user: Person
+    agent: Agent
+    automation: Automatisierung
+  missing:
+    user: Nicht mehr Mitglied
+    automation: Automatisierung nicht verfügbar
 metrics:
   title: Projekt-Metriken
   description: Liefer-, Eingriffs- und Kostenkennzahlen für die Aufgaben dieses Projekts.

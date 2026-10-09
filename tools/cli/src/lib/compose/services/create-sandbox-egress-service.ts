@@ -6,11 +6,13 @@ import { DEFAULT_LOGGING, imageRef } from '../types';
  * The egress readiness probe, shared by both compose pipelines and kept
  * byte-identical to the `HEALTHCHECK` baked into
  * `services/sandbox-egress/Dockerfile` (guarded in `compose-parity.test.ts`).
- * See the `healthcheck` block below for why it is an HTTP request and not a
- * TCP connect.
+ * It asks both daemons: tinyproxy over HTTP, and the DNS forwarder for the
+ * name it answers from its own `--host-record` in
+ * `services/sandbox-egress/entrypoint.sh`. See the `healthcheck` block below
+ * for why the first is an HTTP request and not a TCP connect.
  */
 export const EGRESS_HEALTH_PROBE =
-  "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1";
+  "curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1";
 
 /**
  * Sandbox egress proxy — tinyproxy on `sandbox` (faces the runtime
@@ -64,13 +66,15 @@ export function createSandboxEgressService(
     },
     // Least privilege: drop the full default cap set, add back only what the
     // container provably needs (verified live against the image). NET_ADMIN
-    // installs the iptables SSRF firewall; DAC_OVERRIDE lets root touch/create
-    // the tinyproxy log in the nobody-owned /var/log/tinyproxy; CHOWN chowns it
-    // to nobody; SETUID/SETGID let tinyproxy drop privileges to nobody after
-    // bind; NET_BIND_SERVICE lets dnsmasq bind privileged port 53 to serve
-    // external DNS to the internal-only sandbox network (dnsmasq requires the
-    // cap explicitly, even as root). KILL lets the root supervisor signal its
-    // nobody child for graceful shutdown. Keep in sync with compose.yml.
+    // installs the iptables SSRF firewall; DAC_OVERRIDE and CHOWN are part of
+    // the live-verified set, though with tinyproxy logging to stdout no
+    // entrypoint step is known to need them (drop them only once a live boot
+    // without them passes); SETUID/SETGID let tinyproxy drop privileges to
+    // nobody after bind; NET_BIND_SERVICE lets dnsmasq bind privileged port 53
+    // to serve external DNS to the internal-only sandbox network (dnsmasq
+    // requires the cap explicitly, even as root). KILL lets the root supervisor
+    // signal its nobody child for graceful shutdown. Keep in sync with
+    // compose.yml.
     cap_drop: ['ALL'],
     cap_add: [
       'NET_ADMIN',
@@ -81,7 +85,7 @@ export function createSandboxEgressService(
       'NET_BIND_SERVICE',
       'KILL',
     ],
-    // tinyproxy + tail = trivial footprint; the cap is here to bound a
+    // tinyproxy + dnsmasq = trivial footprint; the cap is here to bound a
     // misbehaving allowlist-regex DoS that pegs CPU or floods the log.
     // tinyproxy runs a thread and holds two descriptors per connection
     // (SANDBOX_EGRESS_MAX_CLIENTS), and threads count against the pids
@@ -107,6 +111,13 @@ export function createSandboxEgressService(
       // probe wrote one error line per interval, for the lifetime of the
       // container, into the log an operator reads to find real failures.
       //
+      // The DNS forwarder is asked as well: nested containers and BuildKit
+      // RUN steps resolve names only through it. busybox `nslookup` (the
+      // image's own) queries 127.0.0.1:53 for a name dnsmasq answers from its
+      // own `--host-record`, and exits non-zero on no answer within its
+      // one-second timeout or on an error reply, so the probe proves the
+      // forwarder answers without depending on an upstream resolver.
+      //
       // We still deliberately do NOT probe an external host (pypi) on every
       // interval: 30s × 24h = 2,880 pypi.org/simple/ hits per day per host,
       // which is wasteful and makes the proxy's healthiness depend on a third
@@ -115,9 +126,9 @@ export function createSandboxEgressService(
       // by the health probe.
       test: ['CMD-SHELL', EGRESS_HEALTH_PROBE],
       interval: '30s',
-      // Above curl's own `--max-time 3`, so a slow proxy is reported by curl
-      // (exit 28, with a reason in the health log) instead of being cut off
-      // by Docker at the same moment.
+      // Above curl's own `--max-time 3` plus nslookup's one second, so a slow
+      // daemon is reported by its client (with a reason in the health log)
+      // instead of being cut off by Docker at the same moment.
       timeout: '5s',
       retries: 3,
       start_period: '10s',

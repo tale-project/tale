@@ -204,10 +204,14 @@ jobs:
             ${{ matrix.service.name == 'platform' && format('AUTOMATION_WRITER_PROTOCOL={0}', steps.meta.outputs.automation-protocol) || '' }}
           # Only trusted releases write these separate per-service cache images.
           # Architecture tags keep the native builders from replacing each other.
-          # amd64 also imports the GHA cache CI warms on main.
-          cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
-            ${{ matrix.arch.name == 'amd64' && format('type=gha,scope={0}', matrix.service.name) || '' }}
+          # A release reads no other cache, so a layer it reuses keeps the bytes
+          # the previous release shipped and a host's upgrade downloads only the
+          # layers whose inputs changed. Reading main's GHA cache as well handed
+          # a release the bytes of a main build that had rebuilt from an evicted
+          # cache: v0.5.76's amd64 runtime image changed 1.98 of its 2.03 GB
+          # while arm64, built from the same source without that cache, changed
+          # none.
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
           # A cache outage must not invalidate a successfully pushed image.
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true
           # `labels:` replaces Dockerfile LABEL (not merges). The CLI reads

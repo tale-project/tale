@@ -3,6 +3,8 @@ import userEvent from '@testing-library/user-event';
 import { cloneElement } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AbilityContext } from '@/app/context/ability-context';
+import { defineAbilityFor } from '@/lib/permissions/ability';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
@@ -16,7 +18,20 @@ const { locale } = vi.hoisted(() => ({
 }));
 
 const catalogs = { en: enMessages, de: deMessages, fr: frMessages };
+
+/** An Admin's rights: the ones that may raise the limit of agent workers. */
+const ADMIN = defineAbilityFor('admin');
 const uiCatalogs = { en: enUiMessages, de: deUiMessages, fr: frUiMessages };
+
+/** A `tasks` key read from the active locale's catalog by its dotted path. */
+function tasksMessage(key: string): string | undefined {
+  let node: unknown = catalogs[locale.value].tasks;
+  for (const part of key.split('.')) {
+    if (typeof node !== 'object' || node === null) return undefined;
+    node = (node as Record<string, unknown>)[part];
+  }
+  return typeof node === 'string' ? node : undefined;
+}
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: () => ({
@@ -47,8 +62,12 @@ vi.mock('@tale/ui/i18n/client', () => ({
       if (key === 'agentRun.status.running') return 'Working';
       if (key === 'agentRun.status.settled') return 'Reported for review';
       if (key === 'agentRun.status.queued') return 'Queued';
-      if (key === 'agentRun.waitingForSlot') {
-        return 'Waiting for a sandbox slot';
+      if (
+        key.startsWith('agentRun.waiting.') ||
+        key.startsWith('agentRun.waitingWhy.') ||
+        key === 'agentRun.manageWorkers'
+      ) {
+        return tasksMessage(key) ?? key;
       }
       if (key === 'agentRun.autoRetrying') {
         return `Auto-retry ${String(values?.n)} of ${String(values?.max)}`;
@@ -107,6 +126,24 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({ toast }));
+
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  Link: ({
+    children,
+    to,
+    params,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    to: string;
+    params: { id: string };
+  }) => (
+    <a href={to.replace('$id', params.id)} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 
 // Routes the card's two reads: the run-card query (args carry `taskId`) and
 // the details dialog's op query (args carry `runId`, `'skip'` until opened).
@@ -620,10 +657,17 @@ describe('TaskAgentRunEntry details', () => {
     expect(screen.queryByText(/were read by/)).not.toBeInTheDocument();
   });
 
-  it('says a capacity-parked run is waiting for a slot, not just queued', async () => {
-    // "Queued" reads as "about to start"; a run parked on the org's full
-    // sandbox budget can sit a while — the strip says what it waits on.
-    state.run = { ...settledRun(), status: 'queued', waitingForCapacity: true };
+  it('says a run waiting for a worker waits for one, why, and that Stop withdraws it', () => {
+    // "Queued" reads as "about to start"; a run waiting for one of the
+    // organization's agent workers can sit a while — the strip says what it
+    // waits on and why.
+    state.run = {
+      ...settledRun(),
+      status: 'queued',
+      settledAt: undefined,
+      waitingForCapacity: true,
+      waitingReason: 'org_limit',
+    };
     state.op = null;
     render(
       <TaskAgentRunEntry
@@ -633,9 +677,127 @@ describe('TaskAgentRunEntry details', () => {
         canEdit
       />,
     );
-    expect(screen.getByText('Waiting for a sandbox slot')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Waiting for a worker' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "All of your organization's agent workers are busy. The run starts on its own when one is free.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Queued')).not.toBeInTheDocument();
+    // A waiting run is live: whoever may stop it can withdraw it.
+    expect(
+      screen.getByRole('button', { name: 'agentRun.cancel' }),
+    ).toBeInTheDocument();
+    // The limit is not this reader's to raise.
+    expect(
+      screen.queryByRole('link', { name: 'Manage agent workers' }),
+    ).toBeNull();
   });
+
+  it('sends an Owner or Admin to the workers limit when every worker is busy', () => {
+    state.run = {
+      ...settledRun(),
+      status: 'queued',
+      settledAt: undefined,
+      waitingForCapacity: true,
+      waitingReason: 'org_limit',
+    };
+    state.op = null;
+    const { rerender } = render(
+      <AbilityContext.Provider value={ADMIN}>
+        <TaskAgentRunEntry
+          organizationId="org-1"
+          taskId={taskId}
+          assigneeId="agent-1"
+          canEdit
+        />
+      </AbilityContext.Provider>,
+    );
+    expect(
+      screen.getByRole('link', { name: 'Manage agent workers' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/settings/sandboxes');
+
+    // A wait the limit does not cause offers no way to raise it.
+    state.run = { ...(state.run as object), waitingReason: 'host' };
+    rerender(
+      <AbilityContext.Provider value={ADMIN}>
+        <TaskAgentRunEntry
+          organizationId="org-1"
+          taskId={taskId}
+          assigneeId="agent-1"
+          canEdit
+        />
+      </AbilityContext.Provider>,
+    );
+    expect(screen.getByText('Waiting for room')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: 'Manage agent workers' }),
+    ).toBeNull();
+  });
+
+  it.each([
+    ['host', 'Waiting for room', /sandbox host is full/],
+    ['destroy_pending', 'Waiting for a workspace', /deleting the workspace/],
+    ['exec_limit', 'Waiting for its sandbox', /finishing an earlier process/],
+    [undefined, 'Waiting for a worker', /as soon as there is room for it/],
+  ] as const)(
+    'words a wait for %s as its own short state and sentence',
+    (reason, label, why) => {
+      state.run = {
+        ...settledRun(),
+        status: 'queued',
+        settledAt: undefined,
+        waitingForCapacity: true,
+        ...(reason !== undefined ? { waitingReason: reason } : {}),
+      };
+      state.op = null;
+      render(
+        <TaskAgentRunEntry
+          organizationId="org-1"
+          taskId={taskId}
+          assigneeId="agent-1"
+          canEdit
+        />,
+      );
+      expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
+      expect(screen.getByText(why)).toBeInTheDocument();
+    },
+  );
+
+  it.each(['de', 'fr'] as const)(
+    'words a wait for a worker in %s from its own catalog',
+    (language) => {
+      locale.value = language;
+      state.run = {
+        ...settledRun(),
+        status: 'queued',
+        settledAt: undefined,
+        waitingForCapacity: true,
+        waitingReason: 'org_limit',
+      };
+      state.op = null;
+      render(
+        <TaskAgentRunEntry
+          organizationId="org-1"
+          taskId={taskId}
+          assigneeId="agent-1"
+          canEdit
+        />,
+      );
+      expect(
+        screen.getByRole('button', {
+          name: catalogs[language].tasks.agentRun.waiting.org_limit,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          catalogs[language].tasks.agentRun.waitingWhy.org_limit,
+        ),
+      ).toBeInTheDocument();
+    },
+  );
 
   it('labels a live machine-kicked retry with its streak position', () => {
     // The user watched the run fail; without the caption the platform's own

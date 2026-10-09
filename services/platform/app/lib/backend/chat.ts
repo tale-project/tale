@@ -1022,6 +1022,7 @@ export function videoJobsUnboundQuery(organizationId: string) {
 export async function ingestVideoUrlRequest(args: {
   organizationId: string;
   threadId?: string;
+  projectId?: string;
   url: string;
   pastedToken: string;
   userLocale?: string;

@@ -33,14 +33,18 @@ export async function checkManagedAgentTools(
   const projectId = ids.projectId;
   const agentId = randomUUID();
   const futureRevision = Date.now() + 86_400_000;
+  // Written with its mention handle, as this release creates an agent: a
+  // row without one is an agent of the previous release, which the next
+  // save of the project's agents fills in.
   await sql`
     INSERT INTO app.project_agents (
       id, org_id, project_id, name, harness, model, model_provider,
       skills, connectors, tools, secrets, instructions, managed, created_by,
-      created_at_ms, updated_at_ms
+      created_at_ms, updated_at_ms, handle, legacy_handles
     ) SELECT ${agentId}, org_id, project_id, 'Managed tool fixture', harness,
       model, model_provider, skills, connectors, ARRAY['task_get']::text[],
-      secrets, instructions, false, created_by, created_at_ms, ${futureRevision}
+      secrets, instructions, false, created_by, created_at_ms, ${futureRevision},
+      'managed-tool-fixture', ARRAY[]::text[]
     FROM app.project_agents WHERE id = ${ids.agentId}
       AND project_id = ${projectId} AND org_id = ${ctx.orgId}
   `;

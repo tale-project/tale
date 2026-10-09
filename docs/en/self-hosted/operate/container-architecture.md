@@ -39,6 +39,20 @@ The runtime also supplies Chromium and Playwright for page rendering and documen
 
 The egress service blocks private and metadata destinations and can enforce a hostname allowlist. An unavailable egress path can cause refusals or network failures; the precise error depends on the operation. [Hardening](/self-hosted/operate/security/hardening) describes the policy, and [Run Compose yourself](/self-hosted/install/own-compose) lists required capabilities and mounts.
 
+## Keep sessions running through a Docker restart
+
+Sandbox sessions and the spawner run as containers of the host's Docker daemon. Unless the daemon's live restore is on, restarting it, for a package upgrade or a change to `/etc/docker/daemon.json`, stops them all: running agent turns, builds and page renders end, while their workspaces are kept. Tale leaves the host's daemon configuration to you; the spawner logs a warning at start while live restore is off.
+
+To turn it on, add the setting to `/etc/docker/daemon.json`, keeping the file's other entries:
+
+```json
+{
+  "live-restore": true
+}
+```
+
+Then reload the daemon with `sudo systemctl reload docker`, or send `SIGHUP` to `dockerd` on a host without systemd. A reload applies the setting without stopping containers. Live restore keeps containers running across a daemon restart and a patch-release upgrade; an upgrade to a new Docker release line can still stop them, so plan it like a maintenance window. Live restore is incompatible with Swarm mode: on a Swarm node, schedule daemon restarts as maintenance instead. [Docker's live restore guide](https://docs.docker.com/engine/daemon/live-restore/) lists the remaining limits.
+
 ## Recognize knowledge-index repair
 
 A damaged BM25 index can cause ingestion failures even when the underlying document tables remain readable. The backend checks knowledge indexes with `pdb.verify_index`; an advisory lock coordinates repair attempts for a database. Organization-specific databases are checked when they are first used.

@@ -203,7 +203,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   task_get:
     'Read one task in full — description, project, subtasks and blockers ' +
     '(each with its taskId), comments, its project-agent runs, its ' +
-    'automation run and a pending review. Args: {taskId: string, ' +
+    'automation run and a pending review. A mention in the description or a ' +
+    'comment reads [@Name](mention:agent/<agentId>) (kind user, agent or ' +
+    'automation): Name is who it names today, the id what to act on. ' +
+    'Args: {taskId: string, ' +
     'commentLimit?: number (≤ 50, default 20), commentCursor?: string, ' +
     'runLimit?: number (≤ 20, default 5), runCursor?: string, ' +
     'reviewFileCursor?: string}. For a compact run observation use only ' +
@@ -267,7 +270,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'bodyByLocale?: {en: string, de: string, fr: string, [locale: string]: string}}. ' +
     'Keep body in the task language; for UI progress provide equivalent ' +
     'nonblank translations in bodyByLocale (the same limit each, at most ' +
-    `${TASK_COMMENT_LOCALES_MAX} locales in all). ${LENGTH_UNIT_NOTE}`,
+    `${TASK_COMMENT_LOCALES_MAX} locales in all). ${LENGTH_UNIT_NOTE} ` +
+    'Mention a person, agent or automation by copying a mention as task_get ' +
+    'shows it, or as @handle: a person you name is notified; an agent or ' +
+    'automation you name is not started.',
   task_update_status:
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
@@ -296,15 +302,20 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'or claims it is still live. A later live run of the same manager can ' +
     'replay; current grant and project authority are checked every time. ' +
     'Never fall back from a refused repair to an unguarded start. Answers ' +
-    '{started, runId, reason?}: reason stale_repair (the rejected review no ' +
+    '{started, runId, reason?, waitingReason?}. An agent working other tasks ' +
+    'is started all the same, in a worker of its own; waitingReason on a ' +
+    'started run says why it waits for room (org_limit: every agent worker ' +
+    'is in use; host: the sandbox host is full; destroy_pending: its ' +
+    'workspace is being deleted; exec_limit: its sandbox is still ending an ' +
+    'earlier process) and that it starts by itself. reason stale_repair (the rejected review no ' +
     'longer authorizes this repair; reread and retire the outdated intent), ' +
     'stale_question (that question is no ' +
     'longer open — the task was decided, a newer run or review exists, or the ' +
     'assignee changed; nothing changed), already_running (the task is being ' +
     'worked), in_review or ' +
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
-    'agent_busy (that agent is working another task — wait or work on ' +
-    'another task), blocked (an open task blocks it) or paused (three automated ' +
+    'self_start (you named yourself; hand the task to another agent), ' +
+    'blocked (an open task blocks it) or paused (three automated ' +
     'starts on this task within the hour, their automatic retries ' +
     'included) start nothing. The run answers to whoever your run ' +
     'answers to and names you as the agent that started it; an agent you ' +

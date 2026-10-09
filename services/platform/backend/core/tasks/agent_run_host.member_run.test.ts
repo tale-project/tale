@@ -5,7 +5,9 @@
  * and the turn is told so, by name, with what to do instead (an editor
  * starts the agent when the work needs them). A run an editor started gets
  * them as before. The test drives the REAL start and steer hosts with only
- * external I/O replaced, and reads the exec each one builds.
+ * external I/O replaced, and reads the exec each one builds. A launch asks
+ * for its instructions, confinement and language together, and resolves
+ * the credentials only once all of them answered.
  */
 
 import { createHash } from 'node:crypto';
@@ -24,7 +26,24 @@ const io = vi.hoisted(() => ({
   execs: [] as Record<string, unknown>[],
   /** The rotations a steer claimed. */
   rotations: [] as Record<string, unknown>[],
+  /** Once set, the launch reads named here answer only after all of them
+   * were asked — reads made one after another would never answer. */
+  overlap: null as {
+    asked: Set<string>;
+    all: Promise<void>;
+    release: () => void;
+  } | null,
+  /** The launch reads answered and the equipment resolved, in order. */
+  events: [] as string[],
+  armOverlap: false,
 }));
+
+/** The reads a launch makes once its run is flipped running. */
+const LAUNCH_READS = [
+  'tasks/agent_runs:getTaskAgentRunAuthority',
+  'tasks/agent_runs:getAgentLanguageContext',
+  'governance/internal_queries:getPolicyConfigInternal',
+];
 
 const { resolveTurnEquipmentEnv } = vi.hoisted(() => ({
   resolveTurnEquipmentEnv: vi.fn(),
@@ -109,6 +128,21 @@ function makeCtx() {
   const ctx = {
     runQuery: async (ref: unknown) => {
       const name = functionRefName(ref);
+      const overlap = io.overlap;
+      if (overlap !== null && LAUNCH_READS.includes(name)) {
+        overlap.asked.add(name);
+        if (overlap.asked.size === LAUNCH_READS.length) overlap.release();
+        await Promise.race([
+          overlap.all,
+          new Promise((_resolve, reject) =>
+            setTimeout(
+              () => reject(new Error(`${name} was read on its own`)),
+              2_000,
+            ),
+          ),
+        ]);
+        io.events.push(name);
+      }
       if (name === 'tasks/agent_runs:getTaskAgentRunForDrive') {
         return {
           status: run.status,
@@ -157,6 +191,13 @@ function makeCtx() {
       }
       if (name === 'tasks/agent_runs:setTaskAgentRunRunning') {
         run.status = 'running';
+        if (io.armOverlap) {
+          let release = () => {};
+          const all = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          io.overlap = { asked: new Set(), all, release };
+        }
         return true;
       }
       if (name === 'tasks/agent_runs:rotateTaskAgentRunExec') {
@@ -218,6 +259,9 @@ beforeEach(() => {
   io.tokens.clear();
   io.execs = [];
   io.rotations = [];
+  io.overlap = null;
+  io.armOverlap = false;
+  io.events = [];
   resolveTurnEquipmentEnv.mockResolvedValue({
     VAT_API_KEY: 'vat-secret',
     GITHUB_TOKEN: 'gh-token',
@@ -240,6 +284,10 @@ describe('a run a member started', () => {
     expect(exec.instructions).toContain('an editor has to start the agent');
     expect(exec.instructions).not.toContain(
       'Credentials for this run are provided',
+    );
+    // Its workspace is one of the member's own workers.
+    expect(exec.instructions).toContain(
+      'is kept for the runs this member starts with you; their other runs work in workspaces of their own',
     );
   });
 
@@ -284,5 +332,27 @@ describe('a run an editor started', () => {
       'Credentials for this run are provided',
     );
     expect(exec.instructions).not.toContain('started by a member');
+    // Its workspace is its worker's own; other copies work other tasks.
+    expect(exec.instructions).toContain(
+      'belongs to this worker: other copies of you work other tasks at the same time in workspaces of their own',
+    );
+  });
+});
+
+describe('a launch', () => {
+  it('reads its instructions, confinement and language together, and resolves credentials only after them', async () => {
+    io.armOverlap = true;
+    resolveTurnEquipmentEnv.mockImplementation(async () => {
+      io.events.push('equipment');
+      return { VAT_API_KEY: 'vat-secret' };
+    });
+
+    await startTaskAgentTurnImpl(makeCtx(), { ...KEYS, sweep: true } as never);
+
+    expect(io.events.slice(0, LAUNCH_READS.length).sort()).toEqual(
+      [...LAUNCH_READS].sort(),
+    );
+    expect(io.events.at(-1)).toBe('equipment');
+    expect(lastExec().extraEnv).toEqual({ VAT_API_KEY: 'vat-secret' });
   });
 });

@@ -80,6 +80,7 @@ import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
@@ -136,6 +137,7 @@ import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integr
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts';
 import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
@@ -17566,15 +17568,16 @@ async function checkGovernance(
     `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
   );
 
-  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
-  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // Budget scope alignment over the live 0.5 enforcer (`checkOrgBudget`,
+  // the shared gate every lane measures with): a default-tier
   // token cap is a PERSONAL cap, measured against the member's own usage;
   // a team rule is a SHARED cap, measured against the usage of the team's
   // CURRENT members with the team rule's own values — read through
   // membership, never the ledger's `team_id`, which most lanes do not book.
   // Two members whose combined tokens exceed the per-member cap must both
   // stay allowed; the team's own cost cap must still bind the aggregate.
-  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const { checkOrgBudget } =
+    await import('./domains/governance/budget-gate.ts');
   const teammate = 'itest-budget-teammate';
   await sql`
     INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
@@ -17653,9 +17656,9 @@ async function checkGovernance(
     prospectiveCostCents: 0,
     prospectiveRequests: 0,
   };
-  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  const mixedScopes = await checkOrgBudget(sql, budgetArgs);
   await seedTeamUsage(teammate, 0, 150);
-  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  const teamCapHit = await checkOrgBudget(sql, budgetArgs);
   await unlink(path.join(governanceDir, 'budgets.yml'));
   orgConfig.clearOrgConfigCaches();
   record(
@@ -26151,7 +26154,7 @@ async function checkTasksCollabIntegrity(
   // leg failing rejects (MENTION_DIRECTORY_UNAVAILABLE, 503) instead of
   // answering a partial directory that turns `@teammate` into plain text;
   // the healthy resolution still names the teammate.
-  const { MentionDirectoryError, resolveSurfaceMentions } =
+  const { MentionDirectoryError, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const instanceLegDown = Object.assign(
     (strings: TemplateStringsArray, ...values: unknown[]): unknown => {
@@ -26167,18 +26170,26 @@ async function checkTasksCollabIntegrity(
     },
     { json: sql.json.bind(sql), unsafe: sql.unsafe.bind(sql) },
   );
-  const degraded: unknown = await resolveSurfaceMentions(
+  const degraded: unknown = await prepareSurfaceText(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tag + json/unsafe stand-in over the real handle
     instanceLegDown as unknown as Sql,
-    { organizationId: orgId, body: `@${reviewer} please look`, projectId },
+    {
+      organizationId: orgId,
+      body: `@${reviewer} please look`,
+      projectId,
+      cap: 10_000,
+      mode: 'full',
+    },
   ).then(
     () => 'resolved',
     (error: unknown) => error,
   );
-  const healthy = await resolveSurfaceMentions(sql, {
+  const healthy = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: `@${reviewer} please look`,
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   // Typed against the module's export so the probe stays a plain FAIL (not
   // a crash) on a tree that has no `MentionDirectoryError` yet.
@@ -26260,26 +26271,25 @@ async function checkCollabMentions(
   `;
   const agentInstanceId = agentRows[0]?.id ?? '';
 
-  const { buildMentionDirectory, resolveSurfaceMentions } =
+  const { buildMentionDirectory, prepareSurfaceText } =
     await import('./domains/collab/mention-directory.ts');
   const directory = await buildMentionDirectory(sql, {
     organizationId: orgId,
     projectId,
   });
-  const handleOwners = new Map<string, string>();
-  for (const entry of directory.entries) {
-    for (const handle of entry.handles) {
-      handleOwners.set(handle, `${entry.type}:${entry.id}`);
-    }
-  }
-  // The instance goes LAST so its handle wins a clash.
+  // The agent answers to its older name form as well as its handle.
+  const resolvedReviewer = directory.index.resolve('pr.reviewer');
   const instanceShadows =
-    handleOwners.get('pr.reviewer') === `agent:${agentInstanceId}`;
+    resolvedReviewer !== null &&
+    `${resolvedReviewer.kind}:${resolvedReviewer.id}` ===
+      `agent:${agentInstanceId}`;
 
-  const resolved = await resolveSurfaceMentions(sql, {
+  const resolved = await prepareSurfaceText(sql, {
     organizationId: orgId,
     body: '@mention-teammate-1 and @pr.reviewer please look; @nobody-here too',
     projectId,
+    cap: 10_000,
+    mode: 'full',
   });
   const mentionKeys = resolved.mentions.map(
     (mention) => `${mention.type}:${mention.id}`,
@@ -26287,7 +26297,7 @@ async function checkCollabMentions(
   record(
     'mentions: the directory scopes to the project and resolves agent instances',
     directory.entries.some(
-      (entry) => entry.type === 'user' && entry.id === teammate,
+      (entry) => entry.kind === 'user' && entry.id === teammate,
     ) &&
       instanceShadows &&
       mentionKeys.includes(`user:${teammate}`) &&
@@ -60057,6 +60067,8 @@ async function checkWatchdogs(
           : { destroyed: false, busy: true },
       );
     },
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: true }),
   };
   const tick1 = await sandboxWatchdogs.runSandboxWatchdog(sql, {
     reconcileBatch: 2,
@@ -60226,6 +60238,8 @@ async function checkWatchdogs(
             : { destroyed: true, busy: false },
         );
       },
+      stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+        Promise.resolve({ stopped: false, busy: true }),
     },
   });
   const releaseRows = await sql<
@@ -60318,6 +60332,8 @@ async function checkWatchdogs(
     },
     destroyIfIdle: (): Promise<{ destroyed: boolean; busy: boolean }> =>
       Promise.resolve({ destroyed: false, busy: false }),
+    stopIfIdle: (): Promise<{ stopped: boolean; busy: boolean }> =>
+      Promise.resolve({ stopped: false, busy: false }),
   };
   const orgLaneRows = [
     'wd-org-phantom',
@@ -60398,12 +60414,13 @@ async function checkWatchdogs(
   `;
 
   // Lane 3c: the failed-create collect (#3494). A failed row whose spawner
-  // session is still live is destroyed and stamped by primary key, keeping
-  // `failed`; a failed row whose deterministic id a newer, hibernated
-  // incarnation carries is stamped WITHOUT a spawner call, and that
-  // incarnation's row and token stay untouched; a busy session and a failure
-  // inside the grace wait. The scripted spawner answers busy for every
-  // session outside this lane, so rows other lanes left are not disturbed.
+  // session is still live is removed (an agent session's compute alone, its
+  // workspace kept) and stamped by primary key, keeping `failed`; a failed
+  // row whose deterministic id a newer, hibernated incarnation carries is
+  // stamped WITHOUT a spawner call, and that incarnation's row and token
+  // stay untouched; a busy session and a failure inside the grace wait. The
+  // scripted spawner answers busy for every session outside this lane, so
+  // rows other lanes left are not disturbed.
   const collectAt = now - 2 * 3_600_000;
   await sql`
     INSERT INTO app.sandbox_sessions (
@@ -60437,6 +60454,17 @@ async function checkWatchdogs(
     )
   `;
   const collectAsked: string[] = [];
+  // These lanes' failed rows are automation runs' agent sessions, whose
+  // leftovers lose their compute alone (`stopIfIdle`); a render's would be
+  // destroyed whole. Both answer the same script.
+  const collectAnswer = (
+    sessionId: string,
+  ): { removed: boolean; busy: boolean } => {
+    collectAsked.push(sessionId);
+    return sessionId === 'wd-collect-live'
+      ? { removed: true, busy: false }
+      : { removed: false, busy: true };
+  };
   const collectSpawner = {
     isAlive: (): Promise<boolean> => Promise.resolve(true),
     setPinned: (): Promise<boolean> => Promise.resolve(true),
@@ -60444,12 +60472,14 @@ async function checkWatchdogs(
     destroyIfIdle: (
       sessionId: string,
     ): Promise<{ destroyed: boolean; busy: boolean }> => {
-      collectAsked.push(sessionId);
-      return Promise.resolve(
-        sessionId === 'wd-collect-live'
-          ? { destroyed: true, busy: false }
-          : { destroyed: false, busy: true },
-      );
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ destroyed: removed, busy });
+    },
+    stopIfIdle: (
+      sessionId: string,
+    ): Promise<{ stopped: boolean; busy: boolean }> => {
+      const { removed, busy } = collectAnswer(sessionId);
+      return Promise.resolve({ stopped: removed, busy });
     },
   };
   const readCollectRows = () => sql<
@@ -60585,6 +60615,12 @@ async function checkWatchdogs(
         refusedAsked.push(sessionId);
         return Promise.resolve({ destroyed: false, busy: true });
       },
+      stopIfIdle: (
+        sessionId: string,
+      ): Promise<{ stopped: boolean; busy: boolean }> => {
+        refusedAsked.push(sessionId);
+        return Promise.resolve({ stopped: false, busy: true });
+      },
     },
   });
   const refusedAfter = await sql<
@@ -60607,7 +60643,11 @@ async function checkWatchdogs(
 
   // What waiting for room leaves behind goes: the op rows of refused starts
   // an hour after they ended — the session's newest kept, the run view
-  // reads it — and failed session rows a day after they were collected.
+  // reads it — and failed session rows a day after they were collected,
+  // except the newest row of a project agent's id: a collected failed
+  // create of an agent session keeps its workspace, and that row is what
+  // the unused, member and agent cleanup find it by. A first create that
+  // failed leaves such a row alone; an automation run's goes all the same.
   const waitSession = `wf-wd-wait-${randomUUID()}`;
   const hourAgo = now - 2 * 60 * 60 * 1000;
   for (const [execId, startedAt] of [
@@ -60636,16 +60676,27 @@ async function checkWatchdogs(
     )
   `;
   const day = 24 * 60 * 60 * 1000;
-  const collectedRows = await sql<{ id: string; old: boolean }[]>`
+  const collectedRows = await sql<{ id: string; label: string }[]>`
     INSERT INTO app.sandbox_sessions (
       org_id, session_id, status, owner_type, owner_id, created_by,
       created_at_ms, expires_at_ms, destroyed_at_ms
     ) VALUES
       (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 180_000}, ${now}, ${now - day - 150_000}),
+      (${orgId}, 'pa-wd-collected-old', 'failed', 'project_agent', 'agent-wd',
+       'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
+      (${orgId}, 'pa-wd-collected-lone', 'failed', 'project_agent',
+       'agent-wd', 'itest', ${now - day - 120_000}, ${now},
+       ${now - day - 60_000}),
+      (${orgId}, 'wf-wd-collected-lone', 'failed', 'workflow_run', 'run-wd',
        'itest', ${now - day - 120_000}, ${now}, ${now - day - 60_000}),
       (${orgId}, 'pa-wd-collected-new', 'failed', 'project_agent', 'agent-wd',
        'itest', ${now - 120_000}, ${now}, ${now - 60_000})
-    RETURNING id, destroyed_at_ms < ${now - day} AS old
+    RETURNING id,
+      session_id || CASE
+        WHEN session_id = 'pa-wd-collected-old'
+          AND created_at_ms = ${now - day - 180_000}
+        THEN ':older' ELSE '' END AS label
   `;
   const { sweepRoomWaitLeftovers } =
     await import('./domains/sandbox/wait-retention.ts');
@@ -60656,17 +60707,25 @@ async function checkWatchdogs(
       WHERE session_id = ${waitSession} ORDER BY started_at_ms
     `
   ).map((row) => row.execId);
-  const collectedLeft = await sql<{ id: string }[]>`
-    SELECT id FROM app.sandbox_sessions
-    WHERE id = ANY(${collectedRows.map((row) => row.id)})
-  `;
-  const keptRecent = collectedRows.find((row) => !row.old)?.id;
+  const collectedLeft = new Set(
+    (
+      await sql<{ id: string }[]>`
+        SELECT id FROM app.sandbox_sessions
+        WHERE id = ANY(${collectedRows.map((row) => row.id)})
+      `
+    ).map((row) => row.id),
+  );
+  const collectedKept = collectedRows
+    .filter((row) => collectedLeft.has(row.id))
+    .map((row) => row.label)
+    .sort()
+    .join(',');
+  const wantKept =
+    'pa-wd-collected-lone,pa-wd-collected-new,pa-wd-collected-old';
   record(
-    'what waiting for room leaves behind is deleted past its retention, the newest op and a keyed one kept',
-    waitOpsLeft.join(',') === 'wait-keyed,wait-3' &&
-      collectedLeft.length === 1 &&
-      collectedLeft[0]?.id === keptRecent,
-    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions=${collectedLeft.length}/1 recent kept=${String(collectedLeft[0]?.id === keptRecent)}`,
+    "what waiting for room leaves behind is deleted past its retention, the newest op, a keyed one and a project agent's newest row kept",
+    waitOpsLeft.join(',') === 'wait-keyed,wait-3' && collectedKept === wantKept,
+    `ops=${waitOpsLeft.join(',')} (want wait-keyed,wait-3) sessions kept=${collectedKept} (want ${wantKept})`,
   );
 
   // Lane 4: a stale chat generation (hard-killed turn) clears; the thread
@@ -63908,6 +63967,24 @@ async function main(): Promise<void> {
       ],
       ['checkCollabMentions', () => checkCollabMentions(sql, baseUrl, authCtx)],
       [
+        'checkMentionHandles',
+        async () =>
+          checkMentionHandles(
+            sql,
+            {
+              ...authCtx,
+              base: baseUrl,
+              orgSlug: `itest-${orgSuffix}`,
+              restKey: await mintRestKey(
+                baseUrl,
+                authCtx.cookie,
+                'Mention handles proof',
+              ),
+            },
+            record,
+          ),
+      ],
+      [
         'checkTaskDescriptionMentions',
         () => checkTaskDescriptionMentions(sql, authCtx, record),
       ],
@@ -64094,6 +64171,7 @@ async function main(): Promise<void> {
         'checkExecLimitPark',
         () => checkExecLimitPark(sql, baseUrl, authCtx, record),
       ],
+      ['checkAgentWorkers', () => checkAgentWorkers(sql, authCtx, record)],
       [
         'checkTaskRunConnectorCaller',
         () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),

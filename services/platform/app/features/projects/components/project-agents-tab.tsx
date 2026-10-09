@@ -246,6 +246,9 @@ export function ProjectAgentsTab({
                           variant="caption"
                           className="text-muted-foreground truncate"
                         >
+                          {agent.handle !== undefined
+                            ? `@${agent.handle} · `
+                            : ''}
                           {option?.label ?? agent.harness}
                           {agent.modelProvider !== undefined
                             ? ` · ${providerLabelBySlug.get(agent.modelProvider) ?? agent.modelProvider}`

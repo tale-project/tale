@@ -57,6 +57,8 @@ without a new approval. A request that has finished in the meantime is not run a
 | runs of a project agent | kept, with the person's identity replaced by a pseudonym |
 | finished model API and direct automation model requests | deleted |
 | model API and direct automation model requests still in progress | kept, with the person's identity replaced by a pseudonym |
+| finished model calls Tale made for them (a chat title, Improve with AI, a transcription) | deleted |
+| such model calls still in progress | kept, with the person's identity replaced by a pseudonym, so their cost is booked under it |
 
 The receipt counts each of these steps. Automation runs are retired before their model
 requests lose the identity, so an admitted call that finishes later books only under the
@@ -108,8 +110,8 @@ and the category breakdown read both historical count shapes and agree on erased
 
 - **Who can file, approve and retry a request**, and the second admin's approval itself: see
   the approvals spec for who can decide an erasure approval.
-- **Everything else an erasure removes**: chats, documents, files, preferences and the rest
-  (`service.ts`). An integration lane covers the hand-over of reviews; the guard does not read
-  it.
+- **Everything else an erasure removes**: chats, documents, files, preferences, the person's
+  name and id in other people's mentions of them, and the rest (`service.ts`). An integration
+  lane covers the hand-over of reviews; the guard does not read it.
 - **The waiting period** before an approved request runs, and the receipt's states.
 - **A request that takes too long**: it is ended with a message and can be retried.

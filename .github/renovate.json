@@ -24,12 +24,16 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^services/sandbox/src/volume\\.ts$/"],
-      "matchStrings": [
-        "CACHE_PERMISSION_IMAGE\\s*=\\s*'(?<depName>busybox):(?<currentValue>[^'@\\s]+)@(?<currentDigest>sha256:[a-f0-9]{64})'"
+      "description": "The buildkitd pull-through registry mirror the spawner pulls at runtime, pinned by version and digest as an environment default rather than an image key, so no built-in manager sees it",
+      "managerFilePatterns": [
+        "/(^|/)compose\\.yml$/",
+        "/^services/sandbox/src/config(\\.test)?\\.ts$/",
+        "/^tools/cli/src/lib/compose/types\\.ts$/"
       ],
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "docker"
+      "matchStrings": [
+        "(?<depName>registry):(?<currentValue>\\d+\\.\\d+\\.\\d+)@(?<currentDigest>sha256:[a-f0-9]{64})"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
