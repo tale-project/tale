@@ -154,6 +154,16 @@ function forgetStagedSource(path: string): void {
 function settledStat(info: BigIntStats): StagedStat | undefined {
   if (Date.now() - Number(info.ctimeNs / 1_000_000n) < STAGED_STAT_SETTLE_MS)
     return undefined;
+  // A time before 1970 (`touch -d 1960-01-01`) is negative: the manifest keeps
+  // decimal stats only, so such a file is hashed instead. The millisecond
+  // fields are read too: Bun reports such a time as 0 in nanoseconds.
+  if (
+    info.mtimeNs < 0n ||
+    info.ctimeNs < 0n ||
+    info.mtimeMs < 0n ||
+    info.ctimeMs < 0n
+  )
+    return undefined;
   return {
     dev: String(info.dev),
     ino: String(info.ino),

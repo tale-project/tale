@@ -65,11 +65,13 @@ describe('the staged-files manifest', () => {
       ['p', 'blob:a', DIGEST, '1', '2', '-3', '4', '5'],
     ],
     ['an entry of the wrong length', ['p', 'blob:a', DIGEST, '1']],
-  ])('is ignored whole when it holds %s', (_, entry) => {
-    // Signed correctly: only the shape is wrong.
+    ['a source longer than the API allows', ['p', 'x'.repeat(2049), DIGEST]],
+  ])('drops an entry that holds %s, and keeps the others', (_, entry) => {
+    // Signed correctly: only the one entry's shape is wrong.
+    const good = ['q', 'blob:good', DIGEST];
     const text = encodeStagedManifest([], 'token').replace(
       '"entries":[]',
-      `"entries":${JSON.stringify([entry])}`,
+      `"entries":${JSON.stringify([entry, good])}`,
     );
     const parsed: unknown = JSON.parse(text);
     if (
@@ -83,7 +85,17 @@ describe('the staged-files manifest', () => {
       .update(`tale-staged-sources-v1\n${JSON.stringify(parsed.entries)}`)
       .digest('hex');
     const signed = JSON.stringify({ ...parsed, mac });
-    expect(decodeStagedManifest(signed, 'token', anyPath)).toBeNull();
+    expect(decodeStagedManifest(signed, 'token', anyPath)).toEqual(
+      new Map([['q', { sourceId: 'blob:good', digest: DIGEST }]]),
+    );
+  });
+
+  test('keeps a source as long as the API allows', () => {
+    const long: Array<[string, StagedSource]> = [
+      ['p', { sourceId: 'x'.repeat(2048), digest: DIGEST }],
+    ];
+    const text = encodeStagedManifest(long, 'token');
+    expect(decodeStagedManifest(text, 'token', anyPath)).toEqual(new Map(long));
   });
 
   test('drops the entries whose path may not be staged', () => {
