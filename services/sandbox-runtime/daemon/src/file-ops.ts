@@ -4,7 +4,7 @@
 // boundary the exec cwd check enforces.
 
 import { createHash, randomUUID } from 'node:crypto';
-import { constants } from 'node:fs';
+import { constants, type BigIntStats } from 'node:fs';
 import {
   lstat,
   open,
@@ -21,6 +21,13 @@ import { basename, join, normalize } from 'node:path';
 import { Readable } from 'node:stream';
 
 import { WORKSPACE_ROOT } from './protocol.ts';
+import {
+  decodeStagedManifest,
+  encodeStagedManifest,
+  STAGED_MANIFEST_MAX_BYTES,
+  type StagedSource,
+  type StagedStat,
+} from './staged-manifest.ts';
 
 function workspaceRoot(): string {
   return process.env.TALE_WORKSPACE_ROOT ?? WORKSPACE_ROOT;
@@ -80,19 +87,216 @@ const STAGE_MAX_ACTIVE = 2;
 const STAGE_MANIFEST_LIMIT = 4096;
 let activeStages = 0;
 let reconcilingStage = false;
-const stagedSources = new Map<string, { sourceId: string; digest: string }>();
+/** By absolute workspace path; persisted (staged-manifest.ts). */
+const stagedSources = new Map<string, StagedSource>();
+/** The manifest changed since it was last written. */
+let stagedSourcesDirty = false;
+
+/** Where the manifest of staged sources lives: in the workspace, so it
+ * survives the container, and outside the exec temp a stop retires. */
+const STAGED_MANIFEST_PATH = '.runtime/staged-sources.json';
+/** A stat tuple is recorded only for a file whose ctime is at least this old
+ * when its hash is verified (staged-manifest.ts). */
+const STAGED_STAT_SETTLE_MS = 2_000;
+
+function stagedManifestKey(): string {
+  return process.env.TALE_RUNNERD_TOKEN ?? '';
+}
+
+function sameStat(a: StagedStat | undefined, b: StagedStat | undefined) {
+  return (
+    a === b ||
+    (a !== undefined &&
+      b !== undefined &&
+      a.dev === b.dev &&
+      a.ino === b.ino &&
+      a.size === b.size &&
+      a.mtimeNs === b.mtimeNs &&
+      a.ctimeNs === b.ctimeNs)
+  );
+}
 
 function rememberStagedSource(
   path: string,
   sourceId: string | undefined,
   digest: string,
+  verified?: StagedStat,
 ): void {
+  const previous = stagedSources.get(path);
   stagedSources.delete(path);
-  if (!sourceId) return;
-  stagedSources.set(path, { sourceId, digest });
+  if (!sourceId) {
+    if (previous !== undefined) stagedSourcesDirty = true;
+    return;
+  }
+  stagedSources.set(path, {
+    sourceId,
+    digest,
+    ...(verified ? { stat: verified } : {}),
+  });
+  if (
+    previous?.sourceId !== sourceId ||
+    previous.digest !== digest ||
+    !sameStat(previous.stat, verified)
+  )
+    stagedSourcesDirty = true;
   while (stagedSources.size > STAGE_MANIFEST_LIMIT) {
     const oldest = stagedSources.keys().next().value;
     if (oldest !== undefined) stagedSources.delete(oldest);
+  }
+}
+
+function forgetStagedSource(path: string): void {
+  if (stagedSources.delete(path)) stagedSourcesDirty = true;
+}
+
+/** The stat tuple a staged file is trusted by, from `info`, or undefined
+ * while its ctime is too recent to tell a later write in the same tick. */
+function settledStat(info: BigIntStats): StagedStat | undefined {
+  if (Date.now() - Number(info.ctimeNs / 1_000_000n) < STAGED_STAT_SETTLE_MS)
+    return undefined;
+  return {
+    dev: String(info.dev),
+    ino: String(info.ino),
+    size: String(info.size),
+    mtimeNs: String(info.mtimeNs),
+    ctimeNs: String(info.ctimeNs),
+  };
+}
+
+function statMatches(info: BigIntStats, recorded: StagedStat): boolean {
+  return (
+    info.isFile() &&
+    String(info.dev) === recorded.dev &&
+    String(info.ino) === recorded.ino &&
+    String(info.size) === recorded.size &&
+    String(info.mtimeNs) === recorded.mtimeNs &&
+    String(info.ctimeNs) === recorded.ctimeNs
+  );
+}
+
+/** Whether the file at `abs` is still the one a verified hash described:
+ * opened twice through the current path, without following links, and both
+ * times the same device, inode, size and nanosecond mtime and ctime. */
+async function unchangedSince(
+  abs: string,
+  recorded: StagedStat,
+): Promise<boolean> {
+  let first: FileHandle | null = null;
+  let second: FileHandle | null = null;
+  try {
+    first = await openWorkspaceFile(abs);
+    if (
+      first === null ||
+      !statMatches(await first.stat({ bigint: true }), recorded)
+    )
+      return false;
+    second = await openWorkspaceFile(abs);
+    return (
+      second !== null &&
+      statMatches(await second.stat({ bigint: true }), recorded)
+    );
+  } catch (error) {
+    console.warn(`[runnerd] checking the staged file ${abs} failed:`, error);
+    return false;
+  } finally {
+    await first?.close();
+    await second?.close();
+  }
+}
+
+let stagedManifestLoad: Promise<void> | null = null;
+
+/** Read the manifest a previous runnerd of this session left, once per
+ * process. A missing one is the first start; any other that does not verify
+ * is ignored, and staging fetches and hashes as before. */
+function loadStagedManifest(): Promise<void> {
+  stagedManifestLoad ??= (async () => {
+    const key = stagedManifestKey();
+    if (key === '') return;
+    const file = await openWorkspaceFile(STAGED_MANIFEST_PATH);
+    if (file === null) return;
+    let text: string;
+    try {
+      if ((await file.stat()).size > STAGED_MANIFEST_MAX_BYTES) {
+        console.warn(
+          '[runnerd] the staged-files manifest is too large; staging starts afresh',
+        );
+        return;
+      }
+      text = await file.readFile('utf8');
+    } finally {
+      await file.close();
+    }
+    const root = workspaceRoot();
+    const loaded = decodeStagedManifest(text, key, (path) => {
+      const abs = resolveUnderWorkspace(path);
+      return abs !== null && abs === join(root, path);
+    });
+    if (loaded === null) {
+      console.warn(
+        '[runnerd] the staged-files manifest does not verify; staging starts afresh',
+      );
+      return;
+    }
+    for (const [path, source] of loaded) {
+      const abs = join(root, path);
+      if (!stagedSources.has(abs)) stagedSources.set(abs, source);
+    }
+  })().catch((error: unknown) => {
+    console.warn('[runnerd] reading the staged-files manifest failed:', error);
+  });
+  return stagedManifestLoad;
+}
+
+let stagedManifestWrite: Promise<void> = Promise.resolve();
+
+/** Write the manifest when it changed: atomically (a sibling temporary,
+ * then a rename), through the workspace's link-free path, one write at a
+ * time. A failure costs only the next process's warm start. */
+function persistStagedManifest(): Promise<void> {
+  stagedManifestWrite = stagedManifestWrite.then(writeStagedManifest);
+  return stagedManifestWrite;
+}
+
+async function writeStagedManifest(): Promise<void> {
+  const key = stagedManifestKey();
+  if (!stagedSourcesDirty || key === '') return;
+  stagedSourcesDirty = false;
+  const root = workspaceRoot();
+  const text = encodeStagedManifest(
+    [...stagedSources].map(([abs, source]) => [
+      abs.slice(root.length + 1),
+      source,
+    ]),
+    key,
+  );
+  const abs = join(root, STAGED_MANIFEST_PATH);
+  let parent: { handle: FileHandle; path: string } | undefined;
+  let temporary: string | undefined;
+  try {
+    parent = await stageParent(abs);
+    const anchor = anchoredDirectory(parent.handle, parent.path);
+    temporary = join(anchor, `.staged-sources-${randomUUID()}`);
+    const file = await open(temporary, 'wx', 0o600);
+    try {
+      await file.writeFile(text, 'utf8');
+    } finally {
+      await file.close();
+    }
+    await rename(temporary, join(anchor, basename(abs)));
+    temporary = undefined;
+  } catch (error) {
+    stagedSourcesDirty = true;
+    console.warn('[runnerd] writing the staged-files manifest failed:', error);
+  } finally {
+    if (temporary !== undefined)
+      await rm(temporary, { force: true }).catch((error: unknown) => {
+        console.warn(
+          '[runnerd] removing a partial staged-files manifest failed:',
+          error,
+        );
+      });
+    await parent?.handle.close();
   }
 }
 
@@ -165,14 +369,14 @@ async function stageParent(
 async function fileDigest(
   rel: string,
   signal?: AbortSignal,
-): Promise<{ digest: string; bytes: number } | null> {
+): Promise<{ digest: string; bytes: number; stat?: StagedStat } | null> {
   let file: FileHandle | undefined;
   let current: FileHandle | undefined;
   try {
     file = (await openWorkspaceFile(rel)) ?? undefined;
     if (file === undefined) return null;
-    const info = await file.stat();
-    if (!info.isFile() || info.size > FETCH_MAX_BYTES) return null;
+    const info = await file.stat({ bigint: true });
+    if (!info.isFile() || info.size > BigInt(FETCH_MAX_BYTES)) return null;
     const hash = createHash('sha256');
     let bytes = 0;
     for await (const chunk of file.createReadStream({
@@ -189,21 +393,26 @@ async function fileDigest(
     // require both snapshots to name the same unchanged regular file.
     current = (await openWorkspaceFile(rel)) ?? undefined;
     if (current === undefined) return null;
-    const final = await file.stat();
-    const actual = await current.stat();
+    const final = await file.stat({ bigint: true });
+    const actual = await current.stat({ bigint: true });
     if (
       [final, actual].some(
         (value) =>
           value.dev !== info.dev ||
           value.ino !== info.ino ||
           value.size !== info.size ||
-          value.mtimeMs !== info.mtimeMs ||
-          value.ctimeMs !== info.ctimeMs,
+          value.mtimeNs !== info.mtimeNs ||
+          value.ctimeNs !== info.ctimeNs,
       ) ||
-      bytes !== info.size
+      BigInt(bytes) !== info.size
     )
       return null;
-    return { digest: hash.digest('hex'), bytes };
+    const settled = settledStat(info);
+    return {
+      digest: hash.digest('hex'),
+      bytes,
+      ...(settled ? { stat: settled } : {}),
+    };
   } catch {
     return null;
   } finally {
@@ -258,6 +467,7 @@ export async function stageFiles(
   }
   activeStages += 1;
   if (opts.replaceRoots?.length) reconcilingStage = true;
+  await loadStagedManifest();
   const batch = new AbortController();
   const deadline = setTimeout(
     () => batch.abort(),
@@ -320,6 +530,7 @@ export async function stageFiles(
     batch.abort();
     activeStages -= 1;
     if (opts.replaceRoots?.length) reconcilingStage = false;
+    await persistStagedManifest();
   }
 }
 
@@ -378,10 +589,26 @@ async function stageItem(
         ? previous.digest
         : undefined);
     if (expectedDigest) {
+      // A file still the one a verified hash described holds those bytes:
+      // no second read of every byte to hash them again.
+      if (
+        previous?.stat !== undefined &&
+        previous.digest === expectedDigest &&
+        (await unchangedSince(abs, previous.stat))
+      ) {
+        signal.throwIfAborted();
+        if (sourceId)
+          rememberStagedSource(abs, sourceId, previous.digest, previous.stat);
+        return {
+          staged: [{ path: item.path, bytes: Number(previous.stat.size) }],
+          skipped,
+        };
+      }
       const actual = await fileDigest(abs, signal);
       if (actual?.digest === expectedDigest) {
         signal.throwIfAborted();
-        if (sourceId) rememberStagedSource(abs, sourceId, actual.digest);
+        if (sourceId)
+          rememberStagedSource(abs, sourceId, actual.digest, actual.stat);
         return { staged: [{ path: item.path, bytes: actual.bytes }], skipped };
       }
     }
@@ -397,7 +624,7 @@ async function stageItem(
       const actual = await fileDigest(abs, signal);
       if (actual?.digest === digest) {
         signal.throwIfAborted();
-        rememberStagedSource(abs, sourceId, digest);
+        rememberStagedSource(abs, sourceId, digest, actual.stat);
         return { staged: [{ path: item.path, bytes: actual.bytes }], skipped };
       }
     } else if (item.url !== undefined) {
@@ -579,7 +806,7 @@ async function reconcileStageRoots(
             if ((await realpathUnderRoot(anchor)) === null)
               throw new Error('unsafe_path');
             await rm(path, { force: true });
-            stagedSources.delete(key);
+            forgetStagedSource(key);
           }
         }
       };

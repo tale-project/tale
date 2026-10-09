@@ -466,12 +466,21 @@ not bypass the limit.
 
 A file may carry an immutable `sourceId` (or `cacheKey`) supplied by the platform,
 or a `sha256` digest for content verification. runnerd
-keeps up to 4,096 source/digest entries in memory and skips an unchanged source
-only after hashing the actual destination again and verifying that the file
-and its workspace path still refer to the same unchanged regular file.
-Named pipes are rejected without waiting for a writer. A source-only entry probes
-that cache: a verified hit is `staged`; a miss reports `no_source` and requires
-the bytes or URL. Restarting runnerd loses the cache and causes a refresh.
+keeps up to 4,096 source/digest entries and skips an unchanged source only
+after verifying the actual destination: by hashing it again and checking that
+the file and its workspace path still refer to the same unchanged regular
+file, or, once such a hash has verified it, by the stat it had then (device,
+inode, size, nanosecond mtime and ctime, read twice through the path). A stat
+is recorded only from a verified hash, and only once the file's ctime is two
+seconds old, since a write in the same timestamp tick could leave it
+unchanged; the session's uid can set no ctime back. Named pipes are rejected
+without waiting for a writer. A source-only entry probes that cache: a
+verified hit is `staged`; a miss reports `no_source` and requires the bytes or
+URL. The entries persist across runnerd restarts in
+`/agent/.runtime/staged-sources.json`, written atomically through the
+link-free workspace path and signed with runnerd's token (HMAC-SHA256); a
+manifest that is edited, from another session or unreadable is ignored, and
+staging fetches and hashes as before.
 This does not cache grants, credentials or source authorization: callers must
 resolve those for the current turn.
 

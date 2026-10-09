@@ -125,9 +125,15 @@ deadline covers the whole batch, including cache verification and final
 reconciliation. Queued items share the same deadline. Cancellation propagates
 through the platform and spawner to the active transfer. URL inputs retain their
 100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
-20 MiB file limit. Immutable source identities can skip a transfer only after
-rehashing the current destination and checking that its pathname still names
-the same unchanged file; a changed file is repaired. Reads and cache probes
+20 MiB file limit. Immutable source identities can skip a transfer once the
+current destination is verified: by a rehash that checks its pathname still
+names the same unchanged file, or, after one such rehash, by an unchanged stat
+(device, inode, size, nanosecond mtime and ctime, read through the path twice)
+without reading the bytes again; a changed file is repaired. The source
+manifest survives runnerd restarts in `/agent/.runtime/staged-sources.json`,
+signed with runnerd's token, so a session resumed after an idle stop reuses
+its staged inputs instead of fetching them again; a manifest that does not
+verify is ignored. Reads and cache probes
 reject symlinks and named pipes without blocking filesystem workers. Explicit final
 manifests remove stale files only within the named managed roots after all
 transfer batches succeeded. The
