@@ -23,7 +23,7 @@ import type {
 } from '../api/dispatch';
 import { execute } from '../core/execute';
 import { cloneData } from '../core/execute/scope';
-import type { StoreAdapter } from '../core/slots';
+import type { OrgFacts, OrgFactsQuery, StoreAdapter } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
 
 /** The trigger kinds a host accepts. `api-key` is deliberately absent: a
@@ -72,12 +72,26 @@ export interface MemoryStore extends StoreAdapter {
 /** Who a run started as, when nothing more specific is known. */
 const MEMORY_ACTOR = 'memory-store';
 
+/** A refusal in the shape the platform host throws one (`AutomationError`):
+ * a stable code and a 4xx status, so the dispatch answers it as data — a
+ * bare `Error` is a fault, and dispatch throws it on (`api/refusal.ts`). */
+function refusal(code: string, message: string, status: 400 | 404): Error {
+  return Object.assign(new Error(message), { code, status });
+}
+
 export function memoryStore(
   storeOptions: {
     /** Model ids the store answers `false` for on `modelAvailable` — every
      * other id is available. Without it the store carries no model seam,
      * so validation never warns about a model. */
     unavailableModels?: readonly string[];
+    /** What the organization has, for the validator's org-state warnings:
+     * the store answers these facts (the bound event from its own event
+     * trigger, checked against `raisedEvents`). Without it the store carries
+     * no org-state seam, so validation never warns about the organization. */
+    orgFacts?: Omit<OrgFacts, 'boundEvent'> & {
+      raisedEvents?: readonly string[];
+    };
   } = {},
 ): MemoryStore {
   const versions = new Map<string, StoredVersion[]>();
@@ -104,7 +118,11 @@ export function memoryStore(
     deploy(name, version) {
       const list = versions.get(name);
       if (!list || version < 1 || version > list.length) {
-        throw new Error(`cannot deploy unknown version ${name}@${version}`);
+        throw refusal(
+          'AUTOMATION_VERSION_UNKNOWN',
+          `cannot deploy unknown version ${name}@${version}`,
+          404,
+        );
       }
       deployed.set(name, version);
     },
@@ -153,18 +171,28 @@ export function memoryStore(
     async setTrigger(name, trigger) {
       const kind = typeof trigger.kind === 'string' ? trigger.kind : '';
       if (!(TRIGGER_KINDS as readonly string[]).includes(kind)) {
-        throw new Error(
+        throw refusal(
+          'AUTOMATION_TRIGGER_INVALID',
           `unknown trigger kind "${kind}" — one of ${TRIGGER_KINDS.join(', ')}`,
+          400,
         );
       }
       const cron = typeof trigger.cron === 'string' ? trigger.cron : undefined;
       const event =
         typeof trigger.event === 'string' ? trigger.event : undefined;
       if (kind === 'schedule' && cron === undefined) {
-        throw new Error('a schedule trigger needs a cron expression');
+        throw refusal(
+          'AUTOMATION_TRIGGER_INVALID',
+          'a schedule trigger needs a cron expression',
+          400,
+        );
       }
       if (kind === 'event' && event === undefined) {
-        throw new Error('an event trigger needs an event name');
+        throw refusal(
+          'AUTOMATION_TRIGGER_INVALID',
+          'an event trigger needs an event name',
+          400,
+        );
       }
       triggers.set(name, {
         name,
@@ -193,6 +221,31 @@ export function memoryStore(
     async deleteTrigger(name) {
       return { deleted: triggers.delete(name) };
     },
+    ...(storeOptions.orgFacts === undefined
+      ? {}
+      : {
+          orgFacts: async (query: OrgFactsQuery): Promise<OrgFacts> => {
+            const { raisedEvents, ...facts } = storeOptions.orgFacts ?? {};
+            const trigger =
+              query.automation === undefined
+                ? undefined
+                : triggers.get(query.automation);
+            const event =
+              trigger?.enabled === true && trigger.kind === 'event'
+                ? trigger.event
+                : undefined;
+            return {
+              ...facts,
+              ...(query.event &&
+                raisedEvents !== undefined && {
+                  boundEvent:
+                    event === undefined
+                      ? null
+                      : { event, raised: raisedEvents },
+                }),
+            };
+          },
+        }),
     async triggerKinds(name) {
       const one = triggers.get(name);
       const kind = TRIGGER_KINDS.find((k) => k === one?.kind);
@@ -267,7 +320,7 @@ export function memoryStore(
     },
     async cancelRun(runId) {
       const run = runs.find((entry) => entry.runId === runId);
-      if (!run) throw new Error(`no run "${runId}"`);
+      if (!run) throw refusal('RUN_NOT_FOUND', `no run "${runId}"`, 404);
       if (
         run.status === 'success' ||
         run.status === 'failed' ||

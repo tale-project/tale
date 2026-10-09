@@ -91,3 +91,17 @@ codes:
     cause: Der Test «{name}» erwartet für output.{property} {expectedText}, aber die Automatisierung gibt dort {actualText} zurück.
   LLM_MODEL_UNAVAILABLE:
     cause: '{nodeLabel} verwendet «{model}», das kein verbundener Anbieter bereitstellt.'
+  SKILL_UNKNOWN:
+    cause: '{nodeLabel} verlangt den Skill «{skill}».'
+    fix: '{suggestion, select, none {Füge den Skill unter Einstellungen › Skills hinzu oder entferne ihn aus der Node.} other {Meintest du «{suggestion}»?}}'
+  CONNECTOR_NOT_CONNECTED:
+    cause: '{catalogued, select, true {{nodeLabel} verwendet «{connector}», den noch niemand verbunden hat.} other {{nodeLabel} verwendet «{connector}», den dieses Deployment nicht anbietet.}}'
+    fix: '{catalogued, select, true {Verbinde ihn unter Einstellungen › Connectors.} other {{suggestion, select, none {Wähle einen Connector aus dem Katalog.} other {Meintest du «{suggestion}»?}}}}'
+  SECRET_UNKNOWN:
+    cause: '{nodeLabel} verlangt das Secret «{secret}».'
+    fix: '{suggestion, select, none {Füge das Secret unter Secrets in dieser Node hinzu oder entferne es aus der Node.} other {Meintest du «{suggestion}»?}}'
+  HARNESS_UNKNOWN:
+    cause: '{nodeLabel} verwendet «{harness}». Verfügbar: {availableList}.'
+  EVENT_UNKNOWN:
+    cause: 'Der Trigger wartet auf «{event}».'
+    fix: '{suggestion, select, none {Wähle ein Ereignis aus der Liste.} other {Meintest du «{suggestion}»?}}'

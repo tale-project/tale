@@ -1553,6 +1553,7 @@ dataSubjectRequests:
     subscriptions: Gefolgte Aufgaben
     feedback: Nachrichten-Feedback
     memories: Persönliche Memos
+    mcpActivity: Aktivität der Coding-Agents
     directCalls: Direkte Modellaufrufe
     videoLinks: Videolinks
     cloudGrants: Cloud-Import-Autorisierungen

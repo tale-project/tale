@@ -1,98 +1,13 @@
 /**
- * Helpers of the two 0.4-era HTTP doors that still parse raw requests: the
- * SCIM door (`core/scim/http_actions.ts` — `extractPathParts`,
- * `parseIntParam`) and the MCP protocol layer
- * (`core/automations_builder/mcp_http.ts` — `requireRestDeveloper`,
- * `RestContext`). The `/api/v1` REST families do NOT come through here:
- * `backend/rest/` authenticates, rate limits, validates and maps errors on
- * its own (`rest/shared.ts`). The 0.4 CORS-bearing `jsonError` is gone
+ * Helpers of the 0.4-era HTTP door that still parses raw requests: the SCIM
+ * door (`core/scim/http_actions.ts` — `extractPathParts`, `parseIntParam`).
+ * The `/api/v1` REST families do NOT come through here: `backend/rest/`
+ * authenticates, rate limits, validates and maps errors on its own
+ * (`rest/shared.ts`), and the MCP door hands its protocol layer a proven
+ * caller (`domains/mcp/caller.ts`). The 0.4 CORS-bearing `jsonError` is gone
  * with the last door that used it: a Bearer key is not ambient authority a
  * browser page could use, so no `/api/v1` response grants an origin.
  */
-
-import { defineAbilityFor } from '../../../../lib/permissions/ability';
-import { AppError } from '../../../../lib/shared/errors/app-error';
-import { internal } from '../handler_names';
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-/** What a REST handler reads off its context: the shim's dispatch, nothing
- *  more. The 0.4 `httpAction` wrapper that used to supply it retired with the
- *  runtime — the backend's own door (`backend/rest/`) authenticates, rate
- *  limits, and calls these handlers directly. */
-export interface HttpCtx {
-  runQuery: (reference: unknown, args?: unknown) => Promise<unknown>;
-  runMutation: (reference: unknown, args?: unknown) => Promise<unknown>;
-  runAction: (reference: unknown, args?: unknown) => Promise<unknown>;
-}
-
-export interface AuthUser {
-  userId: string;
-  email: string;
-  name: string;
-}
-
-export interface OrgInfo {
-  organizationId: string;
-  orgSlug: string;
-}
-
-export interface RestContext {
-  ctx: HttpCtx;
-  user: AuthUser;
-  org: OrgInfo;
-  /** The API key row the bearer verified as, when the door knows it — the
-   * MCP door hands it to the engine so a keyed start books to its key. */
-  apiKeyId?: string;
-}
-
-// ---------------------------------------------------------------------------
-// Authorization
-// ---------------------------------------------------------------------------
-
-/**
- * The key holder's role in the resolved organization.
- *
- * Resolved LAZILY rather than on every request: most REST handlers only need
- * membership, which org resolution already proved, and the role costs another
- * Better Auth read. A handler that gates on a capability asks for it here.
- *
- * A missing or `disabled` member row is refused as `ORG_FORBIDDEN` — the same
- * answer `requireOrganizationMember` gives a session caller, so an API key is
- * never a way around a revoked membership.
- */
-async function resolveRestOrgRole(rc: RestContext): Promise<string> {
-  // The shim answers whatever its handler returns; a role is a string or
-  // absent, and anything else is a broken handler, not a role.
-  const role: unknown = await rc.ctx.runQuery(
-    internal.members.internal_queries.getMemberRole,
-    { userId: rc.user.userId, organizationId: rc.org.organizationId },
-  );
-  if (typeof role !== 'string' || role === 'disabled') {
-    throw new AppError({
-      code: 'ORG_FORBIDDEN',
-      message: `Not a member of organization "${rc.org.orgSlug}".`,
-    });
-  }
-  return role;
-}
-
-/**
- * Assert the `developerSettings` capability — the gate on authoring and on
- * starting a LIVE automation run. Throws `FORBIDDEN_DEVELOPER_SETTINGS`, the
- * same coded error the session doors (`automations/dispatch-store.ts`) raise,
- * so both surfaces answer a wrong role identically (→ 403).
- */
-export async function requireRestDeveloper(rc: RestContext): Promise<void> {
-  const role = await resolveRestOrgRole(rc);
-  if (defineAbilityFor(role).cannot('read', 'developerSettings')) {
-    throw new AppError({
-      code: 'FORBIDDEN_DEVELOPER_SETTINGS',
-      message: `Role "${role}" lacks the developer-settings capability required to perform this action.`,
-    });
-  }
-}
 
 // ---------------------------------------------------------------------------
 // URL parsing

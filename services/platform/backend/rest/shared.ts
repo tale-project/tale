@@ -112,6 +112,18 @@ export function restApiKeyId(c: Context<RestEnv>): string | undefined {
 }
 
 /**
+ * What a caller of this door authenticated with. Today one kind: a personal
+ * API key, which acts with its holder's live role in the resolved
+ * organization and never with more.
+ */
+export type RestCredential = {
+  readonly kind: 'api-key';
+  /** The key row the bearer verified as (`restApiKeyId`); absent only when
+   * the verified session named none, which the real door never does. */
+  readonly apiKeyId?: string;
+};
+
+/**
  * The REST door's 429: the shared producer, with `error` a sentence rather
  * than a second copy of the code — the envelope this door promises on every
  * other refusal — and the `requestId` its 413 already carries, so an

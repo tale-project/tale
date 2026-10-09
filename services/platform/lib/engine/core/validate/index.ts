@@ -1,5 +1,5 @@
 /**
- * Static validation — five passes over an automation document, each pass only
+ * Static validation — six passes over an automation document, each pass only
  * seeing what the previous one proved.
  *
  * Returns `{errors, warnings}` where every Issue carries a machine-readable
@@ -12,7 +12,10 @@
  * connector/store contracts and document quality → the analysis (`../analysis`:
  * the types of every value and the ways a run can go, and what they reveal —
  * reads of fields that cannot exist, reads of skipped nodes, nodes that can
- * never run, iteration that cannot work). Asked for (`detail`), the result
+ * never run, iteration that cannot work) → what the document names of the
+ * organization, against what the store says it has (`../analysis/org-state`:
+ * skills, connectors, secrets, agent runtimes, the trigger's event — warnings
+ * only, and only from a store that answers). Asked for (`detail`), the result
  * also carries the per-node summary with the possible paths and the types.
  * Every issue says where it is (`at`: a JSON Pointer, and the range inside
  * the string for code) and what its sentence is built from (`params`).
@@ -28,8 +31,13 @@
 
 import { isRecord } from '../../../utils/type-utils';
 import { analyze, type AutomationAnalysis } from '../analysis';
+import {
+  orgFactsQuery,
+  orgStateIssues,
+  type OrgStateInput,
+} from '../analysis/org-state';
 import { err } from '../errors';
-import type { StoreAdapter } from '../slots';
+import type { OrgFacts, StoreAdapter } from '../slots';
 import type { Issue, NodeDef } from '../types';
 import { resolveChildren } from '../typing/children';
 import type { AutomationTypes } from '../typing/infer';
@@ -146,6 +154,15 @@ export async function validate(
     issues: [...issues],
   });
   issues.push(...analyzed.issues);
+  if (opts.store?.orgFacts !== undefined) {
+    issues.push(
+      ...(await orgState(opts.store.orgFacts.bind(opts.store), {
+        doc,
+        nodes: unique,
+        indexOf: (n) => ctx.indexOf(n),
+      })),
+    );
+  }
 
   const detail = new Set(opts.detail ?? []);
   return {
@@ -154,6 +171,30 @@ export async function validate(
       analyzed.analysis !== undefined && { analysis: analyzed.analysis }),
     ...(detail.has('types') && { types: analyzed.types }),
   };
+}
+
+/**
+ * What the document names of the organization against what it has: the
+ * host is asked once, for only the facts the document needs. A host that
+ * cannot answer is a host that cannot tell — the document has no problem.
+ */
+async function orgState(
+  orgFacts: NonNullable<StoreAdapter['orgFacts']>,
+  input: OrgStateInput,
+): Promise<Issue[]> {
+  const query = orgFactsQuery(input);
+  if (query === null) return [];
+  let facts: OrgFacts;
+  try {
+    facts = await orgFacts(query);
+  } catch (e) {
+    console.warn(
+      '[engine] skipping the organization checks (store lookup failed):',
+      e instanceof Error ? e.message : e,
+    );
+    return [];
+  }
+  return orgStateIssues(input, facts);
 }
 
 function split(issues: Issue[]): { errors: Issue[]; warnings: Issue[] } {

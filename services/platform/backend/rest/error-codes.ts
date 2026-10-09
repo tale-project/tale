@@ -148,6 +148,9 @@ export const REST_ERROR_CODES = [
   'ORG_FORBIDDEN',
   'ORG_SLUG_INVALID',
   'ORG_SLUG_REQUIRED',
+  // The MCP door, only where the operator enforces its Origin rule
+  // (`TALE_MCP_ORIGIN_ENFORCE`): a browser origin it does not accept.
+  'ORIGIN_FORBIDDEN',
   // RFC 9110 §13.1.1: an `If-Match` the current representation does not
   // strongly match (the document PATCH); `data.etag` names the current tag.
   'PRECONDITION_FAILED',

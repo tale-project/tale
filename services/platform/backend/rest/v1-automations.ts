@@ -4,15 +4,17 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { paramToAutomationSlug } from '../../lib/automations/slug.ts';
+import { RUN_STATUSES } from '../../lib/engine/api/run-statuses.ts';
 import { isValidAutomationName } from '../../lib/engine/core/validate/name.ts';
 import { hasVisibleText } from '../../lib/shared/utils/visible-text.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
-import { TASK_COMMENT_MAX } from '../core/tasks/helpers.ts';
-import { createAuditLog } from '../domains/audit_logs/service.ts';
+import { answerRunAskAs } from '../domains/automations/ask-answer.ts';
 import { legacyRunStopSchema } from '../domains/automations/legacy-quarantine.ts';
-import { readableProjectIds } from '../domains/automations/project-visibility.ts';
 import {
-  answerAsk,
+  automationVisible,
+  readableProjectIds,
+} from '../domains/automations/project-visibility.ts';
+import {
   AutomationError,
   automationExists,
   automationRunsExist,
@@ -45,7 +47,8 @@ import {
   versionRow,
 } from '../domains/automations/store.ts';
 import { getProjectAuthContext } from '../domains/projects/service.ts';
-import { addTaskComment } from '../domains/tasks/comments.ts';
+import { requestIdOf } from '../error-reporting.ts';
+import { runInRequestChannel } from '../lib/request-channel.ts';
 import {
   actedBy,
   actorBodySchema,
@@ -86,17 +89,6 @@ import {
  * Authoring (save/deploy) deliberately has no REST route — 0.4 parity: the
  * builder writes ride the session surface.
  */
-
-/** The run statuses a listing filters on. */
-const RUN_STATUSES = [
-  'queued',
-  'running',
-  'waiting',
-  'quarantined',
-  'success',
-  'failed',
-  'cancelled',
-] as const;
 
 /** The full-row fields a listing omits unless asked (`?include=`). */
 const RUN_INCLUDES = [
@@ -287,20 +279,67 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   const automationNotFound = (c: Context<RestEnv>) =>
     notFound(c, 'Automation not found', 'AUTOMATION_NOT_FOUND');
 
+  /** Who a definition write made with an API key is: the key holder
+   * through the key's door, `api-key:<userId>` — the actor a coding agent's
+   * same write over MCP records, so the audit row reads "API", never a
+   * click in the app. */
+  const keyActor = (c: Context<RestEnv>): string =>
+    `api-key:${c.get('userId')}`;
+
+  /** Run a definition write so every audit row it writes names the key
+   * that made it and the request (`via: 'api-key'`, `apiKeyId`,
+   * `requestId` — `lib/request-channel.ts`): an admin reading the row of a
+   * delete made with a leaked key knows which key to revoke. */
+  const asKeyWrite = <T>(
+    c: Context<RestEnv>,
+    write: () => Promise<T>,
+  ): Promise<T> => {
+    const apiKeyId = restApiKeyId(c);
+    const requestId = requestIdOf(c);
+    return runInRequestChannel(
+      {
+        via: 'api-key',
+        ...(requestId === undefined ? {} : { requestId }),
+        ...(apiKeyId === undefined ? {} : { apiKeyId }),
+      },
+      write,
+    );
+  };
+
+  /** Whether the automation is installed only in projects the key holder
+   * cannot read — it then answers exactly like one that does not exist
+   * (`automationVisible`), on every read of it. */
+  const hiddenFrom = async (
+    c: Context<RestEnv>,
+    name: string,
+  ): Promise<boolean> => {
+    const bindings = await bindingProjectIds(
+      deps.sql,
+      c.get('organizationId'),
+      name,
+    );
+    if (bindings.length === 0) return false;
+    return !automationVisible(bindings, await visibleProjectIds(c));
+  };
+
   app.get('/automations', noQuery, async (c) => {
-    // Definitions are shared by the organization. Their project install
-    // ids are the caller's only way to start a project-bound automation
-    // (the org URL refuses it) — answered as the projects the caller can
-    // SEE, so a catalog read never reveals a hidden project.
+    // Definitions are shared by the organization — those it can see: an
+    // organization automation, or one installed in a project the key holder
+    // can read. Their project install ids are the caller's only way to start
+    // a project-bound automation (the org URL refuses it) — answered as the
+    // projects the caller can SEE, so a catalog read never reveals a hidden
+    // project.
     const visible = await visibleProjectIds(c);
     return c.json({
-      automations: (
-        await listAutomations(deps.sql, c.get('organizationId'))
-      ).map((definition) =>
-        Object.assign(definition, {
-          projectIds: definition.projectIds.filter((id) => visible.has(id)),
-        }),
-      ),
+      automations: (await listAutomations(deps.sql, c.get('organizationId')))
+        .filter((definition) =>
+          automationVisible(definition.projectIds, visible),
+        )
+        .map((definition) =>
+          Object.assign(definition, {
+            projectIds: definition.projectIds.filter((id) => visible.has(id)),
+          }),
+        ),
     });
   });
 
@@ -313,11 +352,13 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
-      await deleteAutomationCascade(deps.sql, {
-        organizationId: c.get('organizationId'),
-        name,
-        actor: c.get('userId'),
-      });
+      await asKeyWrite(c, () =>
+        deleteAutomationCascade(deps.sql, {
+          organizationId: c.get('organizationId'),
+          name,
+          actor: keyActor(c),
+        }),
+      );
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -329,15 +370,27 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/automations/:name/versions', noQuery, async (c) => {
     const name = decodeName(c);
     if (name instanceof Response) return name;
-    if (!(await exists(c, name))) return automationNotFound(c);
+    if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+      return automationNotFound(c);
+    }
     const organizationId = c.get('organizationId');
     const deployed =
       (await deployedVersion(deps.sql, organizationId, name)) ?? null;
     return c.json({
       name,
       deployedVersion: deployed,
+      // The documented fields only: the history also records the door each
+      // version came through, which this contract does not carry.
       versions: (await listVersions(deps.sql, organizationId, name)).map(
-        (row) => Object.assign(row, { deployed: row.version === deployed }),
+        (row) => ({
+          version: row.version,
+          message: row.message,
+          testsPassed: row.testsPassed,
+          testsCheckedAt: row.testsCheckedAt,
+          createdBy: row.createdBy,
+          createdAt: row.createdAt,
+          deployed: row.version === deployed,
+        }),
       ),
     });
   });
@@ -345,7 +398,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   app.get('/automations/:name/triggers', noQuery, async (c) => {
     const name = decodeName(c);
     if (name instanceof Response) return name;
-    if (!(await exists(c, name))) return automationNotFound(c);
+    if (!(await exists(c, name)) || (await hiddenFrom(c, name))) {
+      return automationNotFound(c);
+    }
     return c.json({
       name,
       triggers: await listTriggers(deps.sql, c.get('organizationId'), name),
@@ -367,12 +422,14 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
       const organizationId = c.get('organizationId');
-      const result = await setTrigger(deps.sql, {
-        organizationId,
-        name,
-        trigger: body,
-        actor: c.get('userId'),
-      });
+      const result = await asKeyWrite(c, () =>
+        setTrigger(deps.sql, {
+          organizationId,
+          name,
+          trigger: body,
+          actor: keyActor(c),
+        }),
+      );
       const deployed =
         (await deployedVersion(deps.sql, organizationId, name)) !== undefined;
       return c.json({ name, ...result, deployed });
@@ -390,7 +447,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       if (!(await exists(c, name))) return automationNotFound(c);
-      await deleteTrigger(deps.sql, c.get('organizationId'), name);
+      await asKeyWrite(c, () =>
+        deleteTrigger(deps.sql, c.get('organizationId'), name, keyActor(c)),
+      );
       return c.body(null, 204);
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -425,21 +484,24 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       const auth = await restProjectAuth(deps.sql, c);
-      const result = await transactSerializable(deps.sql, async (tx) => {
-        const project = await loadRestProject(
-          tx,
-          auth,
-          c.req.param('id') ?? '',
-          { write: true },
-        );
-        if (!(await automationExists(tx, auth.organizationId, name)))
-          return null;
-        return unbindProjectInTx(tx, {
-          organizationId: auth.organizationId,
-          name,
-          projectId: project.id,
-        });
-      });
+      const result = await asKeyWrite(c, () =>
+        transactSerializable(deps.sql, async (tx) => {
+          const project = await loadRestProject(
+            tx,
+            auth,
+            c.req.param('id') ?? '',
+            { write: true },
+          );
+          if (!(await automationExists(tx, auth.organizationId, name)))
+            return null;
+          return unbindProjectInTx(tx, {
+            organizationId: auth.organizationId,
+            name,
+            projectId: project.id,
+            actor: keyActor(c),
+          });
+        }),
+      );
       if (result === null) return automationNotFound(c);
       if (!result.unbound) {
         return notFound(
@@ -464,22 +526,24 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const name = decodeName(c);
       if (name instanceof Response) return name;
       const auth = await restProjectAuth(deps.sql, c);
-      const result = await transactSerializable(deps.sql, async (tx) => {
-        const project = await loadRestProject(
-          tx,
-          auth,
-          c.req.param('id') ?? '',
-          { write: true },
-        );
-        if (!(await automationExists(tx, auth.organizationId, name)))
-          return null;
-        return bindProjectInTx(tx, {
-          organizationId: auth.organizationId,
-          name,
-          projectId: project.id,
-          actor: auth.userId,
-        });
-      });
+      const result = await asKeyWrite(c, () =>
+        transactSerializable(deps.sql, async (tx) => {
+          const project = await loadRestProject(
+            tx,
+            auth,
+            c.req.param('id') ?? '',
+            { write: true },
+          );
+          if (!(await automationExists(tx, auth.organizationId, name)))
+            return null;
+          return bindProjectInTx(tx, {
+            organizationId: auth.organizationId,
+            name,
+            projectId: project.id,
+            actor: keyActor(c),
+          });
+        }),
+      );
       if (result === null) return automationNotFound(c);
       return c.json({ name, added: result.bound }, result.bound ? 201 : 200);
     } catch (error) {
@@ -635,13 +699,17 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       // A deleted automation keeps its runs: the by-name history stays
       // readable here as it does on `/runs` and by id; only a name neither
-      // an automation nor a run ever bore is the 404 (K8-5).
-      if (
-        !(await exists(c, name)) &&
-        !(await automationRunsExist(deps.sql, c.get('organizationId'), name))
-      ) {
-        return automationNotFound(c);
-      }
+      // an automation nor a run ever bore is the 404 (K8-5). An automation
+      // installed only in projects the key holder cannot read is known
+      // here only by runs in the URL's own scope, which the caller can
+      // read — otherwise an empty page would confirm a name every other
+      // read hides (`hiddenFrom`).
+      const known =
+        ((await exists(c, name)) && !(await hiddenFrom(c, name))) ||
+        (await automationRunsExist(deps.sql, c.get('organizationId'), name, {
+          projectId: projectId ?? null,
+        }));
+      if (!known) return automationNotFound(c);
       return answerRunPage(c, list, query, {
         name,
         projectId: projectId ?? null,
@@ -855,6 +923,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     if (query instanceof Response) return query;
     const name = decodeName(c);
     if (name instanceof Response) return name;
+    if (await hiddenFrom(c, name)) return automationNotFound(c);
     const organizationId = c.get('organizationId');
     const deployed = await deployedVersion(deps.sql, organizationId, name);
     let version: number | undefined;
@@ -1123,56 +1192,15 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const limited = await chargeLane(deps.sql, c, 'rest:execute');
       if (limited) return limited;
       const answeredBy = actedBy(actor, c);
-      const answered = await answerAsk(deps.sql, {
+      const answered = await answerRunAskAs(deps.sql, {
         organizationId,
+        run,
         askId,
-        runId,
         answer: body.answer,
         answeredBy,
+        author,
+        auditMetadata: { via: 'api-key', keyHolderUserId: c.get('userId') },
       });
-      await deps.sql.begin(async (tx) => {
-        await createAuditLog(tx, {
-          organizationId,
-          actorId: author.userId,
-          ...(author.email !== undefined ? { actorEmail: author.email } : {}),
-          actorType: 'user',
-          action: 'automation.ask_answered',
-          category: 'data',
-          resourceType: 'automation_run',
-          resourceId: runId,
-          resourceName: run.name,
-          newState: { askId, answeredBy },
-          metadata: {
-            askId,
-            via: 'api-key',
-            keyHolderUserId: c.get('userId'),
-            ...(answered.taskId !== null ? { taskId: answered.taskId } : {}),
-          },
-          status: 'success',
-        });
-      });
-      // The mirror is best effort, exactly as in the app: the answer and
-      // its resume are recorded already, so a comment that cannot land
-      // (the person cannot read the task's project, say) only warns.
-      if (answered.taskId !== null) {
-        const taskId = answered.taskId;
-        try {
-          await deps.sql.begin(async (tx) => {
-            // The ask accepts twice what a comment holds; the mirror keeps
-            // the head, the answer itself is stored whole on the ask.
-            await addTaskComment(tx, author, {
-              taskId,
-              body: body.answer.slice(0, TASK_COMMENT_MAX),
-            });
-          });
-        } catch (error) {
-          console.warn('[rest] ask answer comment mirror failed', {
-            runId,
-            askId,
-            error: String(error),
-          });
-        }
-      }
       return c.json({
         ok: true,
         askId,

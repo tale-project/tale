@@ -31,6 +31,7 @@ import { escapeForXmlTag } from '../../../lib/chat/untrusted-content';
 import { textTail } from '../../../lib/harnesses/projection';
 import { mergeTimelineParts } from '../../../lib/harnesses/timeline';
 import { agentLanguageGuidance } from '../../../lib/shared/agent-language';
+import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
 import { sanitizeUntrustedField } from '../../../lib/shared/sanitize-untrusted-field';
 import { parseSkillMd } from '../../../lib/skills/parse';
 import type { SkillViewer } from '../../../lib/skills/visibility';
@@ -218,8 +219,6 @@ export interface AutomationAgentHost {
   /** Cut a turn (deadline, cancellation): reap the exec and revoke its key. */
   cancel(args: { sessionId: string; execId: string }): Promise<void>;
 }
-
-export const DEFAULT_HARNESS = 'claude-code';
 
 /** An `automationHumanAsks` row as the host consumes it — the internal reads
  * return it untyped (`v.any()`), so every consumer narrows through here. */

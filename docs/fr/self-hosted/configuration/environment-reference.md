@@ -246,6 +246,15 @@ Laisse-le non défini pour conserver la durée de session par défaut. Si défin
 
 Indique ici ton propre service d’assistance pour que les personnes confrontées à une erreur joignent l’équipe qui exploite ton déploiement. Quand l’écran d’erreur connaît l’organisation, le lien ajoute `organizationId=<id>` à la chaîne de requête, après les paramètres que l’URL contient déjà, et remplace un paramètre `organizationId` qu’elle porte déjà. Toute autre valeur, par exemple `mailto:` ou une URL sans schéma, est ignorée avec un avertissement dans le journal du service `platform`, et le lien garde sa valeur par défaut.
 
+## Point d’accès MCP {#mcp-endpoint}
+
+| Nom | Défaut | Description |
+| --- | --- | --- |
+| `TALE_MCP_ALLOWED_ORIGINS` | non défini | **Optionnel, lu par `backend-api` et le rôle `all`.** Les origines de navigateur depuis lesquelles le [point d’accès MCP](/fr/develop/mcp-endpoint) accepte, en plus de `SITE_URL` et `ADDITIONAL_SITE_URLS`, une requête qui porte un en-tête `Origin`. Séparées par des virgules ou des espaces, chacune au format `scheme://host[:port]` sans chemin, comme l’origine propre d’un éditeur de bureau, `vscode-file://vscode-app`. Une entrée mal formée empêche le démarrage du backend. |
+| `TALE_MCP_ORIGIN_ENFORCE` | `false` | **Optionnel, lu par `backend-api` et le rôle `all`.** Avec `true`, le point d’accès refuse une requête de toute autre origine avec `403` et `ORIGIN_FORBIDDEN` ; avec `false`, il se contente de la journaliser. |
+
+Les agents de code lancés dans un terminal et les clients côté serveur n’envoient pas d’`Origin` : la vérification ne s’applique jamais à eux. Une page web d’un autre site en envoie une, et c’est avec une clé API placée dans une telle page que ce site atteindrait le point d’accès. Tant que la vérification n’est pas imposée, chaque requête venant d’une origine hors de la liste est journalisée comme `[mcp] origin-mismatch`, avec l’origine, l’organisation et la personne. Lis ces lignes pour savoir lesquels de tes clients envoient une origine avant de définir `TALE_MCP_ORIGIN_ENFORCE=true`, et ajoute leurs origines à `TALE_MCP_ALLOWED_ORIGINS`.
+
 ## Infrastructure sandbox {#sandbox-infrastructure}
 
 Le spawner sandbox lit les paramètres ci-dessous. Transmets-les dans son environnement et recrée ce service après une modification. `SANDBOX_MAX_SESSIONS` fixe la capacité partagée par toutes les organisations. Le total des trois limites de travail d’une organisation se recalcule automatiquement ; tu ne peux pas enregistrer ces limites s’il dépasse cette capacité. Gère les limites dans [Sandboxes](/fr/platform/admin/sandboxes), où les environnements réellement actifs et les mesures de l’hôte apparaissent séparément des allocations.

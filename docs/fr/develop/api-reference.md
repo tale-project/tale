@@ -658,6 +658,8 @@ Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la f
 - `inputs` contient le schéma d’entrée de la version déployée ou, à défaut, de la dernière version enregistrée.
 - `trigger` contient le type de déclencheur, son activation et `lastFiredAt`, `lastSkippedAt`, `lastSkipReason`. Il vaut `null` si aucun déclencheur n’est configuré. Ces données sont également disponibles dans `GET .../triggers`.
 
+Une automatisation installée uniquement dans des projets que le titulaire de la clé ne peut pas lire n’apparaît pas dans la liste, et `GET /api/v1/automations/{name}`, ses versions et ses déclencheurs répondent **404** `AUTOMATION_NOT_FOUND` pour elle, comme pour une automatisation qui n’existe pas ; une automatisation installée nulle part appartient à toute l’organisation.
+
 `GET /api/v1/automations/{name}` lit par défaut la dernière version enregistrée (`?version=latest` explicite ce défaut), qui peut être un brouillon. Utilise `?version=deployed` pour lire celle qu’une exécution réelle utilisera, ou un numéro pour lire une version précise. Une version absente, y compris `deployed` si rien n’est déployé, donne **404**, `AUTOMATION_VERSION_UNKNOWN`. Une automatisation inconnue donne `AUTOMATION_NOT_FOUND`.
 
 `GET /api/v1/automations/{name}/versions` expose `deployedVersion` et marque chaque ligne avec `deployed`. Il indique aussi le résultat des tests de chaque version :
