@@ -69,7 +69,7 @@ resume. If `tale dev --help` lists `--stop`, you can start in the background wit
 keep the foreground run. The production deployment uses separate data volumes and
 does not import the local instance's data.
 
-When available, `doctor` checks Docker, Compose, daemon architecture and local port availability
+When available, `doctor` checks Docker, the Docker Engine version (24.0 or later), Compose, daemon architecture and local port availability
 without installing dependencies or changing files. Use `tale doctor --port 8443`
 when selecting another HTTPS port, or `tale doctor --json` for structured output.
 Its warnings include limitations such as ARM64 emulation; a successful check is

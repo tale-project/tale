@@ -407,6 +407,13 @@ jobs:
           file: services/${{ matrix.service }}/Dockerfile
           platforms: linux/amd64
           push: true
+          # New layers are zstd-compressed, as a release's (release.yml), so CI
+          # pulls, tests and scans that format, and a layer reused from the
+          # release's zstd cache keeps a media type that names it. Not forced:
+          # the GHA cache exporter takes no compression option, so the layers
+          # it holds as gzip stay gzip, and re-encoding them would cost every
+          # build that time again.
+          outputs: type=image,compression=zstd,compression-level=3,oci-mediatypes=true
           tags: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
           build-args: |
             VERSION=${{ needs.changes.outputs.image_tag }}

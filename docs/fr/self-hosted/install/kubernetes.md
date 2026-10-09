@@ -15,6 +15,7 @@ Tale fonctionne sur Kubernetes lorsque tu transposes le [contrat de services](/f
 | Des nœuds qui accordent `NET_ADMIN` et fournissent ip6tables, ou autorisent les sysctls IPv6 | Le proxy de sortie installe son pare-feu au démarrage et refuse de démarrer sans lui. |
 | Les ports 80 et 443 joignables à l’adresse publique | Caddy obtient lui-même les certificats en mode `selfsigned` et `letsencrypt`. Derrière un Ingress qui termine TLS, définis `TLS_MODE=external`. |
 | Un accès en lecture à `ghcr.io/tale-project/tale/*` sur chaque nœud, y compris pour l’image du runtime sandbox | Les Pods de session démarrent depuis `SANDBOX_RUNTIME_IMAGE`. Un nœud qui ne peut pas la récupérer fait échouer la première session qui y est planifiée. |
+| Un runtime de conteneurs qui décompresse les couches zstd, comme containerd 1.5 ou une version ultérieure | Les couches des images Tale sont compressées en zstd. Un nœud dont le runtime ne sait pas les décompresser ne peut pas récupérer les images, et aucun Pod n’y démarre à partir d’elles. |
 | Une RuntimeClass sysbox ou kata si les agents ont besoin de Docker dans leur sandbox | Sans elle, garde `SANDBOX_DOCKER_IN_CONTAINER=false`. Le niveau `runc` exigerait des Pods privilégiés. |
 | `kubectl` et `envsubst` sur la machine qui applique les manifestes | Les manifestes contiennent une variable `${VERSION}` que kubectl ne développe pas. |
 

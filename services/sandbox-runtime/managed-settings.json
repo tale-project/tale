@@ -2,7 +2,7 @@
   "autoUpdates": false,
   "includeCoAuthoredBy": false,
   "disableBundledSkills": true,
-  "cleanupPeriodDays": 365,
+  "cleanupPeriodDays": 60,
   "crossSessionInbound": "refuse",
   "syncClaudeAiSkills": false,
   "syncClaudeAiPlugins": false,

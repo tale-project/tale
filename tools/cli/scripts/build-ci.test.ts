@@ -320,8 +320,10 @@ describe('container build boundaries', () => {
     expect(String(image.with?.['cache-from']).trim().split('\n')).toEqual([
       cache,
     ]);
+    // It writes the zstd blobs the image shipped, so the next release never
+    // re-encodes an unchanged layer.
     expect(image.with?.['cache-to']).toBe(
-      `${cache},mode=max,ignore-error=true`,
+      `${cache},mode=max,ignore-error=true,compression=zstd,compression-level=3,force-compression=true`,
     );
     const build = await workflow();
     for (const step of Object.values(build.jobs).flatMap(

@@ -14,8 +14,8 @@ Pour ta première instance, suis le [démarrage rapide](/fr/self-hosted/install/
 Il te faut :
 
 - Un ordinateur sous macOS, Linux ou Windows avec PowerShell.
-- Pour les conteneurs en local : Docker avec Compose et un daemon Docker en cours d’exécution.
-- Pour un workspace distant : l’accès à son daemon Docker, généralement par un contexte Docker SSH. Le compte utilisé sur l’hôte distant doit pouvoir exécuter Docker.
+- Pour les conteneurs en local : Docker Engine 24.0 ou une version ultérieure avec Compose et un daemon Docker en cours d’exécution. Les couches des images Tale sont compressées en zstd, ce que Docker sait récupérer à partir d’Engine 23.0 ; `tale doctor` signale un moteur plus ancien, et `tale dev` comme `tale deploy` le refusent avant de télécharger les images.
+- Pour un workspace distant : l’accès à son daemon Docker, avec Docker Engine 24.0 ou une version ultérieure, généralement par un contexte Docker SSH. Le compte utilisé sur l’hôte distant doit pouvoir exécuter Docker.
 
 Le stockage objet fourni n’existe actuellement qu’en image `linux/amd64`. Sur un hôte ARM64, le développement local et les déploiements de workspace nécessitent donc une émulation amd64 fonctionnelle : Docker Desktop l’inclut ; sur un hôte Linux avec Docker autonome, [QEMU doit être enregistré sur l’hôte](https://docs.docker.com/build/building/multi-platform/#install-qemu-manually). Tale sélectionne l’image amd64, mais n’installe pas l’émulation. Les bundles de déploiement géré exigent toujours des images natives pour l’architecture déclarée. Un déploiement géré ARM64 doit donc attendre une image native du stockage objet.
 
@@ -99,12 +99,12 @@ Les commandes se terminent avec `0` en cas de succès, `2` pour une erreur d'uti
 
 ### Installation
 
-`tale doctor` — examine les prérequis d’un démarrage local sans créer de projet, installer de logiciel ni modifier la configuration. La commande vérifie le daemon Docker, la prise en charge de Compose et le mode de conteneurs Linux, indique l’architecture du daemon et examine les ports locaux. Avec un contexte Docker distant, elle ignore les ports locaux. Examine les avertissements sur ARM64 et les ports occupés ; une instance existante peut déjà utiliser le port.
+`tale doctor` — examine les prérequis d’un démarrage local sans créer de projet, installer de logiciel ni modifier la configuration. La commande vérifie le daemon Docker, la version de Docker Engine, la prise en charge de Compose et le mode de conteneurs Linux, indique l’architecture du daemon et examine les ports locaux. Avec un contexte Docker distant, elle ignore les ports locaux. Examine les avertissements sur ARM64 et les ports occupés ; une instance existante peut déjà utiliser le port.
 
 - `-p, --port <port>` — port HTTPS à vérifier (par défaut `443`) ; le port sandbox `8003` est aussi vérifié.
 - `--json` — produit les résultats en JSON lisible par machine.
 
-Un échec lié à Docker, Compose, à un mode de conteneurs non pris en charge ou au choix du port HTTPS `8003` renvoie le code `3`. Les avertissements seuls renvoient `0` ; cela ne vérifie ni les téléchargements d’images, ni la capacité de stockage, ni le fournisseur de modèles. Vérifie un autre port avec `tale doctor --port 8443`, puis utilise le même port avec `tale dev`.
+Un échec lié à Docker, Compose, à un Docker Engine antérieur à la version 24.0, à un mode de conteneurs non pris en charge ou au choix du port HTTPS `8003` renvoie le code `3`. Les avertissements seuls renvoient `0` ; cela ne vérifie ni les téléchargements d’images, ni la capacité de stockage, ni le fournisseur de modèles. Vérifie un autre port avec `tale doctor --port 8443`, puis utilise le même port avec `tale dev`.
 
 `tale init [directory]` — créer un projet : crée les configs d'exemple, `AGENTS.md` + un pointeur `CLAUDE.md` et un `.env` local par défaut (localhost, certificat auto-signé, secrets générés). Aucun Docker requis ; le domaine de production et le TLS sont choisis plus tard, lors de `tale deploy`. Dans un terminal, il demande un nom de projet quand `directory` est omis, confirme avant d'écraser un projet existant, et demande une fois si les agents peuvent lancer `docker` dans les sandboxes (par défaut : non — l'activer fait tourner un Docker interne privilégié) ; les exécutions non interactives sautent toutes les questions. `directory` est optionnel (par défaut : le répertoire courant).
 

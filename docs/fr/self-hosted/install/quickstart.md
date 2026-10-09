@@ -8,7 +8,7 @@ Démarre Tale localement avec la CLI publiée, puis crée ton espace de travail 
 
 Il te faut :
 
-- macOS, Linux ou Windows avec PowerShell, ainsi que Docker exécutant des conteneurs Linux avec Compose. Docker Desktop inclut Compose sur macOS et Windows. Si Docker manque, `tale dev` propose de t’aider à l’installer.
+- macOS, Linux ou Windows avec PowerShell, ainsi que Docker Engine 24.0 ou une version ultérieure exécutant des conteneurs Linux avec Compose. Docker Desktop inclut Compose sur macOS et Windows. Si Docker manque, `tale dev` propose de t’aider à l’installer ; avec un moteur plus ancien, la commande s’arrête avant de télécharger la moindre image.
 - Un accès réseau à GitHub pour la CLI et aux registres de conteneurs pour les images. Le premier démarrage télécharge plusieurs Go ; prévois de la place pour les images et tes données.
 - Les identifiants d’un fournisseur de modèles compatible pour tester la première réponse. Tu peux créer ton compte et explorer l’application avant de connecter un fournisseur.
 
@@ -42,7 +42,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 Vérifie l’installation avec `tale --version` dans le même terminal. Si la commande est introuvable, suis les indications de l’installateur pour le `PATH` et rouvre les terminaux déjà ouverts. Le [guide CLI](/fr/self-hosted/install/cli-install) couvre les versions fixées et le choix du répertoire d’installation.
 
-Consulte `tale --help` avant d’utiliser `tale doctor`. Si `doctor` n’y figure pas, lance `docker info` et `docker compose version` pour vérifier Docker et Compose. Lorsqu’elle est disponible, la commande `tale doctor` examine aussi l’architecture des conteneurs et les ports locaux sans installer de logiciel ni modifier de fichiers. Suis les solutions proposées ; un résultat positif ne vérifie ni les téléchargements d’images ni l’accès aux modèles.
+Consulte `tale --help` avant d’utiliser `tale doctor`. Si `doctor` n’y figure pas, lance `docker info` et `docker compose version` pour vérifier Docker et Compose. Lorsqu’elle est disponible, la commande `tale doctor` examine aussi la version de Docker Engine, l’architecture des conteneurs et les ports locaux sans installer de logiciel ni modifier de fichiers. Suis les solutions proposées ; un résultat positif ne vérifie ni les téléchargements d’images ni l’accès aux modèles.
 
 ## Initialiser et démarrer
 
