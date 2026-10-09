@@ -1493,7 +1493,7 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       orgSlug:
         (await resolveOrgSlug(deps.sql, c.get('organizationId'))) ??
         c.get('orgSlug'),
-      // Who a write's audit row names: the key's user.
+      // Authorization subject; the common audit writer attributes key writes to the maker.
       actor: {
         id: c.get('userId'),
         email: c.get('userEmail'),

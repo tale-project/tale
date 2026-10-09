@@ -1435,3 +1435,66 @@ describe('requestErasure — the limiter [ERASE-R8]', () => {
     warn.mockRestore();
   });
 });
+
+/** F-B-32: the actual processor must reach key-made audit rows when either
+ * person is erased. The SQL recorder checks the bound production predicate;
+ * real PostgreSQL execution remains owned by backend:integration. */
+describe('processErasure — key-made audit subjects', () => {
+  it.each(['mia', 'admin-1'])(
+    'scrubs key-made audit rows for %s without changing cascade ordering',
+    async (targetUserId) => {
+      vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+      const fake = fakeSql((text) => {
+        if (
+          text.startsWith(
+            "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+          )
+        ) {
+          return [{ organizationId: 'org_1', targetUserId, status: 'running' }];
+        }
+        if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+        if (text.startsWith('UPDATE app.audit_logs SET')) {
+          return [{ id: 'key-audit-1' }];
+        }
+        return undefined;
+      });
+      await processErasure(fake.sql, 'req-key');
+      const scrub = fake.statements.find((s) =>
+        s.text.startsWith('UPDATE app.audit_logs SET'),
+      );
+      expect(scrub?.text).toContain(
+        'WHERE org_id = ? AND pii_scrubbed IS NOT true',
+      );
+      expect(scrub?.text).toContain(
+        "OR metadata->'keyAttribution'->>'makerUserId' = ?",
+      );
+      expect(scrub?.text).toContain(
+        "OR metadata->'keyAttribution'->>'subjectUserId' = ?",
+      );
+      expect(scrub?.text).toContain(
+        "OR metadata->'keyAttribution'->>'eventActorId' = ?",
+      );
+      expect(scrub?.text).toContain(
+        "OR (resource_type = 'user' AND resource_id = ?)",
+      );
+      expect(scrub?.values).toEqual([
+        'org_1',
+        targetUserId,
+        targetUserId,
+        targetUserId,
+        targetUserId,
+        targetUserId,
+      ]);
+      expect(scrub?.text).toContain(
+        'previous_state = NULL, new_state = NULL, metadata = NULL, pii_scrubbed = true',
+      );
+      const settle = fake.statements.find(
+        (s) =>
+          s.text.startsWith(
+            'UPDATE app.gdpr_erasure_requests SET status = ?',
+          ) && s.text.includes('counts = ?'),
+      );
+      expect(settle?.values[2]).toMatchObject({ auditScrub: 1 });
+    },
+  );
+});
