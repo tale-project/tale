@@ -16,6 +16,8 @@
  * (a newer server) reads as the run's code.
  */
 
+import { formatDuration } from '@tale/ui/format-duration';
+
 import {
   isRunFailureCode as isKnownRunCode,
   type RunFailureCode,
@@ -25,7 +27,6 @@ import {
   type StepFailureReason,
 } from '@/lib/engine/core/record/failure';
 import type { StepFailure } from '@/lib/engine/core/record/types';
-import { formatDurationWords } from '@/lib/utils/format/duration';
 
 import {
   fieldLabel,
@@ -196,7 +197,9 @@ function derive(
       const ms = failure.params.limitMs;
       return {
         limit:
-          typeof ms === 'number' ? formatDurationWords(ms, ctx.locale) : 'none',
+          typeof ms === 'number'
+            ? formatDuration(ms, ctx.locale, { style: 'long', maxUnits: 1 })
+            : 'none',
       };
     }
     case 'kind':
