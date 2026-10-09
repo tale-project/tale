@@ -359,12 +359,12 @@ describe('WorkflowCanvas run motion', () => {
     expect(style.animationName).toBe('none');
     expect(style.backgroundImage).toBe('none');
     expect(bar()).toBeVisible();
+    const running = node('issues')?.querySelector(
+      '[data-slot="flow-node-running"]',
+    );
+    if (!running) throw new Error('the running step lost its bar');
     expect((bar() as HTMLElement).getBoundingClientRect().width).toBeCloseTo(
-      (
-        node('issues')?.querySelector(
-          '[data-slot="flow-node-running"]',
-        ) as Element
-      ).getBoundingClientRect().width,
+      running.getBoundingClientRect().width,
       0,
     );
   });

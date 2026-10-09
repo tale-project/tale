@@ -40,4 +40,12 @@ describe('jsonNormalize', () => {
     });
     expect(jsonNormalize(undefined)).toBeUndefined();
   });
+
+  it('keeps keys in the order they were written', () => {
+    expect(Object.keys(jsonNormalize({ b: 1, a: 2, c: 3 }) as object)).toEqual([
+      'b',
+      'a',
+      'c',
+    ]);
+  });
 });

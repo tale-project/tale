@@ -29,6 +29,8 @@ const PURE_SHARED_HELPERS = [
     '../../../../packages/shared/src/automation-name.ts',
   ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/utils/bound-json.ts'),
+  path.resolve(ENGINE_ROOT, '../shared/audit-redaction.ts'),
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -78,16 +80,19 @@ describe('engine purity', () => {
   it('pure layers reach outside the engine only for sanctioned pure helpers', () => {
     // ajv (schema validation), the parser stack (acorn, its ESTree types,
     // periscopic scopes, the zimmerframe walker, is-reference), the shared
-    // safe YAML loader, type guards, name grammar and stable serializer are
-    // runtime-neutral, and so is `@tale/ui`'s data core (summaries, shapes,
-    // diffs, pointers), whose own guard (`packages/ui/src/data/pure.test.ts`)
-    // holds it to imports of itself; everything else outside the engine tree
-    // is a layering violation.
+    // safe YAML loader, type guards, name grammar, stable serializer, JSON
+    // bounding and the secret-key list are runtime-neutral, and so is
+    // `@tale/ui`'s data core (summaries, shapes, diffs, pointers, hashes),
+    // whose own guard (`packages/ui/src/data/pure.test.ts`) holds it to
+    // imports of itself; everything else outside the engine tree is a
+    // layering violation.
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/ui/data/hash',
       '@tale/ui/data/infer-schema',
       '@tale/ui/data/json-pointer',
+      '@tale/ui/data/stable-stringify',
       '@tale/ui/data/value-diff',
       '@tale/ui/data/value-summary',
       'acorn',
@@ -100,12 +105,16 @@ describe('engine purity', () => {
       path.join('lib', 'shared', 'config', 'yaml'),
       path.join('lib', 'utils', 'type-utils'),
       path.join('lib', 'shared', 'utils', 'stable-stringify'),
+      path.join('lib', 'shared', 'utils', 'bound-json'),
+      path.join('lib', 'shared', 'audit-redaction'),
     ];
     const offenders: string[] = [];
     for (const f of files) {
       for (const s of importsOf(f)) {
         if (s.startsWith('.')) {
-          const resolved = path.resolve(path.dirname(f), s);
+          const resolved = path
+            .resolve(path.dirname(f), s)
+            .replace(/\.ts$/, '');
           const insideEngine = resolved.startsWith(ENGINE_ROOT);
           const sanctioned = allowedModules.some((m) => resolved.endsWith(m));
           if (!insideEngine && !sanctioned) offenders.push(`${f} → ${s}`);

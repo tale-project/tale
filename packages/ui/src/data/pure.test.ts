@@ -18,6 +18,7 @@ describe('the data core', () => {
   it('holds the modules the engine may import', () => {
     expect(modules).toEqual(
       expect.arrayContaining([
+        'hash.ts',
         'infer-schema.ts',
         'json-pointer.ts',
         'stable-stringify.ts',

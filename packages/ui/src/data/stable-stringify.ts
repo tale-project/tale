@@ -8,18 +8,19 @@
  * serialized through it.
  */
 export function stableStringify(value: unknown): string {
-  return write(value) ?? 'null';
+  return write(value, true) ?? 'null';
 }
 
-/** The value as plain JSON data: what a reader of its JSON text would get. */
+/** The value as plain JSON data: what a reader of its JSON text would get,
+ * keys in the order they were written. */
 export function jsonNormalize(value: unknown): unknown {
-  const text = write(value);
+  const text = write(value, false);
   if (text === undefined) return undefined;
   const parsed: unknown = JSON.parse(text);
   return parsed;
 }
 
-function write(value: unknown): string | undefined {
+function write(value: unknown, sortKeys: boolean): string | undefined {
   if (value === null) return 'null';
   switch (typeof value) {
     case 'string':
@@ -33,16 +34,17 @@ function write(value: unknown): string | undefined {
     case 'object': {
       if ('toJSON' in value && typeof value.toJSON === 'function') {
         const json: unknown = value.toJSON();
-        return write(json);
+        return write(json, sortKeys);
       }
       if (Array.isArray(value)) {
-        return `[${value.map((item: unknown) => write(item) ?? 'null').join(',')}]`;
+        return `[${value.map((item: unknown) => write(item, sortKeys) ?? 'null').join(',')}]`;
       }
       const parts: string[] = [];
-      for (const [key, entry] of Object.entries(value).toSorted(([a], [b]) =>
-        a < b ? -1 : a > b ? 1 : 0,
-      )) {
-        const text = write(entry);
+      const entries = Object.entries(value);
+      for (const [key, entry] of sortKeys
+        ? entries.toSorted(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        : entries) {
+        const text = write(entry, sortKeys);
         if (text !== undefined) parts.push(`${JSON.stringify(key)}:${text}`);
       }
       return `{${parts.join(',')}}`;
