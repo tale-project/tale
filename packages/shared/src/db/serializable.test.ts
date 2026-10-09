@@ -570,6 +570,36 @@ describe('transactSerializable — the process-local queue', () => {
     expect(localQueueDepth(queueKey)).toBe(0);
   });
 
+  it('two attempts marked with the same keys in opposite orders both finish', async () => {
+    const { runner } = createQueueRunner([]);
+    const other = 'task-comment:t_9';
+    const lostAt = (keys: string[]) => {
+      let calls = 0;
+      return () => {
+        calls += 1;
+        if (calls > 1) return Promise.resolve('done');
+        let error = sqlstateError('40001');
+        for (const key of [...keys].reverse())
+          error = markRetryQueueKey(error, key);
+        return Promise.reject(error);
+      };
+    };
+    const results = await Promise.race([
+      Promise.all([
+        transactSerializable(runner, lostAt([queueKey, other]), {
+          sleep: noSleep,
+        }),
+        transactSerializable(runner, lostAt([other, queueKey]), {
+          sleep: noSleep,
+        }),
+      ]),
+      new Promise((resolve) => setTimeout(() => resolve('hung'), 2_000)),
+    ]);
+    expect(results).toEqual(['done', 'done']);
+    expect(localQueueDepth(queueKey)).toBe(0);
+    expect(localQueueDepth(other)).toBe(0);
+  });
+
   it('lets the queue go on after an attempt that failed for good', async () => {
     const { runner } = createQueueRunner([], {
       failOn: (text) =>

@@ -237,11 +237,15 @@ async function beginQueued<T>(
   keys: readonly string[],
   callback: (tx: TransactionSql) => Promise<T>,
 ): Promise<T> {
-  // In the keys' own order, like the database locks below, so two queued
-  // attempts of this process never hold their keys in opposite orders.
+  // In one fixed order, whatever order the keys were marked in: two queued
+  // attempts of this process that took the same keys in opposite orders
+  // would wait on each other for good — nothing detects a cycle of promise
+  // chains the way the database detects one of locks. Every key is held
+  // locally before any database lock is taken, so this order cannot meet a
+  // database wait in a cycle either.
   const releases: (() => void)[] = [];
   try {
-    for (const key of keys) releases.push(await acquireLocal(key));
+    for (const key of [...keys].sort()) releases.push(await acquireLocal(key));
     return await beginQueuedOnConnection(reserve, keys, callback);
   } finally {
     for (const release of releases.reverse()) release();
