@@ -84,6 +84,13 @@ function outboxWorld() {
       const ids = values[0] as string[];
       return ids.filter((id) => world.sessions.has(id)).map((id) => ({ id }));
     }
+    if (text.includes('id = ANY(')) {
+      const ids = new Set((values[0] as string[]).map(Number));
+      return world.rows
+        .filter((row) => ids.has(row.id))
+        .sort((a, b) => a.id - b.id)
+        .map(project);
+    }
     if (text.includes('min(id)')) {
       const min = world.rows.reduce(
         (m, row) => (m === null || row.id < m ? row.id : m),
@@ -388,6 +395,54 @@ describe('the shared hint tail', () => {
       hintIds(resumed.text).filter((id) => id === String(next)),
     ).toHaveLength(1);
     await resumed.close();
+  });
+
+  test('a hint whose transaction commits after a later one still arrives', async () => {
+    const { world, sql } = outboxWorld();
+    world.members.set('o1/u1', 'member');
+    const app = appFor(sql, FAST);
+    const stream = collect(await app.request('/events?orgId=o1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // A transaction takes its id, then commits after a later one did: the
+    // tail reads past the id before its row is visible.
+    const late = world.nextId;
+    world.nextId += 1;
+    const early = world.insert('o1', 'task');
+    expect(await stream.until((read) => read.includes(`id: ${early}`))).toBe(
+      true,
+    );
+    world.rows.push({
+      id: late,
+      org_id: 'o1',
+      user_id: null,
+      entity: 'document',
+      entity_id: `document-${late}`,
+    });
+    expect(
+      await stream.until((read) => read.includes(`document-${late}`)),
+    ).toBe(true);
+    // Framed without an id: the browser's resume position stays put.
+    expect(stream.text).not.toContain(`id: ${late}\n`);
+    await stream.close();
+  });
+
+  test('a hole nobody fills is looked for only for the grace period', async () => {
+    const { world, sql } = outboxWorld();
+    world.members.set('o1/u1', 'member');
+    const app = appFor(sql, { ...FAST, lateCommitGraceMs: 150 });
+    const stream = collect(await app.request('/events?orgId=o1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    world.nextId += 1; // a rolled-back insert: its id never commits
+    const after = world.insert('o1', 'task');
+    expect(await stream.until((read) => read.includes(`id: ${after}`))).toBe(
+      true,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const looked = world.count('id = ANY(');
+    expect(looked).toBeGreaterThan(0);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(world.count('id = ANY(')).toBe(looked);
+    await stream.close();
   });
 
   test('every reader is re-proved in one batched pass', async () => {

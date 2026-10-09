@@ -62,6 +62,11 @@ const CATCH_UP_PAGE = 500;
 const RECHECK_CHUNK = 500;
 /** How long resumes share one read of the oldest retained outbox id. */
 const OLDEST_RETAINED_TTL_MS = 250;
+/** How long the tail keeps looking for an id it read past. */
+const DEFAULT_LATE_COMMIT_GRACE_MS = 30_000;
+/** Ids read past that the tail tracks at most: a bigger jump (a mass
+ * rollback, a sequence reset) is not chased. */
+const LATE_COMMIT_MAX_TRACKED = 10_000;
 /**
  * How long the loop keeps reading after its last stream left. Zero by
  * default: a process without streams stops polling (the worker's reclaim
@@ -81,6 +86,8 @@ export interface HintHubOptions {
   tailPage?: number;
   lingerMs?: number;
   maxPendingWrites?: number;
+  /** How long the tail looks for an id it read past (see `noteSkipped`). */
+  lateCommitGraceMs?: number;
 }
 
 export interface HintSubscription {
@@ -120,6 +127,32 @@ function hintFrame(row: TailRow): string {
   return frameEvent({
     event: 'hint',
     id: row.idText,
+    data: JSON.stringify({ entity: row.entity, entityId: row.entityId }),
+  });
+}
+
+function tailRowOf(row: {
+  id: string;
+  org_id: string;
+  user_id: string | null;
+  entity: string;
+  entity_id: string | null;
+}): TailRow {
+  return {
+    id: toBigInt(row.id),
+    idText: row.id,
+    orgId: row.org_id,
+    userId: row.user_id ?? null,
+    entity: row.entity,
+    entityId: row.entity_id,
+  };
+}
+
+/** A hint that committed after the tail read past its id: framed without
+ * an `id`, so the browser's resume position does not move backwards. */
+function lateHintFrame(row: TailRow): string {
+  return frameEvent({
+    event: 'hint',
     data: JSON.stringify({ entity: row.entity, entityId: row.entityId }),
   });
 }
@@ -187,6 +220,8 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
   const ringCapacity = options.ringCapacity ?? DEFAULT_RING_CAPACITY;
   const tailPage = options.tailPage ?? DEFAULT_TAIL_PAGE;
   const lingerMs = options.lingerMs ?? DEFAULT_LINGER_MS;
+  const lateCommitGraceMs =
+    options.lateCommitGraceMs ?? DEFAULT_LATE_COMMIT_GRACE_MS;
   const outage = createOutageWatch(options.outageReportAfterMs);
   /** The last read of the oldest retained id, shared by resumes. */
   let oldestRead: { at: number; value: Promise<bigint | null> } | null = null;
@@ -205,6 +240,8 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
   let cursor: bigint | null = null;
   /** The newest rows, ascending; contiguous up to `cursor`. */
   let ring: TailRow[] = [];
+  /** Ids the tail read past without a row, and when it first did. */
+  const skipped = new Map<bigint, number>();
   let loopRunning = false;
   let lastRecheckAt = Date.now();
   let rechecking = false;
@@ -248,6 +285,87 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     if (ring.length > ringCapacity) {
       ring = ring.slice(ring.length - ringCapacity);
     }
+  }
+
+  /** Put rows that committed late into the ring at their place by id. */
+  function insertIntoRing(rows: readonly TailRow[]): void {
+    for (const row of rows) {
+      let low = 0;
+      let high = ring.length;
+      while (low < high) {
+        const middle = (low + high) >> 1;
+        const at = ring[middle];
+        if (at !== undefined && at.id < row.id) low = middle + 1;
+        else high = middle;
+      }
+      if (ring[low]?.id !== row.id) ring.splice(low, 0, row);
+    }
+    if (ring.length > ringCapacity) {
+      ring = ring.slice(ring.length - ringCapacity);
+    }
+  }
+
+  /**
+   * Remember the ids a tail read went past without a row. An outbox id is
+   * taken when the row is inserted but becomes visible only when its
+   * transaction commits, so a transaction that commits after a later one
+   * leaves a hole the `id > cursor` read has already passed — the per-stream
+   * loop lost those hints for good. A hole is also what a rolled-back insert
+   * leaves; either way it is looked for until `lateCommitGraceMs` is over.
+   */
+  function noteSkipped(from: bigint, rows: readonly TailRow[]): void {
+    const now = Date.now();
+    let expected = from + 1n;
+    for (const row of rows) {
+      for (let id = expected; id < row.id; id += 1n) {
+        if (skipped.size >= LATE_COMMIT_MAX_TRACKED) break;
+        skipped.set(id, now);
+      }
+      expected = row.id + 1n;
+    }
+  }
+
+  /** Hand rows that committed late to every stream of their orgs. */
+  function dispatchLate(rows: readonly TailRow[]): void {
+    for (const row of rows) {
+      const subscribers = byOrg.get(row.orgId);
+      if (subscribers === undefined) continue;
+      const frame = lateHintFrame(row);
+      for (const subscriber of subscribers) {
+        if (subscriber.ended) continue;
+        if (row.userId !== null && row.userId !== subscriber.userId) continue;
+        subscriber.writer.write(frame);
+      }
+    }
+  }
+
+  /** Look for the holes once: deliver what committed, forget the expired. */
+  async function readLate(): Promise<void> {
+    const now = Date.now();
+    for (const [id, since] of skipped) {
+      if (now - since > lateCommitGraceMs) skipped.delete(id);
+    }
+    if (skipped.size === 0) return;
+    const ids = [...skipped.keys()].map((id) => id.toString());
+    const rows = await sql<
+      {
+        id: string;
+        org_id: string;
+        user_id: string | null;
+        entity: string;
+        entity_id: string | null;
+      }[]
+    >`
+      SELECT id::text AS id, org_id, user_id, entity, entity_id
+      FROM app_realtime.outbox
+      WHERE id = ANY(${ids}::bigint[])
+      ORDER BY id ASC
+    `;
+    if (rows.length === 0) return;
+    const late = rows.map(tailRowOf);
+    for (const row of late) skipped.delete(row.id);
+    insertIntoRing(late);
+    dispatchLate(late);
   }
 
   /** Deliver rows (ascending) to one stream: its org-wide and own hints
@@ -322,14 +440,7 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
       ORDER BY id ASC
       LIMIT ${tailPage}
     `;
-    return rows.map((row) => ({
-      id: toBigInt(row.id),
-      idText: row.id,
-      orgId: row.org_id,
-      userId: row.user_id ?? null,
-      entity: row.entity,
-      entityId: row.entity_id,
-    }));
+    return rows.map(tailRowOf);
   }
 
   /** The tail position plus the newest rows below it for the ring. */
@@ -455,6 +566,7 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
         loopRunning = false;
         cursor = null;
         ring = [];
+        skipped.clear();
         return;
       }
       schedule(options.pollIntervalMs);
@@ -471,14 +583,17 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     try {
       if (cursor === null) await startTail();
       if (cursor !== null) {
-        const rows = await readTail(cursor);
+        const from = cursor;
+        const rows = await readTail(from);
         if (rows.length > 0) {
+          noteSkipped(from, rows);
           const last = rows[rows.length - 1];
           if (last !== undefined) cursor = last.id;
           appendToRing(rows);
           dispatch(rows);
           again = rows.length >= tailPage;
         }
+        if (skipped.size > 0) await readLate();
       }
       unavailableBackoffMs = options.errorBackoffMs;
       outage.recovered();

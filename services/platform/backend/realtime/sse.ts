@@ -58,6 +58,8 @@ export interface EventsHandlerOptions {
   lingerMs?: number;
   /** Writes a stream may have queued before it is treated as gone. */
   maxPendingWrites?: number;
+  /** How long the shared tail looks for an outbox id it read past. */
+  lateCommitGraceMs?: number;
 }
 
 /**
@@ -147,6 +149,7 @@ export function createEventsHandler(
     tailPage: options.tailPage,
     lingerMs: options.lingerMs,
     maxPendingWrites: options.maxPendingWrites,
+    lateCommitGraceMs: options.lateCommitGraceMs,
   });
   return async (c: Context<AuthEnv>): Promise<Response> => {
     const orgId = c.req.query('orgId');
