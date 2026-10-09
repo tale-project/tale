@@ -588,7 +588,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       view.destroy();
       viewRef.current = null;
     };
-  }, [portals]);
+  }, [portals, historySlot]);
 
   // Reconfigure the parts whose props changed.
   useEffect(() => {
@@ -631,7 +631,7 @@ export default function CodeEditorView(props: CodeEditorViewProps) {
       return;
     }
     applyValue(view, props.value, historySlot);
-  }, [props.value]);
+  }, [props.value, historySlot]);
 
   return (
     <>
