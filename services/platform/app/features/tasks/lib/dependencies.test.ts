@@ -49,4 +49,33 @@ describe('computeBlockedTaskIds', () => {
     const blocked = computeBlockedTaskIds(tasks, [edge('ghost', 'b')]);
     expect(blocked.size).toBe(0);
   });
+
+  it('keeps a live blocker blocking outside the filtered rows', () => {
+    const tasks = [task('b', 'todo')];
+    const edges = [{ ...edge('a', 'b'), blockerResolved: false }];
+    expect(computeBlockedTaskIds(tasks, edges).has('b')).toBe(true);
+  });
+
+  it('honors server resolution even if an archived blocker is visible', () => {
+    const tasks = [task('a', 'todo'), task('b', 'todo')];
+    const edges = [{ ...edge('a', 'b'), blockerResolved: true }];
+    expect(computeBlockedTaskIds(tasks, edges).size).toBe(0);
+  });
+
+  it.each(['done', 'cancelled', 'archived', 'deleted'])(
+    'keeps a hidden %s blocker resolved',
+    () => {
+      const edges = [{ ...edge('a', 'b'), blockerResolved: true }];
+      expect(computeBlockedTaskIds([task('b', 'todo')], edges).size).toBe(0);
+    },
+  );
+
+  it('uses current server state rather than an outdated visible status', () => {
+    const edges = [{ ...edge('a', 'b'), blockerResolved: false }];
+    expect(
+      computeBlockedTaskIds([task('a', 'done'), task('b', 'todo')], edges).has(
+        'b',
+      ),
+    ).toBe(true);
+  });
 });
