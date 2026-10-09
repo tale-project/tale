@@ -127,6 +127,10 @@ import {
   type TaskRunFailureCode,
 } from './task_auto_retry';
 import {
+  pruneStaleTaskInputMirrors,
+  TASK_INPUTS_ROOT,
+} from './task_input_mirrors';
+import {
   isTaskInputMissingError,
   TaskInputMissingError,
 } from './task_input_missing_error';
@@ -276,7 +280,7 @@ function taskOutputDir(taskId: string): string {
  * the worker's workspace holds other tasks' stale files. Outside
  * `/agent/output` so the box sweep and the settle harvest never touch it. */
 function taskInputsDir(taskId: string): string {
-  return `/agent/inputs/${taskId}`;
+  return `${TASK_INPUTS_ROOT}/${taskId}`;
 }
 
 /** Whether a LOOSE file at the box root (`/agent/output/` itself — never
@@ -1353,6 +1357,15 @@ export async function startTaskAgentTurnImpl(
           );
         }
       }
+      // The worker also holds a copy of the inputs of every task it worked
+      // before: drop the ones whose task is closed, gone or a month
+      // untouched. Best-effort and bounded, never this run's own task.
+      await pruneStaleTaskInputMirrors(ctx, {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+      });
 
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the

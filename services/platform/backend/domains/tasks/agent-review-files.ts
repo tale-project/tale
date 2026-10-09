@@ -15,6 +15,7 @@ import {
 import { isS3Ref } from '../../core/lib/storage/blob_ref.ts';
 import { sessionStageFiles } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import { stageUrlForBlobRef } from '../../core/node_only/sandbox/helpers/stage_url.ts';
+import { reviewInputsDir } from '../../core/tasks/task_input_mirrors.ts';
 import {
   getTaskReviewFileMetadata,
   type FileMetadataRow,
@@ -263,7 +264,7 @@ export async function stageAgentReviewFile(
     );
   const request = parsed.data;
   const before = await authorize(request);
-  const path = `/agent/inputs/reviews/${hashSegment(request.taskId)}/${hashSegment(request.expected.approvalId)}/${request.expected.evidenceRevision}/${hashSegment(before.metadata.storageRef)}/${safePathSegment(before.entry.fileName)}`;
+  const path = `${reviewInputsDir(request.taskId)}/${hashSegment(request.expected.approvalId)}/${request.expected.evidenceRevision}/${hashSegment(before.metadata.storageRef)}/${safePathSegment(before.entry.fileName)}`;
   const url = await stageUrlForBlobRef(
     before.metadata.storageRef,
     before.organizationId,

@@ -43,7 +43,7 @@ Ces règles sur les identifiants de modèle ne signifient pas que la sandbox ne 
 
 ## Comprendre les fichiers et les outils connectés
 
-Un agent de projet réutilise son espace de travail persistant entre ses tâches. Les pièces jointes sont accessibles en lecture seule sous `/agent/inputs/<task>/attachments/`. Les fichiers écrits dans `/agent/output/<task>/` sont collectés comme **Fichiers produits** à la fin de l’échange. Un nœud agent collecte sa sortie sous `/agent/output/`.
+Un agent de projet réutilise son espace de travail persistant entre ses tâches. Les pièces jointes sont accessibles en lecture seule sous `/agent/inputs/<task>/attachments/`. L’espace de travail ne garde cette copie que tant que la tâche peut encore en avoir besoin : Tale la retire dès que la tâche passe à **Terminé** ou **Annulé**, est archivée ou supprimée, ou n’a pas changé depuis 30 jours, et la prochaine exécution de la tâche y recopie les fichiers. Les fichiers écrits dans `/agent/output/<task>/` sont collectés comme **Fichiers produits** à la fin de l’échange. Un nœud agent collecte sa sortie sous `/agent/output/`.
 
 Les bundles de skills sont préparés sous forme de fichiers et cités dans les instructions de l’exécution. Examine leurs consignes et scripts avant de les accorder. [Skills des agents](/fr/platform/agents/skills) explique cette préparation et la visibilité.
 

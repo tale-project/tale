@@ -50,6 +50,7 @@ import {
   settleAgentRun,
 } from './agent-runs.ts';
 import { parkAgentRunInTx } from './agent-workers.ts';
+import { staleTaskInputMirrors } from './input-mirrors.ts';
 import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
@@ -437,6 +438,18 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         );
       }
       return null;
+    },
+
+    // Which copies of task inputs a run's worker may drop at its start.
+    'tasks/agent_runs:listStaleTaskInputMirrors': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
+      const args = raw as {
+        organizationId: string;
+        agentId: string;
+        taskIds: string[];
+        reviewHashes: string[];
+      };
+      return staleTaskInputMirrors(sql, args);
     },
 
     'tasks/agent_runs:getTaskBriefForAgentRun': async (raw) => {
