@@ -1,6 +1,6 @@
-import { expect, test } from 'bun:test';
+import { describe, expect, test } from 'bun:test';
 
-import { parseEnvFile } from '../../src/stack/stack.ts';
+import { parseEnvFile, roleEnv } from '../../src/stack/stack.ts';
 
 test('reads KEY=value lines, skips comments, unquotes, keeps = inside values', () => {
   const env = parseEnvFile(
@@ -21,5 +21,12 @@ test('reads KEY=value lines, skips comments, unquotes, keeps = inside values', (
     QUOTED: 'two words',
     SINGLE: 'x=y',
     INDENTED: 'yes',
+  });
+});
+
+describe('roleEnv', () => {
+  test('names the role in the variable the backend reads', () => {
+    expect(roleEnv('api')).toEqual({ ROLE: 'api', TALE_ROLE: 'api' });
+    expect(roleEnv('worker').ROLE).toBe('worker');
   });
 });

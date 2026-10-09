@@ -188,7 +188,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
     const log = join(options.logDir, `api-${i}.log`);
     const pid = spawnDetached(process.execPath, nodeArgs, {
       cwd: platformDir,
-      env: { ...baseEnv, PORT: String(port), TALE_ROLE: 'api' },
+      env: { ...baseEnv, ...roleEnv('api'), PORT: String(port) },
       log,
     });
     processes.push({ role: 'api', pid, port, log });
@@ -213,7 +213,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
     const log = join(options.logDir, `worker-${i}.log`);
     const pid = spawnDetached(process.execPath, nodeArgs, {
       cwd: platformDir,
-      env: { ...baseEnv, TALE_ROLE: 'worker' },
+      env: { ...baseEnv, ...roleEnv('worker') },
       log,
     });
     processes.push({ role: 'worker', pid, port: null, log });
@@ -233,7 +233,26 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
   if (notReady.length > 0) {
     throw new Error(`api processes not ready: ${notReady.join(', ')}`);
   }
+  // A worker serves no port, so readiness cannot see it die at boot (a bad
+  // env, a crash on its first job): check it is still there.
+  const dead = processes.filter((p) => p.role === 'worker' && !alive(p.pid));
+  if (dead.length > 0) {
+    throw new Error(
+      `worker processes exited at boot; see ${dead.map((p) => p.log).join(', ')}`,
+    );
+  }
   return state;
+}
+
+/**
+ * The role a process plays, as the backend reads it (`ROLE` in
+ * backend/env.ts). `TALE_ROLE` is what the container's entrypoint maps to
+ * `ROLE`; it rides along so a process looks the same either way.
+ */
+export function roleEnv(
+  role: 'api' | 'worker',
+): Record<'ROLE' | 'TALE_ROLE', string> {
+  return { ROLE: role, TALE_ROLE: role };
 }
 
 async function writeState(
