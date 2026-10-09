@@ -2,6 +2,7 @@
 
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Handle, Position } from '@xyflow/react';
+import { Info, TriangleAlert } from 'lucide-react';
 import {
   createContext,
   useContext,
@@ -20,6 +21,7 @@ import type { FlowCompareFace, FlowCompareSide } from '../compare/compare';
 import { FLOW_MOTION_CLASS, FLOW_STRIP_SETTLE } from '../motion/flow-motion';
 import { flowNodeIssueFrameClass } from '../node-issue-marker';
 import { FLOW_NODE_STATE, type FlowNodeState } from '../node-status';
+import type { FlowNotice } from '../types';
 import { FLOW_NODE_DASHED } from './chrome';
 
 /** How a box looks right now: its run state, and where it stands in a
@@ -388,7 +390,14 @@ export function FlowNodeButton({
  * plays on, new words settle in softly; scrubbing back and reduced motion
  * swap them at once.
  */
-export function FlowNodeStrip({ id }: { id: string }) {
+export function FlowNodeStrip({
+  id,
+  notice,
+}: {
+  id: string;
+  /** Start's or End's notice: it takes the place of the strip's words. */
+  notice?: FlowNotice;
+}) {
   const { strips, stripSettle, compare } = useFlowRender();
   const text = strips.get(id) ?? '';
   const face = compare?.faces.get(id);
@@ -412,6 +421,29 @@ export function FlowNodeStrip({ id }: { id: string }) {
   }, [text, stripSettle]);
   if (compare !== null && face !== undefined)
     return <FlowCompareStrip face={face} labels={compare.labels} />;
+  if (notice !== undefined) {
+    const Icon = notice.tone === 'warning' ? TriangleAlert : Info;
+    return (
+      <span
+        data-slot="flow-node-strip"
+        data-flow-notice={notice.tone}
+        className="border-border flex h-7 shrink-0 items-center gap-1.5 border-t px-3 text-xs"
+      >
+        <Icon
+          aria-hidden="true"
+          className={cn(
+            'size-3.5 shrink-0',
+            notice.tone === 'warning'
+              ? 'text-amber-700 dark:text-amber-500'
+              : 'text-muted-foreground',
+          )}
+        />
+        <span className="text-foreground truncate" title={notice.text}>
+          {notice.text}
+        </span>
+      </span>
+    );
+  }
   return (
     <span
       data-slot="flow-node-strip"
