@@ -198,7 +198,9 @@ A session absent from this spawner's registry is resolved from the backend.
 If that inventory or endpoint lookup fails, or an existing nonterminal runtime
 is still starting, session routes return `503 session_unavailable` with
 `Retry-After: 1`. A local create still in progress answers the same way. The caller retries without
-declaring the running session lost or recreating it. A confirmed missing or
+declaring the running session lost or recreating it. The platform's acquire and create ask again at
+the `Retry-After` for up to 20 seconds, and wait out a refused, reset or unresolved connection to the
+spawner (a restart) within the same budget, before the turn's start fails. A confirmed missing or
 stopped session still returns 404 so its preserved workspace can be resumed.
 
 The in-memory session registry is a **cache, not the source of truth**: the

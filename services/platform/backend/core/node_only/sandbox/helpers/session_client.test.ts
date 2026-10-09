@@ -1218,6 +1218,96 @@ describe('sessionCreate drain-retry', () => {
   }, 10_000);
 });
 
+describe('sessionCreate across transient spawner answers', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+  const create = () =>
+    sessionCreate({
+      sessionId: 'ses-t',
+      organizationId: 'org-1',
+      profile: 'agent',
+    });
+
+  test('asks again at the retry-after while a create of the id is in flight', async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      n += 1;
+      return n === 1
+        ? new Response(JSON.stringify({ error: 'session_unavailable' }), {
+            status: 503,
+            headers: { 'retry-after': '1' },
+          })
+        : createdResponse('ses-t');
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const created = create();
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect((await created).session.sessionId).toBe('ses-t');
+    expect(n).toBe(2);
+  });
+
+  test('waits out a spawner restart that refuses the connection', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    let n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      n += 1;
+      if (n === 1)
+        throw new TypeError('fetch failed', {
+          cause: Object.assign(new Error('connect ECONNREFUSED'), {
+            code: 'ECONNREFUSED',
+          }),
+        });
+      return createdResponse('ses-t');
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const created = create();
+    await vi.advanceTimersByTimeAsync(250);
+
+    expect((await created).session.sessionId).toBe('ses-t');
+    expect(n).toBe(2);
+  });
+
+  test('fails once session_unavailable outlasts the budget, and on any other 503 at once', async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      n += 1;
+      return new Response(JSON.stringify({ error: 'session_unavailable' }), {
+        status: 503,
+        headers: { 'retry-after': '1' },
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    const created = create().catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(String(await created)).toMatch(
+      /sandbox session create failed \(503\)/,
+    );
+    expect(n).toBe(21);
+
+    n = 0;
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async () => {
+      n += 1;
+      return new Response(JSON.stringify({ error: 'host_unhealthy' }), {
+        status: 503,
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    await expect(create()).rejects.toThrow(/host_unhealthy/);
+    expect(n).toBe(1);
+  });
+});
+
 describe('sessionCreate at host capacity', () => {
   function refuse(body: string, retryAfter?: string): void {
     // oxlint-disable-next-line typescript-eslint/no-explicit-any
