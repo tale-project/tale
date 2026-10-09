@@ -292,6 +292,20 @@ export const SETTINGS_KINDS_NOT_OVER_MCP = [
   reason: string;
 }>;
 
+/**
+ * Organization policies the `governance` kind does not take, each with
+ * the reason an agent is told: two change through staged workflows of
+ * their own in Tale, and one is retired.
+ */
+export const GOVERNANCE_KEYS_NOT_OVER_MCP = {
+  retention_policy:
+    'changes through its staged workflow in Tale, under Settings > Governance > Policies & limits',
+  dsar_governance:
+    'changes through its staged workflow in Tale, under Settings > Governance > Data subject requests',
+  conversation_access:
+    'is retired: conversation privacy is always on, and nothing reads it',
+} as const satisfies Readonly<Record<string, string>>;
+
 const BY_KIND: ReadonlyMap<string, SettingsKindDescriptor> = new Map(
   SETTINGS_KINDS.map((descriptor) => [descriptor.kind, descriptor]),
 );

@@ -182,6 +182,19 @@ An agent reads the organization's settings, plans a change and applies it throug
 Each kind of setting is read and written by the same code the Settings page uses, so the
 person's role allows the same changes over MCP as in the app.
 
+### MCP-R10 · An agent changes a setting only where its person's role can change it in the app
+
+Each kind of setting is read and changed through the code its Settings page uses, with the same
+checks of the person's role, so a person's agent can read and change every setting their role
+lets them read and change in the app, and nothing more. A change the role does not allow is
+refused with the reason the app's check gives, and nothing in the call is applied. Without
+`kinds`, `get_settings` says for each kind whether the person's role may read and change it.
+
+- **Example**: Ada, an admin, has her agent turn the organization's feature flags off → they are
+  off. Mia, an ordinary member, has her agent send the same change → refused, saying only owners
+  and admins can change organization policies, and the flags stay on; her agent asks for the
+  password policy, which only owners and admins read → refused as well.
+
 ### MCP-R11 · A settings call applies only when each setting is still what the agent read
 
 Every change names the hash of the setting the agent read, or none for a setting it creates.
@@ -394,9 +407,9 @@ deployment of a release. A signed-in person downloads it in the app; an agent re
   a version its agent saves records the door and the key but no client name; a 2026-07-28 client
   names itself on every call (MCP-R26).
 - The tool inventory and each tool's arguments (`lib/mcp/tools.ts`, `lib/mcp/args.ts`).
-- No kind of setting is served over MCP yet: each arrives with its handler beside the code that
-  writes it in the app. Until then the catalog lists it as unavailable, and a change to it is
-  refused (`SETTINGS_KIND_UNAVAILABLE`).
+- A kind of setting is served over MCP once its handler sits beside the code that writes it in
+  the app; until then the catalog lists it as unavailable, and a change to it is refused
+  (`SETTINGS_KIND_UNAVAILABLE`).
 - A client cannot subscribe to a resource or be told that a list changed (`subscriptions/listen`
   answers 404 on 2026-07-28): the lists are read again when a client reconnects, or on 2026-07-28
   once the time the answer named has passed.

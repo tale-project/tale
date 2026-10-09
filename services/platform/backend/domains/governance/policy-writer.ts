@@ -78,6 +78,12 @@ export interface GovernancePolicyActor {
   readonly role: string;
 }
 
+/** Whether a role may change the organization's policies: an owner or an
+ * admin. */
+export function mayChangeGovernancePolicies(role: string): boolean {
+  return isAdmin(role);
+}
+
 function unknownPolicy(policyType: string): GovernancePolicyError {
   return new GovernancePolicyError(
     'UNKNOWN_POLICY_TYPE',
@@ -115,20 +121,25 @@ export function assertGovernancePolicyReadable(
 /**
  * A policy as its file holds it now, past every cache, with the hash its
  * writer checks a change against: no policy and a null hash when the
- * organization has never saved one.
+ * organization has never saved one. The organization's slug is resolved
+ * afresh unless the caller already read it for this request.
  */
 export async function readGovernancePolicySnapshotFor(
   sql: Sql,
-  member: { readonly organizationId: string; readonly role: string },
+  member: {
+    readonly organizationId: string;
+    readonly role: string;
+    readonly orgSlug?: string;
+  },
   policyType: string,
 ): Promise<{
   policy: { key: FilePolicyType; config: unknown } | null;
   hash: string | null;
 }> {
   const type = assertGovernancePolicyReadable(member.role, policyType);
-  const orgSlug = await resolveOrgSlug(sql, member.organizationId, {
-    fresh: true,
-  });
+  const orgSlug =
+    member.orgSlug ??
+    (await resolveOrgSlug(sql, member.organizationId, { fresh: true }));
   if (orgSlug === null) throw organizationGone();
   const { readGovernancePolicySnapshot } =
     await import('../../lib/governance-policy-write');
@@ -172,7 +183,7 @@ export async function checkGovernancePolicy(
       { answersMessage: true },
     );
   }
-  if (!isAdmin(actor.role)) {
+  if (!mayChangeGovernancePolicies(actor.role)) {
     throw new GovernancePolicyError(
       'FORBIDDEN',
       'Only owners and admins can change organization policies.',

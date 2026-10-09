@@ -5,6 +5,9 @@
  * handler here is answered as not available on this deployment.
  */
 
+import { governanceSettings } from '../../governance/settings-resource.ts';
 import type { SettingsRegistry } from './registry.ts';
 
-export const SETTINGS_HANDLERS: SettingsRegistry = {};
+export const SETTINGS_HANDLERS: SettingsRegistry = {
+  governance: governanceSettings,
+};
