@@ -349,34 +349,32 @@ describe('Pasting a link in a project’s new chat', () => {
   }
 
   /** The composer of a project's new chat, before the first send. */
-  function PasteBox() {
+  function PasteBox({ text }: { text: string }) {
     const videoLinks = useChatVideoLinks({
       threadId: undefined,
       projectId: 'project-1',
       organizationId: ORG,
-      locale: 'en',
+      locale: i18n.language,
     });
     return (
       <button
         type="button"
-        onClick={() =>
-          void videoLinks.ingestUrlsFromText(
-            'https://www.youtube.com/watch?v=abcdefghijk',
-          )
-        }
+        onClick={() => void videoLinks.ingestUrlsFromText(text)}
       >
         Paste
       </button>
     );
   }
 
-  function renderPasteBox() {
+  function renderPasteBox(
+    text = 'https://www.youtube.com/watch?v=abcdefghijk',
+  ) {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
     return render(
       <QueryClientProvider client={client}>
-        <PasteBox />
+        <PasteBox text={text} />
         <Toaster />
       </QueryClientProvider>,
     );
@@ -398,6 +396,114 @@ describe('Pasting a link in a project’s new chat', () => {
     });
     expect(sent[0]).not.toHaveProperty('threadId');
     expect(toast).not.toHaveBeenCalled();
+  });
+
+  const threeVideos = [
+    'https://www.youtube.com/watch?v=abcdefghijk',
+    'https://www.youtube.com/watch?v=lmnopqrstuv',
+    'https://www.youtube.com/watch?v=wxyzabcdefg',
+  ].join(' ');
+
+  it.each([
+    ['en', 'The upload limit was reached. Try again in 48 seconds.'],
+    ['de', 'Das Upload-Limit ist erreicht. Versuch es in 48 Sekunden erneut.'],
+    [
+      'fr',
+      'La limite de téléversements est atteinte. Réessaie dans 48 secondes.',
+    ],
+    [
+      'de-CH',
+      'Das Upload-Limit ist erreicht. Versuch es in 48 Sekunden erneut.',
+    ],
+  ])(
+    'shows one translated quota toast and stops the paste in %s',
+    async (locale, sentence) => {
+      vi.spyOn(window.navigator, 'language', 'get').mockReturnValue(locale);
+      vi.spyOn(window.navigator, 'languages', 'get').mockReturnValue([locale]);
+      await i18n.changeLanguage(locale);
+      const sent = stubIngest(() =>
+        json(
+          {
+            error: 'RATE_LIMITED',
+            code: 'RATE_LIMITED',
+            data: { retryAfterMs: 47_001 },
+          },
+          429,
+        ),
+      );
+      const { user, container } = renderPasteBox(threeVideos);
+
+      await user.click(screen.getByRole('button', { name: 'Paste' }));
+
+      expect(await screen.findByText(sentence)).toBeVisible();
+      expect(screen.queryByText('RATE_LIMITED')).not.toBeInTheDocument();
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ userLocale: locale });
+      expect(toast).toHaveBeenCalledOnce();
+      await checkAccessibility(container);
+    },
+  );
+
+  it.each([undefined, { retryAfterMs: -1 }, { retryAfterMs: '48000' }])(
+    'gives translated fallback guidance for missing or malformed retry data %j',
+    async (data) => {
+      stubIngest(() =>
+        json({ error: 'RATE_LIMITED', code: 'RATE_LIMITED', data }, 429),
+      );
+      const { user } = renderPasteBox();
+
+      await user.click(screen.getByRole('button', { name: 'Paste' }));
+
+      expect(
+        await screen.findByText(
+          'The upload limit was reached. Try again in a moment.',
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText('RATE_LIMITED')).not.toBeInTheDocument();
+      expect(toast).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('keeps a successful earlier video and stops at the first quota refusal', async () => {
+    let calls = 0;
+    const sent = stubIngest(() =>
+      ++calls === 1
+        ? json({ jobId: 'job-1' })
+        : json(
+            {
+              error: 'RATE_LIMITED',
+              code: 'RATE_LIMITED',
+              data: { retryAfterMs: 1000 },
+            },
+            429,
+          ),
+    );
+    const { user } = renderPasteBox(threeVideos);
+
+    await user.click(screen.getByRole('button', { name: 'Paste' }));
+
+    expect(
+      await screen.findByText(
+        'The upload limit was reached. Try again in 1 second.',
+      ),
+    ).toBeVisible();
+    expect(sent).toHaveLength(2);
+    expect(toast).toHaveBeenCalledOnce();
+  });
+
+  it('continues the paste after a refusal unrelated to the allowance', async () => {
+    let calls = 0;
+    const sent = stubIngest(() =>
+      ++calls === 1
+        ? json({ error: 'unavailable', message: 'Video unavailable' }, 400)
+        : json({ jobId: `job-${calls}` }),
+    );
+    const { user } = renderPasteBox(threeVideos);
+
+    await user.click(screen.getByRole('button', { name: 'Paste' }));
+
+    await waitFor(() => expect(sent).toHaveLength(3));
+    expect(toast).toHaveBeenCalledOnce();
   });
 
   it('says so when the project is no longer the member’s to chat in', async () => {
