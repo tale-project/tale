@@ -1,3 +1,7 @@
+import {
+  deleteAutomationRow,
+  uploadAutomationDraft,
+} from '../helpers/automations';
 import { TIMEOUT } from '../helpers/env';
 import { test, expect } from '../helpers/fixtures';
 import { t } from '../helpers/i18n';
@@ -32,43 +36,7 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
 }) => {
   const { organizationId } = org;
 
-  // The list toolbar's create menu — a dropdown of three lanes. Its trigger
-  // is the DataTable `addAction`, labelled with the Create verb every list
-  // page carries (`list.createButton`).
-  await page.goto(`/dashboard/${organizationId}/automations`);
-  const createButton = page
-    .getByRole('button', { name: t('automations.list.createButton') })
-    .first();
-  await expect(createButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await createButton.click();
-  await page
-    .getByRole('menuitem', { name: t('automations.upload.trigger') })
-    .click();
-
-  // Upload the probe. The drop zone's aria-label duplicates the field label,
-  // so target the file input directly rather than by accessible name.
-  const uploadDialog = page.getByRole('dialog', {
-    name: t('automations.upload.title'),
-  });
-  await expect(uploadDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await uploadDialog.locator('input[type="file"]').setInputFiles({
-    name: 'workflow.yml',
-    mimeType: 'application/yaml',
-    buffer: Buffer.from(PROBE_WORKFLOW_YML, 'utf8'),
-  });
-  await uploadDialog
-    .getByRole('button', { name: t('automations.upload.submit'), exact: true })
-    .click();
-
-  // Saved as a draft — the dialog re-titles itself and offers to deploy;
-  // decline so the probe stays a draft.
-  const successDialog = page.getByRole('dialog', {
-    name: t('automations.upload.successTitle'),
-  });
-  await expect(successDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await successDialog
-    .getByRole('button', { name: t('automations.upload.deployLater') })
-    .click();
+  await uploadAutomationDraft(page, organizationId, PROBE_WORKFLOW_YML);
 
   // The draft row appears (rows show the display name over the raw slug);
   // clicking it opens the org-level detail — the probe has no project bound.
@@ -160,19 +128,5 @@ test('uploads a package and switches automations from the breadcrumb leaf', asyn
     .first()
     .click();
   await page.waitForURL(/\/automations(?:[/?#]|$)/, { timeout: TIMEOUT.NAV });
-  await expect(probeRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await probeRow
-    .getByRole('button', { name: t('common.actions.openMenu') })
-    .click();
-  await page
-    .getByRole('menuitem', { name: t('common.actions.delete') })
-    .click();
-  const deleteDialog = page.getByRole('dialog', {
-    name: t('automations.detail.delete.title'),
-  });
-  await expect(deleteDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await deleteDialog
-    .getByRole('button', { name: t('common.actions.delete'), exact: true })
-    .click();
-  await expect(probeRow).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await deleteAutomationRow(page, probeRow);
 });
