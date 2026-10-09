@@ -13,12 +13,13 @@ import {
   recordedSummary,
   recordValue,
   redactSummary,
+  redactTrace,
   redactValue,
   unlimitedBudget,
 } from './value';
 
 describe('redactValue', () => {
-  it('withholds a member whose name marks a secret, and says where', () => {
+  it('withholds a member whose name marks a secret, and says where [AUTO-R38]', () => {
     expect(
       redactValue({
         user: 'ada',
@@ -352,5 +353,33 @@ describe('summaries of values seen without their names', () => {
     expect(recordedSummary(`sk-${'a'.repeat(20)}`)).toEqual({
       kind: 'redacted',
     });
+  });
+});
+
+describe('redactTrace', () => {
+  it('withholds the secrets of each entry, and leaves the rest of it', () => {
+    expect(
+      redactTrace([
+        {
+          node: 'call',
+          type: 'http.get',
+          status: 'ok',
+          note: 'kept',
+          input: { apiKey: 'k', q: 1 },
+          output: { rows: 2 },
+        },
+        { node: 'skip', type: 'transform', status: 'skipped' },
+      ]),
+    ).toEqual([
+      {
+        node: 'call',
+        type: 'http.get',
+        status: 'ok',
+        note: 'kept',
+        input: { apiKey: null, q: 1 },
+        output: { rows: 2 },
+      },
+      { node: 'skip', type: 'transform', status: 'skipped' },
+    ]);
   });
 });

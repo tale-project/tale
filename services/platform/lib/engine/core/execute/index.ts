@@ -246,10 +246,6 @@ export async function execute(
         ? connectorValidator(def.connector)
         : null;
 
-      /** What the node's latest pass worked on: the input its item or step
-       * row shows. */
-      let lastInput: unknown;
-
       /** Run the node's behavior once for one scope (per item under
        * forEach). */
       const runOnce = async (
@@ -267,9 +263,16 @@ export async function execute(
           );
         }
         const scope = () => makeScope(input, nodeOutputs, extra);
+        // A pass's input is also its item's or step's: the row shows what
+        // its latest pass worked on.
         const noteInput = (at: UnitKey, value: unknown): void => {
-          lastInput = value;
           rec.unitInput(at, value);
+          if (at.pass >= 0) {
+            rec.unitInput(
+              at.item >= 0 ? { path, item: at.item, pass: -1 } : nodeKey,
+              value,
+            );
+          }
         };
         let out: unknown;
 
@@ -629,7 +632,6 @@ export async function execute(
             break;
           }
         }
-        rec.unitInput(unit, lastInput);
         if (record) {
           entry.note = `repeatUntil ran ${iters}x${done ? '' : ' (maxRepeats hit before the condition became true)'}`;
         }

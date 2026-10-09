@@ -36,6 +36,8 @@
  */
 
 import { execute, type ExecuteOptions } from '../core/execute';
+import { createRecorder, type NodeRunWrite } from '../core/record/recorder';
+import { recordBudget, redactTrace } from '../core/record/value';
 import type { StoreAdapter } from '../core/slots';
 import { nodeTypes } from '../core/slots';
 import type { Automation, RunResult } from '../core/types';
@@ -342,11 +344,14 @@ export interface DispatchStore extends StoreAdapter {
   ): Promise<SetTriggerOutcome | undefined>;
   /** Host authorization before an in-process deployed run starts executing. */
   authorizeRun?(name: string, mode: 'mock' | 'live'): Promise<void>;
+  /** Keep a run that executed in one call: its result, and — so it can be
+   * read step by step and run again — its input and its record's rows. */
   recordRun?(
     name: string,
     version: number,
     result: RunResult,
     mode: 'mock' | 'live',
+    run?: { input: unknown; nodeRuns: NodeRunWrite[] },
   ): Promise<void>;
   /** Hand a run to the host's durable runner. Returns the handle to poll, or
    * null when the automation has no version to run. `projectId`, when given,
@@ -1136,7 +1141,7 @@ export async function dispatch(
         }),
       });
       if (warnings.length > 0) result.validation = { errors: [], warnings };
-      return result;
+      return { ...result, trace: redactTrace(result.trace) };
     }
 
     case 'test_automation': {
@@ -1516,17 +1521,33 @@ export async function dispatch(
       } catch (error) {
         return refusalFrom(error);
       }
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
-      const result = await execute(found.automation as Automation, {
-        input: p.input ?? {},
-        mode,
-        store,
-        ...(ctx.connectorHost !== undefined && {
-          connectorHost: ctx.connectorHost,
-        }),
+      const input = p.input ?? {};
+      // The run is kept, so it keeps its record: what each step decided,
+      // read and returned.
+      const recorder = createRecorder({
+        now: () => Date.now(),
+        budget: recordBudget(),
       });
-      if (store.recordRun) await store.recordRun(name, version, result, mode);
-      return { version, ...result };
+      const { record: _record, ...result } = await execute(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- store contents were validated at save time
+        found.automation as Automation,
+        {
+          input,
+          mode,
+          store,
+          recorder,
+          ...(ctx.connectorHost !== undefined && {
+            connectorHost: ctx.connectorHost,
+          }),
+        },
+      );
+      if (store.recordRun) {
+        await store.recordRun(name, version, result, mode, {
+          input,
+          nodeRuns: recorder.drain(),
+        });
+      }
+      return { version, ...result, trace: redactTrace(result.trace) };
     }
 
     case 'start_run': {

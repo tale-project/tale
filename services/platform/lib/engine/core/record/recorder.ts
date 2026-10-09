@@ -71,8 +71,12 @@ export interface RunRecorder {
   /** An earlier try of the unit ended without settling it. */
   attempt(key: UnitKey, attempt: AttemptRecord): void;
   meta(key: UnitKey, meta: Partial<NodeRunRecord['meta']>): void;
-  /** The rows changed since the last drain. */
-  drain(): NodeRunWrite[];
+  /** The rows changed since the last drain — of the given units only, when
+   * `keys` names them. */
+  drain(keys?: readonly UnitKey[]): NodeRunWrite[];
+  /** Drained rows a write did not land: the next drain carries them again,
+   * with the bytes they spent. */
+  restore(rows: readonly NodeRunWrite[]): void;
   /** Every row kept, in the order units started. */
   snapshot(): NodeRunRecord[];
 }
@@ -89,6 +93,7 @@ export const noRecorder: RunRecorder = {
   attempt: () => undefined,
   meta: () => undefined,
   drain: () => [],
+  restore: () => undefined,
   snapshot: () => [],
 };
 
@@ -409,15 +414,27 @@ export function createRecorder(options: RecorderOptions): RunRecorder {
       touch(slot);
     },
 
-    drain() {
+    drain(keys) {
+      const only =
+        keys === undefined ? undefined : new Set(keys.map(unitKeyOf));
       const out: NodeRunWrite[] = [];
-      for (const slot of slots.values()) {
+      for (const [id, slot] of slots) {
         if (!slot.dirty || !slot.kept) continue;
+        if (only !== undefined && !only.has(id)) continue;
         out.push({ record: snapshotOf(slot, clock), bytes: slot.pendingBytes });
         slot.dirty = false;
         slot.pendingBytes = 0;
       }
       return out;
+    },
+
+    restore(lost) {
+      for (const row of lost) {
+        const slot = slots.get(unitKeyOf(row.record.key));
+        if (slot === undefined) continue;
+        slot.dirty = true;
+        slot.pendingBytes += row.bytes;
+      }
     },
 
     snapshot() {

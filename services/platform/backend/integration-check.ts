@@ -75,6 +75,7 @@ import { checkDeletedOrgSchedules } from './domains/automations/deleted-org-sche
 import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
 import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
 import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
+import { checkAutomationNodeRuns } from './domains/automations/node-runs.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
@@ -64046,6 +64047,10 @@ async function main(): Promise<void> {
       [
         'checkTriggerPauseAfterFailures',
         () => checkTriggerPauseAfterFailures(sql, authCtx, record),
+      ],
+      [
+        'checkAutomationNodeRuns',
+        () => checkAutomationNodeRuns(sql, authCtx, record),
       ],
       [
         'checkDeletedOrgSchedules',

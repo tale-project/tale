@@ -18,7 +18,7 @@ import { summaryOf, type ValueSummary } from '@tale/ui/data/value-summary';
 
 import { boundJsonOutOfBand } from '../../../shared/utils/bound-json';
 import { looksLikeCredential, secretMemberName } from '../secret-patterns';
-import type { Json } from '../types';
+import type { Json, NodeTrace } from '../types';
 import {
   RECORD_HASH_MAX_BYTES,
   type ValueElision,
@@ -296,6 +296,22 @@ export function recordValue(
     record.value = bounded.value;
   }
   return record;
+}
+
+/**
+ * A trace with its secrets withheld: each entry's input and output, read by
+ * the rule a record's values are, so a run's trace and its record agree.
+ * For a trace served as it was made (an in-process run's result).
+ */
+export function redactTrace(trace: readonly NodeTrace[]): NodeTrace[] {
+  return trace.map((entry) => {
+    const out: NodeTrace = { ...entry };
+    if (entry.input !== undefined) out.input = redactValue(entry.input).value;
+    if (entry.output !== undefined) {
+      out.output = redactValue(entry.output).value;
+    }
+    return out;
+  });
 }
 
 /** `value` as the JSON a reader of its text would get. */

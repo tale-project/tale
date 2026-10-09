@@ -83,6 +83,27 @@ describe('createRecorder', () => {
     expect(second[0]?.record.status).toBe('ok');
   });
 
+  it('drains only the units it is asked for', () => {
+    const rec = createRecorder(clocks());
+    const other = { path: 'other', item: -1, pass: -1 };
+    rec.unitStarted(node, { nodeId: 'fetch', nodeType: 'llm' });
+    rec.unitStarted(other, { nodeId: 'other', nodeType: 'llm' });
+    expect(rec.drain([node]).map((w) => w.record.key.path)).toEqual(['fetch']);
+    expect(rec.drain().map((w) => w.record.key.path)).toEqual(['other']);
+  });
+
+  it('carries again the rows a write did not land, with their bytes', () => {
+    const rec = createRecorder({ ...clocks(), budget: recordBudget() });
+    rec.unitStarted(node, { nodeId: 'fetch', nodeType: 'llm' });
+    rec.unitInput(node, 'abc');
+    const lost = rec.drain();
+    expect(rec.drain()).toEqual([]);
+    rec.restore(lost);
+    const again = rec.drain();
+    expect(again.map((w) => w.record.key.path)).toEqual(['fetch']);
+    expect(again[0]?.bytes).toBe(5);
+  });
+
   it('stops storing values once the run budget is spent', () => {
     const rec = createRecorder({
       ...clocks(),

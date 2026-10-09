@@ -66,6 +66,7 @@ interface HandlerNames {
       recordAgentTurnSettled: FunctionRef;
       recordLlmStepUsage: FunctionRef;
       reserveLlmStepBudget: FunctionRef;
+      recordNodeRunsStarted: FunctionRef;
       recordProgress: FunctionRef;
       stampAgentTurnLaunch: FunctionRef;
       suspendRun: FunctionRef;

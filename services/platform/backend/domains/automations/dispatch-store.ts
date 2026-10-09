@@ -40,6 +40,7 @@ import {
 } from '../provider_credentials/service.ts';
 import { answerRunAskAs } from './ask-answer.ts';
 import { listDeployments } from './audit.ts';
+import { nodeRunBytes, writeNodeRunsInTx } from './node-runs.ts';
 import { readOrgFacts } from './org-facts.ts';
 import {
   automationVisible,
@@ -564,7 +565,7 @@ export function pgAutomationStore(
     authorizeRun: async (name, mode) => {
       await authorizeInlineRun(sql, name, mode);
     },
-    recordRun: async (name, version, result, mode) => {
+    recordRun: async (name, version, result, mode, run) => {
       // A one-piece run (`run_deployed`) is born terminal — this insert IS
       // its exactly-once terminal transition, so a LIVE one also writes the
       // provenance audit row (the 0.4 contract). Dispatch only executes in
@@ -586,21 +587,28 @@ export function pgAutomationStore(
             org_id, name, version, project_id, status, mode, started_by,
             api_key_id, input, output,
             checkpoints, trace, effects, detail, claim_epoch, started_at_ms,
-            finished_at_ms
+            finished_at_ms, record_bytes
           ) VALUES (
             ${organizationId}, ${name}, ${version}, ${projectId}, ${status}, ${mode},
             ${runStarter(actor)}, ${scope.apiKeyId ?? null},
-            ${tx.json(toJson(JSON.stringify(null)))},
+            ${tx.json(toJson(JSON.stringify(run?.input ?? null)))},
             ${result.output === undefined ? null : tx.json(toJson(result.output))},
             ${tx.json(toJson({ nodes: {}, executions: 0 }))},
             ${tx.json(toJson(boundRunTrace(result.trace)))},
             ${tx.json(toJson(result.effects))}, ${detail ?? null}, 0, ${now},
-            ${now}
+            ${now}, ${nodeRunBytes(run?.nodeRuns)}
           )
           RETURNING id
         `;
         const runId = inserted[0]?.id;
         if (!runId) throw new Error('run insert failed');
+        // Its record, in the transaction that keeps it.
+        await writeNodeRunsInTx(tx, {
+          organizationId,
+          runId,
+          epoch: 0,
+          rows: run?.nodeRuns ?? [],
+        });
         if (mode === 'live') {
           await createAuditLog(tx, {
             organizationId,

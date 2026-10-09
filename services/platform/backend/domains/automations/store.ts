@@ -6,6 +6,7 @@ import type {
   RunSummary,
 } from '../../../lib/engine/api/dispatch.ts';
 import { ENGINE_PROTOCOL } from '../../../lib/engine/core/protocol.ts';
+import type { NodeRunWrite } from '../../../lib/engine/core/record/recorder.ts';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   AUTOMATION_NAME_RE,
@@ -69,6 +70,7 @@ import {
   managedDefinitionValue,
   managedScheduleValue,
 } from './managed-configuration-value';
+import { nodeRunBytes, startNodeRun, writeNodeRunsInTx } from './node-runs.ts';
 import { type RunEventKind, recordRunEventInTx } from './run-events.ts';
 import { recordTriggerRunOutcome } from './trigger-failures.ts';
 import { markAutomationWriterInTx } from './writer-protocol.ts';
@@ -2683,17 +2685,20 @@ export async function beginRunInTx(
     }
     const projectId = await resolveRunProject(tx, args);
     const now = Date.now();
+    // The record begins with what the run was given.
+    const start = startNodeRun(args.input, now);
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.automation_runs (
         org_id, name, version, project_id, status, mode, started_by,
-        api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms
+        api_key_id, input, checkpoints, wake_at_ms, claim_epoch, started_at_ms,
+        record_bytes
       ) VALUES (
         ${args.organizationId}, ${args.name}, ${version},
         ${projectId}, 'queued', ${args.mode}, ${args.startedBy},
         ${args.apiKeyId ?? null},
         ${tx.json(toJson(JSON.stringify(args.input)))},
         ${tx.json(toJson({ nodes: {}, executions: 0 }))},
-        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}
+        ${now + RUN_CLAIM_PROMISE_MS}, 0, ${now}, ${start.bytes}
       )
       RETURNING id
     `;
@@ -2701,6 +2706,12 @@ export async function beginRunInTx(
     // continuation, and an overdue row would also be re-poked by the sweep.
     const runId = inserted[0]?.id;
     if (!runId) throw new Error('run insert failed');
+    await writeNodeRunsInTx(tx, {
+      organizationId: args.organizationId,
+      runId,
+      epoch: 0,
+      rows: [start],
+    });
     await enqueueStep(tx, args.organizationId, runId, 0);
     await emitRunHint(tx, args.organizationId, runId);
     return { runId, version };
@@ -3404,6 +3415,9 @@ export async function recordProgress(
     checkpoint?: unknown;
     cursor?: unknown;
     executions: number;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
@@ -3435,7 +3449,8 @@ export async function recordProgress(
                    ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
         lease_expires_at_ms = CASE WHEN lease_expires_at_ms IS NULL THEN NULL
                                    ELSE ${now + RUN_LEASE_MS}::bigint END,
-        wake_at_ms = ${now + RUN_LEASE_MS}
+        wake_at_ms = ${now + RUN_LEASE_MS},
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
@@ -3452,6 +3467,7 @@ export async function recordProgress(
         ),
       };
     }
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     await emitRunHint(tx, args.organizationId, args.runId);
     return { status: written.status };
   });
@@ -3485,6 +3501,9 @@ export async function suspendRun(
     executions: number;
     resumeInMs: number;
     event?: { kind: RunEventKind; detail?: Record<string, unknown> };
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ suspended: boolean }> {
   return sql.begin(async (tx) => {
@@ -3521,7 +3540,8 @@ export async function suspendRun(
                    ELSE jsonb_build_object('cursor', ${cursor}::jsonb) END),
         wake_at_ms = ${now + args.resumeInMs},
         chain_seq = chain_seq + 1,
-        lease_owner = NULL, lease_expires_at_ms = NULL
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
@@ -3529,6 +3549,7 @@ export async function suspendRun(
     `;
     const parked = rows[0];
     if (!parked) return { suspended: false };
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     if (
       parkedAgentSettled(parkCursor) ||
       (await approvalDecided(tx, args.organizationId, args.detail)) ||
@@ -3717,6 +3738,9 @@ export async function continueRun(
     epoch: number;
     resumeInMs: number;
     handoff?: RunHandoff;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ scheduled: boolean }> {
   return sql.begin(async (tx) => {
@@ -3731,13 +3755,15 @@ export async function continueRun(
         last_resume_reason = CASE WHEN ${handedOff}::boolean
           THEN 'shutdown' ELSE last_resume_reason END,
         last_resumed_at_ms = CASE WHEN ${handedOff}::boolean
-          THEN ${now}::bigint ELSE last_resumed_at_ms END
+          THEN ${now}::bigint ELSE last_resumed_at_ms END,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
       RETURNING id
     `;
     if (!rows[0]) return { scheduled: false };
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     await enqueueStep(tx, args.organizationId, args.runId, args.resumeInMs);
     const handoff = args.handoff;
     if (handoff !== undefined) {
@@ -3792,6 +3818,9 @@ export async function finishRun(
      * absent for a success, and for a failure no site could classify. */
     failureCode?: string | null;
     executions: number;
+    /** The run-record rows the walker changed since its last write: written
+     * with this progress, in its transaction, once the fence matched. */
+    nodeRuns?: NodeRunWrite[];
   },
 ): Promise<{ status: string }> {
   return sql.begin(async (tx) => {
@@ -3819,7 +3848,8 @@ export async function finishRun(
                THEN checkpoints -> 'nodes' ELSE '{}'::jsonb END,
           'executions', ${args.executions}::int),
         wake_at_ms = NULL, finished_at_ms = ${now},
-        lease_owner = NULL, lease_expires_at_ms = NULL
+        lease_owner = NULL, lease_expires_at_ms = NULL,
+        record_bytes = record_bytes + ${nodeRunBytes(args.nodeRuns)}::int
       WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         AND claim_epoch = ${args.epoch}
         AND status IN ('queued', 'running', 'waiting')
@@ -3837,6 +3867,7 @@ export async function finishRun(
         ),
       };
     }
+    await writeNodeRunsInTx(tx, { ...args, rows: args.nodeRuns ?? [] });
     // The provenance record, atomic with the finish (LIVE runs only). The
     // full fold (approvals + connector effects) grows with those domains;
     // the terminal audit row is the contract that must never be missing.

@@ -12,6 +12,7 @@ integration:
   - 'services/sandbox-runtime/daemon/src/protocol.ts'
   - 'packages/shared/**'
   - 'packages/ui/package.json'
+  - 'packages/ui/src/data/**'
   - 'packages/ui/src/i18n/**'
   - 'packages/ui/src/markdown/plugins/micromark-cjk-attention.ts'
   - 'packages/ui/src/markdown/remark-plugin-lists.ts'
