@@ -634,7 +634,9 @@ export async function renameThread(
 }
 
 /** Fill an ABSENT title only — the AI-title write; a rename or an explicit
- * birth title is never clobbered (the 0.4 `setThreadTitleInternal` guard). */
+ * birth title is never clobbered (the 0.4 `setThreadTitleInternal` guard).
+ * The hidden column of a comparison is not named here: it takes the visible
+ * column's title when it wins (`settleArenaPair`). */
 export async function setThreadTitleIfAbsent(
   sql: Sql,
   organizationId: string,

@@ -102,6 +102,32 @@ export function withGovernancePolicyReadBoundary<
   };
 }
 
+/** The boundary of an editor that reads two policies — the budget rules,
+ * saved in the budgets file and in the project caps file beside it: it
+ * waits for both, and a retry reads both again. */
+export function withGovernancePolicyPairReadBoundary<
+  Props extends { organizationId: string },
+>(Editor: ComponentType<Props>, first: PolicyType, second: PolicyType) {
+  return function PolicyEditor(props: Props) {
+    const firstQuery = useGovernancePolicy(props.organizationId, first);
+    const secondQuery = useGovernancePolicy(props.organizationId, second);
+    const query: PolicyReadState = {
+      data:
+        firstQuery.data === undefined || secondQuery.data === undefined
+          ? undefined
+          : firstQuery.data,
+      isLoading: firstQuery.isLoading || secondQuery.isLoading,
+      isError: firstQuery.isError || secondQuery.isError,
+      refetch: () => Promise.all([firstQuery.refetch(), secondQuery.refetch()]),
+    };
+    return (
+      <PolicyReadBoundary key={props.organizationId} query={query}>
+        <Editor {...props} />
+      </PolicyReadBoundary>
+    );
+  };
+}
+
 export function withDsarPolicyReadBoundary<
   Props extends { organizationId: string },
 >(Editor: ComponentType<Props>) {

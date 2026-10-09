@@ -186,7 +186,7 @@ describe('listSandboxViewsForOrg', () => {
 describe('agent workers on the Sandboxes page', () => {
   const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
 
-  test('names each worker of an agent and the task it works [SBX-R17]', async () => {
+  test('names each worker of an agent and the task it works [SBX-R18]', async () => {
     const worker = (sessionId: string, createdAt: number): SessionRow => ({
       ...session(sessionId, createdAt),
       ownerId: AGENT,
@@ -242,7 +242,7 @@ describe('agent workers on the Sandboxes page', () => {
     ]);
   });
 
-  test('counts every waiting run by its reason, a park without one as unknown [SBX-R17]', async () => {
+  test('counts every waiting run by its reason, a park without one as unknown [SBX-R18]', async () => {
     const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?');
       // A run waits while it is parked, as every read of one tells it.

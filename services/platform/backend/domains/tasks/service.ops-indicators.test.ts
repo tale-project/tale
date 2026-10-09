@@ -18,7 +18,6 @@ vi.mock('../projects/service.ts', async (importOriginal) => ({
 
 // After the service: imported first, it leaves the service bound to the
 // project service without the mock above.
-import { parkedRunSql, parkedWaitingReasonSql } from './agent-runs.ts';
 import {
   getTaskOpsIndicators,
   getTaskOpsIndicatorsForAccessibleProjects,
@@ -165,7 +164,10 @@ describe('the board reads every live agent run with its worker and wait', () => 
       "ORDER BY (status = 'running') DESC, started_at_ms, seq",
     );
     // Whether a run waits, and why, is read through the predicate every
-    // read of a waiting run shares.
+    // read of a waiting run shares. Loaded here, not at the top: imported
+    // ahead of the service, it binds the service to the real project service.
+    const { parkedRunSql, parkedWaitingReasonSql } =
+      await import('./agent-runs.ts');
     expect(read?.values).toEqual([
       parkedRunSql(),
       parkedWaitingReasonSql(),

@@ -5,12 +5,12 @@ import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import type { TaskStatus } from '../lib/display';
 
 /** The lanes a board can fold to a rail: where finished work piles up. */
-const COLLAPSIBLE_LANES: ReadonlySet<TaskStatus> = new Set<TaskStatus>([
+const COLLAPSIBLE_LANES: ReadonlySet<string> = new Set<TaskStatus>([
   'done',
   'cancelled',
 ]);
 
-export function isCollapsibleLane(status: TaskStatus): boolean {
+export function isCollapsibleLane(status: string): status is TaskStatus {
   return COLLAPSIBLE_LANES.has(status);
 }
 
@@ -25,12 +25,7 @@ export function useCollapsedLanes(scope: string) {
     [],
   );
   const collapsed = useMemo(
-    () =>
-      new Set(
-        stored.filter((status): status is TaskStatus =>
-          COLLAPSIBLE_LANES.has(status as TaskStatus),
-        ),
-      ) as ReadonlySet<TaskStatus>,
+    (): ReadonlySet<TaskStatus> => new Set(stored.filter(isCollapsibleLane)),
     [stored],
   );
   const setCollapsed = useCallback(

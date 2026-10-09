@@ -57,7 +57,7 @@ Deine Anweisungen überschreiben weder die verbindlichen Anweisungen der Organis
 
 ## Nutzungslimits prüfen {#usage-limits}
 
-Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbraucht hast, die deine Organisation für dich festlegt. Gilt kein Limit für dich, zeigt die Seite das an. Das Limit eines Projekts, das alles begrenzt, was in diesem Projekt ausgegeben wird, steht nicht hier; eine Anfrage, die es ablehnt, nennt es.
+Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbraucht hast, die deine Organisation für dich festlegt. Gilt kein Limit für dich, zeigt die Seite das an. Das Limit eines Projekts, das alles begrenzt, was in diesem Projekt ausgegeben wird, steht nicht hier: In den Chats des Projekts warnt das Banner über dem Eingabefeld davor, und eine Anfrage, die es ablehnt, nennt es.
 
 <Frame caption="Unter Einstellungen > Nutzung steht jedes Limit, das für dich gilt, mit Verbrauch und nächstem Zurücksetzen.">
 
@@ -69,7 +69,7 @@ Unter **Einstellungen > Nutzung** siehst du, wie viel du von den Limits verbrauc
 - **Geteilte Limits** zählen die Nutzung aller, für die sie gelten, etwa eines Teams, zu dem du gehörst, oder der gesamten Organisation. Sie können deshalb vor deinen eigenen Limits erreicht sein.
 - **Speicherplatz** vergleicht die Dateien, die du hochgeladen hast, mit deinem Speicherlimit. Ist es erreicht, werden neue Dokument-Uploads abgelehnt.
 
-Jedes Nutzungslimit zeigt den Verbrauch, das Limit und den Zeitpunkt des Zurücksetzens in deiner Ortszeit. Die Zeiträume richten sich nach UTC: Tageslimits beginnen um Mitternacht neu, Wochenlimits am Montag und Monatslimits am Ersten des Monats. Hat ein Admin eine Warnschwelle festgelegt, färbt sich der Balken orange, sobald deine Nutzung sie erreicht. Warnt ein Banner über dem Eingabefeld vor einem Limit, öffnet **Nutzung anzeigen** diese Seite. Admins sehen zusätzlich **Limits verwalten**, das **Richtlinien > Richtlinien & Limits** öffnet.
+Jedes Nutzungslimit zeigt den Verbrauch, das Limit und den Zeitpunkt des Zurücksetzens in deiner Ortszeit. Die Zeiträume richten sich nach UTC: Tageslimits beginnen um Mitternacht neu, Wochenlimits am Montag und Monatslimits am Ersten des Monats. Hat ein Admin eine Warnschwelle festgelegt, färbt sich der Balken orange, sobald deine Nutzung sie erreicht. Warnt ein Banner über dem Eingabefeld vor einem Limit, öffnet **Nutzung anzeigen** diese Seite; ein Banner zum Limit eines Projekts nennt stattdessen das Projekt. Admins sehen zusätzlich **Limits verwalten**, das **Richtlinien > Richtlinien & Limits** öffnet.
 
 ## Alte Chats archivieren oder abmelden
 

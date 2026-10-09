@@ -254,6 +254,7 @@ vi.mock('./arena/arena-split-view', () => ({
   ),
 }));
 import { HomePanelProvider } from '@/app/features/home/components/home-panel-context';
+import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 
 import { useBranchActions } from '../data/branch-actions';
 import {
@@ -1844,6 +1845,44 @@ describe('ChatSurface header for a chat outside the list', () => {
     expect(
       screen.getAllByRole('button', { name: 'Conversation actions' }).length,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe('ChatSurface reads the budget standing of the chat’s project [GOV-R6]', () => {
+  beforeEach(() => {
+    vi.mocked(useMyBudgetStatus).mockClear();
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+  });
+
+  it('with the project a new chat is started in', () => {
+    render(<ChatSurface organizationId="org-1" projectId="project-1" />);
+
+    expect(vi.mocked(useMyBudgetStatus)).toHaveBeenLastCalledWith(
+      'org-1',
+      'project-1',
+    );
+  });
+
+  it('with the project of the open chat', () => {
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: {
+        id: 't-project',
+        title: 'Launch plan',
+        kind: 'direct',
+        archived: false,
+        projectId: 'project-2',
+        createdAt: 1,
+        updatedAt: 2,
+        generating: false,
+      },
+    });
+    render(<ChatSurface organizationId="org-1" threadId="t-project" />);
+
+    expect(vi.mocked(useMyBudgetStatus)).toHaveBeenLastCalledWith(
+      'org-1',
+      'project-2',
+    );
   });
 });
 

@@ -5,6 +5,7 @@ import {
   collectApiKeyWarnings,
   collectBucketWarnings,
   collectOrgWarnings,
+  collectStandingWarnings,
   collectWarnings,
   resolveEffectiveLimits,
 } from './budget_enforcement';
@@ -162,5 +163,72 @@ describe('org and API-key budget warnings [GOV-R6]', () => {
         'daily',
       ).map((w) => w.scope),
     ).toEqual(['user']);
+  });
+});
+
+describe('a project’s budget warning [GOV-R6]', () => {
+  it('resolves the project rule’s threshold for a subject working in the project', () => {
+    const limits = resolveEffectiveLimits(
+      [
+        {
+          scope: 'project',
+          scopeId: 'project-1',
+          period: 'monthly',
+          maxCostCents: 1_000,
+          warningThresholdPercent: 80,
+        },
+      ],
+      'user-1',
+      [],
+      'member',
+      undefined,
+      ['project-1'],
+    );
+    expect(limits.projectLimits).toEqual([
+      {
+        projectId: 'project-1',
+        maxCostCents: 1_000,
+        warningThresholdPercent: 80,
+      },
+    ]);
+  });
+
+  it('names the project on the warnings of its bucket', () => {
+    const warnings = collectStandingWarnings([
+      {
+        scope: 'project',
+        projectId: 'project-1',
+        period: 'monthly',
+        warningThresholdPercent: 80,
+        maxCostCents: 1_000,
+        usage: { totalTokens: 0, costEstimate: 850, requestCount: 4 },
+      },
+      {
+        scope: 'user',
+        period: 'monthly',
+        warningThresholdPercent: 80,
+        maxRequests: 10,
+        usage: { totalTokens: 0, costEstimate: 0, requestCount: 9 },
+      },
+    ]);
+    expect(warnings).toEqual([
+      {
+        code: 'COST_WARNING',
+        scope: 'project',
+        projectId: 'project-1',
+        period: 'monthly',
+        used: 850,
+        limit: 1_000,
+        percent: 85,
+      },
+      {
+        code: 'REQUEST_WARNING',
+        scope: 'user',
+        period: 'monthly',
+        used: 9,
+        limit: 10,
+        percent: 90,
+      },
+    ]);
   });
 });

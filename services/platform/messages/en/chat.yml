@@ -580,7 +580,9 @@ budgetExceededDefault: Usage limit reached for this period. Contact your adminis
 budgetRemaining: '{remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
 budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
 budgetRemainingTeam: 'Team {team}: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+budgetRemainingProject: 'Project {project}: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
 budgetLimitReached: 'Usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
+budgetLimitReachedProject: 'Project {project}: usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
 budgetRequestCredits: Request usage credits
 budgetRequestCreditsSent: Request sent to your admins
 budgetWarningDismiss: Dismiss
