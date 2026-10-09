@@ -551,6 +551,17 @@ export function loadConfig(): SpawnerConfig {
   const criticalFreeDiskBytes = sizeEnv('SANDBOX_CRITICAL_FREE_DISK');
   const buildkitdMemoryBytes = sizeEnv('SANDBOX_BUILDKITD_MEMORY');
   const buildkitdIdleCacheBytes = sizeEnv('SANDBOX_BUILDKITD_IDLE_CACHE');
+  const buildkitdMaxCacheBytes = sizeEnv('SANDBOX_BUILDKITD_MAX_CACHE');
+  // Zero is no cap at all to BuildKit's GC policy, and less than a gigabyte
+  // leaves no room for one build's layers.
+  if (
+    buildkitdMaxCacheBytes !== undefined &&
+    buildkitdMaxCacheBytes < 1024 ** 3
+  ) {
+    throw new Error(
+      `Env var SANDBOX_BUILDKITD_MAX_CACHE must be at least 1g; got: ${JSON.stringify(process.env.SANDBOX_BUILDKITD_MAX_CACHE)}`,
+    );
+  }
   const buildkitdCacheRetentionMs = retentionEnv(
     'SANDBOX_BUILDKITD_CACHE_RETENTION',
   );
@@ -559,6 +570,9 @@ export function loadConfig(): SpawnerConfig {
   );
   const buildkitdCpus = process.env.SANDBOX_BUILDKITD_CPUS?.trim()
     ? numEnv('SANDBOX_BUILDKITD_CPUS', 0, { min: 0.1 })
+    : undefined;
+  const buildkitdIdleMs = process.env.SANDBOX_BUILDKITD_IDLE_MS?.trim()
+    ? numEnv('SANDBOX_BUILDKITD_IDLE_MS', 0, { min: 60_000 })
     : undefined;
   const dindInnerPool = rawDindInnerPool
     ? parseDindInnerPool(rawDindInnerPool)
@@ -852,6 +866,8 @@ export function loadConfig(): SpawnerConfig {
     ...(buildkitdIdleCacheBytes !== undefined
       ? { buildkitdIdleCacheBytes }
       : {}),
+    ...(buildkitdIdleMs !== undefined ? { buildkitdIdleMs } : {}),
+    ...(buildkitdMaxCacheBytes !== undefined ? { buildkitdMaxCacheBytes } : {}),
     // Transparent egress for the session's own processes (default on; resolved +
     // gvisor-warned above). Off ⇒ env-proxy-only (today's behavior).
     transparentEgress,

@@ -64,6 +64,15 @@ export interface SpawnerConfig {
   // (env SANDBOX_BUILDKITD_CACHE_RETENTION): unset, 14 days; 0 keeps them
   // until the organization is deleted (buildkitd.ts sweepIdleBuildkitd).
   buildkitdCacheRetentionMs?: number;
+  // How long an organization's build helpers keep running once no agent
+  // session that builds may use them (env SANDBOX_BUILDKITD_IDLE_MS): unset,
+  // 10 minutes (buildkitd.ts DEFAULT_HELPER_IDLE_MS), apart from the session
+  // idle window.
+  buildkitdIdleMs?: number;
+  // The most build cache each organization's builder keeps (env
+  // SANDBOX_BUILDKITD_MAX_CACHE): unset, a tenth of the session disk, from
+  // 1 GiB to 20 GiB (buildkitd.ts buildkitCacheBudget).
+  buildkitdMaxCacheBytes?: number;
   // How long an organization's pip, npm and bun cache volumes outlive their
   // last use (env SANDBOX_PACKAGE_CACHE_RETENTION): unset, 14 days; 0 keeps
   // them until the organization is deleted (package-cache-retention.ts).
