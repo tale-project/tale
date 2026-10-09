@@ -18,6 +18,7 @@ import {
   defaultTaskLabelColor,
   PREDEFINED_TASK_LABELS,
 } from '../../../lib/shared/task-label-colors.ts';
+import { compareRank } from '../../../lib/shared/task-rank-order.ts';
 import {
   parseTaskRepeat,
   sameTaskRepeat,
@@ -4024,7 +4025,7 @@ export async function listTasksForAccessibleProjects(
   const page = truncated ? rows.slice(0, TASK_BOARD_CAP) : rows;
   page.sort((a, b) =>
     a.status === b.status
-      ? a.rank.localeCompare(b.rank)
+      ? compareRank(a.rank, b.rank)
       : a.status.localeCompare(b.status),
   );
 
