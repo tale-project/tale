@@ -3,11 +3,11 @@
  * profiles: an obsolete group executes its own source, not today's workflow. */
 export const FINISH_SOURCE = {
   '.github/workflows/checks.yml':
-    'a0937203f1b3095b0d8b4cc8560eeb947b7c07a9acf5c430850fbb42fa22e497',
+    '7f1958d88c3b9dbd6403f6044ef10d04a18ea741a75235f7771204a2852ca881',
   '.github/actions/ci-ready/action.yml':
     '8f65cea1dd5980711da087140a68264b382ff1cb0d6347d8ef034c71ddbaf7c5',
   'tools/cli/scripts/ci-ready.ts':
-    '4e4adbbcf43c835800f6eb4a92db7f0a98db7432a50e3cd320aa75312294fdf8',
+    'b7431aa1aa71a03dc8df35c393452b274de9f443f86b4881f86acc431dd28e63',
 } as const;
 const FINISH_PATHS = [
   '.github/workflows/checks.yml',
