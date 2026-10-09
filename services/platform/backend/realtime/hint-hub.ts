@@ -244,7 +244,8 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
   let cursor: bigint | null = null;
   /** The newest rows, ascending; contiguous up to `cursor`. */
   let ring: TailRow[] = [];
-  /** Ids the tail read past without a row, and when it first did. */
+  /** Ids the tail read past without a row, and when it first did; noted
+   * in ascending order, so the oldest go first when the budget is full. */
   const skipped = new Map<bigint, number>();
   let loopRunning = false;
   let lastRecheckAt = Date.now();
@@ -333,19 +334,32 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
     if (head === undefined) return;
     const floor = head.id - LATE_COMMIT_EMPTY_START_IDS - 1n;
     const start = from > 0n || floor < 0n ? from : floor;
-    const now = Date.now();
-    // Newest gaps first, each from its top down: a transaction still in
-    // flight took its id recently, so of more holes than the budget the
-    // oldest are the ones left out.
-    for (let index = rows.length - 1; index >= 0; index -= 1) {
+    // Newest gaps first, each from its top down, up to the whole budget: a
+    // transaction still in flight took its id recently, so of more holes
+    // than the budget the oldest are the ones left out — this read's, and
+    // those an earlier read still tracks.
+    const spans: { first: bigint; end: bigint }[] = [];
+    let room = BigInt(LATE_COMMIT_MAX_TRACKED);
+    for (let index = rows.length - 1; index >= 0 && room > 0n; index -= 1) {
       const row = rows[index];
       if (row === undefined) continue;
       const below = index === 0 ? start : (rows[index - 1]?.id ?? start);
-      const budget = BigInt(LATE_COMMIT_MAX_TRACKED - skipped.size);
-      if (budget <= 0n) return;
-      const first =
-        row.id - (below + 1n) > budget ? row.id - budget : below + 1n;
-      for (let id = first; id < row.id; id += 1n) skipped.set(id, now);
+      const first = row.id - (below + 1n) > room ? row.id - room : below + 1n;
+      if (first >= row.id) continue;
+      spans.push({ first, end: row.id });
+      room -= row.id - first;
+    }
+    const now = Date.now();
+    for (let index = spans.length - 1; index >= 0; index -= 1) {
+      const span = spans[index];
+      if (span === undefined) continue;
+      for (let id = span.first; id < span.end; id += 1n) {
+        if (!skipped.has(id)) skipped.set(id, now);
+      }
+    }
+    for (const id of skipped.keys()) {
+      if (skipped.size <= LATE_COMMIT_MAX_TRACKED) break;
+      skipped.delete(id);
     }
   }
 

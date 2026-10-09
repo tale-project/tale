@@ -505,6 +505,39 @@ describe('the shared hint tail', () => {
     await stream.close();
   });
 
+  test('a new hole displaces holes an earlier read still tracks', async () => {
+    const { world, sql } = outboxWorld();
+    world.members.set('o1/u1', 'member');
+    world.insert('o1', 'task');
+    const app = appFor(sql, FAST);
+    const stream = collect(await app.request('/events?orgId=o1'));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // One read passes a rolled-back bulk insert bigger than the budget...
+    world.nextId += 15_000;
+    const jumped = world.insert('o1', 'task');
+    expect(await stream.until((read) => read.includes(`id: ${jumped}`))).toBe(
+      true,
+    );
+    // ...and a later read passes a hole a transaction still holds.
+    const late = world.nextId;
+    world.nextId += 1;
+    const after = world.insert('o1', 'task');
+    expect(await stream.until((read) => read.includes(`id: ${after}`))).toBe(
+      true,
+    );
+    world.rows.push({
+      id: late,
+      org_id: 'o1',
+      user_id: null,
+      entity: 'document',
+      entity_id: `document-${late}`,
+    });
+    expect(
+      await stream.until((read) => read.includes(`document-${late}`)),
+    ).toBe(true);
+    await stream.close();
+  });
+
   test('a tail started on an empty outbox looks only just under its first row', async () => {
     const { world, sql } = outboxWorld();
     world.members.set('o1/u1', 'member');
