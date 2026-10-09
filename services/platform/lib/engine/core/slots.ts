@@ -233,7 +233,7 @@ const table = new Map<string, NodeTypeDef>([
       // system treats the node as structured.
       outputKind: 'structured',
       description:
-        'Run one turn of an external coding agent (Claude Code, Codex, …) in the sandbox: it reads staged `files`, uses `skills`, brokered `connectors`, granted platform `tools` (task/document reads and writes), and injected `secrets` (env vars), and writes artifacts. `model` is required and explicit. Output: {text, files: [{name, storageId, size, contentType}], status}. Use `llm` for a one-shot completion; use `agent` only when the step needs tools, files, or multiple turns.',
+        'Run one turn of an external coding agent (Claude Code, Codex, …) in the sandbox: it reads its `input` (staged as `input.json`) and staged `files`, uses `skills`, brokered `connectors`, granted platform `tools` (task/document reads and writes), and injected `secrets` (env vars), and writes artifacts. `model` is required and explicit. Output: {text, files: [{name, storageId, size, contentType}], status}. Use `llm` for a one-shot completion; use `agent` only when the step needs tools, files, or multiple turns.',
       allowedFields: [
         'prompt',
         'system',
