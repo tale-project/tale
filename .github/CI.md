@@ -59,6 +59,46 @@ authorized credential as `GH_TOKEN` for this command's process, following its
 provisioned instructions; an operator may use their existing `gh` authentication.
 The shared command does not look up agent secrets or change global authentication.
 
+## Retiring a deleted merge-group revision
+
+Rebuilding the merge queue gives its temporary branches new names. Workflow
+concurrency is keyed by the complete ref, so an old revision can keep running
+after GitHub deletes its branch. A run marked `queued` can still contain allocated
+jobs: use the organization's **Settings → Actions → Runners → Standard
+GitHub-hosted runners** view or complete native job inventories to measure occupancy.
+
+Inspect one exact run with the maintained CLI workspace command:
+
+```sh
+bun tools/cli/scripts/ci-retire-merge-group.ts --run 1000
+```
+
+The default prints a read-only decision. Eligibility requires a Tale `merge_group`
+run from one of the seven validation workflows, older than one minute, on the
+recognized temporary `main` queue ref. Its exact ref must return HTTP 404 and its
+head must be absent from a complete native merge-queue inventory. The current
+default-branch head and queued PR source heads are also protected. Authentication
+errors, unreadable queue/default-branch data, more than 100 queue entries, current
+refs, incomplete responses and unknown workflows preserve the run. PR validation,
+main pushes, release candidates and publication workflows are never eligible.
+
+After reviewing the decision, add `--apply --receipt /absolute/private/run-attempt.jsonl`.
+The command repeats its run, queue and deleted-ref observations, creates and flushes
+the same exclusive owner-only journal used by tail recovery, then sends at most one
+ordinary cancellation. This can stop live validation jobs for that obsolete revision;
+it never force-cancels. Cancellation does not establish a passed check. The receipt
+distinguishes confirmed cancellation, an accepted request still pending readback and
+unknown outcomes. Never replay an uncertain request or replace its receipt. Ordinary
+cancellation may leave an `always()` aggregate queued; this command does not escalate
+that into a force cancellation.
+
+Reads and writes share a 60-second, 20-request budget. Both observations must be
+fresh; a later run attempt or changed source is refused. GitHub has no atomic
+compare-and-cancel operation, so a final network race remains. The existing CI
+manager owns scheduling, exact-run selection and receipt retention; this command
+does not start a second scheduler or change queue settings. Use the existing
+authorized credential as described above.
+
 ## Current execution graph
 
 - **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run
