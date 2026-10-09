@@ -99,7 +99,8 @@ export interface SpawnerQueuePlace {
 }
 
 /** The spawner is at its global host capacity (HTTP 429: `session_quota`,
- * `host_memory` when the host is short of memory, or `host_disk` when the
+ * `host_memory` when the host is short of memory, `host_cpu` while its CPU
+ * is under pressure and sessions start one at a time, or `host_disk` when the
  * disk the workspaces live on is short of space), or a destroy of the id
  * is still under way. Distinct from the platform's per-workload
  * `QUOTA_EXCEEDED`: the host is shared across organizations. The retry hint

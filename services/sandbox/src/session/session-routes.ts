@@ -21,6 +21,7 @@ import {
   type SessionDiskState,
 } from '../host-disk.ts';
 import {
+  DEFAULT_CPU_PRESSURE_PERCENT,
   memoryReserveBytes,
   sessionWorkingSetBytes,
   type HostMemory,
@@ -188,6 +189,13 @@ const GIB = 1024 ** 3;
  * linearly to nothing over this window. */
 const YOUNG_SESSION_RESERVE_MS = 90_000;
 
+/** While the Docker host's CPU is under pressure, at most one session starts
+ * (a create or an idle session's activation) in this long: each start's own
+ * load (a container, its runtime, an agent CLI booting) shows in the
+ * ten-second pressure average before the next is let in, and the line still
+ * moves when the load is not the sessions'. */
+const CPU_PRESSURED_START_SPACING_MS = 10_000;
+
 /** The first-come line for host room. A create refused for want of room
  * waits its turn: the room that frees next goes to the oldest waiter still
  * asking, not to whichever create happens to arrive first — a waiter that
@@ -262,10 +270,12 @@ const CREATE_WAITS_FOR_DESTROY_MS = 120_000;
  * inside the 30 s the platform gives a destroy, and enough for most. */
 const DESTROY_AWAITS_DELETION_MS = 10_000;
 
-/** Where admission reads the host's memory from. */
+/** Where admission reads the host's memory, and its CPU pressure, from. */
 export interface HostMemorySource {
   latest(): HostMemory | null;
   read(fresh?: boolean): Promise<HostMemory | null>;
+  /** The host's CPU pressure in percent (PSI `some avg10`), null unknown. */
+  cpuPressure?(): number | null;
 }
 
 const NO_HOST_MEMORY: HostMemorySource = {
@@ -337,6 +347,9 @@ export class SessionRoutes {
   // refusal — the map's own order (QUEUE_FRONT_HINT_MS). Memory only: a
   // restart starts it afresh.
   private readonly waiters = new Map<string, RoomWaiter>();
+  // When the last session was let in while the host's CPU was under
+  // pressure (CPU_PRESSURED_START_SPACING_MS).
+  private pressuredStartAtMs = Number.NEGATIVE_INFINITY;
   // Settles when the create of that id leaves `creating` (success or
   // failure): an acquire for an id still being created waits for it instead
   // of answering a false not-found that the caller would turn into a
@@ -491,6 +504,37 @@ export class SessionRoutes {
   /** Creates that may not have a container/Pod yet, for capacity reporting. */
   pendingCreates(): ReadonlyMap<string, string> {
     return new Map(this.creating);
+  }
+
+  /** What this spawner holds for an organization, from memory alone (no
+   * backend call): creates in flight and objects the last sweep found but
+   * has not adopted yet as starting (or running, where the object runs),
+   * registered sessions as running once ready —
+   * the same sessions admission counts as occupying a slot. A connected
+   * device reports it every few seconds. */
+  inventory(
+    organizationId: string,
+  ): Array<{ sessionId: string; state: 'running' | 'starting' }> {
+    const states = new Map<string, 'running' | 'starting'>();
+    for (const [sessionId, session] of this.unregistered) {
+      if (session.organizationId !== organizationId) continue;
+      states.set(
+        sessionId,
+        session.state === 'degraded' ? 'starting' : 'running',
+      );
+    }
+    for (const session of this.registry.list(organizationId)) {
+      states.set(
+        session.sessionId,
+        session.state === 'ready' ? 'running' : 'starting',
+      );
+    }
+    for (const [sessionId, org] of this.creating) {
+      if (org === organizationId) states.set(sessionId, 'starting');
+    }
+    return [...states]
+      .map(([sessionId, state]) => ({ sessionId, state }))
+      .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
   }
 
   /** Does this spawner hold the session right now (live, or mid-create)? */
@@ -676,15 +720,16 @@ export class SessionRoutes {
   /** The admission decision for one create: a duplicate id → 409, a disk
    * the workspaces live on below its floor → `'disk'`, a full host →
    * `'full'`, a host whose memory would drop below its reserve with every
-   * create in flight at its planned working set → `'short'`, else the id is
-   * reserved in `creating`. Synchronous, under the admission lock: each
-   * create sees exactly the ones admitted before it. */
+   * create in flight at its planned working set → `'short'`, a host whose
+   * CPU is under pressure while another start had its turn → `'cpu'`, else
+   * the id is reserved in `creating`. Synchronous, under the admission lock:
+   * each create sees exactly the ones admitted before it. */
   private admit(
     sessionId: string,
     organizationId: string,
     workingSetBytes: number,
     occupancy: BackendOccupancy | null,
-  ): Response | 'disk' | 'full' | 'short' | null {
+  ): Response | 'disk' | 'full' | 'short' | 'cpu' | null {
     if (this.registry.has(sessionId) || this.creating.has(sessionId)) {
       return jsonResponse(
         {
@@ -742,6 +787,8 @@ export class SessionRoutes {
     }
     if (occupied >= this.cfg.session.maxSessions) return 'full';
     if (this.memoryShort(workingSetBytes)) return 'short';
+    if (this.cpuPressured() && !this.takePressuredStart(ahead.length))
+      return 'cpu';
     this.waiters.delete(sessionId);
     this.creating.set(sessionId, organizationId);
     this.creatingBytes.set(sessionId, workingSetBytes);
@@ -764,6 +811,36 @@ export class SessionRoutes {
       memory.totalBytes -
       memoryReserveBytes(memory.totalBytes, this.cfg.session.minFreeMemoryBytes)
     );
+  }
+
+  /** Is the Docker host's CPU at or above SANDBOX_CPU_PRESSURE_PERCENT (the
+   * probe's last reading)? Unknown pressure never refuses. */
+  private cpuPressured(): boolean {
+    const threshold =
+      this.cfg.session.cpuPressurePercent ?? DEFAULT_CPU_PRESSURE_PERCENT;
+    if (threshold <= 0) return false;
+    let pressure: number | null;
+    try {
+      pressure = this.hostMemory.cpuPressure?.() ?? null;
+    } catch (error) {
+      console.warn('[sandbox.session] host CPU pressure unreadable:', error);
+      return false;
+    }
+    return pressure !== null && pressure >= threshold;
+  }
+
+  /** Under CPU pressure, let one start in: the front of the line (no waiter
+   * ahead), once {@link CPU_PRESSURED_START_SPACING_MS} has passed since the
+   * last start let in under pressure. */
+  private takePressuredStart(waitersAhead: number): boolean {
+    const now = Date.now();
+    if (
+      waitersAhead > 0 ||
+      now - this.pressuredStartAtMs < CPU_PRESSURED_START_SPACING_MS
+    )
+      return false;
+    this.pressuredStartAtMs = now;
+    return true;
   }
 
   /** Is the disk the workspaces live on below its floor (the probe's last
@@ -979,10 +1056,28 @@ export class SessionRoutes {
         this.admit(sessionId, organizationId, workingSet, occupancy),
       );
     }
-    if (decision === 'full' || decision === 'short' || decision === 'disk') {
+    if (
+      decision === 'full' ||
+      decision === 'short' ||
+      decision === 'disk' ||
+      decision === 'cpu'
+    ) {
       const place = this.waitInLine(sessionId, workingSet, Date.now());
       const retryAfter = String(Math.ceil(place.hintMs / 1000));
       const queue = { position: place.position, waiting: place.waiting };
+      if (decision === 'cpu') {
+        // An idle session uses no CPU: stopping one frees none.
+        return jsonResponse(
+          {
+            error: 'host_cpu',
+            message:
+              'the sandbox host is short of CPU; the session starts once its load eases',
+            queue,
+          },
+          429,
+          { 'retry-after': retryAfter },
+        );
+      }
       if (decision === 'disk') {
         // Stopping an idle session frees no disk (its workspace stays for
         // its resume): the build-cache upkeep gives back what it can.
@@ -2760,6 +2855,11 @@ export class SessionRoutes {
         0,
       );
       if (this.memoryShort(workingSet + held, sessionId)) return false;
+      if (
+        this.cpuPressured() &&
+        !this.takePressuredStart(this.waitersAhead(sessionId, now).length)
+      )
+        return 'cpu';
       this.youngBytes.set(sessionId, { bytes: workingSet, sinceMs: now });
       this.waiters.delete(sessionId);
       return true;
@@ -2772,8 +2872,20 @@ export class SessionRoutes {
     }
     if (admitted === 'replaced')
       return jsonResponse({ error: 'not_found' }, 404);
-    if (admitted) return null;
+    if (admitted === true) return null;
     const place = this.waitInLine(sessionId, workingSet, Date.now(), false);
+    if (admitted === 'cpu') {
+      return jsonResponse(
+        {
+          error: 'host_cpu',
+          message:
+            'the sandbox host is short of CPU; work resumes once its load eases',
+          queue: { position: place.position, waiting: place.waiting },
+        },
+        429,
+        { 'retry-after': String(Math.ceil(place.hintMs / 1000)) },
+      );
+    }
     return jsonResponse(
       {
         error: 'host_memory',

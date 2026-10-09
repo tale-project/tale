@@ -7,6 +7,7 @@ import { dirname, isAbsolute, join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 
 import { DOCKER_STORAGE_SIZE_LIMIT } from './backend/kubernetes/k8s-session-pod-spec.ts';
+import { DEFAULT_CPU_PRESSURE_PERCENT } from './host-memory.ts';
 import { parseDindInnerPool } from './network-address.ts';
 import {
   dindDefaultEnabled,
@@ -901,6 +902,11 @@ export function loadConfig(): SpawnerConfig {
       maxSessions: numEnv('SANDBOX_MAX_SESSIONS', 8, { min: 1 }),
       autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
       ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
+      cpuPressurePercent: numEnv(
+        'SANDBOX_CPU_PRESSURE_PERCENT',
+        DEFAULT_CPU_PRESSURE_PERCENT,
+        { max: 100 },
+      ),
       ...(minFreeDiskBytes !== undefined ? { minFreeDiskBytes } : {}),
       ...(criticalFreeDiskBytes !== undefined ? { criticalFreeDiskBytes } : {}),
       maxLifetimeMs: numEnv(

@@ -40,6 +40,7 @@ import { makeHealthProbe } from './health-probe.ts';
 import { HostDiskProbe } from './host-disk.ts';
 import {
   autoSessionCapacity,
+  DEFAULT_CPU_PRESSURE_PERCENT,
   HostMemoryProbe,
   memoryReserveBytes,
 } from './host-memory.ts';
@@ -71,7 +72,13 @@ const bootAdoption = new BootAdoption();
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
 // The Docker host's memory, read where /proc describes it (a local Docker
 // spawner or connected device; never Kubernetes or a remote daemon).
-const hostMemory = cfg.backend === 'docker' ? new HostMemoryProbe() : null;
+const hostMemory =
+  cfg.backend === 'docker'
+    ? new HostMemoryProbe({
+        cpuPressure:
+          (cfg.session.cpuPressurePercent ?? DEFAULT_CPU_PRESSURE_PERCENT) > 0,
+      })
+    : null;
 // Keep a floor on the workspace filesystem and the Docker metadata filesystem
 // where its existing hostname bind can be verified against the local daemon.
 const hostDisk =
@@ -93,8 +100,8 @@ const hostDisk =
       )
     : null;
 // No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
-// gets a capacity sized from it (never below the fixed default of 8), and
-// the memory guard at admission protects the rest. A boot that cannot read
+// gets a capacity sized from it and its CPUs (never below the fixed default
+// of 8), and the memory and CPU guards at admission protect the rest. A boot that cannot read
 // it yet (a busy daemon after a reboot) sizes on a later sweep.
 let capacitySized = hostMemory === null || cfg.session.autoMaxSessions !== true;
 async function sizeSessionCapacity(): Promise<void> {
@@ -107,9 +114,11 @@ async function sizeSessionCapacity(): Promise<void> {
     memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
     cfg.dockerInContainer,
     cfg.dockerWorkloads,
+    hostMemory.cpus(),
   );
+  const cpus = hostMemory.cpus();
   console.log(
-    `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB (set SANDBOX_MAX_SESSIONS to fix it)`,
+    `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB${cpus === null ? '' : ` and ${cpus} CPUs`} (set SANDBOX_MAX_SESSIONS to fix it)`,
   );
 }
 
@@ -813,17 +822,23 @@ async function main(): Promise<void> {
       dispatch: async (req, url, body) =>
         (await handleSessionRoutes(req, url, body)) ??
         jsonResponse({ error: 'not_found' }, 404),
+      // What the device runs comes from the spawner's own memory and /proc,
+      // never a `docker ps` on the user's machine every few seconds.
       observe: async () => {
-        const snapshot = await capacity.forOrganization(
+        const sessions = getSessionRoutes().inventory(
           deviceConfig.organizationId,
         );
         return {
-          running: snapshot.sessions.organizationRunning,
-          starting: snapshot.sessions.organizationStarting,
-          sessions: snapshot.runtimeSessions,
-          resources: snapshot.resources,
+          running: sessions.filter((s) => s.state === 'running').length,
+          starting: sessions.filter((s) => s.state === 'starting').length,
+          sessions,
+          resources: await capacity.hostResources(),
         };
       },
+      inventoryKey: () =>
+        JSON.stringify(
+          getSessionRoutes().inventory(deviceConfig.organizationId),
+        ),
       selfUpdate: (version) =>
         launchSelfUpdate(deviceConfig, configPath, version),
     });
