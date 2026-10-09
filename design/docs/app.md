@@ -63,9 +63,10 @@ what is there, and the page shows the one thing you opened.
 - **Conversation pages** — a chat, a task and a customer conversation open in one frame:
   `ThreadHeader` (the Home panel toggle, a 32px identity mark, the title, one quiet line of context,
   then the actions), a centred reading column, and the composer pinned at the foot in the same frame
-  for all three (`CHAT_COMPOSER_FRAME_CLASS`). A task is a structured chat: its brief (description,
+  for all three (`THREAD_COMPOSER_FRAME_CLASS`, `@tale/ui/thread/layout`). A task is a structured chat: its brief (description,
   files, subtasks) opens the thread as a card, comments and history follow oldest first under day
-  pills, and its structure (status, owner, dates…) lives in a details panel that folds away. The
+  pills (one `ThreadDayDivider`, pinned while its day scrolls by, shared by chats, tasks and the
+  inbox), and its structure (status, owner, dates…) lives in a details panel that folds away. The
   actions a teammate needs lead: **Copy link** on a task and a conversation, and a task's key copies
   itself from the header. On a phone the page keeps its own header row only — no shell bar above it.
   The board's task dialog carries the same identity in its own header — the status glyph tile, the
@@ -75,6 +76,15 @@ what is there, and the page shows the one thing you opened.
   Creating a task reads like the open task: the status tile and a borderless title in the header, the
   property panel beside the description (Medium priority and today's start preselected), and a footer
   with **Create another** at the left and the `⌘ Enter` hint beside Cancel and Create.
+- **Conversation entries** — one anatomy for chats and task discussions, built from `@tale/ui/thread/*`:
+  the viewer's own words as a right-aligned muted bubble (`ThreadMessage variant="own"`); every other
+  voice — a teammate, an agent, the assistant — as flat prose under an identity row (24px avatar, name,
+  an **Agent** badge for an agent, clock time; the chat's assistant hides the row), with a message by the
+  same author minutes later joining the one before it; actions as icon buttons that show on hover,
+  keyboard focus, an open menu and always on a touch screen. Events are one quiet `text-xs` line in the
+  avatar gutter with a glyph per kind of change, the change in its own words and casing; three or more
+  in a row fold into one line ("5 updates") that opens in place. A long body is clamped behind
+  **Read more** (`ReadMore`), never truncated in the DOM.
 - **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
   leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
   `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and

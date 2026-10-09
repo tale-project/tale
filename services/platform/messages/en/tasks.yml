@@ -326,6 +326,7 @@ detail:
   notFound: We couldn't find that task. It may have been deleted.
 comment:
   edited: edited
+  agentBadge: Agent
   deleteConfirm: Delete this comment?
 assignee:
   unassigned: Unassigned
@@ -481,6 +482,7 @@ agentRuns:
     completedTitle: '{agent} — run details'
     noLiveDetail: No live transcript is available for this run.
 timeline:
+  updates: '{count, plural, one {# update} other {# updates}}'
   runLabel: Agent run
   startedByAgent: started by
   systemActor: System

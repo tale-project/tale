@@ -2,12 +2,9 @@ import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { THREAD_COLUMN_CLASS } from '@tale/ui/thread/layout';
 
-import {
-  CHAT_MESSAGE_COLUMN_CLASS,
-  CHAT_USER_BUBBLE_CLASS,
-  CHAT_USER_MESSAGE_CLASS,
-} from '../lib/layout';
+import { CHAT_USER_BUBBLE_CLASS, CHAT_USER_MESSAGE_CLASS } from '../lib/layout';
 
 /**
  * Masked stand-in for an open conversation while its messages are on their
@@ -31,7 +28,7 @@ export function ConversationSkeleton({
       label={label}
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
-      <Stack gap={3} className={cn(CHAT_MESSAGE_COLUMN_CLASS, className)}>
+      <Stack gap={3} className={cn(THREAD_COLUMN_CLASS, 'py-6', className)}>
         <UserMessageSkeleton width="w-64" />
         <div className="w-full min-w-0 text-sm">
           <SkeletonText lines={3} />

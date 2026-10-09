@@ -327,6 +327,7 @@ detail:
   notFound: Impossible de trouver cette tâche. Elle a peut-être été supprimée.
 comment:
   edited: modifié
+  agentBadge: Agent
   deleteConfirm: Supprimer ce commentaire ?
 assignee:
   unassigned: Non assigné
@@ -484,6 +485,7 @@ agentRuns:
     completedTitle: "{agent} — détails de l'exécution"
     noLiveDetail: Aucun transcript en direct n'est disponible pour cette exécution.
 timeline:
+  updates: '{count, plural, one {# modification} other {# modifications}}'
   runLabel: Exécution d'agent
   startedByAgent: lancé par
   systemActor: Système

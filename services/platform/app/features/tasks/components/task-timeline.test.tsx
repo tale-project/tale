@@ -332,11 +332,11 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
 
     expect(
       screen.getByText(
-        'repeat changed: Never → sentence.monthly({"count":1,"day":15})',
+        'Repeat changed: Never → sentence.monthly({"count":1,"day":15})',
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText('repeat changed: sentence.daily({"count":2}) → Never'),
+      screen.getByText('Repeat changed: sentence.daily({"count":2}) → Never'),
     ).toBeInTheDocument();
   });
 
@@ -373,7 +373,7 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
     const sentence = 'sentence.monthly({"count":1,"day":30})';
     const onDue = `repeat.ruleOnDue(${JSON.stringify({ rule: sentence })})`;
     expect(
-      screen.getByText(`repeat changed: ${sentence} → ${onDue}`),
+      screen.getByText(`Repeat changed: ${sentence} → ${onDue}`),
     ).toBeInTheDocument();
   });
 
@@ -397,7 +397,7 @@ describe('TaskTimeline — editor activity rows surface what changed', () => {
       />,
     );
 
-    expect(screen.getByText('next task created: OPS-12')).toBeInTheDocument();
+    expect(screen.getByText('Next task created: OPS-12')).toBeInTheDocument();
   });
 });
 
