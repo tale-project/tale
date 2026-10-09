@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+} from 'node:fs';
 import { parseArgs } from 'node:util';
 
 import { z } from 'zod';
@@ -331,10 +338,18 @@ function finishingDecision(
 }
 
 export function readOrdinaryReceiptFile(path: string): string {
+  // Windows does not expose O_NOFOLLOW. Check the directory entry before
+  // opening there, while retaining the kernel no-follow flag on platforms
+  // that provide it. The post-open lstat closes the same path-swap window
+  // for the portable branch without ever accepting a symlink as a receipt.
+  if (lstatSync(path).isSymbolicLink())
+    throw new Error('Ordinary receipt file refused.');
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.size > 65_536)
+      throw new Error('Ordinary receipt file refused.');
+    if (lstatSync(path).isSymbolicLink())
       throw new Error('Ordinary receipt file refused.');
     const bytes = Buffer.alloc(65_537);
     let offset = 0;

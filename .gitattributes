@@ -16,3 +16,9 @@ services/platform/convex/migrations/*.snapshot.json linguist-vendored
 # CI retirement admits these historical workflow fixtures by raw source hash.
 tools/cli/scripts/fixtures/ci-orphan-checks-6ad49e4/*.txt text eol=lf
 tools/cli/scripts/fixtures/ci-orphan-seven/*.txt text eol=lf
+
+# These source bytes are hashed into merge-group retirement profiles. Keep
+# their checkout representation stable on Windows as well as POSIX hosts.
+.github/workflows/*.yml text eol=lf
+.github/actions/ci-ready/action.yml text eol=lf
+tools/cli/scripts/ci-ready.ts text eol=lf
