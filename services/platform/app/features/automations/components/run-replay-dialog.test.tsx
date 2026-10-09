@@ -150,6 +150,8 @@ describe('RunReplayDialog — the plan', () => {
 
   it('says what it reuses, what runs again, and which writes go out again', async () => {
     renderDialog();
+    // It opens on Cancel: the start waits for the plan.
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveFocus();
 
     expect(
       await screen.findByRole('heading', { name: 'Runs again (2)' }),

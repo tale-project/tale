@@ -14,7 +14,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { RefreshCw, RotateCcw } from 'lucide-react';
-import { useId, useMemo, useState } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import type {
@@ -75,6 +75,7 @@ export function RunReplayDialog({
   const [requestId] = useState(() => crypto.randomUUID());
   const versionId = useId();
   const modeId = useId();
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const step = stepLabel(from);
 
   const plan = useReplayPlan(organizationId, open ? run.id : undefined, {
@@ -213,7 +214,15 @@ export function RunReplayDialog({
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex flex-col gap-4">
+      <ResponsiveDialogContent
+        className="flex flex-col gap-4"
+        // The plan is still loading when the dialog opens and the start is
+        // disabled; Cancel is also the safe place when writes would repeat.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          cancelRef.current?.focus();
+        }}
+      >
         <ResponsiveDialogTitle>
           {failedHere
             ? t('replay.from.titleRetry', { step })
@@ -358,14 +367,13 @@ export function RunReplayDialog({
 
         <div className="flex flex-wrap justify-end gap-2">
           <Button
+            ref={cancelRef}
             variant="secondary"
-            autoFocus={writesLive}
             onClick={() => onOpenChange(false)}
           >
             {t('replay.cancel')}
           </Button>
           <Button
-            autoFocus={!writesLive}
             disabled={
               plan.isPending ||
               data === null ||
