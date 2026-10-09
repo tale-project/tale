@@ -282,9 +282,6 @@ export function Dialog({
           <DialogPrimitive.Content
             ref={contentRef}
             {...compositionProps}
-            onEscapeKeyDown={(event) => {
-              if (isComposing(event)) event.preventDefault();
-            }}
             aria-modal="true"
             data-tale-modal=""
             className={cn(dialogContentVariants({ size }), className)}
@@ -316,7 +313,9 @@ export function Dialog({
               else restoreFocus(event);
               onCloseAutoFocus?.(event);
             }}
-            onEscapeKeyDown={respectEscapeClaims()}
+            onEscapeKeyDown={respectEscapeClaims((event: KeyboardEvent) => {
+              if (isComposing(event)) event.preventDefault();
+            })}
           >
             <PagePointerPin />
             {/* Close sits in the header row when headerActions exist, so it

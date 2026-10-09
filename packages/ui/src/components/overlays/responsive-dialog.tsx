@@ -221,7 +221,6 @@ export const ResponsiveDialogContent = forwardRef<
           <DrawerPrimitive.Content
             ref={ref}
             {...compositionProps}
-            onEscapeKeyDown={onEscapeKeyDown}
             aria-modal="true"
             data-tale-modal=""
             onOpenAutoFocus={onOpenAutoFocus}
@@ -229,7 +228,7 @@ export const ResponsiveDialogContent = forwardRef<
             onPointerDownOutside={preventDatePickerDismiss}
             onInteractOutside={preventDatePickerDismiss}
             onFocusOutside={preventDatePickerDismiss}
-            onEscapeKeyDown={respectEscapeClaims()}
+            onEscapeKeyDown={respectEscapeClaims(onEscapeKeyDown)}
             className={cn(
               // `outline-none`, as on `Dialog`: when Radix parks focus on the
               // panel itself (nothing to start in, or the content it held
@@ -300,7 +299,6 @@ export const ResponsiveDialogContent = forwardRef<
         <DialogPrimitive.Content
           ref={ref}
           {...compositionProps}
-          onEscapeKeyDown={onEscapeKeyDown}
           aria-modal="true"
           data-tale-modal=""
           onOpenAutoFocus={onOpenAutoFocus}
@@ -308,7 +306,7 @@ export const ResponsiveDialogContent = forwardRef<
           onPointerDownOutside={preventDatePickerDismiss}
           onInteractOutside={preventDatePickerDismiss}
           onFocusOutside={preventDatePickerDismiss}
-          onEscapeKeyDown={respectEscapeClaims()}
+          onEscapeKeyDown={respectEscapeClaims(onEscapeKeyDown)}
           className={cn(
             'bg-background fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border p-6 shadow-lg outline-none',
             // Never exceed the viewport: cap at 90dvh and scroll internally so a
