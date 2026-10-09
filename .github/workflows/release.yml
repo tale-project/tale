@@ -171,6 +171,14 @@ jobs:
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
         with:
           cleanup: false
+          # Hosted runners can be temporarily throttled by Docker Hub. Keep
+          # the builder bootstrap and anonymous base-image resolution on the
+          # public Google mirror so a registry incident does not strand a
+          # release before buildx starts.
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
 
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
@@ -191,6 +199,12 @@ jobs:
 
       - name: Build and push
         id: image
+        # A Docker Hub 429/5xx while resolving a public base can fail an
+        # otherwise valid build. Keep the first attempt's failure visible in
+        # the step outcome, then make one complete retry. The retry remains a
+        # blocking step, so real build/configuration failures still fail this
+        # job after the retry.
+        continue-on-error: true
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         with:
           context: .
@@ -239,6 +253,36 @@ jobs:
             ${{ matrix.service.name == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
           provenance: false
 
+      - name: Back off before retrying the registry
+        if: steps.image.outcome == 'failure'
+        run: sleep 15
+
+      - name: Retry build and push after a transient registry failure
+        id: image_retry
+        if: steps.image.outcome == 'failure'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/${{ matrix.service.name }}/Dockerfile
+          platforms: ${{ matrix.arch.platform }}
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version_number }}
+            ${{ matrix.service.name == 'platform' && format('AUTOMATION_WRITER_PROTOCOL={0}', steps.meta.outputs.automation-protocol) || '' }}
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }}
+            ${{ matrix.arch.name == 'amd64' && format('type=gha,scope={0}', matrix.service.name) || '' }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}-buildcache:${{ matrix.arch.name }},mode=max,ignore-error=true
+          labels: |
+            org.opencontainers.image.created=${{ steps.meta.outputs.created }}
+            org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
+            ${{ matrix.service.name == 'platform' && format('io.tale.automation-writer-protocol={0}', steps.meta.outputs.automation-protocol) || '' }}
+          provenance: false
+
       - name: Setup Bun for document checks
         if: matrix.service.name == 'sandbox-runtime'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -248,7 +292,7 @@ jobs:
       - name: Verify native document tools
         if: matrix.service.name == 'sandbox-runtime'
         env:
-          DOCUMENT_IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image.outputs.digest }}
+          DOCUMENT_IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-sandbox-runtime:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}@${{ steps.image_retry.outputs.digest || steps.image.outputs.digest }}
           DOCUMENT_PLATFORM: ${{ matrix.arch.platform }}
           DOCUMENT_REVISION: ${{ steps.meta.outputs.revision }}
           DOCUMENT_VERSION: ${{ needs.prepare.outputs.version_number }}
