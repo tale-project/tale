@@ -11,6 +11,7 @@ import {
   subnetsOverlap,
 } from './network-address.ts';
 import {
+  operationSignal,
   outsideOperationBudget,
   waitWithinOperation,
 } from './operation-budget.ts';
@@ -590,18 +591,26 @@ const egressAddressReads = new Map<string, Promise<string>>();
  * session could not follow a move. One inspect of the remembered proxy
  * container; the network is searched again only once that container no
  * longer answers to the name. Throws when the proxy cannot be identified or
- * has no IPv4 address on the sandbox network.
+ * has no IPv4 address on the sandbox network. Concurrent callers share one
+ * read, unless `fresh` asks for one that starts after the call: a session's
+ * create records the address it reads right before its `docker run`.
  */
 export async function egressProxyAddress(
   cfg: SpawnerConfig,
+  opts: { fresh?: boolean } = {},
 ): Promise<string | null> {
   const hostname = new URL(cfg.egressProxy).hostname;
   if (hostname === '' || hostname.startsWith('[') || isIpv4Address(hostname))
     return null;
   const key = JSON.stringify([dockerTarget(), cfg.egressNetwork, hostname]);
-  let read = egressAddressReads.get(key);
+  // A caller whose budget is spent could not wait for a read: it starts none
+  // that would end unobserved.
+  operationSignal()?.throwIfAborted();
+  let read = opts.fresh === true ? undefined : egressAddressReads.get(key);
   if (read === undefined) {
-    read = outsideOperationBudget(() => egressContainer(cfg, hostname))
+    const started: Promise<string> = outsideOperationBudget(() =>
+      egressContainer(cfg, hostname),
+    )
       .then((egress) => {
         const address = egress.networks[cfg.egressNetwork]?.ipAddress;
         if (!isIpv4Address(address)) {
@@ -612,9 +621,13 @@ export async function egressProxyAddress(
         return address;
       })
       .finally(() => {
-        egressAddressReads.delete(key);
+        // A fresh read may have taken the slot of an earlier one, or a later
+        // one this one's: each clears only its own.
+        if (egressAddressReads.get(key) === started)
+          egressAddressReads.delete(key);
       });
-    egressAddressReads.set(key, read);
+    egressAddressReads.set(key, started);
+    read = started;
   }
   return waitWithinOperation(read);
 }

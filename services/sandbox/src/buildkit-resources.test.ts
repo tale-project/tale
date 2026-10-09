@@ -1102,6 +1102,17 @@ describe('the egress proxy address sessions pin', () => {
     expect(await calls()).toHaveLength(2);
   });
 
+  test('a fresh read never joins a lookup that began before it', async () => {
+    const [shared, fresh] = await Promise.all([
+      egressProxyAddress(cfg),
+      egressProxyAddress(cfg, { fresh: true }),
+    ]);
+    expect([shared, fresh]).toEqual(['172.30.0.3', '172.30.0.3']);
+    // Shared reads make one lookup of two calls (see above); the fresh read
+    // makes its own.
+    expect((await calls()).length).toBeGreaterThan(2);
+  });
+
   test('a recreated proxy is found again at its new address', async () => {
     expect(await egressProxyAddress(cfg)).toBe('172.30.0.3');
     await save({
