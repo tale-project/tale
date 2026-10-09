@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 104 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 109 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -119,6 +119,32 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   then reload → the reply on screen before the reload is the same text and
   length as after it (the settled reply may be longer than the text shown at
   the click, and it appears at once, without typing on).
+- [ ] `CHAT-F63` · **A long message of yours reads short first** — Paste 40
+  short lines into the composer and send, then send a message of ten lines →
+  The long message's bubble shows its first lines fading out, with **Read
+  more** (`common.actions.readMore`) under its right edge; pressing it opens
+  the whole message in place and turns into **Show less**
+  (`common.actions.showLess`), which folds it back and keeps the button in
+  view. Browser find-in-page finds a word from the folded part. The
+  ten-line message shows whole, with no button; both look the same after a
+  reload.
+- [ ] `CHAT-F64` · **Time and Edit wait; the branch navigator stays** — Point
+  at a message you sent, then move the pointer away; repeat on a message you
+  edited (`CHAT-F8`) → Under the bubble's right edge, the send time (such as
+  **Today, 14:32**; pointing at it shows the full date) and **Edit message**
+  (`chat.editMessage`) appear while the pointer is on the message and fade
+  when it leaves. The edited message's navigator — **Previous branch** and
+  **Next branch** (`chat.branchNavigator.previous`,
+  `chat.branchNavigator.next`) around **2/2** — stays visible at the end of
+  that row the whole time and does not move when the time appears. At 390 px
+  with touch emulation, the time and the pencil are always shown.
+- [ ] `CHAT-F65` · **Your chat message looks like your task comment** — Send
+  the same two-sentence paragraph as a chat message and as your comment on a
+  task page, then compare them at 1440 px and at 390 px, in light and dark →
+  Both bubbles sit at their column's right edge with the same muted surface,
+  rounded corners, padding, text size and line spacing, and wrap at the same
+  share of their column: about three quarters on a wide column, a little
+  more on a phone.
 - [ ] `CHAT-F11` · **Copy reply** — Assistant toolbar → **Copy**
   (`common.actions.copy`) → The tooltip flips to **Copied**
   (`common.actions.copied`); the clipboard holds the reply as normalized plain
@@ -265,9 +291,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Done** → the first session's row reads **Done** without a reload. A chat
   that handed nothing over shows no such region.
 - [ ] `CHAT-F54` · **Every state of a handed-over task** — From one chat,
-  hand over tasks that end each way → a run queued while the organization's
-  sandbox slots are full reads **Waiting for a sandbox slot**
-  (`chat.taskTray.waitingForSlot`); a failed run the platform retries by
+  hand over tasks that end each way → a run waiting while every agent
+  worker of the organization is busy reads **Waiting for a worker**
+  (`tasks.agentRun.waiting.org_limit`); a failed run the platform retries by
   itself reads **Trying again…** (`chat.taskTray.retrying`), and one that
   stopped for good reads **The agent couldn't finish**
   (`chat.taskTray.failed`) on an amber-edged row; a task made with **Create
@@ -882,6 +908,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   task {title}** (`chat.taskTray.openAria`) and reachable by keyboard; the
   amber edge of a stopped task is not its only signal — the row's text says
   **The agent couldn't finish**.
+- [ ] `CHAT-A9` · **Your message by keyboard** → Tab into a long message of
+  yours that you edited (`CHAT-F63`, `CHAT-F64`): the time and **Edit
+  message** (`chat.editMessage`) appear as soon as focus is anywhere in the
+  message; the stops are **Read more** (`common.actions.readMore`), **Edit
+  message**, then whichever of **Previous branch** / **Next branch**
+  (`chat.branchNavigator.previous`, `chat.branchNavigator.next`) can move,
+  each with a visible focus ring; a screen reader reads **Read more** as
+  collapsed and, once pressed, **Show less** (`common.actions.showLess`) as
+  expanded; Enter on **Edit message** opens the edit form. With reduced
+  motion on, the time and the pencil appear without a fade.
 
 ## Performance
 
@@ -898,3 +934,13 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   notice on, open chat once, then reload at desktop width → The loading
   composer skeleton already carries the notice's row, and neither the
   composer nor the notice moves when the live ones replace the skeleton.
+- [ ] `CHAT-P6` · **Your messages land where their placeholders sat** — With
+  the network throttled to Slow 4G in DevTools, open a chat with several of
+  your messages from the Home panel, at 1440 px and at 390 px → The loading
+  placeholder (named `chat.loadingConversation`) draws your messages as
+  bubbles at the column's right edge, and the real messages replace them
+  without anything sliding sideways or the column's padding changing. In a
+  thread of 100+ messages (`CHAT-P4`), find a word of one of your early
+  messages with find-in-page → the find lands in a right-aligned bubble as
+  wide as the ones around it, and the message stays where it was found while
+  it finishes rendering.

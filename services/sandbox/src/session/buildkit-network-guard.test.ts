@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { buildkitdNetworkName } from '../buildkitd.ts';
 import {
   attachBuildkitNetwork,
+  parseForwardRules,
   readBuildkitNetworkPlan,
 } from './buildkit-network-guard.ts';
 
@@ -45,15 +46,23 @@ if (a[0] === 'exec') {
   if (a[1] !== '--user' || a[2] !== '0:0') fail();
   const command = a[4];
   if (command === '/bin/sh') {
-    if (!s.ipv6Disabled || (s.connected && s.ipv6EnabledAfterConnect)) fail();
-    done();
+    // The one listing of both families and the IPv6 switches, as the
+    // guard's script prints it.
+    if (s.execFails) fail();
+    const script = a.at(-1);
+    if (!script.includes('-S FORWARD') || !script.includes('/conf/*/disable_ipv6')) fail();
+    const out = [];
+    for (const [name, family] of [['iptables', 'v4'], ['ip6tables', 'v6']]) {
+      if (s.listFails === family || (family === 'v6' && s.noIpv6Tables)) { out.push('#tale-forward ' + name + ' 1'); continue; }
+      const guarded = s.guarded[family] && !(s.connected && s.guardLostAfterConnect === family);
+      out.push('#tale-forward ' + name + ' 0', '-P FORWARD ACCEPT', guarded ? '-A FORWARD -i eth+ -m conntrack ! --ctstate RELATED,ESTABLISHED -j DROP' : '-A FORWARD -j ACCEPT');
+    }
+    const disabled = s.ipv6Disabled && !(s.connected && s.ipv6EnabledAfterConnect);
+    out.push('#tale-forward ipv6-disabled ' + (disabled ? '0' : '1'));
+    done(out.join('\n') + '\n', 'firewall');
   }
   const family = command === '/usr/sbin/iptables' ? 'v4' : command === '/usr/sbin/ip6tables' ? 'v6' : '';
-  if (!family || s.listFails === family || (family === 'v6' && s.noIpv6Tables)) fail();
-  if (a.includes('-S')) {
-    const guarded = s.guarded[family] && !(s.connected && s.guardLostAfterConnect === family);
-    done('-P FORWARD ACCEPT\n' + (guarded ? '-A FORWARD -i eth+ -m conntrack ! --ctstate RELATED,ESTABLISHED -j DROP\n' : '-A FORWARD -j ACCEPT\n'), 'firewall');
-  }
+  if (!family) fail();
   if (a.includes('-I')) {
     if (s.installFails === family) fail();
     if (s.installNoop !== family) s.guarded[family] = true;
@@ -94,6 +103,7 @@ function initialState() {
     ipv6EnabledAfterConnect: false,
     guardLostAfterConnect: '',
     extraNetworkAfterConnect: false,
+    execFails: false,
     truncated: '',
   };
 }
@@ -175,40 +185,61 @@ describe('verified session build-network attachment', () => {
       'e'.repeat(64),
       containerName,
     ]);
+    const listings = (from: number, to: number) =>
+      observed.slice(from, to).filter((call) => call.includes('/bin/sh'));
     for (const family of ['iptables', 'ip6tables']) {
       const inserted = observed.findIndex(
         (call) => call.includes(`/usr/sbin/${family}`) && call.includes('-I'),
       );
       expect(inserted).toBeGreaterThan(0);
       expect(inserted).toBeLessThan(connect);
-      expect(
-        observed
-          .slice(inserted + 1, connect)
-          .some(
-            (call) =>
-              call.includes(`/usr/sbin/${family}`) && call.includes('-S'),
-          ),
-      ).toBe(true);
-      expect(
-        observed
-          .slice(connect + 1)
-          .some(
-            (call) =>
-              call.includes(`/usr/sbin/${family}`) && call.includes('-S'),
-          ),
-      ).toBe(true);
+      // Read again after the repair, before the attachment.
+      expect(listings(inserted + 1, connect).length).toBeGreaterThan(0);
     }
+    // One listing before the repair, one after it, one after attaching.
+    expect(listings(0, connect)).toHaveLength(2);
+    expect(listings(connect + 1, observed.length)).toHaveLength(1);
     expect(
       observed.some((call) => call.some((arg) => arg.includes('.Config.Env'))),
     ).toBe(false);
   });
 
-  test('accepts already guarded runtimes without adding duplicate rules', async () => {
+  test('an already guarded runtime costs one firewall exec before attaching and one after', async () => {
     const state = initialState();
     state.guarded = { v4: true, v6: true };
     await save(state);
     await attach();
-    expect((await calls()).some((call) => call.includes('-I'))).toBe(false);
+    const observed = await calls();
+    expect(observed.some((call) => call.includes('-I'))).toBe(false);
+    expect(observed.filter((call) => call[0] === 'exec')).toHaveLength(2);
+    // The session and its build network are each read once before the
+    // attachment and the session once after it.
+    expect(observed.filter((call) => call[0] === 'inspect')).toHaveLength(2);
+  });
+
+  test('an exec that fails reads as an unreadable firewall', async () => {
+    const state = initialState();
+    state.execFails = true;
+    await save(state);
+    await expectFailure('cannot inspect session forwarding guard');
+    await expectDetached();
+  });
+
+  test('a listing missing a family is never read as an empty one', () => {
+    expect(() =>
+      parseForwardRules(
+        '#tale-forward iptables 0\n-P FORWARD ACCEPT\n#tale-forward ipv6-disabled 0\n',
+      ),
+    ).toThrow('incomplete');
+    expect(
+      parseForwardRules(
+        '#tale-forward iptables 0\n-P FORWARD ACCEPT\n-A FORWARD -j DROP\n#tale-forward ip6tables 1\n#tale-forward ipv6-disabled 0\n',
+      ),
+    ).toEqual({
+      iptables: '-P FORWARD ACCEPT\n-A FORWARD -j DROP',
+      ip6tables: null,
+      ipv6Disabled: true,
+    });
   });
 
   test('unreadable IPv4 firewall cannot attach', async () => {
@@ -249,9 +280,13 @@ describe('verified session build-network attachment', () => {
     await writeFile(join(root, 'calls.jsonl'), '');
     await attach();
     const checks = (await calls()).filter((call) => call.includes('/bin/sh'));
-    expect(checks).toHaveLength(2);
+    // Before and after the IPv4 repair, and after attaching.
+    expect(checks).toHaveLength(3);
     expect(checks[0]?.at(-1)).toContain('/conf/default/disable_ipv6');
     expect(checks[0]?.at(-1)).toContain('/conf/*/disable_ipv6');
+    expect(
+      (await calls()).some((call) => call.includes('/usr/sbin/ip6tables')),
+    ).toBe(false);
   });
 
   test('IPv6 unexpectedly enabled by attachment fails final verification', async () => {

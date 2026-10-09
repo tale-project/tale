@@ -22,6 +22,7 @@ const state = vi.hoisted(() => ({
   isAdmin: false,
   ownedBy: null as Record<string, unknown> | null,
   candidateReads: 0,
+  runs: [] as Record<string, unknown>[],
 }));
 
 const baseTask = {
@@ -79,6 +80,9 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
         isLoading: false,
       };
     }
+    if (name === 'tasks/queries:listTaskAgentRuns' && args !== 'skip') {
+      return { data: state.runs, isLoading: false };
+    }
     return { data: undefined, isLoading: false };
   },
 }));
@@ -128,13 +132,13 @@ vi.mock('@/app/features/shared/files/use-file-upload', () => ({
 }));
 vi.mock('./task-comments', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./task-comments')>()),
-  TaskComments: () => null,
-  TaskCommentComposer: () => null,
+  TaskCommentComposer: () => <div data-testid="task-comment-composer" />,
   TaskCommentComposerSkeleton: () => null,
 }));
-vi.mock('./task-timeline', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./task-timeline')>()),
-  TaskTimeline: () => null,
+vi.mock('./task-conversation', () => ({
+  TaskConversation: ({ taskId }: { taskId: string }) => (
+    <div data-testid="task-conversation" data-task-id={taskId} />
+  ),
 }));
 vi.mock('./task-attachments', () => ({ TaskAttachments: () => null }));
 vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
@@ -183,6 +187,7 @@ beforeEach(() => {
   state.isAdmin = false;
   state.ownedBy = null;
   state.candidateReads = 0;
+  state.runs = [];
 });
 
 describe('TaskModal — a member works their own task', () => {
@@ -252,6 +257,50 @@ describe('TaskModal — an editor, as before', () => {
     ).toBeInTheDocument();
     // Opening the task names both pickers without their candidate reads.
     expect(state.candidateReads).toBe(0);
+  });
+});
+
+describe('TaskModal — the discussion', () => {
+  it('reads as the task page does: one conversation, the composer at its foot', async () => {
+    state.access = { canEdit: true, canCreate: true };
+    openTask(baseTask);
+
+    const conversation = await screen.findByTestId('task-conversation');
+    expect(conversation).toHaveAttribute('data-task-id', baseTask._id);
+    const composer = screen.getByTestId('task-comment-composer');
+    // The composer answers the thread from under it, as on the page.
+    expect(
+      conversation.compareDocumentPosition(composer) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});
+
+describe('TaskModal — what the agent cost', () => {
+  const run = (runId: string, costCents: number) => ({
+    runId,
+    agentSlug: 'researcher',
+    trigger: 'manual',
+    status: 'completed',
+    startedAt: 1,
+    costCents,
+  });
+
+  it('sums the runs in the details, also once a person owns the task', async () => {
+    state.runs = [run('run-1', 125), run('run-2', 250)];
+    openTask({ ...baseTask, assigneeType: 'user', assigneeId: 'u-editor' });
+
+    expect(await screen.findByText('Agent cost')).toBeInTheDocument();
+    expect(screen.getByText('3.75 total')).toBeInTheDocument();
+  });
+
+  it('shows no such row while no run cost anything', async () => {
+    state.runs = [run('run-1', 0)];
+    state.access = { canEdit: true, canCreate: true };
+    openTask(baseTask);
+
+    await screen.findByRole('textbox', { name: 'Title' });
+    expect(screen.queryByText('Agent cost')).not.toBeInTheDocument();
   });
 });
 

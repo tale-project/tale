@@ -287,6 +287,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_FORBIDDEN',
   'TASK_LABELS_INVALID',
   'TASK_TITLE_INVALID',
+  // The managed task-instructions lane, which stores a description exactly
+  // as sent and so refuses a mention token naming nobody mentionable, is
+  // the configuration door's (`POST /api/app/tasks/{taskId}/configuration/
+  // instructions`); every REST door stores such a token as plain text.
+  'TASK_MENTION_INVALID',
   // Projects: the door validates the name (`nonBlank`), description and
   // external key (`externalKeySchema`) at the domain's own caps before the
   // create or the PATCH reaches the cores, and the agent name and
@@ -457,6 +462,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // an unknown slug `ORG_SLUG_INVALID` and never creates or deletes one.
   'ORG_NOT_FOUND',
   'ORG_SLUG_RETIRING',
+  // The app's organization delete refuses unresolved legacy automation
+  // holds; REST mounts no organization-deletion door.
+  'ORG_LEGACY_AUTOMATION_HELD',
   // The skill bundle's zip upload lane; the REST save writes SKILL.md
   // through the file layer, whose failure is a 500, never this code.
   'WRITE_FAILED',

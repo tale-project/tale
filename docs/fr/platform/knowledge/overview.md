@@ -42,7 +42,7 @@ Teste une nouvelle source avec une question dont tu connais la réponse : « Q
 
 ## Comprendre l’accès et la recherche
 
-Le chat de l’organisation peut rechercher dans la bibliothèque commune selon tes droits. Le chat d’un projet peut aussi consulter les fichiers de ce projet et utilise ses instructions enregistrées. Il ne recherche pas dans les fichiers d’un autre projet. Les agents de projet doivent être équipés des outils de plateforme correspondants.
+Le chat de l’organisation peut rechercher dans la bibliothèque commune selon tes droits. Le chat d’un projet peut aussi consulter les fichiers de ce projet et utilise ses instructions enregistrées. Il ne recherche pas dans les fichiers d’un autre projet. Les agents de projet et les étapes agent des automatisations recherchent toujours dans ces connaissances, dans le périmètre de leur projet, sans autorisation particulière ; pour lire ou modifier directement des [entrées de connaissances](/fr/platform/knowledge/knowledge-entries), ils doivent être équipés de l’outil correspondant.
 
 Les restrictions par équipe s’appliquent aussi à la recherche. Un fichier visible dans un espace peut donc manquer dans le contexte d’un autre projet. Utilise les [fichiers de projet](/fr/platform/projects/manage-files) pour les contenus propres à un projet et l’affectation aux équipes pour les documents de la bibliothèque commune.
 

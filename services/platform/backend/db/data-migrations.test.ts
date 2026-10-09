@@ -76,6 +76,7 @@ describe('the files the boot migrator applies', () => {
       expect.arrayContaining([
         '0128_rag_unsupported_type_codes.ts',
         '0129_rag_unsupported_image_codes.ts',
+        '0166_project_agent_handles_backfill.ts',
       ]),
     );
     for (const file of files) {
@@ -109,6 +110,11 @@ const PURE_RULES: ReadonlyMap<string, string> = new Map([
   [
     'backend/core/lib/knowledge/extraction/',
     'the extractor set: decides by extension, parses only the bytes it is handed',
+  ],
+  ['lib/shared/agent-handle.ts', 'the agent handle slug rule, imports nothing'],
+  [
+    'lib/shared/mention-handles.ts',
+    'the handle forms a person, an automation and an agent answer to, imports nothing',
   ],
 ]);
 
@@ -667,5 +673,124 @@ describe('0128 and 0129 together', () => {
       'file-5',
       'file-7',
     ]);
+  });
+});
+
+/**
+ * Scripted transaction for 0166, answered by statement text: the agents of
+ * the projects that need a fill, the auth-table probe, the organization's
+ * people, its automations, then the fill.
+ */
+function fakeAgentTx(answers: {
+  agents: unknown[];
+  members?: unknown[];
+  automations?: unknown[];
+}): { tx: TransactionSql; statements: Statement[] } {
+  const statements: Statement[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('$').replace(/\s+/g, ' ').trim();
+    statements.push({ text, values });
+    if (text.includes('FROM app.project_agents') && text.startsWith('SELECT')) {
+      return Promise.resolve(answers.agents);
+    }
+    if (text.includes('to_regclass')) return Promise.resolve([{ ready: true }]);
+    if (text.includes('FROM "member"')) {
+      return Promise.resolve(answers.members ?? []);
+    }
+    if (text.includes('FROM app.automations')) {
+      return Promise.resolve(answers.automations ?? []);
+    }
+    return Promise.resolve([]);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { tx: tag as unknown as TransactionSql, statements };
+}
+
+const m0166 = await load('0166_project_agent_handles_backfill.ts');
+
+describe('0166 — handles for the agents that existed before them [PROJ-R18]', () => {
+  const agent = (
+    id: string,
+    projectId: string,
+    name: string,
+    createdAt: number,
+    extra: { handle?: string; legacyHandles?: string[] } = {},
+  ) => ({
+    id,
+    projectId,
+    orgId: 'org-1',
+    name,
+    handle: extra.handle ?? null,
+    legacyHandles: extra.legacyHandles ?? null,
+    createdAt,
+  });
+
+  it('mints per project, oldest first, skipping what people and automations answer to, and freezes the older forms', async () => {
+    const { tx, statements } = fakeAgentTx({
+      agents: [
+        agent('a2', 'p1', 'My Opus Agent 3', 2),
+        agent('a1', 'p1', 'My Opus Agent #3', 1),
+        agent('a3', 'p1', '发票助手', 3),
+        agent('a4', 'p1', 'Ops', 4),
+        agent('a5', 'p1', 'Invoice checker', 5),
+        agent('b1', 'p2', 'My Opus Agent #3', 1),
+        agent('c1', 'p3', 'Kept', 1, { handle: 'kept', legacyHandles: [] }),
+        agent('c2', 'p3', 'Research Bot', 2),
+      ],
+      members: [
+        {
+          orgId: 'org-1',
+          userId: 'u1',
+          email: 'ops@example.com',
+          name: 'Ops Team',
+        },
+      ],
+      automations: [{ orgId: 'org-1', name: 'invoice-checker' }],
+    });
+
+    await m0166.migrate(tx);
+
+    const fill = statements.at(-1);
+    expect(fill?.text).toContain('UPDATE app.project_agents');
+    expect(fill?.text).toContain(
+      'AND (a.handle IS NULL OR a.legacy_handles IS NULL)',
+    );
+    const [ids, handles, legacies] = (fill?.values ?? []) as string[][];
+    const byId = Object.fromEntries(
+      (ids ?? []).map((id, index) => [
+        id,
+        [handles?.[index], JSON.parse(legacies?.[index] ?? 'null')],
+      ]),
+    );
+    expect(byId).toEqual({
+      // `#` was never part of a handle: this agent answered only to its id.
+      a1: ['my-opus-agent-3', []],
+      a2: ['my-opus-agent-3-02', ['my.opus.agent.3', 'myopusagent3']],
+      a3: ['agent', []],
+      a4: ['ops-02', ['ops']],
+      a5: ['invoice-checker-02', ['invoice.checker', 'invoicechecker']],
+      b1: ['my-opus-agent-3', []],
+      c2: ['research-bot', ['research.bot', 'researchbot']],
+    });
+  });
+
+  it('reads only the projects that need a fill, locks them, and stops when none does', async () => {
+    const { tx, statements } = fakeAgentTx({ agents: [] });
+    await m0166.migrate(tx);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.text).toContain(
+      'WHERE handle IS NULL OR legacy_handles IS NULL',
+    );
+    expect(statements[0]?.text).toContain('FOR UPDATE');
+  });
+
+  it('writes nothing when every agent of the read projects is filled', async () => {
+    const { tx, statements } = fakeAgentTx({
+      agents: [
+        agent('c1', 'p3', 'Kept', 1, { handle: 'kept', legacyHandles: [] }),
+      ],
+    });
+    await m0166.migrate(tx);
+    expect(statements.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
   });
 });

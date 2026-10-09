@@ -36,7 +36,7 @@ export interface ChatWireRequest {
 
 export interface ChatWireReply {
   content: string;
-  usage: { prompt: number; completion: number };
+  usage: { prompt: number; completion: number; reported?: boolean };
 }
 
 /**
@@ -609,6 +609,17 @@ function tokenCount(usage: unknown, key: string): number {
   return typeof value === 'number' ? value : 0;
 }
 
+/** Missing/invalid counts must remain distinguishable from reported zero. */
+function usageReported(usage: unknown, input: string, output: string): boolean {
+  return (
+    isRecord(usage) &&
+    [usage[input], usage[output]].every(
+      (value) =>
+        typeof value === 'number' && Number.isSafeInteger(value) && value >= 0,
+    )
+  );
+}
+
 /** Join the text parts of a content value that may be a string or blocks. */
 function textOf(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -638,6 +649,7 @@ export function parseChatReply(
     const usage = {
       prompt: tokenCount(root.usage, 'input_tokens'),
       completion: tokenCount(root.usage, 'output_tokens'),
+      reported: usageReported(root.usage, 'input_tokens', 'output_tokens'),
     };
     const content = textOf(root.content);
     if (!content) {
@@ -654,6 +666,7 @@ export function parseChatReply(
   const usage = {
     prompt: tokenCount(root.usage, 'prompt_tokens'),
     completion: tokenCount(root.usage, 'completion_tokens'),
+    reported: usageReported(root.usage, 'prompt_tokens', 'completion_tokens'),
   };
   const content = textOf(message?.content);
   if (!content) {

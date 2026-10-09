@@ -263,6 +263,7 @@ organization:
   deleteLoading: Lösche…
   deleteSuccess: Organisation gelöscht
   deleteFailed: Organisation konnte nicht gelöscht werden
+  deleteBlockedByLegacyAutomation: Automationsläufe bleiben gesperrt, weil ihre früheren externen Aktionen noch nicht überprüft wurden. Deine Organisation wurde nicht gelöscht. Eine Stopp-Anfrage hebt diese Sperren nicht auf.
   deleteBlockedByLegalHold: Ein aktiver Legal Hold bewahrt die Daten dieser Organisation. Gib alle Holds unter Richtlinien > Legal Hold frei und versuch es dann erneut.
   deleteTypeNameLabel: Tippe den Namen der Organisation zur Bestätigung
   deleteConfirmNameMismatch: Die Bestätigung stimmt nicht mit dem Namen der Organisation überein. Lade die Seite neu und versuch es erneut.
@@ -1309,6 +1310,8 @@ logs:
       document.trashed: Dokument in den Papierkorb verschoben
       document.deleted: Dokument gelöscht
       folder.deleted: Ordner gelöscht
+      knowledge_entry.created: Wissenseintrag erstellt
+      knowledge_entry.updated: Wissenseintrag aktualisiert
       branding.updated: Branding aktualisiert
       branding.image_uploaded: Branding-Bild hochgeladen
       branding.image_deleted: Branding-Bild entfernt
@@ -1514,6 +1517,7 @@ logs:
       conversationMessage: Konversationsnachricht
       document: Dokument
       folder: Ordner
+      knowledge_entry: Wissenseintrag
       agent: Agent
       workflow: Automatisierung
       workflow_run: Automatisierungslauf

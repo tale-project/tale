@@ -308,14 +308,11 @@ test.skipIf(process.platform === 'win32')(
   },
 );
 
-test('Release keeps GHA reads, architecture registry writes and native runner fanout', async () => {
+test('Release reads and writes only its architecture registry cache and fans out natively', async () => {
   const release = await workflow('release');
   const build = release.jobs.build;
   const image = build?.steps.find((step) => step.name === 'Build and push');
-  expect(image?.with?.['cache-from']).toContain("matrix.arch.name == 'amd64'");
-  expect(image?.with?.['cache-from']).toContain(
-    "format('type=gha,scope={0}', matrix.service.name)",
-  );
+  expect(image?.with?.['cache-from']).not.toContain('type=gha');
   expect(image?.with?.['cache-from']).toContain(
     '-buildcache:${{ matrix.arch.name }}',
   );

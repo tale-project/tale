@@ -1,11 +1,13 @@
 title: Sandboxes
 sessionsTitle: Arbeitsbereiche
 description:
-  Projekt-Agenten nutzen ihren Arbeitsbereich für mehrere Aufgaben. Die Schritte
-  eines Workflow-Laufs teilen sich einen Arbeitsbereich. Der Arbeitsbereich eines
-  Projekt-Agenten wird gelöscht, sobald er länger ungenutzt ist, als die
-  Bereinigung der Arbeitsbereiche zulässt, oder sobald sein Agent, sein Projekt
-  oder das zugehörige Mitglied entfernt wird. Laufzeitstatus und
+  Ein Projekt-Agent bearbeitet jede Aufgabe, an der er gleichzeitig arbeitet,
+  in einem eigenen Worker, einer Sandbox mit eigenem Arbeitsbereich, die
+  spätere Aufgaben wiederverwenden. Die Schritte eines Workflow-Laufs teilen
+  sich einen Arbeitsbereich. Der Arbeitsbereich eines Workers wird gelöscht,
+  sobald er länger ungenutzt ist, als die Bereinigung der Arbeitsbereiche
+  zulässt, oder sobald sein Agent, sein Projekt oder das zugehörige Mitglied
+  entfernt wird. Laufzeitstatus und
   Kontingentbelegung stehen getrennt, denn ein Container kann nach der Freigabe
   des Kontingents weiterlaufen.
 limits:
@@ -17,6 +19,8 @@ limits:
     Bereitstellung nicht überschreiten.
   usage: 'Belegt: {used} / {limit}'
   usageUnavailable: Kontingentbelegung nicht verfügbar
+  # Unter dem Limit der Agenten-Worker: die Läufe, die ein höheres Limit sofort starten würde.
+  waitingForWorkers: '{count, plural, one {# Agentenlauf wartet auf einen freien Worker.} other {# Agentenläufe warten auf einen freien Worker.}}'
   invalidSessions: Gib eine ganze Zahl zwischen 1 und 500 ein.
   total: Sitzungen deiner Organisation insgesamt
   totalValue: '{total} / {maxSessions}'
@@ -29,11 +33,11 @@ limits:
   saveFailed: Sandbox-Limits konnten nicht gespeichert werden
 quota:
   budgets:
-    project: Projekt-Agent-Sitzungen
+    project: Agenten-Worker
     workflow: Workflow-Sitzungen
     render: Render-Sitzungen
   budgetHints:
-    project: Projekt-Agenten nutzen dieselbe Sandbox für mehrere Aufgaben.
+    project: Jede Aufgabe, an der ein Agent gleichzeitig arbeitet, läuft in einer eigenen Sandbox.
     workflow: Agent- und Skriptschritte teilen sich eine Sandbox pro Workflow-Lauf.
     render: Temporäre Sandboxes rendern Webseiten beim Crawlen deiner Websites.
 cleanup:
@@ -113,7 +117,7 @@ actions:
   destroy: Löschen
 destroyConfirm:
   title: Sandbox löschen?
-  description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Sobald sie entfernt ist, entsteht beim nächsten Lauf des Agenten eine neue Sandbox.
+  description: Das löscht die Sandbox und ihren Arbeitsbereich und bricht laufende Aufgaben ab. Der nächste Lauf des Agenten nimmt einen anderen freien Worker oder, sobald diese Sandbox entfernt ist, eine neue.
   confirm: Löschen
 toast:
   stopped: Aufgabe gestoppt
@@ -125,13 +129,19 @@ toast:
 empty:
   title: Noch keine Arbeitsbereiche
   description:
-    Der Arbeitsbereich eines Projekt-Agenten erscheint nach seiner ersten Aufgabe.
-    Er wird gelöscht, sobald er länger ungenutzt ist, als die Bereinigung der
-    Arbeitsbereiche zulässt, oder sobald sein Agent, sein Projekt oder das
-    zugehörige Mitglied entfernt wird. Der Arbeitsbereich eines Workflow-Laufs
+    Der Worker eines Projekt-Agenten erscheint mit seiner ersten Aufgabe, einer
+    für jede Aufgabe, an der der Agent gleichzeitig arbeitet. Sein
+    Arbeitsbereich wird gelöscht, sobald er länger ungenutzt ist, als die
+    Bereinigung der Arbeitsbereiche zulässt, oder sobald sein Agent, sein
+    Projekt oder das zugehörige Mitglied entfernt wird. Der Arbeitsbereich eines Workflow-Laufs
     wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
     enthalten auch temporäre Crawler-Sitzungen.
 accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
+# Welcher Worker seines Agenten ein Arbeitsbereich ist: einer des Agenten
+# selbst oder einer, der den Agenten für ein Mitglied ausführt.
+worker:
+  agent: Worker {number}
+  member: Mitglieder-Worker {number}
 deletedAgent: Gelöschter Agent
 devices:
   title: Geräte

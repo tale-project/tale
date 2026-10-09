@@ -33,9 +33,10 @@ misconfigurations:
     paths:
       - 'services/sandbox-egress/Dockerfile'
     statement: |
-      Egress proxy entrypoint runs as root only long enough to chown the log
-      file; tinyproxy itself drops privileges to `nobody` at bind time via
-      tinyproxy.conf. Documented in services/sandbox-egress/Dockerfile.
+      Egress proxy entrypoint runs as root to install the iptables SSRF
+      firewall and bind dnsmasq to :53; tinyproxy itself drops privileges to
+      `nobody` at bind time via tinyproxy.conf. Documented in
+      services/sandbox-egress/Dockerfile.
   - id: AVD-DS-0002
     paths:
       - 'services/sandbox-buildkitd/Dockerfile'

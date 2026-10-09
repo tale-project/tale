@@ -11,6 +11,7 @@ import { parse } from 'yaml';
 
 import releaseContract from '../../../.github/release-candidate-contract.json';
 import { fixtureGit } from '../src/lib/config/releases/tests/fixture-git';
+import { CHECKS_MERGE_QUEUE_ONLY } from './ci-ready';
 import {
   admissionAssertions,
   refreshContract,
@@ -72,6 +73,11 @@ const sourceWorkflows = [
 ];
 const C = 'c'.repeat(40);
 const H = 'd'.repeat(40);
+/** A Checks suite a pull request leaves to the merge queue. */
+const queueOnly = (stem: string, id: string, event: string) =>
+  stem === 'checks' &&
+  event === 'pull_request' &&
+  (CHECKS_MERGE_QUEUE_ONLY as readonly string[]).includes(id);
 
 type Result = 'success' | 'failure' | 'cancelled' | 'skipped' | '';
 type Admission = {
@@ -360,7 +366,8 @@ describe('ordinary CI source admission', () => {
               stem === 'cli' &&
               id === 'release' &&
               event !== 'workflow_dispatch'
-            );
+            ) &&
+            !queueOnly(stem, id, event);
           if (candidateEvent(stem, event))
             state.github.event.pull_request.head.repo.fork = false;
           expect(
@@ -369,7 +376,9 @@ describe('ordinary CI source admission', () => {
           ).toBe(expected);
           state.cancelled = true;
           expect(admitted(job, state, true), `${stem}/${id} cancelled`).toBe(
-            stem === 'checks' && ['test', 'test-ui'].includes(id),
+            stem === 'checks' &&
+              ['test', 'test-ui'].includes(id) &&
+              !queueOnly(stem, id, event),
           );
         }
       }
@@ -437,6 +446,7 @@ describe('ordinary CI source admission', () => {
               ).toBe(
                 valid &&
                   publication &&
+                  !queueOnly(stem, id, event) &&
                   !(id.endsWith('-fork') && candidateEvent(stem, event)) &&
                   !(
                     stem === 'build' &&
@@ -479,7 +489,7 @@ describe('ordinary CI source admission', () => {
               : stem === 'build' &&
                 ['changes', 'vulnerability-scan'].includes(id);
         expect(admitted(job, state, true), `${stem}/${id} draft`).toBe(
-          draftRuns,
+          draftRuns && !queueOnly(stem, id, 'pull_request'),
         );
       }
     }

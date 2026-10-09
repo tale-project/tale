@@ -61,6 +61,7 @@ export function root(overrides: Partial<ManualRoot> = {}): ManualRoot {
       doc('not-a-finding.md', '# Not a finding\n', `${ROOT}/reference`),
       doc('pins.md', '# Pins\n', `${ROOT}/reference`),
     ],
+    automationShards: [],
     runEntries: ['readme.md', 'template-session-log.md', 'template.md'],
     journal: doc('readme.md', '# The round journal\n', `${ROOT}/runs`),
     ...overrides,

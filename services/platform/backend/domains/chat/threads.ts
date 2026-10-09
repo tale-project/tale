@@ -222,6 +222,8 @@ export async function loadOwnedThread(
   organizationId: string,
   userId: string,
   threadId: string,
+  /** Only inside a caller-owned transaction when changing project sharing. */
+  lockMetadata = false,
 ): Promise<ThreadRow | null> {
   const rows = await sql<ThreadRow[]>`
     SELECT ${sql.unsafe(THREAD_COLUMNS)}
@@ -229,7 +231,7 @@ export async function loadOwnedThread(
     JOIN app.thread_metadata tm ON tm.thread_id = t.id
     WHERE t.id = ${threadId} AND t.org_id = ${organizationId}
       AND t.user_id = ${userId} AND tm.status = 'active'
-    LIMIT 1
+    LIMIT 1 ${sql.unsafe(lockMetadata ? 'FOR UPDATE OF tm' : '')}
   `;
   return rows[0] ?? null;
 }
@@ -506,13 +508,13 @@ export async function moveThreadToProject(
   threadId: string,
   projectId: string | null,
 ): Promise<boolean> {
-  const thread = await loadOwnedThread(
+  const selected = await loadOwnedThread(
     sql,
     auth.organizationId,
     auth.userId,
     threadId,
   );
-  if (!thread) return false;
+  if (!selected) return false;
   if (projectId !== null) {
     const access = await projectChatAccess(sql, {
       projectId,
@@ -527,11 +529,22 @@ export async function moveThreadToProject(
       );
     }
   }
-  const previousProjectId = thread.projectId;
-  const moved = projectId !== previousProjectId;
-  const endsShare =
-    moved && thread.sharedWithProject === true && previousProjectId !== null;
-  await sql.begin(async (tx) => {
+  return sql.begin(async (tx) => {
+    // The opt-in and audit belong to the canonical root, even when an API
+    // caller names its hidden sibling. Re-read after locking so another
+    // move cannot leave us interpreting an old audience or share flag.
+    const thread = await loadOwnedThread(
+      tx,
+      auth.organizationId,
+      auth.userId,
+      selected.branchRootId ?? selected.id,
+      true,
+    );
+    if (!thread || thread.branchRootId !== null) return false;
+    const previousProjectId = thread.projectId;
+    const moved = projectId !== previousProjectId;
+    const endsShare =
+      moved && thread.sharedWithProject === true && previousProjectId !== null;
     await tx`
       UPDATE app.thread_metadata SET
         project_id = ${projectId},
@@ -542,13 +555,15 @@ export async function moveThreadToProject(
     // an arena column — carry its later turns: they move with it, or a turn
     // on one would keep spending in, and being capped by, the project the
     // conversation left.
-    const rootId = thread.branchRootId ?? thread.id;
     await tx`
-      UPDATE app.thread_metadata SET project_id = ${projectId}
-      WHERE org_id = ${auth.organizationId}
-        AND (thread_id = ${rootId} OR branch_root_id = ${rootId})
+      UPDATE app.thread_metadata SET
+        shared_with_project = CASE WHEN project_id IS DISTINCT FROM ${projectId}
+          THEN false ELSE shared_with_project END,
+        project_id = ${projectId}
+      WHERE org_id = ${auth.organizationId} AND user_id = ${auth.userId}
+        AND (thread_id = ${thread.id} OR branch_root_id = ${thread.id})
     `;
-    if (!moved) return;
+    if (!moved) return true;
     const projectName = async (id: string): Promise<string | undefined> => {
       const rows = await tx<{ name: string }[]>`
         SELECT name FROM app.projects WHERE id = ${id} LIMIT 1
@@ -583,7 +598,7 @@ export async function moveThreadToProject(
     // off the project the chat lands in (or the one it leaves, when it is
     // taken out of projects altogether).
     const anchorProjectId = projectId ?? previousProjectId;
-    if (anchorProjectId === null) return;
+    if (anchorProjectId === null) return true;
     const anchorName = await projectName(anchorProjectId);
     await createAuditLog(tx, {
       ...actor,
@@ -593,8 +608,8 @@ export async function moveThreadToProject(
       previousState: { threadId: thread.id, projectId: previousProjectId },
       newState: { threadId: thread.id, projectId },
     });
+    return true;
   });
-  return true;
 }
 
 /** The header cap on a chat name — mirrors the AI title generator's own. */
@@ -865,20 +880,21 @@ export async function setThreadSharedWithProject(
   threadId: string,
   shared: boolean,
 ): Promise<boolean> {
-  const thread = await loadOwnedThread(
-    sql,
-    auth.organizationId,
-    auth.userId,
-    threadId,
-  );
-  if (!thread) return false;
-  if (thread.projectId === null) {
-    throw new ChatThreadError(
-      'THREAD_NOT_IN_PROJECT',
-      'File the conversation in a project first',
+  return sql.begin(async (tx) => {
+    const thread = await loadOwnedThread(
+      tx,
+      auth.organizationId,
+      auth.userId,
+      threadId,
+      true,
     );
-  }
-  await sql.begin(async (tx) => {
+    if (!thread) return false;
+    if (thread.projectId === null) {
+      throw new ChatThreadError(
+        'THREAD_NOT_IN_PROJECT',
+        'File the conversation in a project first',
+      );
+    }
     await tx`
       UPDATE app.thread_metadata SET shared_with_project = ${shared}
       WHERE thread_id = ${thread.id}
@@ -903,8 +919,8 @@ export async function setThreadSharedWithProject(
         newState: { threadId: thread.id, shared },
       });
     }
+    return true;
   });
-  return true;
 }
 
 /**

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { parse, stringify } from 'yaml';
 
+import { BUILDKITD_MIRROR_IMAGE } from '../compose/types';
 import {
   hash,
   parseCompose,
@@ -557,6 +558,69 @@ describe('committed source runtime preparation', () => {
       );
     },
   );
+
+  // A source names the stock registry mirror by version and digest; sources
+  // from before that pin name it by tag. Either is pulled as it is named and
+  // pinned by digest in the bundle.
+  test.each([
+    [
+      `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`,
+      `registry@${BUILDKITD_MIRROR_IMAGE.split('@')[1]}`,
+    ],
+    ['${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}', 'registry:2'],
+  ])('pins the registry mirror a source names as %s', async (named, pulled) => {
+    const { fixture, docker, prepare } = create();
+    fixture.source.services.sandbox.environment = {
+      ...(fixture.source.services.sandbox.environment as Record<
+        string,
+        string
+      >),
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: named,
+    };
+    writeFileSync(
+      join(fixture.repoRoot, 'compose.yml'),
+      stringify(fixture.source),
+    );
+    fixture.git('add', '.');
+    fixture.git('commit', '--allow-empty', '-qm', 'name the mirror');
+    fixture.revision = fixture.git('rev-parse', 'HEAD');
+    await prepare();
+    expect(
+      docker.calls.some(
+        (call) => call.args[0] === 'pull' && call.args.at(-1) === pulled,
+      ),
+    ).toBe(true);
+    const environment = readRuntimeBundle(fixture.options.bundleDirectory)
+      .compose.services.sandbox.environment as Record<string, string>;
+    expect(environment.SANDBOX_BUILDKITD_MIRROR_IMAGE).toMatch(
+      /^registry@sha256:[a-f0-9]{64}$/,
+    );
+  });
+
+  test.each([
+    '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry}',
+    '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-example.com/registry:2}',
+    'registry:2',
+  ])('refuses a source that names the registry mirror as %s', async (named) => {
+    const { fixture, prepare } = create();
+    fixture.source.services.sandbox.environment = {
+      ...(fixture.source.services.sandbox.environment as Record<
+        string,
+        string
+      >),
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: named,
+    };
+    writeFileSync(
+      join(fixture.repoRoot, 'compose.yml'),
+      stringify(fixture.source),
+    );
+    fixture.git('add', '.');
+    fixture.git('commit', '--allow-empty', '-qm', 'name the mirror');
+    fixture.revision = fixture.git('rev-parse', 'HEAD');
+    await expect(prepare()).rejects.toThrow(
+      'Runtime sandbox image routing changed.',
+    );
+  });
 
   test('attests spawner child images even when the Compose file hash is rewritten', async () => {
     const { fixture, prepare } = create();

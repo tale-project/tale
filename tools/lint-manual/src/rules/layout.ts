@@ -60,6 +60,16 @@ export function layout(repo: Repo): Finding[] {
         });
       }
     }
+    const suiteNames = new Set(root.suites.map((suite) => suite.name));
+    for (const shard of root.automationShards) {
+      if (suiteNames.has(shard.name)) continue;
+      findings.push({
+        file: shard.path,
+        message:
+          'names no suite — `reference/automation/` holds one file per ' +
+          'suite in `suites/`, under the same name',
+      });
+    }
     for (const name of RUN_FILES) {
       if (!root.runEntries.includes(name)) {
         findings.push({

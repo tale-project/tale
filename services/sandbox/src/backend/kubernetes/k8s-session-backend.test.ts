@@ -1,7 +1,7 @@
 // Kubernetes lifecycle ownership and workspace preservation are exercised
 // through a stub CoreV1Api, without requiring a cluster.
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 
 import type {
   CoreV1Api,
@@ -14,9 +14,16 @@ import { operationSignal } from '../../operation-budget.ts';
 import { SessionRoutes } from '../../session/session-routes.ts';
 import { TEST_SESSION_CONFIG } from '../../session/session-test-config.ts';
 import type { SpawnerConfig } from '../../types.ts';
-import { SessionIncarnationChangedError, type SessionSpec } from '../types.ts';
+import {
+  SessionExistsError,
+  SessionIncarnationChangedError,
+  type SessionSpec,
+} from '../types.ts';
 import type { K8sClient } from './k8s-client.ts';
-import { KubernetesSessionBackend } from './k8s-session-backend.ts';
+import {
+  KubernetesSessionBackend,
+  unstartableReason,
+} from './k8s-session-backend.ts';
 import {
   sessionPodNameFor,
   sessionSecretNameFor,
@@ -908,6 +915,64 @@ describe('KubernetesSessionBackend.createSession — a 409 name conflict is not 
     expect(calls.pvcDeleted).toBe(false);
     expect(calls.secretDeleted).toBe(1);
   });
+
+  // A live Pod under the name is a session the route answers as a duplicate,
+  // so the platform adopts it rather than cleaning up after a failed create.
+  test.each(['Running', 'Pending'])(
+    'Pod 409 against a live %s Pod: a live duplicate, nothing of it removed',
+    async (phase) => {
+      const { client, calls } = stub(
+        () => Promise.resolve({ metadata: { uid: 'own-secret' } }),
+        conflict,
+        {
+          pod: {
+            metadata: { annotations: { 'tale.dev/created-at': '1' } },
+            status: { phase },
+          },
+        },
+      );
+      const err = await rejection(
+        new KubernetesSessionBackend(cfg, client).createSession(spec),
+      );
+      expect(err).toBeInstanceOf(SessionExistsError);
+      expect(err?.message).toMatch(/session sess_c4 already exists/);
+      expect(calls.podDeleted).toBe(false);
+      expect(calls.pvcDeleted).toBe(false);
+      expect(calls.secretDeleted).toBe(1);
+    },
+  );
+
+  test('Secret 409 beside a live Pod: a live duplicate, nothing deleted', async () => {
+    const { client, calls } = stub(conflict, undefined, {
+      secret: { uid: 'peer-uid', createdAt: new Date(Date.now() - 600_000) },
+      pod: { metadata: {}, status: { phase: 'Running' } },
+    });
+    const err = await rejection(
+      new KubernetesSessionBackend(cfg, client).createSession(spec),
+    );
+    expect(err).toBeInstanceOf(SessionExistsError);
+    expect(calls.secretDeleted).toBe(0);
+    expect(calls.podDeleted).toBe(false);
+  });
+
+  test('Pod 409 against a terminating or ended Pod stays a failed create', async () => {
+    for (const pod of [
+      { metadata: { deletionTimestamp: new Date() }, status: {} },
+      { metadata: {}, status: { phase: 'Succeeded' } },
+      { metadata: {}, status: { phase: 'Failed' } },
+    ]) {
+      const { client } = stub(
+        () => Promise.resolve({ metadata: { uid: 'own-secret' } }),
+        conflict,
+        { pod },
+      );
+      const err = await rejection(
+        new KubernetesSessionBackend(cfg, client).createSession(spec),
+      );
+      expect(err).not.toBeInstanceOf(SessionExistsError);
+      expect(err?.message).toMatch(/session sess_c4 already exists/);
+    }
+  });
 });
 
 describe('KubernetesSessionBackend.createSession — a render session has no volume', () => {
@@ -1016,6 +1081,66 @@ describe('KubernetesSessionBackend.createSession — an orphaned Secret or a Pod
     // It went on to the readiness wait instead of reporting a conflict.
     expect(err).not.toBeNull();
     expect(err?.message).not.toMatch(/already exists/);
+  });
+});
+
+describe('KubernetesSessionBackend.createSession — a Pod the scheduler cannot place', () => {
+  const quick = {
+    ...cfg,
+    session: { ...cfg.session, createHealthTimeoutMs: 200 },
+  };
+  const reason =
+    "0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector.";
+
+  test("the create's error carries the scheduler's reason, logged once", async () => {
+    const { client } = stub(
+      () => Promise.resolve({}),
+      () => Promise.resolve({}),
+      {
+        pod: {
+          status: {
+            phase: 'Pending',
+            conditions: [
+              {
+                type: 'PodScheduled',
+                status: 'False',
+                reason: 'Unschedulable',
+                message: reason,
+              },
+            ],
+          },
+        },
+      },
+    );
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const err = await rejection(
+        new KubernetesSessionBackend(quick, client).createSession(spec),
+      );
+      expect(err?.message).toBe(
+        `session sess_c4 pod never got an IP: pod unschedulable: ${reason}`,
+      );
+      const logged = warn.mock.calls.filter((call) =>
+        String(call[0]).includes('pod unschedulable'),
+      );
+      expect(logged).toHaveLength(1);
+      expect(String(logged[0]?.[0])).toContain(reason);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('a Pod merely pending says nothing about the scheduler', async () => {
+    const { client } = stub(
+      () => Promise.resolve({}),
+      () => Promise.resolve({}),
+      { pod: { status: { phase: 'Pending' } } },
+    );
+    const err = await rejection(
+      new KubernetesSessionBackend(quick, client).createSession(spec),
+    );
+    expect(err).not.toBeNull();
+    expect(err?.message).not.toMatch(/unschedulable/);
   });
 });
 
@@ -1668,5 +1793,95 @@ describe('Kubernetes terminal recovery identity fencing', () => {
       ),
     ).not.toBeNull();
     expect(deletes).toBe(0);
+  });
+});
+
+/** A session Pod whose runner shows `waiting`, after crashing with `crash`. */
+function podWaiting(
+  reason: string,
+  crash?: { exitCode: number; reason?: string; message?: string },
+  where: 'containerStatuses' | 'initContainerStatuses' = 'containerStatuses',
+): V1Pod {
+  const status = {
+    name: where === 'containerStatuses' ? 'runner' : 'egress',
+    ready: false,
+    restartCount: crash === undefined ? 0 : 3,
+    image: cfg.runtimeImage,
+    imageID: '',
+    state: { waiting: { reason, message: `${reason} detail` } },
+    ...(crash === undefined ? {} : { lastState: { terminated: crash } }),
+  };
+  return {
+    metadata: {
+      name: sessionPodNameFor(spec.sessionId),
+      annotations: { 'tale.dev/created-at': String(spec.createdAtMs) },
+    },
+    // An address nothing answers on: runnerd never becomes ready here.
+    status: { phase: 'Running', podIP: '192.0.2.10', [where]: [status] },
+  };
+}
+
+describe('a session container that cannot start', () => {
+  test.each([
+    'CrashLoopBackOff',
+    'ErrImagePull',
+    'ImagePullBackOff',
+    'InvalidImageName',
+    'CreateContainerConfigError',
+  ])('%s is a reason to give up the create', (reason) => {
+    expect(unstartableReason(podWaiting(reason))).toBe(
+      `container runner ${reason}: ${reason} detail`,
+    );
+  });
+
+  test('a crash names its last exit and the end of its log', () => {
+    expect(
+      unstartableReason(
+        podWaiting('CrashLoopBackOff', {
+          exitCode: 1,
+          reason: 'Error',
+          message: '[entrypoint] FATAL: no egress\n',
+        }),
+      ),
+    ).toBe(
+      'container runner CrashLoopBackOff: CrashLoopBackOff detail; last exit 1 (Error): [entrypoint] FATAL: no egress',
+    );
+  });
+
+  test('the egress sidecar counts as well', () => {
+    expect(
+      unstartableReason(
+        podWaiting('ImagePullBackOff', undefined, 'initContainerStatuses'),
+      ),
+    ).toBe('container egress ImagePullBackOff: ImagePullBackOff detail');
+  });
+
+  test('a container still being created or pulled may yet start', () => {
+    expect(unstartableReason(podWaiting('ContainerCreating'))).toBeUndefined();
+    expect(unstartableReason(podWaiting('PodInitializing'))).toBeUndefined();
+    expect(unstartableReason({ status: { phase: 'Pending' } })).toBeUndefined();
+  });
+
+  test('a create fails fast with the reason instead of waiting out its budget', async () => {
+    const { client } = stub(
+      () => Promise.resolve({ metadata: { uid: 'secret-uid' } }),
+      () => Promise.resolve({ metadata: { uid: 'pod-uid' } }),
+      {
+        pod: podWaiting('CrashLoopBackOff', {
+          exitCode: 1,
+          reason: 'Error',
+          message: '[entrypoint] FATAL: no egress',
+        }),
+      },
+    );
+    const backend = new KubernetesSessionBackend(cfg, client);
+    const started = performance.now();
+    const error = await rejection(backend.createSession(spec));
+    expect(error?.message).toContain(
+      `session ${spec.sessionId} cannot start: container runner CrashLoopBackOff`,
+    );
+    expect(error?.message).toContain('[entrypoint] FATAL: no egress');
+    // The create budget is 180 s; the watch reads the Pod every second.
+    expect(performance.now() - started).toBeLessThan(10_000);
   });
 });

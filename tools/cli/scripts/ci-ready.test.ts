@@ -5,9 +5,11 @@ import {
   BUILD_FILTERS,
   buildScope,
   e2eScope,
+  CHECKS_MERGE_QUEUE_ONLY,
   CI_JOBS,
   COMPOSE_SERVICES,
   evaluateReadiness,
+  mergeQueueOnly,
   requiresFullScope,
   scopeBoolean,
   validateScope,
@@ -36,6 +38,8 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
   }
   if (needs['integration-scope'])
     needs['integration-scope'].outputs = { run: 'true' };
+  if (workflow === 'checks' && event === 'pull_request')
+    for (const id of CHECKS_MERGE_QUEUE_ONLY) needs[id]!.result = 'skipped';
   if (workflow === 'build') {
     needs['smoke-test-fork']!.result = 'skipped';
     needs['image-validate-fork']!.result = 'skipped';
@@ -132,6 +136,30 @@ describe('native CI readiness', () => {
       expect(evaluateReadiness(input).passed).toBe(true);
     });
   }
+
+  test('Checks keeps its heavy suites for the merge queue', () => {
+    for (const id of CHECKS_MERGE_QUEUE_ONLY) {
+      const ran = fixture('checks');
+      ran.needs[id]!.result = 'success';
+      expect(evaluateReadiness(ran).reasons).toContain(
+        `${id}: expected skipped, got success`,
+      );
+      const group = fixture('checks', 'merge_group');
+      group.needs[id]!.result = 'skipped';
+      expect(evaluateReadiness(group).reasons).toContain(
+        `${id}: expected success, got skipped`,
+      );
+    }
+  });
+
+  test('only a pull request skips a queue-only scope', () => {
+    expect(mergeQueueOnly('true', 'pull_request')).toBe(true);
+    for (const event of ['merge_group', 'push', 'repository_dispatch'])
+      expect(mergeQueueOnly('true', event)).toBe(false);
+    expect(mergeQueueOnly('false', 'pull_request')).toBe(false);
+    for (const value of ['', 'yes', 'TRUE'])
+      expect(() => mergeQueueOnly(value, 'pull_request')).toThrow();
+  });
 
   test('Checks requires each native Unit lane even when its aggregate reports success', () => {
     for (const event of ['pull_request', 'merge_group']) {

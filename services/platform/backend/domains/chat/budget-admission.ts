@@ -86,6 +86,9 @@ export interface ChatTurnSender {
   userId: string;
   apiKeyId?: string;
   threadId?: string;
+  /** Captured request projects; absent for an early door check that must
+   * still resolve the thread's current project. */
+  projectIds?: readonly string[];
 }
 
 /**
@@ -115,14 +118,18 @@ export async function assertChatTurnBudget(
   },
 ): Promise<void> {
   const projectId =
-    args.threadId !== undefined
+    args.projectIds === undefined && args.threadId !== undefined
       ? await readThreadProjectId(sql, args.organizationId, args.threadId)
       : undefined;
   const subject = await loadBudgetSubject(sql, {
     organizationId: args.organizationId,
     userId: args.userId,
     ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
-    ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+    ...(args.projectIds !== undefined
+      ? { projectIds: args.projectIds }
+      : projectId !== undefined
+        ? { projectIds: [projectId] }
+        : {}),
   });
   const violation = await findBudgetViolation(sql, subject, {
     reservations: await readInFlightReservations(

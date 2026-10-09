@@ -63,8 +63,6 @@ Both colours mount the deployment's `static-assets` volume. Before a web replica
 
 An open tab normally keeps working across the handover. If a required part is no longer available, Tale waits until its API and database answer, then reloads once. If the part still cannot load, it shows **A new version is available** with a **Reload** action instead of repeating the reload. During an outage, the connection notice stays visible. Failed reads refresh when connectivity returns; failed writes are not submitted again automatically.
 
-Once the services are updated, the CLI removes Tale's images of versions older than both the new version and the recorded rollback target, so the host keeps two releases of images rather than every release it ever ran. It never forces a removal: an image a container still uses, such as a service left running on an older version or a sandbox session that started before the deploy, stays until a later deploy finds it free. Images loaded ahead for a later version stay as well.
-
 If the new group does not become healthy within `HEALTH_CHECK_TIMEOUT`, the deploy does not complete the flip. Inspect the recorded deployment state and logs before retrying. An interrupted rollout can leave both groups or pending handover state; use the CLI's recovery output rather than deleting containers or state files by hand.
 
 ## Check migrations and the user outcome

@@ -204,3 +204,128 @@ describe('DropdownMenu', () => {
     });
   });
 });
+
+describe('DropdownMenu search', () => {
+  const groups = () => [
+    [
+      { type: 'label' as const, content: 'Skills' },
+      {
+        type: 'checkbox' as const,
+        label: 'Write a PDF',
+        description: 'Builds PDF documents',
+        checked: false,
+        onCheckedChange: vi.fn(),
+      },
+    ],
+    [
+      { type: 'label' as const, content: 'Knowledge' },
+      {
+        type: 'checkbox' as const,
+        label: 'Search the knowledge base',
+        description: 'Always on for every agent',
+        checked: true,
+        locked: true,
+        onCheckedChange: vi.fn(),
+      },
+      {
+        type: 'checkbox' as const,
+        label: 'Add and edit knowledge entries',
+        keywords: 'facts',
+        checked: false,
+        onCheckedChange: vi.fn(),
+      },
+    ],
+  ];
+  const search = {
+    label: 'Search equipment',
+    placeholder: 'Search…',
+    emptyText: 'Nothing matches',
+  };
+
+  it('opens with the caret in the field and narrows rows as you type', async () => {
+    const { user } = render(
+      <DropdownMenu
+        trigger={<button>Equipment</button>}
+        items={groups}
+        search={search}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Equipment' }));
+    const field = screen.getByRole('searchbox', { name: 'Search equipment' });
+    expect(field).toHaveFocus();
+
+    await user.type(field, 'knowledge');
+    expect(field).toHaveFocus();
+    expect(screen.queryByText('Write a PDF')).not.toBeInTheDocument();
+    expect(screen.queryByText('Skills')).not.toBeInTheDocument();
+    expect(screen.getByText('Knowledge')).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitemcheckbox', {
+        name: /Add and edit knowledge entries/,
+      }),
+    ).toBeInTheDocument();
+
+    await user.clear(field);
+    await user.type(field, 'facts');
+    expect(
+      screen.getAllByRole('menuitemcheckbox').map((row) => row.textContent),
+    ).toEqual(['Add and edit knowledge entries']);
+
+    await user.clear(field);
+    await user.type(field, 'zebra');
+    expect(screen.getByRole('status')).toHaveTextContent('Nothing matches');
+    expect(screen.queryByRole('menuitemcheckbox')).not.toBeInTheDocument();
+  });
+
+  it('moves into the rows with Arrow Down and starts over when reopened', async () => {
+    const { user } = render(
+      <DropdownMenu
+        trigger={<button>Equipment</button>}
+        items={groups}
+        search={search}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Equipment' }));
+    await user.type(screen.getByRole('searchbox'), 'pdf');
+    await user.keyboard('{ArrowDown}');
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: /Write a PDF/ }),
+    ).toHaveFocus();
+
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Equipment' }));
+    expect(screen.getByRole('searchbox')).toHaveValue('');
+    expect(screen.getAllByRole('menuitemcheckbox')).toHaveLength(3);
+  });
+
+  it('shows a locked row as on and unavailable to switch', async () => {
+    const onCheckedChange = vi.fn();
+    const { user } = render(
+      <DropdownMenu
+        open
+        trigger={<button>Equipment</button>}
+        items={[
+          [
+            {
+              type: 'checkbox',
+              label: 'Search the knowledge base',
+              checked: false,
+              locked: true,
+              onCheckedChange,
+            },
+          ],
+        ]}
+      />,
+    );
+    const row = screen.getByRole('menuitemcheckbox', {
+      name: /Search the knowledge base/,
+    });
+    expect(row).toHaveAttribute('aria-checked', 'true');
+    expect(row).toHaveAttribute('aria-disabled', 'true');
+    await user.click(row);
+    expect(onCheckedChange).not.toHaveBeenCalled();
+    await act(async () => {
+      await checkAccessibility(screen.getByRole('menu'));
+    });
+  });
+});

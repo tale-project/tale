@@ -44,11 +44,15 @@ import {
   drainSessionExecResilient,
   ExecReplayGapError,
   ExecStreamProtocolError,
+  isSpawnerTransportFailure,
   SessionNotFoundError,
   sessionCancelExec,
+  sessionDeleteFiles,
   sessionGetExecCheckpoint,
   sessionPutExecCheckpoint,
+  sessionWriteExecStdin,
   type ExecCursor,
+  type ExecStreamContact,
   type SessionExecCheckpoint,
   sessionStageFiles,
   type SessionExecBody,
@@ -65,10 +69,11 @@ import {
 export const SKILLS_DIR = 'workspace/.tale/skills';
 /** One drain window; well under the Convex action execution ceiling. */
 const DRAIN_WINDOW_MS = 90_000;
-/** After the parser sees `turn-ended`, how long to keep draining for the
- * exec's natural exit (which carries a close-stdin harness's exit code)
- * before cutting the window. A hold-stdin harness (claude-code) never exits
- * on its own — without the cut, every reply would sit out the full window. */
+/** After the parser sees `turn-ended` with no background task open, how long
+ * to keep draining for the exec's natural exit (which carries its exit code)
+ * before cutting the window and reaping the exec. A hold-stdin harness
+ * (claude-code) exits once its stdin is closed, which the window does at that
+ * moment; the cut is the fallback for a process that does not. */
 const TURN_ENDED_EXIT_GRACE_MS = 1_500;
 /** Floor between two mid-window notifications of the accumulating output —
  * the cadence of the `onText`/`onTimeline` progress sinks, so a host's
@@ -86,6 +91,41 @@ const EXTERNAL_TURN_DEADLINE_MS = (() => {
     ? configured
     : 30 * 60_000;
 })();
+
+/** How long a turn waits out a sandbox spawner it cannot reach before its
+ * run settles as failed: long enough for a spawner restart, a deploy or a
+ * short partition, and at most a third of runnerd's orphan window
+ * ({@link EXTERNAL_TURN_DEADLINE_MS}, counted from the turn's last attach),
+ * so the exec the turn finds again is still the one it left. */
+export const SPAWNER_OUTAGE_BUDGET_MS = Math.min(
+  10 * 60_000,
+  Math.floor(EXTERNAL_TURN_DEADLINE_MS / 3),
+);
+/** The pause before the next window of a turn whose spawner is away, so a
+ * window that ends at once (its checkpoint read refused) does not chain its
+ * successor in a tight loop. */
+const SPAWNER_OUTAGE_REDRIVE_MS = 5_000;
+
+/** Whether a window ended in a spawner outage that has outlasted
+ * {@link SPAWNER_OUTAGE_BUDGET_MS}: the turn stops waiting and settles. */
+export function spawnerOutageOutlasted(
+  window: HarnessWindowResult,
+  now: number = Date.now(),
+): boolean {
+  return (
+    window.kind === 'running' &&
+    window.spawnerOutageSince !== undefined &&
+    now - window.spawnerOutageSince >= SPAWNER_OUTAGE_BUDGET_MS
+  );
+}
+
+/** How long after a `running` window its successor starts: at once while
+ * the exec's stream flows, after a pause while the spawner is away. */
+export function nextWindowDelayMs(window: HarnessWindowResult): number {
+  return window.kind === 'running' && window.spawnerOutageSince !== undefined
+    ? SPAWNER_OUTAGE_REDRIVE_MS
+    : 0;
+}
 
 /** The gateway base URL as a session's CONTAINER reaches it (sandbox network
  * alias, never the host address). */
@@ -114,6 +154,59 @@ export function isManagedHarness(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;
   const def = loadHarnesses().find((h) => h.slug === harness);
   return def?.credentialPolicy.managed === true;
+}
+
+/** Whether a harness holds its stdin open as a steering channel (the
+ * `ndjson-user-message` stdin mode): such a CLI answers turn after turn and
+ * exits only on stdin EOF. */
+function harnessHoldsStdin(harness: string): boolean {
+  if (!isHarnessSlug(harness)) return false;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  return def?.exec.stdin.mode === 'ndjson-user-message';
+}
+
+/** The session-relative file a harness's subscription credential is staged
+ * to (the `staged-file` delivery: Gemini's OAuth credentials under the
+ * session HOME), when the harness delivers it that way. */
+function stagedSubscriptionPath(harness: string): string | undefined {
+  if (!isHarnessSlug(harness)) return undefined;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  return def?.subscription?.kind === 'staged-file'
+    ? def.subscription.path
+    : undefined;
+}
+
+/**
+ * Remove a harness's staged subscription credential from the session. The
+ * file sits in the session HOME every later exec shares — another task's
+ * turn, a member-confined run, a connector call — so a member's refresh
+ * token must leave with the turn that was handed it, and must not be there
+ * for a turn that runs without it. A no-op for a harness that takes its
+ * subscription through the environment. Best-effort: a failure is logged,
+ * and the next turn of the harness that does not stage the credential
+ * removes it again before it starts.
+ */
+export async function removeStagedSubscription(
+  sessionId: string,
+  harness: string,
+): Promise<void> {
+  const path = stagedSubscriptionPath(harness);
+  if (path === undefined) return;
+  try {
+    const removed = await sessionDeleteFiles(sessionId, [path]);
+    for (const skipped of removed.skipped) {
+      console.warn(
+        `[harness-turn] ${sessionId}: the staged subscription credential ${skipped.path} could not be removed: ${skipped.reason}`,
+      );
+    }
+  } catch (err) {
+    // A session that is gone took its HOME, and the credential, with it.
+    if (err instanceof SessionNotFoundError) return;
+    console.warn(
+      `[harness-turn] ${sessionId}: removing the staged subscription credential ${path} failed:`,
+      err,
+    );
+  }
 }
 
 /** Whether a harness mounts MCP servers — and so the platform bridge every
@@ -384,6 +477,11 @@ export type HarnessWindowResult =
       text: string;
       timeline: HarnessTimelinePart[];
       agentSessionId?: string;
+      /** Set while the turn's spawner is out of reach: since when no window
+       * has got through to the exec's stream (`spawnerOutageSince` carried
+       * in, or this window's first transport failure). Absent once the
+       * stream flowed again. */
+      spawnerOutageSince?: number;
     }
   | {
       kind: 'terminal';
@@ -443,6 +541,10 @@ export async function drainHarnessWindow(args: {
    * window before its exec launched would lose the start.
    */
   signal?: AbortSignal;
+  /** The outage the window before ended in (its result's
+   * `spawnerOutageSince`), so an outage that outlasts one window is measured
+   * from its start. */
+  spawnerOutageSince?: number;
 }): Promise<HarnessWindowResult> {
   const glue = getHarnessGlue(
     isHarnessSlug(args.harness) ? args.harness : 'claude-code',
@@ -457,12 +559,46 @@ export async function drainHarnessWindow(args: {
 
   // A hold-stdin harness (claude-code) lingers after its reply waiting for
   // more input, so its process exit can be a whole window away from the
-  // `turn-ended` event that actually ends the turn. Cut the drain shortly
-  // after the parser sees `turn-ended`; the grace lets a harness that DOES
-  // exit deliver its terminal result (and exit code) first.
+  // `turn-ended` event that actually ends the turn. Once the turn has ended
+  // with no background task open, the window closes that stdin — the CLI's
+  // own way to finish: it writes its transcript and exits with its real exit
+  // code, which the drain then reports. The grace bounds the wait for that
+  // exit (and for a close-stdin harness's own); when it elapses the drain is
+  // cut and the exec reaped, so a process that ignores the EOF cannot hold
+  // the turn open.
   let replayComplete = args.start !== undefined;
   const turnEndedCut = new AbortController();
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
+  const holdsStdin = harnessHoldsStdin(args.harness);
+  let stdinClosed = false;
+  const closeHeldStdin = () => {
+    if (!holdsStdin || stdinClosed) return;
+    stdinClosed = true;
+    void Promise.resolve()
+      .then(() =>
+        sessionWriteExecStdin(args.sessionId, args.execId, { eof: true }),
+      )
+      .then(
+        (wrote) => {
+          // STDIN_CLOSED: an earlier window already sent it; NOT_FOUND: the
+          // exec is gone. Neither leaves anything for the grace cut to miss.
+          if (
+            !wrote.ok &&
+            wrote.reason !== 'STDIN_CLOSED' &&
+            wrote.reason !== 'NOT_FOUND'
+          ) {
+            console.warn(
+              `[harness-window] ${args.execId}: stdin EOF refused (${wrote.reason ?? 'unknown'}); the grace cut reaps the exec`,
+            );
+          }
+        },
+        (err: unknown) =>
+          console.warn(
+            `[harness-window] ${args.execId}: stdin EOF failed; the grace cut reaps the exec:`,
+            err,
+          ),
+      );
+  };
 
   // The background-task ledger (`types.ts` contract): a harness that
   // launched background work reports `task-started`/`task-settled` pairs,
@@ -477,6 +613,7 @@ export async function drainHarnessWindow(args: {
       () => turnEndedCut.abort(),
       TURN_ENDED_EXIT_GRACE_MS,
     );
+    closeHeldStdin();
   };
   const disarmTurnEndedCut = () => {
     if (turnEndedGrace === undefined) return;
@@ -546,11 +683,37 @@ export async function drainHarnessWindow(args: {
     harnessError = state.harnessError;
     lastNotifiedEventCount = -1;
   };
+  // A spawner that restarts, crashes or is cut off for a while is not a
+  // verdict on the turn: runnerd keeps its exec running in the session
+  // container. The drain rides such an outage out within the window, and the
+  // window ends `running` with the outage's start, so its host chains the
+  // next window, which resumes from the checkpoint, and bounds the outage.
+  let outageSince = args.spawnerOutageSince;
+  const contact: ExecStreamContact = {
+    onAttached: () => {
+      outageSince = undefined;
+    },
+    onLost: () => {
+      outageSince ??= Date.now();
+    },
+  };
   if (args.start === undefined) {
-    const checkpoint = await sessionGetExecCheckpoint(
-      args.sessionId,
-      args.execId,
-    );
+    let checkpoint: SessionExecCheckpoint | null;
+    try {
+      checkpoint = await sessionGetExecCheckpoint(args.sessionId, args.execId);
+    } catch (error) {
+      if (!isSpawnerTransportFailure(error)) throw error;
+      console.warn(
+        `[harness-window] ${args.execId}: the spawner did not answer the checkpoint read; the turn waits for it:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        kind: 'running',
+        text: '',
+        timeline: [],
+        spawnerOutageSince: outageSince ?? Date.now(),
+      };
+    }
     if (checkpoint !== null) restoreCheckpoint(checkpoint);
   }
   let lastCheckpointAt = Date.now();
@@ -670,6 +833,21 @@ export async function drainHarnessWindow(args: {
         timeoutMs: EXTERNAL_TURN_DEADLINE_MS,
       };
 
+  // A turn that runs without the subscription must not find an earlier
+  // turn's staged credential in the session HOME (its settle's removal is
+  // best-effort): take it out before this exec can read it.
+  if (args.start !== undefined) {
+    const credentialPath = stagedSubscriptionPath(args.harness);
+    if (
+      credentialPath !== undefined &&
+      !(args.start.stagedFiles ?? []).some(
+        (file) => file.path === credentialPath,
+      )
+    ) {
+      await removeStagedSubscription(args.sessionId, args.harness);
+    }
+  }
+
   // On the start window we STAGE the exec's input files, then start it; drain
   // windows restore parser state and continue after its acknowledged cursor.
   // An old runtime without checkpoints retains the seq-0 compatibility lane.
@@ -730,6 +908,7 @@ export async function drainHarnessWindow(args: {
             },
             {
               cursor,
+              contact,
               ...(resumeDrain ? { resumeSinceSeq: cursor.lastSeq } : {}),
             },
           ),
@@ -827,11 +1006,13 @@ export async function drainHarnessWindow(args: {
       text,
       timeline,
       ...(agentSessionId !== undefined ? { agentSessionId } : {}),
+      ...(outageSince !== undefined ? { spawnerOutageSince: outageSince } : {}),
     };
   }
 
-  // A harness that lingers after its turn (held-open stdin) has ended the turn
-  // but not the process — reap it so it can't hold the session.
+  // A harness that lingers after its turn (held-open stdin it did not exit
+  // on) has ended the turn but not the process — reap it so it can't hold
+  // the session.
   if (!exited && ended !== undefined) {
     await sessionCancelExec(args.sessionId, args.execId).catch((err) =>
       console.warn('[harness-window] linger reap failed:', err),

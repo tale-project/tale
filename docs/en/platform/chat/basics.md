@@ -80,7 +80,7 @@ The task dialog opens with your last request as the description, a link back to 
 
 </Frame>
 
-The task then shows above the chat's message box with what it's doing: **The agent is working**, **Waiting for a sandbox slot**, **Trying again…**, **Ready for review** with the number of files it delivered, or **The agent couldn't finish**. **Open** takes you to the task. You're also notified when it's ready for review and when the agent can't finish; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) explains what to do next.
+The task then shows above the chat's message box with what it's doing: **The agent is working**, **Waiting for a worker** (or another state that says what the run waits for), **Trying again…**, **Ready for review** with the number of files it delivered, or **The agent couldn't finish**. **Open** takes you to the task. You're also notified when it's ready for review and when the agent can't finish; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) explains what to do next.
 
 <Frame caption="The task a chat handed over shows its progress above the message box.">
 
@@ -97,6 +97,8 @@ Files come along only from your own conversation. A task takes only its creator'
 ## Continue, copy, or keep the conversation
 
 Use the reply toolbar to copy an answer, give feedback, inspect its details, or fork a conversation at that point. A fork lets you try another direction while preserving the earlier exchange.
+
+Your own messages sit on the right. A long one shows its beginning, with **Read more** to open the rest in place and **Show less** to fold it again. Point at one of your messages, or move the keyboard focus into it, to see when you sent it and to use **Edit message**, which changes the text in a new version of the conversation; on a touch screen, both are always shown. Under a message you edited, or one whose reply you asked for again with **Try again**, **Previous branch** and **Next branch** switch between the versions, and the number between them, such as 2/3, says which one is on screen.
 
 Find earlier chats in [Home](/platform#home); **Chats** above the list hides your tasks and inbox conversations. Pin frequently used chats, give a chat a recognizable title, or move it into a project when the topic becomes ongoing work: drag it onto the project or choose **Move to project…** in its menu. [Shared chats](/platform/chat/shared-threads) explains how to publish a read-only snapshot for colleagues.
 

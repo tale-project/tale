@@ -1,7 +1,8 @@
 // Tale Sandbox Spawner — HTTP entrypoint.
 //
 // Routes:
-//   GET  /health                       — 200 if docker daemon reachable.
+//   GET  /health                       — 200 once boot adoption has run and
+//                                        the docker daemon is reachable.
 //   POST /v1/drain, GET /v1/drain-status — HMAC-auth, in-place rolling-deploy
 //                                        control (control-routes.ts).
 //   POST/GET/DELETE /v1/sessions[...]  — HMAC-auth, persistent session API
@@ -45,7 +46,11 @@ import {
 import { jsonResponse } from './http-util.ts';
 import { ImageWarmup } from './image-warmup.ts';
 import { createRequestAuth } from './request-auth.ts';
-import { SessionRoutes } from './session/session-routes.ts';
+import { BootAdoption } from './session/boot-adoption.ts';
+import {
+  SessionRoutes,
+  unavailableSessionResponse,
+} from './session/session-routes.ts';
 
 // Awaited before anything else so a failure from here on is reported; it
 // loads the error-reporting SDK only when SENTRY_DSN is set.
@@ -56,6 +61,11 @@ const cfg = loadConfig();
 const { host: backend, createSession: createSessionBackend } =
   await loadBackends(cfg);
 const imageWarmup = new ImageWarmup(() => backend.warmImage());
+// `SANDBOX_SKIP_IMAGE_WARMUP=1` skips the pull entirely — used by the local
+// `bun run dev` script where the runtime image is built ad-hoc and never
+// published to a registry, so the pull is guaranteed to 404.
+const imageWarmupEnabled = process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1';
+const bootAdoption = new BootAdoption();
 
 // Session lifecycle is separate from host boot/health. Construct once after
 // the deploy control routes are ready; both Docker and Kubernetes implement it.
@@ -106,7 +116,16 @@ async function sizeSessionCapacity(): Promise<void> {
 let sessionRoutes: SessionRoutes | null = null;
 let sessionBackend: SessionBackend | null = null;
 function getSessionBackend(): SessionBackend {
-  sessionBackend ??= createSessionBackend();
+  if (sessionBackend === null) {
+    sessionBackend = createSessionBackend();
+    // A create that finds the image gone (an image prune on an idle host)
+    // pulls it again; creates wait meanwhile instead of failing one by one.
+    if (imageWarmupEnabled) {
+      sessionBackend.onRuntimeImageMissing?.(
+        (detail) => void imageWarmup.restart(detail),
+      );
+    }
+  }
   return sessionBackend;
 }
 function getSessionRoutes(): SessionRoutes {
@@ -187,6 +206,15 @@ const probeHealth = makeHealthProbe(
 );
 
 async function handleHealth(): Promise<Response> {
+  // Ready means adopted. The listener opens before boot adoption so session
+  // calls meet a 503 rather than a refused connection, but every probe of
+  // this route (Docker's healthcheck, a Kubernetes readiness probe, the CLI's
+  // runtime wait) must still read the spawner as ready only once it has
+  // adopted its sessions: a rollout then keeps the previous Pod serving
+  // meanwhile, and a deploy never drains a spawner part-way through adoption.
+  if (bootAdoption.pending()) {
+    return jsonResponse({ status: 'starting' }, 503);
+  }
   const health = await probeHealth();
   if (!health.ok) {
     return jsonResponse({ status: 'unhealthy', error: health.error }, 503);
@@ -198,6 +226,9 @@ async function handleHealth(): Promise<Response> {
       status: 'ok',
       dockerServerVersion: health.detail,
       disks: hostDisk?.status() ?? null,
+      // Informational, like `disks`: a missing image holds creates (429
+      // runtime_image) but is no reason to restart the spawner.
+      runtimeImage: imageWarmup.status(),
     },
     200,
   );
@@ -276,6 +307,25 @@ const DEVICE_DISCONNECT_RE =
   /^\/v1\/devices\/([a-zA-Z0-9_-]{1,64})\/disconnect$/;
 const ORGANIZATION_RE = /^\/v1\/organizations\/([a-zA-Z0-9_-]{1,128})$/;
 
+/** The calls whose answer depends on what boot adoption fills in — the
+ * session registry and the hub's placements — and so wait for it. The
+ * deploy's drain and drain status are among them: a drain latched mid-way
+ * stops adoption, leaving every session not yet adopted to answer 404, and
+ * the status counts only the sessions adopted so far, so a deploy would read
+ * the spawner as drained and restart it under running sessions. */
+function dependsOnAdoption(method: string, path: string): boolean {
+  return (
+    isSessionRoute(method, path) ||
+    (method === 'GET' &&
+      (path === '/v1/workspaces' ||
+        path === '/v1/capacity' ||
+        path === '/v1/drain-status')) ||
+    (method === 'POST' && path === '/v1/drain') ||
+    (method === 'DELETE' && ORGANIZATION_RE.test(path)) ||
+    (method === 'POST' && DEVICE_DISCONNECT_RE.test(path))
+  );
+}
+
 // How often the session TTL/idle reaper runs.
 const SESSION_SWEEP_INTERVAL_MS = 60_000;
 
@@ -288,17 +338,14 @@ async function handleSessionRoutes(
 
   // POST /v1/sessions (create)
   if (req.method === 'POST' && path === '/v1/sessions') {
-    if (imageWarmup.pending()) {
-      return jsonResponse(
-        {
-          error: 'runtime_image',
-          message: 'the sandbox runtime image is being prepared; retry shortly',
-        },
-        429,
-        { 'retry-after': '5' },
-      );
-    }
-    return getSessionRoutes().handleCreate(body, req.signal);
+    const waiting = imageWarmup.refusal();
+    if (waiting !== null) return waiting;
+    const created = await getSessionRoutes().handleCreate(body, req.signal);
+    // A create that failed on a missing image restarted the warmup: it gets
+    // the same retryable wait as the creates after it, not a 502.
+    return created.status === 502
+      ? (imageWarmup.refusal() ?? created)
+      : created;
   }
   // GET /v1/sessions?organizationId=… (list)
   if (req.method === 'GET' && path === '/v1/sessions') {
@@ -430,11 +477,14 @@ async function handleSessionRoutes(
       // — the workspace cleanup's: no-op while ANY compute runs under the id.
       // `?await_deletion=1` — the cleanup's too: wait a bounded time for the
       // workspace's bytes, and answer how far their deletion came.
+      // `?keep_workspace=1` — remove the compute alone and keep the
+      // workspace (the cleanup after a failed create of an agent session).
       // The query string is HMAC-covered (authorize signs pathname + search).
       return getSessionRoutes().handleDestroy(id, {
         ifIdle: url.searchParams.get('if_idle') === '1',
         ifStopped: url.searchParams.get('if_stopped') === '1',
         awaitDeletion: url.searchParams.get('await_deletion') === '1',
+        keepWorkspace: url.searchParams.get('keep_workspace') === '1',
       });
     }
   }
@@ -445,6 +495,9 @@ export async function router(req: Request): Promise<Response> {
   const url = new URL(req.url);
   if (req.method === 'GET' && url.pathname === '/health') {
     return handleHealth();
+  }
+  if (bootAdoption.pending() && dependsOnAdoption(req.method, url.pathname)) {
+    return unavailableSessionResponse();
   }
   if (req.method === 'GET' && url.pathname === '/v1/limits') {
     const signed = await auth.readAndAuth(req);
@@ -573,6 +626,93 @@ export async function router(req: Request): Promise<Response> {
   return jsonResponse({ error: 'not_found' }, 404);
 }
 
+/** Start the periodic session sweep: re-adoption, the TTL/idle reaper, the
+ * deferred capacity sizing and the max-linger self-reap. Returns its stop. */
+function startSessionSweep(sessions: SessionRoutes): () => void {
+  const sweepTimer = setInterval(() => {
+    // Re-adopt before reaping so a session missed at boot (a `docker ps` /
+    // apiserver blip) or created by a peer replica becomes routable and
+    // reapable within one interval instead of lingering unregistered (not
+    // while draining — see `maintain`). A pass still running joins rather
+    // than stacks.
+    void sessions.maintain().catch((err) => {
+      reportSandboxError(err, 'session-sweep');
+      console.warn('[sandbox.session] periodic sweep failed:', err);
+    });
+    if (!capacitySized) {
+      void sizeSessionCapacity().catch((err: unknown) => {
+        reportSandboxError(err, 'capacity-sizing');
+        console.warn('[sandbox] sizing the session capacity failed:', err);
+      });
+    }
+    // Max-linger self-reap (CLI-independent safety net): if this spawner has
+    // been draining longer than the linger TTL, reclaim its session compute
+    // ourselves so a deploy that died mid-roll can't pin compute forever.
+    // Stop-only (workspace preserved); the spawner stays up — `restart:
+    // unless-stopped` would otherwise bounce a self-exit into a zombie
+    // spawner. The deploy's teardown removes this container. One-shot
+    // (ControlRoutes.takeLingerReap fires exactly once).
+    if (controlRoutes.takeLingerReap(cfg.session.maxLingerMs)) {
+      void sessions
+        .stopAllSessions()
+        .then((n) => {
+          if (n > 0) {
+            console.warn(
+              `[sandbox.session] max-linger (${cfg.session.maxLingerMs}ms) reached while draining — reclaimed ${n} session(s); workspaces preserved for resume.`,
+            );
+          }
+          return null;
+        })
+        .catch((err) => {
+          reportSandboxError(err, 'linger-reap');
+          console.warn('[sandbox.session] linger reap failed:', err);
+        });
+    }
+  }, SESSION_SWEEP_INTERVAL_MS);
+  return () => clearInterval(sweepTimer);
+}
+
+/** The boot steps that run around the adoption gate. */
+export interface AdoptionBootSteps<S> {
+  /** Open the API listener; what it returns is the boot's result. */
+  listen(): S;
+  /** Re-adopt the sessions a previous process left running. */
+  adopt(): Promise<void>;
+  /** Load the device hub's placements and open its door. */
+  startHub(): Promise<void>;
+}
+
+/**
+ * Open the listener, then re-adopt the sessions and load the hub's
+ * placements behind the adoption gate: from before the listener accepts a
+ * call until both are done, the calls whose answer depends on them, and
+ * `/health`, answer 503 (see the router). A failed adoption is logged and
+ * does not keep the spawner from serving or the hub from loading; the gate
+ * ends however the steps end, so a spawner never stays "starting" for good.
+ */
+export async function listenThenAdopt<S>(
+  steps: AdoptionBootSteps<S>,
+  adoption: BootAdoption = bootAdoption,
+): Promise<S> {
+  adoption.begin();
+  try {
+    const server = steps.listen();
+    try {
+      await steps.adopt();
+    } catch (err) {
+      // A backend listing that fails is caught inside adoption and retried by
+      // the periodic sweep; anything else that throws here must still not
+      // keep the control service from starting.
+      reportSandboxError(err, 'session-startup');
+      console.warn('[sandbox.session] session subsystem startup failed:', err);
+    }
+    await steps.startHub();
+    return server;
+  } finally {
+    adoption.end();
+  }
+}
+
 async function main(): Promise<void> {
   // Backend boot setup. For the docker backend this acquires the cross-process
   // host-session lock (refuses to start if another live spawner shares the
@@ -589,10 +729,7 @@ async function main(): Promise<void> {
 
   // Warm beside startup: control, health and existing sessions stay available
   // while a cold registry transfer runs. Only local creates wait (429 above).
-  // `SANDBOX_SKIP_IMAGE_WARMUP=1` skips the pull entirely — used by the
-  // local `bun run dev` script where the runtime image is built ad-hoc
-  // and never published to a registry, so the pull is guaranteed to 404.
-  if (process.env.SANDBOX_SKIP_IMAGE_WARMUP !== '1') {
+  if (imageWarmupEnabled) {
     void imageWarmup.start();
   }
 
@@ -607,69 +744,64 @@ async function main(): Promise<void> {
 
   const stopPeriodic = startPeriodicSweep(backend, cfg);
 
-  // Session subsystem: re-adopt running session containers into the registry
-  // (the registry is a cache; backend objects are the source of truth) and
-  // start the TTL/idle reaper. A transient backend failure is retried on
-  // the next sweep; it must not prevent the control service from starting.
+  // Listen before re-adopting the sessions a previous process left running,
+  // so a restart reads to the platform as a short 503 rather than a refused
+  // connection; the calls that depend on adoption wait for it (BootAdoption).
+  // The host lock and the boot sweep above have run by now.
   let stopSessionSweep: (() => void) | undefined;
-  try {
-    const sessions = getSessionRoutes();
-    await sessions.adoptExisting();
-    const sweepTimer = setInterval(() => {
-      // Re-adopt before reaping so a session missed at boot (a `docker ps` /
-      // apiserver blip) or created by a peer replica becomes routable and
-      // reapable within one interval instead of lingering unregistered (not
-      // while draining — see `maintain`). A pass still running joins rather
-      // than stacks.
-      void sessions.maintain().catch((err) => {
-        reportSandboxError(err, 'session-sweep');
-        console.warn('[sandbox.session] periodic sweep failed:', err);
+  await listenThenAdopt({
+    listen: () => {
+      const server = Bun.serve({
+        port: cfg.port,
+        // A device's spawner is reached only through its tunnel (in-process)
+        // and by its own healthcheck — never from the network its sessions
+        // share.
+        ...(cfg.deviceConfigPath !== null ? { hostname: '127.0.0.1' } : {}),
+        // Bun's default idleTimeout is 10 s, which kills long SSE streams
+        // during silent install phases. 255 is Bun's max — combined with the
+        // in-stream keepalive in session exec streams, this gives a generous
+        // backstop without disabling the timeout entirely.
+        idleTimeout: 255,
+        fetch: (req) => handleSandboxRequest(req, router),
+        error: sandboxServerError,
       });
-      if (!capacitySized) {
-        void sizeSessionCapacity().catch((err: unknown) => {
-          reportSandboxError(err, 'capacity-sizing');
-          console.warn('[sandbox] sizing the session capacity failed:', err);
-        });
-      }
-      // Max-linger self-reap (CLI-independent safety net): if this spawner has
-      // been draining longer than the linger TTL, reclaim its session compute
-      // ourselves so a deploy that died mid-roll can't pin compute forever.
-      // Stop-only (workspace preserved); the spawner stays up — `restart:
-      // unless-stopped` would otherwise bounce a self-exit into a zombie
-      // spawner. The deploy's teardown removes this container. One-shot
-      // (ControlRoutes.takeLingerReap fires exactly once).
-      if (controlRoutes.takeLingerReap(cfg.session.maxLingerMs)) {
-        void sessions
-          .stopAllSessions()
-          .then((n) => {
-            if (n > 0) {
-              console.warn(
-                `[sandbox.session] max-linger (${cfg.session.maxLingerMs}ms) reached while draining — reclaimed ${n} session(s); workspaces preserved for resume.`,
-              );
-            }
-            return null;
-          })
-          .catch((err) => {
-            reportSandboxError(err, 'linger-reap');
-            console.warn('[sandbox.session] linger reap failed:', err);
-          });
-      }
-    }, SESSION_SWEEP_INTERVAL_MS);
-    stopSessionSweep = () => clearInterval(sweepTimer);
-  } catch (err) {
-    reportSandboxError(err, 'session-startup');
-    console.warn('[sandbox.session] session subsystem startup failed:', err);
-  }
 
-  // The hub's placement memory must be loaded before the API routes a single
-  // session call; its WebSocket door opens beside the API.
-  if (hub !== null && cfg.hub !== null) {
-    await hub.start();
-    const door = serveHub(hub, cfg.hub.port);
-    console.log(
-      `[sandbox] device hub listening on :${door.port} (devices dial /sandbox/tunnel)`,
-    );
-  }
+      installSignalHandlers(() => {
+        deviceAgent?.stop();
+        hub?.stop();
+        try {
+          void server.stop();
+        } catch (err) {
+          reportSandboxError(err, 'server-stop');
+          console.warn('[sandbox] server.stop() during shutdown failed:', err);
+        }
+      }, backend);
+
+      console.log(
+        `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtimeTier}${cfg.dockerInContainer ? '+dind' : ''}; image=${cfg.runtimeImage}; maxSessions=${cfg.session.maxSessions}; tokenAuth=on`,
+      );
+      return server;
+    },
+    // Session subsystem: re-adopt running session containers into the
+    // registry (the registry is a cache; backend objects are the source of
+    // truth) and start the TTL/idle reaper.
+    adopt: async () => {
+      const sessions = getSessionRoutes();
+      await sessions.adoptExisting();
+      stopSessionSweep = startSessionSweep(sessions);
+    },
+    // The hub's placement memory must be loaded before the API routes a
+    // single session call (the adoption gate holds them until it is); its
+    // WebSocket door opens beside the API.
+    startHub: async () => {
+      if (hub === null || cfg.hub === null) return;
+      await hub.start();
+      const door = serveHub(hub, cfg.hub.port);
+      console.log(
+        `[sandbox] device hub listening on :${door.port} (devices dial /sandbox/tunnel)`,
+      );
+    },
+  });
 
   if (cfg.deviceConfigPath !== null) {
     const configPath = cfg.deviceConfigPath;
@@ -703,35 +835,6 @@ async function main(): Promise<void> {
       `[sandbox] device mode: "${deviceConfig.name}" (${deviceConfig.deviceId}) connecting to ${deviceConfig.serverUrl}`,
     );
   }
-
-  const server = Bun.serve({
-    port: cfg.port,
-    // A device's spawner is reached only through its tunnel (in-process) and
-    // by its own healthcheck — never from the network its sessions share.
-    ...(cfg.deviceConfigPath !== null ? { hostname: '127.0.0.1' } : {}),
-    // Bun's default idleTimeout is 10 s, which kills long SSE streams during
-    // silent install phases. 255 is Bun's max — combined with the in-stream
-    // keepalive in session exec streams, this gives a generous backstop without
-    // disabling the timeout entirely.
-    idleTimeout: 255,
-    fetch: (req) => handleSandboxRequest(req, router),
-    error: sandboxServerError,
-  });
-
-  installSignalHandlers(() => {
-    deviceAgent?.stop();
-    hub?.stop();
-    try {
-      void server.stop();
-    } catch (err) {
-      reportSandboxError(err, 'server-stop');
-      console.warn('[sandbox] server.stop() during shutdown failed:', err);
-    }
-  }, backend);
-
-  console.log(
-    `[sandbox] spawner listening on :${server.port}; runtime=${cfg.runtimeTier}${cfg.dockerInContainer ? '+dind' : ''}; image=${cfg.runtimeImage}; maxSessions=${cfg.session.maxSessions}; tokenAuth=on`,
-  );
 
   // Keep the periodic sweep handles so they aren't GC'd.
   void stopPeriodic;

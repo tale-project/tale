@@ -75,6 +75,33 @@ beforeEach(() => {
 });
 
 describe('reserveTurnBudget', () => {
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    're-admits an existing op against its immutable projects: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      gate.resolveTurnAllowance.mockResolvedValue({
+        allowed: true,
+        budgetCents: 10,
+      });
+      const { sql, statements } = fakeSql([
+        { match: 'SELECT project_ids AS', rows: [{ projectIds }] },
+      ]);
+      await reserveTurnBudget(sql, {
+        ...ARGS,
+        kind: 'model-api',
+        subject: { userId: 'user-1', projectIds: ['new-project'] },
+      });
+      expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+        sql,
+        expect.objectContaining({ projectIds }),
+      );
+      const write = statements.find((s) =>
+        s.text.includes('INSERT INTO app.sandbox_session_ops'),
+      );
+      expect(write?.values).toContainEqual(projectIds);
+      expect(write?.values).not.toContainEqual(['new-project']);
+    },
+  );
+
   it('evaluates the allowance for the starter with the in-flight reservations and records it [SBX-R16]', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: true,
@@ -576,7 +603,7 @@ describe('reserveTurnBudget', () => {
       expect(projectStamp(statements)).toEqual(['project-1', 'project-2']);
     });
 
-    it('stamps no project on work outside one', async () => {
+    it('stamps an authoritative empty project list on work outside one', async () => {
       gate.resolveTurnAllowance.mockResolvedValue({
         allowed: true,
         budgetCents: 500,
@@ -588,7 +615,7 @@ describe('reserveTurnBudget', () => {
         },
       ]);
       await reserveTurnBudget(sql, ARGS);
-      expect(projectStamp(statements)).toBeNull();
+      expect(projectStamp(statements)).toEqual([]);
     });
   });
 });
