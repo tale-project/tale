@@ -1367,6 +1367,11 @@ export async function removeOrganizationFromGateway(
         provider.startsWith(ownPrefix) &&
         provider[ownPrefix.length] !== '_'
       ) {
+        // A resize of this record already sent lands first; none is sent
+        // after this mark (see removedProviderRecords).
+        removedProviderRecords.add(provider);
+        const shrinking = shrinkingProviderRecords.get(provider);
+        if (shrinking !== undefined) await shrinking;
         await deleteGatewayProvider(provider);
         removed.records += 1;
         continue;
@@ -1397,6 +1402,16 @@ export async function removeOrganizationFromGateway(
  * (gatewayProviderPool) and a config newer than any earlier listing, so the
  * shrink pass leaves these records alone (see shrinkProviderPools). */
 const configuredProviderRecords = new Set<string>();
+
+/** Records an organization teardown in this process has deleted, or is
+ * deleting: the gateway's PUT creates a record it does not hold, so the
+ * shrink pass never writes one of these, and a teardown waits for a write
+ * of the pass already in flight before it deletes. A provision takes a name
+ * off again, since it means the record is in use. Another backend process's
+ * teardown is not seen here: a resize it races can bring a deleted
+ * organization's record back without keys, which serves nothing and goes
+ * with that process's next teardown retry or by hand. */
+const removedProviderRecords = new Set<string>();
 
 /** The shrink pass's write to a record, from the moment it is sent until the
  * pass is done with it. A provision of the same record waits for it before
@@ -1430,6 +1445,7 @@ async function ensureProviderConfig(
   allowPrivateNetwork: boolean,
 ): Promise<{ recreated: boolean }> {
   configuredProviderRecords.add(p.name);
+  removedProviderRecords.delete(p.name);
   const shrinking = shrinkingProviderRecords.get(p.name);
   if (shrinking !== undefined) await shrinking;
   const attribution = providerAttributionHeaders({
@@ -1898,6 +1914,7 @@ async function writeResizedRecord(
 ): Promise<ResizeOutcome> {
   let current = record;
   for (let attempt = 0; ; attempt += 1) {
+    if (removedProviderRecords.has(name)) return 'left';
     const sent = await sendResize(name, current, pool);
     if (sent === 'resized' || sent === 'refused') return sent;
     const delayMs: number | undefined = STORE_BUSY_RETRY_DELAYS_MS[attempt];
@@ -1931,7 +1948,12 @@ async function resizeProviderRecord(name: string): Promise<ResizeOutcome> {
   const pool = poolToShrinkTo(name, record);
   // A provision of this process that began during the read writes the record
   // with its pool and a newer config.
-  if (pool === undefined || configuredProviderRecords.has(name)) return 'left';
+  if (
+    pool === undefined ||
+    configuredProviderRecords.has(name) ||
+    removedProviderRecords.has(name)
+  )
+    return 'left';
   if (!isRecord(record.network_config)) {
     console.warn(
       `[llm-gateway] provider '${name}' came back without its network config; keeping its workers, since a resize would drop its base URL`,

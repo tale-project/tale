@@ -1513,6 +1513,62 @@ describe('shrinkProviderPools — records no provision rewrites', () => {
     ]);
   });
 
+  it('a teardown waits for a resize already sent, then deletes the record, and nothing is written after', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    let releasePut!: () => void;
+    const putGate = new Promise<void>((resolve) => {
+      releasePut = resolve;
+    });
+    let putSent!: () => void;
+    const putStarted = new Promise<void>((resolve) => {
+      putSent = resolve;
+    });
+    let deleted = false;
+    const calls = stubPass([STALE_CUSTOM], async (method) => {
+      if (method === 'GET') {
+        return deleted
+          ? new Response('Provider not found', { status: 404 })
+          : Response.json(STALE_CUSTOM);
+      }
+      if (method === 'PUT') {
+        putSent();
+        await putGate;
+        return Response.json({});
+      }
+      if (method === 'DELETE') {
+        deleted = true;
+        return Response.json({});
+      }
+      return new Response('unexpected', { status: 500 });
+    });
+    const mod = await loadModule();
+    const pass = mod.shrinkProviderPools();
+    await putStarted;
+    const teardown = mod.removeOrganizationFromGateway('org_9');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // Deleting now would let the resize land after it and create the
+    // record anew; the teardown waits for it instead.
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+    releasePut();
+    await Promise.all([pass, teardown]);
+    expect(
+      calls
+        .filter((c) => c.method === 'PUT' || c.method === 'DELETE')
+        .map((c) => c.method),
+    ).toEqual(['PUT', 'DELETE']);
+  });
+
+  it('never writes back a record a teardown deleted, even when its read still answers it', async () => {
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const calls = stubPass([STALE_CUSTOM], (method) =>
+      method === 'GET' ? Response.json(STALE_CUSTOM) : Response.json({}),
+    );
+    const mod = await loadModule();
+    await mod.removeOrganizationFromGateway('org_9');
+    await mod.shrinkProviderPools();
+    expect(recordWrites(calls)).toEqual([]);
+  });
+
   it('leaves a record another process resized since the listing, or deleted', async () => {
     const resized = {
       ...STALE_CUSTOM,
