@@ -197,6 +197,7 @@ async function main(): Promise<void> {
           {
             fetch: createApp({ sql, auth }).fetch,
             port: env.PORT,
+            ...(env.HOST === undefined ? {} : { hostname: env.HOST }),
             // The header budget and the response class that keeps a
             // bodiless answer free of content headers — shared with the
             // integration harness (lib/http-hygiene.ts).

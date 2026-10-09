@@ -188,7 +188,12 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
     const log = join(options.logDir, `api-${i}.log`);
     const pid = spawnDetached(process.execPath, nodeArgs, {
       cwd: platformDir,
-      env: { ...baseEnv, ...roleEnv('api'), PORT: String(port) },
+      env: {
+        ...baseEnv,
+        ...roleEnv('api'),
+        PORT: String(port),
+        HOST: options.host,
+      },
       log,
     });
     processes.push({ role: 'api', pid, port, log });
