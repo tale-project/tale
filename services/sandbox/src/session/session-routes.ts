@@ -1533,11 +1533,18 @@ export class SessionRoutes {
 
   /** Does this session keep the full idle window once released? A
    * Docker-in-sandbox session's resume starts its inner daemon on an empty
-   * image store, so stopping it early would cost every turn a re-pull. */
-  private keepsFullIdleWindow(session: RegistrySession): boolean {
+   * image store, so stopping it early would cost every turn a re-pull. An
+   * engine that never started has no store to lose, so that session gets the
+   * short window; a runtime that does not report its engine keeps the full
+   * one. */
+  private keepsFullIdleWindow(
+    session: RegistrySession,
+    health: RunnerdHealth,
+  ): boolean {
     return (
       (session.docker ?? this.cfg.dockerInContainer) &&
-      session.profile === 'agent'
+      session.profile === 'agent' &&
+      health.docker?.used !== false
     );
   }
 
@@ -1640,7 +1647,7 @@ export class SessionRoutes {
       if (
         !expired &&
         health.activity?.released === true &&
-        !this.keepsFullIdleWindow(s) &&
+        !this.keepsFullIdleWindow(s, health) &&
         idleForMs > Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)
       ) {
         return this.reclaimIdle(s);

@@ -13,6 +13,15 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 `internal-dockerd` is reserved for the root supervisor's engine child. Any
 other argument exits 65 (there is no per-call language lane).
 
+A session's HOME is `/agent/.runtime/home` on the persistent workspace, and
+`NODE_COMPILE_CACHE` names `.cache/node-compile-cache` under it, created at the
+session's user. Node programs a session starts again (a harness CLI, the
+per-turn helpers, runnerd itself) reuse V8's compiled code across turns and
+resumes instead of compiling their bundles again; the cache is never under the
+exec temp that every container start wipes. The root Docker supervisor starts
+without it, because the agent user can write that directory; runnerd and its
+execs get it back.
+
 ## Repository SSH access
 
 The maintained runtime installs OpenSSH (`ssh`, `ssh-agent`, `ssh-add`) and
@@ -41,9 +50,13 @@ concurrent clients share that startup. After five minutes without clients,
 the supervisor stops the engine only if no container is running, restarting
 or paused and every container has its restart policy disabled. Unknown
 inventory keeps it running. The next Docker command starts
-it again with the same image store, volumes and workspace. Existing container
-state at session-container boot starts the engine immediately so restart
-policies still work. This needs no agent setting and does not change the
+it again with the same image store, volumes and workspace. Before that stop,
+an engine whose images and build cache exceed 10 GiB removes its dangling
+images and prunes its build cache to 5 GiB through the engine API (bounded,
+logged, never blocking the stop); a Kubernetes store limited below 10 GiB is
+bounded by its volume's size limit instead. Existing container state at
+session-container boot starts the engine immediately so restart policies still
+work. This needs no agent setting and does not change the
 deployment's runtime isolation or resource limits.
 
 runnerd keeps the exec protocol in checkpointed disk segments for reconnection
@@ -201,7 +214,11 @@ results for one second. The supervisor probes an active engine within 500 ms;
 it leaves an intentionally sleeping engine asleep. A failed probe makes
 `/readyz` and new acquire/exec requests return 503;
 authenticated `/healthz` keeps reporting process activity with
-`dockerReady: false`.
+`dockerReady: false`. `/healthz` also carries the supervisor's engine state as
+`docker: { engine, used }`: `cold` until the first Docker command starts the
+engine, `running` while it starts or runs, `stopped` after it slept or failed;
+`used` is whether an engine has run in this container. The spawner keeps a
+released session's full idle window only when `used` is true.
 
 One slow probe does not authorize session recycling. At least three completed
 failed probes spanning five seconds are needed for `dockerRecoveryRequired`;

@@ -294,8 +294,11 @@ still running is joined, never stacked) **stops**:
   atomic claim, so a turn that acquires it meanwhile keeps it. A resume costs
   well under a second on a warm image, so holding the slot and the memory of an
   idle session for the full idle window bought little. Agent sessions with
-  Docker inside keep the full window: their resume starts the inner daemon on
-  an empty image store;
+  Docker inside keep the full window once their inner engine has run: their
+  resume starts the inner daemon on an empty image store. runnerd's `/healthz`
+  reports this as `docker.used`; a session whose engine never started gets the
+  short window, and a runtime that does not report its engine keeps the full
+  one;
 - a running session whose runnerd has not answered five sweeps in a row (a
   wedged daemon used to hold its slot and limits until the 24 h TTL); a sweep
   that cannot probe it — pinned, or an exec running through this spawner —
@@ -837,10 +840,10 @@ An opt-out keeps the hardened runner, skips inner-daemon and build-helper
 provisioning, and uses the shared per-organization dependency caches on Docker.
 Its admission estimate is 512 MiB, and its released idle window is the normal
 five-minute default. An agent with inner Docker uses the 1.5 GiB admission
-estimate and retains the full idle window. These estimates are admission
-headroom, not memory limits. The actual capability is returned as
-`session.docker` and recorded on the container or Pod so a spawner
-restart preserves that session's behavior.
+estimate and retains the full idle window once its inner engine has run.
+These estimates are admission headroom, not memory limits. The actual
+capability is returned as `session.docker` and recorded on the container or Pod
+so a spawner restart preserves that session's behavior.
 
 `default` uses uid 65534 with the hardened code/render profile. `agent` uses
 uid 10001, a named non-root account for git/ssh and coding CLIs. Its defaults

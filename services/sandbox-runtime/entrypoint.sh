@@ -687,6 +687,24 @@ sys.exit('inner dockerd readiness deadline exceeded')
 PY
 }
 
+# A registry mirror is one lowercase `host:port`, nothing dockerd could read as
+# another flag or a second address.
+_valid_registry_mirror() {
+  case "$1" in
+    *[!a-z0-9.:-]* | *:*:*) return 1 ;;
+  esac
+  _mirror_host="${1%:*}"
+  _mirror_port="${1##*:}"
+  [ "${_mirror_host}" != "$1" ] || return 1
+  case "${_mirror_host}" in
+    '' | [!a-z0-9]*) return 1 ;;
+  esac
+  case "${_mirror_port}" in
+    '' | *[!0-9]* | ??????*) return 1 ;;
+  esac
+  [ "${#_mirror_host}" -le 128 ]
+}
+
 # Start an inner dockerd and block until it's ready. Fails closed (exit 1) on
 # any of: fence install failure, a non-remapped userns on the sysbox tier
 # (would mean container-root == host-root), dockerd dying, or a readiness
@@ -722,13 +740,34 @@ start_inner_dockerd() {
   _dns_flags=""
   [ -n "${TALE_EGRESS_IP}" ] && _dns_flags="--dns=${TALE_EGRESS_IP}"
 
+  # With the organization's build network, docker.io pulls go through its
+  # pull-through cache, the registry mirror its BuildKit daemon already uses:
+  # a `docker pull` or `compose pull` reuses layers another session fetched
+  # instead of crossing the egress proxy to Docker Hub again, and dockerd
+  # falls back to Docker Hub when the mirror does not answer. The mirror
+  # speaks plain HTTP on that private network, so it is named insecure and
+  # kept out of the proxy. Reached only from an `internal-dockerd` child, so
+  # the widened NO_PROXY never leaves this engine's process.
+  _mirror_flags=""
+  if [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] && [ -n "${TALE_DOCKER_HUB_MIRROR:-}" ]; then
+    if _valid_registry_mirror "${TALE_DOCKER_HUB_MIRROR}"; then
+      _mirror_flags="--registry-mirror=http://${TALE_DOCKER_HUB_MIRROR} --insecure-registry=${TALE_DOCKER_HUB_MIRROR}"
+      _no_proxy="${NO_PROXY:-${no_proxy:-}}"
+      NO_PROXY="${_no_proxy:+${_no_proxy},}${TALE_DOCKER_HUB_MIRROR%:*}"
+      no_proxy="${NO_PROXY}"
+      export NO_PROXY no_proxy
+    else
+      echo "[entrypoint] WARN: ignoring a malformed TALE_DOCKER_HUB_MIRROR; docker.io pulls go to Docker Hub" >&2
+    fi
+  fi
+
   # dockerd (and the iptables/modprobe it shells out to) need /usr/sbin on PATH,
   # which the image ENV drops. Scope the widened PATH to dockerd only — runnerd
   # is exec'd later with the unmodified (sbin-free) agent PATH.
   # Nested containers otherwise inherit Docker's unrotated json-file default,
   # independently of the outer session's cap. Apply that same cap here; daemon
   # diagnostics themselves inherit the outer logger instead of a growing file.
-  # shellcheck disable=SC2086 # _dns_flags must word-split: empty, or one --dns flag
+  # shellcheck disable=SC2086 # _dns_flags and _mirror_flags must word-split: empty, or their flags
   PATH="/usr/sbin:/sbin:${PATH}" "${_DOCKERD}" \
     --host="unix://${1:-/var/run/docker.sock}" \
     --data-root=/var/lib/docker \
@@ -740,6 +779,7 @@ start_inner_dockerd() {
     --log-opt=max-file=1 \
     --log-opt=compress=false \
     ${_dns_flags} \
+    ${_mirror_flags} \
     >&2 &
   TALE_DOCKERD_PID=$!
 
@@ -824,7 +864,11 @@ protect_shared_cache_network() {
 # MUST run as the agent uid (10001) with the agent HOME so runnerd's execs (also
 # uid 10001, same HOME) see the builder definition; root-owned buildx state would
 # be invisible to them. The definition lives under the persistent workspace
-# (~/.docker), so it survives resume — hence the inspect-first idempotency.
+# (~/.docker/buildx/instances/<name>), so it survives resume: when the agent uid
+# already owns it, boot selects it without starting the Docker CLI at all
+# (every `docker buildx` call starts the CLI and its buildx plugin, two Go
+# binaries, while runnerd waits to start). Otherwise `inspect` adopts a
+# definition the file check could not see, and `create` registers a new one.
 #
 # Best-effort: any failure just leaves the agent on the inner dockerd's local
 # builder (cold cache), never blocks the session. The remote `create` only
@@ -835,20 +879,47 @@ setup_shared_buildx_builder() {
   # Select a builder keyed by the full validated endpoint; never adopt that
   # legacy definition, and explicitly fall back to the local daemon on failure.
   export BUILDX_BUILDER=default
-  _builder=$(/usr/bin/env -u NODE_OPTIONS -u NODE_PATH /opt/node/bin/node -e 'const {createHash}=require("node:crypto"); process.stdout.write("tale-build-"+createHash("sha256").update(process.env.TALE_BUILDKITD_ENDPOINT).digest("hex").slice(0,24))')
+  # Called as part of an || list, so `set -e` does not apply inside: no step
+  # of the setup can abort the session's boot.
+  _select_shared_buildx_builder ||
+    echo "[entrypoint] WARN: could not set up shared buildx builder (${TALE_BUILDKITD_ENDPOINT}); using the inner dockerd builder (cold cache)" >&2
+}
+
+# "tale-build-" and the first 24 hex digits of the endpoint's SHA-256: the
+# name earlier runtimes derived with node, so existing workspaces keep their
+# builder. Fails on a missing or malformed digest instead of naming a builder.
+_shared_buildx_builder_name() {
+  _digest=$(printf '%s' "$1" | sha256sum | cut -c1-24) || return 1
+  case "${_digest}" in
+    '' | *[!0-9a-f]*) return 1 ;;
+  esac
+  [ "${#_digest}" -eq 24 ] || return 1
+  printf 'tale-build-%s\n' "${_digest}"
+}
+
+_select_shared_buildx_builder() {
+  _builder=$(_shared_buildx_builder_name "${TALE_BUILDKITD_ENDPOINT}") || return 1
   _bk() {
     /usr/bin/setpriv --reuid 10001 --regid 10001 --init-groups -- \
       /usr/bin/env HOME=/agent/.runtime/home /usr/bin/docker buildx "$@"
   }
-  if _bk inspect "${_builder}" >/dev/null 2>&1 ||
-    _bk create --name "${_builder}" --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
-      >/var/log/buildx-create.log 2>&1; then
-    export BUILDX_BUILDER="${_builder}"
-    echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=${BUILDX_BUILDER} -> ${TALE_BUILDKITD_ENDPOINT}"
-  else
-    echo "[entrypoint] WARN: could not set up shared buildx builder (${TALE_BUILDKITD_ENDPOINT}); using the inner dockerd builder (cold cache)" >&2
+  # Where buildx keeps the definition for the agent's environment.
+  _bk_instance="${BUILDX_CONFIG:-${DOCKER_CONFIG:-/agent/.runtime/home/.docker}/buildx}/instances/${_builder}"
+  # A definition the agent owns that names this endpoint is reused as is; an
+  # empty or edited one goes through buildx, which rejects a broken builder.
+  if /usr/bin/setpriv --reuid 10001 --regid 10001 --init-groups -- \
+    /bin/sh -c '[ -f "$1" ] && [ -O "$1" ] && [ -s "$1" ] && grep -qF -- "$2" "$1"' \
+    sh "${_bk_instance}" "${TALE_BUILDKITD_ENDPOINT}"; then
+    :
+  elif _bk inspect "${_builder}" >/dev/null 2>&1; then
+    :
+  elif ! _bk create --name "${_builder}" --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
+    >/var/log/buildx-create.log 2>&1; then
     tail -n 3 /var/log/buildx-create.log >&2 2>/dev/null || true
+    return 1
   fi
+  export BUILDX_BUILDER="${_builder}"
+  echo "[entrypoint] shared build cache enabled: BUILDX_BUILDER=${BUILDX_BUILDER} -> ${TALE_BUILDKITD_ENDPOINT}"
 }
 
 # ---------------------------------------------------------------------------
@@ -1004,6 +1075,7 @@ if [ "$1" = "daemon" ]; then
     /agent/output \
     /agent/.runtime/home \
     /agent/.runtime/home/.codex \
+    /agent/.runtime/home/.cache/node-compile-cache \
     /agent/.runtime/tmp \
     /agent/.runtime/deps/python \
     /agent/.runtime/deps/node
@@ -1024,6 +1096,12 @@ if [ "$1" = "daemon" ]; then
   # /tmp any install set past ~128 MB died with ENOSPC (e.g. markitdown[pptx]'s
   # 223 MB). /tmp itself stays for small control files such as redsocks.conf.
   export TMPDIR=/agent/.runtime/tmp
+  # V8's compile cache for every Node program the session runs (gemini's
+  # bundled CLI, the per-turn node helpers, runnerd itself), kept in the
+  # persistent HOME and created above at the session uid, so a resume or a
+  # later turn reuses compiled code instead of parsing and compiling again.
+  # Never under TMPDIR, which every container start wipes.
+  export NODE_COMPILE_CACHE=/agent/.runtime/home/.cache/node-compile-cache
   export PIP_TARGET=/agent/.runtime/deps/python
   export PYTHONPATH=/agent/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
   export PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -1066,9 +1144,11 @@ if [ "$1" = "daemon" ]; then
     export TALE_REDSOCKS_STARTED
     setup_shared_buildx_builder
     export TALE_RUNNER_NODE_PATH="$NODE_PATH"
+    export TALE_RUNNER_NODE_COMPILE_CACHE="$NODE_COMPILE_CACHE"
     export PATH="$_runner_path"
-    # The supervisor is root: workspace Node loaders must never run in it.
-    exec /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_LIBRARY_PATH \
+    # The supervisor is root: workspace Node loaders must never run in it, and
+    # neither may compiled code from the agent-writable compile cache.
+    exec /usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u NODE_COMPILE_CACHE -u LD_PRELOAD -u LD_LIBRARY_PATH \
       /usr/bin/tini -g -- /opt/node/bin/node /usr/local/lib/tale/lazy-docker.mjs
   fi
 
