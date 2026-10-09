@@ -69,7 +69,7 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-function makeCtx(brokerTokenHash?: string) {
+function makeCtx(brokerTokenHash?: string, cursorExecId = KEYS.execId) {
   const mutations: Call[] = [];
   const ctx = {
     runQuery: async (ref: unknown) => {
@@ -80,7 +80,7 @@ function makeCtx(brokerTokenHash?: string) {
           cursor: {
             node: KEYS.nodeId,
             agent: {
-              execId: KEYS.execId,
+              execId: cursorExecId,
               sessionId: KEYS.sessionId,
               deadlineAt: KEYS.deadlineAt,
               providerSlug: KEYS.providerSlug,
@@ -125,6 +125,112 @@ function ndjson(lines: Array<Record<string, unknown>>): string {
 }
 
 const INIT = { type: 'system', subtype: 'init', session_id: 'conv-1' };
+
+describe('a Claude subscription-access refusal', () => {
+  it('never cools the replacement exec account from a stale drive', async () => {
+    io.stdout = ndjson([
+      INIT,
+      {
+        type: 'result',
+        is_error: true,
+        api_error_status: 403,
+        result:
+          'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access',
+      },
+    ]);
+    const { ctx, mutations } = makeCtx(
+      'replacement-account',
+      'replacement-exec',
+    );
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+    expect(settledOf(mutations)).toEqual([]);
+  });
+
+  it('does not cool an account for an unrelated terminal 403', async () => {
+    io.stdout = ndjson([
+      INIT,
+      {
+        type: 'result',
+        is_error: true,
+        api_error_status: 403,
+        result: 'Forbidden',
+        session_id: 'conv-1',
+      },
+    ]);
+    const { ctx, mutations } = makeCtx('selected-account');
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+    expect(settledOf(mutations)[0]?.args).toMatchObject({
+      result: { failureCode: 'harness_error', apiErrorStatus: 403 },
+    });
+  });
+
+  it.each([true, false])(
+    'cools only the selected broker account (broker=%s)',
+    async (brokerServed) => {
+      io.stdout = ndjson([
+        INIT,
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: true,
+          api_error_status: 403,
+          result:
+            'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access',
+          session_id: 'conv-1',
+        },
+      ]);
+      const { ctx, mutations } = makeCtx(
+        brokerServed ? 'selected-account' : undefined,
+      );
+      await driveWorkflowAgentTurnImpl(ctx, KEYS);
+      const feedback = mutations.filter(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      );
+      expect(feedback).toEqual(
+        brokerServed
+          ? [
+              {
+                name: 'provider_credentials/mutations:recordBrokerFailureInternal',
+                args: {
+                  organizationId: 'org-1',
+                  brokerTokenHash: 'selected-account',
+                  apiErrorStatus: 403,
+                  providerErrorKind: 'subscription_access_disabled',
+                },
+              },
+            ]
+          : [],
+      );
+      expect(settledOf(mutations)[0]?.args).toMatchObject({
+        result: {
+          failureCode: 'harness_error',
+          apiErrorStatus: 403,
+          agentSessionId: 'conv-1',
+        },
+      });
+      if (brokerServed)
+        expect(mutations.indexOf(feedback[0]!)).toBeLessThan(
+          mutations.indexOf(settledOf(mutations)[0]!),
+        );
+    },
+  );
+});
 
 beforeEach(() => {
   vi.clearAllMocks();

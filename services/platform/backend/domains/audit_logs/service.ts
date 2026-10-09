@@ -17,6 +17,7 @@ import {
   rowToHashInput,
   toStoredAuditRecord,
 } from './hash-input.ts';
+import { attributeApiKeyAudit } from './request-actor.ts';
 import type {
   AuditContext,
   AuditLogCategory,
@@ -247,7 +248,7 @@ export async function createAuditLog(
   tx: TransactionSql,
   callerArgs: CreateAuditLogArgs,
 ): Promise<string> {
-  const args = withRequestChannel(callerArgs);
+  const args = attributeApiKeyAudit(withRequestChannel(callerArgs));
   const head = await lockChainHead(tx, args.organizationId);
   await selfCheckPriorRow(tx, args.organizationId, head.lastHash);
 
