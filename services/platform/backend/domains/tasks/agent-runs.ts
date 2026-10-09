@@ -35,6 +35,7 @@ import {
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
 import { TaskError } from './errors.ts';
 import { loadTaskRetryHistory } from './kick-plan.ts';
+import { readReviewBatch, reviewBatchFeedback } from './review-batch-store.ts';
 import { sessionIdForAgentRun } from './run-authority.ts';
 import {
   announceAgentRunFailed,
@@ -250,6 +251,8 @@ export interface KickAgentRunArgs {
    * review. Only with `startedVia`; an auto-retry carries its
    * predecessor's. */
   inPlace?: boolean;
+  /** Server-owned fixed review envelope, inherited by native retries only. */
+  reviewBatchId?: string;
   feedback?: string;
   /** Which text named the agent on a `mention` kick. A comment's body rides
    * as `feedback`; a description kick carries none, because the turn reads
@@ -384,6 +387,29 @@ export async function kickAgentRun(
   const retryState = inPlace
     ? await readInPlaceRetryState(tx, args.organizationId, args.taskId)
     : undefined;
+  const batch =
+    args.reviewBatchId === undefined
+      ? undefined
+      : await readReviewBatch(
+          tx,
+          args.organizationId,
+          args.projectId,
+          args.reviewBatchId,
+        );
+  if (
+    batch !== undefined &&
+    (!inPlace ||
+      batch.contextTaskId !== args.taskId ||
+      batch.reviewerAgentId !== args.agentId ||
+      via?.kind !== 'agent' ||
+      via.agentId !== batch.managerAgentId ||
+      via.runId !== batch.issuerRunId)
+  )
+    throw new TaskError(
+      'TASK_REVIEW_FORBIDDEN',
+      'The run does not match its native review envelope',
+      403,
+    );
   const rows = await tx<{ id: string }[]>`
     INSERT INTO app.project_agent_runs (
       org_id, project_id, task_id, agent_id, exec_id, session_id, status,
@@ -392,13 +418,13 @@ export async function kickAgentRun(
       updated_at_ms, started_via, started_via_run_id, started_via_node_id,
       started_via_automation, started_via_agent_id, in_place,
       in_place_retry_status, in_place_retry_activity_id, api_key_id,
-      wake_admitted_seq
+      wake_admitted_seq, review_batch_id
     ) VALUES (
       ${args.organizationId}, ${args.projectId}, ${args.taskId},
       ${args.agentId}, ${execId}, ${sessionId},
       'queued', ${serving.harness}, ${serving.model},
       ${serving.modelProvider ?? null}, ${args.trigger ?? 'manual'},
-      ${args.feedback ?? null}, ${args.mentionSource ?? null},
+      ${batch === undefined ? (args.feedback ?? null) : reviewBatchFeedback(batch)}, ${args.mentionSource ?? null},
       ${args.autoRetryAttempt ?? null},
       ${args.startedBy}, ${now},
       ${now + TASK_AGENT_RUN_DEADLINE_MS}, ${now},
@@ -408,7 +434,7 @@ export async function kickAgentRun(
       ${via?.kind === 'agent' ? via.agentId : null},
       ${inPlace}, ${retryState?.status ?? null},
       ${retryState?.activityId ?? null}, ${args.apiKeyId ?? null},
-      ${args.wakeAdmittedSeq ?? null}::bigint
+      ${args.wakeAdmittedSeq ?? null}::bigint, ${batch?.id ?? null}
     )
     ON CONFLICT (task_id) WHERE status IN ('queued', 'running') DO NOTHING
     RETURNING id

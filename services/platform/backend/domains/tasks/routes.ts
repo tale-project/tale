@@ -1,7 +1,13 @@
 import { transactSerializable } from '@tale/shared/db/serializable';
-import { configurationHashSchema } from '@tale/shared/schemas/configuration';
+import {
+  configurationHashSchema,
+  expectedConfigurationHashSchema,
+} from '@tale/shared/schemas/configuration';
 import { epochMsSchema } from '@tale/shared/schemas/epoch-ms';
-import { managedTaskInstructionsSchema } from '@tale/shared/schemas/managed-configuration';
+import {
+  managedTaskInstructionsSchema,
+  managedTaskReviewContextSchema,
+} from '@tale/shared/schemas/managed-configuration';
 import { externalStatusRequestBodySchema } from '@tale/shared/schemas/task-external-status';
 import { setTaskReviewerInputSchema } from '@tale/shared/schemas/task-review';
 import { Hono, type Context } from 'hono';
@@ -37,6 +43,7 @@ import { AutomationError, cancelRunInTx } from '../automations/store.ts';
 import { MentionDirectoryError } from '../collab/mention-directory.ts';
 import { getOrCreateProjectFolder } from '../folders/service.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   getProjectAuthContext,
   listProjects,
@@ -75,6 +82,10 @@ import {
 } from './external-status.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
 import { stopTaskRepeat, type TaskRepeatCopy } from './repeat.ts';
+import {
+  readTaskReviewContextConfiguration,
+  updateTaskReviewContextConfiguration,
+} from './review-context.ts';
 import { TaskReviewError } from './reviews.ts';
 import {
   addTaskDependency,
@@ -313,7 +324,11 @@ function handleError<E extends OrgEnv>(
   // answers a coded refusal: it is what names the limit a value broke (an
   // empty title against an over-long one) — the code alone told the client
   // that the body was refused, never why.
-  if (error instanceof TaskError || error instanceof ProjectError) {
+  if (
+    error instanceof TaskError ||
+    error instanceof ProjectError ||
+    error instanceof LegalHoldError
+  ) {
     return c.json(
       {
         error: error.code,
@@ -388,6 +403,62 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
           requestExternalTaskStatus(tx, auth, c.req.param('taskId'), body.data),
         ),
       );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/:taskId/configuration/review-context', async (c) => {
+    const target = managedTaskReviewContextSchema
+      .pick({ projectId: true, taskId: true })
+      .safeParse({
+        projectId: c.req.query('projectId'),
+        taskId: c.req.param('taskId'),
+      });
+    if (!target.success) return invalidBodyResponse(c, target.error);
+    try {
+      return c.json(
+        await readTaskReviewContextConfiguration(
+          deps.sql,
+          await authCtx(c),
+          target.data.projectId,
+          target.data.taskId,
+        ),
+      );
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.post('/:taskId/configuration/review-context', async (c) => {
+    const body = z
+      .strictObject({
+        config: managedTaskReviewContextSchema,
+        expectedHash: expectedConfigurationHashSchema,
+      })
+      .safeParse(await c.req.json());
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    if (
+      body.data.config.projectId !== c.req.query('projectId') ||
+      body.data.config.taskId !== c.req.param('taskId')
+    )
+      return invalidBodyIssuesResponse(c, [
+        {
+          path: 'config',
+          message: 'must name the resource in the request path and query',
+        },
+      ]);
+    try {
+      const auth = await authCtx(c);
+      await transactSerializable(deps.sql, (tx) =>
+        updateTaskReviewContextConfiguration(
+          tx,
+          auth,
+          body.data.config,
+          body.data.expectedHash,
+        ),
+      );
+      return c.json({ ok: true });
     } catch (error) {
       return handleError(c, error);
     }

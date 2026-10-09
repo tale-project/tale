@@ -23,6 +23,10 @@ import {
   withStartWait,
 } from '../tasks/delegated-start.ts';
 import { TaskError } from '../tasks/errors.ts';
+import {
+  startAgentReviewBatch,
+  readAgentReviewBatch,
+} from '../tasks/review-batches.ts';
 import { delegateAgentTaskReview } from '../tasks/review-delegation.ts';
 import {
   isTaskRunConfined,
@@ -648,6 +652,33 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
             );
           }),
         ),
+      );
+    },
+
+    'tasks/internal_mutations:agentReviewBatch': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge boundary; the domain validates the complete request
+      const args = raw as {
+        organizationId: string;
+        sessionId: string;
+        taskRunExecId?: string;
+        request: { operation?: unknown };
+      };
+      return coded(() =>
+        transactSerializable(sql, async (tx) => {
+          const authority = await requireProjectTaskRun(
+            tx,
+            args,
+            'TASK_REVIEW_FORBIDDEN',
+          );
+          const auth = {
+            organizationId: args.organizationId,
+            sessionId: args.sessionId,
+            ...authority,
+          };
+          return args.request?.operation === 'read_batch'
+            ? readAgentReviewBatch(tx, auth, args.request)
+            : startAgentReviewBatch(tx, auth, args.request);
+        }),
       );
     },
 

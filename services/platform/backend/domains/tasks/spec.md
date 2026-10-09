@@ -374,11 +374,41 @@ new one can open.
   notes" continues in worker 1, and "Changelog" takes another worker: a run that has not
   started yet holds no worker.
 
+## Operational review batches
+
+### TASK-R28 · A review batch completes only through every declared native decision
+
+A live project manager declares one fixed set of at most twenty distinct captured
+agent reviews. Each decision must name the declared source and evidence, the
+independent enrolled reviewer, and an actual run of that batch. A report or a
+settled run supplies no missing decision. Both approval and changes requested
+complete the review action; changes requested leave the implementation unfinished.
+Replaying the same request returns its existing result without another start. A
+new occurrence explicitly declares the reviews that remain.
+
+- **Example**: A reviewer decides two of three targets and writes a report → the
+  batch remains incomplete. Its manager retries the same request and receives
+  that result; a new request names the remaining target.
+
+### TASK-R29 · A managed review context never becomes an implementation deliverable
+
+A project editor explicitly enrolls a pristine native operational task for one
+eligible reviewer. The immutable purpose cannot be adopted by an ordinary task
+with retained source work, review history, external identity or implementation
+relationships. Disabling preserves that purpose. Ordinary tasks keep their review
+gates. A context runs only through its native batch admission and cannot itself
+acquire a report-review gate. Its evidence follows the existing legal-hold and
+retirement rules.
+
+- **Example**: An editor tries to enroll an implementation card already awaiting
+  review → refused. A new managed review context accepts batches instead, while
+  each implementation card keeps its own independent captured gate.
+
 ## Not yet
 
 - **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
-- **Reviews beyond `TASK-R21`–`TASK-R22`**: who a review goes to, an agent as reviewer, and what a decision does to the task
+- **Reviews beyond `TASK-R21`–`TASK-R22` and `TASK-R28`–`TASK-R29`**: who a review goes to, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`).
 - **Repeating tasks, date notifications beyond `TASK-R23`, metrics and board search** (`repeat.ts`,
   `date-notifications.ts`, `metrics.ts`).

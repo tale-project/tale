@@ -79,6 +79,16 @@ function declaration() {
         },
       },
       {
+        kind: 'agent-model',
+        config: {
+          projectId: 'project-1',
+          agentId: 'agent-1',
+          harness: 'codex',
+          model: 'next-model',
+          modelProvider: 'example',
+        },
+      },
+      {
         kind: 'task-instructions',
         config: {
           projectId: 'project-1',
@@ -94,15 +104,18 @@ function native(resources: PlatformResource[]) {
   const state = new Map<string, unknown>(
     resources.map((resource) => [
       resourceId(resource),
-      resource.kind.startsWith('automation-')
+      resource.kind.startsWith('automation-') ||
+      resource.kind === 'task-review-context'
         ? null
         : {
             ...resource.config,
-            ...(resource.kind === 'agent-tools'
-              ? { tools: ['task_get'] }
-              : 'description' in resource.config
-                ? { description: 'before' }
-                : { instructions: 'before' }),
+            ...(resource.kind === 'agent-model'
+              ? { model: 'before-model', modelProvider: null }
+              : resource.kind === 'agent-tools'
+                ? { tools: ['task_get'] }
+                : 'description' in resource.config
+                  ? { description: 'before' }
+                  : { instructions: 'before' }),
           },
     ]),
   );
@@ -122,21 +135,29 @@ function native(resources: PlatformResource[]) {
           ? (new URL(path, 'https://example.invalid').searchParams.get(
               'kind',
             ) ??
-            (path.endsWith('/configuration/tools')
-              ? 'agent-tools'
-              : path.startsWith('/api/app/tasks/')
-                ? 'task-instructions'
-                : path.includes('/agents/')
-                  ? 'agent-instructions'
-                  : 'project-instructions'))
+            (path.includes('/configuration/review-context')
+              ? 'task-review-context'
+              : path.endsWith('/configuration/model')
+                ? 'agent-model'
+                : path.endsWith('/configuration/tools')
+                  ? 'agent-tools'
+                  : path.startsWith('/api/app/tasks/')
+                    ? 'task-instructions'
+                    : path.includes('/agents/')
+                      ? 'agent-instructions'
+                      : 'project-instructions'))
           : ((body?.resource as PlatformResource | undefined)?.kind ??
-            (path.endsWith('/configuration/tools')
-              ? 'agent-tools'
-              : path.startsWith('/api/app/tasks/')
-                ? 'task-instructions'
-                : path.includes('/agents/')
-                  ? 'agent-instructions'
-                  : 'project-instructions'));
+            (path.includes('/configuration/review-context')
+              ? 'task-review-context'
+              : path.endsWith('/configuration/model')
+                ? 'agent-model'
+                : path.endsWith('/configuration/tools')
+                  ? 'agent-tools'
+                  : path.startsWith('/api/app/tasks/')
+                    ? 'task-instructions'
+                    : path.includes('/agents/')
+                      ? 'agent-instructions'
+                      : 'project-instructions'));
       const selected = resources.find((resource) => resource.kind === kind);
       if (!selected) throw new Error('unknown native resource');
       const key = resourceId(selected);
@@ -196,6 +217,7 @@ function native(resources: PlatformResource[]) {
 describe('managed native configuration', () => {
   test.each([
     'agent-tools',
+    'agent-model',
     'automation-definition',
     'automation-deployment',
     'automation-schedule',
@@ -219,6 +241,7 @@ describe('managed native configuration', () => {
         'project-instructions',
         'agent-instructions',
         'agent-tools',
+        'agent-model',
         'task-instructions',
         'automation-definition',
         'automation-deployment',
@@ -234,7 +257,10 @@ describe('managed native configuration', () => {
       expect(result.unchanged).toBe(true);
       expect(api.writes).toHaveLength(before);
       for (const { body } of api.writes.filter(
-        ({ kind }) => kind.endsWith('instructions') || kind === 'agent-tools',
+        ({ kind }) =>
+          kind.endsWith('instructions') ||
+          kind === 'agent-tools' ||
+          kind === 'agent-model',
       )) {
         expect(Object.keys(body).sort()).toEqual(['config', 'expectedHash']);
         expect(body).not.toHaveProperty('status');
@@ -479,4 +505,158 @@ test('carries a schedule’s slot-wake opt-in through plan, apply and an unchang
   );
   expect(again.unchanged).toBe(true);
   expect(api.writes).toHaveLength(before);
+});
+
+describe('managed review context adoption', () => {
+  const resource = {
+    kind: 'task-review-context' as const,
+    config: {
+      projectId: 'project-1',
+      taskId: 'context-1',
+      reviewerAgentId: 'reviewer-1',
+      enabled: true,
+    },
+  };
+
+  test('enrolls an absent context through native CAS and reconciles a lost response without duplicate writes', async () => {
+    const config = parsePlatformConfiguration({
+      schemaVersion: 1,
+      resources: [resource],
+    });
+    const api = native(config.resources);
+    const directory = await mkdtemp(join(tmpdir(), 'managed-review-context-'));
+    roots.push(directory);
+    const receipt = join(directory, 'receipt.json');
+    const plan = await planPlatformConfiguration(config, api.client);
+    api.lose(resource.kind);
+    await expect(
+      applyPlatformConfiguration(config, plan, api.client, receipt),
+    ).rejects.toThrow('Configuration apply stopped');
+    await applyPlatformConfiguration(config, plan, api.client, receipt);
+    expect(api.writes).toHaveLength(1);
+    expect(api.writes[0]).toEqual({
+      kind: resource.kind,
+      body: { config: resource.config, expectedHash: null },
+    });
+    expect(resourceId(resource)).toBe(
+      'task-review-context/project-1/context-1',
+    );
+  });
+
+  test.each([
+    { ...resource.config, projectId: 'other' },
+    { ...resource.config, taskId: 'other' },
+    { ...resource.config, reviewerAgentId: 'other' },
+    { ...resource.config, purpose: 'implementation' },
+  ])('refuses inconsistent or retargeted identity: %j', async (config) => {
+    const client = {
+      request: async () => ({ config, hash: valueHash(config) }),
+    } as unknown as PlatformConfigurationClient;
+    await expect(readManagedResource(client, resource)).rejects.toThrow();
+  });
+
+  test('requires native support and never turns an unavailable facet into absent enrollment', async () => {
+    const api = native([resource]);
+    api.client.request = async () => {
+      throw new Error('404 unsupported native configuration facet');
+    };
+    await expect(
+      planPlatformConfiguration(
+        parsePlatformConfiguration({ schemaVersion: 1, resources: [resource] }),
+        api.client,
+      ),
+    ).rejects.toThrow('unsupported native configuration facet');
+    expect(api.writes).toEqual([]);
+  });
+});
+
+describe('managed model preimages', () => {
+  const resource = {
+    kind: 'agent-model' as const,
+    config: {
+      projectId: 'project-1',
+      agentId: 'agent-1',
+      harness: 'codex',
+      model: 'next-model',
+      modelProvider: 'example',
+    },
+  };
+  test.each([null, ' legacy-provider '])(
+    'preserves raw legacy provider %j and model bytes for native CAS',
+    async (modelProvider) => {
+      const config = {
+        ...resource.config,
+        model: ' legacy-model ',
+        modelProvider,
+      };
+      const client = {
+        request: async () => ({ config, hash: valueHash(config) }),
+      } as unknown as PlatformConfigurationClient;
+      expect(await readManagedResource(client, resource)).toEqual({
+        config,
+        revision: valueHash(config),
+      });
+      expect(resourceId(resource)).toBe('agent-model/project-1/agent-1');
+    },
+  );
+  test.each([
+    { ...resource.config, projectId: 'other' },
+    { ...resource.config, agentId: 'other' },
+    { ...resource.config, harness: '' },
+    { ...resource.config, secrets: ['PRIVATE_TOKEN'] },
+    null,
+  ])(
+    'refuses another identity, malformed or widened model readback %j',
+    async (config) => {
+      const client = {
+        request: async () => ({
+          config,
+          hash: config === null ? null : valueHash(config),
+        }),
+      } as unknown as PlatformConfigurationClient;
+      await expect(readManagedResource(client, resource)).rejects.toThrow();
+    },
+  );
+  test('refuses a substituted model hash', async () => {
+    const client = {
+      request: async () => ({ config: resource.config, hash: '0'.repeat(64) }),
+    } as unknown as PlatformConfigurationClient;
+    await expect(readManagedResource(client, resource)).rejects.toThrow(
+      'native identity or hash',
+    );
+  });
+  test('refuses a changed serving tuple before any planned writes', async () => {
+    const configuration = declaration();
+    const api = native(configuration.resources);
+    const plan = await planPlatformConfiguration(configuration, api.client);
+    api.state.set(resourceId(resource), {
+      ...resource.config,
+      model: 'concurrent-model',
+    });
+    const directory = await mkdtemp(join(tmpdir(), 'managed-model-'));
+    roots.push(directory);
+    await expect(
+      applyPlatformConfiguration(
+        configuration,
+        plan,
+        api.client,
+        join(directory, 'receipt.json'),
+      ),
+    ).rejects.toThrow('changed since planning');
+    expect(api.writes).toEqual([]);
+  });
+  test('fails closed on an older runtime without model adoption', async () => {
+    const configuration = declaration();
+    const api = native(configuration.resources);
+    const supported = api.client.request;
+    api.client.request = async (...args) => {
+      if (args[0].endsWith('/configuration/model'))
+        throw new Error('404 unsupported native model facet');
+      return supported(...args);
+    };
+    await expect(
+      planPlatformConfiguration(configuration, api.client),
+    ).rejects.toThrow('unsupported native model facet');
+    expect(api.writes).toEqual([]);
+  });
 });
