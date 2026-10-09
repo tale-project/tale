@@ -534,6 +534,15 @@ Pour chaque ressource, la preuve publique `native.configuration` donne le hash p
 
 `tale status` — afficher l'état actuel du déploiement. Aucun argument.
 
+`tale deploy smoke --url <url>` — vérifie un déploiement en service par son URL publique, comme un navigateur y accède. Sans `--full`, la commande n'envoie aucun identifiant et n'écrit rien : tu peux donc la lancer contre n'importe quel déploiement, y compris la production. Elle vérifie `/api/health` (et la version, avec `--expected-version <version>`), la disponibilité de l'API, le shell de l'application et son script, une lecture de session anonyme, et que `/events` et `/api/app` refusent un visiteur sans session. Le `http://` non chiffré n'est accepté que pour `localhost` ; avec ta propre autorité de certification, définis `NODE_EXTRA_CA_CERTS` sur son certificat racine.
+
+- `--full` — se connecte en plus avec un compte dédié et parcourt un scénario utilisateur : ouvrir le flux de mises à jour en direct de l'organisation, créer une tâche, attendre sa mise à jour en direct, la relire puis la supprimer (un compte qui ne peut pas supprimer de tâches l'archive à la place). Renseigne le compte dans `TALE_SMOKE_EMAIL` et `TALE_SMOKE_PASSWORD` ; il ne doit pas exiger de second facteur. Si le compte ne voit aucun projet, la première exécution en crée un nommé « Tale deployment smoke », que les exécutions suivantes réutilisent.
+- `--chat` — avec `--full`, lance aussi un tour de chat sur le premier modèle disponible pour le compte. Ce tour consomme des tokens de modèle ; la conversation part ensuite à la corbeille, après l'arrêt du tour s'il est encore en cours.
+- `--organization <id-or-slug>`, `--project <id>` — où se déroule le scénario ; par défaut, la première organisation et le premier projet du compte.
+- `--timeout <seconds>` — limite de chaque requête et de chaque attente (par défaut `15`) ; `--turn-timeout <seconds>` limite le tour de chat (par défaut `120`).
+
+Avec `--json`, le rapport liste chaque vérification avec son statut (`pass`, `fail` ou `skip`), sa durée et sa raison. Le code de sortie `0` signifie que toutes les vérifications ont réussi, `5` qu'au moins une a échoué et `2` qu'une option est invalide. Le scénario complet retire sa tâche (supprimée ou archivée) et se déconnecte même après une vérification en échec.
+
 `tale logs <service>` — diffuser les logs d'un service (`service` est l'un des services en cours d'exécution ; sur une stack de dev sans déploiement, la commande retombe sur le conteneur de dev).
 
 - `-f, --follow` — suivre la sortie des logs au fil de l'écriture.

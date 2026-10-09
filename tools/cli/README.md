@@ -188,6 +188,14 @@ process supervisor when a total deadline is required. A receipt is point-in-time
 correlation, not authentication or a guarantee of later routing. `sourceTag` is
 image-reference metadata; OCI labels and frontend health establish the version.
 
+`tale deploy smoke --url <url>` checks any running deployment through its public
+URL as a browser would, without credentials or writes: health and version,
+readiness, the app shell, an anonymous session, and the `/events` and `/api/app`
+session gates. `--full` also signs in as `TALE_SMOKE_EMAIL`/`TALE_SMOKE_PASSWORD`
+and creates, observes (live update) and deletes a task (archives it, when the
+account may not delete tasks); `--chat` adds one model
+turn. `--json` reports every check; exit `5` means a check failed.
+
 Managed runtime error reporting defaults `SENTRY_ENVIRONMENT` to the deployment's
 retained `name`. To use a canonical reporting label, declare
 `"environment": { "SENTRY_ENVIRONMENT": { "env": "TALE_REPORTING_ENVIRONMENT" } }`

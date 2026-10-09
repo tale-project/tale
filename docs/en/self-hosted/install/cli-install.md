@@ -534,6 +534,15 @@ The public `native.configuration` proof records each resource’s intended hash 
 
 `tale status` — show the current deployment status. No arguments.
 
+`tale deploy smoke --url <url>` — check a running deployment through its public URL, the way a browser reaches it. Without `--full` it sends no credentials and writes nothing, so you can run it against any deployment, production included. It checks `/api/health` (and the version, with `--expected-version <version>`), the API's readiness, the app shell and its script, an anonymous session read, and that `/events` and `/api/app` refuse a visitor without a session. Plain `http://` is accepted only for `localhost`; for a private certificate authority, set `NODE_EXTRA_CA_CERTS` to its root certificate.
+
+- `--full` — also sign in as a dedicated account and walk one user journey: open the organization's live-update stream, create a task, wait for its live update, read it back and delete it (an account that may not delete tasks archives it instead). Put the account in `TALE_SMOKE_EMAIL` and `TALE_SMOKE_PASSWORD`; it must not need a second factor. If the account sees no project, the first run creates one named "Tale deployment smoke" and later runs reuse it.
+- `--chat` — with `--full`, also run one chat turn on the first model available to the account. The turn spends model tokens; the conversation goes to the trash afterwards, stopped first if the turn is still running.
+- `--organization <id-or-slug>`, `--project <id>` — where the journey runs; by default, the account's first organization and project.
+- `--timeout <seconds>` — bound on each request and wait (default `15`); `--turn-timeout <seconds>` bounds the chat turn (default `120`).
+
+With `--json`, the report lists each check with its status (`pass`, `fail` or `skip`), duration and reason. Exit `0` means every check passed, `5` that at least one failed and `2` that an option is invalid. The full journey removes its task (deleted or archived) and signs out even after a failed check.
+
 `tale logs <service>` — stream a service's logs (`service` is one of the running services; on a dev-only stack with no deployment, it falls back to the dev container).
 
 - `-f, --follow` — follow log output as it is written.
