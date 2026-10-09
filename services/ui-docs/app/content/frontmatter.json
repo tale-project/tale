@@ -83,6 +83,13 @@
       "description": "Choose local panels or route navigation, preserve drafts deliberately, and keep every destination reachable."
     }
   },
+  "components/thread": {
+    "slug": "components/thread",
+    "frontmatter": {
+      "title": "Conversation thread",
+      "description": "Show chat turns, task comments and what happened between them in one calm reading column."
+    }
+  },
   "components/time-field": {
     "slug": "components/time-field",
     "frontmatter": {

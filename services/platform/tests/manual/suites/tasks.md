@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 137 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 141 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -791,6 +791,26 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   `/dashboard/{org}/tasks/{taskId}` (not the board address) and confirms with
   **Link copied** (`tasks.detail.linkCopied`). An archived task shows its badge
   on that line.
+- [ ] `TASK-F70` · **Who said it, at a glance** — On a task where you, a
+  teammate and an agent have commented → your comments sit on the right as
+  bubbles; the teammate's and the agent's read on the left under their avatar
+  and name, the agent's with **Agent** (`tasks.comment.agentBadge`), each with
+  a clock time under the day pill; a second comment by the same person within
+  five minutes joins the first without repeating the name. Hovering a comment
+  shows its Edit and Delete icons (yours only, or Delete for an admin); on a
+  phone they stay visible.
+- [ ] `TASK-F71` · **A long agent report reads short first** — On a task with
+  an agent comment of 3,000+ characters → it shows its first lines fading out
+  and **Read more** (`common.actions.readMore`) → pressing it opens the rest in
+  place and turns into **Show less** (`common.actions.showLess`), which folds it
+  back and keeps the button in view. Browser find-in-page still finds a word
+  from the folded part. A short comment shows no button.
+- [ ] `TASK-F72` · **Bursts of history fold** — After four or more status
+  changes, reassignments or failed runs in a row → they read as one line
+  **N updates** (`tasks.timeline.updates`) with who made them and when; pressing
+  it lists each one with its own glyph, and pressing again folds them. In
+  German each change keeps its own casing, e.g. **Status geändert: …**, never
+  lowercased.
 
 - [ ] `TASK-F74` · **Create from a lane** — Board → hover the **In progress**
   lane header → **+** (`tasks.board.addToLane`) → the create dialog opens with
@@ -1367,6 +1387,10 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   **Title** and the switch **Create another** with its on/off state; Space
   toggles the switch; the schedule message is announced when it appears
   (`role=alert`).
+- [ ] `TASK-A18` · **Read more and folded history by keyboard** — Tab to
+  **Read more** and to an **N updates** line → each announces its state
+  (collapsed/expanded) and opens with Enter or Space; Tab reaches a comment's
+  Edit and Delete icons, each named, with a visible focus ring.
 
 - [ ] `TASK-A20` · **Lane controls by keyboard** — Tab into a lane → its **+**
   shows on focus with a visible ring and is named **Add task to {status}**;

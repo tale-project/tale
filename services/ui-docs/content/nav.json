@@ -33,6 +33,7 @@
         "components/data-table",
         "components/dialog",
         "components/property-list",
+        "components/thread",
         "components/tabs-and-navigation",
         "components/toast",
         "components/app-shell"
