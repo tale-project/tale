@@ -478,3 +478,7 @@ replay:
   tryAgain: Try again
   refused: Couldn't start the run. {detail}
   cancel: Cancel
+view:
+  label: 'Show the run as'
+  chart: 'Chart'
+  steps: 'Steps'

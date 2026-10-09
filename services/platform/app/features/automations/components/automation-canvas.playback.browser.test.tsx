@@ -91,7 +91,11 @@ const RUN: CanvasRun = {
   record: RECORD,
 };
 
-function Harness() {
+function Harness({
+  onSelected,
+}: {
+  onSelected?: (id: string | null) => void;
+} = {}) {
   const [selected, setSelected] = useState<string | null>(null);
   return (
     <div style={{ width: 1180, height: 1500 }}>
@@ -100,7 +104,10 @@ function Harness() {
         layoutKey="triage:run-1"
         catalog={CATALOG}
         selectedId={selected}
-        onSelect={setSelected}
+        onSelect={(id) => {
+          setSelected(id);
+          onSelected?.(id);
+        }}
         inspectorId="inspector"
         run={RUN}
       />
@@ -149,6 +156,37 @@ describe('AutomationCanvas playing a recorded run in Chromium', () => {
     await waitFor(
       () => expect(node(last)).toHaveAttribute('data-flow-state', 'succeeded'),
       { timeout: 15_000 },
+    );
+  });
+
+  it('lists the same run as its steps in time order, and a row opens its step', async () => {
+    await page.viewport(1280, 1600);
+    const selected: (string | null)[] = [];
+    const view = render(<Harness onSelected={(id) => selected.push(id)} />);
+    await waitFor(
+      () => {
+        if (view.container.querySelector('[data-flow-engine]') === null) {
+          throw new Error('no chart yet');
+        }
+      },
+      { timeout: 20_000 },
+    );
+    await userEvent.click(screen.getByRole('radio', { name: 'Steps' }));
+    const steps = await screen.findByRole('tree', { name: 'Steps' });
+    // The chart steps aside; the clock and its bar stay.
+    expect(view.container.querySelector('[data-flow-engine]')).toBeNull();
+    expect(screen.getByRole('group', { name: 'Run timeline' })).toBeVisible();
+    const first = TRIAGE.nodes[0]?.id ?? '';
+    const row = within(steps)
+      .getAllByRole('treeitem')
+      .find((item) => (item.textContent ?? '').includes(first));
+    expect(row).toBeDefined();
+    if (row !== undefined) await userEvent.click(row);
+    await waitFor(() => expect(selected).toContain(first));
+    // Back to the chart, on the same moment.
+    await userEvent.click(screen.getByRole('radio', { name: 'Chart' }));
+    await waitFor(() =>
+      expect(view.container.querySelector('[data-flow-engine]')).not.toBeNull(),
     );
   });
 });

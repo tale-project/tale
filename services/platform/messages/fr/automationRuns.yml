@@ -478,3 +478,7 @@ replay:
   tryAgain: Réessayer
   refused: Impossible de lancer l’exécution. {detail}
   cancel: Annuler
+view:
+  label: 'Afficher l’exécution en'
+  chart: 'Graphique'
+  steps: 'Étapes'

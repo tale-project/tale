@@ -9,6 +9,7 @@ import {
   usePlaybackClock,
 } from '@tale/ui/flow/playback';
 import { FlowPlaybackBar, formatFlowClock } from '@tale/ui/flow/playback-bar';
+import { FlowRunTimeline } from '@tale/ui/flow/run-timeline';
 import type { FlowLayout, FlowRow } from '@tale/ui/flow/types';
 import {
   WorkflowCanvas,
@@ -16,6 +17,7 @@ import {
   type WorkflowCanvasProps,
 } from '@tale/ui/flow/workflow-canvas';
 import type { IssueCounts } from '@tale/ui/issue-summary';
+import { SegmentedControl } from '@tale/ui/segmented-control';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { AlertTriangle, Hand, Workflow } from 'lucide-react';
 import {
@@ -359,6 +361,8 @@ export function AutomationCanvas({
         words={run?.words ?? NO_WORDS}
         live={run?.live === true}
         canvasProps={canvasProps}
+        selectedId={selectedId}
+        onSelect={onSelect}
       />
       {listProps !== null && compact && (
         <AutomationPathsSheet
@@ -396,13 +400,19 @@ function RunCanvas({
   words,
   live,
   canvasProps,
+  selectedId,
+  onSelect,
 }: {
   record: RunRecordView | undefined;
   words: TimelineWords;
   live: boolean;
   canvasProps: WorkflowCanvasProps;
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
 }) {
+  const { t } = useT('automationRuns');
   const { graph } = canvasProps;
+  const [view, setView] = useState<'chart' | 'steps'>('chart');
   const timeline = useMemo(
     () =>
       record === undefined
@@ -421,24 +431,66 @@ function RunCanvas({
     if (!live) setT(timeline.duration);
   }, [record, live, timeline.duration, setT]);
   if (record === undefined) return <WorkflowCanvas {...canvasProps} />;
+  const formatTime = (at: number) =>
+    formatFlowClock(timeline.toReal(at) - record.startedAt);
+  const bar = (
+    <FlowPlaybackBar
+      timeline={timeline}
+      t={clock.t}
+      onTChange={setT}
+      playing={clock.playing}
+      onPlayingChange={clock.setPlaying}
+      speed={clock.speed}
+      onSpeedChange={clock.setSpeed}
+      formatTime={formatTime}
+      {...(live && !clock.following && { onFollowLive: clock.follow })}
+    />
+  );
+  // The run as a chart or as its steps in time order: one clock, so both
+  // show the same moment, and switching keeps where the reader was.
+  const switcher = (
+    <SegmentedControl
+      aria-label={t('view.label')}
+      value={view}
+      onValueChange={(next) => {
+        if (next === 'chart' || next === 'steps') setView(next);
+      }}
+      options={[
+        { value: 'chart', label: t('view.chart') },
+        { value: 'steps', label: t('view.steps') },
+      ]}
+    />
+  );
+  if (view === 'steps') {
+    return (
+      <div className="flex h-full min-h-0 flex-col gap-2 p-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {switcher}
+          <div className="min-w-0 flex-1">{bar}</div>
+        </div>
+        <FlowRunTimeline
+          graph={graph}
+          timeline={timeline}
+          t={clock.t}
+          onSeek={setT}
+          selectedId={selectedId}
+          onSelect={(row) => onSelect(row.nodeId ?? null)}
+          formatTime={formatTime}
+          live={live}
+          className="min-h-0 flex-1"
+        />
+      </div>
+    );
+  }
   return (
     <WorkflowCanvas
       {...canvasProps}
       playback={{ timeline, t: clock.t }}
       toolbar={
-        <FlowPlaybackBar
-          timeline={timeline}
-          t={clock.t}
-          onTChange={setT}
-          playing={clock.playing}
-          onPlayingChange={clock.setPlaying}
-          speed={clock.speed}
-          onSpeedChange={clock.setSpeed}
-          formatTime={(t) =>
-            formatFlowClock(timeline.toReal(t) - record.startedAt)
-          }
-          {...(live && !clock.following && { onFollowLive: clock.follow })}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {switcher}
+          {bar}
+        </div>
       }
     />
   );

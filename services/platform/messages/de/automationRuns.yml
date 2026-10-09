@@ -478,3 +478,7 @@ replay:
   tryAgain: Erneut versuchen
   refused: Der Lauf konnte nicht gestartet werden. {detail}
   cancel: Abbrechen
+view:
+  label: 'Lauf anzeigen als'
+  chart: 'Diagramm'
+  steps: 'Schritte'
