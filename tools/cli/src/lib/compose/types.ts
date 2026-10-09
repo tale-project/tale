@@ -205,7 +205,7 @@ export const THIRD_PARTY_IMAGES = {
  * (`services/sandbox/src/config.ts`).
  */
 export const BUILDKITD_MIRROR_IMAGE =
-  'registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373';
+  'registry:3.1.2@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8';
 
 /**
  * A single-architecture image needs the same selection in Compose and the
