@@ -44,18 +44,28 @@ describe('sweepSettledModelApiOps', () => {
     expect(deleted).toBe(3);
     expect(statements).toHaveLength(1);
     const [statement] = statements;
-    expect(statement?.text).toBe(
-      'DELETE FROM app.sandbox_session_ops WHERE id IN ( ' +
-        'SELECT id FROM app.sandbox_session_ops ' +
-        "WHERE kind = 'model-api' " +
-        "AND status <> 'running' " +
-        'AND spend_settled_at_ms IS NOT NULL ' +
-        'AND (key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL) ' +
-        'AND started_at_ms < ? ' +
-        'ORDER BY started_at_ms LIMIT ? ) RETURNING id',
-    );
+    for (const kind of ['model-api', 'automation-llm']) {
+      expect(statement?.text).toContain(
+        `WHERE kind = '${kind}' AND status <> 'running'`,
+      );
+    }
+    expect(
+      statement?.text.match(/AND spend_settled_at_ms IS NOT NULL/g),
+    ).toHaveLength(2);
+    expect(
+      statement?.text.match(
+        /AND \(key_revoked_at_ms IS NOT NULL OR minted_key_id IS NULL\)/g,
+      ),
+    ).toHaveLength(2);
+    expect(statement?.text).toContain('UNION ALL');
     // The cutoff is a week before the tick; the default batch is 1,000.
-    expect(statement?.values).toEqual([NOW - WEEK_MS, 1_000]);
+    expect(statement?.values).toEqual([
+      NOW - WEEK_MS,
+      1_000,
+      NOW - WEEK_MS,
+      1_000,
+      1_000,
+    ]);
   });
 
   it('spells the kind as the literal the partial index is declared on, never a bound value', async () => {
@@ -83,7 +93,7 @@ describe('sweepSettledModelApiOps', () => {
     expect(deleted).toBe(5);
     expect(statements).toHaveLength(3);
     for (const statement of statements) {
-      expect(statement.values).toEqual([NOW - WEEK_MS, 2]);
+      expect(statement.values).toEqual([NOW - WEEK_MS, 2, NOW - WEEK_MS, 2, 2]);
     }
   });
 

@@ -543,8 +543,14 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
           input: llmInput,
           recallable: true,
         },
-        async () => {
+        async (attempt) => {
           const reply = await run.llm({
+            attempt: {
+              nodeId: args.path,
+              itemIndex: args.itemIndex,
+              pass: args.pass,
+              attempt,
+            },
             model,
             prompt,
             ...(system !== undefined && { system }),

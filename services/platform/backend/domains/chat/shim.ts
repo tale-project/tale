@@ -192,7 +192,8 @@ const WEBSITE_SUMMARY_CAP = 200;
 
 /** What a project's own API key may read through the chat tools: the
  * subjects its access scope narrows to its project. Contacts, products,
- * websites and the inbox are the organization's, never one project's. */
+ * websites, knowledge entries and the inbox are the organization's, never
+ * one project's. */
 const PROJECT_KEY_READ_SUBJECTS: ReadonlySet<string> = new Set([
   'documents',
   'tasks',

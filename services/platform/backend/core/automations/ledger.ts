@@ -165,7 +165,7 @@ function failureSentence(error: unknown): string {
 export async function callThroughLedger(
   ledger: RunLedger,
   call: LedgerCall,
-  make: () => Promise<unknown>,
+  make: (attempt: number) => Promise<unknown>,
   signal?: AbortSignal,
 ): Promise<unknown> {
   const address: CallAddress = {
@@ -209,7 +209,7 @@ export async function callThroughLedger(
   }
   let output: unknown;
   try {
-    output = await make();
+    output = await make(begun.attempt);
   } catch (error) {
     if (signal?.aborted === true) throw error;
     await ledger

@@ -75,8 +75,10 @@ the key acts with, and names whose key it is.
 A team's key sees the team's projects, documents and inbox. A project's key reaches its project,
 the project list (which shows that project only), `GET /me` and the model endpoints; any other
 route is refused (`API_KEY_SCOPE_FORBIDDEN`). Through the chat assistant it reads its project's
-files and tasks, and none of the organization's contacts, products, websites, inbox or hub
-documents. The organization's key sees what its role sees across the organization.
+files and tasks, and none of the organization's contacts, products, websites, inbox, knowledge
+entries or hub documents. Organization-wide knowledge entries stay out of both search and
+listing, including the user-keyed sandbox entry finder. The organization's key sees what its role
+sees across the organization.
 
 - **Example**: The Launch project's key calls `GET /contacts` → 403 `API_KEY_SCOPE_FORBIDDEN`.
 

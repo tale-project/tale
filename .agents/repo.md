@@ -769,6 +769,9 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   that the old execution is retired, an authorized decision about unknown external effects, and
   a guarded release contract. Never clear the hold or manufacture node-attempt evidence merely
   because a stop was requested, a lease expired, or the old containers disappeared.
+  Erasure deletes other eligible subject runs and records the held runs separately on a partial
+  receipt; organization deletion returns an explicit conflict. These are containment, not a
+  retirement contract or a release of the holds.
 - **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
   30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
   read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by

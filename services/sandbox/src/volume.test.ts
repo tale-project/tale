@@ -27,6 +27,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import renovate from '../../../.github/renovate.json';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
 import type { SpawnerConfig } from './types.ts';
 import {
@@ -218,6 +219,55 @@ async function rejection(promise: Promise<unknown>): Promise<Error | null> {
 }
 
 describe('per-organization cache volumes', () => {
+  test.each([false, true])(
+    'permission setup executes an immutable helper for an in-use cache: %s',
+    async (inUse) => {
+      const name = npmCacheVolumeName(cfg, nextOrg());
+      if (inUse) await plantUnlabelled(name, true);
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        await ensureCacheVolume(name);
+        const runs = (await calls()).filter((call) => call.startsWith('run '));
+        expect(runs).toHaveLength(1);
+        expect(runs[0]?.split(' ')[8]).toMatch(
+          /^busybox:[^\s@]+@sha256:[a-f0-9]{64}$/,
+        );
+        expect(await volume(name)).toEqual({
+          labelled: !inUse,
+          mode: '1777',
+        });
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
+  test('Renovate discovers the one production helper pin', async () => {
+    const managers = renovate.customManagers.filter((manager) =>
+      manager.managerFilePatterns.includes(
+        '/^services/sandbox/src/volume\\.ts$/',
+      ),
+    );
+    expect(managers).toHaveLength(1);
+    const manager = managers[0];
+    if (manager === undefined) throw new Error('Cache helper updater missing');
+    expect(manager.datasourceTemplate).toBe('docker');
+    expect(manager.versioningTemplate).toBe('docker');
+    const source = await readFile(
+      new URL('./volume.ts', import.meta.url),
+      'utf8',
+    );
+    const matches = manager.matchStrings.flatMap((pattern) =>
+      Array.from(source.matchAll(new RegExp(pattern, 'g'))),
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.groups).toEqual({
+      depName: 'busybox',
+      currentValue: expect.stringMatching(/^\d+\.\d+(?:\.\d+)?$/),
+      currentDigest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+    });
+  });
+
   test('a volume made ready is not asked about again on the next create', async () => {
     const name = npmCacheVolumeName(cfg, nextOrg());
     const now = 1_000_000;
@@ -290,7 +340,11 @@ describe('a cache volume Docker made itself', () => {
       inspectCall(name),
       `volume rm ${name}`,
       `volume create --label tale.sandbox-cache=1 ${name}`,
-      `run --rm --user 0:0 --label tale.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache busybox:1.36 chmod 1777 /cache`,
+      expect.stringMatching(
+        new RegExp(
+          `^run --rm --user 0:0 --label tale\\.sandbox-staging=1 --mount type=volume,src=${name},dst=/cache busybox:[^\\s@]+@sha256:[a-f0-9]{64} chmod 1777 /cache$`,
+        ),
+      ),
     ]);
     // Labelled, it is the organization's again: its teardown removes it.
     expect(await removeCacheVolumes(cfg, org)).toBe(1);

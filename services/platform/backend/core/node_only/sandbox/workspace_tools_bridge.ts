@@ -86,9 +86,9 @@ const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_EFFECT_TOOLS);
 
 /**
  * The role-matrix table each tool reads, for the per-dispatch access check.
- * Knowledge surfaces (RAG passages, hub listings, entries) all map to
- * `documents`: passages ARE document content and entries are document-backed,
- * so one subject governs the whole knowledge read path.
+ * Scoped document passages and listings share `documents`. Knowledge entries
+ * are organization-wide, so their own subject must reach the user fallback
+ * gate instead of inheriting a project API key's document access.
  */
 const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, SessionActionSubject> = {
   rag_search: 'documents',
@@ -96,7 +96,7 @@ const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, SessionActionSubject> = {
   // subject to 'websites' per call — this entry is the file-id default.
   rag_fetch: 'documents',
   document_find: 'documents',
-  knowledge_entry_find: 'documents',
+  knowledge_entry_find: 'knowledge_entries',
   contact_find: 'contacts',
   product_find: 'products',
   website_find: 'websites',
@@ -191,7 +191,18 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'automation run and a pending review. Args: {taskId: string, ' +
     'commentLimit?: number (≤ 50, default 20), commentCursor?: string, ' +
     'runLimit?: number (≤ 20, default 5), runCursor?: string, ' +
-    'reviewFileCursor?: string}. comments are ' +
+    'reviewFileCursor?: string}. For a compact run observation use only ' +
+    '{taskId, view: "occupancy", requestedRunId?: string}: no paging arguments. ' +
+    'Require output.view "occupancy" to confirm support; an older full reply ' +
+    'does not bind the requested run. It returns currentRun (newest) and, ' +
+    'when requested, that exact requestedRun, plus workflowRun and the server ' +
+    'observed read interval. A historical terminal run never replaces a newer ' +
+    'occupant. Missing/inaccessible requested runs fail; failures are unknown. ' +
+    'This omits instructions, comments, feedback, blockers and reviews. The ' +
+    'read is not atomic, does not reserve capacity and never authorizes a ' +
+    'start or review; read full current context and use guarded mutations. ' +
+    'A quarantined workflow remains held even though it is not live. ' +
+    'In the default full view, comments are ' +
     'the newest page, oldest first, each with its commentId (the messageId ' +
     'task_comment answered); while commentsPage.isDone is false, pass ' +
     'commentsPage.continueCursor as commentCursor for older ones. agentRuns ' +

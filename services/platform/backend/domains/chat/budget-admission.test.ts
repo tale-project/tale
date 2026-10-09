@@ -148,6 +148,23 @@ describe('assertChatTurnBudget', () => {
     expect(statements[0]?.values).toEqual(['thread_in_project', 'org_1']);
   });
 
+  it.each([{ projectIds: ['original-project'] }, { projectIds: [] }])(
+    'measures the captured projects without following a moved thread: $projectIds [GOV-R14]',
+    async ({ projectIds }) => {
+      const threadSql = vi
+        .fn()
+        .mockResolvedValue([{ projectId: 'moved-project' }]);
+      await assertChatTurnBudget(threadSql as never, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'moved-thread',
+        projectIds,
+      });
+      expect(gate.subjects).toEqual([expect.objectContaining({ projectIds })]);
+      expect(threadSql).not.toHaveBeenCalled();
+    },
+  );
+
   it('refuses a reached cap with BUDGET_EXCEEDED, naming the cap and its reset [CHAT-R6]', async () => {
     gate.violation = {
       scope: 'team',

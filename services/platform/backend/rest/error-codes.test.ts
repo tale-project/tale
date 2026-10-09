@@ -457,6 +457,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // an unknown slug `ORG_SLUG_INVALID` and never creates or deletes one.
   'ORG_NOT_FOUND',
   'ORG_SLUG_RETIRING',
+  // The app's organization delete refuses unresolved legacy automation
+  // holds; REST mounts no organization-deletion door.
+  'ORG_LEGACY_AUTOMATION_HELD',
   // The skill bundle's zip upload lane; the REST save writes SKILL.md
   // through the file layer, whose failure is a 500, never this code.
   'WRITE_FAILED',

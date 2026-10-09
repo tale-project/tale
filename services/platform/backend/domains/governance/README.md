@@ -52,7 +52,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    subautomation's included, which runs as one step of its parent's run — spends outside any
    session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
    run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
-   subject before each call and books the call after it. Every lane that measures a run's subject
+   subject under the shared admission lock and reserves the full priced prompt/output estimate on an `automation-llm` op before each call. The durable effect attempt identifies the op. Reported usage is persisted before idempotent settlement; an unknown outcome keeps its hold until the bounded request lifetime, then books the reserved estimate. Its `expected_cents` remains NULL and `floor_cents` records that estimate, so it is distinguishable from reported usage. A model without catalog pricing is refused before dispatch. Every lane that measures a run's subject
    builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A run's `started_by` is
    parsed only by `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter
    anywhere else is a defect.
@@ -87,6 +87,21 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    its project whatever it calls (`loadBudgetSubject`). Transcription and video ingestion name no
    project.
 
+   Voice output reserves its estimated cost and one request under the projects captured at
+   admission (`tts_audio_chunks.project_ids`); `[]` means deliberately no project. A successful
+   request records its resolved model rate. Any already-reserved failure, watchdog expiry or
+   stale replacement records the saved estimate and one request once before releasing its hold,
+   including a failure before the provider POST: no durable dispatch distinction is available.
+   This is conservative estimated usage, not confirmation of a provider charge. A successful
+   provider response followed by a body/storage failure retains the resolved rate. A retry must
+   fit the remaining budget after the predecessor estimate; late results cannot charge that
+   predecessor again or release the successor's hold. Legacy `NULL` project stamps retain the
+   current-thread fallback, and a `NULL` saved price is never reconstructed. Ordinary age cleanup
+   defers pending attempts to their existing watchdog. Authorized history purge and erasure keep
+   their existing deletion behavior; the budget rule does not restore erased attribution or
+   promise a strict cap across that privacy boundary. Old admission writers must retire before
+   every new request receives these reservation guarantees.
+
 ## Lanes (the write side)
 
 | Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` | project |
@@ -95,9 +110,9 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — | the thread's (`chat.generate_title` job) |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
-| Automation `llm` step | `resolveAutomationRunAttribution` (`domains/automations/llm-metering.ts`) → `createPgUsageLedger` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| Automation `llm` step | `resolveAutomationRunAttribution` → immutable `automation-llm` op → `settleSessionOpSpend` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
-| Voice output | `domains/tts` | the requester | `__tts__` | — | the thread's |
+| Voice output | `domains/tts` | the requester | `__tts__` | — | captured at admission; legacy `NULL` uses the current thread |
 | Transcription | `domains/files/transcription.ts` | the requester | `__transcription__` | — | — |
 | Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
 | Connector call | `recordConnectorUsage` | the caller | optional | — | the chat's, for the assistant's tools |
@@ -120,7 +135,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
 - `core/automations/llm_call.test.ts`, `domains/automations/llm-metering.test.ts` — an
-  automation's `llm` step is measured before each call, refused with `budget_exceeded` at a
+  automation's `llm` step reserves before each call, refused with `budget_exceeded` at a
   reached cap, and booked under its run's subject after it, an empty reply included.
 - `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder
   with the key and books the gateway's figure under the person, `__direct_api__` and the key.

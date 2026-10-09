@@ -13,6 +13,7 @@ import { lockOrgAdmission } from './admission-lock.ts';
 import {
   resolveSessionOpAttribution,
   type SessionOpAttribution,
+  withSessionOpBillingProjects,
 } from './op-attribution.ts';
 
 /**
@@ -45,7 +46,7 @@ export async function reserveTurnBudget(
     /** `model-api`: one request through the model endpoints for API keys
      * (`domains/model_api`), which has no run behind it and names its
      * subject itself. */
-    kind: 'task-agent' | 'workflow-agent' | 'model-api';
+    kind: 'task-agent' | 'workflow-agent' | 'model-api' | 'automation-llm';
     defaultBudgetCents: number;
     modelRef?: string;
     /** The harness this turn runs on — the op row's own record, which the
@@ -56,6 +57,10 @@ export async function reserveTurnBudget(
      * `__direct_api__`, with the key. Stamped on the op row, where the
      * settlement's attribution finds it (`resolveSessionOpAttribution`). */
     subject?: SessionOpAttribution;
+    /** Backend-only direct LLM admission: validate the live effect attempt
+     * and resolve its billing subject under the shared budget lock. Throw
+     * on a stale/replayed call to roll back the entire reservation. */
+    prepareSubject?: (tx: TransactionSql) => Promise<SessionOpAttribution>;
     /** Admit the default whole or not at all, with this many tokens: the
      * model endpoints' hold is the request's worst case, never a budget to
      * shrink to what remains (`resolveTurnAllowance`'s `whole`). The tokens
@@ -68,13 +73,36 @@ export async function reserveTurnBudget(
     concurrencyLimit?: number;
   },
 ): Promise<TurnAllowance> {
+  if (args.kind === 'automation-llm') {
+    if (
+      args.whole === undefined ||
+      args.prepareSubject === undefined ||
+      args.subject !== undefined
+    ) {
+      throw new Error(
+        'A direct automation LLM reservation needs its complete estimate and live attempt subject',
+      );
+    }
+  } else if (args.prepareSubject !== undefined) {
+    throw new Error(
+      'Only a direct automation LLM reservation can prepare an effect subject',
+    );
+  }
   const defaultCents = Math.max(1, Math.floor(args.defaultBudgetCents));
   return sql.begin(async (tx) => {
-    if (args.kind !== 'model-api') {
+    if (args.kind !== 'model-api' && args.kind !== 'automation-llm') {
       await lockOrgAdmission(tx, args.organizationId);
     }
-    const attribution =
-      args.subject ?? (await resolveSessionOpAttribution(tx, args));
+    // Read after the shared lock: a prior admission of this op may have
+    // committed its projects while this transaction waited.
+    await lockBudgetAdmission(tx, args.organizationId);
+    const attribution = await withSessionOpBillingProjects(
+      tx,
+      args,
+      args.prepareSubject !== undefined
+        ? await args.prepareSubject(tx)
+        : (args.subject ?? (await resolveSessionOpAttribution(tx, args))),
+    );
     const userId = attribution?.userId ?? '';
     // Nobody to measure — an op without a run to attribute, or a run a
     // trigger started — is evaluated against the organization's caps (and
@@ -89,7 +117,6 @@ export async function reserveTurnBudget(
     // The chat lane's opens take the same budget-admission lock and hold on
     // their generation rows: the allowance counts live chat turns as well
     // as the unsettled ops, and they count it.
-    await lockBudgetAdmission(tx, args.organizationId);
     if (args.concurrencyLimit !== undefined && userId !== '') {
       const busy = await runningRequestsOf(tx, {
         organizationId: args.organizationId,
@@ -135,7 +162,7 @@ export async function reserveTurnBudget(
         ${args.kind}, 'running',
         ${userId === '' ? null : userId},
         ${attribution?.agentSlug ?? null}, ${attribution?.apiKeyId ?? null},
-        ${subject.projectIds !== undefined ? [...subject.projectIds] : null},
+        ${[...(subject.projectIds ?? [])]},
         ${args.modelRef ?? null}, ${args.harness ?? null},
         ${allowance.budgetCents}, ${args.whole?.prospectiveTokens ?? null},
         ${now}, ${now}

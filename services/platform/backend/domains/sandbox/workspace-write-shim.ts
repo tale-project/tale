@@ -10,7 +10,10 @@ import {
 } from '../documents/agent-write.ts';
 import { readAgentTaskReviewSummaries } from '../tasks/agent-review-discovery.ts';
 import { readAgentTaskReviewFiles } from '../tasks/agent-review-files.ts';
-import { readTaskWorkState } from '../tasks/agent-work-state.ts';
+import {
+  readTaskOccupancy,
+  readTaskWorkState,
+} from '../tasks/agent-work-state.ts';
 import { addTaskComment } from '../tasks/comments.ts';
 import { upsertTaskByExternalRef } from '../tasks/external-ref.ts';
 import {
@@ -130,6 +133,12 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
           pendingReview: reviews.get(task.id) ?? null,
         }),
       );
+    },
+
+    'tasks/internal_queries:getTaskOccupancyForAgent': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- internal bridge passes this shape after checking the same task scope as full reads
+      const args = raw as Parameters<typeof readTaskOccupancy>[1];
+      return readTaskOccupancy(sql, args);
     },
 
     'tasks/internal_queries:getTaskWorkStateForAgent': async (raw) => {

@@ -95,6 +95,7 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkImmutableBudgetProjects } from './domains/governance/immutable-projects.integration.ts';
 import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
 import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
@@ -159,6 +160,7 @@ import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.i
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
 import { checkTaskWorkflowParentMoves } from './domains/tasks/workflow-parent-moves.integration.ts';
+import { checkTtsBudgetReservations } from './domains/tts/budget.integration.ts';
 import { checkVideoLinkComposerChips } from './domains/video_links/composer-chips.integration.ts';
 import { checkRenderFailedCreate } from './domains/websites/render-failed-create.integration.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
@@ -12267,7 +12269,12 @@ async function checkAutomations(
           JSON.stringify({
             object: 'list',
             data: [
-              { id: 'itest-llm', object: 'model', context_length: 32_768 },
+              {
+                id: 'itest-llm',
+                object: 'model',
+                context_length: 32_768,
+                pricing: { prompt: '0.000001', completion: '0.000002' },
+              },
             ],
           }),
         );
@@ -62279,6 +62286,14 @@ async function main(): Promise<void> {
       [
         'checkProjectBudgets',
         () => checkProjectBudgets(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkImmutableBudgetProjects',
+        () => checkImmutableBudgetProjects(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkTtsBudgetReservations',
+        () => checkTtsBudgetReservations(sql, baseUrl, authCtx, record),
       ],
       [
         'checkOrphanedOrgRowsBackfill',

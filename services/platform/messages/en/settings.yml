@@ -253,6 +253,7 @@ organization:
   deleteLoading: Deleting…
   deleteSuccess: Organization deleted
   deleteFailed: Couldn't delete organization
+  deleteBlockedByLegacyAutomation: Automation runs are on hold because their earlier external actions have not been verified. Your organization was preserved. A stop request does not release these holds.
   deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
   deleteTypeNameLabel: Type the organization name to confirm
   deleteConfirmNameMismatch: The confirmation doesn't match the organization name. Reload the page and try again.
