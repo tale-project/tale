@@ -364,6 +364,10 @@ Auch bei einem entfernten Docker-Daemon erfasst der Spawner dessen Host über ei
 
 Beim Upgrade entstehen leere Organisationscaches; die alten globalen Cachedaten bleiben erhalten. Alte Hilfscontainer stoppen automatisch, sobald keine laufende Session mehr auf sie angewiesen ist. Lass alte angepinnte Sessions auslaufen oder stoppe sie, um den Übergang abzuschließen; bis dahin bleibt der alte gemeinsame Cachedienst erreichbar. Browserautomatisierung nutzt Chromium ohne grafische Oberfläche. Die Live-Ansicht und manuelle Browserübernahme sind entfernt.
 
+### Images der inneren Docker-Engine
+
+Ist der gemeinsame Build-Cache aktiv, lädt die innere Docker-Engine einer Session Docker-Hub-Images über den docker.io-Registry-Mirror ihrer Organisation, also denselben Cache, den ihre Builds nutzen. Läuft dieser Mirror nicht, lädt sie direkt von Docker Hub. Images aus anderen Registries lädt sie direkt. Geht eine innere Engine mit mehr als 10 GiB an Images und Build-Cache in den Leerlauf, entfernt sie vorher ihre unbenannten, unbenutzten Images und kürzt ihren Build-Cache auf die zuletzt genutzten 5 GiB; benannte Images, Container und Volumes bleiben. Unter Kubernetes begrenzt stattdessen die Größenbeschränkung des Volumes den inneren Speicher, wenn sie unter 10 GiB liegt.
+
 ### Innere Docker-Netzwerke
 
 Die automatische Auswahl prüft unter Docker und Kubernetes IPv4-Routen und Gateways aus allen Routingtabellen, Adressen und Präfixe der Schnittstellen, DNS-Server sowie die aufgelösten Adressen der beim Containerstart konfigurierten Proxy- und Gateway-Hosts. Hosts, die erst während eines Agent-Turns übergeben werden, fehlen in dieser anfänglichen Erfassung. Ein später angeschlossenes Docker-Organisationsnetzwerk berücksichtigt sie ebenfalls. Die Runtime bevorzugt ein freies `172.31.0.0/16` und prüft danach andere private `/16`-Bereiche. Das erste `/24` gehört zu `docker0`; innere Compose-Netzwerke erhalten `/24`-Blöcke aus demselben Pool. Im automatischen Modus startet die Session nicht, wenn Abfragen scheitern oder kein privater Bereich frei bleibt.

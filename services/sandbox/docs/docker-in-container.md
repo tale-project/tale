@@ -201,7 +201,9 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   store without bound. Tagged images, images a container uses, containers and
   volumes stay. The trim is bounded and best-effort: a failure is logged and
   the engine stops anyway, and a Docker command arriving during the trim
-  keeps the engine running.
+  keeps the engine running. A store whose volume is limited below 10 GiB (a
+  Kubernetes emptyDir sized smaller) is bounded by that limit instead: the
+  kubelet evicts the Pod at it, so the trim never runs there.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the

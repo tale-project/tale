@@ -53,7 +53,8 @@ inventory keeps it running. The next Docker command starts
 it again with the same image store, volumes and workspace. Before that stop,
 an engine whose images and build cache exceed 10 GiB removes its dangling
 images and prunes its build cache to 5 GiB through the engine API (bounded,
-logged, never blocking the stop). Existing container state at
+logged, never blocking the stop); a Kubernetes store limited below 10 GiB is
+bounded by its volume's size limit instead. Existing container state at
 session-container boot starts the engine immediately so restart policies still
 work. This needs no agent setting and does not change the
 deployment's runtime isolation or resource limits.

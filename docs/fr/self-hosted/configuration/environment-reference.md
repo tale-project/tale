@@ -364,6 +364,10 @@ Pour observer l’hôte du daemon même avec Docker à distance, le spawner lanc
 
 Une mise à niveau crée des caches d’organisation vides et conserve les anciennes données globales. Les anciens conteneurs auxiliaires s’arrêtent automatiquement dès qu’aucune session active n’en dépend. Laisse se terminer les anciennes sessions épinglées ou arrête-les pour achever la transition ; jusque-là, l’ancien service de cache partagé reste accessible. L’automatisation du navigateur utilise Chromium sans interface graphique. La vue en direct et la prise de contrôle manuelle ont été retirées.
 
+### Images du moteur Docker interne
+
+Quand le cache de build partagé est actif, le moteur Docker interne d’une session télécharge les images Docker Hub via le miroir de registre docker.io de son organisation, le même cache que ses builds, et revient à Docker Hub quand ce miroir ne tourne pas. Les images des autres registres sont téléchargées directement. Un moteur interne qui devient inactif avec plus de 10 GiB d’images et de cache de build supprime d’abord ses images orphelines et réduit son cache de build aux 5 GiB utilisés le plus récemment ; les images nommées, les conteneurs et les volumes restent. Sur Kubernetes, c’est la limite de taille du volume du stockage interne qui le borne quand elle est inférieure à 10 GiB.
+
 ### Réseaux Docker internes
 
 Sur Docker et Kubernetes, le choix automatique vérifie les routes IPv4 et leurs passerelles dans toutes les tables de routage, les adresses et préfixes des interfaces, les serveurs DNS et les adresses résolues des hôtes de proxy et de passerelle configurés dans l’environnement au démarrage du conteneur. Les hôtes transmis plus tard pendant un tour d’agent échappent à cette observation initiale. Il tient aussi compte du réseau d’organisation Docker raccordé ensuite. Le runtime privilégie `172.31.0.0/16` s’il est libre, puis essaie d’autres plages privées `/16`. Le premier `/24` sert à `docker0` ; les réseaux Compose internes utilisent des blocs `/24` du même pool. En mode automatique, une observation indisponible ou l’absence de plage libre empêche le démarrage de la session.

@@ -364,6 +364,10 @@ To observe the daemon’s host even with remote Docker, the spawner briefly runs
 
 Upgrades create cold organization caches and retain the old global cache data. Old helper containers stop automatically after no running session depends on them. Drain or stop old pinned sessions to complete that transition; until then the old shared cache service remains reachable. Browser automation uses headless Chromium; live browser viewing and manual browser takeover are retired.
 
+### Inner Docker images
+
+With the shared build cache on, a session's inner Docker engine pulls Docker Hub images through its organization's docker.io registry mirror, the same cache its builds use, and falls back to Docker Hub when that mirror is not running. Images from other registries are pulled directly. An inner engine that goes idle with more than 10 GiB of images and build cache first removes its dangling images and prunes its build cache to the 5 GiB used most recently; tagged images, containers and volumes stay. On Kubernetes, the size limit of the inner store's volume bounds it instead when that limit is below 10 GiB.
+
 ### Inner Docker networks
 
 On Docker and Kubernetes, automatic selection checks IPv4 routes and gateways from all routing tables, interface addresses and prefixes, DNS servers, and the resolved addresses of proxy and gateway hosts configured in the container environment at startup. Hosts supplied later during an agent turn are outside that initial observation. It also accounts for a Docker organization bridge that will attach later. The runtime prefers a free `172.31.0.0/16`, then tries other private `/16` ranges. The first `/24` serves `docker0`; inner Compose networks use `/24` blocks from that same pool. In automatic mode, failed observations or exhausted private space prevent session startup.
