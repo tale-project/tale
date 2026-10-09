@@ -15,6 +15,14 @@ regression keep summary and breakdown counts consistent for both stored shapes. 
 
 ## Coverage map
 
+Default credential reads share one query per organization within a request or
+turn. `backend/domains/provider_credentials/service.default-reads.test.ts`
+checks distinct organization rows, fresh rows after broker-handler invalidation,
+retry after failure, and an older failed read arriving after a newer generation
+has loaded. That late failure must preserve the newer cached result. The broker
+invalidation fixture stops at argument validation; it does not claim a successful
+database write or measure production latency.
+
 Docker package-cache permission setup uses an immutable multi-architecture helper
 image. `services/sandbox/src/volume.test.ts` checks the actual CLI arguments for
 new caches and in-use cache repairs, preserves mode `1777`, and verifies that
