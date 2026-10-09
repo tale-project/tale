@@ -122,7 +122,7 @@ agentRun:
     model: Das KI-Modell hinter diesem Agenten ist ausgefallen, bevor die Arbeit erledigt war. Starte den Agenten erneut — schlägt er wieder fehl, bitte einen Admin, den KI-Anbieter zu prüfen.
     start: 'Der Lauf konnte nicht starten. Versuche es erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
     interrupted: Der Lauf wurde unterbrochen, bevor der Agent fertig war. Starte den Agenten erneut.
-    out_of_memory: Der Sandbox des Agenten ist der Arbeitsspeicher ausgegangen, deshalb wurde seine Arbeit gestoppt. Tale versucht es nach einer Pause erneut — passiert das wieder, bitte einen Admin, Agenten mehr Arbeitsspeicher zu geben.
+    out_of_memory: Der Sandbox des Agenten ist der Arbeitsspeicher ausgegangen, deshalb wurde seine Arbeit gestoppt. Starte den Agenten erneut — passiert das wieder, bitte einen Admin, Agenten mehr Arbeitsspeicher zu geben.
     stalled: 'Der Agent hat nicht mehr reagiert: Er hat lange nichts ausgegeben und kaum gearbeitet, deshalb hat seine Sandbox ihn gestoppt. Starte den Agenten erneut — bleibt er wieder stehen, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
     unknown: 'Der Lauf ist fehlgeschlagen. Starte den Agenten erneut — schlägt er wieder fehl, zeig einem Admin, was der Lauf unter "Details" gemeldet hat.'
   standardAgent:

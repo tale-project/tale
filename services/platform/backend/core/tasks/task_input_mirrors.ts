@@ -31,10 +31,16 @@ const REVIEWS_DIR_NAME = 'reviews';
 
 const REVIEW_INPUTS_ROOT = `${TASK_INPUTS_ROOT}/${REVIEWS_DIR_NAME}`;
 
-/** The most copies of each kind one pass looks at, the oldest first, so a
+/** The most copies of each kind one pass removes, the oldest first, so a
  * worker that gathered many is cleared over several starts rather than
  * holding up one. */
 export const MAX_INPUT_MIRRORS_PER_PASS = 50;
+
+/** The most copies of each kind one pass asks about, the oldest first: far
+ * more than it removes, so copies that are still needed — the oldest are
+ * often long-open tasks — never hide the stale ones behind them. One
+ * indexed lookup answers them all. */
+const MAX_INPUT_MIRROR_CANDIDATES = 1000;
 
 /** A directory name a task id can be; anything else under the root is left
  * alone, since nothing the platform stages is named so. */
@@ -52,7 +58,7 @@ export function reviewInputsDir(taskId: string): string {
   return `${REVIEW_INPUTS_ROOT}/${hash}`;
 }
 
-/** The names of up to {@link MAX_INPUT_MIRRORS_PER_PASS} directories that
+/** The names of up to {@link MAX_INPUT_MIRROR_CANDIDATES} directories that
  * `accept` takes, the least recently changed first. */
 function oldestDirs(
   entries: readonly SessionFsEntry[],
@@ -61,7 +67,7 @@ function oldestDirs(
   return entries
     .filter((entry) => entry.type === 'dir' && accept(entry.name))
     .sort((a, b) => a.mtimeMs - b.mtimeMs)
-    .slice(0, MAX_INPUT_MIRRORS_PER_PASS)
+    .slice(0, MAX_INPUT_MIRROR_CANDIDATES)
     .map((entry) => entry.name);
 }
 
@@ -119,9 +125,14 @@ export async function pruneStaleTaskInputMirrors(
         taskIds,
         reviewHashes,
       });
+    // The answer keeps the candidates' order, oldest first.
     const paths = [
-      ...stale.taskIds.map((id) => `${TASK_INPUTS_ROOT}/${id}`),
-      ...stale.reviewHashes.map((hash) => `${REVIEW_INPUTS_ROOT}/${hash}`),
+      ...stale.taskIds
+        .slice(0, MAX_INPUT_MIRRORS_PER_PASS)
+        .map((id) => `${TASK_INPUTS_ROOT}/${id}`),
+      ...stale.reviewHashes
+        .slice(0, MAX_INPUT_MIRRORS_PER_PASS)
+        .map((hash) => `${REVIEW_INPUTS_ROOT}/${hash}`),
     ];
     if (paths.length === 0) return;
     const removed = await sessionDeleteFiles(args.sessionId, paths);
