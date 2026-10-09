@@ -33,8 +33,15 @@ import { ImagePreviewDialog } from './image-preview-dialog';
 import { PaginatedMarkdownTable } from './paginated-markdown-table';
 
 /** Link replacements supplied by a surface that owns stored files. */
+export type MarkdownLinkOverride =
+  | string
+  | {
+      href: string;
+      onClick: (event: MouseEvent<HTMLAnchorElement>) => void;
+    };
+
 export const MarkdownLinkOverridesContext = createContext<
-  Readonly<Record<string, string>> | undefined
+  Readonly<Record<string, MarkdownLinkOverride>> | undefined
 >(undefined);
 
 export const markdownWrapperStyles = cn(
@@ -131,8 +138,23 @@ function MarkdownAnchor({
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const router = useRouter();
   const linkOverrides = useContext(MarkdownLinkOverridesContext);
-  const resolvedHref = href === undefined ? undefined : linkOverrides?.[href];
+  const override = href === undefined ? undefined : linkOverrides?.[href];
+  const resolvedHref = typeof override === 'string' ? override : override?.href;
   href = resolvedHref ?? href;
+  if (typeof override === 'object') {
+    return (
+      <a
+        {...rest}
+        href={href}
+        onClick={(event) => {
+          event.preventDefault();
+          override.onClick(event);
+        }}
+      >
+        {children}
+      </a>
+    );
+  }
   const classified = classifyLink(href);
 
   if (!classified) {

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -16,6 +17,26 @@ afterEach(() => vi.restoreAllMocks());
 const OUTPUT_LINK_OVERRIDES = {
   '/agent/output/task-1/report.md': '/api/app/files/file-1/url',
 };
+
+function ActionOverrideMarkdown({
+  path,
+  onClick,
+}: {
+  path: string;
+  onClick: () => void;
+}) {
+  const overrides = useMemo(
+    () => ({ [path]: { href: path, onClick } }),
+    [path, onClick],
+  );
+  return (
+    <MarkdownLinkOverridesContext.Provider value={overrides}>
+      <ReactMarkdown components={markdownComponents}>
+        {`[report](${path})`}
+      </ReactMarkdown>
+    </MarkdownLinkOverridesContext.Provider>
+  );
+}
 
 describe('MarkdownContent', () => {
   it('keeps large content parsed across unrelated parent and styling updates', () => {
@@ -51,6 +72,18 @@ describe('markdownComponents', () => {
       'href',
       '/api/app/files/file-1/url',
     );
+  });
+
+  it('runs an action override without navigating', () => {
+    const path = '/agent/output/task-1/report.md';
+    const onClick = vi.fn();
+    const { container } = render(
+      <ActionOverrideMarkdown path={path} onClick={onClick} />,
+    );
+    const link = container.querySelector('a');
+    expect(link).toHaveAttribute('href', path);
+    link?.click();
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 
   it('lets lists inherit the answer’s text colour', () => {
