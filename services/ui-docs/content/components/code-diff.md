@@ -56,13 +56,13 @@ Two equal texts show "No differences". Replace the words with `emptyMessage`, fo
 
 The diff's code is loaded when one is first shown: until then, placeholder rows as tall as its lines pulse in its place. Call `preloadCodeDiff()` when a reader is about to open one, such as on hover over a version, to have it ready. If the code cannot be loaded, the diff says "The comparison didn't load." with **Try again**.
 
-A diff with more than 5,000 changed lines shows the first 2,000 and a row, **Show the remaining 4,214 changes**, that shows the rest; the next and previous change reach them too. Lines longer than 500 characters are compared as whole lines rather than word by word. Two texts more than 10,000 changed lines apart read as one text removed and one added, so a complete rewrite never freezes the page.
+A diff with more than 5,000 changed lines shows the first 2,000 and a row, **Show the remaining 4,214 changes**, that shows the rest; the next and previous change reach them too. Lines longer than 500 characters are compared as whole lines rather than word by word. Two texts more than 2,000 changed lines apart read as one text removed and one added, so a complete rewrite never freezes the page; their patch is then one change that replaces the whole text.
 
 ## Compare without the component
 
 `@tale/ui/code-diff/compute` is the diff alone: plain functions with no React and no DOM, safe to run on a server.
 
-- `computeLineDiff(before, after, options)` answers every line of both texts in reading order with its numbers, the changed words of each pair of lines, the changes with their context (`hunks`) and the counts of added and removed lines. Options: `context` (3), `words` (true) and `maxEditLength` (10,000).
+- `computeLineDiff(before, after, options)` answers every line of both texts in reading order with its numbers, the changed words of each pair of lines, the changes with their context (`hunks`) and the counts of added and removed lines. Options: `context` (3), `words` (true) and `maxEditLength` (2,000).
 - `toUnifiedPatch(before, after, { from, to, context, maxBytes })` answers `{ patch, truncated }`. Two equal texts have no patch (`''`). A patch longer than `maxBytes` (262,144 by default, measured in UTF-8) stops at the last whole line that fits and says `truncated: true`; such a patch shows what changed but no longer applies. Pass `Infinity` for the whole patch.
 
 ## Accessibility
