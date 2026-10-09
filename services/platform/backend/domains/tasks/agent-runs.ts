@@ -21,6 +21,7 @@ import {
 import {
   AUTO_RETRY_MAX_ATTEMPTS,
   MODEL_CAPACITY_RETRY_DELAY_MS,
+  resourceExhaustedRetryDelayMs,
   isAutoRetryableFailure,
   resolveAutoRetryBudget,
 } from '../../core/tasks/task_auto_retry.ts';
@@ -665,7 +666,12 @@ export async function failAgentRunFromTurn(
   const armRetry = isAutoRetryableFailure(args.failureCode);
   return sql.begin(async (tx) => {
     const flipped = await tx<
-      { organizationId: string; taskId: string; agentId: string }[]
+      {
+        organizationId: string;
+        taskId: string;
+        agentId: string;
+        autoRetryAttempt: number | null;
+      }[]
     >`
       UPDATE app.project_agent_runs SET
         status = 'failed', error = ${error},
@@ -680,7 +686,7 @@ export async function failAgentRunFromTurn(
         AND (${args.execId ?? null}::text IS NULL
              OR exec_id = ${args.execId ?? null})
       RETURNING org_id AS "organizationId", task_id AS "taskId",
-                agent_id AS "agentId"
+                agent_id AS "agentId", auto_retry_attempt AS "autoRetryAttempt"
     `;
     const run = flipped[0];
     if (run === undefined) return false;
@@ -700,9 +706,11 @@ export async function failAgentRunFromTurn(
       const startAfterMs =
         args.failureCode === 'model_capacity'
           ? Date.now() + MODEL_CAPACITY_RETRY_DELAY_MS
-          : args.retryAtMs !== undefined && args.retryAtMs > now
-            ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
-            : undefined;
+          : args.failureCode === 'resource_exhausted'
+            ? Date.now() + resourceExhaustedRetryDelayMs(run.autoRetryAttempt)
+            : args.retryAtMs !== undefined && args.retryAtMs > now
+              ? Math.min(args.retryAtMs, now + BROKER_RATE_LIMIT_COOLDOWN_MS)
+              : undefined;
       await addJobInTx(tx, 'task.agent_retry', {
         organizationId: run.organizationId,
         taskId: run.taskId,

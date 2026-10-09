@@ -12,7 +12,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
-import { STALLED_TURN_REASON } from '../chat/external_turn_shared';
+import {
+  OUT_OF_MEMORY_TURN_REASON,
+  STALLED_TURN_REASON,
+} from '../chat/external_turn_shared';
 import { isWorkflowAgentRetryable } from './agent_retry';
 import { agentFailureCodeOf } from './failure';
 
@@ -212,5 +215,23 @@ describe('an automation agent turn the sandbox ended', () => {
     expect(isWorkflowAgentRetryable('turn_stalled')).toBe(false);
     // The run's public code stays the one a crashed turn has.
     expect(agentFailureCodeOf('turn_stalled')).toBe('turn_crashed');
+  });
+
+  it('settles an OOM kill as resource_exhausted, which the stepper re-kicks after a pause', async () => {
+    io.result = endedBySandbox('OOM_KILLED', 137);
+    const { ctx, mutations } = makeCtx();
+
+    await driveWorkflowAgentTurnImpl(ctx, KEYS);
+
+    expect(called(mutations, 'recordAgentTurnSettled')[0]?.args).toMatchObject({
+      execId: KEYS.execId,
+      result: {
+        errored: true,
+        reason: OUT_OF_MEMORY_TURN_REASON,
+        failureCode: 'resource_exhausted',
+      },
+    });
+    expect(isWorkflowAgentRetryable('resource_exhausted')).toBe(true);
+    expect(agentFailureCodeOf('resource_exhausted')).toBe('turn_crashed');
   });
 });

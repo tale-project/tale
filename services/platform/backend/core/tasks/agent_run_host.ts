@@ -2116,11 +2116,13 @@ async function continueOrSettle(
           failureCode:
             sandboxEnd?.failure === 'stalled'
               ? ('turn_stalled' as const)
-              : spendRefused
-                ? ('budget_exceeded' as const)
-                : ended?.providerErrorKind === 'model_capacity'
-                  ? ('model_capacity' as const)
-                  : ('harness_error' as const),
+              : sandboxEnd?.failure === 'out_of_memory'
+                ? ('resource_exhausted' as const)
+                : spendRefused
+                  ? ('budget_exceeded' as const)
+                  : ended?.providerErrorKind === 'model_capacity'
+                    ? ('model_capacity' as const)
+                    : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for

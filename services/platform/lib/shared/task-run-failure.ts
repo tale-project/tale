@@ -40,6 +40,9 @@ export const TASK_RUN_FAILURE_CLASSES = [
   /** The agent hung — no output, almost no CPU — until its sandbox ended
    * it; nothing retries it by itself. */
   'stalled',
+  /** The agent's sandbox ran out of memory; a retry follows after a pause,
+   * and an Admin can give agents more memory. */
+  'out_of_memory',
   /** No code, or one this build does not know. */
   'unknown',
 ] as const;
@@ -63,6 +66,7 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   session_gone: 'interrupted',
   turn_crashed: 'interrupted',
   turn_stalled: 'stalled',
+  resource_exhausted: 'out_of_memory',
   harvest_failed: 'interrupted',
   steer_restart_failed: 'interrupted',
 };
