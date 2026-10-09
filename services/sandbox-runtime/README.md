@@ -504,3 +504,11 @@ grace), and its `exit` event carries `failure: "EXEC_STALLED"`; the spawner
 reports it as the `EXEC_STALLED` error code and sets the window from
 `SANDBOX_EXEC_STALL_MINUTES`. The process table is read once a minute at most,
 and a table that cannot be read judges nothing.
+
+runnerd refuses to start an exec in a session about to run out of memory: when
+the session cgroup's working set (`memory.current` minus the `inactive_file`
+cache it can drop at once) has reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of
+`memory.max` (90 unless set, `0` admits every exec), `POST /execs` answers
+`429` `{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with
+`retry-after: 5`. Nothing starts and the running execs are left alone; a
+session without a limit, or whose cgroup cannot be read, is never refused.
