@@ -1,5 +1,5 @@
 import { cn } from '@tale/ui/cn';
-import { ChevronDown, type LucideIcon } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, type LucideIcon } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -34,10 +34,12 @@ interface NavMenuProps {
   open: boolean;
   /** Called when the user toggles or dismisses the menu. */
   onOpenChange: (open: boolean) => void;
+  /** Marks the section containing the current route. */
+  active?: boolean;
   items: readonly NavMenuItemView[];
-  /** Optional footer link under the item grid. */
-  footer?: { path: LocalizedRoutePath; label: string };
-  /** Wider panel for denser menus (Resources). */
+  /** Full-width overview before the individual destinations. */
+  overview?: NavMenuItemView;
+  /** Compact single-column or wider two-column panel. */
   columns?: 1 | 2;
 }
 
@@ -53,8 +55,9 @@ export function NavMenu({
   label,
   open,
   onOpenChange,
+  active = false,
   items,
-  footer,
+  overview,
   columns = 2,
 }: NavMenuProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -97,8 +100,8 @@ export function NavMenu({
       setEntered(true);
       return undefined;
     }
-    const id = requestAnimationFrame(() => {
-      requestAnimationFrame(() => setEntered(true));
+    let id = requestAnimationFrame(() => {
+      id = requestAnimationFrame(() => setEntered(true));
     });
     return () => cancelAnimationFrame(id);
   }, [open]);
@@ -166,8 +169,9 @@ export function NavMenu({
         }}
         onKeyDown={onTriggerKeyDown}
         className={cn(
-          'inline-flex items-center gap-1 text-[13px] font-normal tracking-tight transition-colors duration-150',
-          open ? 'text-fg-base' : 'text-fg-muted hover:text-fg-base',
+          'hover:bg-surface-site-inset/70 focus-visible:outline-fg-base inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium tracking-[-0.01em] transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-4 motion-reduce:transition-none',
+          open || active ? 'text-fg-base' : 'text-fg-muted hover:text-fg-base',
+          open && 'bg-surface-site-inset/70',
         )}
       >
         {label}
@@ -186,14 +190,19 @@ export function NavMenu({
           role="region"
           aria-labelledby={buttonId}
           className={cn(
-            'border-border-base bg-surface-site-raised shadow-site-card absolute top-full left-0 z-50 mt-2 rounded-2xl border p-2',
+            'border-border-base bg-surface-site-raised shadow-site-card absolute top-full left-1/2 z-50 mt-2 -translate-x-1/2 rounded-2xl border p-2',
             'origin-top transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none',
             entered ? 'translate-y-0 opacity-100' : 'translate-y-1 opacity-0',
             columns === 2
-              ? 'w-[min(580px,calc(100vw-2rem))]'
+              ? 'w-[min(560px,calc(100vw-2rem))]'
               : 'w-[min(320px,calc(100vw-2rem))]',
           )}
         >
+          {overview ? (
+            <div className="border-border-base mb-1.5 border-b pb-1.5">
+              <NavMenuRow item={overview} onNavigate={close} overview />
+            </div>
+          ) : null}
           <ul
             role="list"
             className={cn(
@@ -207,17 +216,6 @@ export function NavMenu({
               </li>
             ))}
           </ul>
-          {footer ? (
-            <div className="border-border-base mt-1.5 border-t pt-1.5">
-              <LocalizedLink
-                to={footer.path}
-                onClick={close}
-                className="text-fg-muted hover:text-fg-base hover:bg-surface-site-inset block rounded-lg px-3 py-2 text-sm transition-colors"
-              >
-                {footer.label}
-              </LocalizedLink>
-            </div>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -227,17 +225,19 @@ export function NavMenu({
 function NavMenuRow({
   item,
   onNavigate,
+  overview = false,
 }: {
   item: NavMenuItemView;
   onNavigate: () => void;
+  overview?: boolean;
 }) {
   const Icon = item.icon;
   const body: ReactNode = (
     <>
-      <span className="bg-surface-site-deep text-fg-muted shadow-site-inset mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg">
-        <Icon aria-hidden className="size-3.5" />
+      <span className="bg-surface-site-inset text-fg-muted mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg">
+        <Icon aria-hidden className="size-4" />
       </span>
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="text-fg-base block text-sm font-medium tracking-tight">
           {item.label}
         </span>
@@ -245,11 +245,17 @@ function NavMenuRow({
           {item.description}
         </span>
       </span>
+      {overview ? (
+        <ArrowUpRight
+          aria-hidden
+          className="text-fg-muted size-4 shrink-0 self-center"
+        />
+      ) : null}
     </>
   );
 
   const className =
-    'hover:bg-surface-site-inset focus-visible:bg-surface-site-inset flex gap-3 rounded-xl px-3 py-2 transition-colors focus-visible:outline-none';
+    'hover:bg-surface-site-inset focus-visible:bg-surface-site-inset focus-visible:outline-fg-base flex min-h-11 gap-3 rounded-xl px-3 py-2.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 motion-reduce:transition-none';
 
   if (item.href) {
     return (
@@ -268,7 +274,13 @@ function NavMenuRow({
   if (!item.path) return null;
 
   return (
-    <LocalizedLink to={item.path} onClick={onNavigate} className={className}>
+    <LocalizedLink
+      to={item.path}
+      activeOptions={{ exact: true, includeSearch: false }}
+      activeProps={{ className: 'bg-surface-site-inset' }}
+      onClick={onNavigate}
+      className={className}
+    >
       {body}
     </LocalizedLink>
   );

@@ -316,6 +316,25 @@ export const DEMO_MEMBERS: readonly DemoMember[] = [
   { name: 'Jordan Blake', email: 'jordan.blake@example.com', role: 'member' },
 ] as const;
 
+/** The first relaunch task's brief and handoff, filled after the triage demo
+ * has run so assigning its human owner cannot change the scoring fixture. */
+export const DEMO_LAUNCH_TASK_DETAIL = {
+  title: DEMO_PROJECTS[0].tasks[0].title,
+  description: [
+    'Confirm that the new website is ready for the launch-day handoff.',
+    '',
+    '- Check the redirect map against the 380 legacy URLs in the content inventory.',
+    '- Review the staging accessibility report and smoke-test the contact form.',
+    '- Confirm the content freeze, DNS cutover, and rollback owner with the team.',
+    '',
+    'Record any remaining blocker here before giving the release owner the go-ahead.',
+  ].join('\n'),
+  priority: 'p1',
+  assignee: DEMO_MEMBERS[0].name,
+  comment:
+    'The content inventory and launch-day runbook are ready in the project. Please confirm the contact-form check and rollback owner before we freeze the content.',
+} as const;
+
 /** The contractor whose data the governance demo freezes, then erases. */
 export const DEMO_DEPARTING_MEMBER = DEMO_MEMBERS[3];
 

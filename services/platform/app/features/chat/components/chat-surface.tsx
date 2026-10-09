@@ -73,6 +73,7 @@ import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { useDocumentTitle } from '@/app/hooks/use-document-title';
 import { backendRefusalDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
+import { budgetScopeOf } from '@/app/lib/backend/budget-refusal';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 import {
@@ -1114,8 +1115,17 @@ function ChatSurfaceInner({
   // denials each get their own localized title instead of a generic "Send
   // failed" wrapping the raw server sentence — by the refusal's code when
   // the server names one.
-  const refusalToast = (reason: string | undefined, code?: string) => {
-    const { titleKey, description } = turnRefusalToastContent(reason, t, code);
+  const refusalToast = (
+    reason: string | undefined,
+    code?: string,
+    budgetScope?: string,
+  ) => {
+    const { titleKey, description } = turnRefusalToastContent(
+      reason,
+      t,
+      code,
+      budgetScope,
+    );
     toast({
       title: t(titleKey),
       ...(description !== undefined ? { description } : {}),
@@ -1257,7 +1267,7 @@ function ChatSurfaceInner({
           if (failed.persisted !== true) {
             composerRef.current?.restoreText(text);
           }
-          refusalToast(failed.reason, failed.code);
+          refusalToast(failed.reason, failed.code, failed.budgetScope);
         });
       return;
     }
@@ -1336,7 +1346,7 @@ function ChatSurfaceInner({
             error instanceof BackendApiError &&
             isBudgetRefusalCode(error.code)
           ) {
-            refusalToast(error.message, error.code);
+            refusalToast(error.message, error.code, budgetScopeOf(error.data));
           } else {
             sendFailedToast(error);
           }
@@ -1426,7 +1436,7 @@ function ChatSurfaceInner({
             if (fork !== undefined && outcome.persisted !== true) {
               abandonBranch(fork);
             }
-            refusalToast(outcome.reason, outcome.code);
+            refusalToast(outcome.reason, outcome.code, outcome.budgetScope);
           },
           (error: unknown) => {
             console.error('[chat] the turn failed', error);
@@ -1533,7 +1543,7 @@ function ChatSurfaceInner({
     if (viewThreadId === undefined) return false;
     const forked = await branchActions.branchForEdit(viewThreadId, message.id);
     if (forked.status === 'refused') {
-      refusalToast(forked.reason, forked.code);
+      refusalToast(forked.reason, forked.code, forked.budgetScope);
       return false;
     }
     if (forked.status === 'failed') {
@@ -1600,7 +1610,7 @@ function ChatSurfaceInner({
         // The door measured the budget before forking: a reached cap is
         // named as a refused send is, and nothing was created or selected.
         if (forked.status === 'refused') {
-          refusalToast(forked.reason, forked.code);
+          refusalToast(forked.reason, forked.code, forked.budgetScope);
           return;
         }
         if (forked.status === 'failed') {
@@ -1638,7 +1648,7 @@ function ChatSurfaceInner({
           rememberSelection(parentId, forkSequence, restoreTo);
         }
         if (isBudgetRefusalCode(outcome.code)) {
-          refusalToast(outcome.reason, outcome.code);
+          refusalToast(outcome.reason, outcome.code, outcome.budgetScope);
           return;
         }
         const { titleKey, description } = regenerateFailureToastContent(

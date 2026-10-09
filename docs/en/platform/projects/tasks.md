@@ -21,6 +21,8 @@ A task keeps a piece of work together: its purpose, owner, status, files, and th
 
 To create several tasks in a row, switch on **Create another** at the bottom left of the dialog before you create. The dialog then stays open: the title, description and attachments are cleared for the next task, while its status, priority, assignee, dates, repeat and labels stay as you set them. Tale remembers the switch in this browser.
 
+On **Board**, each column can create in its own status: the **+** beside the column's name opens the same dialog with that status, and **Add task** at the foot of the column takes just a title. Type it and press **Enter** to add the task to that column with **Medium** priority and today as its start date, and with the priority or assignee the board is filtered to; the field stays open for the next one, and **Esc** closes it.
+
 A title can have up to 200 characters and a description up to 20,000; most emoji count as 2. A longer description, pasted in or left on a task by an earlier import, is not cut: the field names the limit and counts the length, and **Create task** or **Save** stays unavailable until you shorten it.
 
 Tale gives the task an identifier built from the project key, such as `WEB-1`. Use that identifier when referring to the work so similarly named tasks remain distinguishable.

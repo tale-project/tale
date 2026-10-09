@@ -789,6 +789,7 @@ export function createChatToolExecutor(
           connectorOperation: tool,
           costEstimateCents: 0,
           timestamp: Date.now(),
+          ...(who.projectId !== null ? { projectId: who.projectId } : {}),
         },
       );
     } catch (error) {

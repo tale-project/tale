@@ -37,7 +37,8 @@ budgets:
   allUsers: Tous les utilisateurs
   overrideHint: "Les portées plus spécifiques remplacent les plus larges :
     utilisateur > équipe > rôle > défaut. Les limites de l'organisation
-    s'appliquent toujours comme plafond supplémentaire."
+    s'appliquent toujours comme plafond supplémentaire, et celles d'un projet
+    au travail fait dans ce projet."
   noRulesTitle: Aucune règle de budget configurée
   noRulesDescription: Ajoute une règle pour commencer à appliquer les limites.
   editRuleAriaLabel: Modifier la règle {index}
@@ -60,6 +61,13 @@ budgets:
   searchTeams: Rechercher des équipes
   noTeamsFound: Aucune équipe trouvée
   selectTeamAriaLabel: Sélectionner une équipe
+  project: Projet
+  selectProject: Sélectionner un projet...
+  searchProjects: Rechercher des projets
+  noProjectsFound: Aucun projet trouvé
+  selectProjectAriaLabel: Sélectionner un projet
+  projectDeleted: Projet supprimé
+  projectDeletedHint: Ce projet n'existe plus, la règle ne limite donc rien. Choisis un projet ou supprime la règle.
   apiKey: Clé API
   selectApiKey: Sélectionner une clé API...
   searchApiKeys: Rechercher des clés API
@@ -80,6 +88,7 @@ budgets:
     default: Par défaut
     user: Utilisateur
     team: Équipe
+    project: Projet
     role: Rôle
     apiKey: Clé API
     org: Organisation
