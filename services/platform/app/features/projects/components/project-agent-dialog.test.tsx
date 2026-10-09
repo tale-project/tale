@@ -96,6 +96,37 @@ beforeEach(() => {
   previewState.data = undefined;
 });
 
+describe('ProjectAgentDialog mention handle', () => {
+  it('tells how the agent being edited is mentioned', () => {
+    renderDialog({
+      ...LEGACY_AGENT,
+      name: 'My Opus Agent #3',
+      handle: 'my-opus-agent-3',
+    });
+    expect(
+      screen.getByText(
+        'Mention it with @my-opus-agent-3. Renaming the agent changes this.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('says nothing about a handle while creating', () => {
+    render(
+      <ProjectAgentDialog
+        open
+        onOpenChange={vi.fn()}
+        projectId="p1"
+        organizationId="org-1"
+        harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
+        models={MODELS}
+        skills={[]}
+        connectors={[]}
+      />,
+    );
+    expect(screen.queryByText(/^Mention it with @/)).not.toBeInTheDocument();
+  });
+});
+
 describe('ProjectAgentDialog pending save', () => {
   it('blocks edits until the submitted instructions finish saving', async () => {
     const pending = Promise.withResolvers<void>();

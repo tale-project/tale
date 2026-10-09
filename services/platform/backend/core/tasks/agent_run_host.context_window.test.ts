@@ -696,7 +696,11 @@ describe('a task agent start', () => {
       mutations.find(
         (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
       )?.args,
-    ).toEqual({ runId: 'run-1', execId: 'exec-1' });
+    ).toEqual({
+      runId: 'run-1',
+      execId: 'exec-1',
+      reason: 'destroy_pending',
+    });
     expect(
       mutations.some(
         (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
@@ -743,7 +747,12 @@ describe('a task agent start', () => {
       mutations.find(
         (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
       )?.args,
-    ).toEqual({ runId: 'run-1', execId: 'exec-1', execRefused: true });
+    ).toEqual({
+      runId: 'run-1',
+      execId: 'exec-1',
+      execRefused: true,
+      reason: 'exec_limit',
+    });
     expect(
       mutations.some(
         (m) =>

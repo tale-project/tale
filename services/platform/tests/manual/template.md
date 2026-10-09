@@ -35,7 +35,7 @@ These are why a suite is executable by a human and by an agent alike.
    [`runs/`](runs).
 9. **Do not restate what a spec owns.** Check
    [`reference/automation.md`](reference/automation.md) first, and move a box
-   there when a spec takes it over.
+   into `reference/automation/<suite>.md` when a spec takes it over.
 
 ---
 

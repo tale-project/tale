@@ -11,7 +11,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getPendingAskForRun } from '../automations/store.ts';
 import { listTaskAgentRunSummaries } from './agent-runs.ts';
-import { readTaskWorkState } from './agent-work-state.ts';
+import { readTaskOccupancy, readTaskWorkState } from './agent-work-state.ts';
 import {
   findLatestAutomationRunForTask,
   findLiveAutomationRunForTask,
@@ -55,6 +55,7 @@ const summary = (id: string, seq: number, status = 'settled') => ({
   launchedAt: 2,
   settledAt: status === 'running' ? null : 3,
   waitingForCapacity: false,
+  waitingReason: null,
   failureCode: null,
   retryPending: false,
   feedback: null,
@@ -72,6 +73,73 @@ describe('readTaskWorkState', () => {
     vi.mocked(getPendingReviewForTask).mockReset().mockResolvedValue(null);
     vi.mocked(readTaskReviewDecision).mockReset().mockResolvedValue(null);
     vi.mocked(readTaskReviewDelegation).mockReset().mockResolvedValue(null);
+  });
+
+  it('keeps an exact historical run beside the newest occupant without review reads', async () => {
+    vi.mocked(listTaskAgentRunSummaries).mockImplementation(
+      async (_sql, args) =>
+        args.runId === 'old'
+          ? [summary('old', 1, 'failed')]
+          : [summary('new', 2, 'running')],
+    );
+    const state = await readTaskOccupancy(sql, {
+      ...ARGS,
+      requestedRunId: 'old',
+    });
+    expect(state).toMatchObject({
+      currentRun: { id: 'new', status: 'running' },
+      requestedRun: { id: 'old', status: 'failed', retryPending: false },
+      workflowRun: null,
+    });
+    expect(listTaskAgentRunSummaries).toHaveBeenNthCalledWith(2, sql, {
+      organizationId: 'org-1',
+      taskId: 't-1',
+      limit: 1,
+      runId: 'old',
+    });
+    expect(getPendingReviewForTask).not.toHaveBeenCalled();
+    expect(readTaskReviewDecision).not.toHaveBeenCalled();
+    expect(readTaskReviewDelegation).not.toHaveBeenCalled();
+  });
+
+  it('reuses the exact newest requested run and preserves an armed retry', async () => {
+    vi.mocked(listTaskAgentRunSummaries).mockResolvedValue([
+      { ...summary('new', 2, 'failed'), retryPending: true },
+    ]);
+    const state = await readTaskOccupancy(sql, {
+      ...ARGS,
+      requestedRunId: 'new',
+    });
+    expect(state?.requestedRun).toBe(state?.currentRun);
+    expect(state?.requestedRun?.retryPending).toBe(true);
+    expect(listTaskAgentRunSummaries).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a missing requested run before reading workflows', async () => {
+    expect(
+      await readTaskOccupancy(sql, { ...ARGS, requestedRunId: 'missing' }),
+    ).toBeNull();
+    expect(findLiveAutomationRunForTask).not.toHaveBeenCalled();
+    expect(findLatestAutomationRunForTask).not.toHaveBeenCalled();
+    expect(getPendingReviewForTask).not.toHaveBeenCalled();
+  });
+
+  it('keeps workflow wait semantics in compact occupancy and propagates read failures', async () => {
+    vi.mocked(findLiveAutomationRunForTask).mockResolvedValue({
+      runId: 'waiting-run',
+      name: 'workflow',
+      status: 'waiting',
+      version: 1,
+      detail: 'agent:worker',
+    });
+    expect(await readTaskOccupancy(sql, ARGS)).toMatchObject({
+      currentRun: null,
+      workflowRun: { runId: 'waiting-run', live: true, waitingFor: 'agent' },
+    });
+    vi.mocked(listTaskAgentRunSummaries).mockRejectedValue(
+      new Error('unavailable'),
+    );
+    await expect(readTaskOccupancy(sql, ARGS)).rejects.toThrow('unavailable');
   });
 
   it('reads one run past the page to say whether an older page exists', async () => {

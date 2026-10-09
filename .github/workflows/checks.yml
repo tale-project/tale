@@ -207,6 +207,7 @@ jobs:
 
   build:
     if: >-
+      github.event_name != 'pull_request' &&
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
@@ -417,6 +418,7 @@ jobs:
     needs: [candidate-source, test-ui-shards]
     name: UI
     if: >-
+      github.event_name != 'pull_request' &&
       always() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
@@ -451,6 +453,7 @@ jobs:
     needs: candidate-source
     name: UI (platform ${{ matrix.shard }}/4)
     if: >-
+      github.event_name != 'pull_request' &&
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
@@ -513,6 +516,7 @@ jobs:
   # was exceeded. The report records representative coverage and remaining gaps.
   performance:
     if: >-
+      github.event_name != 'pull_request' &&
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
@@ -615,6 +619,7 @@ jobs:
     needs: candidate-source
     name: Browser
     if: >-
+      github.event_name != 'pull_request' &&
       !cancelled() &&
       (((github.event_name == 'repository_dispatch') &&
       needs.candidate-source.result == 'success') ||
@@ -771,6 +776,7 @@ jobs:
         uses: ./.github/actions/ci-scope
         with:
           filter: integration
+          queue-only: 'true'
 
   # The real-Postgres proof: `backend:integration` (services/platform/backend/
   # integration-check.ts) against the database image Tale ships — built here

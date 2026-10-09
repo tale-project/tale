@@ -1,6 +1,11 @@
 import type { SandboxQuotaConfig } from '@tale/shared/schemas/governance';
+import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
 import type { Sql, TransactionSql } from 'postgres';
 
+import {
+  isAgentRunWaitingReason,
+  type AgentRunWaitingReason,
+} from '../../../lib/shared/agent-run-waiting.ts';
 import { readCheckpoints } from '../../core/automations/checkpoints.ts';
 import type { TurnConnectorCaller } from '../../core/node_only/sandbox/connectors_bridge.ts';
 import {
@@ -18,13 +23,18 @@ import {
   SANDBOX_SESSION_MAX_LIFETIME_MS,
   WORKFLOW_AGENT_OP_KIND,
 } from '../../core/sandbox/session_constants.ts';
-import { sessionIdForWorkflowExecution } from '../../core/sandbox/session_naming.ts';
+import {
+  projectAgentWorker,
+  sessionIdForWorkflowExecution,
+} from '../../core/sandbox/session_naming.ts';
 import type { TurnOpRef } from '../../core/sandbox/tool_names.ts';
+import { SANDBOX_SESSION_HELD_REASON } from '../../core/tasks/run_park_reason.ts';
 import { toJson } from '../../db/sql.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
+  parkedRunSql,
+  wakeAgentParkedAgentRun,
   wakeParkedAgentRuns,
-  wakeSessionParkedAgentRun,
 } from '../tasks/agent-runs.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
 import {
@@ -61,11 +71,21 @@ import {
 
 export class SandboxQuotaError extends Error {
   readonly code = 'QUOTA_EXCEEDED';
-  /** Set when the refusal is no want of room: the session's Destroy is
-   * pending ({@link SandboxDestroyPendingError}). The shims carry it on. */
-  readonly reason: typeof SANDBOX_DESTROY_PENDING_REASON | undefined;
+  /** Set when the refusal is no want of the organization's room: the
+   * session's Destroy is pending ({@link SandboxDestroyPendingError}), or
+   * the workspace already holds a live session of its own
+   * ({@link SANDBOX_SESSION_HELD_REASON}). The shims carry it on. */
+  readonly reason:
+    | typeof SANDBOX_DESTROY_PENDING_REASON
+    | typeof SANDBOX_SESSION_HELD_REASON
+    | undefined;
 
-  constructor(message: string, reason?: typeof SANDBOX_DESTROY_PENDING_REASON) {
+  constructor(
+    message: string,
+    reason?:
+      | typeof SANDBOX_DESTROY_PENDING_REASON
+      | typeof SANDBOX_SESSION_HELD_REASON,
+  ) {
     super(message);
     this.name = 'SandboxQuotaError';
     this.reason = reason;
@@ -134,7 +154,7 @@ async function readQuota(
 }
 
 async function inFlightCount(
-  tx: TransactionSql,
+  tx: Sql | TransactionSql,
   organizationId: string,
   budget: SessionBudget,
 ): Promise<number> {
@@ -145,6 +165,25 @@ async function inFlightCount(
   return rows.filter(
     (row) => sessionBudgetForOwnerType(row.ownerType) === budget,
   ).length;
+}
+
+/**
+ * The organization's agent-worker budget as a reserve or a resume counts
+ * it: the cap (`maxSessionsPerOrg`) and the workers that hold a slot of it
+ * now. For a caller that decides before any reserve whether a run may open
+ * or wake a worker — the worker claim (`domains/tasks/agent-workers.ts`),
+ * which holds the organization's admission lock as an exact count needs, or
+ * a start telling its requester whether its run will wait.
+ */
+export async function projectSessionRoom(
+  tx: Sql | TransactionSql,
+  organizationId: string,
+): Promise<{ cap: number; inFlight: number }> {
+  const quota = await readQuota(tx, organizationId);
+  return {
+    cap: sessionCapFor('project', quota),
+    inFlight: await inFlightCount(tx, organizationId, 'project'),
+  };
 }
 
 export interface ReserveSessionArgs {
@@ -179,9 +218,11 @@ export async function reserveSessionSlot(
     }
     const now = Date.now();
 
-    // One live session per workspace. A project agent owns several — its
-    // standing one and one per member who starts its runs — each with its
-    // own session id, so its cap counts per session.
+    // One live session per workspace. A project agent owns several — a
+    // worker of its standing family and of each member's family for every
+    // run of it working at the same time — each with its own session id, so
+    // its cap counts per session. Meeting it is no want of the
+    // organization's room: a second start raced into the same worker.
     const perSession = args.ownerType === 'project_agent';
     const ownerActive = await tx<{ count: string }[]>`
       SELECT count(*)::text AS count FROM app.sandbox_sessions
@@ -194,6 +235,7 @@ export async function reserveSessionSlot(
     ) {
       throw new SandboxQuotaError(
         `This ${args.ownerType} already has an active sandbox session.`,
+        perSession ? SANDBOX_SESSION_HELD_REASON : undefined,
       );
     }
 
@@ -324,22 +366,24 @@ export async function setSessionPinned(
 }
 
 /**
- * Release a project agent's standing-session slot at the end of a turn —
- * the ONE seam behind the host's settle release, its rollback after a
- * failed resume-create, the deadline watchdog's slot free and the task
- * watchdog's orphan backstop. The session hibernates (`stopped`: compute
- * released, workspace preserved, slot freed) unless a sibling turn's op is
- * still running on it, a live turn of the agent (queued or running, not
- * parked for capacity) still owns the slot before its exec exists, or the
- * row is pinned. The guard is the agent's, not the workspace's: a live turn
- * of the agent holds every workspace it owns — its standing one and one per
- * member who starts its runs — until the agent's last turn ends. A freed slot is a release edge: the org's oldest parked
- * run, and the oldest parked run of the other organizations (the sandbox
- * host is shared), are woken at once instead of idling until the 2-minute
- * watchdog tick (`wakeParkedAgentRuns`). A release that names the workspace
- * of the turn that ended also wakes the oldest run parked on that workspace,
- * stopped or not: the ended exec gave back one of its runtime's live-exec
- * places (`wakeSessionParkedAgentRun`). Best-effort — a wake failure must
+ * Release a project agent's idle workers at the end of a turn — the ONE
+ * seam behind the host's settle release, its rollback after a failed
+ * resume-create, a park, the deadline watchdog's slot free and the task
+ * watchdog's orphan backstop. Each of the agent's live, unpinned workers
+ * hibernates (`stopped`: compute released, workspace preserved, slot freed)
+ * unless an op is still running on it, or a live run (queued or running,
+ * not parked for capacity) names it — the run working there, one that has
+ * claimed it and not started yet, or a fresh kick that still names its
+ * family's first worker. The guard is the worker's: a worker gives its slot
+ * back as soon as its own run ends, whatever the agent's other workers are
+ * doing. A freed slot is a release edge: the organization's next parked run,
+ * and the next parked run of the other organizations (the sandbox host is
+ * shared), are woken at once instead of idling until the 2-minute watchdog
+ * tick (`wakeParkedAgentRuns`). A release that names the workspace of the
+ * turn that ended and did not stop it — pinned, or still held — also wakes
+ * the agent's oldest parked run: that worker is free for it without a slot
+ * of its own, and the ended exec gave back one of its runtime's live-exec
+ * places (`wakeAgentParkedAgentRun`). Best-effort — a wake failure must
  * never fail the release.
  */
 export async function releaseProjectAgentSessionSlot(
@@ -382,7 +426,7 @@ export async function releaseProjectAgentSessionSlot(
       )
       AND NOT EXISTS (
         SELECT 1 FROM app.project_agent_runs r
-        WHERE r.org_id = s.org_id AND r.agent_id = s.owner_id
+        WHERE r.org_id = s.org_id AND r.session_id = s.session_id
           AND r.status IN ('queued', 'running')
           AND r.waiting_for_capacity_at_ms IS NULL
       )
@@ -398,9 +442,14 @@ export async function releaseProjectAgentSessionSlot(
       },
     );
   }
-  if (args.sessionId !== undefined && opts.wake !== false) {
-    await wakeSessionParkedAgentRun(sql, {
+  if (
+    args.sessionId !== undefined &&
+    opts.wake !== false &&
+    !rows.some((row) => row.sessionId === args.sessionId)
+  ) {
+    await wakeAgentParkedAgentRun(sql, {
       organizationId: args.organizationId,
+      agentId: args.agentId,
       sessionId: args.sessionId,
     }).catch((error: unknown) => {
       console.warn('[sandbox] workspace wake failed:', error);
@@ -481,6 +530,50 @@ export async function resumeSessionSlot(
     `;
     return moved.length > 0;
   });
+}
+
+/**
+ * Hibernate ONE incarnation whose compute is gone while the spawner keeps its
+ * workspace — the reconcile's heal of an agent session after a host reboot,
+ * a daemon restart or the OOM killer took its container. The row reads
+ * `stopped` (its slot freed, its `createdAt` kept), so the next turn resumes
+ * it in place on the preserved files and conversation, exactly as after an
+ * idle release. By row id, only from a compute-holding status and only while
+ * unpinned, under the organization's admission lock like every release (a
+ * resume taken first keeps the row). The credentials go as at every
+ * teardown edge — the gateway keys settled and deleted, the session tokens
+ * revoked: the compute that held them is gone, and the next turn mints its
+ * own. A freed slot is a release edge, so parked runs are woken.
+ */
+export async function markSessionStopped(
+  sql: Sql,
+  args: { organizationId: string; sessionId: string; rowId: string },
+): Promise<boolean> {
+  const stopped = await sql.begin(async (tx) => {
+    await lockOrgAdmission(tx, args.organizationId);
+    const rows = await tx<{ id: string }[]>`
+      UPDATE app.sandbox_sessions SET status = 'stopped'
+      WHERE id = ${args.rowId} AND org_id = ${args.organizationId}
+        AND session_id = ${args.sessionId}
+        AND status IN ('creating', 'active', 'degraded')
+        AND pinned = false
+      RETURNING id
+    `;
+    return rows.length > 0;
+  });
+  if (!stopped) return false;
+  await revokeSessionGatewayKeys(sql, args).catch((error: unknown) => {
+    console.error(
+      `[sandbox] gateway key reclaim for stopped ${args.sessionId} failed:`,
+      error,
+    );
+  });
+  await wakeParkedAgentRuns(sql, args.organizationId).catch(
+    (error: unknown) => {
+      console.warn('[sandbox] capacity wake failed:', error);
+    },
+  );
+  return true;
 }
 
 /** Terminal: revoke the gateway keys + mark destroyed + revoke tokens. The
@@ -657,6 +750,10 @@ export async function listRunningOpsBySession(
 export interface SandboxCurrentOpView {
   kind?: 'task-agent' | 'workflow-agent';
   taskId?: string;
+  /** The task a project agent's op works, as a reader knows it: its key
+   * (`KEY-12`, when its project has one) and title. Absent for a task gone
+   * since. */
+  task?: { id: string; projectId: string; key?: string; title: string };
   workflowRunId?: string;
   threadId?: string;
   execId: string;
@@ -678,6 +775,10 @@ export interface SandboxSessionView {
   ownerEmail?: string | null;
   ownerLabel?: string | null;
   agentKind: string | null;
+  /** Which of its agent's workers a project agent's session is: the
+   * agent's own (`agent`) or one a member's runs work in (`member`), and its
+   * number within that family. Absent for any other session. */
+  worker?: { number: number; scope: 'agent' | 'member' };
   pinned: boolean;
   createdAt: number;
   lastActivityAt: number | null;
@@ -685,9 +786,10 @@ export interface SandboxSessionView {
   busy: boolean;
   /** The op the page leads with: a running one, else the latest. */
   currentOp: SandboxCurrentOpView | null;
-  /** Every op still running, oldest first. A project agent runs its tasks
-   * concurrently in the ONE workspace it owns, so the settings page lists
-   * all of them rather than one "current" turn. */
+  /** Every op still running, oldest first. A worker runs one task's turn
+   * at a time, but a steered turn's predecessor in its kill grace, or a turn
+   * an older image started during a rolling deploy, can run beside it, so
+   * the settings page lists all of them rather than one "current" turn. */
   runningOps: SandboxCurrentOpView[];
   totalSpentCents: number;
   /** When the workspace is deleted for being unused, if it stays unused
@@ -816,7 +918,7 @@ export async function listSandboxViewsForOrg(
     );
     runningOps.sort((a, b) => a.startedAt - b.startedAt);
     const owner = userById.get(session.createdBy);
-    return {
+    const view: SandboxSessionView = {
       sessionId: session.sessionId,
       ownerType: session.ownerType,
       ownerId: session.ownerId,
@@ -834,6 +936,14 @@ export async function listSandboxViewsForOrg(
       runningOps,
       totalSpentCents,
     };
+    const worker =
+      session.ownerType === 'project_agent'
+        ? projectAgentWorker(session.ownerId, session.sessionId)
+        : null;
+    if (worker !== null) {
+      view.worker = { number: worker.worker, scope: worker.scope };
+    }
+    return view;
   });
   // Resolve task ownership only for the displayed operations (the lead op
   // plus every running one), in one org-scoped read. Joining every
@@ -857,23 +967,47 @@ export async function listSandboxViewsForOrg(
   }
   const taskOps = [...taskOpsByKey.values()];
   if (taskOps.length > 0) {
+    // The task's key and title ride the same read: an Owner or Admin reads
+    // every project of the organization, so naming the task leaks nothing.
     const runs = await sql<
-      { sessionId: string; execId: string; taskId: string }[]
+      {
+        sessionId: string;
+        execId: string;
+        taskId: string;
+        projectId: string | null;
+        title: string | null;
+        number: number | null;
+        projectKey: string | null;
+      }[]
     >`
-      SELECT DISTINCT ON (session_id, exec_id)
-        session_id AS "sessionId", exec_id AS "execId", task_id AS "taskId"
-      FROM app.project_agent_runs
-      WHERE org_id = ${organizationId}
-        AND session_id = ANY(${taskOps.map((entry) => entry.sessionId)})
-        AND exec_id = ANY(${taskOps.map((entry) => entry.op.execId)})
-      ORDER BY session_id, exec_id, seq DESC
+      SELECT DISTINCT ON (r.session_id, r.exec_id)
+        r.session_id AS "sessionId", r.exec_id AS "execId",
+        r.task_id AS "taskId", t.project_id AS "projectId", t.title,
+        t.number, p.key AS "projectKey"
+      FROM app.project_agent_runs r
+      LEFT JOIN app.tasks t ON t.id = r.task_id AND t.org_id = r.org_id
+      LEFT JOIN app.projects p ON p.id = t.project_id AND p.org_id = r.org_id
+      WHERE r.org_id = ${organizationId}
+        AND r.session_id = ANY(${taskOps.map((entry) => entry.sessionId)})
+        AND r.exec_id = ANY(${taskOps.map((entry) => entry.op.execId)})
+      ORDER BY r.session_id, r.exec_id, r.seq DESC
     `;
     const tasks = new Map(
-      runs.map((run) => [`${run.sessionId}:${run.execId}`, run.taskId]),
+      runs.map((run) => [`${run.sessionId}:${run.execId}`, run]),
     );
     for (const { sessionId, op } of taskOps) {
-      const taskId = tasks.get(`${sessionId}:${op.execId}`);
-      if (taskId !== undefined) op.taskId = taskId;
+      const run = tasks.get(`${sessionId}:${op.execId}`);
+      if (run === undefined) continue;
+      op.taskId = run.taskId;
+      if (run.projectId !== null && run.title !== null) {
+        const key = formatTaskIdentifier(run.projectKey, run.number);
+        op.task = {
+          id: run.taskId,
+          projectId: run.projectId,
+          ...(key !== null ? { key } : {}),
+          title: run.title,
+        };
+      }
     }
   }
   views.sort((a, b) => {
@@ -881,6 +1015,40 @@ export async function listSandboxViewsForOrg(
     return b.createdAt - a.createdAt;
   });
   return views;
+}
+
+/** How many of the organization's agent runs wait for room, all of them
+ * counted (no page cap), by why they wait: the demand behind a full limit
+ * of agent workers. `unknown` counts a run parked without a kept reason. */
+export interface WaitingAgentRunCounts {
+  total: number;
+  byReason: Record<AgentRunWaitingReason | 'unknown', number>;
+}
+
+export async function countWaitingAgentRuns(
+  sql: Sql,
+  organizationId: string,
+): Promise<WaitingAgentRunCounts> {
+  const rows = await sql<{ reason: string | null; count: number }[]>`
+    SELECT waiting_reason AS reason, count(*)::int AS count
+    FROM app.project_agent_runs
+    WHERE org_id = ${organizationId} AND ${sql.unsafe(parkedRunSql())}
+    GROUP BY waiting_reason
+  `;
+  const byReason: Record<AgentRunWaitingReason | 'unknown', number> = {
+    org_limit: 0,
+    host: 0,
+    destroy_pending: 0,
+    exec_limit: 0,
+    unknown: 0,
+  };
+  let total = 0;
+  for (const row of rows) {
+    const reason = isAgentRunWaitingReason(row.reason) ? row.reason : 'unknown';
+    byReason[reason] += row.count;
+    total += row.count;
+  }
+  return { total, byReason };
 }
 
 /**

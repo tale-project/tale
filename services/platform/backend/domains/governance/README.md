@@ -53,9 +53,9 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    subautomation's included, which runs as one step of its parent's run — spends outside any
    session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
    run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
-   subject before each call and books the call after it. Every lane that measures a run's subject
+   subject under the shared admission lock and reserves the full priced prompt/output estimate on an `automation-llm` op before each call. The durable effect attempt identifies the op. Reported usage is persisted before idempotent settlement; an unknown outcome keeps its hold until the bounded request lifetime, then books the reserved estimate. Its `expected_cents` remains NULL and `floor_cents` records that estimate, so it is distinguishable from reported usage. A model without catalog pricing is refused before dispatch. Every lane that measures a run's subject
    builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A call the platform
-   makes straight to a provider for an `llm` step, a chat title or the Inbox's Improve is a direct
+   makes straight to a provider for a chat title or the Inbox's Improve is a direct
    call (`direct-calls.ts`): it is recorded on an op row (kind `direct-call`) under the subject its
    lane names — holding its worst case while a budget binds, nothing otherwise — and its cost
    booked under that row's stamp, once. A transcription is one too — an uploaded recording's,
@@ -106,6 +106,21 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    uploader's own chat — a thread id on a file is the uploader's claim, not proof of the project.
    A video link's door check reads that project too.
 
+   Voice output reserves its estimated cost and one request under the projects captured at
+   admission (`tts_audio_chunks.project_ids`); `[]` means deliberately no project. A successful
+   request records its resolved model rate. Any already-reserved failure, watchdog expiry or
+   stale replacement records the saved estimate and one request once before releasing its hold,
+   including a failure before the provider POST: no durable dispatch distinction is available.
+   This is conservative estimated usage, not confirmation of a provider charge. A successful
+   provider response followed by a body/storage failure retains the resolved rate. A retry must
+   fit the remaining budget after the predecessor estimate; late results cannot charge that
+   predecessor again or release the successor's hold. Legacy `NULL` project stamps retain the
+   current-thread fallback, and a `NULL` saved price is never reconstructed. Ordinary age cleanup
+   defers pending attempts to their existing watchdog. Authorized history purge and erasure keep
+   their existing deletion behavior; the budget rule does not restore erased attribution or
+   promise a strict cap across that privacy boundary. Old admission writers must retire before
+   every new request receives these reservation guarantees.
+
 ## Lanes (the write side)
 
 | Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` | project |
@@ -116,9 +131,9 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | A managed turn on a provider subscription (either op) | as above; held as one request at no cost (`reserveTurnBudget` `costFree`, `budget_cents` 0) and booked at 0 cents with its harness's tokens when it ends (`releaseTurnKey`), or as a bare request when a watchdog ends it (`settleCostFreeTurn`) | as above | as above | as above | as above |
-| Automation `llm` step | `resolveAutomationRunAttribution` (`domains/automations/llm-metering.ts`), held and booked as a direct call | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| Automation `llm` step | `resolveAutomationRunAttribution` → immutable `automation-llm` op → `settleSessionOpSpend` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
-| Voice output | `domains/tts` (held on its pending chunk row) | the requester | `__tts__` | — | the thread's |
+| Voice output | `domains/tts` | the requester | `__tts__` | — | captured at admission; legacy `NULL` uses the current thread |
 | Transcription (an upload, a video link's audio, a dictation) | `domains/files/transcription-metering.ts`, held and booked as a direct call | the uploader — a retry continues their upload — or `__automation__` for a file nobody added; the dictating member | `__transcription__` | — | the one named at registration, else the uploader's own chat's |
 | Embeddings (knowledge indexing and search) | `domains/knowledge/embedding-meter.ts`, each request held and booked as a direct call | indexing: the uploader, else the holding document's creator (a synced drive's owner), else `__automation__` (an emailed attachment, an inbound email, a scheduled website scan); a website add or Scan now: the member; a search: the searcher (a sandbox turn: its run's subject) | `__embedding__` | the searching key; the key a website was added with | the document's, else the one the file was added in (`fileAttachmentProjectId`, as for a transcription); a search's project (a project chat's, a project URL's, a run's) |
 | Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
@@ -142,8 +157,8 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
 - `core/automations/llm_call.test.ts`, `domains/automations/llm-metering.test.ts` — an
-  automation's `llm` step is held before each call, refused with `budget_exceeded` when a cap has
-  too little room, and booked under its run's subject after it, an empty reply included.
+  automation's `llm` step reserves before each call, refused with `budget_exceeded` at a
+  reached cap, and booked under its run's subject after it, an empty reply included.
 - `domains/governance/direct-calls.test.ts` — a direct call holds its worst case whole (a row
   that holds nothing while no budget binds), books once under its op row's stamp (a call past
   its deadline too, and under the pseudonym once its person was erased), and its lost hold
@@ -151,8 +166,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
   direct-call rows and pseudonymises the running ones before the ledger pass; `domains/chat/title-meter.test.ts`, `core/chat/generate_title.test.ts`,
   `jobs/task-list.generate-title.test.ts`, `domains/conversations/improve.test.ts` — the title and
   Improve calls are held under their member (and key) and pick only models the member may use;
-  `domains/tts/service.project-budget.test.ts` — a voice chunk holds its estimate under the
-  admission lock and books audio it paid for; `domains/chat/store.test.ts`, `lib/chat/turn.test.ts`
+  `domains/chat/store.test.ts`, `lib/chat/turn.test.ts`
   — a reply's later rounds raise its hold; `core/file_metadata/transcribe_audio.metering.test.ts`,
   `domains/knowledge/embedding-meter.test.ts`, `core/knowledge/embedding.test.ts` — each embedding
   request is held at its estimated input and booked at what the provider reported;

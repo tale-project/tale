@@ -39,16 +39,23 @@ export function migrationReadScript(
   service: 'db' | 'knowledge-db',
   sql: string,
 ): string {
+  return `${migrationSessionCommand(service)} <<'TALE_ACCEPTANCE_SQL'
+${sql}
+TALE_ACCEPTANCE_SQL
+`;
+}
+
+/** A held cutover transaction uses the same local credential boundary. */
+export function migrationSessionCommand(
+  service: 'db' | 'knowledge-db',
+): string {
   const database = service === 'db' ? 'tale_app' : 'tale_knowledge';
   return `set -eu
 user="\${DB_USER:-\${POSTGRES_USER:-}}"
 case "$user" in ''|*[!a-zA-Z0-9_]*) exit 1;; esac
 unset PGHOST PGHOSTADDR PGSERVICE PGSERVICEFILE PGDATABASE PGUSER PGOPTIONS PGPASSFILE
 export PGCONNECT_TIMEOUT=5
-exec psql -X -q -A -t -v ON_ERROR_STOP=1 -h /var/run/postgresql -U "$user" -d ${database} <<'TALE_ACCEPTANCE_SQL'
-${sql}
-TALE_ACCEPTANCE_SQL
-`;
+exec psql -X -q -A -t -v ON_ERROR_STOP=1 -h /var/run/postgresql -U "$user" -d ${database}`;
 }
 export function acceptedMigrations(
   expected: MigrationInventory,

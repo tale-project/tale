@@ -389,14 +389,14 @@ tale_api -X POST "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments"
 echo "TASK_ID=$TASK_ID"
 ```
 
-`externalSystem` and `externalId` make the task idempotent: sending the same pair again returns the existing task. A description holds up to 20,000 characters; for a longer script, upload it to the project as described in [Upload a file in two steps](/develop/api-reference#upload-a-file-in-two-steps). An agent answers to its ID and to its name in lower case with spaces replaced by dots or removed, so `@script.editor` also works.
+`externalSystem` and `externalId` make the task idempotent: sending the same pair again returns the existing task. A description holds up to 20,000 characters; for a longer script, upload it to the project as described in [Upload a file in two steps](/develop/api-reference#upload-a-file-in-two-steps). The comment names the agent by its ID; its `handle` works as well, here `@script-editor`, and the agent's read carries it. Tale stores either as a mention of the agent itself, so the comment keeps naming it after a rename: read back, its `body` is `[@Script editor](mention:agent/<agent ID>) please take this task.` and its `bodyText` is `@Script editor please take this task.`
 
 The mention assigns the task to the agent and starts a run, and the task moves to `in_progress`. A mention that cannot start a run is saved as an ordinary comment without an error, for example when the task is not yours to change, task automation is turned off, or another run already holds the task. Set `TASK_ID` to the value the script printed, check the task, and read the agent's report once the task reaches `in_review`:
 
 ```bash
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID" | jq -r '.task.status'
 tale_api "$TALE_URL/api/v1/projects/$PROJECT_ID/tasks/$TASK_ID/comments?limit=20" \
-  | jq -r '.comments[] | select(.authorType == "agent") | .body'
+  | jq -r '.comments[] | select(.authorType == "agent") | .bodyText'
 ```
 
 Review the edited files under the task's deliverables in the app before you approve the task. To send the agent back with changes, post another comment that mentions it.

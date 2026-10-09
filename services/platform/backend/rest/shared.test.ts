@@ -6,7 +6,9 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { MentionDirectoryError } from '../domains/collab/mention-directory.ts';
 import {
+  domainErrorResponse,
   findNulByte,
   formatKeysetCursor,
   houseIssueMessage,
@@ -837,5 +839,24 @@ describe('houseIssueMessage — string caps', () => {
       'must have at most 2 items',
     );
     expect(reason(z.string().min(1), '')).toBe('must not be blank');
+  });
+});
+
+describe('a write whose mentions cannot be looked up', () => {
+  it('answers 503 MENTION_DIRECTORY_UNAVAILABLE, not a 500', async () => {
+    const app = new Hono<RestEnv>();
+    app.post('/comments', (c) =>
+      domainErrorResponse(
+        c,
+        new MentionDirectoryError('agents', new Error('connection reset')),
+      ),
+    );
+    const res = await app.request('/comments', { method: 'POST' });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({
+      code: 'MENTION_DIRECTORY_UNAVAILABLE',
+      error:
+        'Who the text mentions could not be looked up, so nothing was saved. Send it again.',
+    });
   });
 });

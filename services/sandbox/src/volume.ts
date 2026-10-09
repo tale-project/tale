@@ -20,21 +20,21 @@ function orgSlug(organizationId: string): string {
 }
 
 export function pipCacheVolumeName(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): string {
   return `${cfg.cacheVolumePrefix.pip}-${orgSlug(organizationId)}`;
 }
 
 export function npmCacheVolumeName(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): string {
   return `${cfg.cacheVolumePrefix.npm}-${orgSlug(organizationId)}`;
 }
 
 export function bunCacheVolumeName(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): string {
   return `${cfg.cacheVolumePrefix.bun}-${orgSlug(organizationId)}`;
@@ -72,7 +72,7 @@ async function cacheVolumeLabel(
  * wins, so one prefix extending another never misreads an id). THROWS when
  * the volume list cannot be read. */
 export async function listCacheVolumeOrganizations(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
 ): Promise<string[]> {
   const listed = await runDocker(
     [
@@ -112,7 +112,7 @@ export async function listCacheVolumeOrganizations(
  * were removed; THROWS when one could not be (still mounted, a daemon
  * hiccup), so the caller retries. */
 export async function removeCacheVolumes(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'cacheVolumePrefix'>,
   organizationId: string,
 ): Promise<number> {
   let removed = 0;
@@ -178,17 +178,21 @@ function forgetCacheVolume(name: string): void {
  * Lazy idempotent create. New volumes are root-owned by default, but the
  * per-org cache is shared by BOTH session profiles — the one-shot default
  * profile (uid 65534) and the agent session profile (uid 10001) — so no single
- * owner works. On first creation we spin up a transient busybox to set the
- * volume root to 1777 (sticky, world-writable, like /tmp): every same-org
+ * owner works. On first creation a transient container of the runtime image
+ * (`image`, already on the host for the sessions) sets the volume root to
+ * 1777 (sticky, world-writable, like /tmp): every same-org
  * sandbox uid can write its own cache entries, and the sticky bit stops one uid
  * from deleting another's. The per-org volume is the isolation boundary (R2.3),
  * so intra-org world-write is acceptable. Subsequent calls find the cache
  * label (`docker volume inspect`) and do nothing more. A volume under the name
  * without the label is one Docker made for a session's `--mount`: it is
- * replaced, or made writable while a session still holds it.
+ * replaced, or made writable while a session still holds it. A fresh volume
+ * whose mode could not be set is removed again, so the next ensure starts
+ * clean instead of finding a labelled volume no session can write.
  */
 export async function ensureCacheVolume(
   name: string,
+  image: string,
   nowMs = Date.now(),
 ): Promise<void> {
   const at = ensuredAt.get(name);
@@ -198,7 +202,7 @@ export async function ensureCacheVolume(
   const forgottenBefore = forgotten;
   const work = (async () => {
     try {
-      await ensureCacheVolumeUnlocked(name);
+      await ensureCacheVolumeUnlocked(name, image);
       if (forgotten === forgottenBefore) ensuredAt.set(name, nowMs);
     } finally {
       ensureInFlight.delete(name);
@@ -208,7 +212,10 @@ export async function ensureCacheVolume(
   return work;
 }
 
-async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
+async function ensureCacheVolumeUnlocked(
+  name: string,
+  image: string,
+): Promise<void> {
   const label = await cacheVolumeLabel(name);
   if (label === 'labelled') return; // made below, its mode set
   if (label === 'unlabelled') {
@@ -221,7 +228,7 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
     if (rm.exitCode !== 0 && !/no such volume/i.test(rm.stderr)) {
       const unreplaced = `[sandbox.volume] cache volume ${name} lacks the ${CACHE_LABEL} label and could not be replaced (${rm.stderr.trim()})`;
       try {
-        await setCacheVolumeMode(name);
+        await setCacheVolumeMode(name, image);
       } catch (err) {
         // The sessions it is mounted in run on as before, without the cache.
         console.warn(`${unreplaced}, nor made writable:`, err);
@@ -256,33 +263,53 @@ async function ensureCacheVolumeUnlocked(name: string): Promise<void> {
     );
   }
 
-  await setCacheVolumeMode(name);
+  try {
+    await setCacheVolumeMode(name, image);
+  } catch (err) {
+    // Labelled but still root-owned at 0755, the volume would read as ready
+    // to every later ensure and the organization's package installs would
+    // fail EACCES for good. Remove it; the next create makes it again.
+    const rm = await runDocker(['volume', 'rm', name], { timeoutMs: 30_000 });
+    if (rm.exitCode !== 0 && !/no such volume/i.test(rm.stderr)) {
+      console.warn(
+        `[sandbox.volume] could not remove ${name} after its mode failed (${rm.stderr.trim()}); the organization's sessions cannot write that cache until it is removed`,
+      );
+    }
+    throw err;
+  }
 }
 
 /** One-shot perms fix so EITHER profile's uid can write the shared cache.
  * 1777 (sticky world-writable) rather than a chown because the per-org volume
  * is shared by the one-shot uid 65534 and the agent-session uid 10001;
- * chowning to one would lock out the other. */
-async function setCacheVolumeMode(name: string): Promise<void> {
+ * chowning to one would lock out the other.
+ *
+ * Run with the sessions' own runtime image, never a pulled helper: the image
+ * is on the host already (sessions cannot start without it), so the chmod
+ * needs no registry — an air-gapped host could not pull one, and anonymous
+ * Docker Hub pulls are rate-limited. Its entrypoint is replaced by the
+ * coreutils chmod, without network. */
+async function setCacheVolumeMode(name: string, image: string): Promise<void> {
   const perms = await runDocker(
     [
       'run',
       '--rm',
+      '--pull=never',
+      '--network',
+      'none',
       '--user',
       '0:0',
+      '--entrypoint',
+      '/bin/chmod',
       '--label',
       'tale.sandbox-staging=1',
       '--mount',
       `type=volume,src=${name},dst=/cache`,
-      'busybox:1.36',
-      'chmod',
+      image,
       '1777',
       '/cache',
     ],
-    {
-      // Pulls busybox on first use; a generous bound, not a routine wait.
-      timeoutMs: 120_000,
-    },
+    { timeoutMs: 30_000 },
   );
   if (perms.exitCode !== 0) {
     throw new Error(

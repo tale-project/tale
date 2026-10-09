@@ -106,6 +106,18 @@ Each organization is listed with the person's one role in it.
 - **Example**: Mia's membership in a second organization was disabled → her organization
   switcher lists the first one only.
 
+## Preserved automation runs
+
+### ORG-R12 · An organization with unresolved legacy automation holds cannot be deleted
+
+The delete is refused (`ORG_LEGACY_AUTOMATION_HELD`, 409) before audit or cleanup work starts.
+A hold detected by the database during deletion returns the same conflict and rolls back
+the whole deletion. These execution holds are separate from legal holds. A stop request
+does not release them.
+
+- **Example**: An earlier automation run has unknown external outcomes. Ada deletes its
+  organization → the organization is preserved, with an explanation of the execution hold.
+
 ## Not yet
 
 - **Creating an organization**: the creation itself is refused for someone who is not offered

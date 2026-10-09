@@ -240,6 +240,7 @@ agents:
   dialogEditTitle: Agent bearbeiten
   nameLabel: Name
   namePlaceholder: z. B. PR-Reviewer
+  handleHint: Erwähne ihn mit @{handle}. Benennst du den Agenten um, ändert sich das.
   harnessLabel: Agent-Laufzeit
   harnessPlaceholder: Wähle die Agent-Laufzeit, auf der er läuft
   modelLabel: Modell
@@ -281,6 +282,9 @@ agents:
     task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
     document_find: Dokumente finden
     knowledge_entry_find: Wissenseinträge finden
+    knowledge_entry_write: Wissenseinträge hinzufügen und bearbeiten
+    knowledge_search: Wissen durchsuchen
+    alwaysOn: Immer aktiv — ohne Freigabe
     contact_find: Kontakte finden
     product_find: Produkte finden
     website_find: Websites auflisten

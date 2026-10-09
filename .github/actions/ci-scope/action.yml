@@ -4,6 +4,12 @@ inputs:
   filter:
     description: Named path policy in .github/ci-scope.yml
     required: true
+  queue-only:
+    description: >-
+      'true' when this validation runs only in the merge queue: a pull
+      request's scope then reports it not applicable without discovery
+    required: false
+    default: 'false'
 outputs:
   run:
     description: Explicit true or false applicability
@@ -60,6 +66,7 @@ runs:
       uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0; Node 24
       env:
         SCOPE_FILTER: ${{ inputs.filter }}
+        SCOPE_QUEUE_ONLY: ${{ inputs.queue-only }}
         SCOPE_BEFORE: ${{ steps.before.outputs.identity }}
         SCOPE_FULL: ${{ steps.before.outputs.full }}
         SCOPE_TOUCHED: ${{ steps.filter.outputs[inputs.filter] }}
@@ -88,8 +95,14 @@ runs:
         BUILD_ci_tests: ${{ steps.filter.outputs.build_ci_tests }}
       with:
         script: |
-          const { BUILD_FILTERS, E2E_SERVICES, buildScope, e2eScope, requiresFullScope, scopeBoolean, validateScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
+          const { BUILD_FILTERS, E2E_SERVICES, buildScope, e2eScope, mergeQueueOnly, requiresFullScope, scopeBoolean, validateScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
           if (!['integration', 'build', 'e2e', 'cli', 'security'].includes(process.env.SCOPE_FILTER)) throw new Error('Unknown scope filter');
+          if (mergeQueueOnly(process.env.SCOPE_QUEUE_ONLY ?? 'false', context.eventName)) {
+            core.setOutput('run', 'false');
+            core.setOutput('full', 'false');
+            core.info(`${process.env.SCOPE_FILTER} runs only in the merge queue; this pull request skips it`);
+            return;
+          }
           let decision = { run: true, full: true };
           const full = scopeBoolean(process.env.SCOPE_FULL);
           if (context.eventName === 'pull_request') {

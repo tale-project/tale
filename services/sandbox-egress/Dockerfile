@@ -9,10 +9,10 @@
 # Verified by R2.1: pip / npm / uv all honor HTTPS_PROXY and fail loud
 # when the proxy denies a host or is unreachable.
 #
-# The Dockerfile-level user stays root so the entrypoint can chown the log
-# file before exec, AND so iptables can install the SSRF firewall rules
-# in entrypoint.sh — tinyproxy itself drops privileges to `nobody` after
-# bind (configured in tinyproxy.conf.template).
+# The Dockerfile-level user stays root so iptables can install the SSRF
+# firewall rules in docker-entrypoint.sh and dnsmasq can bind :53 —
+# tinyproxy itself drops privileges to `nobody` after bind (configured in
+# tinyproxy.conf.template) and logs to stdout, so it needs no writable path.
 #
 # REQUIRED CAPABILITY: this container MUST be run with `cap_add: [NET_ADMIN]`
 # (set in compose.yml and the CLI compose generator) so the entrypoint's
@@ -21,7 +21,7 @@
 # defense is the only hostname-independent egress fence, and the hostname
 # allowlist is opt-in.
 
-# trivy:ignore:AVD-DS-0002 -- entrypoint needs root to chown log + install iptables; tinyproxy drops privs at bind time
+# trivy:ignore:AVD-DS-0002 -- entrypoint needs root to install iptables and bind :53; tinyproxy drops privs at bind time
 FROM alpine:3.20
 
 # - tinyproxy:      the proxy daemon
@@ -36,8 +36,7 @@ FROM alpine:3.20
 #                   dual-homed (also on a network with real egress), so it serves
 #                   resolution on :53 for the whole sandbox side.
 RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl dnsmasq && \
-    mkdir -p /etc/tinyproxy /var/log/tinyproxy && \
-    chown -R nobody:nobody /var/log/tinyproxy
+    mkdir -p /etc/tinyproxy
 
 COPY services/sandbox-egress/tinyproxy.conf.template /etc/tinyproxy/tinyproxy.conf.template
 COPY services/sandbox-egress/docker-entrypoint.sh /docker-entrypoint.sh
@@ -56,8 +55,12 @@ EXPOSE 53/udp
 # from redirecting the probe. NOT `nc -z`: tinyproxy logs every
 # connect-and-close at ERROR ("read_request_line: Client … closed socket
 # before read."), so a TCP probe floods the log with one error per interval.
+# Then one DNS query to dnsmasq on 127.0.0.1 for the name it answers from its
+# own `--host-record` (entrypoint.sh): busybox `nslookup` exits non-zero on no
+# answer within a second or on an error reply, so a forwarder that stopped
+# answering turns the container unhealthy without any upstream lookup.
 # Keep byte-identical to EGRESS_HEALTH_PROBE in the CLI compose generator.
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ || exit 1
+  CMD curl -sS -o /dev/null --max-time 3 --noproxy '*' http://127.0.0.1:3128/ && nslookup -type=a -timeout=1 sandbox-egress-health.invalid 127.0.0.1 || exit 1
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

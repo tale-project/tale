@@ -1,107 +1,146 @@
+import { createHash } from 'node:crypto';
+
 import type { Sql } from 'postgres';
 
-import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
-  type DirectCallLease,
-  type DirectCallSubject,
-  openTokenCall,
-  releaseDirectCall,
-  settleTokenCall,
-  type TokenCallModel,
-} from '../governance/direct-calls.ts';
+  AUTOMATION_LLM_LIFETIME_MS,
+  AUTOMATION_LLM_OP_KIND,
+  type LlmAttemptAddress,
+} from '../../core/automations/llm_budget.ts';
 import { resolveAutomationRunAttribution } from '../sandbox/op-attribution.ts';
+import { reconcileSessionOpKey } from '../sandbox/spend-settlement.ts';
+import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 
-/**
- * An automation's `llm` step is a direct model call the organization pays
- * for, made outside any sandbox session — so its run is its billing subject
- * (`resolveAutomationRunAttribution`): the person who started the run, or
- * `__automation__` for a run a trigger started, under the automation's
- * name, with the key a keyed door used and the projects the run is in —
- * what the run's agent steps book under too.
- *
- * Each call is a direct call (`governance/direct-calls.ts`): before it, its
- * worst case — the prompt and the node's whole output cap at the catalog
- * price — is measured against every cap that binds that subject, counting
- * what all work in flight holds, and held while the call runs; once a cap
- * has too little room the step is refused. After it, the tokens the
- * provider reported are priced from the catalog and booked in the hold's
- * place.
- */
+/** Every paid effect attempt owns one op; a resumed retry owns another. */
+export function llmStepOp(args: {
+  organizationId: string;
+  runId: string;
+  attempt: LlmAttemptAddress;
+}): { sessionId: string; execId: string } {
+  const hash = (parts: unknown[]): string =>
+    createHash('sha256').update(JSON.stringify(parts)).digest('hex');
+  return {
+    sessionId: `automation-llm:${hash([args.organizationId, args.runId])}`,
+    execId: hash([
+      args.organizationId,
+      args.runId,
+      args.attempt.nodeId,
+      args.attempt.itemIndex,
+      args.attempt.pass,
+      args.attempt.attempt,
+    ]),
+  };
+}
 
-/** The longest one call may hold its worst case: the model call's own
- * timeout (180 s) with room to spare. */
-const LLM_STEP_CALL_MAX_MS = 10 * 60 * 1000;
+export interface LlmStepReservation {
+  organizationId: string;
+  runId: string;
+  attempt: LlmAttemptAddress;
+  provider: string;
+  model: string;
+  reserveCents: number;
+  reserveTokens: number;
+}
 
-export type LlmStepAdmission =
-  | { allowed: true; lease: DirectCallLease }
-  | { allowed: false; reason: string };
-
-export async function openLlmStepCall(
-  sql: Sql,
-  args: TokenCallModel & {
-    runId: string;
-    /** The run's automation — the ledger's label when the run itself can
-     * no longer be read. */
-    automation: string;
-    promptTokens: number;
-    maxOutputTokens: number;
-  },
-): Promise<LlmStepAdmission> {
-  const attribution = await resolveAutomationRunAttribution(sql, args);
-  const subject: DirectCallSubject =
-    attribution !== null
-      ? {
-          userId: attribution.userId,
-          agentSlug: attribution.agentSlug ?? args.automation,
-          ...(attribution.apiKeyId !== undefined
-            ? { apiKeyId: attribution.apiKeyId }
-            : {}),
-          ...(attribution.projectIds !== undefined
-            ? { projectIds: attribution.projectIds }
-            : {}),
-        }
-      : // A run with no starter to read is still the organization's spend.
-        { userId: AUTOMATION_SUBJECT_ID, agentSlug: args.automation };
-  const admission = await openTokenCall(sql, {
+/** The same whole-request hold used by model API calls, with the subject
+ * and current durable effect attempt checked under the shared admission lock. */
+export async function reserveLlmStepBudget(sql: Sql, args: LlmStepReservation) {
+  if (
+    !Number.isSafeInteger(args.reserveTokens) ||
+    args.reserveTokens < 1 ||
+    !Number.isFinite(args.reserveCents) ||
+    args.reserveCents < 0 ||
+    !Number.isSafeInteger(args.attempt.attempt) ||
+    args.attempt.attempt < 1 ||
+    !Number.isSafeInteger(args.attempt.itemIndex) ||
+    !Number.isSafeInteger(args.attempt.pass) ||
+    args.attempt.nodeId.length === 0 ||
+    args.provider.length === 0 ||
+    args.model.length === 0
+  ) {
+    throw new Error('Invalid direct LLM reservation');
+  }
+  const op = llmStepOp(args);
+  const allowance = await reserveTurnBudget(sql, {
     organizationId: args.organizationId,
-    provider: args.provider,
-    model: args.model,
-    lane: 'llm-step',
-    subject,
-    promptTokens: args.promptTokens,
-    maxOutputTokens: args.maxOutputTokens,
-    maxDurationMs: LLM_STEP_CALL_MAX_MS,
+    ...op,
+    kind: AUTOMATION_LLM_OP_KIND,
+    // The model-ref format has a connector and a gateway-provider prefix.
+    // Direct calls reuse that representation without creating a gateway.
+    modelRef: `${args.provider}/${args.provider}/${args.model}`,
+    defaultBudgetCents: Math.max(1, Math.ceil(args.reserveCents)),
+    whole: { prospectiveTokens: args.reserveTokens },
+    prepareSubject: async (tx) => {
+      const live = await tx<{ id: string }[]>`
+        SELECT a.id FROM app.automation_node_attempts a
+        JOIN app.automation_runs r ON r.id = a.run_id AND r.org_id = a.org_id
+        WHERE a.org_id = ${args.organizationId} AND a.run_id = ${args.runId}
+          AND a.node_id = ${args.attempt.nodeId}
+          AND a.item_index = ${args.attempt.itemIndex} AND a.pass = ${args.attempt.pass}
+          AND a.attempt = ${args.attempt.attempt} AND a.kind = 'llm'
+          AND a.status = 'started' AND r.status = 'running'
+          AND a.claim_epoch = r.claim_epoch AND r.lease_epoch = r.claim_epoch
+          AND r.lease_expires_at_ms > ${Date.now()}
+        FOR SHARE OF a, r
+      `;
+      if (!live[0])
+        throw new Error('The LLM effect attempt is no longer current');
+      const prior = await tx<{ id: string }[]>`
+        SELECT id FROM app.sandbox_session_ops
+        WHERE session_id = ${op.sessionId} AND exec_id = ${op.execId}
+      `;
+      if (prior[0])
+        throw new Error('The LLM effect attempt was already admitted');
+      const subject = await resolveAutomationRunAttribution(tx, args);
+      if (subject === null)
+        throw new Error('The LLM run has no billing subject');
+      return subject;
+    },
   });
-  return admission.allowed
-    ? { allowed: true, lease: admission.lease }
-    : { allowed: false, reason: admission.reason };
+  return allowance.allowed ? { allowed: true as const, ...op } : allowance;
 }
 
-/** One call's spend, as the provider reported it. */
-export interface LlmStepUsage extends TokenCallModel {
-  lease: DirectCallLease;
-  inputTokens: number;
-  outputTokens: number;
+export interface LlmStepUsage {
+  organizationId: string;
+  sessionId: string;
+  execId: string;
+  /** Null means the provider outcome is unknown, never a reported zero. */
+  usage: { inputTokens: number; outputTokens: number; cents: number } | null;
 }
 
-/** Book the call at the catalog price in its hold's place. */
-export async function settleLlmStepCall(
+/** Persist terminal facts before attempting the idempotent shared settlement.
+ * On a DB failure the existing hold survives and the watchdog recovers it. */
+export async function recordLlmStepUsage(
   sql: Sql,
-  usage: LlmStepUsage,
+  args: LlmStepUsage,
 ): Promise<void> {
-  await settleTokenCall(sql, usage.lease, {
-    organizationId: usage.organizationId,
-    provider: usage.provider,
-    model: usage.model,
-    inputTokens: usage.inputTokens,
-    outputTokens: usage.outputTokens,
-  });
-}
-
-/** Release the hold of a call that reported no usage. */
-export async function releaseLlmStepCall(
-  sql: Sql,
-  args: { lease: DirectCallLease },
-): Promise<void> {
-  await releaseDirectCall(sql, args.lease);
+  const usage = args.usage;
+  if (
+    usage !== null &&
+    (!Number.isSafeInteger(usage.inputTokens) ||
+      usage.inputTokens < 0 ||
+      !Number.isSafeInteger(usage.outputTokens) ||
+      usage.outputTokens < 0 ||
+      !Number.isFinite(usage.cents) ||
+      usage.cents < 0)
+  ) {
+    throw new Error('Invalid direct LLM usage');
+  }
+  const now = Date.now();
+  await sql`
+    UPDATE app.sandbox_session_ops SET
+      status = ${usage === null ? 'failed' : 'completed'},
+      finalized_at_ms = ${now}, finished_at_ms = ${now},
+      expected_cents = ${usage?.cents ?? null},
+      input_tokens = ${usage?.inputTokens ?? null},
+      output_tokens = ${usage?.outputTokens ?? null},
+      settle_after_ms = CASE WHEN ${usage === null}
+        THEN started_at_ms + ${AUTOMATION_LLM_LIFETIME_MS} ELSE ${now} END
+    WHERE org_id = ${args.organizationId} AND session_id = ${args.sessionId}
+      AND exec_id = ${args.execId} AND kind = ${AUTOMATION_LLM_OP_KIND}
+      AND finalized_at_ms IS NULL AND spend_settled_at_ms IS NULL
+  `;
+  // Failure here leaves the persisted facts and hold for the existing sweep.
+  const outcome = await reconcileSessionOpKey(sql, args);
+  if (outcome === null) throw new Error('The direct LLM operation is missing');
 }

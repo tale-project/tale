@@ -109,11 +109,44 @@ function isBlockTagLine(
 }
 
 export function normalizeHtmlBlocks(text: string): string {
+  return normalizeHtmlBlocksWithOffsets(text).text;
+}
+
+export interface NormalizedHtmlBlocks {
+  text: string;
+  /**
+   * Where the blank lines went: the offset in `text` of each newline that was
+   * added, ascending. Everything else in `text` is the input, in order, so an
+   * offset of `text` maps back to the input by subtracting how many of these
+   * lie before it (`toInputOffset`).
+   */
+  inserted: number[];
+}
+
+/** {@link normalizeHtmlBlocks}, telling where it inserted, so a reader that
+ * parses the result can point back into the text it was given. */
+export function normalizeHtmlBlocksWithOffsets(
+  text: string,
+): NormalizedHtmlBlocks {
   // Cheap pre-check — most messages contain no HTML at all.
-  if (!text || !text.includes('<')) return text;
+  if (!text || !text.includes('<')) return { text, inserted: [] };
 
   const lines = text.split('\n');
   const out: string[] = [];
+  const inserted: number[] = [];
+  // Length of `out.join('\n')` so far.
+  let outLength = 0;
+  const push = (line: string) => {
+    if (out.length > 0) outLength += 1;
+    outLength += line.length;
+    out.push(line);
+  };
+  const insertBlank = () => {
+    // The blank line starts after the separator that follows the previous
+    // line; the newline it adds sits at that start.
+    inserted.push(out.length > 0 ? outLength + 1 : 0);
+    push('');
+  };
   let inFence = false;
   let fenceMarker = '';
 
@@ -126,7 +159,7 @@ export function normalizeHtmlBlocks(text: string): string {
     // matters in practice; we accept any line of the same marker char as
     // closing, which mirrors how most users write fences.
     if (inFence) {
-      out.push(line);
+      push(line);
       const closeMatch = line.match(/^\s{0,3}(```+|~~~+)\s*$/);
       if (closeMatch && closeMatch[1][0] === fenceMarker[0]) {
         inFence = false;
@@ -139,30 +172,44 @@ export function normalizeHtmlBlocks(text: string): string {
     if (fenceOpen) {
       inFence = true;
       fenceMarker = fenceOpen[1];
-      out.push(line);
+      push(line);
       continue;
     }
 
     const block = isBlockTagLine(line);
     if (!block) {
-      out.push(line);
+      push(line);
       continue;
     }
 
     // For a closing tag, ensure the previous emitted line is blank so that
     // the preceding markdown paragraph terminates before the HTML block.
     if (block.isClose && out.length > 0 && out[out.length - 1].trim() !== '') {
-      out.push('');
+      insertBlank();
     }
 
-    out.push(line);
+    push(line);
 
     // For an opening tag, ensure the next input line is blank so that the
     // markdown content following the tag is parsed as its own block.
     if (!block.isClose && i + 1 < lines.length && lines[i + 1].trim() !== '') {
-      out.push('');
+      insertBlank();
     }
   }
 
-  return out.join('\n');
+  return { text: out.join('\n'), inserted };
+}
+
+/** The input offset of an offset in {@link normalizeHtmlBlocksWithOffsets}'
+ * output. */
+export function toInputOffset(
+  inserted: readonly number[],
+  offset: number,
+): number {
+  let before = 0;
+  for (const at of inserted) {
+    if (at >= offset) break;
+    before += 1;
+  }
+  return offset - before;
 }

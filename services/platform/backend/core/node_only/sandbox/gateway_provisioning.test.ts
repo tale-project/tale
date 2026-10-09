@@ -15,6 +15,7 @@ import {
   ensureModelPricingOverride,
   mintVirtualKey,
   provisionProviders,
+  scheduleProviderPoolShrink,
 } from './llm_gateway_admin';
 
 vi.mock('./llm_gateway_admin', async (importOriginal) => {
@@ -31,6 +32,7 @@ vi.mock('./llm_gateway_admin', async (importOriginal) => {
     applyGatewayConfig: vi.fn(async () => {}),
     ensureModelPricingOverride: vi.fn(async () => {}),
     mintVirtualKey: vi.fn(async () => ({ key: 'sk-bf-t', keyId: 'vk-9' })),
+    scheduleProviderPoolShrink: vi.fn(() => {}),
   };
 });
 vi.mock('../../provider_credentials/resolve_credential', () => ({
@@ -662,6 +664,24 @@ describe('provisionSessionGatewayKey', () => {
       }),
     ).rejects.toThrow('config PUT failed');
     expect(mintVirtualKey).not.toHaveBeenCalled();
+    expect(scheduleProviderPoolShrink).not.toHaveBeenCalled();
+  });
+
+  it('schedules the resize of the records no session provisions once the posture is applied', async () => {
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+    const result = await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-4',
+      allowedModels: MODELS,
+      budgetCents: 100,
+    });
+    expect(result.keyId).toBe('vk-9');
+    expect(scheduleProviderPoolShrink).toHaveBeenCalledTimes(1);
+    expect(
+      vi.mocked(applyGatewayConfig).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(scheduleProviderPoolShrink).mock.invocationCallOrder[0] ?? 0,
+    );
   });
 
   it('passes an explicit credential selection through to resolution', async () => {

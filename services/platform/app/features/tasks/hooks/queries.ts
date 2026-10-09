@@ -245,7 +245,7 @@ export function useProjectDependencies(projectId: string | undefined) {
 
 /** How many comments the discussion shows before asking to load earlier
  * ones — the whole discussion for every task under it. */
-const TASK_DISCUSSION_PAGE_SIZE = 30;
+export const TASK_DISCUSSION_PAGE_SIZE = 30;
 
 /**
  * The task's discussion, NEWEST comment first, as a page walk: the first
@@ -333,6 +333,10 @@ export function useTaskOpsIndicators(projectId: string | undefined) {
     // Full pending-review refs (taskId + the reviewer waited on) — the board
     // chip naming and the needs-my-review facet both read `requestedFor`.
     pendingReviews: data?.pendingReviews ?? NO_REVIEWS,
+    // Every live agent run with its worker or why it waits. A truncated
+    // list never means "not waiting" for a task missing from it.
+    runs: data?.runs ?? NO_RUNS,
+    runsTruncated: data?.runsTruncated ?? false,
   };
 }
 
@@ -351,6 +355,8 @@ export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
     // (see getTaskOpsIndicatorsForAccessibleProjects), the ask set with them.
     askingTaskIds: data?.askingTaskIds ?? NO_IDS,
     pendingReviews: data?.pendingReviews ?? NO_REVIEWS,
+    runs: data?.runs ?? NO_RUNS,
+    runsTruncated: data?.runsTruncated ?? false,
   };
 }
 

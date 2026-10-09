@@ -45,6 +45,7 @@ vi.mock('./agent-runs.ts', () => ({
   cancelAgentRunInTx: vi.fn(),
   isStandardAgentRefusal: () => false,
   kickAgentRun: vi.fn(),
+  withdrawWaitingAgentRunInTx: vi.fn(async () => false),
 }));
 vi.mock('./run-start.ts', () => ({
   mentionAutomationEnabled: vi.fn(() => Promise.resolve(true)),

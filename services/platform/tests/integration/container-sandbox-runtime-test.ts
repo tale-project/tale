@@ -112,12 +112,62 @@ await assertOk(
 );
 
 console.log('');
+console.log("--- the spawner's package-cache chmod ---");
+{
+  // services/sandbox/src/volume.ts makes each new per-organization cache
+  // volume writable with exactly this run of the runtime image: no pull, no
+  // network, coreutils chmod in place of the entrypoint.
+  const { exitCode, combined } = await capture([
+    'docker',
+    'run',
+    '--rm',
+    '--pull=never',
+    '--network',
+    'none',
+    '--user',
+    '0:0',
+    '--entrypoint',
+    '/bin/chmod',
+    '--tmpfs',
+    '/cache',
+    IMAGE,
+    '1777',
+    '/cache',
+  ]);
+  if (exitCode === 0) {
+    pass('the image sets a cache volume mode with /bin/chmod as entrypoint');
+  } else {
+    fail(
+      `the image sets a cache volume mode with /bin/chmod as entrypoint (got: ${combined.slice(0, 200)})`,
+    );
+  }
+}
+
+console.log('');
 console.log('--- default session profile (uid 65534) ---');
 await assertContains('python3 present', 65534, 'Python 3', 'python3 --version');
 await assertContains('node present', 65534, 'v', 'node --version');
 await assertOk('uv present', 65534, 'command -v uv');
 // bun + bunx — many JS/TS projects (Tale included) use them.
 await assertOk('bun present', 65534, 'command -v bun && command -v bunx');
+// The node image's yarn/yarnpkg/nodejs links point outside /usr/local; the
+// image carries their targets, so no tool on PATH is a dangling link.
+await assertOk(
+  'no dangling links on PATH',
+  65534,
+  'test -z "$(find /opt/node/bin /usr/local/bin /opt/agents/bin -xtype l)"',
+);
+await assertOk(
+  'yarn and nodejs run',
+  65534,
+  'yarn --version && nodejs --version',
+);
+// The read-only root cannot cache bytecode, so the stdlib's is baked.
+await assertOk(
+  'stdlib bytecode is baked',
+  65534,
+  `python3 -c 'import importlib.util, json, os; assert os.path.exists(importlib.util.cache_from_source(json.__file__))'`,
+);
 // Batch vision CLI — chat run_code execs run at this uid.
 await assertOk(
   'tale-vision present',

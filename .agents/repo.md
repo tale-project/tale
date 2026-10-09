@@ -129,7 +129,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
   what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
   never renumber.** Ship new behaviour with its box, or with a row in `reference/automation.md`
-  when a spec owns it end to end. The platform's `tests/manual/scripts/check-guide.ts` is the
+  when a spec owns it end to end — a box a spec takes over moves to
+  `reference/automation/<suite>.md`, one file per suite so parallel PRs do not append to the same
+  lines. The platform's `tests/manual/scripts/check-guide.ts` is the
   content half of the gate: it resolves the i18n keys, routes and spec names a suite cites, and is
   an authoring aid rather than a CI job — run it on every suite you touch.
 - **Judge the platform against its user docs** — the pages under `docs/en/platform/` are the
@@ -156,7 +158,14 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
-  title must itself be commitlint-shaped.
+  title must itself be commitlint-shaped. **Land through the merge queue**: `gh pr merge --auto`
+  (the queue sets squash) queues a PR once its checks and review pass, and the queue re-runs CI on the PR stacked
+  on `main` plus the PRs ahead of it. A branch does not have to be up to date with `main` — never
+  rebase, merge `main` in or `gh pr update-branch` just because a PR reads *behind*; rebase only for
+  a real conflict (`git merge-tree --write-tree --name-only origin/main HEAD`), and never bypass
+  the queue with an admin merge. A PR's own CI is the fast tier (format, lint, types, knip, unit,
+  commitlint, SAST); E2E, Build, CLI, UI, Browser and backend integration run only in the queue —
+  run the ones your change touches locally before queueing ([CI guide](../.github/CI.md#merge-queue)).
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
@@ -760,6 +769,9 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   that the old execution is retired, an authorized decision about unknown external effects, and
   a guarded release contract. Never clear the hold or manufacture node-attempt evidence merely
   because a stop was requested, a lease expired, or the old containers disappeared.
+  Erasure deletes other eligible subject runs and records the held runs separately on a partial
+  receipt; organization deletion returns an explicit conflict. These are containment, not a
+  retirement contract or a release of the holds.
 - **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
   30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
   read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by
