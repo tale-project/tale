@@ -367,6 +367,7 @@ credentials:
     Ce sont les identifiants par défaut. Les supprimer ne laisse aucun défaut
     jusqu'à ce que tu en choisisses d'autres.
   deletedToast: Identifiants supprimés
+  deletedInAnotherSession: Ces identifiants ont été supprimés dans une autre session.
   updateFailed: 'Impossible de mettre à jour les identifiants : {error}'
   deleteFailed: 'Impossible de supprimer les identifiants : {error}'
   noDefault: >-

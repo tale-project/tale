@@ -343,6 +343,7 @@ credentials:
     This is the default credential. Deleting it leaves no default until you
     pick another one.
   deletedToast: Credential deleted
+  deletedInAnotherSession: This credential was deleted in another session.
   updateFailed: 'Could not update the credential: {error}'
   deleteFailed: 'Could not delete the credential: {error}'
   noDefault: >-

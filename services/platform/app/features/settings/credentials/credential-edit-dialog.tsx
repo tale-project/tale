@@ -37,6 +37,7 @@ export function CredentialEditDialog<
   vendor,
   adapter,
   open,
+  deleted = false,
   onOpenChange,
 }: {
   organizationId: string;
@@ -44,6 +45,7 @@ export function CredentialEditDialog<
   vendor: V;
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
   open: boolean;
+  deleted?: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('settings');
@@ -88,7 +90,7 @@ export function CredentialEditDialog<
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (update.isPending || name.trim().length === 0) return;
+    if (update.isPending || deleted || name.trim().length === 0) return;
     setError(null);
     try {
       await update.mutateAsync({
@@ -123,6 +125,7 @@ export function CredentialEditDialog<
       isSubmitting={update.isPending}
       isDirty={isDirty}
       isValid={
+        !deleted &&
         name.trim().length > 0 &&
         (!hasEndpoint || endpointUrl.trim().length > 0) &&
         // Editing can CLEAR a required extra field (a connector's configFields),
@@ -133,6 +136,12 @@ export function CredentialEditDialog<
       confirmDiscardOnDirty
       onSubmit={(e) => void handleSubmit(e)}
     >
+      {deleted && (
+        <Alert
+          variant="warning"
+          description={t('credentials.deletedInAnotherSession')}
+        />
+      )}
       {error !== null && <Alert variant="destructive" description={error} />}
       <Input
         label={nameField?.label ?? t('credentials.name')}

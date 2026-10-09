@@ -356,6 +356,7 @@ credentials:
     Das sind die Standard-Zugangsdaten. Nach dem Löschen gibt es keinen
     Standard mehr, bis du einen neuen wählst.
   deletedToast: Zugangsdaten gelöscht
+  deletedInAnotherSession: Diese Zugangsdaten wurden in einer anderen Sitzung gelöscht.
   updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
   deleteFailed: 'Konnte die Zugangsdaten nicht löschen: {error}'
   noDefault: >-
