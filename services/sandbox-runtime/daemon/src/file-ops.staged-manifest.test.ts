@@ -18,6 +18,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  statSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -68,15 +69,20 @@ function manifestEntries(): unknown[] {
     : [];
 }
 
-/** Counts the times a file under the workspace is read through, as hashing
- * it does. */
-function countReads(): { reads: () => number; restore: () => void } {
+/** Counts reads of the exact fixture file, including descriptor-relative
+ * Linux opens. */
+function countReads(path: string): {
+  reads: () => number;
+  restore: () => void;
+} {
+  const expected = statSync(path, { bigint: true });
   let reads = 0;
   const originalOpen = fsPromises.open;
   const opening = spyOn(fsPromises, 'open').mockImplementation(
     async (...args) => {
       const file = await originalOpen(...args);
-      if (String(args[0]).includes('inputs')) {
+      const actual = await file.stat({ bigint: true });
+      if (actual.dev === expected.dev && actual.ino === expected.ino) {
         const stream = file.createReadStream.bind(file);
         file.createReadStream = (...options) => {
           reads += 1;
@@ -119,7 +125,7 @@ describe('staged files across runnerd restarts', () => {
     expect(readFileSync(MANIFEST, 'utf8')).toContain('"inputs/task-1/a.txt"');
 
     const second = await restart();
-    const counted = countReads();
+    const counted = countReads(join(ROOT, path));
     try {
       expect(
         await second.stageFiles([{ path, url: URL_, sourceId: 'blob:a' }]),
@@ -162,7 +168,7 @@ describe('staged files across runnerd restarts', () => {
     expect(entry).toHaveLength(3);
 
     const second = await restart();
-    const counted = countReads();
+    const counted = countReads(join(ROOT, path));
     try {
       expect(
         (await second.stageFiles([{ path, sourceId: 'blob:c' }])).staged,
