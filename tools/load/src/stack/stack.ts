@@ -192,7 +192,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
         ...baseEnv,
         ...roleEnv('api'),
         PORT: String(port),
-        HOST: options.host,
+        BACKEND_LISTEN_HOST: options.host,
       },
       log,
     });

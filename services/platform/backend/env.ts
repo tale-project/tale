@@ -19,9 +19,10 @@ const envSchema = z.object({
   /**
    * Interface the API listens on; unset, every interface (what a container
    * needs). A process run straight on a workstation — the load harness's
-   * `stack up` — binds loopback through it.
+   * `stack up` — binds loopback through it. Not `HOST`: deployments already
+   * set that to the public host name, which no interface answers to.
    */
-  HOST: z.preprocess(
+  BACKEND_LISTEN_HOST: z.preprocess(
     (value) => (value === '' ? undefined : value),
     z.string().min(1).optional(),
   ),
