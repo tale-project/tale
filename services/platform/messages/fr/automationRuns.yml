@@ -121,6 +121,26 @@ items:
   pass: Passage {index}
   more: Afficher plus
   label: Éléments et passages de l’étape {step}
+list:
+  caption: Exécutions de cette automatisation
+  columns:
+    status: Statut
+    started: Lancée
+    result: Résultat
+    version: Version
+    mode: Mode
+    startedBy: Lancée par
+  filters:
+    status: Statut
+    mode: Mode
+  compare: Comparer
+  compareDisabled: Sélectionne deux exécutions à comparer.
+  selected: '{count, plural, one {# exécution sélectionnée} other {# exécutions sélectionnées}}'
+  clear: Effacer la sélection
+  entity:
+    one: exécution
+    other: exécutions
+  noMatch: Aucune exécution ne correspond à ces filtres
 attempts:
   title: Tentatives
   row: Tentative {n}

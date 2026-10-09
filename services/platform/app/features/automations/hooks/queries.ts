@@ -1,5 +1,8 @@
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
+
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import type { ReplayRequestArgs } from '@/app/lib/backend/contract/automations';
 
 import { listNodeTypesRef } from './backend';
@@ -138,6 +141,29 @@ export function useRunInDoubt(
   return useBackendQuery(
     'automations/queries:getRunInDoubt',
     runId === undefined ? 'skip' : { organizationId, runId },
+  );
+}
+
+/** One automation's runs, newest first, a page at a time, narrowed to the
+ * statuses and mode the Runs table asks for. */
+export function useAutomationRunsPage(args: {
+  organizationId: string;
+  name: string;
+  projectId?: string;
+  statuses?: readonly string[];
+  mode?: 'mock' | 'live';
+}) {
+  return useCachedPaginatedQuery(
+    'automations/queries:listRunsPaginated',
+    {
+      organizationId: args.organizationId,
+      name: args.name,
+      ...(args.projectId !== undefined && { projectId: args.projectId }),
+      ...(args.statuses !== undefined &&
+        args.statuses.length > 0 && { statuses: [...args.statuses] }),
+      ...(args.mode !== undefined && { mode: args.mode }),
+    },
+    { initialNumItems: DEFAULT_LIST_PAGE_SIZE },
   );
 }
 

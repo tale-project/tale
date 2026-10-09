@@ -76,12 +76,14 @@ import {
   getRun,
   listAutomationsForApp,
   listRuns,
+  listRunsPage,
   listTriggers,
   listVersions,
   saveVersion,
   setAutomationProjects,
   setTrigger,
   toRunDetail,
+  toRunSummary,
   versionRow,
   deployedVersion,
   bindingProjectIds,
@@ -298,6 +300,47 @@ const itemsQuerySchema = z.object({
     .pipe(z.number().int().min(1).max(200))
     .optional(),
   status: z.enum(['all', 'failed']).optional(),
+});
+
+/** The statuses a page of runs may be narrowed to. */
+const RUN_PAGE_STATUSES = new Set([
+  'queued',
+  'running',
+  'waiting',
+  'quarantined',
+  'success',
+  'failed',
+  'cancelled',
+]);
+
+/**
+ * A page of one automation's runs, as the Runs table asks for it: its
+ * name, the project it is read in, the statuses and mode it is narrowed to,
+ * and where the previous page ended (`<startedAt>|<id>`).
+ */
+const runPageQuerySchema = z.object({
+  name: z.string().min(1).max(512),
+  projectId: z.string().min(1).max(128).optional(),
+  status: z
+    .string()
+    .max(200)
+    .optional()
+    .transform((value) =>
+      value === undefined
+        ? undefined
+        : value.split(',').filter((status) => RUN_PAGE_STATUSES.has(status)),
+    ),
+  mode: z.enum(['mock', 'live']).optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+  cursor: z
+    .string()
+    .regex(/^\d{1,16}\|[\w-]{1,64}$/)
+    .optional()
+    .transform((value) => {
+      if (value === undefined) return undefined;
+      const [at, id] = value.split('|');
+      return { at: Number(at), id: id ?? '' };
+    }),
 });
 
 /** A replay's plan, asked for in the query: the same request a replay
@@ -934,6 +977,34 @@ export function createAutomationRoutes(deps: {
   // Both run reads answer the read model (`waitingFor`, `startedVia`), never
   // the raw row: the app names what a run waits on and what started it in
   // words, and the row's ask fact is the read's own input.
+  // One page of an automation's runs, newest first, narrowed as the Runs
+  // table asks; registered before `/runs/:runId`, which would read `page` as
+  // a run id.
+  app.get('/runs/page', async (c) => {
+    const query = runPageQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    const { name, projectId, status, mode, limit, cursor } = query.data;
+    const auth = await projectAuth(c);
+    if (
+      projectId !== undefined &&
+      (await readableProject(deps.sql, auth, projectId)) === null
+    ) {
+      return c.json({ items: [], next: null });
+    }
+    const page = await listRunsPage(deps.sql, c.get('orgId'), {
+      name,
+      ...(projectId !== undefined ? { projectId } : {}),
+      visibleProjectIds: await readableProjectIds(deps.sql, auth),
+      ...(status !== undefined && status.length > 0
+        ? { statuses: status }
+        : {}),
+      ...(mode !== undefined ? { mode } : {}),
+      ...(cursor !== undefined ? { before: cursor } : {}),
+      limit,
+    });
+    return c.json({ items: page.runs.map(toRunSummary), next: page.next });
+  });
+
   app.get('/runs/:runId', async (c) => {
     const run = await visibleRun(c, c.req.param('runId'));
     return run === null

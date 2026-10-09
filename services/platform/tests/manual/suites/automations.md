@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 150 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 151 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1015,6 +1015,14 @@ output:
       row shows how it ended and a failed one why;
       `automationRuns.items.failedOnly` keeps the failed ones; picking a row
       shows that item's data below.
+- [ ] `AUTO-F116` · **Open the Runs tab of an automation with failed and
+      successful runs** → `automationRuns.list.caption` lists them newest
+      first with status, start, result (a failure's title, a waiting run's
+      reason), version, mode and starter; scrolling loads older runs;
+      **Filter** narrows by `automationRuns.list.filters.status` and mode,
+      and says `automationRuns.list.noMatch` when nothing fits; selecting two
+      rows enables `automationRuns.list.compare`, which opens their
+      comparison, and a row opens its run.
 
 ## Boundary & error tests
 

@@ -121,6 +121,26 @@ items:
   pass: Pass {index}
   more: Show more
   label: Items and passes of {step}
+list:
+  caption: Runs of this automation
+  columns:
+    status: Status
+    started: Started
+    result: Result
+    version: Version
+    mode: Mode
+    startedBy: Started by
+  filters:
+    status: Status
+    mode: Mode
+  compare: Compare
+  compareDisabled: Select two runs to compare.
+  selected: '{count, plural, one {# run selected} other {# runs selected}}'
+  clear: Clear selection
+  entity:
+    one: run
+    other: runs
+  noMatch: No runs match these filters
 attempts:
   title: Attempts
   row: Attempt {n}

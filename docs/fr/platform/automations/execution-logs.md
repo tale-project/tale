@@ -13,7 +13,7 @@ Ouvre une automatisation, passe à son onglet **Exécutions** et choisis une lig
 
 ## Lire l’état de l’exécution
 
-L’onglet **Exécutions** présente les 50 dernières exécutions que tu peux voir, de la plus récente à la plus ancienne. Les propriétaires, les admins et les développeurs voient les exécutions de l’organisation elle-même ; une exécution dans un projet, et la question qu’elle attend, n’apparaissent qu’à ceux d’entre eux qui peuvent ouvrir ce projet. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin. Les onglets restent visibles pendant la consultation. Choisis **Exécutions** pour revenir à la liste, ou **Éditeur** pour modifier le workflow.
+L’onglet **Exécutions** présente les exécutions que tu peux voir, de la plus récente à la plus ancienne, et charge les plus anciennes au défilement ; **Filtre** les restreint par statut et par mode. Les propriétaires, les admins et les développeurs voient les exécutions de l’organisation elle-même ; une exécution dans un projet, et la question qu’elle attend, n’apparaissent qu’à ceux d’entre eux qui peuvent ouvrir ce projet. Chaque ligne précise version, date, mode et déclencheur, ou donne la cause d’un échec ou d’une attente. Le détail affiche le workflow, les résultats des nœuds et les horaires. Une exécution inachevée n’a pas de date de fin. Les onglets restent visibles pendant la consultation. Choisis **Exécutions** pour revenir à la liste, ou **Éditeur** pour modifier le workflow.
 
 | Statut | Signification | Suite à donner |
 | --- | --- | --- |
@@ -85,7 +85,7 @@ Tale refuse une relance qu’il ne peut pas exécuter fidèlement et dit pourquo
 
 ## Comparer deux exécutions {#compare}
 
-**Comparer avec elle** sur une relance, ou **Comparer avec l’exécution précédente** dans le menu de **Relancer**, affiche deux exécutions côte à côte. **Ce qui diffère** nomme, le plus parlant d’abord, les versions exécutées, le nombre de champs d’entrée qui diffèrent, l’étape où elles divergent et pourquoi, par exemple une condition qui n’a pas donné le même résultat, comment chacune s’est terminée, ainsi que leur sortie et leurs écritures. Le tableau liste chaque étape, comment chaque exécution l’a laissée et si ses données sont identiques. **Échanger A et B** inverse les deux exécutions.
+**Comparer avec elle** sur une relance, **Comparer avec l’exécution précédente** dans le menu de **Relancer**, ou deux exécutions sélectionnées dans l’onglet **Exécutions** puis **Comparer** affichent deux exécutions côte à côte. **Ce qui diffère** nomme, le plus parlant d’abord, les versions exécutées, le nombre de champs d’entrée qui diffèrent, l’étape où elles divergent et pourquoi, par exemple une condition qui n’a pas donné le même résultat, comment chacune s’est terminée, ainsi que leur sortie et leurs écritures. Le tableau liste chaque étape, comment chaque exécution l’a laissée et si ses données sont identiques. **Échanger A et B** inverse les deux exécutions.
 
 ## Vérifier les changements déjà effectués
 

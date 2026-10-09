@@ -121,6 +121,26 @@ items:
   pass: Durchgang {index}
   more: Mehr anzeigen
   label: Elemente und Durchgänge von {step}
+list:
+  caption: Läufe dieser Automatisierung
+  columns:
+    status: Status
+    started: Gestartet
+    result: Ergebnis
+    version: Version
+    mode: Modus
+    startedBy: Gestartet von
+  filters:
+    status: Status
+    mode: Modus
+  compare: Vergleichen
+  compareDisabled: Wähle zwei Läufe zum Vergleichen.
+  selected: '{count, plural, one {# Lauf ausgewählt} other {# Läufe ausgewählt}}'
+  clear: Auswahl aufheben
+  entity:
+    one: Lauf
+    other: Läufe
+  noMatch: Keine Läufe passen zu diesen Filtern
 attempts:
   title: Versuche
   row: Versuch {n}

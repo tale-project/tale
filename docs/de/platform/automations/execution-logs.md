@@ -13,7 +13,7 @@ description: Erfahre, warum ein Lauf fehlschlug oder ein Schritt übersprungen w
 
 ## Den Laufstatus lesen
 
-Der Tab **Läufe** zeigt die letzten 50 Läufe, die du sehen kannst, neueste zuerst. Läufe der Organisation selbst sehen Inhaber, Admins und Entwickler. Einen Lauf in einem Projekt und die Frage, auf die er wartet, sehen nur diejenigen von ihnen, die dieses Projekt öffnen können. Jede Zeile nennt Version, Zeitpunkt, Modus und Auslöser oder sagt, warum der Lauf fehlschlug oder worauf er wartet. Im Detail siehst du Workflow, Node-Ergebnisse und Laufzeiten. Ein nicht abgeschlossener Lauf hat keinen Endzeitpunkt. Die Tabs bleiben beim Prüfen eines Laufs sichtbar. Mit **Läufe** kehrst du zur Liste zurück, mit **Editor** zum Bearbeiten des Workflows.
+Der Tab **Läufe** zeigt die Läufe, die du sehen kannst, neueste zuerst, und lädt ältere beim Scrollen nach; **Filter** grenzt sie nach Status und Modus ein. Läufe der Organisation selbst sehen Inhaber, Admins und Entwickler. Einen Lauf in einem Projekt und die Frage, auf die er wartet, sehen nur diejenigen von ihnen, die dieses Projekt öffnen können. Jede Zeile nennt Version, Zeitpunkt, Modus und Auslöser oder sagt, warum der Lauf fehlschlug oder worauf er wartet. Im Detail siehst du Workflow, Node-Ergebnisse und Laufzeiten. Ein nicht abgeschlossener Lauf hat keinen Endzeitpunkt. Die Tabs bleiben beim Prüfen eines Laufs sichtbar. Mit **Läufe** kehrst du zur Liste zurück, mit **Editor** zum Bearbeiten des Workflows.
 
 | Status | Bedeutung | Nächster Schritt |
 | --- | --- | --- |
@@ -85,7 +85,7 @@ Tale lehnt eine Wiederholung ab, die es nicht getreu ausführen kann, und sagt w
 
 ## Zwei Läufe vergleichen {#compare}
 
-**Damit vergleichen** bei einer Wiederholung oder **Mit dem vorherigen Lauf vergleichen** im Menü von **Erneut ausführen** zeigt zwei Läufe nebeneinander. **Was sich unterscheidet** nennt, das Aufschlussreichste zuerst, die ausgeführten Versionen, wie viele Felder ihrer Eingabe sich unterscheiden, den Schritt, an dem sie sich trennten, und warum, etwa eine Bedingung, die anders ausging, wie jeder endete sowie Ausgabe und Schreibvorgänge. Die Tabelle darunter zeigt jeden Schritt, wie jeder Lauf ihn hinterließ und ob seine Daten gleich sind. **A und B tauschen** vertauscht die beiden Läufe.
+**Damit vergleichen** bei einer Wiederholung, **Mit dem vorherigen Lauf vergleichen** im Menü von **Erneut ausführen** oder zwei im Tab **Läufe** ausgewählte Läufe und **Vergleichen** zeigen zwei Läufe nebeneinander. **Was sich unterscheidet** nennt, das Aufschlussreichste zuerst, die ausgeführten Versionen, wie viele Felder ihrer Eingabe sich unterscheiden, den Schritt, an dem sie sich trennten, und warum, etwa eine Bedingung, die anders ausging, wie jeder endete sowie Ausgabe und Schreibvorgänge. Die Tabelle darunter zeigt jeden Schritt, wie jeder Lauf ihn hinterließ und ob seine Daten gleich sind. **A und B tauschen** vertauscht die beiden Läufe.
 
 ## Bereits erfolgte Änderungen prüfen
 

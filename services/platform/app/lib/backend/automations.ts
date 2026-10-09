@@ -16,6 +16,7 @@ import {
 import type {
   ActionQueryAdapter,
   AdapterContext,
+  PaginatedAdapter,
   ReadAdapter,
   WriteAdapter,
 } from './adapters';
@@ -528,6 +529,53 @@ function invalidateRuns(
     queryKey: backendEntityPrefix(orgId, 'automation_run'),
   });
 }
+
+/** The keyset cursor of the runs page (`<startedAt>|<id>`), or none. */
+function runPageCursor(next: unknown): string {
+  if (typeof next !== 'object' || next === null) return '';
+  const at = 'at' in next ? next.at : undefined;
+  const id = 'id' in next ? next.id : undefined;
+  return typeof at === 'number' && typeof id === 'string' ? `${at}|${id}` : '';
+}
+
+export const automationPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  // One automation's runs, newest first, narrowed as the Runs table asks;
+  // keyed under the run entity, so a run's hint refreshes the list.
+  'automations/queries:listRunsPaginated': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    const params = new URLSearchParams({ name });
+    if (typeof args.projectId === 'string') {
+      params.set('projectId', args.projectId);
+    }
+    if (Array.isArray(args.statuses) && args.statuses.length > 0) {
+      params.set('status', args.statuses.join(','));
+    }
+    if (args.mode === 'mock' || args.mode === 'live') {
+      params.set('mode', args.mode);
+    }
+    return {
+      queryKey: backendKey(orgId, 'automation_run', 'page', params.toString()),
+      fetchPage: (cursor, numItems) => {
+        const page = new URLSearchParams(params);
+        page.set('limit', String(Math.min(Math.max(numItems, 1), 100)));
+        if (cursor !== null && cursor !== '') page.set('cursor', cursor);
+        return backendFetch<{ items: unknown[]; next: unknown }>(
+          `/automations/runs/page?${page.toString()}`,
+          { orgId },
+        ).then((body) => {
+          const continueCursor = runPageCursor(body.next);
+          return {
+            page: body.items,
+            isDone: continueCursor === '',
+            continueCursor,
+          };
+        });
+      },
+    };
+  },
+};
 
 export const automationWriteAdapters: Record<string, WriteAdapter> = {
   'automations/mutations:saveAutomation': {

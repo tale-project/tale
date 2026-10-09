@@ -446,6 +446,45 @@ export interface AutomationsContract {
       projectIds: string[];
     }>;
   };
+  'automations/queries:listRunsPaginated': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      name: string;
+      projectId?: string;
+      /** Only runs in these statuses (any of them). */
+      statuses?: string[];
+      mode?: 'mock' | 'live';
+      paginationOpts: { numItems: number; cursor: null | string };
+    };
+    returns: {
+      page: Array<{
+        id: string;
+        name: string;
+        version: number;
+        status:
+          | 'queued'
+          | 'running'
+          | 'waiting'
+          | 'quarantined'
+          | 'success'
+          | 'failed'
+          | 'cancelled';
+        mode: 'mock' | 'live';
+        startedBy: string;
+        startedVia?: 'schedule' | 'webhook' | 'event';
+        waitingFor?: RunWaitingFor;
+        stalled?: boolean;
+        detail?: string;
+        /** Why a `failed` run failed, as a stable code. */
+        failureCode?: string;
+        startedAt: number;
+        finishedAt?: number;
+      }>;
+      isDone: boolean;
+      continueCursor: string;
+    };
+  };
   'automations/queries:listRuns': {
     kind: 'query';
     args: {
