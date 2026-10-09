@@ -3,26 +3,22 @@ import { createHash } from 'node:crypto';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
+import {
+  FINISH_PROFILES,
+  FINISH_WORKFLOWS,
+  isFinishPath,
+  type FinishPath,
+  type FinishSource,
+} from './ci-merge-group-profiles';
 import type { NativeJob } from './ci-tail-policy';
+export {
+  FINISH_SOURCE,
+  FINISH_PATHS,
+  finishPaths,
+  isFinishPath,
+} from './ci-merge-group-profiles';
+export type { FinishPath, FinishSource } from './ci-merge-group-profiles';
 
-/** Reviewed 6ad49e4714cd895c5c1cc79e12b6987a0fecbec5 Checks graph.
- * Whole-file pins include every future job, matrix and verdict dependency.
- * New variants need their own source review; names alone never admit them. */
-export const FINISH_SOURCE = {
-  '.github/workflows/checks.yml':
-    'a0937203f1b3095b0d8b4cc8560eeb947b7c07a9acf5c430850fbb42fa22e497',
-  '.github/actions/ci-ready/action.yml':
-    '8f65cea1dd5980711da087140a68264b382ff1cb0d6347d8ef034c71ddbaf7c5',
-  'tools/cli/scripts/ci-ready.ts':
-    '4e4adbbcf43c835800f6eb4a92db7f0a98db7432a50e3cd320aa75312294fdf8',
-} as const;
-export const FINISH_PATHS = [
-  '.github/workflows/checks.yml',
-  '.github/actions/ci-ready/action.yml',
-  'tools/cli/scripts/ci-ready.ts',
-] as const;
-export type FinishPath = keyof typeof FINISH_SOURCE;
-export type FinishSource = Record<FinishPath, string>;
 const sha = z.string().regex(/^[a-f0-9]{40}$/);
 const integer = z.number().int().positive();
 const ordinaryPrepared = z.object({
@@ -110,14 +106,16 @@ export function decodeFinishSource(path: FinishPath, value: unknown): string {
   if (
     bytes.length !== file.size ||
     blob !== file.sha ||
-    createHash('sha256').update(bytes).digest('hex') !== FINISH_SOURCE[path]
+    !FINISH_PROFILES.some(
+      (profile) =>
+        profile.hashes[path] ===
+        createHash('sha256').update(bytes).digest('hex'),
+    )
   )
     throw new Error('Unreviewed workflow source.');
   return bytes.toString('utf8');
 }
 
-const verdicts = new Set(['Unit', 'UI', 'CI ready (Checks)']);
-const inapplicable = new Set(['candidate-source', 'candidate-gate']);
 const conclusions = new Set([
   'success',
   'failure',
@@ -134,67 +132,121 @@ const workflowSchema = z.object({
     z.string(),
     z.object({
       name: z.string(),
-      strategy: z
-        .object({ matrix: z.object({ shard: z.array(integer) }) })
-        .optional(),
+      if: z.string().optional(),
+      strategy: z.unknown().optional(),
     }),
   ),
 });
 
-/** With the complete source pinned, only three verdict nodes may still materialize.
- * Candidate-only reusable jobs are inapplicable to this merge_group event. */
+/** Require the exact whole closure, including no extraneous/missing source file.
+ * Matching helpers from different historical profiles cannot create a new one. */
+export function finishProfile(source: FinishSource) {
+  return FINISH_PROFILES.find(
+    (profile) =>
+      Object.keys(source).length === Object.keys(profile.hashes).length &&
+      Object.entries(profile.hashes).every(([path, hash]) => {
+        const text = isFinishPath(path) ? source[path] : undefined;
+        return (
+          text !== undefined &&
+          createHash('sha256').update(text).digest('hex') === hash
+        );
+      }),
+  );
+}
+function terminal(job: NativeJob | undefined): boolean {
+  return job?.status === 'completed' && conclusions.has(job.conclusion ?? '');
+}
+
+/** The entire future graph is source-pinned. Every substantive node must already
+ * be terminal. Only known verdicts and event-inapplicable nodes may be absent. */
 export function finishJobsSafe(
   source: FinishSource,
   jobs: NativeJob[],
 ): boolean {
-  for (const path of FINISH_PATHS)
-    if (
-      createHash('sha256').update(source[path]).digest('hex') !==
-      FINISH_SOURCE[path]
-    )
-      return false;
-  const workflow = workflowSchema.parse(
-    parse(source['.github/workflows/checks.yml'], { maxAliasCount: 0 }),
-  );
-  const required = new Set<string>();
-  const excluded = new Set<string>();
-  for (const [id, job] of Object.entries(workflow.jobs)) {
-    if (inapplicable.has(id)) excluded.add(job.name);
-    else if (!verdicts.has(job.name)) {
-      if (job.strategy) {
-        for (const shard of job.strategy.matrix.shard)
-          required.add(job.name.replace('${{ matrix.shard }}', String(shard)));
-      } else required.add(job.name);
-    }
-  }
+  const profile = finishProfile(source);
   if (
+    !profile ||
     !jobs.length ||
     new Set(jobs.map((job) => job.name)).size !== jobs.length ||
     new Set(jobs.map((job) => job.id)).size !== jobs.length
   )
     return false;
+  const text = source[FINISH_WORKFLOWS[profile.workflow]];
+  if (!text) return false;
+  const workflow = workflowSchema.parse(
+    parse(text, { maxAliasCount: profile.workflow === 'Build' ? 100 : 0 }),
+  );
+  const remaining = new Map(jobs.map((job) => [job.name, job]));
+  const all = new Map(remaining);
   let queued = 0;
-  for (const job of jobs) {
-    if (excluded.has(job.name)) {
-      if (job.status !== 'completed' || job.conclusion !== 'skipped')
-        return false;
-    } else if (required.has(job.name)) {
-      if (job.status !== 'completed' || !conclusions.has(job.conclusion ?? ''))
-        return false;
-      required.delete(job.name);
-    } else if (verdicts.has(job.name)) {
-      if (job.status === 'completed' && conclusions.has(job.conclusion ?? ''))
-        continue;
+  for (const [id, node] of Object.entries(workflow.jobs)) {
+    const job = remaining.get(node.name);
+    if (profile.absent.includes(id)) {
       if (
-        job.status !== 'queued' ||
-        job.conclusion !== null ||
-        (job.runner_id !== 0 && job.runner_id !== null)
+        job &&
+        (!terminal(job) ||
+          (job.conclusion !== 'skipped' &&
+            (profile.legacy || job.conclusion !== 'cancelled')))
       )
         return false;
-      queued++;
-    } else return false;
+      remaining.delete(node.name);
+    } else if (profile.verdicts.includes(id)) {
+      if (!job) continue;
+      if (!terminal(job)) {
+        if (
+          job.status !== 'queued' ||
+          job.conclusion !== null ||
+          (job.runner_id !== 0 && job.runner_id !== null)
+        )
+          return false;
+        queued++;
+      }
+      remaining.delete(node.name);
+    } else if (node.strategy !== undefined) {
+      const matrix = profile.matrices[id];
+      if (!matrix) return false;
+      const names = matrix.values.map((value) =>
+        node.name.replace(
+          '${{ matrix.' + matrix.variable + ' }}',
+          String(value),
+        ),
+      );
+      if (
+        names.some((name) => name === node.name) ||
+        new Set(names).size !== names.length
+      )
+        return false;
+      if (job) {
+        // A cancelled pre-expansion placeholder is not proof by itself. Its
+        // exact required-success predecessor must have terminated unsuccessfully.
+        const predecessor =
+          matrix.requiresSuccess && workflow.jobs[matrix.requiresSuccess];
+        const previous = predecessor ? all.get(predecessor.name) : undefined;
+        if (
+          !terminal(job) ||
+          !['cancelled', 'skipped'].includes(job.conclusion ?? '') ||
+          names.some((name) => all.has(name)) ||
+          !previous ||
+          !terminal(previous) ||
+          previous.conclusion === 'success' ||
+          !node.if?.includes(
+            'needs.' + matrix.requiresSuccess + ".result == 'success'",
+          )
+        )
+          return false;
+        remaining.delete(node.name);
+      } else {
+        for (const name of names) {
+          if (!terminal(remaining.get(name))) return false;
+          remaining.delete(name);
+        }
+      }
+    } else {
+      if (!terminal(job)) return false;
+      remaining.delete(node.name);
+    }
   }
-  return required.size === 0 && queued > 0;
+  return remaining.size === 0 && queued > 0;
 }
 
 export function sameFinishJobs(a: NativeJob[], b: NativeJob[]): boolean {
