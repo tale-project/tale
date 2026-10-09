@@ -8,6 +8,7 @@ import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { FormCard } from '@/app/components/blocks/form-card';
+import { formFieldErrorMessage } from '@/lib/forms/field-errors';
 import {
   REQUEST_DEMO_INTERESTS,
   type RequestDemoInput,
@@ -72,6 +73,8 @@ export function RequestDemoPage() {
     mode: 'onBlur',
   });
   const errors = form.formState.errors;
+  const fieldError = (message?: string) =>
+    formFieldErrorMessage(message, tCommon);
   const interests = form.watch('interests') ?? [];
 
   const toggleInterest = (key: (typeof REQUEST_DEMO_INTERESTS)[number]) => {
@@ -100,10 +103,11 @@ export function RequestDemoPage() {
         label={t('fieldName')}
         htmlFor="rd-name"
         required
-        error={errors.name?.message}
+        error={fieldError(errors.name?.message)}
       >
         <Input
           id="rd-name"
+          required
           autoComplete="name"
           placeholder={t('placeholderName')}
           aria-invalid={Boolean(errors.name)}
@@ -115,10 +119,11 @@ export function RequestDemoPage() {
         label={tCommon('email')}
         htmlFor="rd-email"
         required
-        error={errors.email?.message}
+        error={fieldError(errors.email?.message)}
       >
         <Input
           id="rd-email"
+          required
           type="email"
           autoComplete="email"
           placeholder={t('placeholderEmail')}
@@ -130,7 +135,7 @@ export function RequestDemoPage() {
       <Field
         label={t('fieldPhone')}
         htmlFor="rd-phone"
-        error={errors.phone?.message}
+        error={fieldError(errors.phone?.message)}
       >
         <Input
           id="rd-phone"
@@ -145,7 +150,7 @@ export function RequestDemoPage() {
       <Field
         label={t('fieldCompany')}
         htmlFor="rd-company"
-        error={errors.company?.message}
+        error={fieldError(errors.company?.message)}
       >
         <Input
           id="rd-company"
@@ -177,7 +182,7 @@ export function RequestDemoPage() {
         </ul>
         {errors.interests ? (
           <p role="alert" className="text-danger mt-2 text-xs">
-            {errors.interests.message as string}
+            {fieldError(errors.interests.message)}
           </p>
         ) : null}
       </fieldset>
@@ -185,7 +190,7 @@ export function RequestDemoPage() {
       <Field
         label={t('fieldMessage')}
         htmlFor="rd-message"
-        error={errors.message?.message}
+        error={fieldError(errors.message?.message)}
       >
         <Textarea
           id="rd-message"

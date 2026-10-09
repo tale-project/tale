@@ -12,7 +12,13 @@ import { absoluteSitePath } from '@tale/ui/seo/urls';
 import { ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { ComparisonHub } from '@/app/components/blocks/comparison-hub';
+import {
+  ComparisonIllustration,
+  ComparisonDecisionIllustration,
+} from '@/app/components/blocks/comparison-illustration';
 import { RelatedUseCases } from '@/app/components/blocks/related-use-cases';
+import { UseCaseHubIllustration } from '@/app/components/blocks/use-case-hub-illustration';
 import { UseCaseIllustration } from '@/app/components/blocks/use-case-illustration';
 import { MarketingProse } from '@/app/components/marketing/marketing-prose';
 import { marketingContentHeading } from '@/lib/content/model';
@@ -44,7 +50,7 @@ export function MarketingContentPage({
     `resource.${category === 'comparisons' ? 'compare' : 'useCases'}.label`,
   );
   const isHub = slug === 'index';
-  const hasIllustration = category === 'use-cases' && !isHub;
+  const isComparisonHub = category === 'comparisons' && isHub;
   const toc = useMemo(() => extractToc(content), [content]);
   const jsonLd = useMemo(() => {
     const url = absoluteSitePath(TALE_SITE_URL, document.url);
@@ -84,10 +90,10 @@ export function MarketingContentPage({
 
   return (
     <>
-      <PageSection pad="lg" border="b">
+      <PageSection pad={isHub ? 'md' : 'lg'} border="b">
         <nav
           aria-label={t('breadcrumb')}
-          className="text-fg-muted mb-8 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:mb-12"
+          className={`text-fg-muted flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${isHub ? 'mb-4 sm:mb-6' : 'mb-8 sm:mb-12'}`}
         >
           <MarketingLink
             to="/"
@@ -116,11 +122,7 @@ export function MarketingContentPage({
           ) : null}
         </nav>
         <div
-          className={
-            hasIllustration
-              ? 'grid items-center gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16'
-              : undefined
-          }
+          className={`grid items-center lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:gap-16 ${isHub ? 'gap-6' : 'gap-10'}`}
         >
           <div className="min-w-0">
             <SectionHeading
@@ -133,30 +135,65 @@ export function MarketingContentPage({
               description={frontmatter.description}
               descriptionClassName="max-w-3xl"
             />
-            <p className="text-fg-subtle mt-7 font-mono text-xs">
+            <p
+              className={`text-fg-subtle font-mono text-xs ${isHub ? 'mt-4' : 'mt-7'}`}
+            >
               <time dateTime={frontmatter.reviewed}>
                 {t('reviewed', { date: reviewedDate })}
               </time>
             </p>
           </div>
-          {hasIllustration ? <UseCaseIllustration slug={slug} /> : null}
+          {category === 'comparisons' ? (
+            isHub ? (
+              <div className="mx-auto w-56 sm:w-full">
+                <ComparisonIllustration />
+              </div>
+            ) : (
+              <ComparisonDecisionIllustration document={document} />
+            )
+          ) : isHub ? (
+            <div className="mx-auto w-56 sm:w-full">
+              <UseCaseHubIllustration />
+            </div>
+          ) : (
+            <UseCaseIllustration slug={slug} />
+          )}
         </div>
       </PageSection>
-      <SiteContainer>
-        <div className="mx-auto flex max-w-6xl items-start justify-between gap-16 py-10 sm:py-16 xl:gap-24">
-          <article className="w-full max-w-3xl min-w-0 flex-1">
-            <DocsTocOutline entries={toc} />
+      {isComparisonHub ? (
+        <>
+          <PageSection pad="md">
+            <ComparisonHub locale={locale} />
+          </PageSection>
+          <PageSection pad="md" surface="soft" border="t">
             <MarketingProse
               tableLabel={frontmatter.title}
-              tableScrollHint={t('tableScrollHint')}
-              className="text-base leading-relaxed [&_h2]:mt-12 [&_h2]:mb-5 [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-medium [&_h2]:tracking-[-0.03em] [&_h2]:text-balance sm:[&_h2]:text-3xl [&_p]:my-5 [&_p]:leading-[1.8]"
+              className="max-w-3xl text-base leading-relaxed"
             >
               {content}
             </MarketingProse>
-          </article>
-          <DocsToc entries={toc} className="top-24 max-h-[calc(100dvh-6rem)]" />
-        </div>
-      </SiteContainer>
+          </PageSection>
+        </>
+      ) : (
+        <SiteContainer>
+          <div className="mx-auto flex max-w-6xl items-start justify-between gap-16 py-10 sm:py-16 xl:gap-24">
+            <article className="w-full max-w-3xl min-w-0 flex-1">
+              <DocsTocOutline entries={toc} />
+              <MarketingProse
+                tableLabel={frontmatter.title}
+                tableScrollHint={t('tableScrollHint')}
+                className="text-base leading-relaxed [&_h2]:mt-12 [&_h2]:mb-5 [&_h2]:text-2xl [&_h2]:leading-tight [&_h2]:font-medium [&_h2]:tracking-[-0.03em] [&_h2]:text-balance sm:[&_h2]:text-3xl [&_p]:my-5 [&_p]:leading-[1.8]"
+              >
+                {content}
+              </MarketingProse>
+            </article>
+            <DocsToc
+              entries={toc}
+              className="top-24 max-h-[calc(100dvh-6rem)]"
+            />
+          </div>
+        </SiteContainer>
+      )}
       {!isHub ? (
         <RelatedUseCases
           comparisonSlug={category === 'comparisons' ? slug : undefined}

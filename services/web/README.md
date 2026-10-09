@@ -19,15 +19,64 @@ Page copy, routes, calls to action, product registries, and demo scenarios stay 
 `app/routes/__root.tsx` mounts `MarketingRouterProvider`; `lib/i18n/i18n.ts` merges both package
 catalogs beneath the service’s labels. Reuse those components when changing a page.
 
-The homepage pairs its introduction with a task board, then presents three product chapters:
-planning, agent sandbox work, and review. Compact cards link to knowledge, automations, and
-chat; a contrasting deployment section explains hosting, security, and the MIT license.
+The homepage pairs its introduction with an actual project task, then presents two product chapters:
+planning and agent sandbox work. Four compact destinations cover review, knowledge, automations,
+and chat; a contrasting deployment section explains hosting, security, and the MIT license.
 `RelatedUseCases` uses the same localized editorial selections as the platform overview.
 Agent and connector names remain visible without an animated marquee. Marketing entrances
 and demo timelines respond to reduced-motion preference changes without a reload.
 
 Legal pages are excluded from the sitemap and emit `noindex,nofollow`. Keep them crawlable in
 `robots.txt` so search engines can read that instruction; API and search endpoints remain blocked.
+
+The homepage and each platform page lead with different real product captures from the
+documentation screenshot pipeline, captured in English, German, and French.
+`app/content/product-screenshots.ts` owns the source selection and framing. Generate
+the captures and committed responsive AVIF/WebP derivatives with the platform and mock gateway
+running, following the [capture runbook](../platform/tests/docs-screenshots/README.md):
+
+```bash
+bun run web:screenshots
+```
+
+To rebuild derivatives from already reviewed captures:
+
+```bash
+bun run --filter @tale/web optimize-images --product-screens
+```
+
+`ProductScreenshot` serves focused phone crops and larger desktop versions with intrinsic image
+sizes. The interface, captions, and alternative text follow the page locale; Swiss German uses
+the German capture. Full-screen links open the complete high-resolution capture. The shared
+capture runner records locale, viewport, route, and dimensions; never recreate or retouch product
+state. Supporting animated tours retain the shared demo timeline and complete reduced-motion state.
+Company, pricing, hardware, contact, demo, changelog, and guide pages have their own supporting art.
+The optimizer preserves dimensions and adjusts encoding quality only when needed for the 200 KiB
+asset budget. If a capture cannot fit at the quality floor, it names the asset and stops so its
+source or framing can be reviewed.
+
+The eight product heroes also have individual native interactions in English, German, and French,
+including separate phone takes. Silent WebM clips use an H.264 MP4 fallback and matching native
+first-frame posters from the same image optimizer. Reduced motion and unplayable media retain
+the static capture. Playback has localized pause and resume controls;
+the full-resolution screenshot link remains available. If autoplay is blocked or the browser
+interrupts playback to save power, the poster and Play control remain available for a user retry.
+
+```bash
+bun run web:animations -- --state-dir /absolute/path/to/isolated-capture-state --config-dir /absolute/path/to/platform/config
+bun run web:animations:verify
+```
+
+Follow the [motion capture runbook](../platform/tests/docs-screenshots/README.md#record-the-marketing-product-in-action)
+for prerequisites, targeted refreshes, cleanup, and review. Compact runtime factories derive asset
+paths and geometry; full hash-bound provenance stays in `public/marketing/product-motion/manifest.json`.
+The verify command checks all native codecs and changed action frames. Browser playback and
+visual review still decide whether each interaction is readable and useful.
+
+Contact and demo forms share server/client validation rules. Schema issues use stable identifiers;
+the presentation resolves specific guidance in the current language. Text is cleaned before
+validation, optional phone numbers require digits, and consent errors describe and focus the
+checkbox. The privacy-policy link follows the form's locale.
 
 ## Configuration
 

@@ -107,8 +107,15 @@ agent workspaces and governance. `DemoStage` reads that marker to coordinate its
 
 ## Animated product demos — the doctrine
 
-The homepage's product visuals are **code-built animated mockups**, not screenshots and not video.
-The scenes live in
+The homepage and platform feature pages lead with **real product screenshots**, each showing its own subject.
+Sources come from the documentation capture manifest; `services/web/app/content/product-screenshots.ts`
+selects the captures and crops. The existing `optimize-images --product-screens` pipeline produces
+responsive AVIF/WebP derivatives. Phone views focus on the relevant product region; desktop views
+keep orientation without unused space. Full-screen links open the complete capture. Translate alt
+text and captions, and capture the actual interface in English, German, and French through
+`bun run web:screenshots`. Swiss German uses the German capture. Never recreate or retouch product state.
+
+Supporting tours use **code-built animated illustrations**. The scenes live in
 [`services/web/app/components/blocks/demos/`](../../services/web/app/components/blocks/demos/) — a
 demo is site content, its vocabulary and scenarios are web copy — and the frames they render inside
 (`DemoShell`, `DemoStage`, `DemoTourRow` / `DemoTourSection`, the text primitives, `useDemoTimeline`)
@@ -207,13 +214,18 @@ Also reuse:
   server and follow live browser motion-preference changes. Use it inside demo scenes so their
   final content remains visible before JavaScript runs.
 - `app/content/platform-pages.ts` — nav dropdown, footer Platform column, related pages.
-- `app/content/nav-menus.ts` — Resources header menu (desktop + mobile); Platform rows live in `platform-pages.ts`.
+- `app/content/nav-menus.ts` — direct comparison destination and Resources header menu (desktop + mobile); Platform rows live in `platform-pages.ts`.
 - `app/content/site-ctas.ts` — header primary CTA (Get started → docs) + footer company CTAs; Request a demo stays footer/page-only.
-- Header menus: click + Esc + fine-pointer hover intent. Mobile navigation is a focus-managed
+- Header navigation: Platform overview + six modules in one compact two-column disclosure,
+  a direct Compare link when its hub is published, Pricing, and Resources (localized docs,
+  use cases, changelog, hardware, company). Desktop disclosures center under their triggers
+  and mark the current module; all triggers have 44px hit areas and visible focus.
+  Header menus use click + Esc + fine-pointer hover intent. Mobile navigation is a focus-managed
   modal Sheet with a flat list, safe-area padding, Escape/focus return, and breakpoint cleanup.
   Crossing 1024px unmounts the Sheet so an interrupted exit cannot leave the page inaccessible.
   Place search in the `mobileActions` slot beside the menu button, so it opens directly from the
   page without stacking two modal surfaces.
+  The footer keeps four destination groups and places the company address in its bottom bar.
 
 Motion rules:
 
@@ -240,9 +252,9 @@ Motion rules:
 
 | Template        | When                                                         | Section order                                                                                                                                                          |
 | --------------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Homepage        | `tale.dev/`                                                  | Split hero + task board → compact agents → three editorial chapters (projects, agent workspace, review) → knowledge/automation/chat destinations → contrast deployment/control band → compact connectors → trust → use cases → FAQ → CTA |
-| Feature         | `/platform/*`                                                | `FeaturePageLayout`: hero (+ demo) → product tour (copy + DemoShell rows, same as homepage) → capabilities (≥5 docs-traceable) → mini-FAQ → related → docs links → CTA |
-| Platform hub    | `/platform`                                                  | Hero (+ demo) → product tour (6 DemoShell rows) → module grid → CTA                                                                                                    |
+| Homepage        | `tale.dev/`                                                  | Split hero + actual project task → compact agents → two editorial chapters (projects, agent workspace) → review/knowledge/automation/chat destinations → contrast deployment/control band → compact connectors → use cases → FAQ → CTA |
+| Feature         | `/platform/*`                                                | `FeaturePageLayout`: hero (+ individual product capture) → two topic tours (copy + DemoShell rows) → capabilities (≥5 docs-traceable) → mini-FAQ → related → docs links → CTA |
+| Platform hub    | `/platform`                                                  | Hero (+ individual product capture) → two topic tours → module grid → FAQ → CTA                                                                                                    |
 | Pricing / forms | `/pricing`, `/hardware-pricing`, `/contact`, `/request-demo` | Existing mechanics frozen; wrap with related cards + CTA / FormCard chrome                                                                                             |
 | Changelog       | `/changelog`                                                 | Release list from GitHub manifest                                                                                                                                      |
 | Company         | `/about`                                                     | Hero (display heading + CTA pair) → facts panel → story/mission (+ legal-entity address) → product panel → values (`FeatureCapability`) → CTA                          |

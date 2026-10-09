@@ -29,6 +29,9 @@ const DATA_FILES = ['docs/nav.json', 'docs/redirects.json'];
  *  build (`scripts/build-search-index.ts`) appends new pages to it. */
 const LEDGER = 'docs/published.json';
 
+/** The screenshot manifest suite's marketing source-reference registry. */
+const MARKETING_SCREENSHOTS = 'services/web/app/content/product-screenshots.ts';
+
 /**
  * The documentation frame's link, redirect and near-miss rules in `@tale/ui`:
  * the link, published and near-miss suites run them, the build scripts
@@ -97,12 +100,13 @@ function rootReadmes(): string[] {
 const READERS: { task: string; why: string; reads: () => string[] }[] = [
   {
     task: 'test',
-    why: 'the structural, link and published suites, the i18n suites and the README parity check',
+    why: 'the structural, link and published suites, i18n, README parity and screenshot source references',
     reads: () => [
       ...contentFiles(),
       ...rootReadmes(),
       ...uiI18nFiles(),
       ...UI_DOCS_RULES,
+      MARKETING_SCREENSHOTS,
     ],
   },
   {
