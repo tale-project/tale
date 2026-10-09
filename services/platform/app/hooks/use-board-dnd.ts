@@ -1,5 +1,4 @@
 import {
-  KeyboardCode,
   KeyboardSensor,
   PointerSensor,
   closestCorners,
@@ -87,8 +86,8 @@ export const boardKeyboardCoordinates: KeyboardCoordinateGetter = (
 ) => {
   const next = sortableKeyboardCoordinates(event, args);
   const { collisionRect, droppableRects, droppableContainers } = args.context;
-  const right = event.code === KeyboardCode.Right;
-  if (collisionRect === null || (!right && event.code !== KeyboardCode.Left)) {
+  const right = event.code === 'ArrowRight';
+  if (collisionRect === null || (!right && event.code !== 'ArrowLeft')) {
     return next;
   }
   let target: ClientRect | undefined;
