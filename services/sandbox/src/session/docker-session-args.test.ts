@@ -498,18 +498,51 @@ describe('buildDockerSessionRunArgs', () => {
     });
 
     test("shared build cache: names the organization's docker.io mirror for the inner engine", () => {
+      const dockerHubMirror = buildkitdMirrorRef(
+        goodInput.organizationId,
+        'docker.io',
+      );
       const args = buildDockerSessionRunArgs(dindCfg, {
         ...dindInput,
         buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+        dockerHubMirror,
       });
-      expect(args).toContain(
-        `TALE_DOCKER_HUB_MIRROR=${buildkitdMirrorRef(goodInput.organizationId, 'docker.io')}`,
-      );
+      expect(args).toContain(`TALE_DOCKER_HUB_MIRROR=${dockerHubMirror}`);
       expect(
         buildDockerSessionRunArgs(dindCfg, dindInput).some((a) =>
           a.startsWith('TALE_DOCKER_HUB_MIRROR='),
         ),
       ).toBe(false);
+    });
+
+    test('shared build cache: an endpoint whose docker.io mirror is down names no mirror', () => {
+      const args = buildDockerSessionRunArgs(dindCfg, {
+        ...dindInput,
+        buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+      });
+      expect(args).toContain(
+        `TALE_BUILDKITD_ENDPOINT=${buildkitdEndpoint(goodInput.organizationId)}`,
+      );
+      expect(args.some((a) => a.startsWith('TALE_DOCKER_HUB_MIRROR='))).toBe(
+        false,
+      );
+    });
+
+    test("shared build cache: refuses another organization's docker.io mirror", () => {
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+          dockerHubMirror: buildkitdMirrorRef('another-org', 'docker.io'),
+        }),
+      ).toThrow(/another organization's docker.io mirror/);
+      expect(() =>
+        buildDockerSessionRunArgs(dindCfg, {
+          ...dindInput,
+          buildkitdEndpoint: buildkitdEndpoint(goodInput.organizationId),
+          dockerHubMirror: 'mirror:5000 --insecure-registry=0.0.0.0/0',
+        }),
+      ).toThrow(/dockerHubMirror value rejected/);
     });
 
     test('planned subnets are sent as validated JSON before delayed network attachment', () => {

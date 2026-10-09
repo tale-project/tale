@@ -201,7 +201,7 @@ export function buildkitdEndpoint(organizationId: string): string {
 // the same organization starting at once would otherwise both race past the
 // inspect gate and both `docker run --name`, the second erroring). Mirrors
 // ensureCacheVolume in volume.ts.
-const ensureInFlight = new Map<string, Promise<string>>();
+const ensureInFlight = new Map<string, Promise<BuildkitdReady>>();
 const mirrorInFlight = new Map<string, Promise<void>>();
 const organizationOperations = new Map<string, Promise<void>>();
 const createLeases = new Map<string, number>();
@@ -1018,10 +1018,11 @@ async function removeOrganizationBuildkitUnlocked(
 
 /**
  * Lazy, idempotent launch of every built-in pull-through mirror (one `registry:2`
- * per MIRROR_REGISTRIES entry). Returns the `registry=ref;...` mapping the
- * buildkitd entrypoint turns into `[registry."<x>"]` blocks. Best-effort per
- * mirror — a registry whose mirror fails to come up is dropped from the mapping
- * (its base images then aren't pullable, but the others still work).
+ * per MIRROR_REGISTRIES entry). Returns the registry → mirror reference mapping
+ * of the mirrors that are up, which the buildkitd entrypoint turns into
+ * `[registry."<x>"]` blocks. Best-effort per mirror — a registry whose mirror
+ * fails to come up is dropped from the mapping (its base images then aren't
+ * pullable, but the others still work).
  */
 async function ensureBuildkitdMirrors(
   cfg: SpawnerConfig,
@@ -1029,12 +1030,15 @@ async function ensureBuildkitdMirrors(
   /** Is the organization's builder idle? A drifted mirror is recreated only
    * then: the pulls through it come from that builder's builds. */
   idle: () => Promise<boolean>,
-): Promise<string> {
+): Promise<ReadonlyMap<string, string>> {
   const pairs = await Promise.all(
     MIRROR_REGISTRIES.map(async (registry) => {
       try {
         await ensureOneMirror(cfg, organizationId, registry, idle);
-        return `${registry}=${buildkitdMirrorRef(organizationId, registry)}`;
+        return [
+          registry,
+          buildkitdMirrorRef(organizationId, registry),
+        ] as const;
       } catch (err) {
         console.warn(
           `[sandbox.buildkitd] mirror for ${registry} unavailable; ` +
@@ -1046,7 +1050,26 @@ async function ensureBuildkitdMirrors(
     }),
   );
   operationSignal()?.throwIfAborted();
-  return pairs.filter((pair) => pair !== null).join(';');
+  return new Map(pairs.filter((pair) => pair !== null));
+}
+
+/**
+ * A ready organization builder: the endpoint a session's remote buildx builder
+ * targets, and the docker.io mirror a session's inner engine pulls through.
+ * The mirror is absent when it did not come up, so no session engine tries a
+ * name that does not resolve before every Docker Hub pull.
+ */
+export interface BuildkitdReady {
+  endpoint: string;
+  dockerHubMirror?: string;
+}
+
+function readyWith(
+  endpoint: string,
+  mirrors: ReadonlyMap<string, string>,
+): BuildkitdReady {
+  const dockerHubMirror = mirrors.get('docker.io');
+  return dockerHubMirror ? { endpoint, dockerHubMirror } : { endpoint };
 }
 
 async function ensureOneMirror(
@@ -1156,18 +1179,27 @@ async function ensureOneMirrorUnlocked(
   }
 }
 
-/**
- * Lazy, idempotent launch of the shared buildkitd; returns the endpoint a
- * session's remote buildx builder should target. An already-running daemon is
- * detected via `docker inspect` and reused (its persistent cache volume
- * survives spawner + daemon restarts). Throws on a hard launch failure — the
- * caller (docker-session-backend) treats the shared cache as an optimization
- * and proceeds without it on error, never failing session creation.
- */
+/** {@link ensureBuildkitdReady}, for callers that need the endpoint alone. */
 export async function ensureBuildkitd(
   cfg: SpawnerConfig,
   organizationId: string,
 ): Promise<string> {
+  return (await ensureBuildkitdReady(cfg, organizationId)).endpoint;
+}
+
+/**
+ * Lazy, idempotent launch of the shared buildkitd; returns the endpoint a
+ * session's remote buildx builder should target, with the docker.io mirror
+ * when it is up. An already-running daemon is detected via `docker inspect`
+ * and reused (its persistent cache volume survives spawner + daemon
+ * restarts). Throws on a hard launch failure — the caller
+ * (docker-session-backend) treats the shared cache as an optimization and
+ * proceeds without it on error, never failing session creation.
+ */
+export async function ensureBuildkitdReady(
+  cfg: SpawnerConfig,
+  organizationId: string,
+): Promise<BuildkitdReady> {
   const name = buildkitdContainerName(organizationId);
   const existing = ensureInFlight.get(name);
   if (existing) return waitWithinOperation(existing);
@@ -1249,7 +1281,7 @@ async function ensureBuildkitdUnlocked(
   cfg: SpawnerConfig,
   organizationId: string,
   name: string,
-): Promise<string> {
+): Promise<BuildkitdReady> {
   await retireLegacyBuildkitd();
   const privateNetwork = await ensureBuildkitNetwork(
     cfg,
@@ -1271,7 +1303,7 @@ async function ensureBuildkitdOnNetwork(
   cfg: SpawnerConfig,
   organizationId: string,
   name: string,
-): Promise<string> {
+): Promise<BuildkitdReady> {
   const endpoint = buildkitdEndpoint(organizationId);
 
   // Already running? Reuse it ONLY if its egress fence is still installed AND
@@ -1309,8 +1341,10 @@ async function ensureBuildkitdOnNetwork(
           // A partial idle-stop/crash may have stopped mirrors while the
           // builder stayed healthy. Reusing the builder must revive those
           // caches too.
-          await ensureBuildkitdMirrors(cfg, organizationId, idle);
-          return endpoint;
+          return readyWith(
+            endpoint,
+            await ensureBuildkitdMirrors(cfg, organizationId, idle),
+          );
         }
         console.log(
           `[sandbox.buildkitd] recreating ${name}: it was launched with another ` +
@@ -1382,7 +1416,7 @@ async function ensureBuildkitdOnNetwork(
       // [dns]; and writes one [registry] mirror block per TALE_BUILDKITD_MIRRORS
       // `registry=ref` pair.
       '--env',
-      `TALE_BUILDKITD_MIRRORS=${mirrors}`,
+      `TALE_BUILDKITD_MIRRORS=${[...mirrors].map(([registry, ref]) => `${registry}=${ref}`).join(';')}`,
       '--env',
       `TALE_BUILDKITD_MAX_PARALLELISM=${parallelism}`,
       '--env',
@@ -1406,11 +1440,11 @@ async function ensureBuildkitdOnNetwork(
           cfg.egressNetwork,
         )) === 'running'
       )
-        return endpoint;
+        return readyWith(endpoint, mirrors);
     }
     throw new Error(
       `buildkitd: failed to launch ${name}: ${run.stderr.trim() || run.stdout.trim()}`,
     );
   }
-  return endpoint;
+  return readyWith(endpoint, mirrors);
 }

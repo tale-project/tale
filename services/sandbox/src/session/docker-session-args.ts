@@ -65,6 +65,12 @@ interface DockerSessionRunInput {
    * Undefined ⇒ no TALE_BUILDKITD_ENDPOINT env (argv byte-identical).
    */
   buildkitdEndpoint?: string;
+  /**
+   * The organization's docker.io pull-through mirror (`host:port`), set only
+   * with an endpoint and only when that mirror came up. Undefined ⇒ the inner
+   * engine pulls docker.io from Docker Hub directly.
+   */
+  dockerHubMirror?: string;
   /** Inspected org bridge subnets, required with an endpoint because the bridge
    * attaches after runtime readiness and is not in the initial route table. */
   buildkitNetworkSubnets?: readonly string[];
@@ -315,21 +321,28 @@ export function buildDockerSessionRunArgs(
         );
       }
       for (const subnet of subnets) ipv4Subnet(subnet);
-      // The inner dockerd pulls docker.io images through the same
-      // organization mirror the builder uses, on the same private network.
-      const dockerHubMirror = buildkitdMirrorRef(
-        inp.organizationId,
-        'docker.io',
-      );
-      assertSafe('dockerHubMirror', dockerHubMirror, MIRROR_RE);
       dindEnv.push(
         '--env',
         `TALE_BUILDKITD_ENDPOINT=${inp.buildkitdEndpoint}`,
         '--env',
         `TALE_BUILDKIT_NETWORK_SUBNETS=${JSON.stringify(subnets)}`,
-        '--env',
-        `TALE_DOCKER_HUB_MIRROR=${dockerHubMirror}`,
       );
+      // The inner dockerd pulls docker.io images through the same
+      // organization mirror the builder uses, on the same private network —
+      // only when that mirror is up, or every docker.io pull would first try
+      // a name that does not resolve.
+      if (inp.dockerHubMirror !== undefined) {
+        assertSafe('dockerHubMirror', inp.dockerHubMirror, MIRROR_RE);
+        if (
+          inp.dockerHubMirror !==
+          buildkitdMirrorRef(inp.organizationId, 'docker.io')
+        ) {
+          throw new Error(
+            "docker-session-args: refusing another organization's docker.io mirror",
+          );
+        }
+        dindEnv.push('--env', `TALE_DOCKER_HUB_MIRROR=${inp.dockerHubMirror}`);
+      }
     }
   }
 

@@ -25,6 +25,7 @@ import {
 } from '../../buildkit-resources.ts';
 import {
   ensureBuildkitd,
+  ensureBuildkitdReady,
   removeOrganizationBuildkit,
   retainBuildkitd,
   sweepIdleBuildkitd,
@@ -439,6 +440,7 @@ export class DockerSessionBackend implements SessionBackend {
     // on error we proceed with no endpoint and the session falls back to its own
     // inner builder (cold cache). Only when DinD + the flag are both on.
     let buildkitdEndpoint: string | undefined;
+    let dockerHubMirror: string | undefined;
     let buildkitNetworkPlan: BuildkitNetworkPlan | undefined;
     if (dind && this.cfg.dockerBuildCache) {
       try {
@@ -450,13 +452,14 @@ export class DockerSessionBackend implements SessionBackend {
           () =>
             waitWithinOperation(
               (async () => ({
-                endpoint: await ensureBuildkitd(this.cfg, spec.organizationId),
+                ...(await ensureBuildkitdReady(this.cfg, spec.organizationId)),
                 plan: await readBuildkitNetworkPlan(spec.organizationId),
               }))(),
             ),
         );
         buildkitNetworkPlan = ready.plan;
         buildkitdEndpoint = ready.endpoint;
+        dockerHubMirror = ready.dockerHubMirror;
       } catch (err) {
         console.warn(
           `[sandbox.session] shared buildkitd unavailable for ${spec.sessionId}; ` +
@@ -482,6 +485,7 @@ export class DockerSessionBackend implements SessionBackend {
       createdAtMs: spec.createdAtMs,
       dockerStorageVolume,
       ...(buildkitdEndpoint ? { buildkitdEndpoint } : {}),
+      ...(dockerHubMirror ? { dockerHubMirror } : {}),
       ...(buildkitNetworkPlan
         ? { buildkitNetworkSubnets: buildkitNetworkPlan.subnets }
         : {}),
