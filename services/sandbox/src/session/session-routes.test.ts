@@ -596,6 +596,17 @@ beforeAll(() => {
         if (url.pathname.includes('/hang-')) {
           return hangingExecResponse();
         }
+        if (url.pathname.includes('/died-')) {
+          // The container died while the platform was attached: the
+          // stream stops short of the exec's end.
+          return new Response(
+            ndjson([
+              { t: 'replay-start' },
+              { t: 'replay-complete', throughSeq: 0 },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         if (url.pathname.includes('/stalled-')) {
           return new Response(
             ndjson([
@@ -1580,6 +1591,46 @@ describe('SessionRoutes (fake runnerd)', () => {
         });
         // Evicted before the result: the next call gets the 404.
         expect((await routes.handleGet('sess_died')).status).toBe(404);
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
+  test.each([
+    ['the OOM killer took', true, 'SESSION_OOM'],
+    ['something else ended', false, undefined],
+  ])(
+    'an attach whose container %s ends the exec as %s',
+    async (_, outOfMemory, errorCode) => {
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        let alive = true;
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          sessionExists: async () => alive,
+          takeOutOfMemory: () => outOfMemory,
+        });
+        await routes.handleCreate(
+          JSON.stringify({ sessionId: 'sess_attach', organizationId: 'org_f' }),
+        );
+        alive = false;
+        const attached = await routes.handleExecAttach(
+          new Request('http://x', { method: 'GET' }),
+          'sess_attach',
+          'died-1',
+        );
+        const { events } = await readSse(attached);
+        const result = events.find((e) => e.event === 'result')?.data;
+        if (errorCode === undefined) expect(result).toBeUndefined();
+        else
+          expect(result).toMatchObject({
+            status: 'failed',
+            exitCode: null,
+            errorCode,
+          });
+        // Evicted either way: the next call gets the 404.
+        expect((await routes.handleGet('sess_attach')).status).toBe(404);
       } finally {
         warn.mockRestore();
       }
@@ -7046,6 +7097,37 @@ describe('memory-aware admission', () => {
         }
       },
     );
+
+    test('a create waiting for a slot does not hold back a warm start under pressure', async () => {
+      let pressure = 0;
+      const routes = new SessionRoutes(
+        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        fakeBackend,
+        undefined,
+        pressured(() => pressure),
+      );
+      expect((await create(routes, 'cpu-pinned')).status).toBe(201);
+      await releaseWarm(routes, 'cpu-pinned');
+      // Always-on: nothing reclaims it to make room.
+      expect(
+        (
+          await routes.handleSetPinned(
+            'cpu-pinned',
+            JSON.stringify({ pinned: true }),
+          )
+        ).status,
+      ).toBe(200);
+      pressure = 80;
+      // The host is full: this create waits for a slot, not for the CPU.
+      expect(await (await create(routes, 'cpu-slot')).json()).toMatchObject({
+        error: 'session_quota',
+      });
+      // The pinned session needs no slot; the slot waiter ahead of it must not
+      // keep its work from starting.
+      expect(
+        (await routes.handleActivity('cpu-pinned', 'acquire')).status,
+      ).toBe(200);
+    });
 
     test('a released session that would start work under pressure waits its turn', async () => {
       const startMs = Date.now();
