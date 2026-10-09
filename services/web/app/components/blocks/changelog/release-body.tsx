@@ -10,7 +10,7 @@ interface ReleaseBodyProps {
 }
 
 const proseClass = cn(
-  'text-fg-muted max-w-none text-[15px] leading-relaxed md:text-base',
+  'text-fg-muted max-w-none min-w-0 text-[15px] leading-relaxed [overflow-wrap:anywhere] md:text-base',
   // Release notes often open with `# title` — demote so the page keeps a
   // single document H1 (changelog hero). Styles match the demoted tags.
   '[&_h2]:text-fg-base [&_h2]:mt-6 [&_h2]:mb-2 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:tracking-[-0.02em] [&_h2]:first:mt-0',
@@ -46,7 +46,7 @@ export function ReleaseBody({ markdown, className }: ReleaseBodyProps) {
   const cleaned = stripFullChangelogFooter(markdown);
 
   return (
-    <div className={cn(proseClass, className)}>
+    <div data-release-body className={cn(proseClass, className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{

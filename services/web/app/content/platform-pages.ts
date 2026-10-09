@@ -62,7 +62,7 @@ export interface PlatformPageDef {
   docsPath: string;
   /** Sibling modules shown in the related-pages strip. */
   related: readonly PlatformPageId[];
-  /** Show in the Product dropdown (hub is the dropdown trigger, not a row). */
+  /** Show as a module row; the hub is the separate Platform overview link. */
   inNavDropdown: boolean;
   /** Show in the footer Platform column. */
   inFooter: boolean;

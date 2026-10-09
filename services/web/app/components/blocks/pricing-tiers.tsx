@@ -5,6 +5,7 @@ import { formatCurrency } from '@tale/ui/format';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
+import { PageIllustration } from '@/app/components/blocks/page-illustrations';
 import type { Billing } from '@/app/components/blocks/pricing-section';
 import { UserCountControl } from '@/app/components/blocks/user-count-control';
 import {
@@ -12,8 +13,10 @@ import {
   MarketingExternalLink,
   MarketingLink,
 } from '@/app/components/marketing';
-import { GET_STARTED_HREF, REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
+import { getStartedUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import {
   REGION_CURRENCY,
   REGION_FORMAT_LOCALE,
@@ -124,6 +127,7 @@ export function PricingTiers({
   onUsersChange,
 }: PricingTiersProps) {
   const { t } = useT('pricing');
+  const locale = useCurrentLocale();
 
   // Pass `billing` through so the displayed per-month figure reflects
   // the yearly discount that the `billingNote.yearly` footnote promises
@@ -140,6 +144,7 @@ export function PricingTiers({
     <MarketingSection
       title={t('title')}
       description={t('description')}
+      visual={<PageIllustration kind="pricing" />}
       controls={
         <>
           <SegmentedRadio
@@ -190,7 +195,7 @@ export function PricingTiers({
           <div className="mt-auto pt-2">
             <MarketingButton asChild tone="secondary" fullWidth>
               <MarketingExternalLink
-                href={GET_STARTED_HREF}
+                href={getStartedUrl(locale)}
                 tone="plain"
                 showIcon={false}
               >
