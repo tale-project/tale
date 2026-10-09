@@ -300,6 +300,21 @@ export default {
         'zimmerframe',
       ],
     },
+    'tools/load': {
+      // Started by path, never imported: the runner forks its worker, the
+      // mock forks its cluster workers, each worker imports the scenario
+      // module it was told to drive, and the interrupt test drives a
+      // fixture scenario the same way.
+      entry: [
+        'src/cli.ts',
+        'src/runner/worker.ts',
+        'src/mock/cluster-worker.ts',
+        'src/scenario/index.ts',
+        'tests/runner/fixtures/*.ts',
+        'tests/**/*.test.ts',
+      ],
+      project: ['src/**/*.ts', 'tests/**/*.ts'],
+    },
     'tools/plop': {
       entry: ['generators/**/*.ts', 'helpers/**/*.ts'],
       project: ['**/*.ts', '!templates/**'],

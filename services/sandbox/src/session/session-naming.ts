@@ -61,6 +61,14 @@ export function isSessionWorkspaceDirName(name: string): boolean {
  */
 export const SESSION_INSTANCE_LABEL = 'tale.sandbox-instance';
 
+/**
+ * Label recording the egress proxy address a session pins its transparent
+ * egress to, as the spawner read it right before the session's `docker run`.
+ * The sweep compares it with the proxy's address now: a session whose proxy
+ * moved has no egress left and is recycled once it is idle.
+ */
+export const SESSION_EGRESS_LABEL = 'tale.egress-ip';
+
 /** `docker ps` filter selecting an instance's sessions. Docker cannot filter
  * on a label's ABSENCE, so the default instance (empty) filters nothing here
  * and drops labelled rows itself ({@link belongsToInstance}). */

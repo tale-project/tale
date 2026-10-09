@@ -226,6 +226,7 @@ export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
   /** The API key the run was started with; its retry carries it. */
   readonly apiKeyId?: string | undefined;
   readonly inPlace: boolean;
+  readonly reviewBatchId?: string | undefined;
   /** Original task decision; absent on legacy in-place kicks. */
   readonly inPlaceRetryStatus?: string | undefined;
   readonly inPlaceRetryActivityId?: string | undefined;
@@ -257,6 +258,7 @@ export async function loadTaskRetryHistory(
       startedBy: string;
       apiKeyId: string | null;
       inPlace: boolean;
+      reviewBatchId: string | null;
       inPlaceRetryStatus: string | null;
       inPlaceRetryActivityId: string | null;
       launchedAt: number | null;
@@ -270,7 +272,7 @@ export async function loadTaskRetryHistory(
   >`
     SELECT id, status, agent_id AS "agentId",
            started_by AS "startedBy", api_key_id AS "apiKeyId",
-           in_place AS "inPlace",
+           in_place AS "inPlace", review_batch_id AS "reviewBatchId",
            in_place_retry_status AS "inPlaceRetryStatus",
            in_place_retry_activity_id::text AS "inPlaceRetryActivityId",
            launched_at_ms::float8 AS "launchedAt",
@@ -291,6 +293,7 @@ export async function loadTaskRetryHistory(
     startedBy: row.startedBy,
     apiKeyId: row.apiKeyId ?? undefined,
     inPlace: row.inPlace,
+    reviewBatchId: row.reviewBatchId ?? undefined,
     inPlaceRetryStatus: row.inPlaceRetryStatus ?? undefined,
     inPlaceRetryActivityId: row.inPlaceRetryActivityId ?? undefined,
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses

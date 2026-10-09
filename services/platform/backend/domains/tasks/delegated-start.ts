@@ -2,6 +2,10 @@ import type {
   TaskAgentRepairReceipt,
   TaskAgentResumeFrom,
 } from '@tale/shared/schemas/task-review';
+import type {
+  TaskReviewBatchStart,
+  TaskReviewBatchResult,
+} from '@tale/shared/schemas/task-review-batch';
 import type { Sql, TransactionSql } from 'postgres';
 
 import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting.ts';
@@ -20,6 +24,8 @@ import {
 import { predictWorkerWait } from './agent-workers.ts';
 import { openTaskBlockerIds } from './dependencies.ts';
 import { TaskError } from './errors.ts';
+import { admitReviewBatch } from './review-batch-admission.ts';
+import { projectReviewBatch, replayReviewBatch } from './review-batch-store.ts';
 import {
   prepareRepair,
   readRepairDecision,
@@ -34,7 +40,12 @@ import {
   isTaskRunConfined,
   runStarterMayEditProject,
 } from './run-authority.ts';
-import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
+import {
+  assertTaskAutomationEnabled,
+  lockTaskRunStart,
+  lockAgentForStart,
+} from './run-start.ts';
+export { type LockedAgent } from './run-start.ts';
 import {
   agentAssignTaskToAgentTrusted,
   agentHandTaskToInProgressTrusted,
@@ -281,39 +292,6 @@ export async function inPlaceStartRefusal(
   return null;
 }
 
-/** The agent row as a start locks it: what the kick needs to run it. */
-export interface LockedAgent {
-  id: string;
-  projectId: string;
-  harness: string;
-  model: string;
-  modelProvider: string | null;
-}
-
-/**
- * Take the agent row that two delegated starts of one agent queue on, and
- * read what the kick needs to run it. A write rather than a SELECT FOR
- * UPDATE, as `lockTaskRunStart` does for the task: an overlapping
- * SERIALIZABLE snapshot is invalidated too, and its retry sees the winner.
- * A start that locks both takes the agent first, then the task; never the
- * task first. `projectId` confines it to one project's agents. Null when no
- * such agent exists (nothing is locked then).
- */
-async function lockAgentForStart(
-  tx: TransactionSql,
-  args: { organizationId: string; agentId: string; projectId?: string },
-): Promise<LockedAgent | null> {
-  const agents = await tx<LockedAgent[]>`
-    UPDATE app.project_agents SET updated_at_ms = updated_at_ms
-    WHERE id = ${args.agentId} AND org_id = ${args.organizationId}
-      AND (${args.projectId ?? null}::text IS NULL
-           OR project_id = ${args.projectId ?? null})
-    RETURNING id, project_id AS "projectId", harness, model,
-              model_provider AS "modelProvider"
-  `;
-  return agents[0] ?? null;
-}
-
 /** The actor an automation's writes are recorded as on the task timeline —
  * the engine's task natives use the same sentinel. */
 const WORKFLOW_ACTOR_ID = 'workflow';
@@ -336,6 +314,8 @@ export interface DelegatedAgentStartArgs {
   feedback?: string;
   /** Move the card to In progress (default) or leave it where it is. */
   moveToInProgress?: boolean;
+  /** Internal native batch door only; never parsed by task_start_agent. */
+  reviewBatch?: TaskReviewBatchStart;
   /**
    * Resume the agent with the answer to the question it asked: the run that
    * asked and the review it is waiting at. The start happens only while that
@@ -365,6 +345,7 @@ export type StaleQuestionCause =
 
 export type DelegatedAgentStart =
   | StaleRepair
+  | { outcome: 'review_batch'; batch: TaskReviewBatchResult; replayed?: true }
   | {
       outcome: 'started';
       runId: string;
@@ -598,6 +579,17 @@ export async function startDelegatedAgentRun(
   tx: TransactionSql,
   args: DelegatedAgentStartArgs,
 ): Promise<DelegatedAgentStart> {
+  if (
+    args.reviewBatch !== undefined &&
+    (args.via.kind !== 'agent' ||
+      args.moveToInProgress !== false ||
+      args.resumeFrom !== undefined ||
+      args.reviewBatch.contextTaskId !== args.taskId)
+  )
+    throw new TaskError(
+      'TASK_REVIEW_INVALID',
+      'A native review batch requires its exact in-place context admission',
+    );
   const repairFrom =
     args.resumeFrom !== undefined && 'kind' in args.resumeFrom
       ? args.resumeFrom
@@ -690,7 +682,8 @@ export async function startDelegatedAgentRun(
     await assertDelegatingRun(tx, {
       organizationId: args.organizationId,
       via: args.via,
-      requireCurrentGrant: repairFrom !== undefined,
+      requireCurrentGrant:
+        repairFrom !== undefined || args.reviewBatch !== undefined,
     });
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
@@ -788,6 +781,23 @@ export async function startDelegatedAgentRun(
       'The agent has no model configured; an editor has to choose one first',
       409,
     );
+  }
+
+  if (args.reviewBatch !== undefined && args.via.kind === 'agent') {
+    await lockTaskRunStart(tx, args.organizationId, task.id);
+    task = await loadTaskOrThrow(tx, task.id, args.organizationId);
+    const batch = await replayReviewBatch(tx, {
+      organizationId: args.organizationId,
+      projectId: task.projectId,
+      managerAgentId: args.via.agentId,
+      request: args.reviewBatch,
+    });
+    if (batch !== null)
+      return {
+        outcome: 'review_batch',
+        batch: await projectReviewBatch(tx, batch),
+        replayed: true,
+      };
   }
 
   // A resumption checks, under the task's row lock and before anything is
@@ -928,6 +938,17 @@ export async function startDelegatedAgentRun(
     });
     task = await loadTaskOrThrow(tx, task.id, args.organizationId);
   }
+  const reviewBatch =
+    args.reviewBatch !== undefined && args.via.kind === 'agent'
+      ? await admitReviewBatch(tx, {
+          organizationId: args.organizationId,
+          projectId: task.projectId,
+          reviewerAgentId: agent.id,
+          managerAgentId: args.via.agentId,
+          issuerRunId: args.via.runId,
+          request: args.reviewBatch,
+        })
+      : undefined;
   const kicked = await kickAgentRun(tx, {
     organizationId: args.organizationId,
     projectId: task.projectId,
@@ -946,6 +967,7 @@ export async function startDelegatedAgentRun(
     ...(args.wakeAdmittedSeq !== undefined
       ? { wakeAdmittedSeq: args.wakeAdmittedSeq }
       : {}),
+    ...(reviewBatch !== undefined ? { reviewBatchId: reviewBatch.id } : {}),
     ...(preparedRepair !== undefined
       ? { feedback: repairFeedback(preparedRepair, args.feedback) }
       : args.feedback !== undefined && args.feedback.trim() !== ''
@@ -953,6 +975,12 @@ export async function startDelegatedAgentRun(
         : {}),
   });
   if (kicked.reused) {
+    if (reviewBatch !== undefined)
+      throw new TaskError(
+        'TASK_HAS_LIVE_RUN',
+        'Review context changed during admission; reconcile before retrying',
+        409,
+      );
     return {
       outcome: 'already_running',
       runId: kicked.runId,
@@ -960,6 +988,11 @@ export async function startDelegatedAgentRun(
       agentId: agent.id,
     };
   }
+  if (reviewBatch !== undefined)
+    return {
+      outcome: 'review_batch',
+      batch: await projectReviewBatch(tx, reviewBatch),
+    };
   if (args.moveToInProgress !== false) {
     await agentHandTaskToInProgressTrusted(tx, {
       organizationId: args.organizationId,

@@ -57,6 +57,10 @@ const OPTIONS: Options = {
 export const MAX_SOURCE_SIZE = 8_192;
 export const MAX_PARSE_DEPTH = 64;
 export const MAX_PARSE_TOKENS = 512;
+/** Transform bodies hold statements as well as expressions. Their separate
+ * bounded capacity does not enlarge templates, conditions or either depth cap. */
+export const MAX_BODY_SOURCE_SIZE = 16_384;
+export const MAX_BODY_PARSE_TOKENS = 4_096;
 export const PARSE_LIMIT_MESSAGE =
   'code exceeds the analysis size or depth limit';
 
@@ -69,14 +73,21 @@ function limit(start: number, end: number): ParseResult {
   };
 }
 
-function budget(text: string, start: number, end: number): ParseResult | null {
-  if (end - start > MAX_SOURCE_SIZE) return limit(start, end);
+function budget(
+  text: string,
+  start: number,
+  end: number,
+  kind: 'expression' | 'body' = 'expression',
+): ParseResult | null {
+  const sourceLimit = kind === 'body' ? MAX_BODY_SOURCE_SIZE : MAX_SOURCE_SIZE;
+  const tokenLimit = kind === 'body' ? MAX_BODY_PARSE_TOKENS : MAX_PARSE_TOKENS;
+  if (end - start > sourceLimit) return limit(start, end);
   let depth = 0;
   let count = 0;
   try {
     for (const token of tokenizer(text.slice(start, end), OPTIONS)) {
       const label = token.type.label;
-      if (++count > MAX_PARSE_TOKENS) return limit(start + token.start, end);
+      if (++count > tokenLimit) return limit(start + token.start, end);
       if (['(', '[', '{', '${'].includes(label)) {
         if (++depth > MAX_PARSE_DEPTH) return limit(start + token.start, end);
       } else if ([')', ']', '}'].includes(label))
@@ -320,7 +331,7 @@ export function parseExpressionIn(
 /** Parse a transform body the way the runner compiles it: a synchronous
  * function body, so `return` is allowed at its top level. */
 export function parseBody(code: string): ParseResult {
-  const limited = budget(code, 0, code.length);
+  const limited = budget(code, 0, code.length, 'body');
   if (limited !== null) return limited;
   try {
     const ast = parse(code, { ...OPTIONS, allowReturnOutsideFunction: true });

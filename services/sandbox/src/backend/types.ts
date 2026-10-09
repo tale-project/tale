@@ -138,6 +138,10 @@ export interface BackendSession {
    * dead, a Pod Succeeded or Failed) — nothing runs or will run in it. Unlike
    * `degraded`, which also covers one still starting. */
   ended?: boolean;
+  /** The egress proxy address the session pinned its transparent egress to
+   * when it booted (Docker: the `tale.egress-ip` label). Absent when the
+   * session pins none, or a spawner without the label created it. */
+  egressAddress?: string;
 }
 
 /** One workspace a backend holds (host dir / PVC), whatever its compute
@@ -183,6 +187,10 @@ export interface CreateSessionResult {
    * older runtime image, or a backend that launches without the stamp).
    */
   incarnation?: string;
+  /** The egress proxy address the create recorded as the one the session
+   * pins (see {@link BackendSession.egressAddress}); absent when it pins
+   * none or the address could not be read. */
+  egressAddress?: string;
 }
 
 /**
@@ -254,6 +262,15 @@ export interface SessionBackend {
     sessionId: string,
     expectedCreatedAtMs?: number,
   ): Promise<boolean>;
+  /**
+   * Whether the kernel's OOM killer ended processes of this incarnation,
+   * as the last {@link sessionExists} that found it dead read it (Docker's
+   * `State.OOMKilled`, from the same inspect: no call of its own). Asked
+   * once per dead incarnation; false when the check saw no such kill or
+   * never ran. Absent on Kubernetes, which restarts an OOM-killed runner
+   * in its Pod instead of ending the session.
+   */
+  takeOutOfMemory?(sessionId: string, createdAtMs: number): boolean;
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
    * (host dir / PVC). The ONLY data-deleting verb — reached through the
    * DELETE route (the explicit Destroy, and the platform's workspace cleanup)
@@ -304,6 +321,17 @@ export interface SessionBackend {
    * `image prune` on an idle Docker host removes it once no session uses
    * it): the spawner pulls it again and holds creates until it is back. */
   onRuntimeImageMissing?(listener: (detail: string) => void): void;
+  /**
+   * The address a session booting now would pin its transparent egress to,
+   * read once per sweep and compared with what each session recorded: the
+   * egress proxy is recreated by every stack restart and deploy, and Docker
+   * may hand it another address, while a running session keeps relaying to
+   * the old one and has no egress left. Null when no move can be followed (a
+   * literal proxy address). THROWS when it cannot be read. Absent on
+   * Kubernetes: sessions reach the proxy through its Service's cluster IP,
+   * which stays the same while the proxy's Pods are replaced.
+   */
+  egressAddress?(): Promise<string | null>;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
    * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":

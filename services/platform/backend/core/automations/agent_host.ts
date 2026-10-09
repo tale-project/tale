@@ -39,6 +39,7 @@ import { traceSandboxPhase } from '../../tracing';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
@@ -82,6 +83,7 @@ import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisi
 import {
   sessionCancelExec,
   sessionDeleteFiles,
+  SessionMemoryBusyError,
   sessionStageFiles,
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
@@ -1344,7 +1346,7 @@ export function classifyWorkflowStartFailure(
   const noRoom = sandboxCapacityRefusal(err);
   if (noRoom !== null) {
     return {
-      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : "the organization's workflow sessions are all in use"}`,
+      reason: `the agent turn is waiting for sandbox room: ${noRoom.scope === 'host' ? 'the sandbox host is busy' : err instanceof SessionMemoryBusyError ? "the run's sandbox is short of memory" : "the organization's workflow sessions are all in use"}`,
       failureCode: 'sandbox_capacity',
       retryAtMs: now + noRoom.retryAfterMs,
       retryAfterMs: noRoom.retryAfterMs,
@@ -2446,6 +2448,14 @@ interface TurnKeys {
  * `getAgentNodeSandboxOp` reads back. Best-effort: a failed progress write
  * never disturbs the turn.
  */
+/** The least time between two live transcript writes of one turn. Its
+ * readers poll every 2 s (the run's details and the automation agent-node
+ * log), so a write more often shows a viewer nothing more, while each
+ * rewrites the turn's whole merged transcript (up to 240 KB of jsonb, under a
+ * row lock): at the 500 ms the drain notifies, four times the writes. The
+ * settle's flush never waits for it. */
+export const LIVE_TRANSCRIPT_WRITE_FLOOR_MS = 2_000;
+
 /** Shared by the workflow AND task agent lanes (`kind` picks the op lane) —
  * the ONE writer of an agent turn's live transcript. */
 export function liveProgressSink(
@@ -2478,12 +2488,33 @@ export function liveProgressSink(
   };
   let pending: Patch | undefined;
   let writing: Promise<void> | undefined;
+  // When the last write started, and what ends the wait for the next one
+  // early: a flush, which the settle path awaits.
+  let lastWriteAt = Number.NEGATIVE_INFINITY;
+  let flushing = false;
+  let endWait: (() => void) | undefined;
+  const waitForFloor = (ms: number) =>
+    new Promise<void>((resolve) => {
+      const timer = setTimeout(resolve, ms);
+      timer.unref?.();
+      endWait = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+    }).finally(() => {
+      endWait = undefined;
+    });
   const drain = async () => {
     // Gather the synchronous text/timeline callback pair into one mutation.
     await Promise.resolve();
     while (pending !== undefined) {
+      // Writes follow the readers' cadence, not every notification: what
+      // arrives meanwhile merges into the one pending snapshot.
+      const wait = lastWriteAt + LIVE_TRANSCRIPT_WRITE_FLOOR_MS - Date.now();
+      if (wait > 0 && !flushing) await waitForFloor(wait);
       const patch = pending;
       pending = undefined;
+      lastWriteAt = Date.now();
       try {
         await traceSandboxPhase('persist', () =>
           ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
@@ -2524,8 +2555,14 @@ export function liveProgressSink(
     onText: (text) => write({ progressText: textTail(text) }),
     onTimeline: (liveTimeline) => write({ liveTimeline }),
     flush: async () => {
-      for (let current = writing; current !== undefined; current = writing) {
-        await current;
+      flushing = true;
+      endWait?.();
+      try {
+        for (let current = writing; current !== undefined; current = writing) {
+          await current;
+        }
+      } finally {
+        flushing = false;
       }
     },
   };
@@ -2617,7 +2654,10 @@ async function continueOrSettle(
     .catch((err) =>
       console.warn('[agent-host] final progress write failed:', err),
     );
-  const { errored, reason } = classifyHarnessEnd(window);
+  const { errored, reason: classifiedReason } = classifyHarnessEnd(window);
+  // An exec the sandbox ended (a hang) is named as such, not as a crash.
+  const sandboxEnd = sandboxEndOf(window);
+  const reason = sandboxEnd?.reason ?? classifiedReason;
   const ended = window.ended;
 
   // A clean turn end with a question on the table is not a settle — it is the
@@ -2703,16 +2743,21 @@ async function continueOrSettle(
       // `harness_error`, so the stepper re-kicks them in place, except a
       // death at the deadline — retrying a burned 12h window is waste — and
       // a spend refusal (402), which a re-kick would only meet again on a
-      // key sized from the same exhausted balance. The API status rides
-      // along for display.
+      // key sized from the same exhausted balance, and a harness the sandbox
+      // ended as stalled, which would most likely hang again. The API
+      // status rides along for display.
       ...(errored
         ? {
             failureCode:
               Date.now() > args.deadlineAt
                 ? 'deadline'
-                : spendRefused
-                  ? 'budget_exceeded'
-                  : 'harness_error',
+                : sandboxEnd?.failure === 'stalled'
+                  ? 'turn_stalled'
+                  : sandboxEnd?.failure === 'out_of_memory'
+                    ? 'resource_exhausted'
+                    : spendRefused
+                      ? 'budget_exceeded'
+                      : 'harness_error',
           }
         : {}),
       ...(errored && ended?.apiErrorStatus !== undefined

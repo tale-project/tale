@@ -34,14 +34,18 @@ writeFileSync(
 // open-file limit it was started with; once dnsmasq is up, tinyproxy asks the
 // entrypoint to stop, as `docker stop` would, unless STUB_TINYPROXY_STAY is
 // set.
-// STUB_<DAEMON>_EXIT makes a daemon exit on its own at once with that status.
+// Both stubs acknowledge startup after installing their TERM traps. Controlled
+// exits and the parent stop wait for both acknowledgements, so the peer can
+// record its shutdown even when its initialization was scheduled later.
+// STUB_<DAEMON>_EXIT makes a daemon exit on its own with that status.
 // A `tail` records that something ran it: the proxy logs to stdout, so
 // nothing should poll a log file beside it.
 const events = join(root, 'events');
 const dnsmasqArgs = join(root, 'dnsmasq-args');
 const tinyproxyFiles = join(root, 'tinyproxy-nofile');
 const untilStopped = (name: string) =>
-  `trap 'kill "$nap" 2>/dev/null; echo ${name} stopped >> "${events}"; exit 0' TERM`;
+  `trap 'trap "" TERM; kill "$nap" 2>/dev/null; echo ${name} stopped >> "${events}"; exit 0' TERM`;
+const ready = `while [ ! -e '${dnsmasqArgs}' ] || [ ! -e '${tinyproxyFiles}' ]; do sleep 0.01; done`;
 const idle = 'while :; do sleep 1 & nap=$!; wait "$nap"; done';
 writeFileSync(
   join(bin, 'dnsmasq'),
@@ -49,6 +53,7 @@ writeFileSync(
     '#!/bin/sh',
     untilStopped('dnsmasq'),
     `echo "$@" > '${dnsmasqArgs}'`,
+    ready,
     '[ -z "$STUB_DNSMASQ_EXIT" ] || exit "$STUB_DNSMASQ_EXIT"',
     idle,
     '',
@@ -61,8 +66,8 @@ writeFileSync(
     '#!/bin/sh',
     untilStopped('tinyproxy'),
     `ulimit -n > '${tinyproxyFiles}'`,
+    ready,
     '[ -z "$STUB_TINYPROXY_EXIT" ] || exit "$STUB_TINYPROXY_EXIT"',
-    `while [ ! -e '${dnsmasqArgs}' ]; do sleep 1; done`,
     '[ -n "$STUB_TINYPROXY_STAY" ] || kill -TERM "$PPID"',
     idle,
     '',

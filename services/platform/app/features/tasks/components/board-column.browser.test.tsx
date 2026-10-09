@@ -1,11 +1,10 @@
 import '@testing-library/jest-dom/vitest';
-import { useCallback, useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
 import { cleanup, render, screen } from '@/tests/utils/render';
 
-import type { TaskStatus } from '../lib/display';
+import { useCollapsedLanes } from '../hooks/use-collapsed-lanes';
 import { KanbanBoard } from './kanban-board';
 import type { TaskRow } from './task-card';
 import {
@@ -110,6 +109,9 @@ const nextFrame = () =>
   new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 afterEach(() => {
+  window.localStorage.removeItem(
+    'tale.platform.tasks.board.collapsedLanes.folding-board-test',
+  );
   cleanup();
   vi.clearAllMocks();
 });
@@ -325,24 +327,14 @@ describe('a long board lane (real Chromium)', () => {
 
 /** The board as the workspace drives it: Done and Cancelled may fold. */
 function FoldingBoard({ tasks }: { tasks: TaskRow[] }) {
-  const [folded, setFolded] = useState<ReadonlySet<TaskStatus>>(new Set());
-  const onLaneCollapsedChange = useCallback(
-    (status: TaskStatus, collapse: boolean) =>
-      setFolded((previous) => {
-        const next = new Set(previous);
-        if (collapse) next.add(status);
-        else next.delete(status);
-        return next;
-      }),
-    [],
-  );
+  const lanes = useCollapsedLanes('folding-board-test');
   return (
     <div className="h-[600px] w-full">
       <KanbanBoard
         tasks={tasks}
         canWorkTask={() => true}
-        collapsedLanes={folded}
-        onLaneCollapsedChange={onLaneCollapsedChange}
+        collapsedLanes={lanes.collapsed}
+        onLaneCollapsedChange={lanes.setCollapsed}
       />
     </div>
   );
@@ -354,6 +346,40 @@ describe('a folded lane (real Chromium)', () => {
     { ...makeTask(1), status: 'done' as const },
     { ...makeTask(2), status: 'done' as const },
   ];
+
+  it.each(
+    [{}, null, 'done', ['done', null, {}, 'todo']].map((stored) => ({
+      stored,
+    })),
+  )(
+    'recovers the persisted preference %j through the real board controls',
+    async ({ stored }) => {
+      const key = 'tale.platform.tasks.board.collapsedLanes.folding-board-test';
+      window.localStorage.setItem(key, JSON.stringify(stored));
+      const first = render(<FoldingBoard tasks={tasks} />);
+      if (Array.isArray(stored)) {
+        await userEvent.click(
+          await screen.findByRole('button', { name: 'Expand Done' }),
+        );
+      }
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Collapse Done' }),
+      );
+      expect(
+        await screen.findByRole('button', { name: 'Expand Done' }),
+      ).toHaveAttribute('aria-expanded', 'false');
+      expect(window.localStorage.getItem(key)).toBe('["done"]');
+      first.unmount();
+      render(<FoldingBoard tasks={tasks} />);
+      await userEvent.click(
+        await screen.findByRole('button', { name: 'Expand Done' }),
+      );
+      expect(
+        await screen.findByRole('button', { name: 'Collapse Done' }),
+      ).toBeInTheDocument();
+      expect(window.localStorage.getItem(key)).toBe('[]');
+    },
+  );
 
   it('folds Done to a rail and back, focus following the toggle', async () => {
     await page.viewport(1600, 900);

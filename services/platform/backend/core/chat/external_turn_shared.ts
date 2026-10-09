@@ -27,6 +27,7 @@
 import { z } from 'zod';
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
+import { stagedInstructionsPathForExec } from '../../../lib/harnesses/exec-builder';
 import { HarnessProjection } from '../../../lib/harnesses/projection';
 import { getHarnessGlue } from '../../../lib/harnesses/registry';
 import { type TimelinePart } from '../../../lib/harnesses/timeline';
@@ -204,6 +205,51 @@ export async function removeStagedSubscription(
     if (err instanceof SessionNotFoundError) return;
     console.warn(
       `[harness-turn] ${sessionId}: removing the staged subscription credential ${path} failed:`,
+      err,
+    );
+  }
+}
+
+/**
+ * Remove the instructions addendum one exec was staged with (OpenCode's
+ * `.runtime/tale/instructions/<execId>.md`) once its turn is over. The file
+ * is named for the exec, so no other turn reads it, and a project agent's
+ * worker serves turn after turn: without this it keeps one file for every
+ * turn it ever ran. A no-op for a harness that passes its instructions
+ * another way. Best-effort: a failure is logged, and a file left behind
+ * holds only the turn's own instructions.
+ */
+export async function removeStagedInstructions(
+  sessionId: string,
+  harness: string,
+  execId: string,
+): Promise<void> {
+  if (!isHarnessSlug(harness)) return;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  if (def === undefined) return;
+  let path: string | undefined;
+  try {
+    path = stagedInstructionsPathForExec(def, execId);
+  } catch (err) {
+    console.warn(
+      `[harness-turn] ${sessionId}/${execId}: the staged instructions path of ${harness} could not be derived:`,
+      err,
+    );
+    return;
+  }
+  if (path === undefined) return;
+  try {
+    const removed = await sessionDeleteFiles(sessionId, [path]);
+    for (const skipped of removed.skipped) {
+      console.warn(
+        `[harness-turn] ${sessionId}/${execId}: the staged instructions ${skipped.path} could not be removed: ${skipped.reason}`,
+      );
+    }
+  } catch (err) {
+    // A session that is gone took the file with it.
+    if (err instanceof SessionNotFoundError) return;
+    console.warn(
+      `[harness-turn] ${sessionId}/${execId}: removing the staged instructions ${path} failed:`,
       err,
     );
   }
@@ -1074,6 +1120,29 @@ export function harnessOutputTail(stderr: string): string {
     : plain;
 }
 
+/** The exec result code the sandbox ends a hung exec with: it printed
+ * nothing and its processes used under 1% of one CPU for the whole stall
+ * window (`services/sandbox/src/wire.ts`). */
+const EXEC_STALLED_CODE = 'EXEC_STALLED';
+
+/** The exec result codes of a harness the sandbox's memory limit ended:
+ * the kernel's OOM killer ended the exec (`OOM_KILLED`), or the session's
+ * container with it (`SESSION_OOM`; `services/sandbox/src/wire.ts`). */
+const OUT_OF_MEMORY_CODES: ReadonlySet<string> = new Set([
+  'OOM_KILLED',
+  'SESSION_OOM',
+]);
+
+/** The reason a turn settles failed with when its sandbox ran out of
+ * memory. */
+export const OUT_OF_MEMORY_TURN_REASON =
+  "The agent's sandbox ran out of memory: the kernel's OOM killer ended the agent. A retry follows after a pause; if it keeps happening, the agent sessions need a larger memory limit (SANDBOX_AGENT_MEMORY).";
+
+/** The reason a turn settles failed with when the sandbox ended its harness
+ * as stalled. */
+export const STALLED_TURN_REASON =
+  "The agent stopped making progress: it printed nothing and used almost no CPU for the sandbox's stall window (45 minutes unless the operator changed it), so the sandbox ended it.";
+
 /** The reason a turn settles failed with when its model answered nothing. */
 export const EMPTY_ANSWER_REASON =
   'The model returned an empty answer, so the agent did nothing this turn.';
@@ -1222,4 +1291,37 @@ export function classifyHarnessEnd(window: HarnessEndWindow): {
     return { errored: true, reason: EMPTY_ANSWER_REASON, emptyAnswer: true };
   }
   return { errored: false, emptyAnswer: false };
+}
+
+/**
+ * Whether the sandbox, not the harness, ended a terminal window's exec, with
+ * the reason such a turn settles with. Read beside {@link classifyHarnessEnd},
+ * whose crash reading it refines: `stalled` when runnerd ended the exec
+ * because it printed nothing and its processes used under 1% of one CPU for
+ * the whole stall window (`EXEC_STALLED`), `out_of_memory` when the session's
+ * memory limit ended it (`OOM_KILLED`, `SESSION_OOM`). Either would most
+ * likely meet an immediate retry again, so each host settles it with a code
+ * of its own.
+ * Nothing while the exec still runs, and nothing when the harness ended its
+ * turn itself: its own end stands.
+ */
+export function sandboxEndOf(
+  window: HarnessEndWindow,
+): { failure: 'stalled' | 'out_of_memory'; reason: string } | undefined {
+  if (window.ended !== undefined || !window.exited) return undefined;
+  const code = window.execResult?.errorCode;
+  // Out of memory: the limit, not the harness, ended the turn, and a retry
+  // at once would meet the same limit.
+  if (code !== undefined && OUT_OF_MEMORY_CODES.has(code))
+    return { failure: 'out_of_memory', reason: OUT_OF_MEMORY_TURN_REASON };
+  if (code !== EXEC_STALLED_CODE) return undefined;
+  // What it printed last is what it hung on.
+  const tail = window.stderrTail ?? '';
+  return {
+    failure: 'stalled',
+    reason:
+      tail !== ''
+        ? `${STALLED_TURN_REASON} Last output: ${tail}`
+        : STALLED_TURN_REASON,
+  };
 }

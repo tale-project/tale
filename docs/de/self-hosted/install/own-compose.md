@@ -20,7 +20,7 @@ Im mitgelieferten Aufbau liegen `tale_app` und `tale_knowledge` in einem Postgre
 
 ## Kompatible Images festlegen
 
-Setze `VERSION` in der Compose-`.env` auf das geprüfte und getestete Tale-Release. Exportiere denselben Wert in deiner Shell für den separaten Image-Download weiter unten. Verwende für Tale-Images eine gemeinsame Version. Die beiden Dienste mit Upstream-Images haben eigene feste Versionen.
+Setze `VERSION` in der Compose-`.env` auf das geprüfte und getestete Tale-Release. Exportiere denselben Wert in deiner Shell für den separaten Image-Download weiter unten. Verwende für Tale-Images eine gemeinsame Version. Die beiden Dienste mit Upstream-Images haben eigene feste Versionen. Die Schichten der Tale-Images sind mit zstd komprimiert; der Docker-Host braucht deshalb Docker Engine 24.0 oder neuer.
 
 | Dienst | Image |
 | --- | --- |
@@ -167,6 +167,7 @@ Setze am Proxy `BACKEND_UPSTREAM=backend-api:3005`. Für den mitgelieferten Date
 | Egress-IPv6 | `sysctls` mit `net.ipv6.conf.all.disable_ipv6: '1'` und `net.ipv6.conf.default.disable_ipv6: '1'`, wie im mitgelieferten Stack. Die Egress-Firewall arbeitet fail-closed: Sie braucht eine funktionierende IPv6-Firewall oder deaktiviertes IPv6 für den Standardwert und jede Schnittstelle, und ein Container kann diese Sysctls über ein schreibgeschütztes `/proc/sys` nicht selbst setzen. Ohne sie startet der Proxy auf einem Kernel ohne das Modul `ip6_tables` nicht; siehe [Sandbox-Infrastruktur](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure). |
 | Postgres-Stopp | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` im Referenzaufbau. |
 | Web-, Backend- und Spawner-Stopp | Stop-Wartezeit von 45 Sekunden für Web, 30 für `backend-api`, 120 für `backend-worker` und 30 für den Spawner. Ein Worker gibt seine Automations-Läufe in dieser Zeit weiter (`SHUTDOWN_DRAIN_MS`); übrige laufende Arbeit vor dem Stopp koordinieren. |
+| Gateway-Stopp | `stop_grace_period: 90s`. Ein stoppendes Gateway nimmt keine neuen Modellaufrufe mehr an, lässt laufende Aufrufe samt gestreamter Antworten fertig werden und speichert seine Ausgabenzähler am Ende nur, wenn das innerhalb von 30 Sekunden nach dem Stopp geschieht. Die Docker-Vorgabe von 10 Sekunden bricht längere Antworten ab. |
 
 Behalte `db-backup`, wenn deine Datenbankwerkzeuge nach `/var/lib/postgresql/backup` schreiben. Ein Mount allein plant keine Sicherungen. Ältere Konfigurationsvolumes `convex-data` brauchen eine kontrollierte Übertragung nach `config-data`, keine Löschung. Bewahre die alte Kopie bis zur Prüfung auf.
 

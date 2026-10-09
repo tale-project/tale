@@ -8,12 +8,13 @@ import { configurationHashSchema } from './configuration';
 import {
   PROJECT_AGENT_INSTRUCTIONS_MAX,
   PROJECT_AGENT_BINDINGS_MAX,
+  projectAgentInputSchema,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
 } from './projects';
 import { scheduleRuleSchema } from './schedule-rule';
 
-/** Explicit adoption: these resources never find a target by display name or
- * create a second project, agent or standing task. Native writers retain the
+/** Explicit identities: these resources never find a target by display name.
+ * Review contexts alone may explicitly create their declared UUID. Native writers retain the
  * authority, occupancy, audit and validation rules of those resources. */
 const identity = z
   .string()
@@ -44,11 +45,61 @@ export const managedAgentToolsSchema = z.strictObject({
     .max(PROJECT_AGENT_BINDINGS_MAX)
     .transform((tools) => normalizeToolGrants(tools)),
 });
+/** Model adoption selects one explicit provider; native observations may retain
+ * an older unpinned provider without silently choosing one during the read. */
+export const managedAgentModelSchema = projectAgentInputSchema
+  .pick({ harness: true, model: true, modelProvider: true })
+  .extend({
+    ...project,
+    agentId: identity,
+    model: projectAgentInputSchema.shape.model.trim().min(1),
+    modelProvider: projectAgentInputSchema.shape.modelProvider
+      .unwrap()
+      .trim()
+      .min(1),
+  })
+  .strict();
+export const managedAgentModelObservationSchema =
+  managedAgentModelSchema.extend({
+    model: projectAgentInputSchema.shape.model,
+    modelProvider: projectAgentInputSchema.shape.modelProvider
+      .unwrap()
+      .nullable(),
+  });
 export const managedTaskInstructionsSchema = z.strictObject({
   ...project,
   taskId: identity,
   description: z.string().max(TASK_DESCRIPTION_MAX),
 });
+
+/** Explicit enrollment of a pristine operational task. The reviewer identity
+ * is permanent; disabling the context does not turn it into source work. */
+export const managedTaskReviewContextSchema = z.strictObject({
+  ...project,
+  taskId: identity,
+  reviewerAgentId: identity,
+  enabled: z.boolean(),
+});
+export type ManagedTaskReviewContext = z.infer<
+  typeof managedTaskReviewContextSchema
+>;
+
+/** Creation is an explicit apply policy, not part of the stored config/hash.
+ * Existing adoption-only identities remain compatible. */
+export const managedTaskReviewContextProvisionSchema = z
+  .strictObject({
+    config: managedTaskReviewContextSchema,
+    createIfMissing: z.literal(true).optional(),
+  })
+  .refine(
+    (value) =>
+      value.createIfMissing !== true ||
+      z.uuid().safeParse(value.config.taskId).success,
+    {
+      path: ['config', 'taskId'],
+      message: 'Creation requires a stable UUID task ID',
+    },
+  );
 
 /** The native authoring dispatcher validates documents and runs their tests.
  * Metadata is explicit: null clears it; an omitted field must never silently
@@ -116,8 +167,15 @@ export const managedPlatformResourceSchema = z.discriminatedUnion('kind', [
     config: managedAgentToolsSchema,
   }),
   z.strictObject({
+    kind: z.literal('agent-model'),
+    config: managedAgentModelSchema,
+  }),
+  z.strictObject({
     kind: z.literal('task-instructions'),
     config: managedTaskInstructionsSchema,
+  }),
+  managedTaskReviewContextProvisionSchema.safeExtend({
+    kind: z.literal('task-review-context'),
   }),
   z.strictObject({
     kind: z.literal('automation-definition'),

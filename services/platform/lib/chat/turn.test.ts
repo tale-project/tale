@@ -94,8 +94,13 @@ const API_KEY_CREDENTIAL: CredentialAuth = { authMethod: 'api-key' };
 
 interface StoreCalls {
   readonly appended: Array<Record<string, unknown>>;
-  /** Every streaming-progress write, in order (the full text so far). */
-  readonly streamed: Array<{ messageId: string | undefined; text: string }>;
+  /** Every streaming-progress write, in order (the full text so far); a
+   *  stall's cancel poll carries `poll`. */
+  readonly streamed: Array<{
+    messageId: string | undefined;
+    text: string;
+    poll?: true;
+  }>;
   /** Every settled-parts write, in order (the authoritative parts-so-far). */
   readonly partsWrites: Array<readonly Record<string, unknown>[]>;
   /** Every settle write into the placeholder. */
@@ -182,6 +187,7 @@ function fakeStore(
         calls.streamed.push({
           messageId: update.messageId,
           text: update.text,
+          ...(update.poll === true ? { poll: true as const } : {}),
         });
         const cancelAt = options.cancelAfterStreamWrites;
         // The tool-round boundary is the only write that is both flushed and
@@ -1751,6 +1757,27 @@ describe('runTurn — the tool loop', () => {
     expect(calls.generations).toEqual(['begin', 'end']);
     // Nothing streamed; the settle is the empty stop, not a hang.
     expect(calls.finalized).toHaveLength(1);
+  }, 10_000);
+
+  it('marks the stall tick after streamed text as a poll, so the store holds it only to the shortest gap', async () => {
+    // The chunk's own write, then the stall's tick: the store answers the
+    // tick with the cancel. Without `poll` it would wait the gap a long
+    // reply's text earns.
+    const { store, calls } = fakeStore({ cancelAfterStreamWrites: 2 });
+    const stalled: ModelCall = async function* stream() {
+      yield { text: 'partial' };
+      await new Promise(() => undefined);
+    };
+    const d = deps({ model: stalled, store });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    expect(calls.streamed.map((write) => write.poll ?? false)).toEqual([
+      false,
+      true,
+    ]);
+    expect(calls.streamed[1]?.text).toBe('partial');
   }, 10_000);
 });
 

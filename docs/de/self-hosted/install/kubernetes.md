@@ -15,6 +15,7 @@ Tale läuft auf Kubernetes, wenn du den [Dienstvertrag](/de/self-hosted/install/
 | Nodes, die `NET_ADMIN` gewähren und ip6tables bereitstellen oder die IPv6-Sysctls erlauben | Der Egress-Proxy installiert beim Start seine Firewall und verweigert den Start ohne sie. |
 | Ports 80 und 443 unter der öffentlichen Adresse erreichbar | Caddy besorgt sich im Modus `selfsigned` und `letsencrypt` die Zertifikate selbst. Hinter einem Ingress, der TLS terminiert, setzt du `TLS_MODE=external`. |
 | Pull-Zugriff auf `ghcr.io/tale-project/tale/*` auf jedem Node, einschließlich des Sandbox-Runtime-Images | Sitzungs-Pods starten aus `SANDBOX_RUNTIME_IMAGE`. Ein Node, der es nicht laden kann, lässt die erste dort eingeplante Sitzung scheitern. |
+| Eine Container-Runtime, die zstd-komprimierte Schichten entpackt, etwa containerd 1.5 oder neuer | Die Schichten der Tale-Images sind mit zstd komprimiert. Ein Node, dessen Runtime sie nicht entpacken kann, lädt die Images nicht, und dort startet kein Pod aus ihnen. |
 | Eine sysbox- oder kata-RuntimeClass, wenn Agenten Docker in ihrer Sandbox brauchen | Ohne sie bleibt `SANDBOX_DOCKER_IN_CONTAINER=false`. Die Stufe `runc` bräuchte privilegierte Pods. |
 | `kubectl` und `envsubst` auf dem Rechner, der die Manifeste anwendet | Die Manifeste enthalten eine Variable `${VERSION}`, die kubectl nicht expandiert. |
 
@@ -40,7 +41,7 @@ Jeder Pod unten setzt `enableServiceLinks: false`. Andernfalls injiziert Kuberne
 | `proxy` | Deployment mit Strategie `Recreate`; `hostPort` 80 und 443; PVC für `/data` | Der Zertifikatspeicher überlebt Neustarts auf dem PVC. |
 | `sandbox` | ServiceAccount, Role, RoleBinding, Deployment; Service auf 8003 | `SANDBOX_BACKEND=kubernetes`; `config-data` nur lesend unter `/app/platform-config`. Kein Docker-Socket. |
 | `sandbox-egress` | Deployment; Service auf 3128 | Der ausgelieferte Capability-Satz, keine Sysctls. |
-| `sandbox-llm-gateway` | Deployment mit Strategie `Recreate`, PVC unter `/app/data`; Services `sandbox-llm-gateway` und `llm-gateway` auf 8080 | Das Image läuft als uid 1000; `fsGroup: 1000` lässt es seinen Zustand schreiben. Das Gateway liest `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` aus `tale-env`: Solange es kein Admin-Konto hat, legt es eines nur für einen Aufrufer an, der dieses Geheimnis vorweist. |
+| `sandbox-llm-gateway` | Deployment mit Strategie `Recreate`, PVC unter `/app/data`; Services `sandbox-llm-gateway` und `llm-gateway` auf 8080 | Das Image läuft als uid 1000; `fsGroup: 1000` lässt es seinen Zustand schreiben. Das Gateway liest `SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD` aus `tale-env`: Solange es kein Admin-Konto hat, legt es eines nur für einen Aufrufer an, der dieses Geheimnis vorweist. Mit `terminationGracePeriodSeconds: 90` gibt ein Rollout dem alten Pod bis zu 90 Sekunden, um laufende Modellaufrufe samt gestreamter Antworten zu beenden; seine Ausgabenzähler speichert er am Ende nur, wenn sie innerhalb von 30 Sekunden nach dem Stopp enden. Neue Aufrufe nimmt er in dieser Zeit nicht an, und der neue Pod startet, sobald er beendet ist. |
 | `bgutil-provider` | Deployment; Service auf 4416 | Optionaler Token-Anbieter für Videos. |
 
 Die Prüfungen übertragen die Compose-Healthchecks:
@@ -545,6 +546,7 @@ spec:
     spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 90
       securityContext: { fsGroup: 1000 }
       containers:
         - name: gateway

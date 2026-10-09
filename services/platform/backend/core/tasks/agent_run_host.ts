@@ -32,6 +32,7 @@ import {
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
+  sandboxEndOf,
   harnessRequiresSubscriptionAccountId,
   isSpendRefusal,
   spendRefusalReason,
@@ -40,6 +41,7 @@ import {
   harnessMountsMcp,
   harnessResumesConversations,
   nextWindowDelayMs,
+  removeStagedInstructions,
   removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   SPAWNER_OUTAGE_BUDGET_MS,
@@ -124,6 +126,10 @@ import {
   isCredentialRotation,
   type TaskRunFailureCode,
 } from './task_auto_retry';
+import {
+  pruneStaleTaskInputMirrors,
+  TASK_INPUTS_ROOT,
+} from './task_input_mirrors';
 import {
   isTaskInputMissingError,
   TaskInputMissingError,
@@ -274,7 +280,7 @@ function taskOutputDir(taskId: string): string {
  * the worker's workspace holds other tasks' stale files. Outside
  * `/agent/output` so the box sweep and the settle harvest never touch it. */
 function taskInputsDir(taskId: string): string {
-  return `/agent/inputs/${taskId}`;
+  return `${TASK_INPUTS_ROOT}/${taskId}`;
 }
 
 /** Whether a LOOSE file at the box root (`/agent/output/` itself — never
@@ -1351,6 +1357,15 @@ export async function startTaskAgentTurnImpl(
           );
         }
       }
+      // The worker also holds a copy of the inputs of every task it worked
+      // before: drop the ones whose task is closed, gone or a month
+      // untouched. Best-effort and bounded, never this run's own task.
+      await pruneStaleTaskInputMirrors(ctx, {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+      });
 
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the
@@ -1732,8 +1747,14 @@ export async function startTaskAgentTurnImpl(
             );
           });
           // The refused exec never ran, but its inputs were staged: the
-          // start that gets room stages its credential again.
+          // start that gets room stages its credential again, and its
+          // instructions under the fresh exec's own name.
           await removeStagedSubscription(args.sessionId, args.harness);
+          await removeStagedInstructions(
+            args.sessionId,
+            args.harness,
+            args.execId,
+          );
         }
         return null;
       }
@@ -1788,6 +1809,8 @@ export async function driveTaskAgentTurnImpl(
       if (!heldByAnotherExec(run, args.execId)) {
         await removeStagedSubscription(args.sessionId, args.harness);
       }
+      // Named for this exec alone: it goes whichever exec holds the run now.
+      await removeStagedInstructions(args.sessionId, args.harness, args.execId);
       await releaseProjectAgentSlotAfterSettle(ctx, args);
       return null;
     }
@@ -1891,6 +1914,9 @@ function isResumeLaunchFailure(
   return (
     errored &&
     !emptyAnswer &&
+    // The sandbox ended the exec (a hang): no dead handle echoed back, and
+    // a fresh relaunch at once would only meet the same end.
+    sandboxEndOf(window) === undefined &&
     // A model-wide capacity refusal says nothing about the resume handle.
     // Keep it for the counted delayed retry instead of launching fresh now.
     window.ended?.providerErrorKind !== 'model_capacity' &&
@@ -1995,9 +2021,12 @@ async function continueOrSettle(
   }
   const {
     errored,
-    reason: endReason,
+    reason: classifiedReason,
     emptyAnswer,
   } = classifyHarnessEnd(window);
+  // An exec the sandbox ended (a hang) is named as such, not as a crash.
+  const sandboxEnd = sandboxEndOf(window);
+  const endReason = sandboxEnd?.reason ?? classifiedReason;
   // A `--resume` of a dead conversation echoes the handle back on its error
   // result: stamping THAT would re-arm the dead handle on every Retry
   // forever. A window that errored without producing anything and without
@@ -2080,13 +2109,20 @@ async function continueOrSettle(
     // A spend refusal (402) is named as such: the auto-retry must not
     // re-kick it (the key is sized from the same exhausted balance), and
     // the run row should say why.
+    // A harness the sandbox ended as stalled is named too: a hang is no
+    // provider error, and no retry follows it at once.
     ...(errored
       ? {
-          failureCode: spendRefused
-            ? ('budget_exceeded' as const)
-            : ended?.providerErrorKind === 'model_capacity'
-              ? ('model_capacity' as const)
-              : ('harness_error' as const),
+          failureCode:
+            sandboxEnd?.failure === 'stalled'
+              ? ('turn_stalled' as const)
+              : sandboxEnd?.failure === 'out_of_memory'
+                ? ('resource_exhausted' as const)
+                : spendRefused
+                  ? ('budget_exceeded' as const)
+                  : ended?.providerErrorKind === 'model_capacity'
+                    ? ('model_capacity' as const)
+                    : ('harness_error' as const),
         }
       : {}),
     // The harness-reported provider status (429/401/…) — absent for
@@ -2249,6 +2285,7 @@ async function settleTaskAgentTurn(
     if (!heldByAnotherExec(current, args.execId)) {
       await removeStagedSubscription(args.sessionId, args.harness);
     }
+    await removeStagedInstructions(args.sessionId, args.harness, args.execId);
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
@@ -2262,8 +2299,9 @@ async function settleTaskAgentTurn(
       : {}),
   });
   // The turn is over, whoever won the finalize claim: its staged
-  // subscription credential leaves the session with it.
+  // subscription credential and its instructions leave the session with it.
   await removeStagedSubscription(args.sessionId, args.harness);
+  await removeStagedInstructions(args.sessionId, args.harness, args.execId);
   if (!release.won) {
     // The finalize claim keys on the op row — a start that died BEFORE
     // writing one (model unresolvable, spawner error, staging failure) loses

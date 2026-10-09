@@ -88,6 +88,60 @@ describe('appJsonBody', () => {
     },
   );
 
+  it.each([
+    ['a NUL character', '{"status":"do\\u0000ne"}', 'status', 'NUL character'],
+    [
+      'a NUL in a key',
+      '{"st\\u0000atus":"done"}',
+      'st\u0000atus',
+      'NUL character',
+    ],
+  ])(
+    'refuses %s Postgres could not store as 400 invalid body, naming the field',
+    async (_n, body, path, reason) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const res = await post('/api/app/tasks/t1/move', body);
+      expect(res.status).toBe(400);
+      const answer = (await res.json()) as {
+        error: string;
+        data: { issues: { path: string; message: string }[] };
+      };
+      expect(answer.error).toBe('invalid body');
+      expect(answer.data.issues[0]?.path).toBe(path);
+      expect(answer.data.issues[0]?.message).toContain(reason);
+      expect(errors).not.toHaveBeenCalled();
+    },
+  );
+
+  it('stores an unpaired surrogate as U+FFFD, whatever the column', async () => {
+    const res = await post('/api/app/tasks/t1/move', '{"status":"\\ud800"}');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, status: '\uFFFD' });
+  });
+
+  it('mends unpaired surrogates in nested values and keys, keeping key order', async () => {
+    const res = await post(
+      '/api/app/legal-holds/h1/release',
+      '{"first":1,"a\\ud800":["x\\udc00",{"k":"\\ud800y"}],"__proto__":{"p":"\\ud800"},"last":"ok"}',
+    );
+    expect(res.status).toBe(200);
+    const { received } = (await res.json()) as {
+      received: Record<string, unknown>;
+    };
+    expect(Object.keys(received)).toEqual([
+      'first',
+      'a\uFFFD',
+      '__proto__',
+      'last',
+    ]);
+    expect(received['a\uFFFD']).toEqual(['x\uFFFD', { k: '\uFFFDy' }]);
+    expect(
+      Object.getOwnPropertyDescriptor(received, '__proto__')?.value,
+    ).toEqual({
+      p: '\uFFFD',
+    });
+  });
+
   it('parses a valid body exactly as before', async () => {
     const res = await post('/api/app/tasks/t1/move', '{"status":"done"}');
     expect(res.status).toBe(200);

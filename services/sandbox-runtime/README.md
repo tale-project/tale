@@ -125,9 +125,15 @@ deadline covers the whole batch, including cache verification and final
 reconciliation. Queued items share the same deadline. Cancellation propagates
 through the platform and spawner to the active transfer. URL inputs retain their
 100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
-20 MiB file limit. Immutable source identities can skip a transfer only after
-rehashing the current destination and checking that its pathname still names
-the same unchanged file; a changed file is repaired. Reads and cache probes
+20 MiB file limit. Immutable source identities can skip a transfer once the
+current destination is verified: by a rehash that checks its pathname still
+names the same unchanged file, or, after one such rehash, by an unchanged stat
+(device, inode, size, nanosecond mtime and ctime, read through the path twice)
+without reading the bytes again; a changed file is repaired. The source
+manifest survives runnerd restarts in `/agent/.runtime/staged-sources.json`,
+signed with runnerd's token, so a session resumed after an idle stop reuses
+its staged inputs instead of fetching them again; a manifest that does not
+verify is ignored. Reads and cache probes
 reject symlinks and named pipes without blocking filesystem workers. Explicit final
 manifests remove stale files only within the named managed roots after all
 transfer batches succeeded. The
@@ -303,7 +309,12 @@ proxy's name is asked again for up to about five seconds before the session
 gives up on transparent egress (the first answer is used at once), and the
 session's redsocks runs under a restart loop as its own uid: one that exits is
 started again after 1 s, the delay doubling to 30 s and back to 1 s after a
-minute's good run.
+minute's good run. In a fresh network namespace the session's nat rules (the
+`REDSOCKS` chain, the `OUTPUT` hooks and the DNS DNAT) go in as one
+`iptables-restore --noflush` transaction, two processes instead of about
+twenty `iptables` calls; a restore the kernel refuses, or a chain that is
+already there (a restart that kept its Pod's namespace), takes the per-rule
+path, which checks each rule and adds only what is missing.
 
 ```bash
 # from repo root
@@ -338,6 +349,20 @@ change, so the layout keeps a release's change to the layers it touched:
 - A release build reads only its own registry cache, so an unchanged layer
   keeps the previous release's bytes. Pull request and `main` builds read that
   cache too, after their own.
+- Every published Tale image, this one included, is pushed with
+  zstd-compressed layers under OCI media types (`compression=zstd`, level 3,
+  `force-compression`), and the release cache stores those zstd blobs, so an
+  unchanged layer is never re-encoded and keeps its digest from one release to
+  the next. Pulling needs Docker Engine 23.0 or later (Tale requires 24.0, and
+  the CLI checks it) or, on Kubernetes, containerd 1.5 or later. The gain is
+  mostly in unpacking: in [zstd's own benchmark](https://github.com/facebook/zstd#benchmarks)
+  (Silesia corpus, both at level 1) zstd decompresses at 1550 MB/s against
+  zlib's 390 MB/s, and compresses to a 2.896 ratio against 2.743, about 5 %
+  fewer bytes. [AWS measured](https://aws.amazon.com/blogs/containers/reducing-aws-fargate-startup-times-with-zstd-compressed-container-images)
+  up to 27 % shorter Fargate task and pod starts with level-3 zstd images, the
+  largest images gaining most. Neither figure has been measured on this image.
+  Pull request and `main` builds compress new layers with zstd too, and keep
+  the layers their GHA cache holds as gzip rather than re-encode them.
 - Every base image and `COPY --from` image is pinned by digest; Renovate bumps
   them, so a base refresh is a reviewed change rather than whatever a tag
   pointed at when a cache missed.
@@ -384,6 +409,15 @@ the real wrapper flags and SDK signatures, managed executions against a stub
 model, baked skills, process cleanup, and lazy browser startup. These checks
 need no provider credentials; live subscription authentication still requires
 verification after rollout. CI runs the image conformance gate on amd64.
+
+Claude Code runs under the image's managed settings (`managed-settings.json`,
+installed as `/etc/claude-code/managed-settings.json`, which no repository or
+user setting overrides). They keep transcripts for 60 days (`cleanupPeriodDays`;
+the CLI's own default is 30): Claude Code deletes older ones when it starts, so
+the store on the organization's `/agent` volume holds two months of
+conversations rather than a year. A task resumed after its transcript is gone
+restarts fresh on its preserved files. `daemon/src/managed-settings.test.ts`
+holds the period.
 
 Hermes keeps SDK diagnostics on stderr so stdout remains NDJSON and disables
 the SDK's artificial delay between tool calls. Provider retry and backoff stay
@@ -493,3 +527,39 @@ and refuses with `409 incarnation_mismatch` an activity request whose
 `x-tale-runnerd-incarnation` header names another stamp, before anything
 changes. A malformed stamp is never named; without one, answers name none and
 requests are not checked.
+
+An exec starts from runnerd's own environment without what is runnerd's alone:
+its auth token and incarnation (`TALE_RUNNERD_*`, which no env patch may set
+either) and the raw `TALE_SESSION_ENV` seed, whose entries reach the exec
+through the env store. A harness that prints its environment no longer puts
+the token into the agent's transcript.
+
+runnerd ends an exec that has stalled: no output for `TALE_EXEC_STALL_MS`
+(45 minutes unless the spawner sets it, `0` turns the watch off) and, over that
+same window, under 1% of one CPU used by the exec's processes — its subreaper
+shim and the shim's descendants, read from `/proc/<pid>/stat`, plus the CPU of
+the inner Docker engine's containers, which work for whichever exec started
+them. The exec ends through the cancel path (SIGTERM, then SIGKILL after the
+grace), and its `exit` event carries `failure: "EXEC_STALLED"`; the spawner
+reports it as the `EXEC_STALLED` error code and sets the window from
+`SANDBOX_EXEC_STALL_MINUTES`. The process table is read once a minute at most,
+and a table that cannot be read judges nothing.
+
+runnerd refuses to start an exec in a session about to run out of memory: when
+the session cgroup's working set (`memory.current` minus the `inactive_file`
+cache it can drop at once) has reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of
+`memory.max` (90 unless set, `0` admits every exec), `POST /execs` answers
+`429` `{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with
+`retry-after: 5`. Nothing starts and the running execs are left alone; a
+session without a limit, or whose cgroup cannot be read, is never refused.
+
+runnerd says when the session's memory limit ended an exec. It reads the
+session cgroup's `oom_kill` count (`memory.events`, the whole subtree) as the
+exec starts and again as it ends: an exec that died of SIGKILL (exit 137) that
+neither a cancel, its deadline nor the stall watch sent, while that count
+rose, carries `oomKilled: true` on its `exit` event, which the spawner reports
+as the `OOM_KILLED` error code. Another exec's OOM kill does not make an
+ordinary failure an OOM. The exit also carries the session's memory peak
+(`memory.peak`, since the container started) where the kernel reports one,
+and `/healthz` reports the session's `memory`: in use, the limit, the peak
+and the OOM kills so far.

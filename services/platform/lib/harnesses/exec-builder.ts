@@ -263,6 +263,30 @@ function substitute(template: string, subs: Substitutions): string {
   });
 }
 
+/** The session-relative file an exec's instructions addendum is staged to,
+ * for a harness that stages one (`exec.stagedInstructions`); undefined for a
+ * harness that hands its instructions over another way. */
+function instructionsPathFor(
+  exec: HarnessExecFacts,
+  subs: Substitutions,
+): string | undefined {
+  return exec.stagedInstructions === undefined
+    ? undefined
+    : substitute(exec.stagedInstructions.pathTemplate, subs);
+}
+
+/** Where the builder stages one exec's instructions addendum (OpenCode's
+ * `.runtime/tale/instructions/<execId>.md`), so the turn that staged it can
+ * remove it when it ends: the file is per exec, and a standing workspace
+ * would otherwise keep one for every turn it ever ran. Throws when the
+ * harness's template names a placeholder other than `${execId}`. */
+export function stagedInstructionsPathForExec(
+  fact: HarnessDefinition,
+  execId: string,
+): string | undefined {
+  return instructionsPathFor(fact.exec, { execId });
+}
+
 function substituteMap(
   map: Readonly<Record<string, string>>,
   subs: Substitutions,
@@ -449,13 +473,12 @@ export function buildHarnessExec(
   // concurrent turns from other threads sharing the workspace never read
   // each other's instructions; `${execId}` falls back to `default` here (a
   // missing exec id must not drop the instructions file).
-  const stagedInstructionsPath =
-    exec.stagedInstructions && spec.instructions
-      ? substitute(exec.stagedInstructions.pathTemplate, {
-          ...subs,
-          execId: spec.execId ?? 'default',
-        })
-      : undefined;
+  const stagedInstructionsPath = spec.instructions
+    ? instructionsPathFor(exec, {
+        ...subs,
+        execId: spec.execId ?? 'default',
+      })
+    : undefined;
 
   /** The requested MCP server table in one harness dialect, or undefined
    * when nothing mounts. Browser first, then the managed-only bridge —

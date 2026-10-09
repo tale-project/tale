@@ -11,7 +11,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isBackendReachable, reportBackendReachable } from './connection-state';
 import { backendKey } from './query-keys';
 import { settingsReadAdapters } from './settings';
-import { HINT_BATCH_MS, useBackendHints } from './use-backend-hints';
+import {
+  HINT_BATCH_MS,
+  reconnectDelayMs,
+  useBackendHints,
+} from './use-backend-hints';
 
 /** A controllable EventSource double: tests dispatch named SSE events. */
 class FakeEventSource {
@@ -626,6 +630,8 @@ describe('useBackendHints', () => {
 
   it('backs off between reopen attempts and resets after one opens', () => {
     vi.useFakeTimers();
+    // The top of each spread, so the doubling reads in whole seconds.
+    vi.spyOn(Math, 'random').mockReturnValue(1);
     renderHook(() => useBackendHints('org1'), { wrapper });
 
     abandon(FakeEventSource.instances[0]);
@@ -670,5 +676,17 @@ describe('useBackendHints', () => {
       vi.advanceTimersByTime(60_000);
     });
     expect(FakeEventSource.instances).toHaveLength(1);
+  });
+});
+
+describe('reconnectDelayMs', () => {
+  it('spreads each attempt over the upper half of its capped doubling', () => {
+    expect(reconnectDelayMs(0, () => 0)).toBe(500);
+    expect(reconnectDelayMs(0, () => 1)).toBe(1_000);
+    expect(reconnectDelayMs(3, () => 0)).toBe(4_000);
+    expect(reconnectDelayMs(3, () => 1)).toBe(8_000);
+    // Capped at a minute however long the backend stays away.
+    expect(reconnectDelayMs(20, () => 0)).toBe(30_000);
+    expect(reconnectDelayMs(20, () => 1)).toBe(60_000);
   });
 });

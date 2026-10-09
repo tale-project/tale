@@ -460,6 +460,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           ...(startedVia !== undefined
             ? { startedVia, inPlace: newest.inPlace }
             : {}),
+          ...(newest.reviewBatchId !== undefined
+            ? { reviewBatchId: newest.reviewBatchId }
+            : {}),
           autoRetryAttempt: budget.attempt,
           // Queued now, so the card shows the retry; started once the
           // broker's cooldown has an account back.

@@ -88,6 +88,21 @@ export function appPoolMax(
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
 }
 
+/**
+ * How many connections ONE process opens for Better Auth's own pool — the
+ * pool every session lookup on every authenticated request goes through.
+ * Five is enough for a quiet deployment; a replica serving thousands of
+ * requests a second queues on it, so the size is the operator's to raise
+ * (and to count against `max_connections` beside `DATABASE_POOL_MAX`).
+ */
+export function authPoolMax(
+  env: Record<string, string | undefined> = process.env,
+): number {
+  const raw = env.AUTH_DATABASE_POOL_MAX;
+  const parsed = raw ? Number(raw) : Number.NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 5;
+}
+
 export function createSql(databaseUrl: string): Sql {
   const { url, ssl } = resolvePostgresConnection(databaseUrl);
   return postgres(url, {

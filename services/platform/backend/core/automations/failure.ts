@@ -70,6 +70,12 @@ const AGENT_RETRY_ONLY_CODES: Record<
 > = {
   credential_cooldown: 'start_failed',
   credential_rotated: 'harness_error',
+  // The sandbox ended a hung harness: it reads as the crashed turn it was
+  // before the hang had a name, the run's detail says it stalled.
+  turn_stalled: 'turn_crashed',
+  // The sandbox's memory limit ended the turn: it reads as the crashed turn
+  // it was before the cause had a name, the run's detail says why.
+  resource_exhausted: 'turn_crashed',
   // Waited for sandbox room past the node's execution guard: it never
   // launched, as every refused start before it.
   sandbox_capacity: 'start_failed',

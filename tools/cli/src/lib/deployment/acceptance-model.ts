@@ -26,6 +26,14 @@ const acceptanceServingSchema = z.strictObject({
   status: z.literal('ok'),
   version: acceptanceVersionSchema,
   origin: deploymentSpecSchema.shape.origin,
+  originRoute: z
+    .strictObject({
+      kind: z.literal('container'),
+      containerId: sha,
+      networkId: sha,
+      address: z.ipv4(),
+    })
+    .optional(),
   frontend: servingProcessSchema.extend({ service: z.literal('platform') }),
   backend: servingProcessSchema.extend({ service: z.literal('backend-api') }),
 });

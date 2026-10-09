@@ -1,6 +1,7 @@
 import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import type { CapacityRefusal } from '../node_only/sandbox/capacity_refusal';
+import { SessionMemoryBusyError } from '../node_only/sandbox/helpers/session_client';
 
 /**
  * The `reason` a slot refusal carries when the one workspace a run would
@@ -25,6 +26,9 @@ export function runParkReason(
 ): AgentRunWaitingReason | undefined {
   if (noRoom === null) return 'destroy_pending';
   if (noRoom.scope === 'host') return 'host';
+  // The run's own sandbox short of memory reads as the room it waits for,
+  // not as an earlier process still ending.
+  if (err instanceof SessionMemoryBusyError) return 'host';
   if (noRoom.scope === 'session') return 'exec_limit';
   return refusalReason(err) === SANDBOX_SESSION_HELD_REASON
     ? undefined

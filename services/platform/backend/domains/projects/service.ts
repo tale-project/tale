@@ -1692,21 +1692,12 @@ function validateProjectAgentTools(tools: readonly string[]): string[] {
   return normalizeToolGrants(tools);
 }
 
-function validateProjectAgentFields(args: {
-  name: string;
+/** The same serving-field validation for full saves and model-only adoption. */
+function validateProjectAgentServing(args: {
   harness: string;
   model: string;
   modelProvider?: string;
-  skills: string[];
-  connectors: string[];
-  tools?: string[];
-  secrets?: string[];
-  instructions?: string;
-}): ProjectAgentFields {
-  const name = args.name.trim();
-  if (name.length === 0 || name.length > PROJECT_AGENT_NAME_MAX) {
-    throw new ProjectError('PROJECT_AGENT_NAME_INVALID', 'Invalid agent name');
-  }
+}): Pick<ProjectAgentFields, 'harness' | 'model' | 'modelProvider'> {
   const harnesses = eligibleProjectAgentHarnesses();
   if (!isHarnessSlug(args.harness) || !harnesses.includes(args.harness)) {
     throw new ProjectError(
@@ -1731,6 +1722,32 @@ function validateProjectAgentFields(args: {
   ) {
     throw new ProjectError('PROJECT_AGENT_MODEL_INVALID', 'Invalid provider');
   }
+  return {
+    harness: args.harness,
+    model,
+    modelProvider:
+      modelProvider === undefined || modelProvider === ''
+        ? undefined
+        : modelProvider,
+  };
+}
+
+function validateProjectAgentFields(args: {
+  name: string;
+  harness: string;
+  model: string;
+  modelProvider?: string;
+  skills: string[];
+  connectors: string[];
+  tools?: string[];
+  secrets?: string[];
+  instructions?: string;
+}): ProjectAgentFields {
+  const name = args.name.trim();
+  if (name.length === 0 || name.length > PROJECT_AGENT_NAME_MAX) {
+    throw new ProjectError('PROJECT_AGENT_NAME_INVALID', 'Invalid agent name');
+  }
+  const serving = validateProjectAgentServing(args);
   if (
     args.skills.length > PROJECT_AGENT_BINDINGS_MAX ||
     args.connectors.length > PROJECT_AGENT_BINDINGS_MAX ||
@@ -1746,12 +1763,7 @@ function validateProjectAgentFields(args: {
   const tools = validateProjectAgentTools(args.tools ?? []);
   return {
     name,
-    harness: args.harness,
-    model,
-    modelProvider:
-      modelProvider === undefined || modelProvider === ''
-        ? undefined
-        : modelProvider,
+    ...serving,
     skills: [...new Set(args.skills.filter((s) => s.length > 0))],
     connectors: [...new Set(args.connectors.filter((c) => c.length > 0))],
     tools,
@@ -2076,6 +2088,101 @@ export async function readAgentToolsConfiguration(
     tools: validateProjectAgentTools(agent.tools),
   };
   return { config, hash: managedConfigurationHash(config) };
+}
+
+function agentModelConfiguration(agent: ProjectAgentRow) {
+  return {
+    projectId: agent.projectId,
+    agentId: agent.id,
+    harness: agent.harness,
+    model: agent.model,
+    modelProvider: agent.modelProvider,
+  };
+}
+
+export async function readAgentModelConfiguration(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+  agentId: string,
+) {
+  const agent = await getProjectAgent(sql, auth, projectId, agentId);
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  const config = agentModelConfiguration(agent);
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** Serving choices affect only future admissions. Already admitted runs carry
+ * their own complete tuple, which the turn job reads even while queued.
+ * Serializable callers protect the hash and invalidate stale full-agent saves;
+ * no running worker, equipment or credential grant is modified. */
+export async function updateAgentModelConfiguration(
+  tx: TransactionSql,
+  auth: ProjectAuthContext,
+  config: {
+    projectId: string;
+    agentId: string;
+    harness: string;
+    model: string;
+    modelProvider: string;
+  },
+  expectedHash: string,
+): Promise<void> {
+  const project = await loadProjectOrThrow(tx, config.projectId);
+  assertAgentWritable(project, auth);
+  const agent = await getProjectAgent(
+    tx,
+    auth,
+    config.projectId,
+    config.agentId,
+  );
+  if (!agent)
+    throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  if (agent.managed)
+    throw new ProjectError(
+      'PROJECT_AGENT_MANAGED',
+      'Managed agent configuration is read-only',
+      409,
+    );
+  const previous = agentModelConfiguration(agent);
+  assertExpectedHash(managedConfigurationHash(previous), expectedHash);
+  const fields = validateProjectAgentServing(config);
+  if (fields.modelProvider === undefined)
+    throw new ProjectError(
+      'PROJECT_AGENT_MODEL_INVALID',
+      'Managed model configuration requires an explicit provider',
+    );
+  if (
+    agent.harness === fields.harness &&
+    agent.model === fields.model &&
+    agent.modelProvider === fields.modelProvider
+  )
+    return;
+  const refusal = await agentModelRefusal(tx, {
+    organizationId: auth.organizationId,
+    userId: auth.userId,
+    ...fields,
+  });
+  if (refusal !== null) throw new ProjectError(refusal.code, refusal.message);
+  await tx`
+    UPDATE app.project_agents SET harness = ${fields.harness}, model = ${fields.model},
+      model_provider = ${fields.modelProvider}, updated_at_ms = ${Math.max(Date.now(), agent.updatedAt + 1)}
+    WHERE id = ${config.agentId} AND project_id = ${config.projectId}
+      AND org_id = ${auth.organizationId}
+  `;
+  await createAuditLog(
+    tx,
+    projectAudit(auth, project, PROJECT_AUDIT_ACTIONS.agentsChanged, {
+      metadata: {
+        op: 'update',
+        projectAgentId: agent.id,
+        previousModel: previous,
+        model: fields,
+      },
+    }),
+  );
+  await hintProject(tx, auth.organizationId, config.projectId);
 }
 
 /** Adopt only tool grants. A serializable caller protects the tools preimage;

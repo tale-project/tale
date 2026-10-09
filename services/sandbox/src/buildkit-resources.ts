@@ -6,9 +6,15 @@ import {
 } from './buildkit-network-pool.ts';
 import {
   ipv4Subnet,
+  isIpv4Address,
   parseDindInnerPool,
   subnetsOverlap,
 } from './network-address.ts';
+import {
+  operationSignal,
+  outsideOperationBudget,
+  waitWithinOperation,
+} from './operation-budget.ts';
 import { dockerTarget, runDocker } from './spawn-util.ts';
 import type { RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
@@ -568,6 +574,62 @@ async function egressContainer(
   }
   knownEgress.set(key, matches[0].id);
   return matches[0];
+}
+
+/** Reads of the proxy's sandbox-network address under way, keyed as
+ * {@link knownEgress}: concurrent session creates and the sweep share one
+ * inspect. It runs outside any caller's budget, and each caller stops waiting
+ * for it at its own deadline. */
+const egressAddressReads = new Map<string, Promise<string>>();
+
+/**
+ * The address the egress proxy holds on the sandbox network now: the one a
+ * session that boots now resolves the proxy's name to, and pins its
+ * transparent egress to (the relay's target, its own DNS and its nested
+ * containers' DNS) for the rest of its life. Null when the proxy URL names an
+ * address instead of a name: a session pins that literal, so recreating the
+ * session could not follow a move. One inspect of the remembered proxy
+ * container; the network is searched again only once that container no
+ * longer answers to the name. Throws when the proxy cannot be identified or
+ * has no IPv4 address on the sandbox network. Concurrent callers share one
+ * read, unless `fresh` asks for one that starts after the call: a session's
+ * create records the address it reads right before its `docker run`.
+ */
+export async function egressProxyAddress(
+  cfg: SpawnerConfig,
+  opts: { fresh?: boolean } = {},
+): Promise<string | null> {
+  const hostname = new URL(cfg.egressProxy).hostname;
+  if (hostname === '' || hostname.startsWith('[') || isIpv4Address(hostname))
+    return null;
+  const key = JSON.stringify([dockerTarget(), cfg.egressNetwork, hostname]);
+  // A caller whose budget is spent could not wait for a read: it starts none
+  // that would end unobserved.
+  operationSignal()?.throwIfAborted();
+  let read = opts.fresh === true ? undefined : egressAddressReads.get(key);
+  if (read === undefined) {
+    const started: Promise<string> = outsideOperationBudget(() =>
+      egressContainer(cfg, hostname),
+    )
+      .then((egress) => {
+        const address = egress.networks[cfg.egressNetwork]?.ipAddress;
+        if (!isIpv4Address(address)) {
+          throw new Error(
+            'sandbox egress: the proxy has no IPv4 address on the sandbox network',
+          );
+        }
+        return address;
+      })
+      .finally(() => {
+        // A fresh read may have taken the slot of an earlier one, or a later
+        // one this one's: each clears only its own.
+        if (egressAddressReads.get(key) === started)
+          egressAddressReads.delete(key);
+      });
+    egressAddressReads.set(key, started);
+    read = started;
+  }
+  return waitWithinOperation(read);
 }
 
 async function preventEgressForwarding(containerId: string): Promise<void> {

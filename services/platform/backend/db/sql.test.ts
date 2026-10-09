@@ -3,7 +3,7 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { jsonParam } from './sql.ts';
+import { appPoolMax, authPoolMax, jsonParam } from './sql.ts';
 
 /**
  * `jsonParam` binds any JSON value as one parameter, serialized up front: the
@@ -37,4 +37,24 @@ describe('jsonParam', () => {
     expect(jsonParam(sql, undefined)).toBeNull();
     expect(jsonParam(sql, null)).toBeNull();
   });
+});
+
+describe('connection pool sizes', () => {
+  it('reads DATABASE_POOL_MAX, defaulting to ten', () => {
+    expect(appPoolMax({})).toBe(10);
+    expect(appPoolMax({ DATABASE_POOL_MAX: '40' })).toBe(40);
+  });
+
+  it('reads AUTH_DATABASE_POOL_MAX, defaulting to the five the auth pool always had', () => {
+    expect(authPoolMax({})).toBe(5);
+    expect(authPoolMax({ AUTH_DATABASE_POOL_MAX: '24' })).toBe(24);
+  });
+
+  it.each(['0', '-3', '2.5', 'many', ''])(
+    'ignores a size that is not a positive integer (%j)',
+    (raw) => {
+      expect(appPoolMax({ DATABASE_POOL_MAX: raw })).toBe(10);
+      expect(authPoolMax({ AUTH_DATABASE_POOL_MAX: raw })).toBe(5);
+    },
+  );
 });

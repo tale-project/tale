@@ -371,6 +371,65 @@ beforeAll(() => {
             { headers: { 'content-type': 'application/x-ndjson' } },
           );
         }
+        if (text.includes('__memory_busy__')) {
+          // runnerd's memory admission (session-memory.ts): nothing ran.
+          return Response.json(
+            {
+              error: 'session_memory_busy',
+              code: 'SESSION_MEMORY_BUSY',
+              message: 'the session is using 90% or more of its memory limit',
+            },
+            { status: 429, headers: { 'retry-after': '5' } },
+          );
+        }
+        if (text.includes('__oom__')) {
+          // The kernel's OOM killer ended the exec (exec-manager.ts
+          // exitMemory): a SIGKILL while the session counted a new kill.
+          return new Response(
+            ndjson([
+              { t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 },
+              {
+                t: 'exit',
+                exitCode: 137,
+                durationMs: 1_000,
+                truncated: { stdout: false, stderr: false },
+                timedOut: false,
+                cancelled: false,
+                oomKilled: true,
+                sessionMemoryPeakBytes: 4 * 1024 ** 3,
+                seq: 2,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (text.includes('__container_died__')) {
+          // The container died mid-exec: the stream ends with no exit.
+          return new Response(
+            ndjson([{ t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 }]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (text.includes('__stalled__')) {
+          // runnerd's stall watch ended the exec (exec-stall.ts); the
+          // command caught the SIGTERM and exited 0.
+          return new Response(
+            ndjson([
+              { t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 },
+              {
+                t: 'exit',
+                exitCode: 0,
+                durationMs: 2_700_000,
+                truncated: { stdout: false, stderr: false },
+                timedOut: false,
+                cancelled: false,
+                failure: 'EXEC_STALLED',
+                seq: 2,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
         if (text.includes('__exec_limit__')) {
           // runnerd's own refusal at its live-exec cap (daemon main.ts).
           return new Response(
@@ -536,6 +595,36 @@ beforeAll(() => {
 
         if (url.pathname.includes('/hang-')) {
           return hangingExecResponse();
+        }
+        if (url.pathname.includes('/died-')) {
+          // The container died while the platform was attached: the
+          // stream stops short of the exec's end.
+          return new Response(
+            ndjson([
+              { t: 'replay-start' },
+              { t: 'replay-complete', throughSeq: 0 },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (url.pathname.includes('/stalled-')) {
+          return new Response(
+            ndjson([
+              { t: 'replay-start' },
+              { t: 'replay-complete', throughSeq: 0 },
+              {
+                t: 'exit',
+                exitCode: 143,
+                durationMs: 2_700_000,
+                truncated: { stdout: false, stderr: false },
+                timedOut: false,
+                cancelled: false,
+                failure: 'EXEC_STALLED',
+                seq: 1,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
         }
         return new Response(
           ndjson([
@@ -1383,6 +1472,170 @@ describe('SessionRoutes (fake runnerd)', () => {
       errorMessage: 'live exec cap 4 reached',
     });
   });
+
+  test('a session short of memory refuses the exec as a 429 before any stream, and admits the next', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_mem', organizationId: 'org_f' }),
+    );
+    const refused = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_mem/exec', { method: 'POST' }),
+      'sess_mem',
+      JSON.stringify({ execId: 'e7', command: ['echo', '__memory_busy__'] }),
+    );
+    expect(refused.status).toBe(429);
+    expect(refused.headers.get('retry-after')).toBe('5');
+    expect(await refused.json()).toEqual({
+      error: 'session_memory_busy',
+      code: 'SESSION_MEMORY_BUSY',
+      message: 'the session is using 90% or more of its memory limit',
+    });
+    // The refused id is free again: a retry under it runs.
+    const admitted = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_mem/exec', { method: 'POST' }),
+      'sess_mem',
+      JSON.stringify({ execId: 'e7', command: ['echo', 'hi'] }),
+    );
+    expect(admitted.status).toBe(200);
+    const { events } = await readSse(admitted);
+    expect(events.find((e) => e.event === 'result')?.data).toMatchObject({
+      status: 'completed',
+    });
+  });
+
+  test('an exec runnerd ended as stalled reads EXEC_STALLED, even after a clean exit', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_stall', organizationId: 'org_f' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_stall/exec', { method: 'POST' }),
+      'sess_stall',
+      JSON.stringify({ execId: 'e6', command: ['echo', '__stalled__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(payload).toMatchObject({
+      status: 'failed',
+      exitCode: 0,
+      errorCode: 'EXEC_STALLED',
+    });
+    expect(String(payload.errorMessage)).toContain('under 1% of one CPU');
+
+    const attachRes = await routes.handleExecAttach(
+      new Request('http://x', { method: 'GET' }),
+      'sess_stall',
+      'stalled-1',
+    );
+    const replay = await readSse(attachRes);
+    expect(
+      replay.events.find((event) => event.event === 'result')?.data,
+    ).toMatchObject({
+      status: 'failed',
+      exitCode: 143,
+      errorCode: 'EXEC_STALLED',
+    });
+  });
+
+  test("an exec the kernel's OOM killer ended reads OOM_KILLED, with the session's peak", async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'sess_oom', organizationId: 'org_f' }),
+    );
+    const execRes = await routes.handleExec(
+      new Request('http://x/v1/sessions/sess_oom/exec', { method: 'POST' }),
+      'sess_oom',
+      JSON.stringify({ execId: 'e7', command: ['echo', '__oom__'] }),
+    );
+    const { events } = await readSse(execRes);
+    const payload = events.find((e) => e.event === 'result')?.data ?? {};
+    expect(payload).toMatchObject({
+      status: 'failed',
+      exitCode: 137,
+      errorCode: 'OOM_KILLED',
+    });
+    expect(String(payload.errorMessage)).toContain('4096 MiB');
+  });
+
+  test.each([
+    ['the OOM killer took', true, 'SESSION_OOM'],
+    ['something else ended', false, 'SESSION_LOST'],
+  ])(
+    'a container %s mid-exec ends the exec as %s',
+    async (_, outOfMemory, errorCode) => {
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          sessionExists: async () => false,
+          takeOutOfMemory: () => outOfMemory,
+        });
+        await routes.handleCreate(
+          JSON.stringify({ sessionId: 'sess_died', organizationId: 'org_f' }),
+        );
+        const execRes = await routes.handleExec(
+          new Request('http://x/v1/sessions/sess_died/exec', {
+            method: 'POST',
+          }),
+          'sess_died',
+          JSON.stringify({
+            execId: 'e8',
+            command: ['echo', '__container_died__'],
+          }),
+        );
+        const { events } = await readSse(execRes);
+        expect(events.find((e) => e.event === 'result')?.data).toMatchObject({
+          status: 'failed',
+          exitCode: null,
+          errorCode,
+        });
+        // Evicted before the result: the next call gets the 404.
+        expect((await routes.handleGet('sess_died')).status).toBe(404);
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
+
+  test.each([
+    ['the OOM killer took', true, 'SESSION_OOM'],
+    ['something else ended', false, undefined],
+  ])(
+    'an attach whose container %s ends the exec as %s',
+    async (_, outOfMemory, errorCode) => {
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        let alive = true;
+        const routes = new SessionRoutes(cfg, {
+          ...fakeBackend,
+          sessionExists: async () => alive,
+          takeOutOfMemory: () => outOfMemory,
+        });
+        await routes.handleCreate(
+          JSON.stringify({ sessionId: 'sess_attach', organizationId: 'org_f' }),
+        );
+        alive = false;
+        const attached = await routes.handleExecAttach(
+          new Request('http://x', { method: 'GET' }),
+          'sess_attach',
+          'died-1',
+        );
+        const { events } = await readSse(attached);
+        const result = events.find((e) => e.event === 'result')?.data;
+        if (errorCode === undefined) expect(result).toBeUndefined();
+        else
+          expect(result).toMatchObject({
+            status: 'failed',
+            exitCode: null,
+            errorCode,
+          });
+        // Evicted either way: the next call gets the 404.
+        expect((await routes.handleGet('sess_attach')).status).toBe(404);
+      } finally {
+        warn.mockRestore();
+      }
+    },
+  );
 
   test('any other pre-spawn refusal still reads as a runtime error', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
@@ -3650,7 +3903,9 @@ describe('SessionRoutes (fake runnerd)', () => {
             execId: 'hang-peer',
             command: ['sleep', '60'],
           });
-          const oldExec = await f.routes.handleExec(
+          // The spawner answers once runnerd has taken the exec, so the old
+          // exec's answer waits on its runnerd.
+          const oldExec = f.routes.handleExec(
             new Request('http://x'),
             'peer-replaced',
             body,
@@ -3679,7 +3934,7 @@ describe('SessionRoutes (fake runnerd)', () => {
               ]),
             ),
           );
-          await readSse(oldExec);
+          await readSse(await oldExec);
           expect(
             await f.routes.sweepExpired(
               Date.now() + cfg.session.maxLifetimeMs + 1,
@@ -6716,6 +6971,194 @@ describe('memory-aware admission', () => {
     });
     expect((await create(routes, 'unknown-mem')).status).toBe(201);
   });
+
+  test('the inventory names what admission counts, from memory alone', async () => {
+    const gate = Promise.withResolvers<void>();
+    const routes = new SessionRoutes(cfg, {
+      ...fakeBackend,
+      async createSession(spec) {
+        if (spec.sessionId === 'inv-slow') await gate.promise;
+        return fakeBackend.createSession(spec);
+      },
+    });
+    expect((await create(routes, 'inv-ready')).status).toBe(201);
+    const slow = create(routes, 'inv-slow');
+    await routes.handleCreate(
+      JSON.stringify({
+        sessionId: 'inv-other-org',
+        organizationId: 'org_elsewhere',
+        profile: 'agent',
+      }),
+    );
+    expect(routes.inventory('org_memory')).toEqual([
+      { sessionId: 'inv-ready', state: 'running' },
+      { sessionId: 'inv-slow', state: 'starting' },
+    ]);
+    gate.resolve();
+    expect((await slow).status).toBe(201);
+    await routes.handleDestroy('inv-ready');
+    expect(routes.inventory('org_memory')).toEqual([
+      { sessionId: 'inv-slow', state: 'running' },
+    ]);
+  });
+
+  describe('CPU pressure', () => {
+    /** A roomy host whose CPU pressure reads as `pressure()` percent. */
+    const pressured = (pressure: () => number | null) => ({
+      ...host(() => 12),
+      cpuPressure: pressure,
+    });
+
+    test('under pressure, sessions start one at a time and the rest wait in line', async () => {
+      const startMs = Date.now();
+      try {
+        const routes = new SessionRoutes(
+          cfg,
+          fakeBackend,
+          undefined,
+          pressured(() => 80),
+        );
+        expect((await create(routes, 'cpu-1')).status).toBe(201);
+        const refused = await create(routes, 'cpu-2');
+        expect(refused.status).toBe(429);
+        expect(refused.headers.get('retry-after')).toBe('5');
+        expect(await refused.json()).toMatchObject({
+          error: 'host_cpu',
+          queue: { position: 0, waiting: 1 },
+        });
+        expect(created.has('cpu-2')).toBe(false);
+        // A newcomer queues behind it, even once the next start is due.
+        setSystemTime(new Date(startMs + 5_000));
+        expect(await (await create(routes, 'cpu-3')).json()).toMatchObject({
+          error: 'host_cpu',
+          queue: { position: 1, waiting: 2 },
+        });
+        setSystemTime(new Date(startMs + 11_000));
+        expect((await create(routes, 'cpu-3')).status).toBe(429);
+        expect((await create(routes, 'cpu-2')).status).toBe(201);
+        expect((await create(routes, 'cpu-3')).status).toBe(429);
+        setSystemTime(new Date(startMs + 22_000));
+        expect((await create(routes, 'cpu-3')).status).toBe(201);
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test('once the pressure eases, the line drains without spacing', async () => {
+      let pressure = 90;
+      const routes = new SessionRoutes(
+        cfg,
+        fakeBackend,
+        undefined,
+        pressured(() => pressure),
+      );
+      expect((await create(routes, 'eased-1')).status).toBe(201);
+      expect((await create(routes, 'eased-2')).status).toBe(429);
+      pressure = 20;
+      expect((await create(routes, 'eased-2')).status).toBe(201);
+      expect((await create(routes, 'eased-3')).status).toBe(201);
+    });
+
+    test.each([
+      ['below the threshold', () => 59.9, undefined],
+      ['switched off', () => 100, 0],
+      ['unknown', () => null, undefined],
+      [
+        'unreadable',
+        () => {
+          throw new Error('pressure unreadable');
+        },
+        undefined,
+      ],
+    ])(
+      '%s, CPU pressure refuses no create',
+      async (_, pressure, cpuPressurePercent) => {
+        const warn = spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+          const routes = new SessionRoutes(
+            {
+              ...cfg,
+              session: {
+                ...cfg.session,
+                ...(cpuPressurePercent === undefined
+                  ? {}
+                  : { cpuPressurePercent }),
+              },
+            },
+            fakeBackend,
+            undefined,
+            pressured(pressure),
+          );
+          for (const id of ['free-1', 'free-2', 'free-3']) {
+            expect((await create(routes, id)).status).toBe(201);
+          }
+        } finally {
+          warn.mockRestore();
+        }
+      },
+    );
+
+    test('a create waiting for a slot does not hold back a warm start under pressure', async () => {
+      let pressure = 0;
+      const routes = new SessionRoutes(
+        { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+        fakeBackend,
+        undefined,
+        pressured(() => pressure),
+      );
+      expect((await create(routes, 'cpu-pinned')).status).toBe(201);
+      await releaseWarm(routes, 'cpu-pinned');
+      // Always-on: nothing reclaims it to make room.
+      expect(
+        (
+          await routes.handleSetPinned(
+            'cpu-pinned',
+            JSON.stringify({ pinned: true }),
+          )
+        ).status,
+      ).toBe(200);
+      pressure = 80;
+      // The host is full: this create waits for a slot, not for the CPU.
+      expect(await (await create(routes, 'cpu-slot')).json()).toMatchObject({
+        error: 'session_quota',
+      });
+      // The pinned session needs no slot; the slot waiter ahead of it must not
+      // keep its work from starting.
+      expect(
+        (await routes.handleActivity('cpu-pinned', 'acquire')).status,
+      ).toBe(200);
+    });
+
+    test('a released session that would start work under pressure waits its turn', async () => {
+      const startMs = Date.now();
+      let pressure = 0;
+      try {
+        const routes = new SessionRoutes(
+          cfg,
+          fakeBackend,
+          undefined,
+          pressured(() => pressure),
+        );
+        expect((await create(routes, 'cpu-warm')).status).toBe(201);
+        await releaseWarm(routes, 'cpu-warm');
+        pressure = 75;
+        expect((await create(routes, 'cpu-other')).status).toBe(201);
+        const refused = await routes.handleActivity('cpu-warm', 'acquire');
+        expect(refused.status).toBe(429);
+        expect(await refused.json()).toMatchObject({
+          error: 'host_cpu',
+          queue: { position: 0 },
+        });
+        expect(stopped.has('cpu-warm')).toBe(false);
+        setSystemTime(new Date(startMs + 11_000));
+        expect(
+          (await routes.handleActivity('cpu-warm', 'acquire')).status,
+        ).toBe(200);
+      } finally {
+        setSystemTime();
+      }
+    });
+  });
 });
 
 describe('disk-aware admission', () => {
@@ -8064,5 +8507,215 @@ describe('runnerd answers naming the session incarnation', () => {
       200,
     );
     expect(checks).toEqual(['inc-k8s', 'inc-k8s', 'inc-k8s']);
+  });
+});
+
+describe('sessions whose egress proxy moved', () => {
+  // Where the backend reads the egress proxy now (an Error: unreadable),
+  // and how often a sweep asked.
+  let proxyAt: string | null | Error = '172.30.0.3';
+  let proxyReads = 0;
+  beforeEach(() => {
+    proxyAt = '172.30.0.3';
+    proxyReads = 0;
+  });
+  // Every create records the address the proxy had when it ran.
+  const movableBackend = (
+    overrides: Partial<SessionBackend> = {},
+  ): SessionBackend => ({
+    ...fakeBackend,
+    async createSession(spec: SessionSpec) {
+      return {
+        ...(await fakeBackend.createSession(spec)),
+        egressAddress: '172.30.0.3',
+      };
+    },
+    async egressAddress() {
+      proxyReads += 1;
+      if (proxyAt instanceof Error) throw proxyAt;
+      return proxyAt;
+    },
+    ...overrides,
+  });
+  const create = (routes: SessionRoutes, id: string) =>
+    routes.handleCreate(
+      JSON.stringify({ sessionId: id, organizationId: 'org_drift' }),
+    );
+  const ticket = async (routes: SessionRoutes, id: string) => {
+    const answer: unknown = await (
+      await routes.handleActivity(id, 'ticket')
+    ).json();
+    return JSON.stringify(answer);
+  };
+  const release = async (routes: SessionRoutes, id: string) =>
+    routes.handleActivity(id, 'release', await ticket(routes, id));
+  const quietly = async <T>(
+    work: () => Promise<T>,
+  ): Promise<{ value: T; warnings: string[] }> => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const value = await work();
+      return {
+        value,
+        warnings: warn.mock.calls.map((call) => call.map(String).join(' ')),
+      };
+    } finally {
+      warn.mockRestore();
+    }
+  };
+
+  test('a released session is recycled by the first sweep after the proxy moved, its workspace kept', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-released');
+    await release(routes, 'drift-released');
+    // Active a moment ago: no idle window would stop it.
+    fakeHealth.lastActivityAtMs = Date.now();
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(stopped.has('drift-released')).toBe(false);
+    proxyAt = '172.30.0.9';
+    const { value: reaped, warnings } = await quietly(() =>
+      routes.sweepExpired(),
+    );
+    expect(reaped).toBe(1);
+    expect(stopped.has('drift-released')).toBe(true);
+    expect(destroyed.has('drift-released')).toBe(false);
+    expect(routes.holds('drift-released')).toBe(false);
+    expect(warnings.join('\n')).toContain(
+      'recycling drift-released: it relays to the egress proxy at 172.30.0.3, which is at 172.30.0.9 now',
+    );
+  });
+
+  test('a session in use keeps running, is logged once, and is recycled once released', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-held');
+    const held = await ticket(routes, 'drift-held');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = '172.30.0.9';
+    const first = await quietly(() => routes.sweepExpired());
+    const second = await quietly(() => routes.sweepExpired());
+    expect([first.value, second.value]).toEqual([0, 0]);
+    expect(stopped.has('drift-held')).toBe(false);
+    expect(
+      [...first.warnings, ...second.warnings].filter((line) =>
+        line.includes('drift-held has no egress'),
+      ),
+    ).toHaveLength(1);
+    expect(first.warnings.join('\n')).toContain(
+      'it is in use, and is recycled once it is released and idle',
+    );
+    // An exec still running in it keeps it too.
+    await routes.handleActivity('drift-held', 'release', held);
+    fakeHealth.liveExecs = 1;
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(0);
+    expect(stopped.has('drift-held')).toBe(false);
+    fakeHealth.liveExecs = 0;
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(1);
+    expect(stopped.has('drift-held')).toBe(true);
+    expect(destroyed.has('drift-held')).toBe(false);
+  });
+
+  test('one read of the proxy serves the whole sweep, and sessions it did not move away from stay', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    for (const id of ['drift-same-1', 'drift-same-2', 'drift-same-3']) {
+      await create(routes, id);
+      await release(routes, id);
+    }
+    fakeHealth.lastActivityAtMs = Date.now();
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(proxyReads).toBe(1);
+    expect(stopped.size).toBe(0);
+  });
+
+  test('nothing is read while no session recorded the address it pinned', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      movableBackend({
+        createSession: (spec: SessionSpec) => fakeBackend.createSession(spec),
+      }),
+    );
+    await create(routes, 'drift-unlabelled');
+    await release(routes, 'drift-unlabelled');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = '172.30.0.9';
+    expect(await routes.sweepExpired()).toBe(0);
+    expect(proxyReads).toBe(0);
+    expect(stopped.has('drift-unlabelled')).toBe(false);
+  });
+
+  test('a proxy address that cannot be read recycles nothing and is asked again next sweep', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-unread');
+    await release(routes, 'drift-unread');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = new Error('cannot find egress container');
+    const { value, warnings } = await quietly(() => routes.sweepExpired());
+    expect(value).toBe(0);
+    expect(stopped.has('drift-unread')).toBe(false);
+    expect(warnings.join('\n')).toContain('egress proxy address unreadable');
+    proxyAt = '172.30.0.9';
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(1);
+    expect(proxyReads).toBe(2);
+  });
+
+  test('a proxy read that hangs holds the sweep up for five seconds at most', async () => {
+    const routes = new SessionRoutes(
+      cfg,
+      movableBackend({
+        egressAddress: () => new Promise<string | null>(() => {}),
+      }),
+    );
+    await create(routes, 'drift-hung');
+    await release(routes, 'drift-hung');
+    fakeHealth.lastActivityAtMs = Date.now();
+    const started = Date.now();
+    const { value, warnings } = await quietly(() => routes.sweepExpired());
+    expect(value).toBe(0);
+    expect(Date.now() - started).toBeLessThan(9_000);
+    expect(stopped.has('drift-hung')).toBe(false);
+    expect(warnings.join('\n')).toContain('egress proxy address unreadable');
+  }, 20_000);
+
+  test('a re-adopted session carries the address its backend recorded', async () => {
+    const now = Date.now();
+    const routes = new SessionRoutes(
+      cfg,
+      movableBackend({
+        async listSessions(): Promise<BackendSession[]> {
+          return [
+            {
+              ...mkBackendSession('drift-adopted', 'org_drift'),
+              createdAtMs: now,
+              ttlMs: 60 * 60_000,
+              egressAddress: '172.30.0.3',
+            },
+          ];
+        },
+      }),
+    );
+    await routes.adoptExisting();
+    await release(routes, 'drift-adopted');
+    fakeHealth.lastActivityAtMs = Date.now();
+    proxyAt = '172.30.0.9';
+    expect((await quietly(() => routes.sweepExpired())).value).toBe(1);
+    expect(stopped.has('drift-adopted')).toBe(true);
+  });
+
+  test('an always-on session is logged once and left running', async () => {
+    const routes = new SessionRoutes(cfg, movableBackend());
+    await create(routes, 'drift-pinned');
+    await routes.handleSetPinned(
+      'drift-pinned',
+      JSON.stringify({ pinned: true }),
+    );
+    await release(routes, 'drift-pinned');
+    proxyAt = '172.30.0.9';
+    const first = await quietly(() => routes.sweepExpired());
+    const second = await quietly(() => routes.sweepExpired());
+    expect([first.value, second.value]).toEqual([0, 0]);
+    expect(stopped.has('drift-pinned')).toBe(false);
+    expect(first.warnings.join('\n')).toContain('it is always-on');
+    expect(
+      second.warnings.filter((line) => line.includes('drift-pinned')),
+    ).toEqual([]);
   });
 });
