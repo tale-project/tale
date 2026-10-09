@@ -144,6 +144,13 @@ the real ContactsTable selection and failure-only retry are covered by
 `app/features/contacts/components/contact-table.bulk-delete.test.tsx`.
 Real-browser focus, layout and visual transitions remain manual.
 
+Sandbox quota allocation reads show an accessible error with Retry when they fail,
+keep quota editing and grouped Save disabled through retry, and recover to the
+fetched limits before saving. Failed cached reads cannot enable edits; successful
+missing or incomplete allocation responses remain a separate unavailable state.
+`app/features/settings/sandboxes/sandbox-quota-editor.test.tsx` owns these controls.
+Real-browser layout and screen-reader announcements remain manual.
+
 Website content search clears submitted results when the input changes to a
 different query, without issuing another request until Enter. Whitespace-only
 edits retain results; clearing the input and late responses after edits are
