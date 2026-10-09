@@ -275,6 +275,37 @@ the `Retry-After` for up to 20 seconds, and wait out a refused, reset or unresol
 spawner (a restart) within the same budget, before the turn's start fails. A confirmed missing or
 stopped session still returns 404 so its preserved workspace can be resumed.
 
+A running task or automation agent turn rides out a spawner it cannot reach. runnerd keeps the exec
+running in its session while the spawner restarts, crashes or is cut off, so the platform's drain
+reads a transport failure — no connection, a stream that broke mid-read, a `429`, `502`, `503` or
+`504`, a call that timed out — as an outage rather than a verdict on the turn: it waits the
+`Retry-After`, or a backoff doubling from 250 ms to 5 s, and attaches again after its cursor,
+without spending its budget of five consecutive failures. A drive window that ends with the stream
+still lost ends `running`; the next window follows five seconds later, resumes from the exec's
+checkpoint and carries when the outage began. Only an outage that lasts 10 minutes — at most a third
+of runnerd's orphan window (`TALE_EXTERNAL_TURN_DEADLINE_MS`, counted from the last attach) —
+settles the run as failed, once and with the exec cancelled first; the work-turn deadline still
+applies. A 404, a replay or protocol gap and an error the stream itself reports stay verdicts, and
+so does the hub's `503 device_offline` for a session on a connected device that went away: the
+spawner answered and the device may stay away for hours, so the drain fails on its budget of five
+consecutive failures (about 7.5 s), naming the device, instead of waiting 10 minutes for it.
+
+A restarted spawner answers before it has re-adopted its sessions. Once its host lock and boot sweep
+are done it opens its listener, and until boot adoption has run and the device hub has loaded its
+placements, every session route — and the workspace inventory, the capacity read, an organization
+teardown, a device disconnect and the deploy's `/v1/drain` and `/v1/drain-status`, whose answers
+depend on them — returns `503 session_unavailable` with `Retry-After: 1`, never a 404 the platform
+would take for a lost session. A restart thus reads to the platform as a few seconds of "not now",
+which its acquire, create and drain wait out, instead of refused connections; `/v1/limits` and
+`/v1/devices` answer as before. `/health` answers `503 {"status":"starting"}` until then, so
+Docker's healthcheck, a Kubernetes readiness probe and the CLI's runtime wait still read the spawner
+as ready only once it has adopted its sessions: a rollout keeps the previous Pod serving meanwhile,
+and Compose, which routes by network alias whatever the health, still delivers the 503s. The drain
+waits too because a drain latched during adoption would stop it part-way, leaving the sessions not
+yet adopted to answer 404, and the drain status would count only the sessions adopted so far, so a
+deploy would read the spawner as drained and restart it under running sessions; the deploy's failed
+control call leaves its activation pending, to be retried.
+
 The in-memory session registry is a **cache, not the source of truth**: the
 backend objects (container/Pod labels + annotations) plus runnerd's activity
 clock are authoritative. On boot the spawner re-adopts running sessions

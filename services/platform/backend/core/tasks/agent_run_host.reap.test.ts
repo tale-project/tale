@@ -16,12 +16,16 @@
  *    whose processes may still be writing;
  *  - a Gemini turn's staged subscription credential leaves the session when
  *    the turn settles or is orphaned, unless a steer moved the run onto a
- *    newer exec that staged its own.
+ *    newer exec that staged its own;
+ *  - a window that ends with the spawner out of reach hands the turn to its
+ *    next window after a pause, carrying when the outage began, and the run
+ *    settles once — failed only once the outage outlasts its budget.
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { SPAWNER_OUTAGE_BUDGET_MS } from '../chat/external_turn_shared';
 
 const io = vi.hoisted(() => ({
   cancels: [] as string[],
@@ -40,6 +44,10 @@ const io = vi.hoisted(() => ({
   listings: [] as string[],
   /** Every path set the session was asked to delete, in order. */
   deletes: [] as string[][],
+  /** Windows the drain answers, in order, before any other knob. */
+  windows: [] as Array<Record<string, unknown>>,
+  /** The outage start each drain window was handed. */
+  drainOutageArgs: [] as Array<number | undefined>,
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -50,12 +58,16 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
     drainHarnessWindow: async (args: {
       execId: string;
       start?: { argv: string[]; stdin?: string };
+      spawnerOutageSince?: number;
     }) => {
+      io.drainOutageArgs.push(args.spawnerOutageSince);
       if (io.drainThrows === 'disk-full') {
         const { ExecDiskFullError } =
           await import('../node_only/sandbox/helpers/session_client');
         throw new ExecDiskFullError();
       }
+      const next = io.windows.shift();
+      if (next !== undefined) return next;
       if (io.drainThrows) {
         throw new Error('sandbox session attach failed (502)');
       }
@@ -173,6 +185,11 @@ interface RunState {
 
 function makeCtx(run: RunState) {
   const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
+  const scheduled: Array<{
+    name: string;
+    delay: number;
+    args: Record<string, unknown>;
+  }> = [];
   const ctx = {
     runQuery: async (ref: unknown) => {
       const name = functionRefName(ref);
@@ -233,12 +250,19 @@ function makeCtx(run: RunState) {
     },
     runAction: async () => null,
     scheduler: {
-      runAfter: async () => 'job',
+      runAfter: async (
+        delay: number,
+        ref: unknown,
+        args: Record<string, unknown>,
+      ) => {
+        scheduled.push({ name: functionRefName(ref), delay, args });
+        return 'job';
+      },
       runAt: async () => 'job',
       cancel: async () => undefined,
     },
   };
-  return { ctx: ctx as never, mutations };
+  return { ctx: ctx as never, mutations, scheduled };
 }
 
 const KEYS = {
@@ -264,6 +288,8 @@ beforeEach(() => {
   io.terminal = undefined;
   io.listings = [];
   io.deletes = [];
+  io.windows = [];
+  io.drainOutageArgs = [];
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -326,6 +352,114 @@ describe('drive window failure', () => {
       'the agent run stopped: the sandbox host ran out of disk space',
     );
     expect(failed?.args.failureCode).toBe('turn_crashed');
+  });
+});
+
+describe('a spawner outage', () => {
+  const away = (since: number) => ({
+    kind: 'running',
+    text: '',
+    timeline: [],
+    spawnerOutageSince: since,
+  });
+  const failures = <M extends { name: string }>(mutations: M[]) =>
+    mutations.filter((m) => m.name.endsWith(':markTaskAgentRunFailed'));
+
+  it('hands the turn on through a restart and settles it once when it ends', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations, scheduled } = makeCtx(run);
+    const since = Date.now() - 60_000;
+    io.windows = [
+      away(since),
+      { kind: 'running', text: '', timeline: [] },
+      {
+        kind: 'terminal',
+        text: 'Reviewed, nothing to change.',
+        timeline: [],
+        ended: {
+          type: 'turn-ended',
+          status: 'completed',
+          finalText: 'Reviewed, nothing to change.',
+        },
+        exited: true,
+      },
+    ];
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    // Nothing settles and nothing is cut: the next window comes after a
+    // pause, carrying when the outage began.
+    expect(io.cancels).toEqual([]);
+    expect(run.status).toBe('running');
+    expect(scheduled).toEqual([
+      {
+        name: 'tasks/agent_run_host:driveTaskAgentTurn',
+        delay: 5_000,
+        args: expect.objectContaining({
+          execId: 'exec-old',
+          spawnerOutageSince: since,
+        }),
+      },
+    ]);
+
+    // The windows the job queue delivers next: the spawner answers again,
+    // then the turn ends.
+    await driveTaskAgentTurnImpl(ctx, scheduled[0]?.args as never);
+    expect(scheduled).toHaveLength(2);
+    expect(scheduled[1]?.delay).toBe(0);
+    expect(scheduled[1]?.args).not.toHaveProperty('spawnerOutageSince');
+    await driveTaskAgentTurnImpl(ctx, scheduled[1]?.args as never);
+
+    expect(io.drainOutageArgs).toEqual([undefined, since, undefined]);
+    expect(scheduled).toHaveLength(2);
+    expect(io.cancels).toEqual([]);
+    expect(failures(mutations)).toEqual([]);
+    expect(
+      mutations.filter((m) => m.name.endsWith(':completeTaskAgentRun')),
+    ).toHaveLength(1);
+  });
+
+  it('settles failed exactly once when the spawner stays away past the budget', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations, scheduled } = makeCtx(run);
+    const since = Date.now() - SPAWNER_OUTAGE_BUDGET_MS - 1;
+    const window = { ...KEYS, spawnerOutageSince: since };
+    io.windows = [away(since)];
+
+    await driveTaskAgentTurnImpl(ctx, window as never);
+
+    expect(io.drainOutageArgs).toEqual([since]);
+    expect(scheduled).toEqual([]);
+    // The exec is reaped before the run settles, as after a drain failure.
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(io.released).toEqual([{ execId: 'exec-old', status: 'failed' }]);
+    expect(failures(mutations)).toHaveLength(1);
+    expect(failures(mutations)[0]?.args).toMatchObject({
+      failureCode: 'turn_crashed',
+      error: expect.stringContaining('could not be reached for 10 minutes'),
+    });
+
+    // A second delivery of the same window finds the run settled.
+    io.windows = [away(since)];
+    await driveTaskAgentTurnImpl(ctx, window as never);
+    expect(failures(mutations)).toHaveLength(1);
+    expect(scheduled).toEqual([]);
+  });
+
+  it('keeps waiting while the outage is inside its budget', async () => {
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations, scheduled } = makeCtx(run);
+    const since = Date.now() - SPAWNER_OUTAGE_BUDGET_MS + 60_000;
+    io.windows = [away(since)];
+
+    await driveTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      spawnerOutageSince: since,
+    } as never);
+
+    expect(failures(mutations)).toEqual([]);
+    expect(io.cancels).toEqual([]);
+    expect(scheduled[0]?.args).toMatchObject({ spawnerOutageSince: since });
   });
 });
 

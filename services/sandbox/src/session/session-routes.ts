@@ -78,7 +78,11 @@ function b64decode(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
 }
 
-function unavailableSessionResponse(): Response {
+/** "Not now" for a session call: the spawner cannot yet say where the
+ * session stands (it is starting, a create of it is under way, the backend
+ * listing failed, or boot adoption has not run). Never a 404, which the
+ * platform reads as "gone". */
+export function unavailableSessionResponse(): Response {
   return jsonResponse({ error: 'session_unavailable' }, 503, {
     'retry-after': '1',
   });
