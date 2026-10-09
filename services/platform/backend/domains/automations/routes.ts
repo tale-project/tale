@@ -54,6 +54,12 @@ import {
   runControlAccess,
 } from './project-visibility.ts';
 import {
+  readNodeDetail,
+  readNodePage,
+  readRunComparison,
+  readRunRecord,
+} from './run-record.ts';
+import {
   AutomationError,
   answerAsk,
   automationTombstone,
@@ -254,6 +260,42 @@ function handleError<E extends OrgEnv>(
   }
   throw error;
 }
+
+/** A time in epoch milliseconds, as a query parameter. */
+const epochMsParam = z
+  .string()
+  .regex(/^\d{1,15}$/)
+  .transform(Number);
+
+/** A unit's item or pass: -1 for the step itself. */
+const unitIndexParam = z
+  .string()
+  .regex(/^-?\d{1,9}$/)
+  .transform(Number)
+  .pipe(z.number().int().min(-1));
+
+const recordQuerySchema = z.object({
+  since: epochMsParam.optional(),
+  include: z.string().max(64).optional(),
+});
+
+const nodeQuerySchema = z.object({
+  node: z.string().min(1).max(512),
+  item: unitIndexParam.optional(),
+  pass: unitIndexParam.optional(),
+});
+
+const itemsQuerySchema = z.object({
+  node: z.string().min(1).max(512),
+  cursor: z.string().max(32).optional(),
+  limit: z
+    .string()
+    .regex(/^\d{1,3}$/)
+    .transform(Number)
+    .pipe(z.number().int().min(1).max(200))
+    .optional(),
+  status: z.enum(['all', 'failed']).optional(),
+});
 
 /** The parts of a refusal the editor reads as structure, not as a sentence. */
 const REFUSAL_DETAIL_KEYS = ['errors', 'warnings', 'hint', 'report'] as const;
@@ -622,6 +664,102 @@ export function createAutomationRoutes(deps: {
     return c.json({
       inDoubt: attempt === null ? null : describeInDoubt(attempt),
     });
+  });
+
+  // A run step by step: its record, one unit of it whole, a page of a
+  // step's items and passes, and two runs side by side. Each is read like
+  // the run itself (AUTO-R2, AUTO-R40): a hidden or missing run is not
+  // found, and two runs compare only when both are readable.
+  const runNotFound = (): AutomationError =>
+    new AutomationError('RUN_NOT_FOUND', 'this run does not exist', 404);
+
+  app.get('/runs/:runId/record', async (c) => {
+    const query = recordQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const include = new Set((query.data.include ?? '').split(','));
+      const record = await readRunRecord(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        ...(query.data.since !== undefined && { since: query.data.since }),
+        travels: include.has('travels'),
+      });
+      if (record === null) throw runNotFound();
+      return c.json({ record });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/record/node', async (c) => {
+    const query = nodeQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const node = await readNodeDetail(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        path: query.data.node,
+        ...(query.data.item !== undefined && { item: query.data.item }),
+        ...(query.data.pass !== undefined && { pass: query.data.pass }),
+      });
+      if (node === null) {
+        throw new AutomationError(
+          'NODE_RUN_NOT_FOUND',
+          'this run has no record of that step',
+          404,
+        );
+      }
+      return c.json({ node });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/record/items', async (c) => {
+    const query = itemsQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    try {
+      const runId = c.req.param('runId');
+      if ((await visibleRun(c, runId)) === null) throw runNotFound();
+      const page = await readNodePage(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        path: query.data.node,
+        ...(query.data.cursor !== undefined && { cursor: query.data.cursor }),
+        ...(query.data.limit !== undefined && { limit: query.data.limit }),
+        ...(query.data.status !== undefined && { status: query.data.status }),
+      });
+      if (page === null) throw runNotFound();
+      return c.json({ page });
+    } catch (error) {
+      return handleError(c, error);
+    }
+  });
+
+  app.get('/runs/:runId/compare/:otherRunId', async (c) => {
+    try {
+      const runId = c.req.param('runId');
+      const otherRunId = c.req.param('otherRunId');
+      if (
+        (await visibleRun(c, runId)) === null ||
+        (await visibleRun(c, otherRunId)) === null
+      ) {
+        throw runNotFound();
+      }
+      const diff = await readRunComparison(deps.sql, {
+        organizationId: c.get('orgId'),
+        runId,
+        otherRunId,
+      });
+      if (diff === null) throw runNotFound();
+      return c.json({ diff });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   // Deciding resumes (or fails) the run, so it is a WRITE with the stop's

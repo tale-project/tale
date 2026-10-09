@@ -496,6 +496,18 @@ later one's.
   the next server runs `list` again, and the record shows one `list` at attempt 2, the first
   attempt interrupted.
 
+### AUTO-R40 · A run's record is read like the run, and two runs compare only side by side
+
+Whoever may read a run may read its record, one step of it, a page of a step's items, and its
+comparison with another run of the same automation; a run hidden from them answers exactly like
+one that does not exist, and so does a comparison with a run hidden from them. Two runs of
+different automations are not compared. What a reader sees of the run's events names where and
+why something happened, never the server that saw it.
+
+- **Example**: Noor can read the runs of the Billing project but not of Payroll → reading the
+  record of a Payroll run answers "not found", the same as a run that never existed, and
+  comparing a Billing run with a Payroll run answers "not found" too.
+
 ## Approvals inside a run
 
 ### AUTO-R21 · Each run asks its own organization's approval policy
@@ -535,7 +547,7 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   `agent_retry.ts`, `reattach.ts`, `shim.ts`, `node-attempts.ts`). `AUTO-R16` covers which
   server steps a run, `AUTO-R22` how a restart hands it on, `AUTO-R18` what a run says once it
   moved to another, `AUTO-R19` and `AUTO-R20` what a resumed run never repeats, and
-  `AUTO-R38` and `AUTO-R39` what its record keeps.
+  `AUTO-R38` and `AUTO-R39` what its record keeps, `AUTO-R40` who may read it.
 - **Approvals inside a run**: which step asks, and the credential check before it asks
   (`backend/core/automations/stepper.ts`, `shim.ts`); `AUTO-R21` covers whose policy decides.
   An approval cannot be decided over the API; the contract debt ledger in

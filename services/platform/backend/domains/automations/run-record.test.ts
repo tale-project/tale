@@ -141,7 +141,7 @@ describe('withinBudget', () => {
 });
 
 describe('eventView', () => {
-  it('answers where, why and who decided — never the process that saw it', () => {
+  it('answers where, why and who decided — never the process that saw it [AUTO-R40]', () => {
     expect(
       eventView({
         id: 'ev-1',

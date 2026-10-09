@@ -5,7 +5,9 @@
  * of an older walker never replaces a newer walker's row; a long step's
  * start write is fenced by the run row itself; the next turn reads back only
  * the units still open; the record reads back whole, with only the events a
- * reader may see, then by what changed since its cursor; and the rows leave
+ * reader may see, then by what changed since its cursor; a step's items page
+ * in order, a unit reads whole with its ledger call, two runs of one
+ * automation compare and two of different ones do not; and the rows leave
  * with their run. */
 import type { Sql } from 'postgres';
 
@@ -18,8 +20,19 @@ import {
   recordNodeRunsStarted,
   writeNodeRunsInTx,
 } from './node-runs.ts';
-import { readRunRecord } from './run-record.ts';
-import { beginRun, deploy, recordProgress, saveVersion } from './store.ts';
+import {
+  readNodeDetail,
+  readNodePage,
+  readRunComparison,
+  readRunRecord,
+} from './run-record.ts';
+import {
+  AutomationError,
+  beginRun,
+  deploy,
+  recordProgress,
+  saveVersion,
+} from './store.ts';
 import { markAutomationWriterInTx } from './writer-protocol.ts';
 
 interface Row {
@@ -218,6 +231,176 @@ export async function checkAutomationNodeRuns(
       foreign === null,
     `source=${whole?.source} nodes=${JSON.stringify(whole?.nodes.map((n) => `${n.path}:${n.status}`))} events=${JSON.stringify(whole?.events)} total=${whole?.eventsTotal} cursor=${whole?.cursor}/${at} quiet=${quiet?.nodes.length}/${quiet?.events.length} foreign=${foreign === null}`,
   );
+
+  // ---- a step's items page in order; a unit reads whole with its call.
+  const items = createRecorder({
+    now: () => Date.now(),
+    budget: recordBudget(),
+  });
+  const stepKey = { path: 'one', item: -1, pass: -1 };
+  items.unitStarted(stepKey, { nodeId: 'one', nodeType: 'transform' });
+  for (const [item, status] of [
+    [0, 'ok'],
+    [1, 'failed'],
+    [2, 'ok'],
+  ] as const) {
+    const key = { path: 'one', item, pass: -1 };
+    items.unitStarted(key, { nodeId: 'one', nodeType: 'transform' });
+    items.unitInput(key, { n: item });
+    items.unitFinished(key, { status, output: { n: item * 10 } });
+  }
+  items.unitFinished(stepKey, { status: 'failed' });
+  await sql.begin(async (tx) => {
+    await writeNodeRunsInTx(tx, {
+      organizationId: orgId,
+      runId,
+      epoch: 2,
+      rows: items.drain(),
+    });
+    await markAutomationWriterInTx(tx);
+    await tx`
+      INSERT INTO app.automation_node_attempts
+        (run_id, org_id, node_id, item_index, pass, attempt, kind, node_type,
+         status, input, output, lease_owner, claim_epoch, started_at_ms,
+         finished_at_ms)
+      VALUES (${runId}, ${orgId}, 'one', 2, 0, 1, 'connector', 'transform',
+        'done',
+        ${jsonParam(tx, { token: `ghp_${'q'.repeat(36)}`, n: 2 })}::jsonb,
+        ${jsonParam(tx, { n: 20 })}::jsonb, ${seenBy}, 2, ${Date.now()},
+        ${Date.now()})
+    `;
+  });
+  const firstPage = await readNodePage(sql, {
+    organizationId: orgId,
+    runId,
+    path: 'one',
+    limit: 2,
+  });
+  const secondPage = await readNodePage(sql, {
+    organizationId: orgId,
+    runId,
+    path: 'one',
+    limit: 2,
+    ...(firstPage?.next != null && { cursor: firstPage.next }),
+  });
+  const failedPage = await readNodePage(sql, {
+    organizationId: orgId,
+    runId,
+    path: 'one',
+    status: 'failed',
+  });
+  let unreadable = 'accepted';
+  try {
+    await readNodePage(sql, {
+      organizationId: orgId,
+      runId,
+      path: 'one',
+      cursor: 'x',
+    });
+  } catch (error) {
+    unreadable = error instanceof AutomationError ? error.code : String(error);
+  }
+  const itemDetail = await readNodeDetail(sql, {
+    organizationId: orgId,
+    runId,
+    path: 'one',
+    item: 2,
+  });
+  const stepDetail = await readNodeDetail(sql, {
+    organizationId: orgId,
+    runId,
+    path: 'one',
+  });
+  const ghost = await readNodeDetail(sql, {
+    organizationId: orgId,
+    runId,
+    path: 'one',
+    item: 9,
+  });
+  const unitsOf = (page: typeof firstPage) =>
+    JSON.stringify(page?.units.map((u) => `${u.item}:${u.status}`));
+  record(
+    "a step's items page in order, failed ones alone on request; a unit reads whole with its call, its secrets withheld",
+    unitsOf(firstPage) === '["0:succeeded","1:failed"]' &&
+      firstPage?.next === '1:-1' &&
+      unitsOf(secondPage) === '["2:succeeded"]' &&
+      secondPage?.next === null &&
+      unitsOf(failedPage) === '["1:failed"]' &&
+      unreadable === 'INVALID_CURSOR' &&
+      JSON.stringify(itemDetail?.output?.value) === '{"n":20}' &&
+      itemDetail?.call?.status === 'done' &&
+      !JSON.stringify(itemDetail.call).includes('ghp_') &&
+      !JSON.stringify(itemDetail.call).includes(seenBy) &&
+      stepDetail?.counts?.items === 3 &&
+      stepDetail.call === undefined &&
+      ghost === null,
+    `pages=${unitsOf(firstPage)}→${firstPage?.next}, ${unitsOf(secondPage)}→${secondPage?.next}, failed=${unitsOf(failedPage)} cursor=${unreadable} item=${JSON.stringify(itemDetail?.output?.value)} call=${JSON.stringify(itemDetail?.call ?? null).slice(0, 160)} step=${JSON.stringify(stepDetail?.counts)}/${stepDetail?.call === undefined} ghost=${ghost === null}`,
+  );
+
+  // ---- two runs of one automation compare; two of different ones do not.
+  const again = await beginRun(sql, {
+    organizationId: orgId,
+    name,
+    input: { who: 'grace' },
+    mode: 'mock',
+    startedBy: userId,
+    requireOrgScope: true,
+  });
+  const otherName = 'itest/node-runs-other';
+  await saveVersion(sql, {
+    organizationId: orgId,
+    name: otherName,
+    document: {
+      version: 1,
+      name: otherName,
+      nodes: [{ id: 'one', type: 'transform', input: {}, code: 'return 1;' }],
+    },
+    actor: userId,
+  });
+  await deploy(sql, {
+    organizationId: orgId,
+    name: otherName,
+    version: 1,
+    actor: userId,
+  });
+  const other = await beginRun(sql, {
+    organizationId: orgId,
+    name: otherName,
+    input: {},
+    mode: 'mock',
+    startedBy: userId,
+    requireOrgScope: true,
+  });
+  const diff = await readRunComparison(sql, {
+    organizationId: orgId,
+    runId,
+    otherRunId: again?.runId ?? '',
+  });
+  let mismatch = 'accepted';
+  try {
+    await readRunComparison(sql, {
+      organizationId: orgId,
+      runId,
+      otherRunId: other?.runId ?? '',
+    });
+  } catch (error) {
+    mismatch = error instanceof AutomationError ? error.code : String(error);
+  }
+  record(
+    'two runs of one automation compare from their records; two of different automations are refused',
+    diff?.input.equal === false &&
+      diff.input.changes.some((c) => c.pointer === '/who') &&
+      diff.version.same &&
+      mismatch === 'RUN_COMPARE_MISMATCH',
+    `input=${JSON.stringify(diff?.input.changes.map((c) => c.pointer))} same=${diff?.version.same} mismatch=${mismatch}`,
+  );
+  await sql.begin(async (tx) => {
+    await markAutomationWriterInTx(tx);
+    await tx`
+      DELETE FROM app.automation_runs
+      WHERE id IN (${again?.runId ?? ''}, ${other?.runId ?? ''})
+    `;
+  });
 
   // ---- the rows leave with their run.
   await sql.begin(async (tx) => {

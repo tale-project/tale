@@ -14,6 +14,7 @@ import {
   latestPerUnit,
   parentOfPath,
   projectRecord,
+  projectUnits,
   shapeToDepth,
   spanMs,
   viewStatusOf,
@@ -729,5 +730,104 @@ describe('projectRecord', () => {
       }
       expect(JSON.stringify(view)).not.toContain('"value":');
     }
+  });
+});
+
+describe('projectUnits', () => {
+  const doc: Automation = {
+    name: 'each',
+    nodes: [
+      {
+        id: 'double',
+        type: 'transform',
+        forEach: '{{ input.list }}',
+        when: '{{ item > 0 }}',
+        input: {},
+        code: 'return item * 2;',
+      } as NodeDef,
+    ],
+  };
+  const value = (v: unknown) => recordValue(v, 'unit', unlimitedBudget());
+
+  it('reads each item of a step like a step, in item order', () => {
+    const units = projectUnits(
+      doc,
+      [
+        row('double', {
+          counts: { items: 3, ok: 1, failed: 1, skipped: 1, kept: 3 },
+        }),
+        row('double', {
+          item: 2,
+          status: 'failed',
+          startedAt: 30,
+          endedAt: 35,
+          failure: {
+            code: 'node_error',
+            reason: 'UNKNOWN',
+            params: {},
+            message: 'boom',
+          },
+        }),
+        row('double', {
+          item: 0,
+          status: 'skipped',
+          skip: { reason: 'when' },
+          decisions: [when(false, 12)],
+          startedAt: 10,
+          endedAt: 12,
+        }),
+        row('double', {
+          item: 1,
+          input: value(1),
+          output: value(2),
+          startedAt: 20,
+          endedAt: 24,
+        }),
+        row('other', { item: 0 }),
+      ],
+      succeeded,
+      'double',
+    );
+    expect(units.map((u) => [u.item, u.pass, u.status])).toEqual([
+      [0, -1, 'skipped'],
+      [1, -1, 'succeeded'],
+      [2, -1, 'failed'],
+    ]);
+    expect(units[0]).toMatchObject({
+      skip: { reason: 'when', at: 12, chain: [] },
+      decisions: [{ kind: 'when', result: false, source: '{{ item > 0 }}' }],
+    });
+    expect(units[1]?.output?.summary).toMatchObject({ kind: 'number' });
+    expect(units[1]).not.toHaveProperty('counts');
+    expect(units[2]?.failure?.reason).toBe('UNKNOWN');
+  });
+
+  it('reads a unit still open when the run ended as stopped', () => {
+    const [unit] = projectUnits(
+      doc,
+      [row('double', { item: 0, status: 'running', startedAt: 10 })],
+      { status: 'cancelled', finished: true, finishedAt: 50 },
+      'double',
+    );
+    expect(unit).toMatchObject({ status: 'stopped', item: 0 });
+  });
+
+  it('places a nested step’s units under the step that walked it', () => {
+    const [unit] = projectUnits(
+      {
+        name: 'outer',
+        nodes: [{ id: 'batch', type: 'subautomation', automation: 'child' }],
+      },
+      [row('batch[0:0]/inner', { pass: 1 })],
+      succeeded,
+      'batch[0:0]/inner',
+    );
+    expect(unit).toMatchObject({
+      nodeId: 'inner',
+      parentPath: 'batch',
+      parentItem: -1,
+      parentPass: -1,
+      pass: 1,
+    });
   });
 });

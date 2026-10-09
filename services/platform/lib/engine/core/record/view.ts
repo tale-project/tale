@@ -382,6 +382,90 @@ interface Context {
   shapes: ReadonlyMap<string, { items: boolean; passes: boolean }>;
 }
 
+/** Where a step inside a subautomation sits: the step that walked it and
+ * the item and pass it was walked for. The path writes 0 where its parent
+ * does not iterate; a reader reads -1, as in a unit's own key. */
+function parentFields(
+  path: string,
+  shapes: Context['shapes'],
+): Pick<NodeRunSummary, 'parentPath' | 'parentItem' | 'parentPass'> {
+  const parent = parentOfPath(path);
+  if (parent === undefined) return {};
+  const shape = shapes.get(parent.path);
+  return {
+    parentPath: parent.path,
+    parentItem: shape?.items === false ? -1 : parent.item,
+    parentPass: shape?.passes === false ? -1 : parent.pass,
+  };
+}
+
+/** Whether a version's steps run per item and repeat, by id. */
+function shapesOf(doc: Automation): Context['shapes'] {
+  return new Map(
+    doc.nodes
+      .filter((node) => typeof node.id === 'string')
+      .map((node) => [
+        node.id,
+        {
+          items: typeof node.forEach === 'string',
+          passes: typeof node.repeatUntil === 'string',
+        },
+      ]),
+  );
+}
+
+/** What a unit's own record says, read the shared way. */
+function recordedFacts(
+  record: NodeRunRecord,
+  node: NodeDef | undefined,
+  run: RunFacts,
+): Pick<
+  NodeRunSummary,
+  | 'activeMs'
+  | 'waitedMs'
+  | 'attempt'
+  | 'attempts'
+  | 'decisions'
+  | 'waits'
+  | 'meta'
+  | 'startedAt'
+  | 'endedAt'
+  | 'failure'
+  | 'input'
+  | 'output'
+  | 'reused'
+> {
+  return {
+    activeMs: activeMsOf(record, run.now),
+    waitedMs: waitedMs(record, run.now),
+    attempt: record.attempt,
+    attempts: [...record.attempts],
+    decisions: record.decisions.map((decision) => {
+      const source = sourceOf(decision, node);
+      const copy: Decision & { source?: string } = structuredClone(decision);
+      if (source !== undefined) copy.source = source;
+      return copy;
+    }),
+    waits: record.waits.map((w) => ({ ...w })),
+    meta: pickMeta(record.meta),
+    ...(record.startedAt !== undefined && { startedAt: record.startedAt }),
+    ...(record.endedAt !== undefined && { endedAt: record.endedAt }),
+    ...(record.failure !== undefined && { failure: record.failure }),
+    ...(record.input !== undefined && { input: glimpseOf(record.input) }),
+    ...(record.output !== undefined && { output: glimpseOf(record.output) }),
+    ...(record.meta.reused !== undefined && {
+      reused: { runId: record.meta.reused.runId },
+    }),
+  };
+}
+
+/** Why a unit produced no output, as its own record says: its condition,
+ * its alternative, or a failure the run went on past. */
+function ownSkipReason(record: NodeRunRecord): SkipReason | undefined {
+  if (failedAndContinued(record)) return 'error';
+  return record.status === 'skipped' ? record.skip?.reason : undefined;
+}
+
 function summarize(
   path: string,
   record: NodeRunRecord | undefined,
@@ -392,45 +476,27 @@ function summarize(
 ): NodeRunSummary {
   const { run } = ctx;
   const units = ctx.units.get(path) ?? [];
-  const parent = parentOfPath(path);
-  // The path writes 0 where its parent does not iterate; a reader reads -1,
-  // as in a unit's own key.
-  const shape = parent === undefined ? undefined : ctx.shapes.get(parent.path);
   const summary: NodeRunSummary = {
     path,
     nodeId: record?.nodeId ?? path.slice(path.lastIndexOf('/') + 1),
     type: record?.nodeType ?? type,
-    ...(parent !== undefined && {
-      parentPath: parent.path,
-      parentItem: shape?.items === false ? -1 : parent.item,
-      parentPass: shape?.passes === false ? -1 : parent.pass,
-    }),
+    ...parentFields(path, ctx.shapes),
     status:
       status ??
       (record === undefined && units.length > 0
         ? statusFromUnits(units, run)
         : viewStatusOf(record, run, path)),
-    activeMs: record === undefined ? 0 : activeMsOf(record, run.now),
-    waitedMs: record === undefined ? 0 : waitedMs(record, run.now),
-    attempt: record?.attempt ?? 0,
-    attempts: record === undefined ? [] : [...record.attempts],
-    decisions: (record?.decisions ?? []).map((decision) => {
-      const source = sourceOf(decision, node);
-      const copy: Decision & { source?: string } = structuredClone(decision);
-      if (source !== undefined) copy.source = source;
-      return copy;
-    }),
-    waits: record === undefined ? [] : record.waits.map((w) => ({ ...w })),
-    meta: record === undefined ? {} : pickMeta(record.meta),
+    activeMs: 0,
+    waitedMs: 0,
+    attempt: 0,
+    attempts: [],
+    decisions: [],
+    waits: [],
+    meta: {},
+    ...(record !== undefined && recordedFacts(record, node, run)),
   };
-  if (record?.startedAt !== undefined) summary.startedAt = record.startedAt;
-  if (record?.endedAt !== undefined) summary.endedAt = record.endedAt;
   if (record !== undefined) {
-    const reason: SkipReason | undefined = failedAndContinued(record)
-      ? 'error'
-      : record.status === 'skipped'
-        ? record.skip?.reason
-        : undefined;
+    const reason = ownSkipReason(record);
     if (reason !== undefined) {
       const at = skipAt(record, reason);
       const via = record.skip?.via;
@@ -440,12 +506,6 @@ function summarize(
         ...(at !== undefined && { at }),
         chain: skipChain(ctx.steps, path, run),
       };
-    }
-    if (record.failure !== undefined) summary.failure = record.failure;
-    if (record.input !== undefined) summary.input = glimpseOf(record.input);
-    if (record.output !== undefined) summary.output = glimpseOf(record.output);
-    if (record.meta.reused !== undefined) {
-      summary.reused = { runId: record.meta.reused.runId };
     }
   } else if (summary.status === 'not_run') {
     const cause = skipChain(ctx.steps, path, run)[0];
@@ -492,18 +552,7 @@ export function projectRecord(
   for (const list of units.values()) {
     list.sort((a, b) => a.key.item - b.key.item || a.key.pass - b.key.pass);
   }
-  const shapes = new Map(
-    doc.nodes
-      .filter((node) => typeof node.id === 'string')
-      .map((node) => [
-        node.id,
-        {
-          items: typeof node.forEach === 'string',
-          passes: typeof node.repeatUntil === 'string',
-        },
-      ]),
-  );
-  const ctx: Context = { run, steps, units, shapes };
+  const ctx: Context = { run, steps, units, shapes: shapesOf(doc) };
 
   const nodes: NodeDef[] = [];
   const known = new Set<string>();
@@ -571,4 +620,58 @@ export function projectRecord(
     out.push(summarize(path, record, undefined, type, ctx));
   }
   return out;
+}
+
+/** One item or pass of a step, as a summary. */
+export type UnitSummary = NodeRunSummary & { item: number; pass: number };
+
+/**
+ * The item and pass rows of the step at `path`, in item then pass order,
+ * each read the way {@link projectRecord} reads a step: its own status,
+ * times, attempts, decisions, waits, failure and values. A unit that
+ * produced no output names its own cause only — the step's chain is the
+ * step's.
+ */
+export function projectUnits(
+  doc: Automation,
+  records: readonly NodeRunRecord[],
+  facts: RunFacts,
+  path: string,
+): UnitSummary[] {
+  const run = settledFacts(facts);
+  const parent = parentFields(path, shapesOf(doc));
+  const node = doc.nodes.find((n) => n.id === path);
+  return latestPerUnit(records)
+    .filter(
+      (record) =>
+        record.key.path === path &&
+        (record.key.item >= 0 || record.key.pass >= 0),
+    )
+    .toSorted((a, b) => a.key.item - b.key.item || a.key.pass - b.key.pass)
+    .map((record): UnitSummary => {
+      const summary: UnitSummary = Object.assign(
+        {
+          path,
+          item: record.key.item,
+          pass: record.key.pass,
+          nodeId: record.nodeId,
+          type: record.nodeType,
+          status: viewStatusOf(record, run),
+        },
+        parent,
+        recordedFacts(record, node, run),
+      );
+      const reason = ownSkipReason(record);
+      if (reason !== undefined) {
+        const at = skipAt(record, reason);
+        const via = record.skip?.via;
+        summary.skip = {
+          reason,
+          ...(via !== undefined && { via: [...via] }),
+          ...(at !== undefined && { at }),
+          chain: [],
+        };
+      }
+      return summary;
+    });
 }
