@@ -8,7 +8,7 @@ const identifier = z
   .min(1)
   .max(128)
   .regex(/^[^\x00-\x1f\x7f]+$/);
-export const observationIdentitySchema = z.strictObject({
+const observationIdentitySchema = z.strictObject({
   name: slug,
   origin: nativeOriginSchema,
   organizationId: identifier,
@@ -38,9 +38,6 @@ export const observationEnvironmentSchema = z.strictObject({
     )
     .refine((value) => Object.keys(value).length <= 128),
 });
-export type NativeObservationInput = z.infer<
-  typeof nativeObservationInputSchema
->;
 export const retainedReceiptSchema = z
   .object({
     schemaVersion: z.union([z.literal(1), z.literal(2)]),
@@ -63,7 +60,7 @@ export const retainedReceiptSchema = z
         value.configVersion === undefined
       : value.configVersion !== undefined && value.releaseRef === undefined,
   );
-export const unavailableObservationSchema = z.strictObject({
+const unavailableObservationSchema = z.strictObject({
   status: z.literal('unavailable'),
   reason: z.enum([
     'retained_state_missing',
