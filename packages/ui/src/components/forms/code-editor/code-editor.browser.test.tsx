@@ -86,7 +86,46 @@ function selection(element: HTMLElement): [number, number] {
   return [from, to];
 }
 
+/** A host whose Discard puts the saved text back, as an editor's does. */
+function WithDiscard({ saved }: { saved: string }) {
+  const [value, setValue] = useState(saved);
+  return (
+    <>
+      <CodeEditor
+        aria-label="Code"
+        language="javascript"
+        value={value}
+        onChange={setValue}
+      />
+      <button type="button" onClick={() => setValue(saved)}>
+        Discard
+      </button>
+      <output data-testid="value">{value}</output>
+    </>
+  );
+}
+
 describe('CodeEditor typing', () => {
+  // REGRESSION: undo after a discard replayed the discarded edit into the
+  // text the discard put back, duplicating it.
+  it('starts undo afresh when the text is replaced from outside', async () => {
+    render(<WithDiscard saved="return total + tax;" />);
+    const box = await content('Code');
+    await userEvent.click(box);
+    await userEvent.keyboard(
+      '{End}{Backspace}{Backspace}{Backspace}{Backspace}{Backspace}',
+    );
+    expect(screen.getByTestId('value')).toHaveTextContent('return total +');
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(box).toHaveTextContent('return total + tax;');
+    await userEvent.click(box);
+    await userEvent.keyboard('{ControlOrMeta>}z{/ControlOrMeta}');
+    expect(box).toHaveTextContent('return total + tax;');
+    expect(screen.getByTestId('value')).toHaveTextContent(
+      /^return total \+ tax;$/,
+    );
+  });
+
   it('round-trips a controlled value', async () => {
     render(<Controlled initial="return 1;" />);
     const box = await content('Code');
