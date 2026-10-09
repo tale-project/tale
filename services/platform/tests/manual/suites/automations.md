@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 104 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 106 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -892,6 +892,17 @@ output:
       answers instead of the editor and the network log shows no validate
       request; posting a document to the validate route with that session
       answers 403 and saves nothing.
+
+- [ ] `AUTO-B17` · **History read failure and recovery** — Keep the automation
+      detail read successful and fail only its Runs request until retries are
+      exhausted; repeat for the Version history request → Each history shows
+      an announced error and keyboard-reachable **Try again**
+      (`common.errors.tryAgain`), never its successful empty-history message.
+      Restore the request and activate retry with Enter → Only that history
+      reloads, and focus moves to its heading, not the page body. A successful
+      empty response still shows `automations.runs.empty` or
+      `automations.versions.empty`. Repeat in EN/DE/FR and check the control's
+      visible focus and wrapping in the narrow layout.
 
 ## Run liveness — chaos recovery (backend, scripted)
 

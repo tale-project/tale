@@ -1,9 +1,10 @@
 'use client';
 
 import { ContentArea } from '@tale/ui/content-area';
+import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
-import { useId } from 'react';
+import { useId, useRef } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -30,6 +31,7 @@ export function AutomationRunsTab({
 }) {
   const { t } = useT('automations');
   const headingId = useId();
+  const headingRef = useRef<HTMLSpanElement>(null);
   const runsQuery = useAutomationRuns(
     organizationId,
     automationSlug,
@@ -40,18 +42,33 @@ export function AutomationRunsTab({
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
         as="h2"
-        title={<span id={headingId}>{t('runs.title')}</span>}
+        title={
+          <span id={headingId} ref={headingRef} tabIndex={-1}>
+            {t('runs.title')}
+          </span>
+        }
         description={t('runs.description')}
       />
-      <Skeletonize loading={runsQuery.isPending} label={t('runs.title')}>
-        <RunList
-          organizationId={organizationId}
-          automationSlug={automationSlug}
-          {...(projectId !== undefined && { projectId })}
-          runs={runsQuery.data ?? []}
-          headingId={headingId}
-        />
-      </Skeletonize>
+      {runsQuery.isError ? (
+        <div role="alert">
+          <ErrorDisplayCompact
+            error={runsQuery.error}
+            organizationId={organizationId}
+            reset={() => void runsQuery.refetch()}
+            onFocusLost={() => headingRef.current?.focus()}
+          />
+        </div>
+      ) : (
+        <Skeletonize loading={runsQuery.isPending} label={t('runs.title')}>
+          <RunList
+            organizationId={organizationId}
+            automationSlug={automationSlug}
+            {...(projectId !== undefined && { projectId })}
+            runs={runsQuery.data ?? []}
+            headingId={headingId}
+          />
+        </Skeletonize>
+      )}
     </ContentArea>
   );
 }

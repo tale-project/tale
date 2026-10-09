@@ -288,6 +288,13 @@ pending saves, failure recovery and the sequential control. The shared drain's
 synchronous reset is covered in `app/features/shared/files/use-file-upload.test.ts`.
 Live storage persistence and cross-session races remain manual.
 
+The history read-state regression in
+`app/features/automations/components/automation-history.test.tsx` owns failed
+Runs and Version history reads, retry invocation, unchanged successful empty
+responses, pending states, EN/DE/FR controls, alert semantics and focus handoff.
+`AUTO-B17` keeps live request recovery, visible focus and narrow-layout wrapping
+in the manual layer.
+
 One row per case group, carried over from the per-suite coverage tables the
 guides used to hold. **Don't** re-verify an automated row by hand: a red there
 is a spec failure and belongs in the gate, not in a round.

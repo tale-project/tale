@@ -5,7 +5,7 @@ import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-com
 import { Popover } from '@tale/ui/popover';
 import { Spinner } from '@tale/ui/spinner';
 import { ChevronDown } from 'lucide-react';
-import { useContext, useEffect, useId, useState } from 'react';
+import { useContext, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { useT } from '@/lib/i18n/client';
@@ -37,6 +37,7 @@ export function AutomationVersionPicker({
 }: AutomationVersionPickerProps) {
   const { t } = useT('automations');
   const headingId = useId();
+  const headingRef = useRef<HTMLSpanElement>(null);
   const target = useContext(AutomationVersionPickerTarget);
   const [open, setOpen] = useState(showHistory);
   const versions = useAutomationVersions(organizationId, automationSlug);
@@ -67,6 +68,8 @@ export function AutomationVersionPicker({
     >
       <span
         id={headingId}
+        ref={headingRef}
+        tabIndex={-1}
         className="text-muted-foreground block px-3 pt-1 pb-2 text-xs font-medium"
       >
         {t('versions.title')}
@@ -74,11 +77,14 @@ export function AutomationVersionPicker({
       {versions.isPending ? (
         <Spinner label={t('versions.title')} />
       ) : versions.isError ? (
-        <ErrorDisplayCompact
-          error={versions.error}
-          organizationId={organizationId}
-          reset={() => void versions.refetch()}
-        />
+        <div role="alert">
+          <ErrorDisplayCompact
+            error={versions.error}
+            organizationId={organizationId}
+            reset={() => void versions.refetch()}
+            onFocusLost={() => headingRef.current?.focus()}
+          />
+        </div>
       ) : (
         <VersionList
           organizationId={organizationId}
