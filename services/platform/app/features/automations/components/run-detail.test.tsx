@@ -33,6 +33,8 @@ const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
       | { reason: 'shutdown' | 'lease_expired'; at: number }
       | undefined,
     stalled: undefined as boolean | undefined,
+    failureCode: undefined as string | undefined,
+    record: null as unknown,
   },
   resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
@@ -80,6 +82,13 @@ vi.mock('../hooks/queries', async (importOriginal) => {
       isError: false,
     }),
     useRunPendingAsk: () => ({ data: null }),
+    useRunRecord: () => ({ data: state.record }),
+    useReplayPlan: () => ({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      refetch: vi.fn(),
+    }),
     useRunInDoubt: () => ({
       data: {
         attemptId: 'attempt-1',
@@ -125,6 +134,14 @@ vi.mock('../hooks/mutations', () => ({
     mutateAsync: vi.fn(() => Promise.resolve(null)),
     isPending: false,
   }),
+  useReplayRun: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}));
+// No RouterProvider: links render as plain anchors, and a new run's page is
+// a navigation the suite need not follow.
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
+  useNavigate: () => vi.fn(),
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
@@ -183,6 +200,8 @@ vi.mock('@tale/ui/json-viewer', () => ({
 import { RunDetail } from './run-detail';
 
 beforeEach(() => {
+  state.failureCode = undefined;
+  state.record = null;
   state.status = 'waiting';
   state.finishedAt = null;
   state.detail = 'approval:250a93eb-9413-4699-94e8-ee3164e5e545';
@@ -729,15 +748,76 @@ describe('RunDetail starter and reason', () => {
     expect(screen.queryByText('repeat:tick')).toBeNull();
   });
 
-  it('keeps the failure sentence of a failed run', () => {
+  it('says why a failed run failed in words, the engine’s sentence folded away', () => {
     state.status = 'failed';
     state.finishedAt = 1789363170729;
     state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
     state.waitingFor = undefined;
     renderRun();
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'send: no usable credential for imap-smtp',
+    const card = screen.getByRole('region', { name: 'The run failed' });
+    expect(card).toHaveTextContent('A service call failed');
+    expect(card).toHaveTextContent(
+      "Check the step's input and the service's connection.",
     );
+    // The English stays under Technical details, never in the sentence.
+    expect(screen.getByText('Technical details')).toBeInTheDocument();
+    expect(screen.getByText(/no usable credential/)).not.toBeVisible();
+  });
+
+  it('names the step a run failed at from its record, and offers the ways on', () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
+    state.waitingFor = undefined;
+    state.record = {
+      format: 1,
+      runId: 'run-proof',
+      status: 'failed',
+      version: 1,
+      mode: 'live',
+      startedAt: 1789363168936,
+      source: 'record',
+      events: [],
+      eventsTotal: 0,
+      cursor: 1789363170729,
+      nodes: [
+        {
+          path: 'send',
+          nodeId: 'send',
+          type: 'imap-smtp.send',
+          status: 'failed',
+          startedAt: 1789363169000,
+          activeMs: 10,
+          waitedMs: 0,
+          attempt: 1,
+          attempts: [],
+          decisions: [],
+          waits: [],
+          meta: {},
+          failure: {
+            code: 'connector_error',
+            reason: 'CONNECTOR_CREDENTIAL_MISSING',
+            params: { connector: 'imap-smtp' },
+            message: 'no usable credential for imap-smtp',
+          },
+        },
+      ],
+    };
+    renderRun();
+    const card = screen.getByRole('region', {
+      name: 'The run failed at Send',
+    });
+    expect(card).toHaveTextContent('No working connection');
+    expect(card).toHaveTextContent(
+      "imap-smtp isn't connected, or its connection was removed.",
+    );
+    expect(screen.getByRole('button', { name: 'Show step' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Retry from this step' }),
+    ).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Show in editor' })).toBeVisible();
   });
 
   it('shows no reason on a stopped run whose park is history', () => {

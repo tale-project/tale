@@ -1,3 +1,10 @@
+failure:
+  title: The run failed at {step}
+  titleRun: The run failed
+  showStep: Show step
+  retry: Retry from this step
+  showInEditor: Show in editor
+  location: '{step} › {field}'
 runtime:
   codes:
     EXPR_SYNTAX:

@@ -199,13 +199,18 @@ export function nodeLabel(t: IssueTranslate, id: string): string {
   return quote(t, humanizeNodeId(id));
 }
 
-/** A field's label the way the inspector shows it, in the language's
- * quotes; the field as written when it has no label. */
+/** A field's label the way the inspector shows it; the field as written
+ * when it has no label. */
+export function fieldName(t: IssueTranslate, field: string): string {
+  return t(`editor.fields.${field}`, {
+    ns: 'automations',
+    defaultValue: field,
+  });
+}
+
+/** {@link fieldName} in the language's quotes. */
 export function fieldLabel(t: IssueTranslate, field: string): string {
-  return quote(
-    t,
-    t(`editor.fields.${field}`, { ns: 'automations', defaultValue: field }),
-  );
+  return quote(t, fieldName(t, field));
 }
 
 function listOf(

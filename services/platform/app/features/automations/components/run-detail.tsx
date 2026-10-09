@@ -13,10 +13,13 @@ import { JsonViewer } from '@tale/ui/json-viewer';
 import { SectionHeader } from '@tale/ui/section-header';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { useNavigate } from '@tanstack/react-router';
 import { Ban, SearchX } from 'lucide-react';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import type { RecordedStep } from '@/app/lib/backend/contract/automations';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { useT } from '@/lib/i18n/client';
@@ -29,14 +32,21 @@ import {
   useAutomationRun,
   useNodeTypeCatalog,
   useRunPendingAsk,
+  useRunRecord,
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { useRunStarterLabel } from '../hooks/use-run-starter-label';
+import { automationDetailPathname } from '../lib/detail-paths';
 import { readDocument } from '../lib/document';
 import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
 import { flowGraphTarget } from '../lib/flow-ids';
 import { issueImportResultSchema, issueSource } from '../lib/issue-import';
-import { nodeCatalogView } from '../lib/node-face';
+import {
+  actionTitle,
+  connectorName,
+  nodeCatalogView,
+  nodeTitle,
+} from '../lib/node-face';
 import {
   cursorNodeStatus,
   isRunFinished,
@@ -61,8 +71,10 @@ import { IssueImportResult } from './issue-import-result';
 import { NodeInspector, type InspectorContext } from './node-inspector';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
+import { RunFailureCard } from './run-failure-card';
 import { RunInDoubtCard } from './run-in-doubt-card';
 import { RunQuarantineCard } from './run-quarantine-card';
+import { RunReplayDialog } from './run-replay-dialog';
 import { RunBadge } from './run-status-badge';
 
 /**
@@ -132,6 +144,12 @@ function RunDetailBody({
   }, [selectedNodeId]);
   const [refusal, setRefusal] = useState<string | null>(null);
   const [confirmStop, setConfirmStop] = useState(false);
+  /** The step a retry is being planned from, while its dialog is open. */
+  const [retryFrom, setRetryFrom] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const ability = useAbility();
+  // Live runs, like saving and deploying, are the author's.
+  const canStartLive = ability.can('read', 'developerSettings');
 
   const runQuery = useAutomationRun(organizationId, runId);
   const runRead = readStateOf(runQuery);
@@ -148,6 +166,13 @@ function RunDetailBody({
     organizationId,
     automationSlug,
     run?.version,
+  );
+  // The latest version, for a retry on it.
+  const latestQuery = useAutomation(organizationId, automationSlug);
+  const recordQuery = useRunRecord(
+    organizationId,
+    run?.status === 'failed' ? runId : undefined,
+    { finished: true },
   );
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const cancel = useCancelAutomationRun();
@@ -201,6 +226,28 @@ function RunDetailBody({
   const catalog = useMemo(
     () => nodeCatalogView(nodeTypes, catalogQuery.data?.connectors ?? []),
     [nodeTypes, catalogQuery.data?.connectors],
+  );
+  // The step the run failed at, as its record tells it: a step of this
+  // version (not one inside a subautomation), the last to fail.
+  const failedStep = useMemo<RecordedStep | undefined>(
+    () =>
+      recordQuery.data?.nodes
+        .filter(
+          (step) =>
+            step.status === 'failed' &&
+            step.parentPath === undefined &&
+            step.failure !== undefined,
+        )
+        .sort((a, b) => (a.startedAt ?? 0) - (b.startedAt ?? 0))
+        .at(-1),
+    [recordQuery.data],
+  );
+  const failureLabels = useMemo(
+    () => ({
+      connectorLabel: (slug: string) => connectorName(slug, catalog, locale),
+      actionLabel: (type: string) => actionTitle(type, catalog, locale),
+    }),
+    [catalog, locale],
   );
   const canvasRun = useMemo<CanvasRun | null>(
     () =>
@@ -473,7 +520,38 @@ function RunDetailBody({
         const reason = runReasonKey(run);
         if (reason === undefined) return null;
         if (reason.kind === 'failed') {
-          return <Alert variant="destructive" description={reason.detail} />;
+          const failedId = failedStep?.nodeId;
+          return (
+            <RunFailureCard
+              {...(failedStep?.failure !== undefined && {
+                failure: failedStep.failure,
+              })}
+              {...(failedId !== undefined && {
+                stepLabel: nodeTitle(failedId),
+                editor: {
+                  to: `${automationDetailPathname({
+                    organizationId,
+                    automationSlug,
+                    ...(run.projectId !== undefined && {
+                      projectId: run.projectId,
+                    }),
+                  })}/editor`,
+                  search: { node: failedId, version: run.version },
+                },
+                onShowStep: () => {
+                  setSelectedNodeId(failedId);
+                },
+                onRetryFromStep: () => {
+                  setRetryFrom(failedId);
+                },
+              })}
+              {...(run.failureCode !== undefined && {
+                code: run.failureCode,
+              })}
+              detail={reason.detail}
+              labels={failureLabels}
+            />
+          );
         }
         if (run.waitingFor === 'ask' && pendingAsk !== null) return null;
         return (
@@ -551,6 +629,41 @@ function RunDetailBody({
           />
         )}
       </div>
+
+      {retryFrom !== null && (
+        <RunReplayDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setRetryFrom(null);
+          }}
+          organizationId={organizationId}
+          run={{ id: run.id, version: run.version, mode: run.mode }}
+          from={retryFrom}
+          stepLabel={nodeTitle}
+          failedHere={retryFrom === failedStep?.nodeId}
+          {...(latestQuery.data?.version !== undefined && {
+            latestVersion: latestQuery.data.version,
+          })}
+          {...(versionQuery.data?.deployedVersion !== undefined && {
+            deployedVersion: versionQuery.data.deployedVersion,
+          })}
+          canStartLive={canStartLive}
+          onStarted={(started) => {
+            void navigate({
+              to: `${automationDetailPathname({
+                organizationId,
+                automationSlug,
+                ...(run.projectId !== undefined && {
+                  projectId: run.projectId,
+                }),
+              })}/runs/${started.runId}`,
+            });
+          }}
+          onSelectStep={(id) => {
+            setSelectedNodeId(id);
+          }}
+        />
+      )}
 
       {/* What an `agent` node did inside the sandbox — the one window into a
           turn that is otherwise an opaque spinner. Renders nothing for runs

@@ -1,3 +1,10 @@
+failure:
+  title: L’exécution a échoué à l’étape {step}
+  titleRun: L’exécution a échoué
+  showStep: Afficher l’étape
+  retry: Relancer à partir de cette étape
+  showInEditor: Afficher dans l’éditeur
+  location: '{step} › {field}'
 runtime:
   codes:
     EXPR_SYNTAX:

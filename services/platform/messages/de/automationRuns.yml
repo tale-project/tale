@@ -1,3 +1,10 @@
+failure:
+  title: Der Lauf ist bei {step} fehlgeschlagen
+  titleRun: Der Lauf ist fehlgeschlagen
+  showStep: Schritt zeigen
+  retry: Ab diesem Schritt wiederholen
+  showInEditor: Im Editor zeigen
+  location: '{step} › {field}'
 runtime:
   codes:
     EXPR_SYNTAX:
