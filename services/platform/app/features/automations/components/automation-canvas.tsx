@@ -534,15 +534,18 @@ function RunCanvas({
   }, [record, live, timeline.duration, setT]);
 
   // The steps whose items are read: those the reader opened, and the step
-  // of an item picked elsewhere (a link, the inspector).
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    () => new Set(),
+  // of an item picked elsewhere (a link, the inspector). A step once read
+  // stays read — the Steps view may still show it open after the
+  // selection moved on.
+  const [reading, setReading] = useState<readonly string[]>(() =>
+    selectedUnit !== null && selectedId !== null ? [selectedId] : [],
   );
-  const reading = useMemo(() => {
-    const nodes = new Set(expanded);
-    if (selectedUnit !== null && selectedId !== null) nodes.add(selectedId);
-    return [...nodes];
-  }, [expanded, selectedUnit, selectedId]);
+  if (
+    selectedUnit !== null &&
+    selectedId !== null &&
+    !reading.includes(selectedId)
+  )
+    setReading([...reading, selectedId]);
   // Each step's pages by where they start, in the order they were read.
   const [pages, setPages] = useState<
     ReadonlyMap<string, ReadonlyMap<string, readonly RecordedUnit[]>>
@@ -681,10 +684,10 @@ function RunCanvas({
             }}
             {...(items !== undefined && {
               onExpand: (row) =>
-                setExpanded((current) =>
-                  current.has(row.nodeId)
+                setReading((current) =>
+                  current.includes(row.nodeId)
                     ? current
-                    : new Set(current).add(row.nodeId),
+                    : [...current, row.nodeId],
                 ),
             })}
             formatTime={formatTime}

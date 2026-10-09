@@ -325,4 +325,47 @@ describe('AutomationCanvas playing a recorded run in Chromium', () => {
       expect(screen.queryByRole('tree', { name: 'Steps' })).toBeNull(),
     );
   });
+
+  it('keeps a step’s items read after a link opened on one of them and the reader moved on', async () => {
+    await page.viewport(1280, 1600);
+    function LinkedHarness() {
+      const [selected, setSelected] = useState<string | null>('score');
+      const [unit, setUnit] = useState<RunUnitRef | null>({ item: 1 });
+      return (
+        <div style={{ width: 1180, height: 1500 }}>
+          <AutomationCanvas
+            automation={TRIAGE}
+            layoutKey="triage:run-1"
+            catalog={CATALOG}
+            selectedId={selected}
+            selectedUnit={unit}
+            onSelect={(id, picked) => {
+              setSelected(id);
+              setUnit(picked ?? null);
+            }}
+            inspectorId="inspector"
+            run={{ ...RUN, items: { organizationId: 'org-1', runId: 'run-1' } }}
+            runView="steps"
+          />
+        </div>
+      );
+    }
+    render(<LinkedHarness />);
+    await screen.findByRole('tree', { name: 'Steps' });
+    const line = (id: string) =>
+      document.querySelector<HTMLElement>(
+        `[data-flow-timeline-line="${CSS.escape(id)}"]`,
+      );
+    await waitFor(() =>
+      expect(line('score#item:1')).toHaveAttribute('aria-selected', 'true'),
+    );
+    const first = TRIAGE.nodes[0]?.id ?? '';
+    await userEvent.click(line(first) as HTMLElement);
+    await waitFor(() =>
+      expect(line(first)).toHaveAttribute('aria-selected', 'true'),
+    );
+    // Score stays open with its items, never back to "loading".
+    expect(line('score#loading')).toBeNull();
+    expect(line('score#item:2')).not.toBeNull();
+  });
 });
