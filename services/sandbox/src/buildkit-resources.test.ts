@@ -23,6 +23,7 @@ import {
   buildkitdMirrorRef,
   buildkitdNetworkName,
   ensureBuildkitd,
+  ensureBuildkitdReady,
   MIRROR_REGISTRIES,
 } from './buildkitd.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
@@ -158,6 +159,7 @@ if (a[0] === 'run') {
       await Bun.sleep(2);
     }
   }
+  if (s.failRun === name) fail('image unavailable');
   s.containers[name] = { labels: labels(), networks: { [flag('--network')]: {} }, ports: null, running: true };
   if (s.race && s.race.name === name) {
     s.containers[name].running = s.race.running;
@@ -178,6 +180,8 @@ fail('Unhandled fake docker call: ' + JSON.stringify(a));
 
 interface FakeState {
   requireParallelMirrors?: boolean;
+  /** The container name whose `docker run` fails. */
+  failRun?: string;
   hostRoutes?: object[];
   hostDns?: string;
   hostRouteFailure?: boolean;
@@ -590,6 +594,34 @@ describe('organization BuildKit provisioning', () => {
       .map(([, container]) => container);
     expect(launched).toHaveLength(3);
     expect(launched.every((container) => container.running)).toBe(true);
+  });
+
+  test('reports the docker.io mirror to sessions only while it is up', async () => {
+    const org = 'hub-mirror-down';
+    const hub = buildkitdMirrorContainerName(org, 'docker.io');
+    const down = initialState();
+    down.failRun = hub;
+    await save(down);
+    // The builder still comes up without the docker.io mirror, but no session
+    // engine may be pointed at a mirror name that does not resolve.
+    expect(await ensureBuildkitdReady(cfg, org)).toEqual({
+      endpoint: buildkitdEndpoint(org),
+    });
+    const builder = (await calls()).find(
+      (a) => a[0] === 'run' && a.includes(buildkitdContainerName(org)),
+    );
+    expect(builder?.find((a) => a.startsWith('TALE_BUILDKITD_MIRRORS='))).toBe(
+      `TALE_BUILDKITD_MIRRORS=${['ghcr.io', 'quay.io'].map((registry) => `${registry}=${buildkitdMirrorRef(org, registry)}`).join(';')}`,
+    );
+
+    // The healthy builder is reused and revives the mirror; sessions get it again.
+    const up = await state();
+    delete up.failRun;
+    await save(up);
+    expect(await ensureBuildkitdReady(cfg, org)).toEqual({
+      endpoint: buildkitdEndpoint(org),
+      dockerHubMirror: buildkitdMirrorRef(org, 'docker.io'),
+    });
   });
 
   test('coalesces same-org provisioning and reuses healthy caches after restart', async () => {

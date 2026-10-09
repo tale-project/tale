@@ -12,7 +12,7 @@
 // into a container-escape primitive. User code is NEVER in argv; it arrives
 // over the runnerd HTTP API after the container is up.
 
-import { buildkitdEndpoint } from '../buildkitd.ts';
+import { buildkitdEndpoint, buildkitdMirrorRef } from '../buildkitd.ts';
 import { ipv4Subnet, parseDindInnerPool } from '../network-address.ts';
 import {
   dindCapabilityOf,
@@ -65,6 +65,12 @@ interface DockerSessionRunInput {
    * Undefined ⇒ no TALE_BUILDKITD_ENDPOINT env (argv byte-identical).
    */
   buildkitdEndpoint?: string;
+  /**
+   * The organization's docker.io pull-through mirror (`host:port`), set only
+   * with an endpoint and only when that mirror came up. Undefined ⇒ the inner
+   * engine pulls docker.io from Docker Hub directly.
+   */
+  dockerHubMirror?: string;
   /** Inspected org bridge subnets, required with an endpoint because the bridge
    * attaches after runtime readiness and is not in the initial route table. */
   buildkitNetworkSubnets?: readonly string[];
@@ -77,6 +83,8 @@ const NETWORK_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 // `tcp://host:port` for the shared buildkitd endpoint — the only injection
 // surface a new env value adds, so validate it like every other interpolation.
 const ENDPOINT_RE = /^tcp:\/\/[a-zA-Z0-9_.-]{1,128}:[0-9]{1,5}$/;
+// `host:port` of the organization's docker.io pull-through mirror.
+const MIRROR_RE = /^[a-z0-9][a-z0-9.-]{0,127}:[0-9]{1,5}$/;
 const HOST_DIR_RE = /^\/[a-zA-Z0-9_./-]{1,256}$/;
 // Hex token from deriveRunnerdToken (SHA256 → 64 hex chars). The builder
 // validates shape only; the spawner always derives one (SANDBOX_TOKEN is
@@ -319,6 +327,22 @@ export function buildDockerSessionRunArgs(
         '--env',
         `TALE_BUILDKIT_NETWORK_SUBNETS=${JSON.stringify(subnets)}`,
       );
+      // The inner dockerd pulls docker.io images through the same
+      // organization mirror the builder uses, on the same private network —
+      // only when that mirror is up, or every docker.io pull would first try
+      // a name that does not resolve.
+      if (inp.dockerHubMirror !== undefined) {
+        assertSafe('dockerHubMirror', inp.dockerHubMirror, MIRROR_RE);
+        if (
+          inp.dockerHubMirror !==
+          buildkitdMirrorRef(inp.organizationId, 'docker.io')
+        ) {
+          throw new Error(
+            "docker-session-args: refusing another organization's docker.io mirror",
+          );
+        }
+        dindEnv.push('--env', `TALE_DOCKER_HUB_MIRROR=${inp.dockerHubMirror}`);
+      }
     }
   }
 

@@ -29,6 +29,9 @@ Each organization also gets a separate pull-through mirror for `docker.io`,
 image copies are pinned by version and digest as well. The daemon and mirrors
 join only their organization's bridge, without published ports. Sessions also
 retain the shared control network for runnerd, Platform, and the model gateway.
+A session's inner Docker engine uses the `docker.io` mirror as its registry
+mirror too (`TALE_DOCKER_HUB_MIRROR`), so its own Docker Hub pulls share that
+cache.
 
 ## Keep build traffic isolated
 

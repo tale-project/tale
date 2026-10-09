@@ -110,6 +110,43 @@ void test('health polling never activates a cold engine or postpones intentional
   assert.equal(f.starts(), 2);
 });
 
+void test('health tells an engine that never ran from one that has, without activating it', async () => {
+  const permitStop = Promise.withResolvers<boolean>();
+  const f = await fixture({ idleMs: 40, canStop: () => permitStop.promise });
+  for (let i = 0; i < 3; i++) {
+    assert.deepEqual(await f.health.snapshot(), {
+      dockerReady: true,
+      dockerRecoveryRequired: false,
+      docker: { engine: 'cold', used: false },
+    });
+  }
+  assert.equal(f.starts(), 0);
+  await f.proxy.ensureReady();
+  assert.deepEqual((await f.health.snapshot()).docker, {
+    engine: 'running',
+    used: true,
+  });
+  permitStop.resolve(true);
+  await until(() => f.stops() === 1);
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: true,
+    dockerRecoveryRequired: false,
+    docker: { engine: 'stopped', used: true },
+  });
+  assert.equal(f.starts(), 1);
+});
+
+void test('a store that already holds images reads as used while its engine stays cold', async () => {
+  const f = await fixture();
+  f.proxy.markStoreUsed();
+  assert.deepEqual(await f.health.snapshot(), {
+    dockerReady: true,
+    dockerRecoveryRequired: false,
+    docker: { engine: 'stopped', used: true },
+  });
+  assert.equal(f.starts(), 0);
+});
+
 void test('a broken active engine fails health and can recover without activation by health', async () => {
   const f = await fixture();
   await f.proxy.ensureReady();
@@ -133,6 +170,7 @@ void test('startup failure and unexpected exit stay degraded until an actual Doc
   assert.deepEqual(await f.health.snapshot(), {
     dockerReady: false,
     dockerRecoveryRequired: true,
+    docker: { engine: 'stopped', used: true },
   });
   assert.equal(f.starts(), 1);
   assert.equal(await docker.ready(), true);
@@ -141,6 +179,7 @@ void test('startup failure and unexpected exit stay degraded until an actual Doc
   assert.deepEqual(await f.health.snapshot(), {
     dockerReady: false,
     dockerRecoveryRequired: true,
+    docker: { engine: 'stopped', used: true },
   });
   assert.equal(f.starts(), 2);
   assert.equal(await docker.ready(), true);
@@ -251,6 +290,7 @@ void test('a production-deadline ping stall refuses work without requiring recov
   assert.deepEqual(await f.health.snapshot(), {
     dockerReady: false,
     dockerRecoveryRequired: false,
+    docker: { engine: 'running', used: true },
   });
   assert.ok(performance.now() - started >= 450);
   assert.equal(f.pings(), 1);
@@ -258,6 +298,7 @@ void test('a production-deadline ping stall refuses work without requiring recov
     assert.deepEqual(await f.health.snapshot(), {
       dockerReady: false,
       dockerRecoveryRequired: false,
+      docker: { engine: 'running', used: true },
     });
   }
   assert.equal(f.pings(), 1);
@@ -266,6 +307,7 @@ void test('a production-deadline ping stall refuses work without requiring recov
   assert.deepEqual(await f.health.snapshot(), {
     dockerReady: true,
     dockerRecoveryRequired: false,
+    docker: { engine: 'running', used: true },
   });
   assert.equal(f.starts(), 1);
   assert.equal(f.stops(), 0);
@@ -284,6 +326,7 @@ void test('sustained real probe failures require recovery, then healthy and repl
   assert.deepEqual(await f.health.snapshot(), {
     dockerReady: false,
     dockerRecoveryRequired: true,
+    docker: { engine: 'running', used: true },
   });
   assert.equal(f.pings(), 3);
   // The same outer observer must not reuse confirmed failure during its cache
@@ -294,12 +337,14 @@ void test('sustained real probe failures require recovery, then healthy and repl
   assert.deepEqual(await f.health.snapshot(), {
     dockerReady: false,
     dockerRecoveryRequired: false,
+    docker: { engine: 'running', used: true },
   });
   f.setPing((res) => res.end('OK'));
   healthNow = 3_000;
   assert.deepEqual(await f.health.snapshot(), {
     dockerReady: true,
     dockerRecoveryRequired: false,
+    docker: { engine: 'running', used: true },
   });
   f.setPing(() => {});
   healthNow = 4_000;

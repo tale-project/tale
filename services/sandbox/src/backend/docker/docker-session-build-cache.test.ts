@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { resolve } from 'node:path';
 
+import { buildkitdMirrorRef } from '../../buildkitd.ts';
+
 // Module mocks run in a separate Bun process so they cannot replace the real
 // provisioning or firewall exports used by the other sandbox suites.
 async function create(scenario: string): Promise<{
@@ -13,6 +15,7 @@ async function create(scenario: string): Promise<{
   removedVolumesAfterRun: string[];
   attemptId: string | null;
   workspaceExists: boolean;
+  hubMirror: string | null;
 }> {
   const sourceRoot = resolve(import.meta.dir, '../..');
   const script = `
@@ -28,6 +31,7 @@ let completeCache;
 const cacheGate = new Promise(resolve => { completeCache = resolve; });
 const createAbort = new AbortController();
 let attemptId = null;
+let hubMirror = null;
 let currentAttempt = 'own';
 let currentId = 'a'.repeat(64);
 let containerPresent = true;
@@ -64,6 +68,7 @@ mock.module(spawnPath, () => ({...realSpawn,
       if (scenario === 'slow-cache') completeCache();
       ran = true;
       attemptId = args.find(value=>value.startsWith('tale.create-attempt='))?.split('=')[1] ?? null;
+      hubMirror = args.find(value=>value.startsWith('TALE_DOCKER_HUB_MIRROR='))?.split('=')[1] ?? null;
       if (scenario === 'orphan-replaced-fresh') return {...success,exitCode:1,stderr:'name already in use'};
       currentAttempt = attemptId ?? 'own';
       if (scenario === 'own-data-fresh') await writeFile(join(workspace,'sentinel'),'new workspace data');
@@ -117,7 +122,7 @@ const realBuild = await import(buildPath);
 const { waitWithinOperation } = await import(join(source,'operation-budget.ts'));
 mock.module(buildPath, () => ({...realBuild,
   retainBuildkitd: () => {events.push('retain'); leases++; return () => {leases--;events.push('release');};},
-  ensureBuildkitd: async (_,org) => {
+  ensureBuildkitdReady: async (_,org) => {
     events.push('ensure:'+leases);
     if(scenario==='cache-failure') throw new Error('cache unavailable');
     if(['cache-timeout','cache-deadline'].includes(scenario)) {
@@ -127,7 +132,8 @@ mock.module(buildPath, () => ({...realBuild,
       events.push('late-cache');
     }
     if(scenario==='slow-cache') { await cacheGate; events.push('late-cache'); }
-    return realBuild.buildkitdEndpoint(org);
+    const endpoint = realBuild.buildkitdEndpoint(org);
+    return scenario==='hub-mirror-down' ? {endpoint} : {endpoint, dockerHubMirror: realBuild.buildkitdMirrorRef(org,'docker.io')};
   },
   sweepIdleBuildkitd: async () => {events.push('sweep'); return {stopped:0,organizations:0};},
 }));
@@ -163,7 +169,7 @@ const retained = await readFile(join(workspace,'sentinel'),'utf8').catch(()=> 'a
 const owner = await readFile(join(root,'.owners','test-session.org'),'utf8').catch(() => null);
 const workspaceExists = await stat(workspace).then(()=>true,()=>false);
 await rm(root,{recursive:true,force:true});
-console.log(JSON.stringify({events,error,retained,owner,peerAlive,removalTargets,removedVolumesAfterRun,attemptId,workspaceExists}));
+console.log(JSON.stringify({events,error,retained,owner,peerAlive,removalTargets,removedVolumesAfterRun,attemptId,workspaceExists,hubMirror}));
 `;
   const child = Bun.spawn([process.execPath, '-e', script], {
     stdout: 'pipe',
@@ -207,6 +213,14 @@ describe('Docker session build-cache readiness and create lease', () => {
     expect(result.retained).toBe('saved workspace');
     // The workspace names its organization for when no container does.
     expect(result.owner).toBe('org-a\n');
+    expect(result.hubMirror).toBe(buildkitdMirrorRef('org-a', 'docker.io'));
+  });
+
+  test('a builder whose docker.io mirror is down points the inner engine at Docker Hub', async () => {
+    const result = await create('hub-mirror-down');
+    expect(result.error).toBeNull();
+    expect(result.events).toContain('attach:1');
+    expect(result.hubMirror).toBeNull();
   });
 
   test('failed guard tears down compute, preserves workspace and releases the lease', async () => {

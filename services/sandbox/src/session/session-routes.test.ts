@@ -26,6 +26,7 @@ import {
   type SessionSpec,
 } from '../backend/types.ts';
 import type { SpawnerConfig } from '../types.ts';
+import type { RunnerdHealth } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRoutes, settlesWithin } from './session-routes.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -93,6 +94,7 @@ const fakeHealth = {
   liveExecs: 0,
   dockerReady: undefined as boolean | undefined,
   dockerRecoveryRequired: undefined as boolean | undefined,
+  docker: undefined as RunnerdHealth['docker'],
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -213,6 +215,9 @@ beforeAll(() => {
           ...(fakeHealth.dockerRecoveryRequired === undefined
             ? {}
             : { dockerRecoveryRequired: fakeHealth.dockerRecoveryRequired }),
+          ...(fakeHealth.docker === undefined
+            ? {}
+            : { docker: fakeHealth.docker }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
@@ -675,6 +680,7 @@ beforeEach(() => {
   fakeHealth.liveExecs = 0;
   fakeHealth.dockerReady = undefined;
   fakeHealth.dockerRecoveryRequired = undefined;
+  fakeHealth.docker = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -5523,6 +5529,27 @@ describe('sweep and adoption hygiene', () => {
     fakeHealth.lastActivityAtMs = now - 31 * 60_000;
     expect(await routes.sweepExpired(now)).toBe(1);
     expect(stopped.has('dind-1')).toBe(true);
+  });
+
+  test('a released Docker-in-sandbox agent session keeps the full idle window only once its engine has run', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      fakeBackend,
+    );
+    await create(routes, 'dind-used', 'agent');
+    await release(routes, 'dind-used');
+    const now = Date.now();
+    fakeHealth.lastActivityAtMs = now - 6 * 60_000;
+    // A slept engine still holds its image store.
+    fakeHealth.docker = { engine: 'stopped', used: true };
+    expect(await routes.sweepExpired(now)).toBe(0);
+    fakeHealth.docker = { engine: 'running', used: true };
+    expect(await routes.sweepExpired(now)).toBe(0);
+    // Never started: nothing to re-pull, so the short window applies.
+    fakeHealth.docker = { engine: 'cold', used: false };
+    expect(await routes.sweepExpired(now)).toBe(1);
+    expect(stopped.has('dind-used')).toBe(true);
+    expect(destroyed.size).toBe(0);
   });
 
   test('a running session whose runnerd stays unreachable is stopped after five sweeps', async () => {
