@@ -726,6 +726,8 @@ export function InspectorTabs({
 type FieldMarks = {
   diagnostics: readonly CodeEditorDiagnostic[];
   diagnosticsFor: string;
+  /** The same problems placed in another text of the value (JSON). */
+  diagnosticsAt: (text: string) => readonly CodeEditorDiagnostic[];
 };
 
 /**
@@ -875,19 +877,17 @@ export function NodeFields({
           : ''
         : jsonFieldText(value);
     const views = fieldViews.get(field) ?? [];
-    return {
-      diagnostics:
-        nodeIndex === undefined || views.length === 0
-          ? []
-          : fieldDiagnostics({
-              views,
-              fieldPointer: ptr('nodes', nodeIndex, field),
-              text,
-              kind,
-              t,
-            }),
-      diagnosticsFor: text,
-    };
+    const at = (shown: string): readonly CodeEditorDiagnostic[] =>
+      nodeIndex === undefined || views.length === 0
+        ? []
+        : fieldDiagnostics({
+            views,
+            fieldPointer: ptr('nodes', nodeIndex, field),
+            text: shown,
+            kind,
+            t,
+          });
+    return { diagnostics: at(text), diagnosticsFor: text, diagnosticsAt: at };
   };
   const providersOf = (
     source: Parameters<typeof automationProviders>[0]['field'],
@@ -1000,6 +1000,7 @@ export function NodeFields({
             issues={issueLines}
             diagnostics={marks.diagnostics}
             diagnosticsFor={marks.diagnosticsFor}
+            diagnosticsAt={marks.diagnosticsAt}
             diagnosticsStatus={context.diagnosticsStatus}
             readOnly={readOnly}
             minRows={editor.minRows}

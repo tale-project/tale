@@ -58,6 +58,45 @@ describe('JsonCodeField', () => {
     expect(onValue).toHaveBeenLastCalledWith({ a: 1 });
   });
 
+  // REGRESSION: a problem was placed against the two-space JSON the check
+  // read; in a value the author had formatted another way it lost its mark
+  // and its fix.
+  it('places the check’s problems in the author’s own text of the value', async () => {
+    const checked = { channel: '#ops' };
+    const placedIn = vi.fn((text: string) => {
+      const at = text.indexOf('#ops');
+      return [
+        {
+          id: 'issue-1',
+          severity: 'error' as const,
+          message: 'Unknown channel',
+          range: [at, at + 4] as const,
+        },
+      ];
+    });
+    function Checked() {
+      const [value, setValue] = useState<unknown>(checked);
+      return (
+        <JsonCodeField
+          label="Input"
+          value={value}
+          expect="object"
+          anchor={null}
+          readOnly={false}
+          onCommit={setValue}
+          diagnosticsFor={jsonFieldText(checked)}
+          diagnostics={placedIn(jsonFieldText(checked))}
+          diagnosticsAt={placedIn}
+        />
+      );
+    }
+    const { user } = render(<Checked />);
+    const box = screen.getByRole('textbox', { name: 'Input' });
+    await user.clear(box);
+    await user.type(box, '{{"channel":"#ops"}');
+    expect(placedIn).toHaveBeenLastCalledWith('{"channel":"#ops"}');
+  });
+
   it('takes a value that changed for another reason', async () => {
     const { user } = render(<Owner initial={{ a: 1 }} />);
     await user.click(screen.getByRole('button', { name: 'replace' }));
