@@ -163,6 +163,16 @@ offers setup, and failed discovery keeps Home's Inbox navigation visible.
 `app/features/home/hooks/use-home-data.test.tsx` own these controls. Real-browser
 layout and screen-reader announcements remain manual.
 
+Guardrails recent events distinguish a failed read from a successful empty list.
+An accessible error and Retry preserve the policy status cards and filters;
+retry stays disabled while fetching, repeated failure keeps the error, and
+recovery shows the empty state or recorded events. The error and Retry stay
+mounted through a cold retry’s pending state. Failed refreshes keep the last
+successful rows visible beside the error and Retry. Real TanStack query lifecycles
+in `app/features/settings/governance/components/guardrails-overview.test.tsx`
+own these controls. Real-browser layout and screen-reader announcements
+remain manual.
+
 Legal matter editing preserves retained 2500- and 4000-character descriptions
 when only the name changes. Creation accepts trimmed fields at the API limits
 (300-character name, 200-character case number, 4000-character description).

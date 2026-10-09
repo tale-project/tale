@@ -717,6 +717,10 @@ guardrailsOverview:
       Les 50 dernières détections / blocages / erreurs du fournisseur
       pour cette organisation. Le texte correspondant brut n'est jamais
       stocké.
+    error:
+      title: Impossible de charger les événements récents
+      description: Les événements récents des garde-fous sont indisponibles. Réessaie pour vérifier les détections, les blocages et les erreurs.
+      retry: Réessayer
     filterPii: DCP
     filterChatFilter: Sécurité du contenu
     filterModeration: Modération
