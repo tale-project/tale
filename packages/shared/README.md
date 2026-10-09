@@ -81,6 +81,12 @@ process and terminal dependencies out of frontend bundles.
 
 - **`@tale/shared/utils/hashing`** — `computeContentHash(string | Uint8Array)`, the SHA-256
   hex digest the knowledge index dedups content by.
+- **`@tale/shared/utils/stable-stringify`** — `stableStringify(value)`, JSON with every
+  object's keys sorted (a value JSON cannot hold reads as `null`). Pure: the automation
+  engine and the browser compare values with it.
+- **`@tale/shared/utils/configuration-hash`** — `configurationHash(value)`, the SHA-256 of
+  that key-sorted JSON: a native configuration resource's `hash`, and the `expectedHash`
+  a write takes back. Server-only (Node's crypto); a golden corpus pins every digest.
 
 ## Development
 

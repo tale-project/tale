@@ -17,6 +17,8 @@
     "./tux": "./src/tux/index.ts",
     "./process": "./src/process/index.ts",
     "./utils/hashing": "./src/utils/hashing.ts",
+    "./utils/configuration-hash": "./src/utils/configuration-hash.ts",
+    "./utils/stable-stringify": "./src/utils/stable-stringify.ts",
     "./utils/site-urls": "./src/utils/site-urls.ts",
     "./schemas/branding": "./src/schemas/branding.ts",
     "./schemas/deployment": "./src/schemas/deployment.ts",

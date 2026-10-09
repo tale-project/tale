@@ -29,6 +29,10 @@ const PURE_SHARED_HELPERS = [
     '../../../../packages/shared/src/automation-name.ts',
   ),
   path.resolve(ENGINE_ROOT, '../shared/utils/stable-stringify.ts'),
+  path.resolve(
+    ENGINE_ROOT,
+    '../../../../packages/shared/src/utils/stable-stringify.ts',
+  ),
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -84,6 +88,7 @@ describe('engine purity', () => {
     const allowedPackages = new Set([
       'ajv',
       '@tale/shared/automation-name',
+      '@tale/shared/utils/stable-stringify',
       'acorn',
       'estree',
       'is-reference',

@@ -36,6 +36,7 @@
         "$TURBO_ROOT$/docs/en/platform/**",
         "$TURBO_ROOT$/knip.config.ts",
         "$TURBO_ROOT$/packages/shared/src/automation-name.ts",
+        "$TURBO_ROOT$/packages/shared/src/utils/stable-stringify.ts",
         "$TURBO_ROOT$/packages/ui/package.json",
         "$TURBO_ROOT$/packages/ui/src/**",
         "$TURBO_ROOT$/packages/ui/tailwind-preset.ts",
