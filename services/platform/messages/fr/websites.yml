@@ -110,6 +110,7 @@ searchNotice:
 pagesDialog:
   title: Pages du site web
   noPages: Aucune page explorée pour le moment
+  loadFailed: Impossible de charger les pages du site web.
   loadMore: Charger plus
   wordCount: '{count} mots'
   chunks: '{count} fragments'

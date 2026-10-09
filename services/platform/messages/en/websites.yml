@@ -105,6 +105,7 @@ searchNotice:
 pagesDialog:
   title: Website pages
   noPages: No pages crawled yet
+  loadFailed: Couldn't load the website's pages.
   loadMore: Load more
   wordCount: '{count} words'
   chunks: '{count} chunks'

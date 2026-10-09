@@ -3,6 +3,7 @@
 import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { EmptyState } from '@tale/ui/empty-state';
@@ -352,6 +353,10 @@ export function WebsiteViewDialog({
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const [isFirstLoad, setIsFirstLoad] = useState(true);
+  // Failed reads since the list last read, kept until one reads: with no
+  // page on screen the list says it could not read them, not that the site
+  // has none (each failure is announced again).
+  const [readFailures, setReadFailures] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeQuery, setActiveQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CrawlerSearchResult[]>([]);
@@ -393,10 +398,18 @@ export function WebsiteViewDialog({
         }
         setHasMore(data.hasMore);
         setIsFirstLoad(false);
+        setReadFailures(0);
       },
-      onError: () => {
+      onError: (_error, args) => {
+        // A read for a state the reader has left says nothing of this list.
+        if ((args.state ?? 'all') !== pageStateRef.current) return;
         setIsFirstLoad(false);
-        toast({ title: t('toast.fetchPagesError'), variant: 'destructive' });
+        setReadFailures((count) => count + 1);
+        // Rows already shown stay, and "Load more" asks for the same window
+        // again; with none, the list itself shows the failure.
+        if (shownPages.current > 0) {
+          toast({ title: t('toast.fetchPagesError'), variant: 'destructive' });
+        }
       },
     },
   );
@@ -414,6 +427,7 @@ export function WebsiteViewDialog({
       setOffset(0);
       setHasMore(false);
       setIsFirstLoad(true);
+      setReadFailures(0);
       setSearchQuery('');
       setActiveQuery('');
       setSearchResults([]);
@@ -469,8 +483,11 @@ export function WebsiteViewDialog({
     );
   }, [searchQuery, t, website._id, searchContent]);
 
+  // The window after the rows on screen: a "Load more" that failed is asked
+  // for again, not skipped — its successor's answer did not continue the
+  // list, and was dropped.
   const loadMore = useCallback(() => {
-    const nextOffset = offset + PAGE_SIZE;
+    const nextOffset = shownPages.current;
     setOffset(nextOffset);
     fetchPages({
       websiteId: website._id,
@@ -478,7 +495,24 @@ export function WebsiteViewDialog({
       limit: PAGE_SIZE,
       ...pageStateArg(pageState),
     });
-  }, [offset, pageState, website._id, fetchPages]);
+  }, [pageState, website._id, fetchPages]);
+
+  // A retry replaces the control that ran it (with the pages once they are
+  // back), so focus moves onto the section first instead of falling back to
+  // the dialog.
+  const pagesSectionRef = useRef<HTMLElement>(null);
+  const focusPagesSection = useCallback(() => {
+    pagesSectionRef.current?.focus();
+  }, []);
+  const retryPages = useCallback(() => {
+    focusPagesSection();
+    fetchPages({
+      websiteId: website._id,
+      offset: 0,
+      limit: PAGE_SIZE,
+      ...pageStateArg(pageState),
+    });
+  }, [focusPagesSection, pageState, website._id, fetchPages]);
 
   // Another state: the list starts over from its first window.
   const selectPageState = useCallback(
@@ -491,6 +525,7 @@ export function WebsiteViewDialog({
       setOffset(0);
       setHasMore(false);
       setIsFirstLoad(true);
+      setReadFailures(0);
       fetchPages({
         websiteId: website._id,
         offset: 0,
@@ -749,6 +784,7 @@ export function WebsiteViewDialog({
               ) : null}
             </>
           }
+          focusRef={pagesSectionRef}
         >
           {/* The pages' own failures explain a scan that stored nothing
               because they failed; they do not explain one the embedding
@@ -827,7 +863,16 @@ export function WebsiteViewDialog({
                   ]}
                 />
               ) : null}
-              {!isFirstLoad && pages.length === 0 && (
+              {readFailures > 0 && pages.length === 0 ? (
+                <CatalogLoadError
+                  failureKey={readFailures}
+                  onFocusLost={focusPagesSection}
+                  message={t('pagesDialog.loadFailed')}
+                  onRetry={retryPages}
+                  isRetrying={isPending}
+                />
+              ) : null}
+              {!isFirstLoad && readFailures === 0 && pages.length === 0 && (
                 <EmptyState
                   icon={FileText}
                   title={
