@@ -270,4 +270,79 @@ describe('DataTable keeps the focus in the list when a row leaves (#3791)', () =
     expect(screen.queryByText('Beta')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus();
   });
+
+  describe('when background restoration emits no bubbling focusin', () => {
+    async function restoreWithoutFocusIn(
+      user: ReturnType<typeof render>['user'],
+    ) {
+      const { dialog, trigger } = await openDelete(user, 'Alpha');
+      let omitted = 0;
+      const omitRestoredFocusIn = (event: FocusEvent) => {
+        if (event.target === trigger) {
+          omitted++;
+          event.stopPropagation();
+        }
+      };
+      // Chromium can update activeElement while its page is unfocused without
+      // delivering focusin to the table. Keep the real focus and dialog close;
+      // omit only that notification, after the opener was already captured.
+      document.addEventListener('focusin', omitRestoredFocusIn, true);
+      try {
+        within(dialog).getByRole('button', { name: 'Delete' }).focus();
+        await user.keyboard('{Enter}');
+        await waitFor(() => {
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+          expect(trigger).toHaveFocus();
+        });
+        expect(omitted).toBeGreaterThan(0);
+      } finally {
+        document.removeEventListener('focusin', omitRestoredFocusIn, true);
+      }
+    }
+
+    it.each([
+      { initial: [ALPHA], successor: 'Create team' },
+      { initial: [ALPHA, BETA], successor: 'Actions for Beta' },
+    ])(
+      'keeps focus on $successor after the refetch removes the restored row',
+      async ({ initial, successor }) => {
+        const { user } = render(
+          <Teams initial={initial} order="after-close" />,
+        );
+        await restoreWithoutFocusIn(user);
+        await landRefetches();
+
+        await waitFor(() => {
+          expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+          expect(screen.getByRole('button', { name: successor })).toHaveFocus();
+        });
+        await user.tab();
+        expect(screen.getByRole('main')).toContainElement(
+          document.activeElement as HTMLElement,
+        );
+      },
+    );
+
+    it.each([false, true])(
+      'clears ownership when focus moves outside, even if that control is later blurred: %s',
+      async (blurOutside) => {
+        const { user } = render(
+          <>
+            <Teams initial={[ALPHA, BETA]} order="after-close" />
+            <button type="button">Elsewhere</button>
+          </>,
+        );
+        await restoreWithoutFocusIn(user);
+        const outside = screen.getByRole('button', { name: 'Elsewhere' });
+        outside.focus();
+        if (blurOutside) outside.blur();
+        await landRefetches();
+
+        expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
+        expect(document.activeElement).toBe(
+          blurOutside ? document.body : outside,
+        );
+      },
+    );
+  });
 });

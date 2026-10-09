@@ -37,6 +37,14 @@ function isTransientOpener(element: HTMLElement): boolean {
 export const RESTORE_FOCUS_LOST_EVENT = 'tale:restore-focus-lost';
 
 /**
+ * A verified overlay return to this element. An unfocused browser page can
+ * update activeElement without delivering native focusin, so a list needs
+ * this notification to track a restored row until its refetch removes it.
+ * Bubbles from the actual focused target; it never requests a focus move.
+ */
+export const RESTORE_FOCUS_RETURNED_EVENT = 'tale:restore-focus-returned';
+
+/**
  * Focuses `element` if it is still in the document, and says whether it took
  * the focus: a disabled control does not, and neither does `<body>`, which
  * is no place to return to.
@@ -54,7 +62,11 @@ function focusIfAble(
     return false;
   }
   element.focus(options);
-  return element.ownerDocument.activeElement === element;
+  if (element.ownerDocument.activeElement !== element) return false;
+  element.dispatchEvent(
+    new CustomEvent(RESTORE_FOCUS_RETURNED_EVENT, { bubbles: true }),
+  );
+  return true;
 }
 
 /** `element`'s ancestors below `<body>`, nearest first. */

@@ -2,7 +2,11 @@ import { renderHook } from '@testing-library/react';
 import { createRef } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { RESTORE_FOCUS_LOST_EVENT, useRestoreFocus } from './use-restore-focus';
+import {
+  RESTORE_FOCUS_LOST_EVENT,
+  RESTORE_FOCUS_RETURNED_EVENT,
+  useRestoreFocus,
+} from './use-restore-focus';
 
 describe('useRestoreFocus', () => {
   afterEach(() => {
@@ -26,12 +30,23 @@ describe('useRestoreFocus', () => {
     inner.focus();
     expect(document.activeElement).toBe(inner);
 
+    const returned: Event[] = [];
+    const recordReturn = (returnedEvent: Event) => returned.push(returnedEvent);
+    document.body.addEventListener(RESTORE_FOCUS_RETURNED_EVENT, recordReturn);
+
     // Closing fires onCloseAutoFocus; the opener should regain focus.
     const event = new Event('close', { cancelable: true });
     result.current(event);
+    document.body.removeEventListener(
+      RESTORE_FOCUS_RETURNED_EVENT,
+      recordReturn,
+    );
 
     expect(event.defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(trigger);
+    expect(returned).toHaveLength(1);
+    expect(returned[0]?.target).toBe(trigger);
+    expect(returned[0]?.bubbles).toBe(true);
   });
 
   it('refocuses the fallback when the opener has been removed from the DOM', () => {
@@ -114,6 +129,27 @@ describe('useRestoreFocus', () => {
     result.current(event);
 
     // Radix keeps its default behaviour — we do not preventDefault.
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('does not announce a return to a disabled opener that cannot take focus', () => {
+    const trigger = document.createElement('button');
+    const inner = document.createElement('input');
+    document.body.append(trigger, inner);
+    trigger.focus();
+    const { result } = renderHook(() => useRestoreFocus(true));
+    inner.focus();
+    trigger.disabled = true;
+    const returned: Event[] = [];
+    trigger.addEventListener(RESTORE_FOCUS_RETURNED_EVENT, (event) =>
+      returned.push(event),
+    );
+
+    const event = new Event('close', { cancelable: true });
+    result.current(event);
+
+    expect(returned).toHaveLength(0);
+    expect(inner).toHaveFocus();
     expect(event.defaultPrevented).toBe(false);
   });
 
