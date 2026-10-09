@@ -114,9 +114,11 @@ common:
     deleting: Suppression...
     discard: Abandonner
     openMenu: Ouvrir le menu
+    readMore: Lire la suite
     reset: Réinitialiser
     save: Enregistrer
     saved: Enregistré
+    showLess: Afficher moins
     source: Source
     tryAgain: Réessayer
     loading: Chargement...
@@ -434,3 +436,8 @@ issues:
   technicalDetails: Détails techniques
   learnMore: En savoir plus
   goTo: Y aller
+mentions:
+  listboxLabel: Mentionner quelqu’un
+  empty: Aucun résultat
+  inserted: Mention de {name} ajoutée
+  removed: Mention de {name} retirée

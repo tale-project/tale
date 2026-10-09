@@ -55,6 +55,7 @@ import {
   provisionProviders,
   requireGatewayAdminPassword,
   resolveGatewayRouting,
+  scheduleProviderPoolShrink,
   type AllowedModelRef,
   type GatewayReuseOptions,
   type ProviderProvision,
@@ -470,6 +471,11 @@ async function provisionSessionGatewayKeyInner(
   }
 
   await applyGatewayConfig(reuse);
+  // A provision resizes only the records it names. Once the gateway answered
+  // with its posture applied, the first provision of this process schedules
+  // the resize of every other record a few minutes later, in the background:
+  // nothing here waits for it, and it never rejects.
+  scheduleProviderPoolShrink();
 
   await pushModelPricing(ctx, args);
 

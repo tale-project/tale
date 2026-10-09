@@ -23,10 +23,12 @@ cache volumes per organization. Container/network names include a bounded hash
 of the case-sensitive organization ID; full `tale.org` labels are checked before
 reuse. A same-name resource with missing or different ownership is refused.
 
-Each organization also gets a separate `registry:2` pull-through mirror for
-`docker.io`, `ghcr.io`, and `quay.io`. The daemon and mirrors join only their
-organization's bridge, without published ports. Sessions also retain the shared
-control network for runnerd, Platform, and the model gateway.
+Each organization also gets a separate pull-through mirror for `docker.io`,
+`ghcr.io`, and `quay.io`: stock registry 2.8.3, pinned by digest
+(`SANDBOX_BUILDKITD_MIRROR_IMAGE` overrides it). The buildkit binaries this
+image copies are pinned by version and digest as well. The daemon and mirrors
+join only their organization's bridge, without published ports. Sessions also
+retain the shared control network for runnerd, Platform, and the model gateway.
 
 ## Keep build traffic isolated
 

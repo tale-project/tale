@@ -10,6 +10,7 @@ import {
   sessionReleaseIdle,
   sessionReleaseTicket,
   SpawnerBusyError,
+  SpawnerUnreachableError,
 } from './session_client.ts';
 
 beforeEach(() => {
@@ -17,9 +18,27 @@ beforeEach(() => {
   vi.stubEnv('SANDBOX_URL', 'http://sandbox.test');
 });
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
+
+/** The spawner's answer while a create of the id is in flight, its backend
+ * listing timed out, or the container is still starting. */
+function sessionUnavailable(): Response {
+  return Response.json(
+    { error: 'session_unavailable' },
+    { status: 503, headers: { 'retry-after': '1' } },
+  );
+}
+
+/** What the runtime's fetch throws when the spawner does not take the
+ * connection: the syscall's code rides the failure's `cause`. */
+function connectionFailure(code: string): TypeError {
+  return new TypeError('fetch failed', {
+    cause: Object.assign(new Error(`connect ${code} 10.0.0.7:8003`), { code }),
+  });
+}
 
 describe('runtime acquisition and release transport', () => {
   it('forwards watchdog cancellation into the signed cleanup request', async () => {
@@ -237,4 +256,91 @@ it('reads liveness and runtime pin in one GET, preserving unknown older shapes',
   expect(await sessionObserve('legacy')).toEqual({});
   expect(await sessionObserve('gone')).toBeNull();
   expect(fetcher).toHaveBeenCalledTimes(4);
+});
+
+describe('a warm acquire across transient spawner answers', () => {
+  it('asks again at the retry-after while the spawner answers session_unavailable', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(sessionUnavailable())
+      .mockResolvedValueOnce(sessionUnavailable())
+      .mockResolvedValueOnce(Response.json({ generation: 'use-1' }));
+    vi.stubGlobal('fetch', fetcher);
+
+    const acquired = sessionAcquire('session-1');
+    await vi.advanceTimersByTimeAsync(999);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_001);
+
+    await expect(acquired).resolves.toBe(true);
+    expect(fetcher).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails once session_unavailable outlasts its 20-second budget', async () => {
+    vi.useFakeTimers();
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementation(async () => sessionUnavailable());
+    vi.stubGlobal('fetch', fetcher);
+
+    const acquired = sessionAcquire('session-1').catch(
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(19_000);
+    expect(fetcher).toHaveBeenCalledTimes(20);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    const error = await acquired;
+    expect(error).toBeInstanceOf(Error);
+    expect(String(error)).toMatch(/Sandbox acquisition unavailable \(503\)/);
+    expect(fetcher).toHaveBeenCalledTimes(21);
+  });
+
+  it.each(['ECONNREFUSED', 'ECONNRESET', 'EAI_AGAIN'])(
+    'waits out a restarting spawner that answers %s',
+    async (code) => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockRejectedValueOnce(connectionFailure(code))
+        .mockRejectedValueOnce(connectionFailure(code))
+        .mockResolvedValueOnce(Response.json({ generation: 'use-1' }));
+      vi.stubGlobal('fetch', fetcher);
+
+      const acquired = sessionAcquire('session-1');
+      // A doubling backoff: 250 ms, then 500 ms.
+      await vi.advanceTimersByTimeAsync(750);
+
+      await expect(acquired).resolves.toBe(true);
+      expect(fetcher).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  it('fails a spawner that stays away past the budget, and any other connection failure at once', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const refused = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(connectionFailure('ECONNREFUSED'));
+    vi.stubGlobal('fetch', refused);
+    const acquired = sessionAcquire('session-1').catch(
+      (error: unknown) => error,
+    );
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(await acquired).toBeInstanceOf(SpawnerUnreachableError);
+    // 250 + 500 + 1000 + 2000 + 4000 + 5000 + 5000 ms of waits fit in 20 s.
+    expect(refused).toHaveBeenCalledTimes(8);
+
+    const misnamed = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(connectionFailure('ENOTFOUND'));
+    vi.stubGlobal('fetch', misnamed);
+    await expect(sessionAcquire('session-1')).rejects.toBeInstanceOf(
+      SpawnerUnreachableError,
+    );
+    expect(misnamed).toHaveBeenCalledTimes(1);
+  });
 });

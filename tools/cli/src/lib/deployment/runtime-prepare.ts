@@ -385,13 +385,21 @@ export async function prepareRuntime(
   const sandboxEnvironment = z
     .record(z.string(), z.unknown())
     .parse(compose.services.sandbox.environment);
+  // The source names the stock registry mirror by tag, or by version and
+  // digest; the bundle pins whichever it names.
+  const mirror =
+    typeof sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE === 'string'
+      ? /^\$\{SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry(?::([A-Za-z0-9_.-]+))?(?:@(sha256:[a-f0-9]{64}))?\}$/.exec(
+          sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE,
+        )
+      : null;
+  const mirrorPin = mirror?.[2] ?? mirror?.[1];
   requireRuntime(
     sandboxEnvironment.SANDBOX_RUNTIME_IMAGE ===
       '${SANDBOX_RUNTIME_IMAGE:-tale-sandbox-runtime:latest}' &&
       sandboxEnvironment.SANDBOX_BUILDKITD_IMAGE ===
         '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}' &&
-      sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE ===
-        '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
+      mirrorPin !== undefined,
     'Runtime sandbox image routing changed.',
   );
   sandboxEnvironment.SANDBOX_RUNTIME_IMAGE = images.get(
@@ -402,7 +410,7 @@ export async function prepareRuntime(
   )?.reference;
   // The pull-through mirror is another spawner-created image, outside Compose.
   sandboxEnvironment.SANDBOX_BUILDKITD_MIRROR_IMAGE = (
-    await getImage('registry', '2')
+    await getImage('registry', mirrorPin)
   ).reference;
   compose.services.sandbox.environment = sandboxEnvironment;
   const sandboxVolumes = z

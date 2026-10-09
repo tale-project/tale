@@ -37,6 +37,11 @@ import { useT } from '@/lib/i18n/client';
 import { taskRunFailureClass } from '@/lib/shared/task-run-failure';
 
 import { useTaskAgentRunControls } from '../hooks/use-task-agent-run-controls';
+import {
+  isAgentRunWaiting,
+  TaskAgentRunWaitingNote,
+  waitingCopyKey,
+} from './task-agent-run-waiting';
 
 interface TaskAgentRunEntryProps {
   organizationId: string;
@@ -279,10 +284,10 @@ export function TaskAgentRunEntry({
     );
   }
 
-  const statusLabel =
-    run.status === 'queued' && run.waitingForCapacity === true
-      ? t('agentRun.waitingForSlot')
-      : t(`agentRun.status.${run.status}`);
+  const waiting = isAgentRunWaiting(run);
+  const statusLabel = waiting
+    ? t(`agentRun.waiting.${waitingCopyKey(run.waitingReason)}`)
+    : t(`agentRun.status.${run.status}`);
 
   return (
     <Stack gap={1} className="min-w-0">
@@ -343,6 +348,14 @@ export function TaskAgentRunEntry({
           </Button>
         ) : null}
       </Row>
+      {/* A waiting run says why it waits, so nobody reads a long wait as a
+          stuck run (and Stop withdraws it like any live run). */}
+      {waiting ? (
+        <TaskAgentRunWaitingNote
+          organizationId={organizationId}
+          reason={run.waitingReason}
+        />
+      ) : null}
       {/* A run the platform re-kicked by itself says so — otherwise a user
           who watched the run fail sees it silently "running" again and
           cannot tell their Retry from the machine's. A resume after the

@@ -16,6 +16,7 @@ describe('collect', () => {
       'services/worker/tests/manual/readme.md': '# Manual tests\n',
       'node_modules/pkg/tests/manual/readme.md': '# not ours\n',
       'services/app/dist/tests/manual/readme.md': '# built\n',
+      'services/app/tests/manual/reference/automation/smoke.md': '# Smoke\n',
     });
     cleanup = fixture.cleanup;
 
@@ -32,6 +33,10 @@ describe('collect', () => {
     expect(app.readme?.text).toContain('## The suites');
     expect(app.referenceEntries).toContain('pins.md');
     expect(app.journal?.name).toBe('readme.md');
+    expect(app.automationShards.map((d) => d.path)).toEqual([
+      'services/app/tests/manual/reference/automation/smoke.md',
+    ]);
+    expect(app.reference.map((d) => d.name)).not.toContain('smoke.md');
   });
 
   test('a partial tree reads as partial rather than throwing', () => {
@@ -45,6 +50,7 @@ describe('collect', () => {
     expect(root.readme).toBeUndefined();
     expect(root.suites).toEqual([]);
     expect(root.reference).toEqual([]);
+    expect(root.automationShards).toEqual([]);
     expect(root.journal).toBeUndefined();
   });
 

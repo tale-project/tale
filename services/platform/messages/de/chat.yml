@@ -47,7 +47,6 @@ createTask:
 taskTray:
   label: Aufgaben aus diesem Chat
   working: Der Agent arbeitet
-  waitingForSlot: Wartet auf einen Sandbox-Platz
   retrying: Wird erneut versucht…
   failed: Der Agent konnte sie nicht fertigstellen
   ready: Bereit zur Prüfung
@@ -305,8 +304,6 @@ fallback:
   image: Bild
 loadingConversation: Lädt die Unterhaltung…
 speakOutLoud: Vorlesen
-showMore: Mehr anzeigen
-showLess: Weniger anzeigen
 scrollToBottom: Nach unten scrollen
 messageInfo:
   title: Nachrichteninformation
@@ -467,6 +464,9 @@ skills:
   unavailableOption: '"{slug}" (nicht verfügbar)'
   emptyConnectors: Noch keine Connectors hinzugefügt.
   emptyTools: Keine Plattform-Tools verfügbar.
+  searchLabel: Skills, Connectors und Tools durchsuchen
+  searchPlaceholder: Suchen…
+  searchEmpty: Nichts passt zu deiner Suche.
 generation:
   regionLabel: Status der Antwort
   queued: In der Warteschlange — startet gleich

@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -7,13 +5,19 @@ import {
   mergeTimelineParts,
   type TimelinePart,
 } from '../../../lib/harnesses/timeline';
+import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
-import type { MentionSource } from '../../core/tasks/mentions.ts';
+import {
+  cutTaskText,
+  type MentionSource,
+  relabelTaskMentions,
+} from '../../core/tasks/mentions.ts';
 import { toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import type { ShimHandlers, ShimScheduler } from '../../lib/ctx-shim.ts';
+import { currentMentionNames } from '../collab/mention-directory.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { orgAdapterShimHandlers } from '../knowledge/service.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
@@ -38,13 +42,13 @@ import {
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
 import {
-  emitTaskRunHint,
   failAgentRunFromTurn,
   isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
+import { parkAgentRunInTx } from './agent-workers.ts';
 import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
@@ -156,7 +160,13 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:setTaskAgentRunRunning': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; execId: string };
+      const args = raw as {
+        runId: string;
+        execId: string;
+        /** The deadline the start works to; an image that passes none
+         * keeps the kick's. */
+        deadlineAt?: number;
+      };
       // Exec-fenced: a start whose exec the queued-run recovery rotated away
       // (or whose run was cancelled) learns it here and stands down instead
       // of spawning — the host reads the boolean.
@@ -398,51 +408,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
          * pass for a quarter hour of progress — and onto a fresh exec, since
          * the refused one's key and op row are closed as cancelled. */
         execRefused?: boolean;
+        /** Why it waits (`runParkReason`); absent when the refusal has no
+         * wording of its own. */
+        reason?: AgentRunWaitingReason;
       };
-      const parked = await sql.begin(async (tx) => {
-        const now = Date.now();
-        const rows = await tx<
-          {
-            organizationId: string;
-            taskId: string;
-            agentId: string;
-            execId: string;
-          }[]
-        >`
-          UPDATE app.project_agent_runs SET
-            status = 'queued',
-            exec_id = ${args.execRefused === true ? randomUUID() : args.execId},
-            launched_at_ms = CASE WHEN ${args.execRefused === true}
-              THEN NULL ELSE launched_at_ms END,
-            waiting_for_capacity_at_ms = ${now},
-            updated_at_ms = ${now}
-          WHERE id = ${args.runId} AND exec_id = ${args.execId}
-            AND status = ${args.execRefused === true ? 'running' : 'queued'}
-          RETURNING org_id AS "organizationId", task_id AS "taskId",
-            agent_id AS "agentId", exec_id AS "execId"
-        `;
-        // The card now reads "Waiting for a sandbox slot", not "Queued".
-        const row = rows[0];
-        if (row !== undefined) {
-          await emitTaskRunHint(tx, {
-            organizationId: row.organizationId,
-            taskId: row.taskId,
-          });
-          if (args.wakeAfterMs !== undefined && args.wakeAfterMs > 0) {
-            await addJobInTx(
-              tx,
-              'task.agent_park_wake',
-              {
-                organizationId: row.organizationId,
-                runId: args.runId,
-                execId: row.execId,
-              },
-              { startAfter: new Date(Date.now() + args.wakeAfterMs) },
-            );
-          }
-        }
-        return row;
-      });
+      const parked = await sql.begin((tx) => parkAgentRunInTx(tx, args));
       // A parked run holds no slot: a standing workspace its start resumed
       // before the sandbox host refused the create reads `active` with no
       // compute, where the reconcile would heal it to destroyed. Free it back
@@ -471,10 +441,12 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           projectId: string;
           attachments: unknown;
           outputs: unknown;
+          organizationId: string;
         }[]
       >`
         SELECT title, description, label_ids AS "labelIds", number,
-               project_id AS "projectId", attachments, outputs
+               project_id AS "projectId", attachments, outputs,
+               org_id AS "organizationId"
         FROM app.tasks WHERE id = ${args.taskId} LIMIT 1
       `;
       const task = tasks[0];
@@ -528,20 +500,32 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
               }))
               .filter((entry) => entry.fileId !== '' && entry.fileName !== '')
           : [];
+      // The agent reads each mention with the CURRENT name of whoever it
+      // names: the address is what it acts on, the name what it calls them.
+      const names = await currentMentionNames(sql, task.organizationId, [
+        task.description ?? '',
+        ...discussion.map((entry) => entry.body),
+      ]);
       return {
         title: task.title,
-        ...(task.description !== null ? { description: task.description } : {}),
+        ...(task.description !== null
+          ? { description: relabelTaskMentions(task.description, names) }
+          : {}),
         ...(labelNames.length > 0 ? { labels: labelNames } : {}),
         ...(identifier !== undefined ? { identifier } : {}),
         ...(project !== undefined ? { projectName: project.name } : {}),
-        discussion: discussion.map((entry) => ({
-          author: entry.authorType === 'user' ? 'user' : 'agent',
-          body:
-            entry.body.length > 2000
-              ? `${entry.body.slice(0, 2000)}\n… (truncated)`
-              : entry.body,
-          at: entry.createdAt,
-        })),
+        discussion: discussion.map((entry) => {
+          const body = relabelTaskMentions(entry.body, names);
+          return {
+            author: entry.authorType === 'user' ? 'user' : 'agent',
+            // Never cut inside a mention.
+            body:
+              body.length > 2000
+                ? `${cutTaskText(body, 2000)}\n… (truncated)`
+                : body,
+            at: entry.createdAt,
+          };
+        }),
         attachments: fileList(task.attachments),
         outputs: fileList(task.outputs),
       };
@@ -865,9 +849,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The workspace of the turn that ended. */
         sessionId?: string;
       };
-      // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the oldest parked runs on the freed slot, and the oldest
-      // run parked on the ended turn's workspace.
+      // Stop each of the agent's workers no live run names — and wake the
+      // next parked runs on a freed slot, or the agent's oldest parked run
+      // when the ended turn's worker stayed up.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 

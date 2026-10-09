@@ -22,12 +22,14 @@
 #   HTTPS_PROXY / HTTP_PROXY  -> http://sandbox-egress:3128
 #   TALE_DIND / TALE_TRANSPARENT_EGRESS  -> feature signals
 #   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env
+#   TALE_RUNNERD_INCARNATION  -> creation stamp runnerd names in its answers
 #
 # Conventions:
 #   - The session workspace is /agent (host bind / PVC). HOME and the
 #     per-session dependency roots live under /agent/.runtime/ so they survive
 #     every exec and container restart within the session.
-#   - Exec temp is /agent/.runtime/tmp (wiped at every container start).
+#   - Exec temp is /agent/.runtime/tmp (set aside at every container start
+#     and deleted in the background; the Docker spawner moves it out on stop).
 #
 # Exit codes:
 #   65  = bad invocation (unknown dispatch arg)
@@ -52,6 +54,7 @@ TALE_DIND_INNER_BIP=""
 # iptables/ip6tables live in /usr/sbin, which the image ENV PATH deliberately
 # drops (keeps sbin tools off the agent PATH); call them by absolute path.
 _IPTABLES=/usr/sbin/iptables
+_REDSOCKS=/usr/sbin/redsocks
 _IP6TABLES=/usr/sbin/ip6tables
 # iproute2 `ip`, used by the SESSION transparent-egress path to add a default
 # route (see _ensure_default_route). Also in /usr/sbin (dropped from PATH).
@@ -360,7 +363,16 @@ _proxy_to_ip() {
     *[!0-9.]*) ;; # has non-digit/dot → a hostname, resolve it
     *) printf '%s' "$_url"; return 0 ;;
   esac
-  _ip="$(getent hosts "$_host" 2>/dev/null | awk 'NR==1{print $1}')"
+  # The egress container can be restarting or its name not yet registered
+  # with Docker's resolver when a session boots; one miss would leave the
+  # session without transparent egress for its whole life. Ask again for a
+  # few seconds before giving up (no wait at all when the first answer comes).
+  _ip=""
+  for _wait in 0 1 2 2; do
+    [ "$_wait" -gt 0 ] && sleep "$_wait"
+    _ip="$(getent hosts "$_host" 2>/dev/null | awk 'NR==1{print $1}')"
+    [ -n "$_ip" ] && break
+  done
   if [ -n "$_ip" ]; then
     printf '%s://%s%s' "$_scheme" "$_ip" "$_rest"
   else
@@ -525,10 +537,28 @@ _install_session_dns_dnat() {
 _launch_session_redsocks() {
   [ "${TALE_REDSOCKS_STARTED:-}" = "1" ] && return 0
   _write_redsocks_conf "${TALE_REDSOCKS_CONF}"
+  # The OUTPUT redirect sends every public connection of the session to
+  # redsocks, so a redsocks that died left the session without transparent
+  # egress until the container was recreated. It is kept running: the loop
+  # restarts it with a growing delay (back to 1 s after a minute's good run),
+  # and runs as the redsocks uid itself, so no root process stays behind.
   setpriv --reuid "${TALE_REDSOCKS_UID}" --regid "${TALE_REDSOCKS_UID}" --init-groups -- \
-    /usr/sbin/redsocks -c "${TALE_REDSOCKS_CONF}" >&2 &
+    /bin/sh -c "${_REDSOCKS_SUPERVISOR}" redsocks-supervisor "${_REDSOCKS}" "${TALE_REDSOCKS_CONF}" >&2 &
   TALE_REDSOCKS_STARTED=1
 }
+
+# The redsocks restart loop _launch_session_redsocks runs: $1 the binary, $2
+# its config. Ends with the container (tini signals the whole group).
+_REDSOCKS_SUPERVISOR='delay=1
+while :; do
+  started=$(date +%s)
+  "$1" -c "$2"
+  status=$?
+  [ $(( $(date +%s) - started )) -ge 60 ] && delay=1
+  echo "[redsocks] exited with status $status; restarting in ${delay}s" >&2
+  sleep "$delay"
+  [ "$delay" -lt 30 ] && delay=$((delay * 2))
+done'
 
 # Install transparent egress for the session's own processes (docker path). Runs
 # as root in the daemon dispatch BEFORE the setpriv drop. Idempotent; safe to call
@@ -822,6 +852,49 @@ setup_shared_buildx_builder() {
 }
 
 # ---------------------------------------------------------------------------
+# Exec temp left by an earlier incarnation. No exec is live at a container
+# (re)start, so whatever the runtime root's `tmp` holds is garbage, and it can
+# be large (runnerd's replay spool, pip and npm staging). Deleting it before
+# runnerd started held the session's readiness for as long as the delete
+# took, so it is renamed aside (one directory entry, whatever the tree holds)
+# and deleted in the background once runnerd is on its way. Both steps run as
+# the profile uid ($DROP): the workspace is the agent's to write, and a root
+# delete through a planted symbolic link could reach anything. `mv` renames a
+# symbolic link itself, never what it names, and the aside name is one that
+# does not exist yet, so the tree is never moved INTO an older leftover.
+# $1 is the runtime root (/agent/.runtime); the tests pass their own.
+# ---------------------------------------------------------------------------
+set_aside_exec_temp() {
+  _rt="${1:-/agent/.runtime}"
+  [ -e "$_rt/tmp" ] || [ -L "$_rt/tmp" ] || return 0
+  _aside="$_rt/tmp.old.$$"
+  while [ -e "$_aside" ] || [ -L "$_aside" ]; do _aside="$_aside.x"; done
+  # A rename that cannot happen falls back to the delete in place, and a tree
+  # neither can clear (an entry the profile uid may not remove) is left for
+  # the execs to use as it is: never a reason to fail the boot, which would
+  # fail every later start of the session too.
+  if ! { $DROP mv "$_rt/tmp" "$_aside" 2>/dev/null || $DROP rm -rf "$_rt/tmp"; }; then
+    echo "[entrypoint] WARN: could not clear the previous exec temp at $_rt/tmp; this session uses it as it is" >&2
+  fi
+}
+
+# Delete every aside tree in the background, at the lowest CPU and I/O
+# priority (`ionice -t` runs the delete even where the class cannot be set),
+# after a head start for runnerd ($2 seconds, 2 by default). A delete that a
+# stop cuts short is finished by the next start.
+purge_old_exec_temp() {
+  _rt="${1:-/agent/.runtime}"
+  _delay="${2:-2}"
+  _idle=""
+  command -v ionice >/dev/null 2>&1 && _idle="ionice -c 3 -t"
+  # Word splitting of $DROP and $_idle is intended.
+  (
+    sleep "$_delay"
+    $DROP nice -n 19 $_idle rm -rf "$_rt"/tmp.old.*
+  ) >/dev/null 2>&1 &
+}
+
+# ---------------------------------------------------------------------------
 # K8s transparent-egress native sidecar. The session Pod runs a sidecar
 # container (an initContainer with restartPolicy: Always — K8s 1.28+) with this
 # arg + NET_ADMIN. It installs the OUTPUT REDIRECT into the SHARED pod netns as
@@ -912,8 +985,13 @@ if [ "$1" = "daemon" ]; then
   # Exec temp (TMPDIR below) is wiped like the steer queue: no exec is live at
   # a container (re)start, so anything left there is garbage from a previous
   # incarnation — this keeps the old /tmp lifecycle (temp died with the
-  # container) now that the dir persists on the workspace.
-  $DROP rm -rf /agent/.runtime/tmp
+  # container) now that the dir persists on the workspace. Set aside and
+  # deleted in the background, so a large leftover never delays readiness.
+  # Started here, while PATH still names only the image's binaries: the
+  # background job keeps this PATH, never the workspace dependency dirs added
+  # below, which a root shell must not run from. Tini, as PID 1, reaps it.
+  set_aside_exec_temp /agent/.runtime
+  purge_old_exec_temp /agent/.runtime
   # Every harness state root a harness.yml points at under HOME must exist
   # before the harness starts: Codex refuses to start when CODEX_HOME names
   # a missing directory ("Error finding codex home", exit 1, stderr only),
@@ -932,8 +1010,10 @@ if [ "$1" = "daemon" ]; then
   # Stale per-exec steer queues (mid-turn message injection): a container
   # (re)start means no exec is live, so leftover steer/consumed files are
   # garbage from a previous incarnation — drop them. The platform re-queues
-  # anything it hadn't reconciled.
-  $DROP rm -rf /agent/.runtime/tale/steer
+  # anything it hadn't reconciled. Queues are per exec, so one that cannot be
+  # removed is read by no later exec and must not fail the boot.
+  $DROP rm -rf /agent/.runtime/tale/steer ||
+    echo "[entrypoint] WARN: could not clear the stale steer queues under /agent/.runtime/tale/steer" >&2
   # Inline pip/npm installs land in the writable, on-PYTHONPATH/NODE_PATH
   # dependency directories shared by executions in this session.
   export HOME=/agent/.runtime/home

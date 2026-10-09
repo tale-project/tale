@@ -53,12 +53,22 @@ bun run --filter @tale/sandbox-egress docker:build
 
 ## Container
 
-Runs as root so the entrypoint can `chown` the log dir and install `iptables`
-rules; `tinyproxy` drops privileges to `nobody` after binding. `docker-entrypoint.sh`
+Runs as root so the entrypoint can install `iptables` rules and dnsmasq can
+bind port 53; `tinyproxy` drops privileges to `nobody` after binding and logs
+to stdout (the container log), so no log file grows in the container's writable
+layer. `docker-entrypoint.sh`
 (PID 1) installs the SSRF firewall, then `exec`s `entrypoint.sh`. That shell renders
 the config, supervises foreground Tinyproxy and DNS, forwards shutdown signals,
-and reaps both children. It tracks the child PID directly, so Tinyproxy needs no
-PID file or write access to `/tmp`. The container smoke suite boots with a
+and reaps both children. It tracks the child PIDs directly, so Tinyproxy needs no
+PID file or write access to `/tmp`. When either daemon exits on its own, the
+shell stops the other and exits non-zero, so the restart policy brings the
+container back with both: nested containers and BuildKit `RUN` steps resolve
+names only through dnsmasq, so a proxy serving without it would be a silent DNS
+outage for every session. The health check asks both: an HTTP request to
+Tinyproxy and a busybox `nslookup` against 127.0.0.1 for
+`sandbox-egress-health.invalid`, a name dnsmasq answers from its own
+`--host-record` without an upstream lookup. dnsmasq caches 4096 names (its
+default is 150), since the whole fleet resolves through it. The container smoke suite boots with a
 read-only `/tmp` and checks startup, graceful stop and the same container's
 restart. The root supervisor needs `KILL` to signal Tinyproxy after it changes
 user to `nobody`; the proxy itself retains no effective capabilities.

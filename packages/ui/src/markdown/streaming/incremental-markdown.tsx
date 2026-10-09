@@ -33,12 +33,10 @@ import type { Components, Options as MarkdownOptions } from 'react-markdown';
 import Markdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
-import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
 
 import { baseComponents, makePreComponent } from '../base-components';
-import { remarkCjkAttention } from '../plugins/micromark-cjk-attention';
 import { rehypeNumericColumns } from '../plugins/rehype-numeric-columns';
+import { CHAT_REMARK_PLUGINS } from '../remark-plugin-lists';
 import type { MarkdownComponentMap, MarkdownComponentType } from '../types';
 import { findBlockSplitPoint } from './find-block-split';
 import { useLazyKatex } from './lazy-katex';
@@ -81,27 +79,11 @@ const chatSanitizeSchema = {
   },
 };
 
-const remarkDisableIndentedCode = function (this: {
-  data: () => { micromarkExtensions?: { disable?: { null?: string[] } }[] };
-}) {
-  const data = this.data();
-  if (!data.micromarkExtensions) data.micromarkExtensions = [];
-  data.micromarkExtensions.push({ disable: { null: ['codeIndented'] } });
-};
-
 type PluginList = NonNullable<MarkdownOptions['remarkPlugins']>;
 
-// Cast through `as PluginList` because `remarkCjkAttention` and
-// `remarkDisableIndentedCode` use narrowed `this`-types for type-safe
-// data() access — narrower than unified's `Plugin` signature, but
-// structurally compatible at runtime.
-const REMARK_PLUGINS: PluginList = [
-  remarkDisableIndentedCode,
-  remarkCjkAttention,
-  remarkGfm,
-  // Parse `$…$`/`$$…$$` into `language-math` nodes for rehypeKatex below.
-  remarkMath,
-] as PluginList;
+// The list lives in a plain module so a reader that parses without rendering
+// (the platform's backend) parses exactly as this component does.
+const REMARK_PLUGINS: PluginList = CHAT_REMARK_PLUGINS;
 // Shared prefix for both chains. `rehypeKatex` is appended per-chain (never
 // here) because it MUST run last: after `rehypeSanitize` — KaTeX's rich
 // output is trusted (the TeX source is escaped by KaTeX) and must not be

@@ -170,8 +170,8 @@ describe('workspaceWriteShimHandlers — a refusal carries its sentence', () => 
 
 describe('workspaceWriteShimHandlers — an outage is not a refusal', () => {
   it('agentAddComment leaves a mention directory it could not list as a plain error', async () => {
-    // Every agent comment builds the mention directory. A leg that cannot be
-    // listed throws MentionDirectoryError — coded, but a 503: a retryable
+    // An agent comment that mentions someone builds the mention directory. A
+    // leg that cannot be listed throws MentionDirectoryError — coded, but a 503: a retryable
     // outage. Translated like a 4xx refusal, it reached the agent as
     // `invalid_args` ("your arguments were wrong") and was audited so.
     const { sql, statements } = stubSql((text) =>
@@ -182,7 +182,7 @@ describe('workspaceWriteShimHandlers — an outage is not a refusal', () => {
       organizationId: 'org-1',
       actorId: 'agent-7',
       taskId: 'task-1',
-      body: 'A body that fits',
+      body: '@ada a body that fits',
     });
     await expect(attempt).rejects.toBeInstanceOf(MentionDirectoryError);
     await expect(attempt).rejects.not.toBeInstanceOf(AppError);

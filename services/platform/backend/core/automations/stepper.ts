@@ -543,8 +543,14 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
           input: llmInput,
           recallable: true,
         },
-        async () => {
+        async (attempt) => {
           const reply = await run.llm({
+            attempt: {
+              nodeId: args.path,
+              itemIndex: args.itemIndex,
+              pass: args.pass,
+              attempt,
+            },
             model,
             prompt,
             ...(system !== undefined && { system }),
@@ -2036,12 +2042,7 @@ async function stepClaimedRun(
       // a worker stepping two organizations' runs at once never lets one
       // run's turn replace the other's gate. Each llm call is the run's
       // spend.
-      llm: automationLlmCall(
-        ctx,
-        args.organizationId,
-        { runId: args.runId, automation: loaded.run.name },
-        { signal },
-      ),
+      llm: automationLlmCall(ctx, args.organizationId, args.runId, { signal }),
       agent: (agentHostFactory ?? automationAgentHost)(
         ctx,
         args.organizationId,

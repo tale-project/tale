@@ -1,7 +1,6 @@
 import { Row } from '@tale/ui/layout';
 import { SkeletonBox, SkeletonCircle, SkeletonText } from '@tale/ui/skeleton';
-
-import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
+import { THREAD_COMPOSER_FRAME_CLASS } from '@tale/ui/thread/layout';
 
 /**
  * The reply box wears the chat composer's frame — the same border, radius,
@@ -9,7 +8,7 @@ import { CHAT_COMPOSER_FRAME_CLASS } from '@/app/features/chat/lib/layout';
  * looks like one composer. Only the bottom inset is its own: the action row
  * below the editor carries its buttons.
  */
-export const MESSAGE_EDITOR_FRAME_CLASS = `${CHAT_COMPOSER_FRAME_CLASS} pb-2 sm:pb-3`;
+export const MESSAGE_EDITOR_FRAME_CLASS = `${THREAD_COMPOSER_FRAME_CLASS} pb-2 sm:pb-3`;
 
 /** The empty editor's field and action row, shared by chunk and data loading. */
 export function MessageEditorPlaceholder() {

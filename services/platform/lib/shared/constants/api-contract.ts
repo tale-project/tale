@@ -404,11 +404,49 @@
  * it, whoever spends it, its own API keys included. A 429 `BUDGET_EXCEEDED`
  * names such a cap with `data.scope` `project`. Additive.
  *
- * 3.23.0 — 2026-10-08: embeddings are counted and held to the budget caps.
+ * 3.23.0 — 2026-10-09: the project-agent tools vocabulary gains
+ * `knowledge_entry_write`, an explicit grant to save an organization-wide
+ * knowledge entry by topic; changing an existing entry needs the version the
+ * agent read, and a stale one is refused with the current text.
+ * `KnowledgeEntry.source` gains `agent` for what such a grant wrote, its
+ * `createdBy` naming the agent. Native `knowledge_entry_find` answers each
+ * entry's version `id` and `updatedAt` and matches its content as well. No
+ * REST operation changes. Additive.
+ *
+ * 3.24.0 — 2026-10-09: agents have mention handles, and mentions are stored
+ * as whom they name. `ProjectAgent.handle` is the agent's handle, made from
+ * its current name, unique in its project (`-02`, `-03` on a clash) and
+ * made again on a rename, or when a member's email name or an automation's
+ * store name comes to equal it. A comment body and a task description store each
+ * mention a door resolves as a mention link,
+ * `[@Ada Lovelace](mention:user/<userId>)`, and every read returns that
+ * stored form: observable for a client that read the `@handle` it posted
+ * back out of the text. Plain `@handle`, `@<id>` and the older name forms
+ * still resolve when posted; a mention link naming nobody who can be
+ * mentioned on the task is stored as plain text, and a task mirrored from
+ * GitHub or GlitchTip keeps its `@names` as written. Comment reads carry
+ * `bodyText` and task reads `descriptionText`, the same text with each
+ * mention read as `@` and the current name, and so do the comment events
+ * (`comment.bodyText`). A comment or a new task's description with a
+ * mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` while who can be
+ * mentioned cannot be read, where it answered 500 `INTERNAL_ERROR`.
+ * Additive.
+ *
+ * 3.25.0 — 2026-10-09: an agent working other tasks is started all the
+ * same, each run in an agent worker of its own. Native task_start_agent and
+ * the automation step task.start_agent no longer answer `agent_busy` or
+ * `busyTaskId`: such a start answers `started: true`, and a run that waits
+ * for a free worker carries `waitingReason` (`org_limit`, `host`,
+ * `destroy_pending` or `exec_limit`) and starts by itself. An agent that
+ * names itself for another task is refused with `self_start`. Native
+ * task_get agentRuns carry `waitingReason` while a run waits. No REST
+ * operation changes.
+ *
+ * 3.26.0 — 2026-10-09: embeddings are counted and held to the budget caps.
  * A knowledge search answers 429 `BUDGET_EXCEEDED` (with `data` and
  * `Retry-After`) when a cap that binds the key holder, the key or the
  * searched project is reached; a document's indexing `errorCode` gains
  * `usage_limit` — a `failed` file whose indexing waits for such a cap and
  * resumes by itself. Additive.
  */
-export const API_CONTRACT_VERSION = '3.23.0';
+export const API_CONTRACT_VERSION = '3.26.0';

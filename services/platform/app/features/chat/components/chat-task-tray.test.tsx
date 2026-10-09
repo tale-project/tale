@@ -76,7 +76,11 @@ describe('ChatTaskTray', () => {
       data: [
         task('a', { run: { status: 'running' } }),
         task('b', {
-          run: { status: 'queued', waitingForCapacity: true },
+          run: {
+            status: 'queued',
+            waitingForCapacity: true,
+            waitingReason: 'org_limit',
+          },
         }),
         task('c', {
           run: { status: 'failed', failureCode: 'budget_exceeded' },
@@ -90,11 +94,41 @@ describe('ChatTaskTray', () => {
     expect(rows[0]).toHaveTextContent(
       'The agent is working · Website relaunch',
     );
-    expect(rows[1]).toHaveTextContent('Waiting for a sandbox slot');
+    expect(rows[1]).toHaveTextContent('Waiting for a worker');
     expect(rows[2]).toHaveTextContent("The agent couldn't finish");
     expect(
       screen.getByRole('link', { name: 'Open task Task c' }),
     ).toHaveAttribute('href', '/projects/proj-1/tasks/board?task=c');
+  });
+
+  it('says why a waiting run waits, in the words of the task’s own run row', () => {
+    state.tasks = {
+      status: 'ready',
+      data: [
+        task('a', {
+          run: {
+            status: 'queued',
+            waitingForCapacity: true,
+            waitingReason: 'host',
+          },
+        }),
+        task('b', {
+          run: {
+            status: 'queued',
+            waitingForCapacity: true,
+            waitingReason: 'destroy_pending',
+          },
+        }),
+        // A wait that kept no reason reads as the common one.
+        task('c', { run: { status: 'queued', waitingForCapacity: true } }),
+      ],
+    };
+    renderTray();
+
+    const rows = screen.getAllByRole('listitem');
+    expect(rows[0]).toHaveTextContent('Waiting for room · Website relaunch');
+    expect(rows[1]).toHaveTextContent('Waiting for a workspace');
+    expect(rows[2]).toHaveTextContent('Waiting for a worker');
   });
 
   it('reads a failure about to be retried as a retry, not a stop', () => {

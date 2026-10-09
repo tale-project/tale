@@ -63,9 +63,10 @@ what is there, and the page shows the one thing you opened.
 - **Conversation pages** — a chat, a task and a customer conversation open in one frame:
   `ThreadHeader` (the Home panel toggle, a 32px identity mark, the title, one quiet line of context,
   then the actions), a centred reading column, and the composer pinned at the foot in the same frame
-  for all three (`CHAT_COMPOSER_FRAME_CLASS`). A task is a structured chat: its brief (description,
+  for all three (`THREAD_COMPOSER_FRAME_CLASS`, `@tale/ui/thread/layout`). A task is a structured chat: its brief (description,
   files, subtasks) opens the thread as a card, comments and history follow oldest first under day
-  pills, and its structure (status, owner, dates…) lives in a details panel that folds away. The
+  pills (one `ThreadDayDivider`, pinned while its day scrolls by, shared by chats, tasks and the
+  inbox), and its structure (status, owner, dates…) lives in a details panel that folds away. The
   actions a teammate needs lead: **Copy link** on a task and a conversation, and a task's key copies
   itself from the header. On a phone the page keeps its own header row only — no shell bar above it.
   The board's task dialog carries the same identity in its own header — the status glyph tile, the
@@ -75,6 +76,28 @@ what is there, and the page shows the one thing you opened.
   Creating a task reads like the open task: the status tile and a borderless title in the header, the
   property panel beside the description (Medium priority and today's start preselected), and a footer
   with **Create another** at the left and the `⌘ Enter` hint beside Cancel and Create.
+  On the board, **Done** and **Cancelled** fold to a 44px rail (glyph, count, the name standing on
+  end) that opens on a click and still takes a drop; each board remembers its folded lanes.
+- **Avatars** — one `@tale/ui/avatar` everywhere: a person's initials in the tint their name hashes to (the
+  same colour on a board card, in a task's conversation and in a contact list; filled primary for "you"), an
+  agent's bot on the soft primary tint, an automation's workflow glyph, a dashed outline for nobody.
+  `AssigneeAvatar` and `ContactInitials` are thin wrappers over it.
+- **A task reads the same everywhere** — the board's dialog and the task's page render one reading
+  column (`TaskThreadColumn`): the brief as a card, the conversation (comments and history merged, oldest
+  first, opening on the discussion's newest page and anchored at the newest end) and the chat composer
+  pinned under it; the dialog adds only its header and the details panel beside it. There is no separate
+  comment list or Activity list.
+- **Conversation entries** — one anatomy for chats and task discussions, built from `@tale/ui/thread/*`:
+  the viewer's own words as a right-aligned muted bubble (`ThreadMessage variant="own"` — a chat's turns
+  and a task's comments alike, with the time and actions revealed under it and a chat's ‹ 2/3 › branch
+  navigator always in view beside them as its `trailing` control); every other
+  voice — a teammate, an agent, the assistant — as flat prose under an identity row (24px avatar, name,
+  an **Agent** badge for an agent, clock time; the chat's assistant hides the row), with a message by the
+  same author minutes later joining the one before it; actions as icon buttons that show on hover,
+  keyboard focus, an open menu and always on a touch screen. Events are one quiet `text-xs` line in the
+  avatar gutter with a glyph per kind of change, the change in its own words and casing; three or more
+  in a row fold into one line ("5 updates") that opens in place. A long body is clamped behind
+  **Read more** (`ReadMore`), never truncated in the DOM.
 - **Detail pages** — the header is a breadcrumb trail (`HeaderBreadcrumbs`: semantic `nav > ol`, the
   leaf is the page's only `h1`). When the entity has siblings, the leaf is the shared
   `HeaderBreadcrumbSwitcher` (name + chevron opening a titled, searchable list) — projects and

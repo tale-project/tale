@@ -13,6 +13,7 @@
     "components/recurrence-picker",
     "components/schedule-occurrence-list",
     "components/tabs-and-navigation",
+    "components/thread",
     "components/time-field",
     "components/toast",
     "foundations/accessibility",

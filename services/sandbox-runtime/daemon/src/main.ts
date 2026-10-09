@@ -36,14 +36,18 @@ import {
   type StageItem,
 } from './file-ops.ts';
 import { readJsonBody } from './http-body.ts';
+import { namesOtherIncarnation, readIncarnation } from './incarnation.ts';
 import {
   InnerDockerHealth,
   LAZY_DOCKER_HEALTH_SOCKET,
 } from './inner-docker-health.ts';
+import { installProcessGuards } from './process-guard.ts';
 import {
   RUNNERD_CHECKPOINT_MAX_BYTES,
   parseRunnerdSequence,
   RUNNERD_CONSUMER_BUFFER_MAX_BYTES,
+  RUNNERD_INCARNATION_ENV,
+  RUNNERD_INCARNATION_HEADER,
   RUNNERD_MAX_LIVE_EXECS,
   RUNNERD_PORT,
   RUNNERD_TOKEN_HEADER,
@@ -58,6 +62,12 @@ const MAX_STAGING_OPERATIONS = 2;
 let stagingOperations = 0;
 
 const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
+// Named in /healthz and every activity answer, so the spawner can trust an
+// answer as coming from the incarnation it registered without asking the
+// backend. Empty for a container launched without a stamp.
+const INCARNATION = readIncarnation(process.env[RUNNERD_INCARNATION_ENV]);
+const incarnation =
+  INCARNATION === undefined ? {} : { incarnation: INCARNATION };
 const innerDocker = new InnerDockerHealth(process.env.TALE_DIND === '1', {
   socketPath: LAZY_DOCKER_HEALTH_SOCKET,
   supervisor: true,
@@ -118,6 +128,21 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   // 1.3.12's fetch — the spawner — on its next call).
   res.writeHead(status, { 'content-type': 'application/json' });
   res.end(payload);
+}
+
+/** An activity request meant for another incarnation of this session reached
+ * this one (a replacement under the same name): refuse it before it changes
+ * anything, naming the incarnation served here. */
+function refusedForOtherIncarnation(
+  req: IncomingMessage,
+  res: ServerResponse,
+): boolean {
+  if (
+    !namesOtherIncarnation(INCARNATION, req.headers[RUNNERD_INCARNATION_HEADER])
+  )
+    return false;
+  sendJson(res, 409, { error: 'incarnation_mismatch', ...incarnation });
+  return true;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -392,6 +417,7 @@ async function router(
     const body: Record<string, unknown> = {
       ok: true,
       bootedAtMs,
+      ...incarnation,
       lastActivityAtMs,
       liveExecs: execManager.liveCount(),
       activity: activity.snapshot(),
@@ -402,10 +428,15 @@ async function router(
     return;
   }
   if (req.method === 'GET' && path === '/release') {
-    sendJson(res, 200, { generation: activity.snapshot().generation });
+    if (refusedForOtherIncarnation(req, res)) return;
+    sendJson(res, 200, {
+      generation: activity.snapshot().generation,
+      ...incarnation,
+    });
     return;
   }
   if (req.method === 'POST' && path === '/acquire') {
+    if (refusedForOtherIncarnation(req, res)) return;
     if ((await innerDocker.snapshot()).dockerReady === false) {
       sendJson(res, 503, { error: 'docker_unavailable' });
       return;
@@ -414,7 +445,9 @@ async function router(
     sendJson(
       res,
       generation === null ? 503 : 200,
-      generation === null ? { error: 'reclaiming' } : { generation },
+      generation === null
+        ? { error: 'reclaiming' }
+        : { generation, ...incarnation },
     );
     return;
   }
@@ -427,6 +460,7 @@ async function router(
       sendJson(res, body.status, { error: body.error });
       return;
     }
+    if (refusedForOtherIncarnation(req, res)) return;
     if (!isObject(body.value)) {
       sendJson(res, 400, { error: 'bad_request' });
       return;
@@ -440,7 +474,7 @@ async function router(
       sendJson(
         res,
         applied ? 200 : 503,
-        applied ? { ok: true } : { error: 'reclaiming' },
+        applied ? { ok: true, ...incarnation } : { error: 'reclaiming' },
       );
       return;
     }
@@ -473,13 +507,14 @@ async function router(
       res,
       200,
       path === '/release'
-        ? { released: activity.release(token) }
+        ? { released: activity.release(token), ...incarnation }
         : {
             claimed: activity.claim(
               token,
               String(body.value.generation),
               typeof idleBeforeMs === 'number' ? idleBeforeMs : undefined,
             ),
+            ...incarnation,
           },
     );
     return;
@@ -779,19 +814,24 @@ if (
   // transcript and a wrapper to remove what it staged before the teardown.
   // Either exit ends the daemon even past a /proc read that never returns
   // (daemon-exit.ts).
+  const shutdown = (code: number): void => {
+    // Journal/file I/O can block libuv too; the hard deadline cannot rely
+    // on the process-table read counter to decide whether exit is safe.
+    setTimeout(() => exitDaemon(code, { force: true }), 2_000);
+    void execManager
+      .terminateAll()
+      .catch((error: unknown) => {
+        console.warn('[runnerd] passing the stop on failed:', error);
+      })
+      .finally(() => server.close(() => exitDaemon(code)));
+  };
   for (const sig of ['SIGTERM', 'SIGINT'] as const) {
-    process.on(sig, () => {
-      // Journal/file I/O can block libuv too; the hard deadline cannot rely
-      // on the process-table read counter to decide whether exit is safe.
-      setTimeout(() => exitDaemon(0, { force: true }), 2_000);
-      void execManager
-        .terminateAll()
-        .catch((error: unknown) => {
-          console.warn('[runnerd] passing the stop on failed:', error);
-        })
-        .finally(() => server.close(() => exitDaemon(0)));
-    });
+    process.on(sig, () => shutdown(0));
   }
+  // An unhandled rejection is logged and survived; an uncaught exception
+  // stops the daemon the same way, with an exit code of its own
+  // (process-guard.ts).
+  installProcessGuards({ shutdown });
 
   // Every harness finds the image's built-in skills among its own from the
   // session's first moment, not only after its first exec.

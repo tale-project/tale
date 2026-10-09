@@ -242,15 +242,13 @@ export interface TaskPayloads {
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks —
    * the retry's start held until `startAfterMs` when the failed start met a
-   * subscription broker whose every account was cooling down. The retry of
-   * a run an automation or another agent started waits while its agent
-   * works another task in the same workspace, through a later check of
-   * itself (`task.agent_retry_recheck`). */
+   * subscription broker whose every account was cooling down. */
   'task.agent_retry': AgentRetryPayload;
-  /** A later check of an automatic retry that met its agent busy: the same
-   * handler and the same guards, re-derived, counting its checks
-   * (`agentBusyWaits`, bounded by `planAgentBusyWait`). At most one is
-   * queued per failed run (`agentRetryRecheckKey`, `short` policy). */
+  /** A later check of an automatic retry that met its agent busy, as an
+   * earlier image queued them: the same handler and the same guards,
+   * re-derived — it now simply kicks the retry. Nothing queues one any
+   * more; the queue stays so a check queued before the upgrade is
+   * delivered. */
   'task.agent_retry_recheck': AgentRetryPayload;
   /** Finish a settled turn's gateway-key settlement (book its spend, revoke
    * the key) that the host's own settle could not complete — scheduled by
@@ -416,7 +414,8 @@ export interface AgentRetryPayload {
   agentId: string;
   expectedRunId: string;
   startAfterMs?: number;
-  /** The checks this retry already took while its agent was busy. */
+  /** The checks a retry took while its agent was busy, on a check an
+   * earlier image queued; read by nothing. */
   agentBusyWaits?: number;
 }
 
@@ -608,13 +607,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'tts.watchdog_chunk': { retryLimit: 1, expireInSeconds: 120 },
   'tts.cleanup': { retryLimit: 0, expireInSeconds: 300 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
-  // A retry that waits for its busy agent checks again through this queue,
-  // every check keyed by its failed run (`agentRetryRecheckKey`): `short`
-  // keeps at most ONE queued per failed run, so the arm delivered twice, a
-  // check replayed after its commit or two deliveries at once never fork a
-  // second chain of checks — the second send finds the first queued and is
-  // dropped. A queue of its own: the arm's queue keeps its standard policy,
-  // so a keyless arm from the previous image is never shut out mid-roll.
+  // A check an earlier image queued for a retry that waited for its busy
+  // agent, keyed by its failed run (`short`: at most ONE queued per failed
+  // run). No current code path queues one; the queue stays registered with
+  // its policy so such a check is still delivered, and it kicks the retry.
   'task.agent_retry_recheck': {
     policy: 'short',
     retryLimit: 1,

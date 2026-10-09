@@ -22,7 +22,6 @@ import {
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
 import { failureDetail } from '@/app/lib/backend/adapters';
-import { AGENT_TOOL_CATALOG } from '@/backend/core/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -33,6 +32,7 @@ import {
 } from '../hooks/mutations';
 import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
+import { useAgentToolOptions } from '../hooks/use-agent-tool-options';
 import { useUnpinnedServingPreview } from '../hooks/use-unpinned-serving-preview';
 import {
   findSelectedModel,
@@ -148,22 +148,8 @@ export function ProjectAgentDialog({
     }));
   }, [open, agent, skills]);
 
-  // The grantable platform tools, labelled per name with a read/write badge
-  // and grouped by their org module (Tasks, Documents, …).
-  const toolOptions = useMemo<SkillOption[]>(
-    () =>
-      AGENT_TOOL_CATALOG.map((tool) => ({
-        slug: tool.name,
-        label: t(`agents.tool.${tool.name}`, { defaultValue: tool.name }),
-        description: t(
-          tool.effect === 'write'
-            ? 'agents.tool.writeBadge'
-            : 'agents.tool.readBadge',
-        ),
-        group: t(`agents.tool.module.${tool.module}`),
-      })),
-    [t],
-  );
+  // The grantable platform tools plus the always-on knowledge search.
+  const { tools: toolOptions, lockedTools } = useAgentToolOptions('project');
 
   const secrets: readonly AgentSecretSummary[] = orgSecrets ?? [];
 
@@ -317,6 +303,13 @@ export function ProjectAgentDialog({
           setName(e.target.value);
           setNameError(undefined);
         }}
+        // How people mention the agent: made from its name, so a rename
+        // changes it, which the saved agent's handle tells best.
+        description={
+          agent?.handle !== undefined
+            ? t('agents.handleHint', { handle: agent.handle })
+            : undefined
+        }
         errorMessage={nameError}
         disabled={isSubmitting}
       />
@@ -399,6 +392,7 @@ export function ProjectAgentDialog({
         skills={skills ?? []}
         connectors={connectors}
         tools={toolOptions}
+        lockedTools={lockedTools}
         value={binding}
         onChange={setBinding}
         disabled={isSubmitting}

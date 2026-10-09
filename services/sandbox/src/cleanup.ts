@@ -18,7 +18,8 @@
 //   3. SIGTERM handler (in server.ts after refactor): stop accepting new
 //      requests, wait for in-flight count to drop, then exit.
 
-import type { Dirent } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { readFileSync, type Dirent } from 'node:fs';
 import { mkdir, readdir, rm, rmdir, stat, utimes } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
@@ -30,7 +31,12 @@ import {
 } from './error-reporting.ts';
 import { isSessionWorkspaceDirName } from './session/session-naming.ts';
 import { workspaceTrash } from './session/workspace-trash.ts';
-import { dockerRm, dockerRmSucceeded, runDocker } from './spawn-util.ts';
+import {
+  dockerRm,
+  dockerRmSucceeded,
+  isDockerNoSuchObject,
+  runDocker,
+} from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import { ID_ALPHABET_RE } from './wire.ts';
 
@@ -52,20 +58,118 @@ interface SpawnerLockPayload {
   pid: number;
   hostname: string;
   bootEpoch: number;
+  /** Random per process: what tells this process's lock from any other's. */
+  instanceId?: string;
+  /** The kernel's boot id, shared by every container on the machine. */
+  bootId?: string;
+  /** The process's start in clock ticks since boot (`/proc/<pid>/stat`
+   * starttime): with the boot id it names one process, whatever reuses its
+   * pid later. */
+  startTicks?: number;
 }
+
+/** Who is taking the lock. */
+export interface SpawnerLockIdentity {
+  pid: number;
+  hostname: string;
+  instanceId: string;
+  bootId?: string;
+  startTicks?: number;
+}
+
+/** How a lock's holder is looked at; tests hand in their own. */
+export interface SpawnerLockProbes {
+  /** `process.kill(pid, 0)`: false only when no such process exists. */
+  processAlive(pid: number): boolean;
+  /** A process's start time in clock ticks since boot, when /proc says. */
+  startTicks(pid: number): number | undefined;
+  /** Whether the Docker container `id` runs: `missing` when the daemon
+   * knows no such container, null when it cannot say. */
+  containerRunning(id: string): Promise<boolean | 'missing' | null>;
+}
+
+/** A Docker container's default hostname: its id, or the id's first 12. */
+const CONTAINER_ID_RE = /^[a-f0-9]{12,64}$/;
+
+function readTrimmed(path: string): string | undefined {
+  try {
+    const value = readFileSync(path, 'utf8').trim();
+    return value === '' ? undefined : value;
+  } catch {
+    // Not Linux, or no /proc: the identity simply lacks the field.
+    return undefined;
+  }
+}
+
+/** Field 22 of `/proc/<pid>/stat`, counted after the parenthesised command
+ * name (which may itself hold spaces or parentheses). */
+function procStartTicks(pid: number | 'self'): number | undefined {
+  const line = readTrimmed(`/proc/${pid}/stat`);
+  if (line === undefined) return undefined;
+  const fields = line.slice(line.lastIndexOf(')') + 2).split(' ');
+  const ticks = Number(fields[19]);
+  return Number.isSafeInteger(ticks) && ticks >= 0 ? ticks : undefined;
+}
+
+function currentLockIdentity(): SpawnerLockIdentity {
+  const bootId = readTrimmed('/proc/sys/kernel/random/boot_id');
+  const startTicks = procStartTicks('self');
+  return {
+    pid: process.pid,
+    hostname: hostname(),
+    instanceId: randomUUID(),
+    ...(bootId === undefined ? {} : { bootId }),
+    ...(startTicks === undefined ? {} : { startTicks }),
+  };
+}
+
+const defaultLockProbes: SpawnerLockProbes = {
+  processAlive(pid) {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch (err) {
+      // ESRCH → no such process (dead). Any other error (e.g. EPERM) means
+      // the process exists, so treat the holder as alive.
+      return !(err instanceof Error && 'code' in err && err.code === 'ESRCH');
+    }
+  },
+  startTicks: procStartTicks,
+  async containerRunning(id) {
+    const result = await runDocker(
+      ['inspect', '--format', '{{.State.Running}}', id],
+      { timeoutMs: 5_000, priority: true },
+    );
+    if (result.exitCode !== 0) {
+      return isDockerNoSuchObject(result.stderr) ? 'missing' : null;
+    }
+    const running = result.stdout.trim();
+    return running === 'true' ? true : running === 'false' ? false : null;
+  },
+};
 
 /**
  * Decide whether the process recorded in a lock payload is still running.
  *
- * Only meaningful when the lock was written by a peer on the SAME host — a
- * PID from another machine tells us nothing, so we conservatively treat a
- * cross-host (or unparseable) lock as alive and let the freshness window be
- * the arbiter. On this host, `process.kill(pid, 0)` sends no signal but
- * throws `ESRCH` when no such process exists, which is our "holder is dead"
- * signal. `EPERM` means the process exists but is owned by another user →
- * alive.
+ * The spawner runs as PID 1 of its container, so after a crash or an OOM
+ * kill the restarted container — same hostname, PID 1 again — used to probe
+ * its own PID, find it alive and refuse to start until the lock aged out,
+ * restart-looping for up to a minute. So a lock on this host is stale when:
+ * the machine booted since (another boot id), its PID is ours (an earlier
+ * process in this very slot), no process has its PID, or the process under
+ * its PID started at another time (a reused PID). A lock from another host
+ * name on the same kernel, named by a container id, was another container on
+ * this machine — a spawner container recreated after a crash gets a new id —
+ * and is stale when Docker, which sees our own container, knows that one no
+ * more or finds it stopped. Anything else — a live process, a lock from
+ * another machine, an unparseable payload, a daemon that cannot say — counts
+ * as alive, and the freshness window stays the arbiter.
  */
-function isLockHolderAlive(rawPayload: string): boolean {
+export async function isLockHolderAlive(
+  rawPayload: string,
+  self: SpawnerLockIdentity,
+  probes: SpawnerLockProbes = defaultLockProbes,
+): Promise<boolean> {
   let parsed: Partial<SpawnerLockPayload>;
   try {
     // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
@@ -75,24 +179,40 @@ function isLockHolderAlive(rawPayload: string): boolean {
   }
   if (
     typeof parsed.pid !== 'number' ||
-    parsed.hostname !== hostname() ||
-    parsed.pid <= 0
+    !Number.isSafeInteger(parsed.pid) ||
+    parsed.pid <= 0 ||
+    typeof parsed.hostname !== 'string'
   ) {
     return true;
   }
-  try {
-    process.kill(parsed.pid, 0);
+  if (parsed.instanceId !== undefined && parsed.instanceId === self.instanceId)
+    return false;
+  const sameKernel = self.bootId !== undefined && parsed.bootId === self.bootId;
+  if (parsed.hostname === self.hostname) {
+    if (
+      self.bootId !== undefined &&
+      typeof parsed.bootId === 'string' &&
+      parsed.bootId !== self.bootId
+    )
+      return false;
+    if (parsed.pid === self.pid) return false;
+    if (!probes.processAlive(parsed.pid)) return false;
+    if (sameKernel && typeof parsed.startTicks === 'number') {
+      const ticks = probes.startTicks(parsed.pid);
+      if (ticks !== undefined && ticks !== parsed.startTicks) return false;
+    }
     return true;
-  } catch (err) {
-    const code =
-      err instanceof Error && 'code' in err
-        ? // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-          (err as { code?: string }).code
-        : undefined;
-    // ESRCH → no such process (dead). Any other error (e.g. EPERM) means the
-    // process exists, so treat the holder as alive.
-    return code !== 'ESRCH';
   }
+  if (
+    sameKernel &&
+    CONTAINER_ID_RE.test(parsed.hostname) &&
+    CONTAINER_ID_RE.test(self.hostname) &&
+    (await probes.containerRunning(self.hostname)) === true
+  ) {
+    const holder = await probes.containerRunning(parsed.hostname);
+    if (holder === 'missing' || holder === false) return false;
+  }
+  return true;
 }
 
 /**
@@ -107,7 +227,11 @@ function isLockHolderAlive(rawPayload: string): boolean {
  * server.ts caller deletes the lock; an ungraceful exit leaves the lock
  * stale and the next start can reclaim it after the freshness window.
  */
-export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
+export async function acquireSpawnerLock(
+  cfg: SpawnerConfig,
+  deps: { self?: SpawnerLockIdentity; probes?: SpawnerLockProbes } = {},
+): Promise<void> {
+  const self = deps.self ?? currentLockIdentity();
   await mkdir(cfg.hostSessionRoot, { recursive: true });
   const lockPath = join(cfg.hostSessionRoot, SPAWNER_LOCK_FILE);
   try {
@@ -129,7 +253,7 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
       // a recent mtime but a dead PID. Probe the recorded PID on this host —
       // if it's gone, the lock is orphaned and we reclaim it immediately
       // instead of stranding the dev server for the full freshness window.
-      if (!isLockHolderAlive(existing)) {
+      if (!(await isLockHolderAlive(existing, self, deps.probes))) {
         console.warn(
           `[sandbox.lock] reclaiming orphaned lock at ${lockPath} ` +
             `(holder dead, age=${age}ms): ${existing.trim()}`,
@@ -165,9 +289,12 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
     }
   }
   const payload: SpawnerLockPayload = {
-    pid: process.pid,
-    hostname: hostname(),
+    pid: self.pid,
+    hostname: self.hostname,
     bootEpoch: Date.now(),
+    instanceId: self.instanceId,
+    ...(self.bootId === undefined ? {} : { bootId: self.bootId }),
+    ...(self.startTicks === undefined ? {} : { startTicks: self.startTicks }),
   };
   await Bun.write(lockPath, JSON.stringify(payload));
   // Keep the lock visibly "alive" via mtime refresh while the process

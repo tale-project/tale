@@ -458,6 +458,7 @@ function pgTurnStore(
                 ? { apiKeyId: admission.apiKeyId }
                 : {}),
               threadId: setup.threadId,
+              projectIds: admission.projectIds ?? [],
             },
             admissionExclude,
           );
@@ -508,12 +509,13 @@ function pgTurnStore(
           INSERT INTO app.generations (
             thread_id, org_id, message_id, started_at_ms, heartbeat_at_ms,
             updated_at_ms, user_id, api_key_id, reserved_cost_cents,
-            reserved_tokens
+            reserved_tokens, project_ids
           ) VALUES (
             ${setup.threadId}, ${setup.organizationId}, ${assistantMessage.id},
             ${now}, ${now}, ${now}, ${setup.spend?.userId ?? null},
             ${setup.spend?.apiKeyId ?? null}, ${setup.spend?.costCents ?? 0},
-            ${Math.ceil(setup.spend?.tokens ?? 0)}
+            ${Math.ceil(setup.spend?.tokens ?? 0)},
+            ${[...(setup.spend?.projectIds ?? [])]}
           )
           ON CONFLICT (thread_id) DO NOTHING
           RETURNING thread_id AS "threadId"
