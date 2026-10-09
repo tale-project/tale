@@ -675,8 +675,8 @@ condition:
   neq: '{a} is not {b}'
   empty: '{a} is empty'
   notEmpty: '{a} is not empty'
-  set: '{a} is set'
-  notSet: '{a} is not set'
+  set: '{a} counts as yes'
+  notSet: '{a} counts as no'
   contains: '{a} contains {b}'
   notContains: "{a} doesn't contain {b}"
   startsWith: '{a} starts with {b}'

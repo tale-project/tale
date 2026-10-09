@@ -248,7 +248,7 @@ describe('toFlowGraph rules', () => {
     expect(edges).toContain('a>b:data');
     expect(edges.filter((edge) => edge.startsWith('a>b'))).toHaveLength(1);
     expect(graph.nodes.find((node) => node.id === gateIdOf('a'))).toMatchObject(
-      { mode: 'only-if', condition: 'go of the run input is set' },
+      { mode: 'only-if', condition: 'go of the run input counts as yes' },
     );
   });
 
@@ -357,7 +357,8 @@ describe('toFlowGraph rules', () => {
       {
         id: 'repeat:poll',
         kind: 'repeat',
-        label: "Repeats until done of this pass's result is set, at most 3×",
+        label:
+          "Repeats until done of this pass's result counts as yes, at most 3×",
         members: ['poll'],
       },
     ]);
