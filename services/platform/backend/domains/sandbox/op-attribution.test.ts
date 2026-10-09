@@ -97,7 +97,7 @@ describe('resolveSessionOpAttribution — task-agent', () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
-        rows: [{ startedBy: 'user-1', agentId: 'agent-1' }],
+        rows: [{ startedBy: 'user-1', agentId: 'agent-1', apiKeyId: null }],
       },
     ]);
     await expect(resolveSessionOpAttribution(sql, TASK_OP)).resolves.toEqual({
@@ -108,6 +108,28 @@ describe('resolveSessionOpAttribution — task-agent', () => {
     expect(
       statements.some((s) => s.text.includes('FROM app.sandbox_session_ops')),
     ).toBe(false);
+  });
+
+  it('books a run started with an API key to the person AND the key [SBX-R14]', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [
+          {
+            startedBy: 'user-1',
+            agentId: 'agent-1',
+            apiKeyId: 'key-1',
+            projectId: 'project-1',
+          },
+        ],
+      },
+    ]);
+    await expect(resolveSessionOpAttribution(sql, TASK_OP)).resolves.toEqual({
+      userId: 'user-1',
+      agentSlug: 'agent-1',
+      apiKeyId: 'key-1',
+      projectIds: ['project-1'],
+    });
   });
 
   it('falls back to the op row’s stamp when the run row is gone', async () => {
@@ -127,7 +149,13 @@ describe('resolveSessionOpAttribution — task-agent', () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
-        rows: [{ startedBy: 'trigger:schedule-1', agentId: 'agent-1' }],
+        rows: [
+          {
+            startedBy: 'trigger:schedule-1',
+            agentId: 'agent-1',
+            apiKeyId: null,
+          },
+        ],
       },
     ]);
     await expect(resolveSessionOpAttribution(sql, TASK_OP)).resolves.toEqual({

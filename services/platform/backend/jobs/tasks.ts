@@ -60,6 +60,9 @@ export interface TaskPayloads {
     taskId: string;
     workflowSlug: string;
     startedByUserId: string;
+    /** The API key the comment was written with: the run is the key's
+     * spend too, started through the key's door. */
+    apiKeyId?: string;
   };
   /** Re-attach the drive chain of an abandoned (but still live) turn. */
   'task.agent_drive': {
@@ -72,6 +75,8 @@ export interface TaskPayloads {
     harness: string;
     deadlineAt: number;
     sessionCreatedAt?: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Steer a LIVE task-agent turn with a comment (stdin or exec restart). */
   'task.agent_steer': {
@@ -95,6 +100,10 @@ export interface TaskPayloads {
     mentionSource?: 'comment' | 'description';
     author: string;
     authorId: string;
+    /** The API key the text was written with: the turn it restarts, or the
+     * run it kicks once the turn has ended, is the key's spend too. Absent
+     * from a steer queued before it was carried. */
+    authorApiKeyId?: string;
     attempt: number;
   };
   /** Daily sweep of idle rate-limit rows (cron). */
@@ -164,6 +173,8 @@ export interface TaskPayloads {
     providerSlug: string;
     gatewayModel: string;
     deadlineAt: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Fire-and-forget AI naming of a thread from its first user message —
    * best-effort with a hard budget; the fallback title wins on any miss. */
@@ -226,6 +237,9 @@ export interface TaskPayloads {
       contentType: string;
       size: number;
     }>;
+    /** The member who sent it — or retried it — whose connector call the
+     * delivery is. Absent on a job queued before it was recorded. */
+    sentBy?: { userId: string };
   };
   /** Crash-recovery sweep: fail outbound sends stranded 'queued' by a lost or
    * expired send job so the retry/discard surface appears. */

@@ -278,6 +278,9 @@ export interface DelegatedAgentStartArgs {
   taskId: string;
   /** The door the started run answers to — the requesting run's starter. */
   startedBy: string;
+  /** The API key the requesting run was started with: the started run is
+   * the key's spend too. */
+  apiKeyId?: string;
   via: StartedVia;
   /** Assign the task to this agent of the task's project first. */
   agentId?: string;
@@ -886,6 +889,7 @@ export async function startDelegatedAgentRun(
       ? { modelProvider: agent.modelProvider }
       : {}),
     startedBy: args.startedBy,
+    ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
     trigger,
     startedVia: args.via,
     inPlace: args.moveToInProgress === false,

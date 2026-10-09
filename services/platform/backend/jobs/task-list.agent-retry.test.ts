@@ -300,6 +300,37 @@ describe('task.agent_retry', () => {
     },
   );
 
+  it('carries the API key the failed run was started with, and none it lacked [SBX-R14]', async () => {
+    for (const apiKeyId of ['key-1', null]) {
+      const handler = createTaskList({
+        sql: sqlWith([
+          {
+            id: 'run-failed',
+            status: 'failed',
+            agentId: 'agent-1',
+            startedBy: 'api-key:user-starter',
+            apiKeyId,
+            launchedAt: 1_000,
+            settledAt: 2_000,
+          },
+        ]),
+      })['task.agent_retry'];
+      await handler?.(PAYLOAD);
+    }
+
+    expect(kickAgentRun).toHaveBeenCalledTimes(2);
+    expect(kickAgentRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      expect.objectContaining({ apiKeyId: 'key-1', trigger: 'auto_retry' }),
+    );
+    expect(kickAgentRun).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      expect.not.objectContaining({ apiKeyId: expect.anything() }),
+    );
+  });
+
   it('resumes a run the broker’s refresh cut, even with the crash-loop budget spent', async () => {
     const handler = createTaskList({
       sql: sqlWith([

@@ -64,6 +64,39 @@ export function belowDiskFloor(
   );
 }
 
+/** The free space below which the session disk is critical: what running
+ * sessions still write there is about to fail, and with it the replay
+ * journal of every running exec. The operator's (0 turns the tier off), else
+ * a quarter of the floor, at least 1 GiB; never above the floor, and none
+ * while the floor is off: a disk the tier calls critical must also be one
+ * admission refuses new sessions on. */
+export function diskCriticalBytes(
+  totalBytes: number,
+  configuredFloorBytes?: number,
+  configuredBytes?: number,
+): number {
+  if (configuredFloorBytes === 0) return 0;
+  const floor = diskReserveBytes(totalBytes, configuredFloorBytes);
+  if (configuredBytes !== undefined) return Math.min(floor, configuredBytes);
+  return Math.min(floor, Math.max(GIB, Math.floor(floor / 4)));
+}
+
+/** Whether a reading is below the critical tier. An unknown disk, and one
+ * whose reading is a placeholder, never is: the tier acts on what it read. */
+export function belowDiskCritical(
+  disk: HostDisk | null,
+  configuredFloorBytes?: number,
+  configuredBytes?: number,
+): boolean {
+  if (disk === null || disk.unavailable === true) return false;
+  const critical = diskCriticalBytes(
+    disk.totalBytes,
+    configuredFloorBytes,
+    configuredBytes,
+  );
+  return critical > 0 && disk.availableBytes < critical;
+}
+
 /** A reading may be reused this long: disk fills over minutes, not
  * milliseconds, and the probe refreshes it at this pace. */
 const READING_TTL_MS = 5_000;
@@ -79,6 +112,15 @@ export interface HostDiskDeps {
 export interface HostDiskSource {
   latest(): HostDisk | null;
   read(fresh?: boolean): Promise<HostDisk | null>;
+  /** The workspace and Docker data filesystems' last readings apart, when
+   * they are watched apart: `latest` is the one with less headroom, but the
+   * critical tier acts on each for what lives there. `dockerData` is
+   * undefined when that filesystem is not watched (it is then the
+   * workspace's), null while it cannot be read. */
+  byFilesystem?(): {
+    workspace: HostDisk | null;
+    dockerData: HostDisk | null | undefined;
+  };
 }
 
 export class HostDiskProbe implements HostDiskSource {

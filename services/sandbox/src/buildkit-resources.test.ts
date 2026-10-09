@@ -4,6 +4,7 @@ import {
   beforeEach,
   describe,
   expect,
+  spyOn,
   test,
 } from 'bun:test';
 import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -13,6 +14,7 @@ import { join } from 'node:path';
 import {
   ensureBuildkitNetwork,
   createLegacyBuildkitRetirer,
+  inspectBuildkitContainer,
   retireLegacyBuildkitd as retireConfiguredLegacyBuildkitd,
 } from './buildkit-resources.ts';
 import {
@@ -23,17 +25,24 @@ import {
   buildkitdMirrorRef,
   buildkitdNetworkName,
   ensureBuildkitd,
-  ensureBuildkitdReady,
+  forgetVerifiedBuildkitd,
   MIRROR_REGISTRIES,
+  provisionBuildkitd,
+  resetBuildkitObservations,
 } from './buildkitd.ts';
 import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
+import {
+  DOCKER_CLI_CONCURRENCY,
+  dockerCliLoad,
+  runDocker,
+} from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 
 // A fake Docker CLI exercises real resource orchestration, including inspect
 // failures and pre-existing resources. No network/volume on the host is touched.
 const FAKE_DOCKER = String.raw`#!/usr/bin/env bun
 import { mkdirSync as lockDir, rmdirSync as unlockDir, renameSync, readdirSync } from 'node:fs';
-import { readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 const dir = dirname(process.argv[1]);
 const path = join(dir, 'state.json');
@@ -81,6 +90,7 @@ function labels() { return Object.fromEntries(flags('--label').map(v => v.split(
 function containerId(name) { return s.containers[name].legacyId ?? new Bun.CryptoHasher('sha256').update('container:' + name).digest('hex'); }
 if (s.daemonError) fail('Cannot connect to the Docker daemon');
 if (a[0] === 'info') done(s.addressPools ?? null, 'pools');
+if (a[0] === 'hold') { while (!existsSync(join(dir, 'release-hold'))) await Bun.sleep(5); process.exit(0); }
 if (a[0] === 'ps') done(s.sessions.map(session => session.id + '\t' + session.status).join('\n'), 'inventory');
 if (a[0] === 'network') {
   const name = a.at(-1);
@@ -97,7 +107,11 @@ if (a[0] === 'network') {
   if (a[1] === 'inspect') {
     if (name === 'tale-sandbox-net') done({ [s.egressId]: { Name: 'compose-egress-1' } }, 'egress-network');
     if (!s.networks[name]) fail('Error: No such network: ' + name);
-    done(s.networks[name], 'resource');
+    // The proxy's endpoint shows once it is attached, as Docker lists it. A
+    // seeded network without endpoints stands for one whose are unknown.
+    const network = { Id: idFor(name), ...s.networks[name] };
+    if (s.attachments.includes(name)) network.Containers = { ...network.Containers, [s.egressId]: { Name: 'compose-egress-1', IPv4Address: '172.22.0.2/16' } };
+    done(network, 'resource');
   }
   if (a[1] === 'create') {
     s.networks[name] = { Id: idFor(name), Containers: {}, Labels: labels(), Driver: flag('--driver'), Internal: a.includes('--internal'), EnableIPv6: !a.includes('--ipv6=false'), IPAM: { Config: [{ Subnet: flag('--subnet') ?? '172.31.0.0/16' }] } };
@@ -112,11 +126,13 @@ if (a[0] === 'network') {
 }
 if (a[0] === 'volume') {
   const name = a.at(-1);
+  if (s.volumeFails?.[name] === a[1]) fail('Error response from daemon: context deadline exceeded');
   if (a[1] === 'inspect') {
     if (!s.volumes[name]) fail('Error: No such volume: ' + name);
     done(s.volumes[name], 'resource');
   }
   if (a[1] === 'create') { s.volumes[name] ??= labels(); done(name); }
+  if (a[1] === 'rm') { if (!s.volumes[name]) fail('Error: No such volume: ' + name); delete s.volumes[name]; done(name); }
 }
 if (a[0] === 'inspect') {
   if (flag('--format').includes('.Config.Env')) {
@@ -127,13 +143,39 @@ if (a[0] === 'inspect') {
     }
     done(s.sessions.filter(session => a.includes(session.id)).map(session => 'TALE_BUILDKITD_ENDPOINT=' + session.endpoint).join('\n'), 'endpoints');
   }
-  if (flag('--format').includes('"id"')) {
-    done({ id: s.egressId, name: '/compose-egress-1', networks: { 'tale-sandbox-net': { Aliases: [s.egressAlias], IPAddress: '172.30.0.3' } } }, 'egress-containers');
+  const format = flag('--format');
+  const targets = a.slice(a.indexOf('--format') + 2);
+  if (format.includes('"legacyId"')) {
+    const name = targets[0];
+    if (!s.containers[name]) fail('Error: No such object: ' + name);
+    done({ ...s.containers[name], legacyId: containerId(name) }, 'resource');
   }
-  const name = a.at(-1);
-  if (!s.containers[name]) fail('Error: No such object: ' + name);
-  if (flag('--format').includes('"legacyId"')) done({ ...s.containers[name], legacyId: containerId(name) }, 'resource');
-  done(s.containers[name], 'resource');
+  // Every target answers on its own line; missing ones fail the call after
+  // the others are printed, as the Docker CLI does.
+  const egress = () => {
+    const networks = { 'tale-sandbox-net': { Aliases: [s.egressAlias], IPAddress: '172.30.0.3', NetworkID: 'f'.repeat(64) } };
+    for (const net of s.attachments) networks[net] = { Aliases: ['tale-buildkit-egress'], IPAddress: '172.22.0.2', NetworkID: new Bun.CryptoHasher('sha256').update(net).digest('hex') };
+    return { id: s.egressId, name: '/compose-egress-1', running: true, startedAt: s.egressStartedAt ?? '2026-10-01T00:00:00Z', networks };
+  };
+  const lines = [];
+  const missing = [];
+  let observation = 'resource';
+  for (const target of targets) {
+    if (target === s.egressId) { lines.push(JSON.stringify(egress())); observation = 'egress-containers'; continue; }
+    const name = Object.keys(s.containers).find(key => key === target || containerId(key) === target);
+    if (!name) { missing.push(target); continue; }
+    // Docker names each endpoint's network by id too.
+    const record = s.containers[name];
+    const networks = Object.fromEntries(Object.entries(record.networks).map(([net, value]) => [net, { NetworkID: new Bun.CryptoHasher('sha256').update(net).digest('hex'), ...value }]));
+    lines.push(JSON.stringify({ id: containerId(name), name: '/' + name, startedAt: '2026-10-01T00:00:00Z', ...record, networks }));
+  }
+  if (missing.length) {
+    commit();
+    if (lines.length) console.log(lines.join('\n'));
+    console.error(missing.map(target => 'Error: No such object: ' + target).join('\n'));
+    process.exit(1);
+  }
+  done(lines.join('\n'), observation);
 }
 if (a[0] === 'exec') {
   if (a[2] === 'iptables') {
@@ -141,9 +183,7 @@ if (a[0] === 'exec') {
     if (a[3] === '-S') done('-P FORWARD ACCEPT\n' + (s.firewallBlocked ? '-A FORWARD -j DROP\n' : ''), 'firewall');
     if (a[3] === '-I') { s.firewallBlocked = true; done(); }
   }
-  if (a[2] === 'test') done();
-  if (a[2] === 'cat') done('[dns]\n nameservers = ["172.22.0.2"]');
-  if (a[2] === 'getent') done('172.22.0.2 tale-buildkit-egress');
+  if (a[2] === '/bin/sh') done('#tale-fence marker 0\n#tale-fence toml\n[dns]\n nameservers = ["172.22.0.2"]\n#tale-fence resolved\n172.22.0.2 tale-buildkit-egress');
 }
 if (a[0] === 'run') {
   if (a.includes('tale.buildkit-probe=1')) {
@@ -174,7 +214,17 @@ if (a[0] === 'stop') {
   if (!name) fail('Error: No such container: ' + a.at(-1));
   s.containers[name].running = false; done();
 }
-if (a[0] === 'rm') { delete s.containers[a.at(-1)]; done(); }
+if (a[0] === 'rm') {
+  const name = Object.keys(s.containers).find(name => name === a.at(-1) || containerId(name) === a.at(-1));
+  if (name && s.containers[name].running && !a.includes('-f') && !a.includes('--force')) fail('Error response from daemon: cannot remove container: container is running');
+  if (name) delete s.containers[name];
+  done();
+}
+if (a[0] === 'start') {
+  const name = Object.keys(s.containers).find(name => name === a.at(-1) || containerId(name) === a.at(-1));
+  if (!name) fail('Error: No such container: ' + a.at(-1));
+  s.containers[name].running = true; done(a.at(-1));
+}
 fail('Unhandled fake docker call: ' + JSON.stringify(a));
 `;
 
@@ -182,6 +232,8 @@ interface FakeState {
   requireParallelMirrors?: boolean;
   /** The container name whose `docker run` fails. */
   failRun?: string;
+  /** The volume call (`inspect` or `rm`) that fails, by volume name. */
+  volumeFails?: Record<string, string>;
   hostRoutes?: object[];
   hostDns?: string;
   hostRouteFailure?: boolean;
@@ -215,9 +267,12 @@ interface FakeState {
       ports: Record<string, object> | null;
       running: boolean;
       legacyId?: string;
+      finishedAt?: string;
+      created?: string;
     }
   >;
   egressId: string;
+  egressStartedAt?: string;
   egressAlias: string;
   firewallBlocked: boolean;
   firewallFails: boolean;
@@ -258,6 +313,10 @@ const cfg: SpawnerConfig = {
 let root = '';
 let retireLegacyBuildkitd = createLegacyBuildkitRetirer();
 const originalDockerBin = process.env.DOCKER_BIN;
+/** Forget verified helpers while keeping the remembered egress proxy. */
+function resetVerifiedOnly(): void {
+  forgetVerifiedBuildkitd();
+}
 function owned(organizationId: string) {
   return { 'tale.buildkitd': '1', 'tale.org': organizationId };
 }
@@ -304,6 +363,7 @@ beforeAll(async () => {
   process.env.DOCKER_BIN = executable;
 });
 beforeEach(async () => {
+  resetBuildkitObservations();
   retireLegacyBuildkitd = createLegacyBuildkitRetirer();
   await save(initialState());
   await writeFile(join(root, 'calls.jsonl'), '');
@@ -604,9 +664,9 @@ describe('organization BuildKit provisioning', () => {
     await save(down);
     // The builder still comes up without the docker.io mirror, but no session
     // engine may be pointed at a mirror name that does not resolve.
-    expect(await ensureBuildkitdReady(cfg, org)).toEqual({
-      endpoint: buildkitdEndpoint(org),
-    });
+    const ready = await provisionBuildkitd(cfg, org);
+    expect(ready.endpoint).toBe(buildkitdEndpoint(org));
+    expect(ready).not.toHaveProperty('dockerHubMirror');
     const builder = (await calls()).find(
       (a) => a[0] === 'run' && a.includes(buildkitdContainerName(org)),
     );
@@ -618,7 +678,7 @@ describe('organization BuildKit provisioning', () => {
     const up = await state();
     delete up.failRun;
     await save(up);
-    expect(await ensureBuildkitdReady(cfg, org)).toEqual({
+    expect(await provisionBuildkitd(cfg, org)).toMatchObject({
       endpoint: buildkitdEndpoint(org),
       dockerHubMirror: buildkitdMirrorRef(org, 'docker.io'),
     });
@@ -649,6 +709,114 @@ describe('organization BuildKit provisioning', () => {
       'b'.repeat(64),
     );
     expect((await state()).firewallBlocked).toBe(true);
+  });
+
+  test('a warm ensure reuses the known proxy and the one network inspect, and skips a needless connect', async () => {
+    const org = 'org-warm';
+    await ensureBuildkitd(cfg, org);
+    // The next full check (verification forgotten, the proxy remembered).
+    resetVerifiedOnly();
+    await writeFile(join(root, 'calls.jsonl'), '');
+    const ready = await provisionBuildkitd(cfg, org);
+    const network = buildkitdNetworkName(org);
+    expect(ready).toEqual({
+      endpoint: buildkitdEndpoint(org),
+      plan: {
+        id: new Bun.CryptoHasher('sha256').update(network).digest('hex'),
+        subnets: [(await state()).networks[network]!.IPAM.Config[0]!.Subnet],
+      },
+      // Every mirror is up, so sessions pull Docker Hub through this one.
+      dockerHubMirror: buildkitdMirrorRef(org, 'docker.io'),
+    });
+    const commands = await calls();
+    // The organization network once; the proxy by its id alone, never a
+    // scan of the egress network or an inspect of every container on it.
+    expect(
+      commands.filter((args) => args[0] === 'network' && args[1] === 'inspect'),
+    ).toEqual([['network', 'inspect', '--format', '{{json .}}', network]]);
+    expect(
+      commands.filter(
+        (args) => args[0] === 'inspect' && args.includes('a'.repeat(64)),
+      ),
+    ).toHaveLength(1);
+    expect(commands.some((args) => args[1] === 'connect')).toBe(false);
+    // The fence in one exec, the four helpers in one inspect.
+    expect(
+      commands.filter((args) => args[0] === 'exec' && args.includes('/bin/sh')),
+    ).toHaveLength(1);
+    expect(
+      commands.filter(
+        (args) =>
+          args[0] === 'inspect' &&
+          args.includes(buildkitdContainerName(org)) &&
+          MIRROR_REGISTRIES.every((registry) =>
+            args.includes(buildkitdMirrorContainerName(org, registry)),
+          ),
+      ),
+    ).toHaveLength(1);
+    expect(commands.length).toBeLessThanOrEqual(7);
+  });
+
+  test('verified helpers cost one inspect for a minute; a recreated or restarted proxy is checked in full', async () => {
+    const org = 'org-verified';
+    await ensureBuildkitd(cfg, org);
+    await ensureBuildkitd(cfg, org);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    const ready = await provisionBuildkitd(cfg, org);
+    const warm = await calls();
+    expect(warm).toHaveLength(1);
+    expect(warm[0]?.slice(0, 1)).toEqual(['inspect']);
+    expect(warm[0]).toContain('a'.repeat(64));
+    expect(ready.endpoint).toBe(buildkitdEndpoint(org));
+    // Verified helpers include the running docker.io mirror, so a session
+    // still pulls Docker Hub through it on the one-inspect path.
+    expect(ready.dockerHubMirror).toBe(buildkitdMirrorRef(org, 'docker.io'));
+
+    // The proxy restarted in place: its fence pin may be stale.
+    const restarted = await state();
+    restarted.egressStartedAt = '2026-10-02T00:00:00Z';
+    await save(restarted);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org);
+    expect(
+      (await calls()).some(
+        (args) => args[0] === 'exec' && args.includes('/bin/sh'),
+      ),
+    ).toBe(true);
+
+    // A stack restart recreated the proxy: it is found again and attached.
+    const recreated = await state();
+    recreated.egressId = 'b'.repeat(64);
+    recreated.attachments = [];
+    await save(recreated);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org);
+    const commands = await calls();
+    expect(commands.findLast((args) => args[1] === 'connect')?.at(-1)).toBe(
+      'b'.repeat(64),
+    );
+
+    // An adoption's reconcile asks for the full check regardless.
+    await ensureBuildkitd(cfg, org);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org, { fresh: true });
+    expect((await calls()).length).toBeGreaterThan(1);
+  });
+
+  test('a stopped helper is never taken as verified', async () => {
+    const org = 'org-verified-stop';
+    await ensureBuildkitd(cfg, org);
+    await ensureBuildkitd(cfg, org);
+    const stopped = await state();
+    stopped.containers[buildkitdMirrorContainerName(org, 'ghcr.io')]!.running =
+      false;
+    await save(stopped);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await ensureBuildkitd(cfg, org);
+    expect(
+      (await state()).containers[buildkitdMirrorContainerName(org, 'ghcr.io')]
+        ?.running,
+    ).toBe(true);
   });
 
   test.each(['foreign', 'public', 'ipv6', 'dind-overlap'])(
@@ -904,6 +1072,51 @@ describe('organization BuildKit provisioning', () => {
   );
 });
 
+describe('helper inspects and the docker CLI lanes', () => {
+  test('upkeep waits in the shared lane while a create’s inspect takes a reserved slot', async () => {
+    const org = 'org-lanes';
+    const name = buildkitdContainerName(org);
+    const seeded = initialState();
+    seeded.containers[name] = {
+      labels: owned(org),
+      networks: { [buildkitdNetworkName(org)]: {} },
+      ports: null,
+      running: false,
+    };
+    await save(seeded);
+    // Every shared slot busy with a long call.
+    const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+      runDocker(['hold'], { timeoutMs: 30_000 }),
+    );
+    try {
+      while (dockerCliLoad().running < DOCKER_CLI_CONCURRENCY) {
+        await Bun.sleep(5);
+      }
+      const create = inspectBuildkitContainer(
+        name,
+        org,
+        buildkitdNetworkName(org),
+      );
+      expect(await create).toBe('stopped');
+      const upkeep = inspectBuildkitContainer(
+        name,
+        org,
+        buildkitdNetworkName(org),
+        'shared',
+      );
+      await Bun.sleep(50);
+      expect(dockerCliLoad().waiting).toBe(1);
+      expect(dockerCliLoad('priority').running).toBe(0);
+      await writeFile(join(root, 'release-hold'), '');
+      expect(await upkeep).toBe('stopped');
+    } finally {
+      await writeFile(join(root, 'release-hold'), '');
+      await Promise.all(holders);
+      await rm(join(root, 'release-hold'), { force: true });
+    }
+  });
+});
+
 describe('legacy global build-cache retirement', () => {
   test('a different configured Docker target gets its own retirement observation', async () => {
     const previous = process.env.DOCKER_BIN;
@@ -954,6 +1167,268 @@ describe('legacy global build-cache retirement', () => {
     seeded.volumes['tale-buildkitd-cache'] = { 'tale.buildkitd': '1' };
     return seeded;
   }
+
+  const DAY = 24 * 60 * 60 * 1000;
+  /** Two legacy helpers stopped this long ago, the legacy volumes, and
+   * look-alikes that are never removed. */
+  function stoppedLegacyState(stoppedForMs: number): FakeState {
+    const seeded = initialState();
+    const finishedAt = new Date(Date.now() - stoppedForMs).toISOString();
+    for (const name of [
+      'tale-buildkitd',
+      'tale-buildkitd-mirror-docker-io',
+      'tale-buildkitd-custom',
+    ]) {
+      seeded.containers[name] = {
+        labels: { 'tale.buildkitd': '1' },
+        networks: { 'tale-sandbox-net': {} },
+        ports: null,
+        running: false,
+        finishedAt,
+      };
+    }
+    for (const volume of [
+      'tale-buildkitd-cache',
+      'tale-buildkitd-mirror-cache-docker-io',
+      'tale-buildkitd-mirror-cache-ghcr-io',
+      'tale-buildkitd-cache-custom',
+    ]) {
+      seeded.volumes[volume] = { 'tale.buildkitd': '1' };
+    }
+    // A legacy name an organization's label claims.
+    seeded.volumes['tale-buildkitd-mirror-cache-quay-io'] = owned('org-a');
+    return seeded;
+  }
+
+  test('removes stopped legacy helpers and their exact volumes once past the retention and unused', async () => {
+    const seeded = stoppedLegacyState(15 * DAY);
+    await save(seeded);
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await retireLegacyBuildkitd()).toEqual({
+        stopped: 0,
+        deferred: false,
+        removed: 5,
+      });
+      // One line per removal (two helpers, three volumes), and the refused
+      // volume named.
+      expect(log.mock.calls).toHaveLength(5);
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        'tale-buildkitd-mirror-cache-quay-io',
+      );
+    } finally {
+      log.mockRestore();
+      warn.mockRestore();
+    }
+    const final = await state();
+    expect(Object.keys(final.containers)).toEqual(['tale-buildkitd-custom']);
+    expect(final.volumes).toEqual({
+      'tale-buildkitd-cache-custom': { 'tale.buildkitd': '1' },
+      'tale-buildkitd-mirror-cache-quay-io': owned('org-a'),
+    });
+    // By the ids they were inspected under, never by name.
+    expect((await calls()).filter((args) => args[0] === 'rm')).toEqual(
+      ['tale-buildkitd', 'tale-buildkitd-mirror-docker-io'].map((name) => [
+        'rm',
+        new Bun.CryptoHasher('sha256')
+          .update(`container:${name}`)
+          .digest('hex'),
+      ]),
+    );
+    // Nothing is left to retire: no call again.
+    await writeFile(join(root, 'calls.jsonl'), '');
+    await retireLegacyBuildkitd();
+    expect(await calls()).toEqual([]);
+  });
+
+  test('a legacy helper that never ran counts its retention from its creation', async () => {
+    const seeded = stoppedLegacyState(15 * DAY);
+    // Created long ago and never started: Docker reports the zero time as
+    // its stop time.
+    seeded.containers['tale-buildkitd-mirror-docker-io'] = {
+      ...seeded.containers['tale-buildkitd-mirror-docker-io']!,
+      finishedAt: '0001-01-01T00:00:00Z',
+      created: new Date(Date.now() - 20 * DAY).toISOString(),
+    };
+    await save(seeded);
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await retireLegacyBuildkitd()).toMatchObject({ removed: 5 });
+    } finally {
+      log.mockRestore();
+      warn.mockRestore();
+    }
+    expect(Object.keys((await state()).containers)).toEqual([
+      'tale-buildkitd-custom',
+    ]);
+  });
+
+  test('a create only stops legacy helpers: their removal past the retention is left to the upkeep sweep', async () => {
+    const previous = process.env.DOCKER_BIN;
+    // A Docker target of its own: the create path's retirer is per target.
+    const executable = join(root, 'docker-create-path');
+    await writeFile(executable, FAKE_DOCKER);
+    await chmod(executable, 0o755);
+    process.env.DOCKER_BIN = executable;
+    try {
+      const seeded = stoppedLegacyState(15 * DAY);
+      await save(seeded);
+      expect(await ensureBuildkitd(cfg, 'org-a')).toBe(
+        buildkitdEndpoint('org-a'),
+      );
+      const afterCreate = await state();
+      expect(afterCreate.containers).toMatchObject(seeded.containers);
+      expect(afterCreate.volumes).toMatchObject(seeded.volumes);
+      expect(
+        (await calls()).filter(
+          (args) =>
+            args[0] === 'rm' || (args[0] === 'volume' && args[1] === 'rm'),
+        ),
+      ).toEqual([]);
+      // The next create does not look at them again.
+      resetVerifiedOnly();
+      await writeFile(join(root, 'calls.jsonl'), '');
+      await ensureBuildkitd(cfg, 'org-a');
+      expect(
+        (await calls()).some((args) =>
+          args.some((arg) => arg.includes('"legacyId"')),
+        ),
+      ).toBe(false);
+
+      const log = spyOn(console, 'log').mockImplementation(() => {});
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        expect(await retireConfiguredLegacyBuildkitd()).toEqual({
+          stopped: 0,
+          deferred: false,
+          removed: 5,
+        });
+      } finally {
+        log.mockRestore();
+        warn.mockRestore();
+      }
+    } finally {
+      if (previous === undefined) delete process.env.DOCKER_BIN;
+      else process.env.DOCKER_BIN = previous;
+    }
+  });
+
+  test('a legacy volume that cannot be removed is tried again an hour later, its helpers gone', async () => {
+    const seeded = stoppedLegacyState(15 * DAY);
+    seeded.volumeFails = {
+      'tale-buildkitd-cache': 'inspect',
+      'tale-buildkitd-mirror-cache-docker-io': 'rm',
+    };
+    await save(seeded);
+    const log = spyOn(console, 'log').mockImplementation(() => {});
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    const realNow = Date.now;
+    let shiftMs = 0;
+    const now = spyOn(Date, 'now').mockImplementation(
+      () => realNow() + shiftMs,
+    );
+    try {
+      // Both helpers and the ghcr.io volume go; the two that failed stay.
+      expect(await retireLegacyBuildkitd()).toEqual({
+        stopped: 0,
+        deferred: false,
+        removed: 3,
+      });
+      let final = await state();
+      expect(Object.keys(final.containers)).toEqual(['tale-buildkitd-custom']);
+      expect(Object.keys(final.volumes).sort()).toEqual(
+        [
+          'tale-buildkitd-cache',
+          'tale-buildkitd-cache-custom',
+          'tale-buildkitd-mirror-cache-docker-io',
+          'tale-buildkitd-mirror-cache-quay-io',
+        ].sort(),
+      );
+      // Within the hour, nothing is tried again.
+      await save({ ...final, volumeFails: {} });
+      await writeFile(join(root, 'calls.jsonl'), '');
+      shiftMs = 59 * 60_000;
+      await retireLegacyBuildkitd();
+      expect(await calls()).toEqual([]);
+
+      shiftMs = 61 * 60_000;
+      expect(await retireLegacyBuildkitd()).toEqual({
+        stopped: 0,
+        deferred: false,
+        removed: 2,
+      });
+      final = await state();
+      expect(final.volumes).toEqual({
+        'tale-buildkitd-cache-custom': { 'tale.buildkitd': '1' },
+        'tale-buildkitd-mirror-cache-quay-io': owned('org-a'),
+      });
+      // Nothing is left to retire.
+      await writeFile(join(root, 'calls.jsonl'), '');
+      shiftMs = 3 * 60 * 60_000;
+      await retireLegacyBuildkitd();
+      expect(await calls()).toEqual([]);
+    } finally {
+      now.mockRestore();
+      log.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
+  test('keeps stopped legacy helpers within the retention, inspecting nothing until it could have passed', async () => {
+    const seeded = stoppedLegacyState(2 * DAY);
+    await save(seeded);
+    expect(await retireLegacyBuildkitd()).toEqual({
+      stopped: 0,
+      deferred: false,
+    });
+    const first = await calls();
+    expect(first.every(([command]) => command === 'inspect')).toBe(true);
+    await retireLegacyBuildkitd();
+    expect(await calls()).toEqual(first);
+    expect(await state()).toEqual(seeded);
+  });
+
+  test('keeps stopped legacy helpers while a session still uses them, and with the retention off', async () => {
+    const seeded = stoppedLegacyState(30 * DAY);
+    seeded.sessions.push({
+      id: 'c'.repeat(64),
+      status: 'running',
+      endpoint: 'tcp://tale-buildkitd:1234',
+    });
+    await save(seeded);
+    expect(await retireLegacyBuildkitd()).toEqual({
+      stopped: 0,
+      deferred: true,
+    });
+    expect(await state()).toEqual(seeded);
+
+    retireLegacyBuildkitd = createLegacyBuildkitRetirer();
+    const drained = { ...seeded, sessions: [] };
+    await save(drained);
+    expect(await retireLegacyBuildkitd(0)).toEqual({
+      stopped: 0,
+      deferred: false,
+    });
+    expect(await state()).toEqual(drained);
+  });
+
+  test('helpers stopped just now are removed only a full retention later', async () => {
+    const seeded = legacyState();
+    await save(seeded);
+    expect(await retireLegacyBuildkitd()).toEqual({
+      stopped: 2,
+      deferred: false,
+    });
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await retireLegacyBuildkitd()).toEqual({
+      stopped: 0,
+      deferred: false,
+    });
+    expect(await calls()).toEqual([]);
+    expect(Object.keys((await state()).containers)).toHaveLength(2);
+  });
 
   test.each(['inventory', 'endpoints'])(
     'refuses truncated %s even when the visible prefix contains no legacy dependency',

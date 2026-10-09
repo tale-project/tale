@@ -1169,6 +1169,9 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const run = await getRun(deps.sql, organizationId, runId);
       if (run === null || run.projectId !== (projectId ?? null))
         return notFound(c, 'Run not found', 'RUN_NOT_FOUND');
+      const keyId = restApiKeyId(c);
+      // A relayed person's access, the key's spend: an agent the mirrored
+      // answer names runs on the key too.
       const author =
         actor === null
           ? keyHolder
@@ -1176,6 +1179,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
               deps.sql,
               { organizationId, userId: actor.userId, role: actor.role },
               actor.email,
+              keyId !== undefined ? { apiKeyId: keyId } : {},
             );
       // The PERSON must be able to see the project the run belongs to —
       // judged before anything is recorded in their name, and named as

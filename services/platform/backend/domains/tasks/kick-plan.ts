@@ -222,6 +222,8 @@ export async function resolveTaskKickStartArgs(
 export interface TaskRetryHistoryRow extends AutoRetryRunFacts {
   readonly id: string;
   readonly startedBy: string;
+  /** The API key the run was started with; its retry carries it. */
+  readonly apiKeyId?: string | undefined;
   readonly inPlace: boolean;
   /** Original task decision; absent on legacy in-place kicks. */
   readonly inPlaceRetryStatus?: string | undefined;
@@ -252,6 +254,7 @@ export async function loadTaskRetryHistory(
       status: string;
       agentId: string;
       startedBy: string;
+      apiKeyId: string | null;
       inPlace: boolean;
       inPlaceRetryStatus: string | null;
       inPlaceRetryActivityId: string | null;
@@ -265,7 +268,8 @@ export async function loadTaskRetryHistory(
     }[]
   >`
     SELECT id, status, agent_id AS "agentId",
-           started_by AS "startedBy", in_place AS "inPlace",
+           started_by AS "startedBy", api_key_id AS "apiKeyId",
+           in_place AS "inPlace",
            in_place_retry_status AS "inPlaceRetryStatus",
            in_place_retry_activity_id::text AS "inPlaceRetryActivityId",
            launched_at_ms::float8 AS "launchedAt",
@@ -284,6 +288,7 @@ export async function loadTaskRetryHistory(
     id: row.id,
     agentId: row.agentId,
     startedBy: row.startedBy,
+    apiKeyId: row.apiKeyId ?? undefined,
     inPlace: row.inPlace,
     inPlaceRetryStatus: row.inPlaceRetryStatus ?? undefined,
     inPlaceRetryActivityId: row.inPlaceRetryActivityId ?? undefined,

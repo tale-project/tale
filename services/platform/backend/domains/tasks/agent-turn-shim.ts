@@ -32,6 +32,7 @@ import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import {
   markSessionOpKeyRevoked,
   scheduleGatewayKeyReconcile,
+  settleCostFreeTurn,
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
@@ -256,17 +257,23 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The person whose steer restarts the turn; absent from a steer
          * queued before it was carried. */
         startedBy?: string;
+        /** The API key they wrote with; absent when they wrote without one. */
+        apiKeyId?: string;
       };
       // The SINGLE-WINNER claim: guarded on (running, fromExecId), so two
       // concurrent steers cannot both rotate — the loser re-reads and sees
       // the new incarnation. The superseded chain orphans itself because
       // every settle mark is exec-guarded. The restarted turn is booked to
-      // the person who steered it: spend follows the run's starter.
+      // the person who steered it, and to the key they wrote with or none:
+      // spend follows the run's starter.
       const execId = `${args.fromExecId}-2`;
+      const startedBy = args.startedBy ?? null;
       const rows = await sql<{ id: string }[]>`
         UPDATE app.project_agent_runs SET
           exec_id = ${execId},
-          started_by = coalesce(${args.startedBy ?? null}, started_by),
+          started_by = coalesce(${startedBy}, started_by),
+          api_key_id = CASE WHEN ${startedBy}::text IS NULL THEN api_key_id
+                            ELSE ${args.apiKeyId ?? null} END,
           updated_at_ms = ${Date.now()}
         WHERE id = ${args.runId} AND status = 'running'
           AND exec_id = ${args.fromExecId}
@@ -281,6 +288,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         taskId: string;
         authorId: string;
+        /** The API key the text was written with. */
+        apiKeyId?: string;
         feedback: string;
         mentionSource?: MentionSource;
       };
@@ -357,6 +366,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                   mentionSource: 'comment' as const,
                 }),
             startedBy: args.authorId,
+            ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
           });
         } catch (error) {
           // The organization's standard agent no longer starts for the
@@ -594,6 +604,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // its spend fact closes at the terminal stamp, which also releases the
       // budget reservation it may hold.
       const keyless = args.mintedKeyId === undefined;
+      // Except a subscription turn's: it is the request it was, booked
+      // before that stamp closes it — whatever ended it, its host's release
+      // or a watchdog's failure.
+      if (terminal && keyless) {
+        await settleCostFreeTurn(sql, {
+          sessionId: args.sessionId,
+          execId: args.execId,
+        });
+      }
       const upsert = async (
         db: Sql | TransactionSql,
         liveTimeline: TimelinePart[] | undefined,
@@ -898,6 +917,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           resumedBy: string | null;
           spendSettledAt: number | null;
           keyRevokedAt: number | null;
+          budgetCents: number | null;
         }[]
       >`
         SELECT minted_key_id AS "mintedKeyId",
@@ -905,7 +925,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                started_at_ms::float8 AS "startedAt",
                resumed_by AS "resumedBy",
                spend_settled_at_ms::float8 AS "spendSettledAt",
-               key_revoked_at_ms::float8 AS "keyRevokedAt"
+               key_revoked_at_ms::float8 AS "keyRevokedAt",
+               budget_cents::float8 AS "budgetCents"
         FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         LIMIT 1
@@ -920,6 +941,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         // The settlement facts a replayed settle resumes from.
         spendSettled: row.spendSettledAt !== null,
         keyRevoked: row.keyRevokedAt !== null,
+        // The hold the turn took: 0 for a subscription turn's request.
+        ...(row.budgetCents !== null ? { budgetCents: row.budgetCents } : {}),
       };
     },
 

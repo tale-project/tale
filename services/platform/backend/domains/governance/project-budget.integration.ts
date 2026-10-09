@@ -33,16 +33,18 @@ import {
 } from '../files/transcription-metering.ts';
 import {
   reconcilePendingSessionOpKeys,
+  settleCostFreeTurn,
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
+import { loadBudgetSubject, readBudgetStanding } from './budget-gate.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
 import {
   openDirectCall,
   releaseStaleDirectCalls,
   settleDirectCall,
 } from './direct-calls.ts';
-import { incrementUsageLedger } from './service.ts';
+import { incrementUsageLedger, recordConnectorUsage } from './service.ts';
 
 const createdSchema = z.object({ id: z.string() });
 
@@ -289,6 +291,96 @@ export async function checkProjectBudgets(
         ) &&
         ledgerRows[0]?.count === '3',
       `buckets=${JSON.stringify(buckets)} (want 3 at 60 cents, 15 tokens), ledger rows=${ledgerRows[0]?.count} (want 3)`,
+    );
+
+    // A connector call is counted as one, never as a model request: its
+    // ledger rows carry none, the project's buckets take nothing from it,
+    // and a request cap reads past a connector row booked with a request
+    // before that rule. A personal request cap is set for the reading
+    // alone, then the project's rule stands alone again.
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules:',
+        '  - scope: default',
+        '    period: monthly',
+        '    maxRequests: 1000000',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        '    maxCostCents: 100',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    const memberSubject = await loadBudgetSubject(sql, {
+      organizationId: orgId,
+      userId,
+    });
+    const requestsRead = async () =>
+      (await readBudgetStanding(sql, memberSubject)).find(
+        (standing) => standing.scope === 'user',
+      )?.usage.requestCount ?? -1;
+    const requestsBefore = await requestsRead();
+    await recordConnectorUsage(sql, {
+      organizationId: orgId,
+      userId,
+      agentSlug,
+      connectorName: 'itest-connector',
+      connectorOperation: 'list',
+      costEstimateCents: 0,
+      timestamp: now,
+      projectIds: [projectId],
+    });
+    await incrementUsageLedger(sql, {
+      organizationId: orgId,
+      userId,
+      inputTokens: 0,
+      outputTokens: 0,
+      costEstimateCents: 0,
+      timestamp: now,
+      agentSlug,
+      connectorName: 'itest-connector',
+      connectorOperation: 'legacy',
+      connectorCallCount: 1,
+      requestCount: 1,
+    });
+    const requestsAfter = await requestsRead();
+    const connectorRows = await sql<{ requests: number; calls: number }[]>`
+      SELECT request_count::float8 AS requests,
+             connector_call_count::float8 AS calls
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND connector_name = 'itest-connector'
+        AND connector_operation = 'list'
+    `;
+    const projectAfter = await sql<{ requests: number }[]>`
+      SELECT coalesce(sum(request_count), 0)::float8 AS requests
+      FROM app.project_usage
+      WHERE org_id = ${orgId} AND project_id = ${projectId}
+        AND granularity = 'monthly'
+    `;
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules: []',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        '    maxCostCents: 100',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    record(
+      'project budgets: a connector call is counted as one, never as a model request [GOV-R15]',
+      connectorRows.length === 3 &&
+        connectorRows.every((row) => row.requests === 0 && row.calls === 1) &&
+        projectAfter[0]?.requests === 1 &&
+        requestsBefore >= 0 &&
+        requestsAfter === requestsBefore,
+      `connector rows=${JSON.stringify(connectorRows)} (want 3 at 0 requests, 1 call), project requests=${projectAfter[0]?.requests} (want 1, the model call's), member requests ${requestsBefore} → ${requestsAfter} (want unchanged)`,
     );
 
     // Another of the project's turns holds the remaining 40.
@@ -1083,6 +1175,83 @@ export async function checkProjectBudgets(
         Math.abs((transcriptionBooked[0]?.cost ?? 0) - 0.88) < 1e-9 &&
         transcriptionBooked[0]?.seconds === 88,
       `subject=${JSON.stringify(transcriptionSubject)} (want the uploader in the project) stranger=${JSON.stringify(strangerSubject)} (want no project, booked to __automation__ — its uploader is no member) removed=${JSON.stringify(removedSubject)} (want null) held ${whileTranscribing - beforeTranscription} then ${afterTranscription - beforeTranscription} (want 6 then 0) booked=${JSON.stringify(transcriptionBooked)} (want 0.88 cents, 88 s, the uploader)`,
+    );
+
+    // A subscription turn costs nothing per call: the project's spent cost
+    // cap cannot refuse it. It holds one request at no cost while it runs,
+    // and is booked as that request, with its tokens, once it ends. Last in
+    // the lane: its booking lands in the project's buckets, which the checks
+    // above read to the token.
+    await writeFile(
+      budgetsFile,
+      [
+        'enabled: true',
+        'rules: []',
+        'projectRules:',
+        '  - scope: project',
+        `    scopeId: ${projectId}`,
+        '    period: monthly',
+        '    maxCostCents: 1',
+      ].join('\n'),
+    );
+    clearOrgConfigCaches();
+    const holdsInProject = async () =>
+      (
+        await readInFlightReservations(sql, {
+          organizationId: orgId,
+          userId,
+          userTeamIds: [],
+          projectIds: [projectId],
+        })
+      ).projects?.[projectId] ?? { costCents: 0, tokens: 0, requests: 0 };
+    const beforeSubscription = await holdsInProject();
+    const subscriptionTurn = await reserveTurnBudget(sql, {
+      organizationId: orgId,
+      sessionId: opSession,
+      execId: 'subscription',
+      kind: 'task-agent',
+      defaultBudgetCents: 0,
+      costFree: true,
+      subject: {
+        userId,
+        agentSlug: 'itest-subscription-agent',
+        projectIds: [projectId],
+      },
+    });
+    const whileSubscription = await holdsInProject();
+    await settleCostFreeTurn(sql, {
+      sessionId: opSession,
+      execId: 'subscription',
+      usage: { inputTokens: 1_200, outputTokens: 300 },
+    });
+    // Settled once: a second call books nothing more.
+    await settleCostFreeTurn(sql, {
+      sessionId: opSession,
+      execId: 'subscription',
+    });
+    const afterSubscription = await holdsInProject();
+    const subscriptionBooked = await sql<
+      { requests: number; cost: number; tokens: number }[]
+    >`
+      SELECT request_count::float8 AS requests,
+             cost_estimate_cents::float8 AS cost,
+             total_tokens::float8 AS tokens
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = 'itest-subscription-agent'
+        AND granularity = 'monthly'
+    `;
+    record(
+      'project budgets: a subscription turn is a request at no cost — a spent cost cap admits it, and it books once [GOV-R16]',
+      subscriptionTurn.allowed &&
+        subscriptionTurn.budgetCents === 0 &&
+        whileSubscription.requests - beforeSubscription.requests === 1 &&
+        whileSubscription.costCents === beforeSubscription.costCents &&
+        afterSubscription.requests === beforeSubscription.requests &&
+        subscriptionBooked.length === 1 &&
+        subscriptionBooked[0]?.requests === 1 &&
+        subscriptionBooked[0]?.cost === 0 &&
+        subscriptionBooked[0]?.tokens === 1_500,
+      `admitted=${JSON.stringify(subscriptionTurn)} (want allowed at 0 cents), project hold requests ${beforeSubscription.requests} → ${whileSubscription.requests} → ${afterSubscription.requests} (want +1 then back), cost ${beforeSubscription.costCents} → ${whileSubscription.costCents} (want unchanged), booked=${JSON.stringify(subscriptionBooked)} (want one request, 0 cents, 1500 tokens)`,
     );
   } finally {
     await unlink(budgetsFile).catch((error: unknown) => {

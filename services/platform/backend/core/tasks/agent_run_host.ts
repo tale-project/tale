@@ -39,8 +39,11 @@ import {
   connectorsBridgeUrlForSessions,
   harnessMountsMcp,
   harnessResumesConversations,
+  nextWindowDelayMs,
   removeStagedSubscription,
   resolveHarnessTurnContextWindow,
+  SPAWNER_OUTAGE_BUDGET_MS,
+  spawnerOutageOutlasted,
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
@@ -65,6 +68,7 @@ import {
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
+  ExecDiskFullError,
   isSessionExecLimitResult,
   SessionExecLimitError,
   sessionCancelExec,
@@ -224,6 +228,9 @@ interface TurnKeys {
   harness: string;
   deadlineAt: number;
   sessionCreatedAt?: number;
+  /** Since when the turn's spawner has been out of reach, carried from one
+   * drive window to the next while it stays away. */
+  spawnerOutageSince?: number;
 }
 
 /**
@@ -974,6 +981,28 @@ async function mintTurnServing(
       ...(visionModelRef !== undefined ? { visionModelRef } : {}),
       ...(vision !== null ? { visionPolyfillReads: vision.polyfillReads } : {}),
     };
+  }
+  // A subscription turn costs the organization nothing per call, but it is a
+  // request: it holds one while it runs, and is refused before any
+  // credential is vended once a request or token cap that binds its run is
+  // reached. Cost caps cannot bind it — it adds no cost.
+  const reservation = readReserveTurnBudgetResult(
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveTurnBudget,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'task-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+        modelRef: `${resolved.providerSlug}/${resolved.modelId}`,
+        harness: args.harness,
+      },
+    ),
+  );
+  if (!reservation.allowed) {
+    throw new TurnBudgetExceededError(reservation.reason);
   }
   const credential = await resolveProviderCredential(
     ctx,
@@ -1786,6 +1815,9 @@ export async function driveTaskAgentTurnImpl(
         onText: progress.onText,
         onTimeline: progress.onTimeline,
         ...(options.signal !== undefined && { signal: options.signal }),
+        ...(args.spawnerOutageSince !== undefined && {
+          spawnerOutageSince: args.spawnerOutageSince,
+        }),
       });
     } catch (err) {
       console.error('[task-agent] drive window threw:', err);
@@ -1803,7 +1835,12 @@ export async function driveTaskAgentTurnImpl(
       );
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
-        reason: 'the agent run stopped unexpectedly',
+        // A full sandbox disk is the host's condition, named so whoever
+        // reads the failure knows what to free.
+        reason:
+          err instanceof ExecDiskFullError
+            ? `the agent run stopped: ${err.message}`
+            : 'the agent run stopped unexpectedly',
         text: '',
         failureCode: 'turn_crashed',
       });
@@ -1888,6 +1925,28 @@ async function continueOrSettle(
    * echo from a live conversation's first-response error. */
   attemptedResume?: string,
 ): Promise<void> {
+  if (spawnerOutageOutlasted(window)) {
+    // The spawner stayed out of reach past the outage budget: stop waiting
+    // and settle as a drain failure does — reap the exec first (best-effort:
+    // the spawner may answer again by now), since a Retry would otherwise
+    // launch beside a CLI that is still working.
+    console.error(
+      `[task-agent] the sandbox spawner stayed out of reach for ${args.execId} past the outage budget — settling the run`,
+    );
+    await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+      console.warn(
+        '[task-agent] exec cancel after the spawner outage failed:',
+        cancelErr,
+      ),
+    );
+    await settleTaskAgentTurn(ctx, args, {
+      errored: true,
+      reason: `the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes, so the agent run was stopped`,
+      text: '',
+      failureCode: 'turn_crashed',
+    });
+    return;
+  }
   if (window.kind === 'running') {
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
@@ -1904,7 +1963,7 @@ async function continueOrSettle(
         : {}),
     });
     await ctx.scheduler.runAfter(
-      0,
+      nextWindowDelayMs(window),
       internal.tasks.agent_run_host.driveTaskAgentTurn,
       {
         organizationId: args.organizationId,
@@ -1917,6 +1976,9 @@ async function continueOrSettle(
         deadlineAt: args.deadlineAt,
         ...(args.sessionCreatedAt !== undefined
           ? { sessionCreatedAt: args.sessionCreatedAt }
+          : {}),
+        ...(window.spawnerOutageSince !== undefined
+          ? { spawnerOutageSince: window.spawnerOutageSince }
           : {}),
       },
     );
@@ -2486,6 +2548,9 @@ export interface SteerTaskAgentTurnArgs extends TurnKeys {
   mentionSource?: MentionSource;
   author: string;
   authorId: string;
+  /** The API key the text was written with; absent from a steer queued
+   * before it was carried. */
+  authorApiKeyId?: string;
   attempt: number;
 }
 
@@ -2524,6 +2589,9 @@ export async function steerTaskAgentTurnImpl(
         organizationId: args.organizationId,
         taskId: args.taskId,
         authorId: args.authorId,
+        ...(args.authorApiKeyId !== undefined
+          ? { apiKeyId: args.authorApiKeyId }
+          : {}),
         feedback: args.feedback,
         mentionSource: args.mentionSource ?? 'comment',
       },
@@ -2606,13 +2674,17 @@ export async function steerTaskAgentTurnImpl(
   // settle marks are exec-guarded and the slot release refuses while the
   // incarnation's op runs.
   // The restarted turn is the steering person's gesture: its spend books to
-  // them from here on, as a fresh run they kicked would.
+  // them — and to the key they wrote with — from here on, as a fresh run
+  // they kicked would.
   const rotated = await ctx.runMutation(
     internal.tasks.agent_runs.rotateTaskAgentRunExec,
     {
       runId: args.runId,
       fromExecId: args.execId,
       startedBy: args.authorId,
+      ...(args.authorApiKeyId !== undefined
+        ? { apiKeyId: args.authorApiKeyId }
+        : {}),
     },
   );
   if (rotated === null) return await retry(args.execId); // raced a settle/cancel/steer

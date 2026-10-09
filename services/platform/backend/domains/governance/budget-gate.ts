@@ -77,6 +77,13 @@ export type UsageScope =
  * starter — so a cap sees the member's whole spend, whichever door it came
  * through (`governance/README.md`).
  */
+/**
+ * What a bucket used this period. Its requests are model requests: a
+ * connector call is counted on `connector_call_count` and never as a
+ * request, so a ledger row a connector names is skipped — rows booked before
+ * connector calls stopped carrying a request included. A project's buckets
+ * (`app.project_usage`) never take a connector call at all.
+ */
 async function periodUsage(
   sql: Sql | TransactionSql,
   organizationId: string,
@@ -89,7 +96,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND user_id = ANY(${usageLedgerSubjectForms(scope.userId)})
@@ -101,7 +109,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND regexp_replace(user_id, '^(user|api-key):', '') IN (
@@ -121,7 +130,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
           AND (api_key_id = ${scope.apiKeyId}
@@ -148,7 +158,8 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
+                 AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
       `;
@@ -750,6 +761,12 @@ function violationOf(
   };
 }
 
+/** A rule as a turn that costs nothing reads it: its cost cap set aside. */
+function withoutCostCap(rule: BudgetRule): BudgetRule {
+  const { maxCostCents: _cost, ...uncapped } = rule;
+  return uncapped;
+}
+
 /**
  * The gateway allowance a managed turn may be minted with: the deployment's
  * per-turn default, capped by what remains under every cost rule that binds
@@ -774,6 +791,11 @@ export async function resolveTurnAllowance(
      * managed turns alike (`readInFlightReservations`). */
     reservations: BudgetReservations;
     whole?: { prospectiveTokens: number };
+    /** A flat-rate turn — a subscription the organization pays its vendor
+     * for apart from Tale — adds requests and tokens but no cost: it is
+     * admitted while every request and token cap has room, whatever the
+     * cost caps read, and holds no cents. */
+    costFree?: boolean;
   },
 ): Promise<TurnAllowance> {
   const { reservations } = args;
@@ -799,9 +821,11 @@ export async function resolveTurnAllowance(
       // cost and tokens are measured whole below, and its request is the
       // one a request cap still has room for.
       const violation =
-        args.whole !== undefined
-          ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
-          : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
+        args.costFree === true
+          ? checkRuleAgainstUsage(withoutCostCap(bucket.rule), bucket.usage)
+          : args.whole !== undefined
+            ? checkRuleAgainstUsage(bucket.rule, bucket.usage, 0, 0)
+            : checkRuleAgainstUsage(bucket.rule, bucket.usage, 1, 1);
       if (violation?.code !== undefined) {
         // The rule's own wording, and whose cap it is: a key's cap and the
         // organization's read alike otherwise.
@@ -842,6 +866,8 @@ export async function resolveTurnAllowance(
       }
     }
   }
+  // Every request and token cap has room, and cost caps cannot bind it.
+  if (args.costFree === true) return { allowed: true, budgetCents: 0 };
   const room = {
     ...(tightestCost !== undefined
       ? { cents: Math.max(0, tightestCost.room) }

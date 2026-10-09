@@ -158,6 +158,13 @@ case "$cmd" in
   version)
     echo "29.0.0"
     exit 0 ;;
+  stop)
+    printf '%s\\n' "$@" > "$here/last-stop"
+    if [ "$(cat "$here/stop-mode" 2>/dev/null)" = "fail" ]; then
+      echo "Error response from daemon: cannot stop container: permission denied" >&2
+      exit 1
+    fi
+    exit 0 ;;
   rm)
     printf '%s\\n' "$@" > "$here/last-rm"
     case "$rm_mode" in
@@ -483,6 +490,60 @@ describe('DockerSessionBackend stop/destroy honour the rm result', () => {
     await fakeDocker({ present: true, rm: 'ok' });
     const backend = new DockerSessionBackend(backendConfig());
     expect(await backend.stopSession('rm-ok')).toBe(true);
+  });
+
+  test('a stop with a grace asks the container to stop before it is removed; one without kills at once', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    await rm(join(fakeRoot, 'last-stop'), { force: true });
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(await backend.stopSession('graceful', 1_700_000_000_000)).toBe(true);
+    expect(await exists(join(fakeRoot, 'last-stop'))).toBe(false);
+    expect(
+      await backend.stopSession('graceful', 1_700_000_000_000, {
+        graceMs: 20_000,
+      }),
+    ).toBe(true);
+    // The grace goes to the same fenced container id the removal takes.
+    expect(
+      (await readFile(join(fakeRoot, 'last-stop'), 'utf8')).split('\n'),
+    ).toEqual(['-t', '20', 'abcdef123456', '']);
+    expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toBe(
+      '--force\nabcdef123456\n',
+    );
+  });
+
+  test('a graceful stop the daemon refuses still removes the container', async () => {
+    await fakeDocker({ present: true, rm: 'ok' });
+    await writeFile(join(fakeRoot, 'stop-mode'), 'fail');
+    await writeFile(join(fakeRoot, 'last-rm'), 'untouched');
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const backend = new DockerSessionBackend(backendConfig());
+      expect(
+        await backend.stopSession('stop-refused', undefined, {
+          graceMs: 5_000,
+        }),
+      ).toBe(true);
+      expect(await readFile(join(fakeRoot, 'last-rm'), 'utf8')).toBe(
+        '--force\ntale-sbx-ses-stop-refused\n',
+      );
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        'graceful stop of tale-sbx-ses-stop-refused failed',
+      );
+    } finally {
+      warn.mockRestore();
+      await rm(join(fakeRoot, 'stop-mode'), { force: true });
+    }
+  });
+
+  test('nothing to stop gracefully when the container is already gone', async () => {
+    await fakeDocker({ present: false, rm: 'nosuch' });
+    await rm(join(fakeRoot, 'last-stop'), { force: true });
+    const backend = new DockerSessionBackend(backendConfig());
+    expect(
+      await backend.stopSession('stop-gone', undefined, { graceMs: 5_000 }),
+    ).toBe(false);
+    expect(await exists(join(fakeRoot, 'last-stop'))).toBe(false);
   });
 
   test('a failed removal of the inner image volume is reported, never silent', async () => {

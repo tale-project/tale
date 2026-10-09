@@ -119,6 +119,15 @@ async function readWorkspaceDirs(
   return found;
 }
 
+/** Every workspace dir under `root`, with the session it belongs to: a
+ * session with copies in both layouts is listed once per copy. Dirs below the
+ * root that cannot be read are left out (logged); an unreadable root THROWS. */
+export function listWorkspacePaths(
+  root: string,
+): Promise<Array<{ sessionId: string; path: string }>> {
+  return readWorkspaceDirs(root, false);
+}
+
 /** Every directory of one session, including copies left in legacy roots.
  * THROWS on an unreadable root instead of hiding data from its destroy. */
 export async function listSessionWorkspaceDirs(

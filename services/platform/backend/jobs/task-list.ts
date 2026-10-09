@@ -189,6 +189,7 @@ const startWorkflowSchema = z.object({
   taskId: z.string().min(1),
   workflowSlug: z.string().min(1),
   startedByUserId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
 });
 
 const driveSchema = z.object({
@@ -204,6 +205,10 @@ const driveSchema = z.object({
   // drive continuation carries it or a later kick's resume check degrades
   // to the op-recovered leg.
   sessionCreatedAt: z.number().optional(),
+  // Since when the turn's spawner has been out of reach: the continuation
+  // carries it while the spawner stays away, so the outage budget counts
+  // from its start rather than from each window.
+  spawnerOutageSince: z.number().optional(),
 });
 
 const steerSchema = z.object({
@@ -226,6 +231,7 @@ const steerSchema = z.object({
   mentionSource: z.enum(['comment', 'description']).optional(),
   author: z.string(),
   authorId: z.string(),
+  authorApiKeyId: z.string().optional(),
   attempt: z.number(),
 });
 
@@ -446,6 +452,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             ? { modelProvider: agent.modelProvider }
             : {}),
           startedBy: newest.startedBy,
+          ...(newest.apiKeyId !== undefined
+            ? { apiKeyId: newest.apiKeyId }
+            : {}),
           trigger: 'auto_retry',
           ...(startedVia !== undefined
             ? { startedVia, inPlace: newest.inPlace }
@@ -1078,6 +1087,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               }),
             )
             .optional(),
+          sentBy: z.object({ userId: z.string().min(1) }).optional(),
         })
         .parse(payload);
       const { runSendMessageJob } =
@@ -1250,6 +1260,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         task,
         workflowSlug: input.workflowSlug,
         startedByUserId: input.startedByUserId,
+        ...(input.apiKeyId !== undefined
+          ? { startedVia: 'api-key' as const, apiKeyId: input.apiKeyId }
+          : {}),
       });
     },
 
@@ -1546,6 +1559,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           providerSlug: z.string().min(1),
           gatewayModel: z.string().min(1),
           deadlineAt: z.number(),
+          // See the task lane's drive schema.
+          spawnerOutageSince: z.number().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 drive window on the ctx shim: it replays the exec's

@@ -7,6 +7,7 @@ import {
   type ConnectorAuditSink,
   type ConnectorCaller,
   type ConnectorDispatchResult,
+  type ConnectorUsageSink,
   type CredentialResolver,
 } from '../../../lib/connectors/dispatcher.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
@@ -22,6 +23,7 @@ import {
   setCodeRunner,
 } from '../../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
+import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
   ingestEmails,
   ingestSentEmails,
@@ -40,6 +42,11 @@ import {
   recordConversationTriage,
 } from '../conversations/triage.ts';
 import { getOrgBlobBytes } from '../files/service.ts';
+import { recordConnectorUsage } from '../governance/service.ts';
+import {
+  resolveAutomationRunAttribution,
+  type SessionOpAttribution,
+} from '../sandbox/op-attribution.ts';
 import { pgWebdavStore } from '../webdav/connector-store.ts';
 import { connectorBlobSink } from './blob-sink.ts';
 import { pgDocumentStore } from './document-store.ts';
@@ -222,6 +229,61 @@ function auditSink(sql: Sql): ConnectorAuditSink {
   };
 }
 
+/**
+ * Whose spend a connector call is: the spender its caller names — an
+ * agent's turn names the run it works for — else an automation step's run
+ * (`resolveAutomationRunAttribution`, the subject its agent and `llm` steps
+ * book under), else the member who made it. The platform's own sends name
+ * nobody, and are not counted.
+ */
+async function connectorSpender(
+  sql: Sql,
+  args: RunConnectorArgs,
+): Promise<SessionOpAttribution | null> {
+  if (args.spender !== undefined) return args.spender;
+  if (args.caller.kind === 'workflow') {
+    return (
+      (await resolveAutomationRunAttribution(sql, {
+        organizationId: args.organizationId,
+        runId: args.caller.runId,
+      })) ?? { userId: AUTOMATION_SUBJECT_ID }
+    );
+  }
+  if (args.caller.kind === 'user') return { userId: args.caller.userId };
+  return null;
+}
+
+/** Every live connector call that ran, counted as one under its spender —
+ * at no cost and never as a model request (`recordConnectorUsage`). */
+function connectorUsageSink(
+  sql: Sql,
+  args: RunConnectorArgs,
+): ConnectorUsageSink {
+  return {
+    record: async (entry) => {
+      const spender = await connectorSpender(sql, args);
+      if (spender === null) return;
+      await recordConnectorUsage(sql, {
+        organizationId: entry.organizationId,
+        userId: spender.userId,
+        ...(spender.agentSlug !== undefined
+          ? { agentSlug: spender.agentSlug }
+          : {}),
+        ...(spender.apiKeyId !== undefined
+          ? { apiKeyId: spender.apiKeyId }
+          : {}),
+        ...(spender.projectIds !== undefined
+          ? { projectIds: spender.projectIds }
+          : {}),
+        connectorName: entry.connector,
+        connectorOperation: entry.action,
+        costEstimateCents: 0,
+        timestamp: Date.now(),
+      });
+    },
+  };
+}
+
 /** Install the seams one invocation needs — cheap and idempotent (the
  * catalog read is stat-memoized). */
 function assembleConnectorHost(sql: Sql): void {
@@ -251,6 +313,10 @@ export interface RunConnectorArgs {
   credentialRef?: string;
   mode?: 'mock' | 'live';
   caller: ConnectorCaller;
+  /** Whose spend the call is, when the caller knows better than its kind:
+   * an agent's turn names its run's subject — the person, the agent, the
+   * API key and the projects. */
+  spender?: SessionOpAttribution;
   idempotencyKey?: string;
   /**
    * Whether a live body may store files through `ctx.files` (default yes).
@@ -292,6 +358,7 @@ export async function runConnectorAction(
       credentials: credentialResolver(sql),
       approvals: approvalGate(sql),
       audit: auditSink(sql),
+      usage: connectorUsageSink(sql, args),
       // `ctx.files` for an in-process live body: the org's own blob store.
       ...(args.storeFiles !== false
         ? {

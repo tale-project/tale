@@ -49,9 +49,12 @@ import {
   harnessMountsMcp,
   harnessResumesConversations,
   isManagedHarness,
+  nextWindowDelayMs,
   removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
+  SPAWNER_OUTAGE_BUDGET_MS,
+  spawnerOutageOutlasted,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
 import type { ActionCtx } from '../lib/ctx';
@@ -687,6 +690,21 @@ export async function releaseTurnKey(
     );
     spentCents = outcome.spentCents;
     pending = settlementPending(outcome);
+  } else if (op?.budgetCents === 0 && op.spendSettled !== true) {
+    // A subscription turn: no key to read a spend from. It cost the
+    // organization nothing per call, and is booked as the request it was,
+    // with the tokens its harness reported — before the terminal stamp
+    // below closes a keyless op without a booking.
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.recordSessionOpSpend,
+      {
+        sessionId,
+        execId,
+        spentCents: 0,
+        ...(args.usageTotals !== undefined ? { usage: args.usageTotals } : {}),
+      },
+    );
+    spentCents = 0;
   }
   await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
     organizationId: args.organizationId,
@@ -1170,6 +1188,28 @@ async function mintWorkflowTurnAuth(
     throw new Error(
       `provider "${args.providerSlug}" resolved to the subscription lane without an API base URL — rerun the automation`,
     );
+  }
+  // A subscription turn costs the organization nothing per call, but it is a
+  // request: it holds one while it runs, and is refused before any
+  // credential is vended once a request or token cap that binds its run is
+  // reached. Cost caps cannot bind it — it adds no cost.
+  const reservation = readReserveTurnBudgetResult(
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveTurnBudget,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'workflow-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+        modelRef: `${args.providerSlug}/${args.modelId}`,
+        harness: args.harness,
+      },
+    ),
+  );
+  if (!reservation.allowed) {
+    throw new TurnBudgetExceededError(reservation.reason);
   }
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
@@ -1898,6 +1938,9 @@ export async function driveWorkflowAgentTurnImpl(
       onText: progress.onText,
       onTimeline: progress.onTimeline,
       ...(options.signal !== undefined && { signal: options.signal }),
+      ...(args.spawnerOutageSince !== undefined && {
+        spawnerOutageSince: args.spawnerOutageSince,
+      }),
     });
   } catch (err) {
     console.error('[agent-host] drive window threw:', err);
@@ -2389,6 +2432,9 @@ interface TurnKeys {
   providerSlug: string;
   gatewayModel: string;
   deadlineAt: number;
+  /** Since when the turn's spawner has been out of reach, carried from one
+   * drive window to the next while it stays away. */
+  spawnerOutageSince?: number;
 }
 
 /**
@@ -2490,6 +2536,30 @@ async function continueOrSettle(
   args: TurnKeys,
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
 ): Promise<void> {
+  if (spawnerOutageOutlasted(window)) {
+    // The spawner stayed out of reach past the outage budget: stop waiting
+    // and settle as a drain failure does — reap the exec first (best-effort:
+    // the spawner may answer again by now), so the CLI does not keep
+    // working unobserved.
+    console.error(
+      `[agent-host] the sandbox spawner stayed out of reach for ${args.execId} past the outage budget — settling the turn`,
+    );
+    await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+      console.warn(
+        '[agent-host] exec cancel after the spawner outage failed:',
+        cancelErr,
+      ),
+    );
+    await settleWorkflowAgentTurn(ctx, args, {
+      errored: true,
+      reason: `the agent turn stopped unexpectedly: the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes`,
+      // Past the deadline it is the deadline, as for a drain that died there.
+      failureCode: Date.now() > args.deadlineAt ? 'deadline' : 'turn_crashed',
+      text: '',
+      files: [],
+    });
+    return;
+  }
   if (window.kind === 'running') {
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
@@ -2500,7 +2570,7 @@ async function continueOrSettle(
       heartbeatAt: Date.now(),
     });
     await ctx.scheduler.runAfter(
-      0,
+      nextWindowDelayMs(window),
       internal.automations.agent_host.driveWorkflowAgentTurn,
       {
         organizationId: args.organizationId,
@@ -2513,6 +2583,9 @@ async function continueOrSettle(
         providerSlug: args.providerSlug,
         gatewayModel: args.gatewayModel,
         deadlineAt: args.deadlineAt,
+        ...(window.spawnerOutageSince !== undefined
+          ? { spawnerOutageSince: window.spawnerOutageSince }
+          : {}),
       },
     );
     return;

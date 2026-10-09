@@ -88,6 +88,8 @@ interface Who {
    * thread. Required on purpose: an executor built without it is a
    * project thread nobody can read, never a widening. */
   projectId: string | null;
+  /** The API key that sent the turn's message. */
+  apiKeyId?: string;
   /** Where a search's query embedding is held and booked. */
   embeddingMeter?: {
     open: (...args: never[]) => unknown;
@@ -1087,7 +1089,35 @@ describe('rag_fetch', () => {
       expect.objectContaining({
         connectorName: 'chat-tools',
         connectorOperation: 'rag_fetch',
-        projectId: 'project_1',
+        projectIds: ['project_1'],
+      }),
+    ]);
+  });
+
+  it('books a tool call to the API key that sent the turn’s message [GOV-R3]', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx, runMutation } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: ['org_org_1'],
+          projectIds: [],
+          includeHub: true,
+          userId: 'user_1',
+        }),
+        [FILTER_FN]: () => [],
+      },
+    });
+    const executor = await makeExecutor(ctx, { ...WHO, apiKeyId: 'key_1' });
+    await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 's3:acme/lead-verify.txt' },
+    });
+    expect(callsTo(runMutation, USAGE_FN)).toEqual([
+      expect.objectContaining({
+        userId: 'user_1',
+        apiKeyId: 'key_1',
+        connectorName: 'chat-tools',
       }),
     ]);
   });

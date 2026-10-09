@@ -11,11 +11,11 @@ waiting work resumes are not covered; see Not yet.
 
 ## Who can do what
 
-| | Read limits and capacity | See the workspace list | Stop, pin or destroy a workspace |
-| --- | --- | --- | --- |
-| An owner or admin | yes | yes | yes |
-| A developer | yes | no | no |
-| An editor, a member or a viewer | no | no | no |
+|                                 | Read limits and capacity | See the workspace list | Stop, pin or destroy a workspace |
+| ------------------------------- | ------------------------ | ---------------------- | -------------------------------- |
+| An owner or admin               | yes                      | yes                    | yes                              |
+| A developer                     | yes                      | no                     | no                               |
+| An editor, a member or a viewer | no                       | no                     | no                               |
 
 ### SBX-R1 · Owners, admins and developers can read sandbox limits and capacity
 
@@ -257,13 +257,19 @@ allowance. What that key spent is the turn's spend.
 ### SBX-R14 · A turn's spend is booked to whoever started the run
 
 The person who started the run is booked, under the agent or the automation that did the
-work. An automation run started with an API key is booked to the key's holder and to the key.
-A run that a schedule or another trigger started has no person behind it: it is booked to
-automations, and only the organization's spending limits are checked for it. How the run was
-started is never booked in a person's place.
+work. A run started with an API key — an automation's or an agent's — is booked to the key's
+holder and to the key. An agent's run is started with a key when a call made with the key
+starts it: a task's start, a comment or a review that names the agent, or an automation run
+started with the key whose step puts the agent to work. Its automatic retry is booked as the
+run it retries was. A comment that restarts a running turn makes the turn its writer's, and
+the key's it was written with, if any. A run that a schedule or another trigger started has
+no person behind it: it is booked to automations, and only the organization's spending limits
+are checked for it. How the run was started is never booked in a person's place.
 
 - **Example**: Mia starts an agent on her task, and the turn costs 25 cents → 25 cents are
   booked to Mia under that agent.
+- **Example**: Mia's script comments `@Researcher` on a task with her API key → the agent's
+  turns are booked to Mia and to that key, and count toward the key's limits.
 - **Example**: A schedule starts an automation at night → its agent step is booked to
   automations, and nobody's personal limit is touched.
 
@@ -282,10 +288,12 @@ longer exists when its spend is read is closed without an amount.
 Before a turn starts, its allowance is set aside against every spending limit that applies to
 its starter, together with what other work in flight already holds. When a limit refuses it,
 nothing is set aside and the refusal carries the limit's own sentence. An agent's image
-request is refused the same way (`budget_exceeded`) and holds nothing either.
+request is refused the same way (`budget_exceeded`) and holds nothing either. A turn on a
+provider subscription sets aside one request and no cost (`GOV-R16`).
 
-- **Example**: Mia's monthly cost limit is used up. She starts an agent on a task → the turn
-  is refused with the limit's sentence, and nothing is held against her limit.
+- **Example**: Mia's monthly cost limit is used up. She starts an agent whose model the gateway
+  serves on a task → the turn is refused with the limit's sentence, and nothing is held against
+  her limit.
 
 ## Not yet
 
@@ -328,12 +336,6 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
   leftovers nothing owns (`unused-rule.ts`, `workspace-cleanup.ts`).
 - **A session token stops working once it is revoked or has expired.** No unit test holds the
   check (`getSessionTokenByHash` in `sessions.ts`).
-- **Undecided: does a project agent's run count toward an API key?** The user docs say a run
-  started with an API key also counts toward that key
-  (`docs/en/platform/admin/governance/policies-and-limits.md`). The code books the key for an
-  automation's own agent step only: a project agent that such an automation puts to work is
-  booked to the key's holder alone, and `backend/domains/governance/README.md` lists no key
-  for a project agent's turn. One of the two is the intended rule.
 - **A run carries no figure of its own for `SBX-R14`**, and **a call cut short is booked at
   what the gateway kept** against `SBX-R15`; the contract debt ledger in
   [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

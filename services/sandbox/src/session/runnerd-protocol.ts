@@ -173,7 +173,8 @@ export type RunnerdExecEvent = (
         | 'BAD_REQUEST'
         | 'OUTPUT_LIMIT'
         | 'REPLAY_UNAVAILABLE'
-        | 'OUTPUT_GAP';
+        | 'OUTPUT_GAP'
+        | 'REPLAY_DISK_FULL';
       message: string;
     }
 ) & { seq?: number };
@@ -232,7 +233,8 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
           value.code === 'BAD_REQUEST' ||
           value.code === 'OUTPUT_LIMIT' ||
           value.code === 'REPLAY_UNAVAILABLE' ||
-          value.code === 'OUTPUT_GAP')
+          value.code === 'OUTPUT_GAP' ||
+          value.code === 'REPLAY_DISK_FULL')
       );
     default:
       return false;
