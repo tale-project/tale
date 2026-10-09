@@ -33,12 +33,34 @@ import { ChatThreadError, projectChatAccess } from './threads.ts';
  *
  * Realtime rides the rows themselves: the per-thread progress lane
  * (`routes.ts` `/threads/:id/stream`) polls the generation row at this
- * store's write throttle, so no LISTEN/NOTIFY hub exists — a push could not
+ * store's shortest write gap, so no LISTEN/NOTIFY hub exists — a push could not
  * beat the throttle, and a listener would add a connection without adding
  * freshness.
  */
 
+/** Shortest gap between two progress writes of one turn. */
 const STREAM_WRITE_INTERVAL_MS = 250;
+/** Longest gap: also how long a cancel may wait for the next write. */
+const STREAM_WRITE_MAX_INTERVAL_MS = 1000;
+/** Characters of streamed text (answer and reasoning) per millisecond of
+ * gap past the shortest one. */
+const STREAM_WRITE_CHARS_PER_MS = 8;
+
+/**
+ * The gap before the next progress write of a turn that has streamed
+ * `length` characters so far. Every write rewrites the whole text, so a
+ * fixed gap costs bytes that grow with the square of the reply; a gap that
+ * grows with the text keeps a long reply's writes linear in its length up
+ * to the cap. Replies up to 2,000 characters — most of them — keep the
+ * shortest gap, and the reader's constant-rate reveal absorbs the bigger
+ * steps of a long one.
+ */
+export function streamWriteIntervalMs(length: number): number {
+  return Math.min(
+    STREAM_WRITE_MAX_INTERVAL_MS,
+    Math.max(STREAM_WRITE_INTERVAL_MS, length / STREAM_WRITE_CHARS_PER_MS),
+  );
+}
 
 /** A detached REST turn must keep the project scope its URL accepted. */
 export interface ThreadWriteScope {
@@ -384,9 +406,10 @@ function pgTurnStore(
 
     async streamProgress(update) {
       const nowMs = Date.now();
+      const length = update.text.length + (update.reasoning?.length ?? 0);
       if (
         update.flush !== true &&
-        nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS
+        nowMs - lastStreamWriteAt < streamWriteIntervalMs(length)
       ) {
         return { cancelRequested: lastCancelRequested };
       }

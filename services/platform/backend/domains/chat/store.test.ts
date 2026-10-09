@@ -45,6 +45,7 @@ import {
   createPgTurnStore,
   createPgUsageLedger,
   estimateTurnCostCents,
+  streamWriteIntervalMs,
 } from './store.ts';
 
 const OPENROUTER = {
@@ -771,5 +772,52 @@ describe('createPgTurnStore — the pre-minted placeholder id', () => {
       s.text.includes("generation_status = 'generating'"),
     );
     expect(metadata?.text).toContain('generation_queued_since_ms = NULL');
+  });
+});
+
+describe('createPgTurnStore.streamProgress write gap', () => {
+  it('keeps the shortest gap for most replies and grows it with a long one', () => {
+    expect(streamWriteIntervalMs(0)).toBe(250);
+    expect(streamWriteIntervalMs(2000)).toBe(250);
+    expect(streamWriteIntervalMs(4000)).toBe(500);
+    expect(streamWriteIntervalMs(8000)).toBe(1000);
+    expect(streamWriteIntervalMs(100_000)).toBe(1000);
+  });
+
+  it('skips writes inside the gap the streamed length allows, and always flushes', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_000_000);
+      const f = fakeChatSql();
+      const store = createPgTurnStore(f.sql);
+      const progress = (text: string, flush?: boolean) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          ...(flush === undefined ? {} : { flush }),
+        });
+      const writes = () =>
+        f.pool.filter((s) => s.text.includes('UPDATE app.generations SET'))
+          .length;
+      const long = 'x'.repeat(4000);
+
+      await progress('short');
+      expect(writes()).toBe(1);
+      vi.advanceTimersByTime(300);
+      await progress('short and a bit');
+      expect(writes()).toBe(2);
+      // 4,000 characters wait 500 ms between writes.
+      vi.advanceTimersByTime(300);
+      await progress(long);
+      expect(writes()).toBe(2);
+      vi.advanceTimersByTime(250);
+      await progress(long);
+      expect(writes()).toBe(3);
+      await progress(`${long}!`, true);
+      expect(writes()).toBe(4);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
