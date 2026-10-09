@@ -228,6 +228,40 @@ describe('bounds on what a caller can ask for', () => {
     expect(JSON.stringify(value).length).toBeLessThan(400_000);
   });
 
+  test('enum and const values and wide objects count against the same bound', () => {
+    const nested = (leaf: Record<string, unknown>) => ({
+      type: 'array',
+      minItems: 50,
+      items: {
+        type: 'array',
+        minItems: 50,
+        items: { type: 'array', minItems: 50, items: leaf },
+      },
+    });
+    const wide = {
+      type: 'object',
+      required: Array.from({ length: 200 }, (_, i) => `field_${i}`),
+      properties: Object.fromEntries(
+        Array.from({ length: 200 }, (_, i) => [
+          `field_${i}`,
+          { type: 'integer' },
+        ]),
+      ),
+    };
+    for (const leaf of [
+      { enum: ['y'.repeat(5000)] },
+      { const: 'z'.repeat(2000) },
+      wide,
+    ]) {
+      const value = valueForSchema(createRandom(1), nested(leaf), 'items', {
+        keywords: [],
+        locale: 'en',
+      });
+      // Unbounded, the enum case alone serialized to 625 million characters.
+      expect(JSON.stringify(value).length).toBeLessThan(600_000);
+    }
+  });
+
   test('cluster workers split the provider-wide stream limit', () => {
     expect(workerStreamLimit(0, 4)).toBe(0);
     expect(workerStreamLimit(500, 4)).toBe(125);

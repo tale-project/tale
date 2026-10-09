@@ -39,14 +39,24 @@ const MAX_GENERATED_ITEMS = 50;
 /** Longest string padding meets a minLength to. */
 const MAX_GENERATED_STRING = 4096;
 /**
- * Array elements plus string characters one generated value holds at most.
- * The per-array and per-string bounds alone multiply through nesting.
+ * What one generated value holds at most, counted as it is built: one per
+ * array element and per number, boolean or null, a string's characters, a
+ * property's key, and an enum or const value's serialized length. The
+ * per-array and per-string bounds alone multiply through nesting.
  */
 const MAX_GENERATED_SIZE = 256 * 1024;
 
 /** What is left of one value's `MAX_GENERATED_SIZE`, spent as it is built. */
 interface SizeBudget {
   left: number;
+}
+
+/** Charge a value taken whole from the schema (an enum or const one). */
+function spendWhole<T>(budget: SizeBudget, value: T): T {
+  const json: string | undefined =
+    typeof value === 'string' ? value : JSON.stringify(value);
+  budget.left -= Math.max(1, json?.length ?? 1);
+  return value;
 }
 
 const FALLBACK_TERMS = [
@@ -188,9 +198,9 @@ export function valueForSchema(
   budget: SizeBudget = { left: MAX_GENERATED_SIZE },
 ): unknown {
   const schema = asRecord(schemaValue) ?? {};
-  if ('const' in schema) return schema.const;
+  if ('const' in schema) return spendWhole(budget, schema.const);
   if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-    return pick(random, schema.enum);
+    return spendWhole(budget, pick(random, schema.enum));
   }
   for (const combinator of ['anyOf', 'oneOf', 'allOf'] as const) {
     const options = schema[combinator];
@@ -203,12 +213,16 @@ export function valueForSchema(
   }
   switch (schemaType(schema)) {
     case 'integer':
+      budget.left -= 1;
       return numberFor(random, name, schema, true);
     case 'number':
+      budget.left -= 1;
       return numberFor(random, name, schema, false);
     case 'boolean':
+      budget.left -= 1;
       return chance(random, 0.5);
     case 'null':
+      budget.left -= 1;
       return null;
     case 'array': {
       if (depth >= MAX_DEPTH) return [];
@@ -254,7 +268,14 @@ function objectForSchema(
       : [],
   );
   for (const [key, propertySchema] of Object.entries(properties)) {
-    if (!required.has(key) && !chance(random, OPTIONAL_SHARE)) continue;
+    // A required property is always filled, so the call still validates;
+    // an optional one only while the budget lasts.
+    if (
+      !required.has(key) &&
+      (budget.left <= 0 || !chance(random, OPTIONAL_SHARE))
+    )
+      continue;
+    budget.left -= key.length + 1;
     out[key] = valueForSchema(
       random,
       propertySchema,
