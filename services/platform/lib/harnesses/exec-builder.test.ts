@@ -18,6 +18,7 @@ import {
   CACHE_AFFINITY_GATEWAY_HEADER,
   isClaudeModelRef,
   PLAYWRIGHT_MCP_ARG_SETS,
+  stagedInstructionsPathForExec,
 } from './exec-builder';
 import { batteryFor, GOLDEN_BYO_ENV, GOLDEN_GATEWAY } from './test-helpers';
 import type { HarnessExec, HarnessRunSpec } from './types';
@@ -166,6 +167,32 @@ describe('secret hygiene over every shipped YAML', () => {
     expect(buildHarnessExec(fact('gemini'), managedSpec()).argv).not.toContain(
       '--resume',
     );
+  });
+});
+
+describe('the per-exec instructions file', () => {
+  it('is named where the builder stages it, so the turn can remove it', () => {
+    for (const harness of loadHarnesses()) {
+      if (!harness.credentialPolicy.managed) continue;
+      const exec = buildHarnessExec(
+        harness,
+        managedSpec({ instructions: 'Follow the runbook.', execId: 'exec-7' }),
+      );
+      const staged = (exec.stagedFiles ?? []).filter(
+        (file) => file.content === 'Follow the runbook.',
+      );
+      const removed = stagedInstructionsPathForExec(harness, 'exec-7');
+      expect(
+        staged.map((file) => file.path),
+        `${harness.slug}: the removal names another file than the stage`,
+      ).toEqual(removed === undefined ? [] : [removed]);
+    }
+    expect(stagedInstructionsPathForExec(fact('opencode'), 'exec-7')).toBe(
+      '.runtime/tale/instructions/exec-7.md',
+    );
+    expect(
+      stagedInstructionsPathForExec(fact('claude-code'), 'exec-7'),
+    ).toBeUndefined();
   });
 });
 

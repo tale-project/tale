@@ -41,6 +41,7 @@ import {
   harnessMountsMcp,
   harnessResumesConversations,
   nextWindowDelayMs,
+  removeStagedInstructions,
   removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   SPAWNER_OUTAGE_BUDGET_MS,
@@ -125,6 +126,10 @@ import {
   isCredentialRotation,
   type TaskRunFailureCode,
 } from './task_auto_retry';
+import {
+  pruneStaleTaskInputMirrors,
+  TASK_INPUTS_ROOT,
+} from './task_input_mirrors';
 import {
   isTaskInputMissingError,
   TaskInputMissingError,
@@ -275,7 +280,7 @@ function taskOutputDir(taskId: string): string {
  * the worker's workspace holds other tasks' stale files. Outside
  * `/agent/output` so the box sweep and the settle harvest never touch it. */
 function taskInputsDir(taskId: string): string {
-  return `/agent/inputs/${taskId}`;
+  return `${TASK_INPUTS_ROOT}/${taskId}`;
 }
 
 /** Whether a LOOSE file at the box root (`/agent/output/` itself — never
@@ -1352,6 +1357,15 @@ export async function startTaskAgentTurnImpl(
           );
         }
       }
+      // The worker also holds a copy of the inputs of every task it worked
+      // before: drop the ones whose task is closed, gone or a month
+      // untouched. Best-effort and bounded, never this run's own task.
+      await pruneStaleTaskInputMirrors(ctx, {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+        taskId: args.taskId,
+        sessionId: args.sessionId,
+      });
 
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the
@@ -1733,8 +1747,14 @@ export async function startTaskAgentTurnImpl(
             );
           });
           // The refused exec never ran, but its inputs were staged: the
-          // start that gets room stages its credential again.
+          // start that gets room stages its credential again, and its
+          // instructions under the fresh exec's own name.
           await removeStagedSubscription(args.sessionId, args.harness);
+          await removeStagedInstructions(
+            args.sessionId,
+            args.harness,
+            args.execId,
+          );
         }
         return null;
       }
@@ -1789,6 +1809,8 @@ export async function driveTaskAgentTurnImpl(
       if (!heldByAnotherExec(run, args.execId)) {
         await removeStagedSubscription(args.sessionId, args.harness);
       }
+      // Named for this exec alone: it goes whichever exec holds the run now.
+      await removeStagedInstructions(args.sessionId, args.harness, args.execId);
       await releaseProjectAgentSlotAfterSettle(ctx, args);
       return null;
     }
@@ -2261,6 +2283,7 @@ async function settleTaskAgentTurn(
     if (!heldByAnotherExec(current, args.execId)) {
       await removeStagedSubscription(args.sessionId, args.harness);
     }
+    await removeStagedInstructions(args.sessionId, args.harness, args.execId);
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
@@ -2274,8 +2297,9 @@ async function settleTaskAgentTurn(
       : {}),
   });
   // The turn is over, whoever won the finalize claim: its staged
-  // subscription credential leaves the session with it.
+  // subscription credential and its instructions leave the session with it.
   await removeStagedSubscription(args.sessionId, args.harness);
+  await removeStagedInstructions(args.sessionId, args.harness, args.execId);
   if (!release.won) {
     // The finalize claim keys on the op row — a start that died BEFORE
     // writing one (model unresolvable, spawner error, staging failure) loses

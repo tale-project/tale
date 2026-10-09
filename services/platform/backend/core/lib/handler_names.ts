@@ -340,6 +340,7 @@ interface HandlerNames {
       getTaskAgentRunAuthority: FunctionRef;
       getTaskAgentRunForDrive: FunctionRef;
       getTaskBriefForAgentRun: FunctionRef;
+      listStaleTaskInputMirrors: FunctionRef;
       markTaskAgentRunFailed: FunctionRef;
       markTaskAgentRunSettled: FunctionRef;
       parkTaskAgentRunForCapacity: FunctionRef;

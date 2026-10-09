@@ -27,6 +27,7 @@
 import { z } from 'zod';
 
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
+import { stagedInstructionsPathForExec } from '../../../lib/harnesses/exec-builder';
 import { HarnessProjection } from '../../../lib/harnesses/projection';
 import { getHarnessGlue } from '../../../lib/harnesses/registry';
 import { type TimelinePart } from '../../../lib/harnesses/timeline';
@@ -204,6 +205,51 @@ export async function removeStagedSubscription(
     if (err instanceof SessionNotFoundError) return;
     console.warn(
       `[harness-turn] ${sessionId}: removing the staged subscription credential ${path} failed:`,
+      err,
+    );
+  }
+}
+
+/**
+ * Remove the instructions addendum one exec was staged with (OpenCode's
+ * `.runtime/tale/instructions/<execId>.md`) once its turn is over. The file
+ * is named for the exec, so no other turn reads it, and a project agent's
+ * worker serves turn after turn: without this it keeps one file for every
+ * turn it ever ran. A no-op for a harness that passes its instructions
+ * another way. Best-effort: a failure is logged, and a file left behind
+ * holds only the turn's own instructions.
+ */
+export async function removeStagedInstructions(
+  sessionId: string,
+  harness: string,
+  execId: string,
+): Promise<void> {
+  if (!isHarnessSlug(harness)) return;
+  const def = loadHarnesses().find((h) => h.slug === harness);
+  if (def === undefined) return;
+  let path: string | undefined;
+  try {
+    path = stagedInstructionsPathForExec(def, execId);
+  } catch (err) {
+    console.warn(
+      `[harness-turn] ${sessionId}/${execId}: the staged instructions path of ${harness} could not be derived:`,
+      err,
+    );
+    return;
+  }
+  if (path === undefined) return;
+  try {
+    const removed = await sessionDeleteFiles(sessionId, [path]);
+    for (const skipped of removed.skipped) {
+      console.warn(
+        `[harness-turn] ${sessionId}/${execId}: the staged instructions ${skipped.path} could not be removed: ${skipped.reason}`,
+      );
+    }
+  } catch (err) {
+    // A session that is gone took the file with it.
+    if (err instanceof SessionNotFoundError) return;
+    console.warn(
+      `[harness-turn] ${sessionId}/${execId}: removing the staged instructions ${path} failed:`,
       err,
     );
   }
