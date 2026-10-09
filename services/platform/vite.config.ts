@@ -279,7 +279,7 @@ export default defineConfig({
       //   - `elkjs`       -> the shared flow layout engine (lazy `elk-api`,
       //     which starts the layout worker, and `elk.bundled.js`, the
       //     main-thread fallback)
-      //   - react-json-view -> the JSON input/viewer (workflow step config panel)
+      //   - react-json-view -> the JSON input (the viewer is `ValueTree` now)
       // Pre-bundling them keeps the optimizer hash stable from cold start.
       'elkjs/lib/elk-api',
       'elkjs/lib/elk.bundled.js',

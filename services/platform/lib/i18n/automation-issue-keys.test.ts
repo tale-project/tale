@@ -22,6 +22,7 @@ import { parse } from 'yaml';
 
 import { ISSUE_DERIVED_PARAMS } from '@/app/features/automations/lib/issue-text';
 import { CODE_META, CODES, type IssueCode } from '@/lib/engine/core/errors';
+import { icuArguments } from '@/tests/utils/icu-arguments';
 import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 const LOCALES = { en: enMessages, de: deMessages, fr: frMessages };
@@ -43,82 +44,6 @@ function leaves(tree: Tree, prefix = ''): Array<[string, string]> {
     if (typeof value === 'string') return [[path, value] as [string, string]];
     return isTree(value) ? leaves(value, path) : [];
   });
-}
-
-/**
- * The argument names an ICU message reads, in every branch of its
- * `select` and `plural` arguments. Quoted text (`'{{'`) is literal.
- */
-function icuArguments(message: string): Set<string> {
-  const names = new Set<string>();
-  let i = 0;
-  const skipSpace = () => {
-    while (i < message.length && /\s/.test(message[i] ?? '')) i++;
-  };
-  const word = (): string => {
-    skipSpace();
-    const start = i;
-    while (i < message.length && !/[\s,{}]/.test(message[i] ?? '')) i++;
-    return message.slice(start, i);
-  };
-  const text = (nested: boolean): void => {
-    while (i < message.length) {
-      const ch = message[i];
-      if (ch === "'") {
-        const next = message[i + 1];
-        if (next === "'") {
-          i += 2;
-        } else if (next === '{' || next === '}' || next === '#') {
-          const end = message.indexOf("'", i + 1);
-          i = end === -1 ? message.length : end + 1;
-        } else {
-          i++;
-        }
-      } else if (ch === '{') {
-        i++;
-        argument();
-      } else if (ch === '}') {
-        if (nested) return;
-        i++;
-      } else {
-        i++;
-      }
-    }
-  };
-  const argument = (): void => {
-    names.add(word());
-    skipSpace();
-    if (message[i] === '}') {
-      i++;
-      return;
-    }
-    if (message[i] !== ',') throw new Error(`malformed argument: ${message}`);
-    i++;
-    const type = word();
-    skipSpace();
-    if (type !== 'select' && type !== 'plural' && type !== 'selectordinal') {
-      const end = message.indexOf('}', i);
-      i = end === -1 ? message.length : end + 1;
-      return;
-    }
-    if (message[i] !== ',') throw new Error(`malformed ${type}: ${message}`);
-    i++;
-    for (;;) {
-      skipSpace();
-      if (message[i] === '}') {
-        i++;
-        return;
-      }
-      if (word() === '') throw new Error(`malformed option: ${message}`);
-      skipSpace();
-      if (message[i] !== '{') throw new Error(`malformed option: ${message}`);
-      i++;
-      text(true);
-      i++;
-    }
-  };
-  text(false);
-  return names;
 }
 
 /** The params a code's sentences may read. */

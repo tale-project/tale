@@ -9,9 +9,58 @@
 
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
+import type { RunDiff } from '@/lib/engine/core/record/compare';
+import type {
+  NodeRunDetail,
+  NodeRunPage,
+  RunRecordView,
+} from '@/lib/engine/core/record/read';
+import type {
+  ReplayKind,
+  ReplayPlan,
+  ReplayVersionChoice,
+} from '@/lib/engine/core/record/replay';
+export type { RunDiff } from '@/lib/engine/core/record/compare';
+export type {
+  NodeRunDetail,
+  NodeRunPage,
+  RecordedStep,
+  RecordedUnit,
+  RunEventView,
+  RunRecordView,
+} from '@/lib/engine/core/record/read';
+export type { ReplayKind, ReplayPlan } from '@/lib/engine/core/record/replay';
 
 import type { NodeTypeCatalog } from '@/lib/shared/schemas/node-type-catalog';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
+
+/** How a run was run again, and from which run. */
+export interface RunReplayOf {
+  /** Null once the run it replays was deleted. */
+  runId: string | null;
+  kind: ReplayKind;
+  fromNode?: string;
+}
+
+/** What running a run again asks for. A type, not an interface: the
+ * contract's arguments must read as plain records. */
+export type ReplayRequestArgs = {
+  kind: ReplayKind;
+  from?: string;
+  version?: ReplayVersionChoice;
+  mode?: 'mock' | 'live';
+  input?: unknown;
+};
+
+/** What a replay started. */
+export interface ReplayStarted {
+  runId: string;
+  version: number;
+  mode: 'mock' | 'live';
+  kind: ReplayKind;
+  reused: number;
+  duplicate?: true;
+}
 
 /** What a `waiting` run is parked on. `approval`, `ask` and `in_doubt`
  * wait on a person; the rest on the run itself. */
@@ -99,6 +148,16 @@ export interface AutomationsContract {
     kind: 'mutation';
     args: { organizationId: string; runId: string };
     returns: { cancelled: boolean };
+  };
+  'automations/mutations:replayRun': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      runId: string;
+      /** A nonce: a repeat of the same click starts one replay. */
+      requestId?: string;
+    } & ReplayRequestArgs;
+    returns: ReplayStarted;
   };
   'automations/mutations:requestLegacyRunStop': {
     kind: 'mutation';
@@ -280,6 +339,8 @@ export interface AutomationsContract {
       finishedAt?: number;
       startedAt: number;
       detail?: string;
+      /** Why a `failed` run failed, as a stable code (`Run.failureCode`). */
+      failureCode?: string;
       effects?: unknown;
       trace?: unknown;
       checkpoints?: unknown;
@@ -309,8 +370,54 @@ export interface AutomationsContract {
       lastResume?: RunLastResume;
       /** A running run waiting for a server to take it over. */
       stalled?: boolean;
+      /** A run started by running another one again. */
+      replayOf?: RunReplayOf;
       input: unknown;
     };
+  };
+  'automations/queries:getRunRecord': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      runId: string;
+      /** A cursor an earlier read answered: only what changed since. */
+      since?: number;
+      travels?: boolean;
+    };
+    returns: RunRecordView | null;
+  };
+  'automations/queries:getRunNode': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      runId: string;
+      node: string;
+      item?: number;
+      pass?: number;
+    };
+    returns: NodeRunDetail | null;
+  };
+  'automations/queries:getRunItems': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      runId: string;
+      node: string;
+      cursor?: string;
+      limit?: number;
+      status?: 'all' | 'failed';
+    };
+    returns: NodeRunPage | null;
+  };
+  'automations/queries:compareRuns': {
+    kind: 'query';
+    args: { organizationId: string; runId: string; otherRunId: string };
+    returns: RunDiff | null;
+  };
+  'automations/queries:getReplayPlan': {
+    kind: 'query';
+    args: { organizationId: string; runId: string } & ReplayRequestArgs;
+    returns: ReplayPlan | null;
   };
   'automations/queries:getRunInDoubt': {
     kind: 'query';
@@ -339,6 +446,45 @@ export interface AutomationsContract {
       projectIds: string[];
     }>;
   };
+  'automations/queries:listRunsPaginated': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      name: string;
+      projectId?: string;
+      /** Only runs in these statuses (any of them). */
+      statuses?: string[];
+      mode?: 'mock' | 'live';
+      paginationOpts: { numItems: number; cursor: null | string };
+    };
+    returns: {
+      page: Array<{
+        id: string;
+        name: string;
+        version: number;
+        status:
+          | 'queued'
+          | 'running'
+          | 'waiting'
+          | 'quarantined'
+          | 'success'
+          | 'failed'
+          | 'cancelled';
+        mode: 'mock' | 'live';
+        startedBy: string;
+        startedVia?: 'schedule' | 'webhook' | 'event';
+        waitingFor?: RunWaitingFor;
+        stalled?: boolean;
+        detail?: string;
+        /** Why a `failed` run failed, as a stable code. */
+        failureCode?: string;
+        startedAt: number;
+        finishedAt?: number;
+      }>;
+      isDone: boolean;
+      continueCursor: string;
+    };
+  };
   'automations/queries:listRuns': {
     kind: 'query';
     args: {
@@ -351,6 +497,8 @@ export interface AutomationsContract {
       finishedAt?: number;
       startedAt: number;
       detail?: string;
+      /** Why a `failed` run failed, as a stable code (`Run.failureCode`). */
+      failureCode?: string;
       id: string;
       name: string;
       version: number;

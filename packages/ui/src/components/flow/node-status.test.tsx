@@ -30,6 +30,7 @@ describe('the flow node status vocabulary', () => {
       'Skipped',
       'Stopped here',
       'Not run',
+      'Reused',
     ]);
   });
 

@@ -1,14 +1,14 @@
 'use client';
 
 import type { NodeProps } from '@xyflow/react';
-import { Play, TriangleAlert, Info } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { memo } from 'react';
 
 import { useT } from '../../../i18n/client';
 import { cn } from '../../../lib/cn';
 import { flowNodeTitle } from '../describe';
 import { FLOW_SECTION_ROWS, visibleRows } from '../layout/sizes';
-import type { FlowEntryNode, FlowNotice, FlowRow } from '../types';
+import type { FlowEntryNode, FlowRow } from '../types';
 import { FlowNodeButton, FlowNodeStrip } from './flow-render-context';
 import { FlowNodeTitleRow, type FlowNodeData } from './step-node';
 
@@ -102,31 +102,10 @@ export function FlowNodeSection({
   );
 }
 
-/** A warning or a note at the foot of Start or End: one line, 28 px. */
-export function FlowNodeNotice({ notice }: { notice: FlowNotice }) {
-  const Icon = notice.tone === 'warning' ? TriangleAlert : Info;
-  return (
-    <span className="mt-2 flex h-7 items-center gap-1.5 text-xs leading-4">
-      <Icon
-        aria-hidden="true"
-        className={cn(
-          'size-3.5 shrink-0',
-          notice.tone === 'warning'
-            ? 'text-amber-700 dark:text-amber-500'
-            : 'text-muted-foreground',
-        )}
-      />
-      <span className="text-foreground truncate" title={notice.text}>
-        {notice.text}
-      </span>
-    </span>
-  );
-}
-
 /**
  * Start: what starts a run (triggers in words) and what each run receives
  * (its input fields), above everything else. Its strip names the nodes it
- * leads to.
+ * leads to, or says its notice.
  */
 export const FlowEntryNodeView = memo(function FlowEntryNodeView({
   data,
@@ -160,9 +139,11 @@ export const FlowEntryNodeView = memo(function FlowEntryNodeView({
           max={FLOW_SECTION_ROWS.inputs}
           empty={node.inputsEmpty ?? t('node.noInput')}
         />
-        {node.notice && <FlowNodeNotice notice={node.notice} />}
       </span>
-      <FlowNodeStrip id={node.id} />
+      <FlowNodeStrip
+        id={node.id}
+        {...(node.notice !== undefined && { notice: node.notice })}
+      />
     </FlowNodeButton>
   );
 });

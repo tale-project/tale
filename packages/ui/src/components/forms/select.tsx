@@ -58,8 +58,10 @@ export function selectTriggerClasses({
   return cn(
     // One height fits all controls (`h-9`) — no size axis. Resting edge uses
     // `--color-border-input` (same as Input) — `ring-border` is too faint in
-    // light mode and reads as a clipped / borderless field (#1478).
-    `bg-input placeholder:text-muted-foreground disabled:bg-bg-elevated disabled:text-muted-foreground flex h-9 w-full items-center justify-between rounded-lg border border-[color:var(--color-border-input)] px-3 py-2 text-base whitespace-nowrap transition-[border-color,box-shadow] duration-150 disabled:cursor-not-allowed md:text-sm [&>span]:line-clamp-1 ${FIELD_FOCUS}`,
+    // light mode and reads as a clipped / borderless field (#1478). The value
+    // stays on one line and ends in an ellipsis when it does not fit (a
+    // line clamp draws none on a line that never wraps).
+    `bg-input placeholder:text-muted-foreground disabled:bg-bg-elevated disabled:text-muted-foreground flex h-9 w-full items-center justify-between rounded-lg border border-[color:var(--color-border-input)] px-3 py-2 text-base whitespace-nowrap transition-[border-color,box-shadow] duration-150 disabled:cursor-not-allowed md:text-sm [&>span]:min-w-0 [&>span]:truncate ${FIELD_FOCUS}`,
     error && FIELD_INVALID,
   );
 }
@@ -284,7 +286,7 @@ const SelectBase = forwardRef<
                 className,
               )}
             >
-              <span className="text-muted-foreground line-clamp-1">
+              <span className="text-muted-foreground min-w-0 truncate">
                 {placeholder}
               </span>
               <ChevronDown className="size-4 opacity-50" aria-hidden="true" />

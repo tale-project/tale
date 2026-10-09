@@ -4,11 +4,16 @@ import {
   branchFlowGraph,
   branchRun,
   branchRunOverlay,
+  triageExplainedRun,
   triageFailedRun,
   triageFlowGraph,
 } from '../testing/flow-fixtures';
 import { buildPlaybackTimeline } from './build-timeline';
-import { flowStateAt, flowStateFromOverlay } from './derive-state';
+import {
+  flowSpanStateAt,
+  flowStateAt,
+  flowStateFromOverlay,
+} from './derive-state';
 
 const triage = () => {
   const timeline = buildPlaybackTimeline(triageFailedRun());
@@ -148,6 +153,111 @@ describe('flowStateAt', () => {
   });
 });
 
+describe('what a span says, and when', () => {
+  it('says why only once the replay reached what a span came to', () => {
+    const graph = triageFlowGraph();
+    const run = triageExplainedRun();
+    const timeline = buildPlaybackTimeline(run);
+    const at = (ms: number) => timeline.fromReal(run.startedAt + ms);
+    // The third issue is still being scored: neither its failure's words
+    // nor their explanation show yet.
+    const scoring = flowStateAt(graph, timeline, at(4_500)).nodes.score;
+    expect(scoring?.state).toBe('running');
+    expect(scoring?.reason).toBeUndefined();
+    expect(scoring?.explanation).toBeUndefined();
+    const end = flowStateAt(graph, timeline, timeline.duration).nodes.score;
+    expect(end?.state).toBe('failed');
+    expect(end?.reason).toBe('The model provider refused the request');
+    expect(end?.explanation).toBe(
+      'The model provider refused the request for the third issue: the prompt was too long.',
+    );
+  });
+
+  it('says what a wait waits for while it waits', () => {
+    const info = flowSpanStateAt(
+      [
+        {
+          nodeId: 'review',
+          start: 100,
+          end: 900,
+          outcome: 'waiting',
+          reason: 'Waiting for approval',
+          explanation: 'Waiting for Ada to approve the reply',
+        },
+      ],
+      400,
+      false,
+    );
+    expect(info).toMatchObject({
+      state: 'waiting',
+      reason: 'Waiting for approval',
+      explanation: 'Waiting for Ada to approve the reply',
+    });
+  });
+
+  it('counts a live list against its known length, and passes against their most', () => {
+    const items = flowSpanStateAt(
+      [
+        { nodeId: 'score', start: 0, outcome: 'succeeded', total: 12 },
+        { nodeId: 'score', start: 0, end: 10, outcome: 'succeeded', item: 0 },
+        { nodeId: 'score', start: 10, outcome: 'succeeded', item: 1 },
+      ],
+      20,
+      true,
+    );
+    expect(items?.items).toEqual({ done: 1, total: 12 });
+    const passes = flowSpanStateAt(
+      [
+        { nodeId: 'poll', start: 0, outcome: 'succeeded', total: 5 },
+        { nodeId: 'poll', start: 0, end: 10, outcome: 'succeeded', pass: 1 },
+        { nodeId: 'poll', start: 10, outcome: 'succeeded', pass: 2 },
+      ],
+      20,
+      true,
+    );
+    expect(passes?.pass).toEqual({ current: 2, max: 5 });
+    // The finished Triage run knows its list held 12 issues, though only
+    // four were recorded.
+    const graph = triageFlowGraph();
+    const timeline = buildPlaybackTimeline(triageExplainedRun());
+    expect(
+      flowStateAt(graph, timeline, timeline.duration).nodes.score?.items,
+    ).toEqual({ done: 4, total: 12, failed: 1 });
+  });
+
+  it('lets a node that carried on past a failed item end as it did', () => {
+    const spans = [
+      { nodeId: 'score', start: 0, end: 30, outcome: 'succeeded', total: 2 },
+      { nodeId: 'score', start: 0, end: 10, outcome: 'failed', item: 0 },
+      { nodeId: 'score', start: 10, end: 30, outcome: 'succeeded', item: 1 },
+    ] as const;
+    // Between the items it is still at work; once over, its own stretch
+    // says it succeeded, with the failed item counted.
+    expect(flowSpanStateAt(spans, 20, false)?.state).toBe('running');
+    const end = flowSpanStateAt(spans, 30, false);
+    expect(end?.state).toBe('succeeded');
+    expect(end?.items).toEqual({ done: 2, total: 2, failed: 1 });
+    // Without a stretch of its own, the failed item fails it.
+    expect(flowSpanStateAt(spans.slice(1), 30, false)?.state).toBe('failed');
+  });
+
+  it('passes an overlay’s explanation through', () => {
+    const frame = flowStateFromOverlay(triageFlowGraph(), {
+      finished: true,
+      nodes: {
+        issues: {
+          state: 'skipped',
+          reason: 'Skipped: condition was false',
+          explanation: 'Skipped because limit (0) is not greater than 0',
+        },
+      },
+    });
+    expect(frame.nodes.issues?.explanation).toBe(
+      'Skipped because limit (0) is not greater than 0',
+    );
+  });
+});
+
 describe('flowStateFromOverlay', () => {
   it('derives the lines from where their ends stand', () => {
     const graph = branchFlowGraph();
@@ -159,6 +269,21 @@ describe('flowStateFromOverlay', () => {
     expect(frame.travelling).toEqual([]);
     expect(frame.failure?.nodeId).toBe('notify');
     expect(frame.failure?.pathEdges.has('merge>notify')).toBe(true);
+  });
+
+  it('lets a step an earlier run handed over feed its readers, and leads a failure back through it', () => {
+    const graph = triageFlowGraph();
+    const frame = flowStateFromOverlay(graph, {
+      finished: true,
+      nodes: {
+        issues: { state: 'reused' },
+        open_issues: { state: 'failed', reason: 'It failed again' },
+      },
+    });
+    expect(frame.nodes.issues?.state).toBe('reused');
+    expect(frame.edges['issues>open_issues']).toBe('travelled');
+    expect(frame.failure?.nodeId).toBe('open_issues');
+    expect(frame.failure?.pathNodes.has('issues')).toBe(true);
   });
 
   it('takes the host’s lines when it gives them, and leaves unknown nodes not run', () => {

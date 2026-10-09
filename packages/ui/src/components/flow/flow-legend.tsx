@@ -19,14 +19,47 @@ import type { FlowEdgeKind } from './types';
 /** One line of the legend: what a mark looks like and what it means. */
 export interface FlowLegendEntry {
   id: string;
-  /** A line of this edge kind, or one of the boxes. */
-  swatch: { edge: FlowEdgeKind } | { node: 'dashed' | 'gate' | 'frame' };
+  /** A line of this edge kind, one of the boxes (`differs`: the ring of a
+   *  box where two runs compared differ), or the words on a line
+   *  (`edgeLabel`). */
+  swatch:
+    | { edge: FlowEdgeKind }
+    | { node: 'dashed' | 'gate' | 'frame' | 'differs' }
+    | { edgeLabel: true };
   /** The meaning, in the host's words. */
   label: string;
 }
 
 /** A 32 × 12 picture of the mark, drawn with the canvas's own tokens. */
 function Swatch({ swatch }: { swatch: FlowLegendEntry['swatch'] }) {
+  if ('edgeLabel' in swatch) {
+    const color = FLOW_EDGE_COLORS[flowEdgeTone('data')];
+    return (
+      <svg
+        aria-hidden="true"
+        width={32}
+        height={12}
+        viewBox="0 0 32 12"
+        className="shrink-0"
+      >
+        <path
+          d="M1 6 H31"
+          fill="none"
+          strokeWidth={FLOW_EDGE_STROKE.base}
+          style={{ stroke: color }}
+        />
+        <rect
+          x={8}
+          y={1.5}
+          width={16}
+          height={9}
+          rx={4.5}
+          strokeWidth={1}
+          style={{ stroke: color, fill: 'var(--color-background)' }}
+        />
+      </svg>
+    );
+  }
   if ('edge' in swatch) {
     const color = FLOW_EDGE_COLORS[flowEdgeTone(swatch.edge)];
     return (
@@ -58,6 +91,8 @@ function Swatch({ swatch }: { swatch: FlowLegendEntry['swatch'] }) {
         swatch.node === 'gate' && 'border-muted-foreground rounded-full',
         swatch.node === 'frame' &&
           'border-muted-foreground bg-muted/30 rounded-sm border-dashed',
+        swatch.node === 'differs' &&
+          'border-border rounded-sm ring-1 ring-[hsl(var(--info-foreground))]',
       )}
     />
   );

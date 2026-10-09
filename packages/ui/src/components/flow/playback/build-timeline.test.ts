@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { branchRun, triageFailedRun } from '../testing/flow-fixtures';
+import {
+  branchRun,
+  triageExplainedRun,
+  triageFailedRun,
+} from '../testing/flow-fixtures';
 import { buildPlaybackTimeline, type FlowRealRun } from './build-timeline';
 
 describe('buildPlaybackTimeline', () => {
@@ -104,5 +108,24 @@ describe('buildPlaybackTimeline', () => {
       last + 500,
       6,
     );
+  });
+
+  it('marks restarts and the node a wait belongs to, and steps to a restart', () => {
+    const run = triageExplainedRun();
+    const timeline = buildPlaybackTimeline(run);
+    const restart = timeline.marks?.find((mark) => mark.kind === 'restart');
+    expect(restart).toEqual({
+      at: timeline.fromReal(run.marks?.[0]?.at ?? 0),
+      kind: 'restart',
+      label: 'The server restarted; another took over',
+      nodeId: 'score',
+    });
+    expect(timeline.events).toContain(restart?.at);
+    expect(timeline.marks?.find((mark) => mark.kind === 'wait')?.nodeId).toBe(
+      'open_issues',
+    );
+    expect(
+      timeline.marks?.find((mark) => mark.kind === 'failure')?.nodeId,
+    ).toBe('score');
   });
 });

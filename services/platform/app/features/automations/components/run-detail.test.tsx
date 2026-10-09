@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 import { i18n } from '../../../../lib/i18n/i18n';
@@ -33,6 +34,9 @@ const { state, resolveApproval, readApproval, refetchRun } = vi.hoisted(() => ({
       | { reason: 'shutdown' | 'lease_expired'; at: number }
       | undefined,
     stalled: undefined as boolean | undefined,
+    failureCode: undefined as string | undefined,
+    record: null as unknown,
+    replayOf: undefined as unknown,
   },
   resolveApproval: vi.fn(() => Promise.resolve(null)),
   readApproval: vi.fn(),
@@ -80,6 +84,15 @@ vi.mock('../hooks/queries', async (importOriginal) => {
       isError: false,
     }),
     useRunPendingAsk: () => ({ data: null }),
+    useAutomationRuns: () => ({ data: [] }),
+    useRunRecord: () => ({ data: state.record }),
+    useRunNode: () => ({ data: undefined }),
+    useReplayPlan: () => ({
+      data: undefined,
+      isPending: true,
+      isError: false,
+      refetch: vi.fn(),
+    }),
     useRunInDoubt: () => ({
       data: {
         attemptId: 'attempt-1',
@@ -125,6 +138,14 @@ vi.mock('../hooks/mutations', () => ({
     mutateAsync: vi.fn(() => Promise.resolve(null)),
     isPending: false,
   }),
+  useReplayRun: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
+}));
+// No RouterProvider: links render as plain anchors, and a new run's page is
+// a navigation the suite need not follow.
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
+  useNavigate: () => vi.fn(),
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
@@ -147,6 +168,13 @@ vi.mock('./automation-canvas', () => ({
     layoutKey,
     revealId,
     run,
+    selectedId,
+    selectedUnit,
+    onSelect,
+    runView,
+    onRunViewChange,
+    runMoment,
+    onRunMomentChange,
   }: {
     automation: { nodes: Array<{ id: string; type: string }> };
     layoutKey: string;
@@ -156,20 +184,49 @@ vi.mock('./automation-canvas', () => ({
       status: string;
       startedBy?: string;
     };
+    selectedId?: string | null;
+    selectedUnit?: { item?: number; pass?: number } | null;
+    onSelect?: (id: string | null, unit?: { item?: number }) => void;
+    runView?: string;
+    onRunViewChange?: (view: 'chart' | 'steps') => void;
+    runMoment?: number;
+    onRunMomentChange?: (moment: number | null) => void;
   }) => (
-    <ul
-      data-testid="canvas"
-      data-layout-key={layoutKey}
-      data-reveal-id={revealId ?? undefined}
-      data-run-status={run?.status}
-      data-started-by={run?.startedBy}
-    >
-      {automation.nodes.map((node) => (
-        <li key={node.id}>
-          {node.id} ({node.type}): {run?.statusByNode.get(node.id)}
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul
+        data-testid="canvas"
+        data-layout-key={layoutKey}
+        data-reveal-id={revealId ?? undefined}
+        data-run-status={run?.status}
+        data-started-by={run?.startedBy}
+        data-selected-id={selectedId ?? undefined}
+        data-selected-unit={
+          selectedUnit === null || selectedUnit === undefined
+            ? undefined
+            : JSON.stringify(selectedUnit)
+        }
+        data-run-view={runView}
+        data-run-moment={runMoment}
+      >
+        {automation.nodes.map((node) => (
+          <li key={node.id}>
+            {node.id} ({node.type}): {run?.statusByNode.get(node.id)}
+          </li>
+        ))}
+      </ul>
+      <button type="button" onClick={() => onSelect?.('archive', { item: 2 })}>
+        Pick archive item 3
+      </button>
+      <button type="button" onClick={() => onRunViewChange?.('chart')}>
+        Show the chart
+      </button>
+      <button type="button" onClick={() => onRunMomentChange?.(1200)}>
+        Rest at 1.2 s
+      </button>
+      <button type="button" onClick={() => onRunMomentChange?.(null)}>
+        Rest at the end
+      </button>
+    </>
   ),
 }));
 vi.mock('./node-inspector', () => ({ NodeInspector: () => null }));
@@ -183,6 +240,9 @@ vi.mock('@tale/ui/json-viewer', () => ({
 import { RunDetail } from './run-detail';
 
 beforeEach(() => {
+  state.failureCode = undefined;
+  state.record = null;
+  state.replayOf = undefined;
   state.status = 'waiting';
   state.finishedAt = null;
   state.detail = 'approval:250a93eb-9413-4699-94e8-ee3164e5e545';
@@ -729,15 +789,100 @@ describe('RunDetail starter and reason', () => {
     expect(screen.queryByText('repeat:tick')).toBeNull();
   });
 
-  it('keeps the failure sentence of a failed run', () => {
+  it('says why a failed run failed in words, the engine’s sentence folded away', () => {
     state.status = 'failed';
     state.finishedAt = 1789363170729;
     state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
     state.waitingFor = undefined;
     renderRun();
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'send: no usable credential for imap-smtp',
+    const card = screen.getByRole('region', { name: 'The run failed' });
+    expect(card).toHaveTextContent('A service call failed');
+    expect(card).toHaveTextContent(
+      "Check the step's input and the service's connection.",
     );
+    // The English stays under Technical details, never in the sentence.
+    expect(screen.getByText('Technical details')).toBeInTheDocument();
+    expect(screen.getByText(/no usable credential/)).not.toBeVisible();
+  });
+
+  it('names the step a run failed at from its record, and offers the ways on', async () => {
+    state.status = 'failed';
+    state.finishedAt = 1789363170729;
+    state.detail = 'send: no usable credential for imap-smtp';
+    state.failureCode = 'connector_error';
+    state.waitingFor = undefined;
+    state.record = {
+      format: 1,
+      runId: 'run-proof',
+      status: 'failed',
+      version: 1,
+      mode: 'live',
+      startedAt: 1789363168936,
+      source: 'record',
+      events: [],
+      eventsTotal: 0,
+      cursor: 1789363170729,
+      nodes: [
+        {
+          path: 'send',
+          nodeId: 'send',
+          type: 'imap-smtp.send',
+          status: 'failed',
+          startedAt: 1789363169000,
+          activeMs: 10,
+          waitedMs: 0,
+          attempt: 1,
+          attempts: [],
+          decisions: [],
+          waits: [],
+          meta: {},
+          failure: {
+            code: 'connector_error',
+            reason: 'CONNECTOR_CREDENTIAL_MISSING',
+            params: { connector: 'imap-smtp' },
+            message: 'no usable credential for imap-smtp',
+          },
+        },
+      ],
+    };
+    renderRun();
+    const card = screen.getByRole('region', {
+      name: 'The run failed at Send',
+    });
+    expect(card).toHaveTextContent('No working connection');
+    expect(card).toHaveTextContent(
+      "imap-smtp isn't connected, or its connection was removed.",
+    );
+    expect(screen.getByRole('button', { name: 'Show step' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Retry from this step' }),
+    ).toBeEnabled();
+    expect(screen.getByRole('link', { name: 'Show in editor' })).toBeVisible();
+    await checkAccessibility(card);
+  });
+
+  it('names the run a replay ran again, and how, with the way back to it', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.replayOf = { runId: 'run-src-1234', kind: 'from', fromNode: 'score' };
+    renderRun();
+    expect(screen.getByText('Replay of run runsrc · from Score')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Open run runsrc' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Compare with it' })).toBeVisible();
+  });
+
+  it('says when the run a replay ran again was deleted', () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.replayOf = { runId: null, kind: 'again' };
+    renderRun();
+    expect(screen.getByText('Replay of a run that was deleted')).toBeVisible();
+    expect(screen.queryByRole('link', { name: /Open run/ })).toBeNull();
   });
 
   it('shows no reason on a stopped run whose park is history', () => {
@@ -1079,5 +1224,90 @@ describe('RunDetail canvas', () => {
       'data-started-by',
       expect.stringContaining('Dana K.'),
     );
+  });
+});
+
+describe('RunDetail link', () => {
+  it('opens on the view, step and item its URL names, and writes the reader’s moves back', async () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [{ node: 'send', type: 'imap-smtp.send', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [
+        { id: 'send', type: 'imap-smtp.send' },
+        { id: 'archive', type: 'transform', code: 'return 1;' },
+      ],
+    };
+    const onSearchChange = vi.fn();
+    const { user } = render(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+        search={{ view: 'steps', node: 'send', item: 1 }}
+        onSearchChange={onSearchChange}
+      />,
+    );
+    const canvas = screen.getByTestId('canvas');
+    expect(canvas).toHaveAttribute('data-run-view', 'steps');
+    expect(canvas).toHaveAttribute('data-selected-id', 'send');
+    expect(canvas).toHaveAttribute('data-selected-unit', '{"item":1}');
+    // Opening where the link says writes nothing back.
+    expect(onSearchChange).not.toHaveBeenCalled();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Pick archive item 3' }),
+    );
+    expect(onSearchChange).toHaveBeenLastCalledWith({
+      view: 'steps',
+      node: 'archive',
+      item: 2,
+      pass: null,
+    });
+    await user.click(screen.getByRole('button', { name: 'Show the chart' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({
+      view: null,
+      node: 'archive',
+      item: 2,
+      pass: null,
+    });
+  });
+
+  it('opens on the moment its URL names, and writes where the playback rests', async () => {
+    state.status = 'success';
+    state.finishedAt = 1789363170729;
+    state.detail = null;
+    state.waitingFor = undefined;
+    state.trace = [{ node: 'send', type: 'imap-smtp.send', status: 'ok' }];
+    state.versionDocument = {
+      name: 'docs-approval-proof',
+      nodes: [{ id: 'send', type: 'imap-smtp.send' }],
+    };
+    const onSearchChange = vi.fn();
+    const { user } = render(
+      <RunDetail
+        organizationId="org-proof"
+        automationSlug="docs-approval-proof"
+        runId="run-proof"
+        search={{ t: 900 }}
+        onSearchChange={onSearchChange}
+      />,
+    );
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-run-moment',
+      '900',
+    );
+    await user.click(screen.getByRole('button', { name: 'Rest at 1.2 s' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ t: 1200 });
+    // Resting where it already rests writes nothing again.
+    await user.click(screen.getByRole('button', { name: 'Rest at 1.2 s' }));
+    expect(
+      onSearchChange.mock.calls.filter(([change]) => 't' in change),
+    ).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Rest at the end' }));
+    expect(onSearchChange).toHaveBeenLastCalledWith({ t: null });
   });
 });

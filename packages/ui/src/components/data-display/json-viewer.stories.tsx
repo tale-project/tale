@@ -11,7 +11,9 @@ const meta: Meta<typeof JsonViewer> = {
     docs: {
       description: {
         component: `
-An interactive JSON viewer component for displaying structured data.
+A JSON value to read, drawn by the value tree (\`@tale/ui/value-tree\`):
+keys, values coloured by type, keyboard navigation, long text cut to a line.
+A plain value (null, a string, a number) shows as its JSON text.
 
 ## Usage
 \`\`\`tsx
@@ -25,10 +27,10 @@ import { JsonViewer } from '@tale/ui/json-viewer';
 \`\`\`
 
 ## Features
-- Syntax highlighting with theme support
-- Collapsible nested objects
-- Copy to clipboard functionality
-- Handles both object and string JSON input
+- Values coloured by type from the code palette, in both themes
+- \`collapsed\`: \`false\` opens everything, \`true\` the top level, a number that many levels
+- \`enableClipboard\`: copy the whole value, and every row (⌘C / ⇧⌘C)
+- Reads JSON text before showing it
         `,
       },
     },

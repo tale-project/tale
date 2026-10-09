@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { useState } from 'react';
 
 import { TooltipProvider } from '../overlays/tooltip';
+import { flowCompareFromOverlays } from './compare/compare';
 import { FlowPathList } from './flow-path-list';
 import { FlowStepList } from './flow-step-list';
 import {
@@ -16,6 +17,7 @@ import {
   branchFlowGraph,
   branchRun,
   branchRunOverlay,
+  branchRunOverlayB,
   reviewPullRequestsFlowGraph,
   syntheticFlowGraph,
   triageFailedRun,
@@ -143,6 +145,23 @@ export const RunOverlay: Story = {
     <Selectable
       graph={branchFlowGraph()}
       overlay={branchRunOverlay()}
+      height={900}
+    />
+  ),
+};
+
+/** Two runs on one chart: each box says how it went in each, a ring
+ *  where they differ, "Only in A" on a branch only one took. */
+export const Compare: Story = {
+  render: () => (
+    <Selectable
+      graph={branchFlowGraph()}
+      compare={flowCompareFromOverlays(
+        branchFlowGraph(),
+        branchRunOverlay(),
+        branchRunOverlayB(),
+        { absent: { b: ['low'] } },
+      )}
       height={900}
     />
   ),

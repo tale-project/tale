@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 136 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 155 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -20,8 +20,9 @@ groups folders (e.g. `billing/dunning-reminder`); in a URL every `/` travels
 as `__` (`billing__dunning-reminder`, lossless codec in
 `lib/automations/slug.ts`). The shipped packs use single-segment names (e.g.
 `github-triage-issues`), so their slug and URL segment are identical.
-`{runId}` is a plain URL segment — the run routes take **no** search params
-(the old `?wf=` is gone; verified in the route files).
+`{runId}` is a plain URL segment — a run's page takes **no** search params
+(the old `?wf=` is gone; verified in the route files); the comparison takes
+the two runs as `?a={runId}&b={runId}`.
 
 | Surface                   | Route                                                                                                                                        |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -32,9 +33,11 @@ as `__` (`billing__dunning-reminder`, lossless codec in
 | Legacy version history link              | `/dashboard/{org}/automations/{slug}/versions`                                                                                               |
 | Runs tab                  | `/dashboard/{org}/automations/{slug}/runs`                                                                                                   |
 | Run detail                | `/dashboard/{org}/automations/{slug}/runs/{runId}`                                                                                           |
+| Compare runs              | `/dashboard/{org}/automations/{slug}/runs/compare?a={runId}&b={runId}`                                                                       |
 | Project-scoped list       | `/dashboard/{org}/projects/{projectId}/automations`                                                                                          |
 | Project-scoped detail     | `/dashboard/{org}/projects/{projectId}/automations/{slug}` → forwards to `…/{slug}/editor`; carries the same four tabs            |
 | Project-scoped run        | `/dashboard/{org}/projects/{projectId}/automations/{slug}/runs/{runId}`                                                                      |
+| Project-scoped compare    | `/dashboard/{org}/projects/{projectId}/automations/{slug}/runs/compare?a={runId}&b={runId}`                                                  |
 | Metrics (redirect)        | `/dashboard/{org}/automations/metrics` → `/dashboard/{org}/settings/metrics/automations` (keeps query)                                       |
 
 > **Route note**: project navigation shows an Automations tab only once
@@ -955,6 +958,101 @@ output:
       translated; German conditions put the verb last ("… größer als 1.000
       ist"); French shows « Canevas » with no-break spaces before `:`; Swiss
       German shows «…» and "grösser".
+- [ ] `AUTO-F106` · **Open a failed run** → a card titled
+      `automationRuns.failure.title` names the step it failed at and says,
+      in words, what the failure means, its concrete cause and the fix; the
+      engine's English sits under **Technical details**; **Show step**
+      (`automationRuns.failure.showStep`) selects the step on the canvas and
+      **Show in editor** (`automationRuns.failure.showInEditor`) opens the
+      editor on the run's version with the step selected.
+- [ ] `AUTO-F107` · **Retry from the failed step**
+      (`automationRuns.failure.retry`) → the dialog
+      `automationRuns.replay.from.titleRetry` lists what it reuses and what
+      runs again; on a live run whose steps write, it warns
+      `automationRuns.replay.writes.live` and focuses **Cancel**; confirming
+      opens the new run, whose header says `automationRuns.lineage.from` with
+      **Open run** and **Compare with it** (`automationRuns.lineage.compare`).
+- [ ] `AUTO-F108` · **Run again** (`automationRuns.again.button`) on a test
+      run → a new run starts at once and opens. On a live run that wrote,
+      it first asks `automationRuns.again.liveConfirm.title` and names the
+      services; the menu (`automationRuns.again.menu`) offers
+      `automationRuns.again.edit`, `automationRuns.again.latest` when a newer
+      version exists, `automationRuns.again.live` when another version is
+      live, and copies the run ID and link with a toast.
+- [ ] `AUTO-F109` · **Edit input and run…** → the run dialog opens with the
+      run's input and `automationRuns.again.editScope`; changing a field
+      starts a run with it; confirming unchanged runs the run again.
+- [ ] `AUTO-F110` · **Play a run back** → the canvas opens on the run's end
+      with the bar `flow.playback.label` below it; **Previous event** and
+      **Next event** step through it, **Play** plays it at the chosen speed
+      with the run's real elapsed time; a skipped step says
+      `automationRuns.playback.reason.when` and a waiting one
+      `automationRuns.playback.wait.approval`; a running run follows its end
+      until scrubbed, then offers `flow.playback.followLive`.
+- [ ] `AUTO-F111` · **Select a skipped step on a run** → **Last run** says
+      `automationRuns.conditions.skippedWhen`; the
+      `automationRuns.conditions.onlyIf` card reads the condition with the
+      values it read ("amount of the run input (250) is not greater than
+      1,000") and **No**; a condition joined with `&&` lists each part with
+      **Yes**, **No** or `automationRuns.conditions.verdict.notChecked`.
+- [ ] `AUTO-F112` · **Compare a replay with its run**
+      (`automationRuns.lineage.compare`) → `automationRuns.compare.title`
+      shows both runs, `automationRuns.compare.differs.title` in sentences
+      and every step of each in `automationRuns.compare.table.label`;
+      **Swap A and B** (`automationRuns.compare.swap`) swaps them in the URL.
+- [ ] `AUTO-F113` · **Switch to Deutsch, Français and Deutsch (Schweiz) on a
+      failed run, its retry dialog, its playback and a comparison** → every
+      sentence is translated; German conditions put the verb last ("…
+      nicht größer als 1.000 ist"); Swiss German shows «Für jedes» and
+      "grösser"; French puts a no-break space before `:`.
+- [ ] `AUTO-F114` · **Select a step of a finished run** → **Last run** lists
+      `automationRuns.data.reads` in words with each value read ("issues of
+      Open issues: 12 items"), then `automationRuns.data.received` and
+      `automationRuns.data.returned`; a value with a secret says
+      `automationRuns.data.redacted` and never shows it.
+- [ ] `AUTO-F115` · **Select a step that ran once per item, with a failed
+      item** → its items list says `automationRuns.items.failedCount`; each
+      row shows how it ended and a failed one why;
+      `automationRuns.items.failedOnly` keeps the failed ones; picking a row
+      shows that item's data below.
+- [ ] `AUTO-F116` · **Open the Runs tab of an automation with failed and
+      successful runs** → `automationRuns.list.caption` lists them newest
+      first with status, start, result (a failure's title, a waiting run's
+      reason), version, mode and starter; scrolling loads older runs;
+      **Filter** narrows by `automationRuns.list.filters.status` and mode,
+      and says `automationRuns.list.noMatch` when nothing fits; selecting two
+      rows enables `automationRuns.list.compare`, which opens their
+      comparison, and a row opens its run.
+- [ ] `AUTO-F117` · **On a finished run, choose `automationRuns.view.steps`**
+      → the canvas gives way to the run's steps in time order, each with how
+      long it worked (none for a skipped step) and a bar for when, each
+      condition with its decision; the playback bar stays, and a run of under
+      a minute reads its clock in seconds or milliseconds; choosing a step
+      opens it in the inspector and moves the clock to its start;
+      `automationRuns.view.chart` shows the canvas at that moment.
+- [ ] `AUTO-F118` · **Select a step that returned an object or a list** →
+      Received and Returned read as trees that open with the arrow keys;
+      **Shape** shows the fields and their kinds for both at once; copy puts
+      the JSON on the clipboard, full screen opens it large, and a value over
+      8 KB offers a download; for a transform whose input and output are both
+      objects, `automationRuns.data.changes` lists what it added, removed
+      and changed.
+- [ ] `AUTO-F119` · **Compare two runs whose input differs** →
+      `automationRuns.compare.diff.input` shows A and B side by side (a list
+      on a narrow window) with each changed field marked; when the outputs
+      differ too, `automationRuns.compare.diff.output` appears above it; two
+      runs with the same input show neither. `automationRuns.compare.canvas`
+      draws both runs on B's version: each strip reads "A … · B …", the
+      step where they part is ringed.
+- [ ] `AUTO-F120` · **In `automationRuns.view.steps`, open a step that ran
+      once per item** → `flow.timeline.loadingItems` shows while its items
+      are read, then each item joins under it with how it ended and how long
+      it worked (past 20, `flow.timeline.showAll`); choosing one opens it in
+      the inspector with that item picked in its list, and moves the clock
+      to its start. The URL now carries `?view=steps`, the step, the item and
+      `t` (where the clock rests): a reload or the same link in a new tab
+      opens the same view, step, item and moment; `automationRuns.view.chart`
+      takes `view` out of the URL, and playing on to the end takes `t`.
 
 ## Boundary & error tests
 
@@ -1088,6 +1186,15 @@ output:
 - [ ] `AUTO-B20` · **Upload an automation with 40 nodes and 13 conditions** →
       it lays out in about a second, typing in a prompt never stutters, and
       the paths list says `automations.paths.truncated`.
+- [ ] `AUTO-B21` · **Retry a test run from a step, and from a step of a
+      version that changed** → a test run's retry offers only a test run
+      (`automationRuns.replay.mode.mockStaysMock`); on a version that changed
+      a reused step the dialog explains
+      `automationRuns.replay.refusal.REPLAY_GRAPH_CHANGED.title` and offers
+      nothing to start.
+- [ ] `AUTO-B22` · **Open a comparison of a run with itself, and with a run
+      of another automation** → `automationRuns.compare.same`, then
+      `automationRuns.compare.notFound`; neither shows a table.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -1202,6 +1309,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       (`automations.canvas.start.description`); the condition reads
       `flow.gate.name` then `flow.gate.branches`; End reads what it returns
       and how a run ends.
+- [ ] `AUTO-A19` · **Keyboard and screen reader on a failed run's page** →
+      the failure card is a region named by its title; **Run timeline**
+      (`flow.playback.label`) is reached by Tab and its slider says where it
+      is; the retry dialog and Run again's confirm trap focus and Escape
+      closes them; condition verdicts and compare rows are words, not
+      colours.
 
 ## Performance
 

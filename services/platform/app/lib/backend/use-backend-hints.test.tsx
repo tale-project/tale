@@ -413,6 +413,68 @@ describe('useBackendHints', () => {
     expect(queryClient.getQueryState(ownKeyAccess)?.isInvalidated).toBe(false);
   });
 
+  it('refreshes only the run a run hint names, and every run’s listings', async () => {
+    vi.useFakeTimers();
+    const own = backendKey(
+      'org1',
+      'automation_run',
+      'record',
+      'run-1',
+      null,
+      false,
+    );
+    const other = backendKey(
+      'org1',
+      'automation_run',
+      'record',
+      'run-2',
+      null,
+      false,
+    );
+    const list = backendKey(
+      'org1',
+      'automation_run',
+      'list',
+      'triage',
+      '50',
+      undefined,
+    );
+    const compare = backendKey(
+      'org1',
+      'automation_run_compare',
+      'run-1',
+      'run-2',
+    );
+    for (const key of [own, other, list, compare]) {
+      queryClient.setQueryData(key, {});
+    }
+    renderHook(() => useBackendHints('org1'), { wrapper });
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'automation_run', entityId: 'run-1' }),
+      );
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(queryClient.getQueryState(own)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(list)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(other)?.isInvalidated).toBe(false);
+    expect(queryClient.getQueryState(compare)?.isInvalidated).toBe(false);
+    // A hint that names no run, from an older server, refreshes them all.
+    act(() => {
+      FakeEventSource.instances[0]?.emit(
+        'hint',
+        JSON.stringify({ entity: 'automation_run', entityId: null }),
+      );
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+    });
+    expect(queryClient.getQueryState(other)?.isInvalidated).toBe(true);
+  });
+
   it('subscribes the org stream and invalidates the entity prefix on a hint', async () => {
     vi.useFakeTimers();
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
