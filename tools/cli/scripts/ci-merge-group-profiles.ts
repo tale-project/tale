@@ -9,7 +9,7 @@ export const FINISH_SOURCE = {
   'tools/cli/scripts/ci-ready.ts':
     '4e4adbbcf43c835800f6eb4a92db7f0a98db7432a50e3cd320aa75312294fdf8',
 } as const;
-export const FINISH_PATHS = [
+const FINISH_PATHS = [
   '.github/workflows/checks.yml',
   '.github/actions/ci-ready/action.yml',
   'tools/cli/scripts/ci-ready.ts',
@@ -114,6 +114,18 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
   profile(
     'CLI',
     '1d32433aa06366e94f273b89c8cc54a19f97e36be65298cd4bcd5153b8b67570',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+  ),
+  // Current CLI adds the request-channel push path; the entire job graph is unchanged.
+  profile(
+    'CLI',
+    '198109738040873a9e17e658897962c82de63cdff45546f35115db8484ae3a64',
     {
       build: {
         variable: 'platform',
