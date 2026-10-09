@@ -375,6 +375,21 @@ describe('claiming a worker', () => {
     expect(statements.some((s) => s.text.includes(CLAIM))).toBe(false);
   });
 
+  it('counts as holding a worker only a run that works in it or has claimed it [TASK-R27]', async () => {
+    // Ada starts Scribe on "Changelog"; a moment later she asks for changes
+    // on "Release notes", which last worked in worker 1. Changelog's kick
+    // names worker 1 too, but has not claimed it: Release notes goes back
+    // to worker 1, and Changelog takes another once its own claim runs.
+    const { sql, statements } = claimSql({
+      family: [{ sessionId: w(1), status: 'stopped', pinned: false }],
+    });
+    await claimAgentWorker(sql, ARGS);
+    const others = statements.find((s) => s.text.includes(OTHERS));
+    expect(others?.text).toContain(
+      "(status = 'running' OR (status = 'queued' AND waiting_for_capacity_at_ms IS NULL AND session_claimed_at_ms IS NOT NULL))",
+    );
+  });
+
   it("moves a run whose starter lost the editor role into the member's family [SBX-R20]", async () => {
     const member = memberWorkerSessionId(AGENT, 'user-ada', 1);
     vi.mocked(sessionIdForAgentRun).mockResolvedValue(member);

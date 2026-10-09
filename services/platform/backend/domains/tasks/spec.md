@@ -365,6 +365,10 @@ new one can open.
 - **Example**: Scribe's run on "Changelog" fails in worker 1, and its automatic retry is about
   to start. Ada starts Scribe on "Press kit" → it takes another worker, and the retry continues
   in worker 1.
+- **Example**: "Release notes" last worked in Scribe's worker 1, which is free. Ada starts
+  Scribe on "Changelog" and, a moment later, asks for changes on "Release notes" → "Release
+  notes" continues in worker 1, and "Changelog" takes another worker: a run that has not
+  started yet holds no worker.
 
 ## Not yet
 

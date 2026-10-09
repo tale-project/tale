@@ -19,6 +19,9 @@
  *   working, ahead of an older run of a busier agent;
  * - reassigning a task withdraws its run while it waits and never launched,
  *   and still refuses while a run works or was just woken;
+ * - a run that has not claimed a worker holds none, though its kick or its
+ *   wake names worker 1: a burst of starts opens no worker beside a stopped
+ *   one, and a task's next run still goes back to its own worker;
  * - migration 0167's columns, CHECK and unique index are in place.
  *
  * The lane drives the turn job's own steps — the claim, the slot reserve or
@@ -544,6 +547,79 @@ export async function checkAgentWorkers(
           (await factsOf(rl)).status === 'queued',
         `waiting=${waitingHanded}/${withdrawn.status} assignee=${assignee[0]?.assigneeId === lector ? 'Lector' : assignee[0]?.assigneeId} working=${workingHanded} woken=${wokenHanded}`,
       );
+      await endAll();
+    }
+
+    // ---- a run that has not claimed a worker holds none -------------------
+    {
+      // Three starts kicked before any of them claims, every worker
+      // stopped: each kick names worker 1, yet the claims take worker 1 and
+      // worker 2 and the third waits — no worker 3 opens while worker 1
+      // stays idle.
+      const burst: string[] = [];
+      for (const title of ['Burst 1', 'Burst 2', 'Burst 3']) {
+        burst.push(await insertTask(title, scribe));
+      }
+      const kicked: string[] = [];
+      for (const taskId of burst) kicked.push(await kick(taskId, scribe));
+      const claims: Array<WorkerClaim | null> = [];
+      for (const runId of kicked) claims.push(await start(runId));
+      record(
+        'agent workers: three starts kicked before any claims take worker 1 and worker 2 and the third waits, though every kick names worker 1 — no worker 3 opens',
+        sessionOfClaim(claims[0] ?? null) === w(1) &&
+          sessionOfClaim(claims[1] ?? null) === w(2) &&
+          JSON.stringify(claims[2]) ===
+            JSON.stringify({ parked: 'org_limit' }) &&
+          (await sessionStatus(w(3))) === null,
+        `claims=${claims.map((claim) => sessionOfClaim(claim)).join(',')} w3=${await sessionStatus(w(3))}`,
+      );
+      await endAll();
+
+      // Burst 1 last worked in worker 1. Another task is kicked first and
+      // names worker 1 too; Burst 1's next run claims before it and goes
+      // back to worker 1, and the other task takes worker 2.
+      const sideTask = await insertTask('Kicked a moment earlier', scribe);
+      const side = await kick(sideTask, scribe);
+      const followUp = await kick(burst[0] ?? '', scribe);
+      const followUpClaim = await start(followUp);
+      const sideClaim = await start(side);
+      record(
+        'agent workers: a task’s next run goes back to its free worker though another task’s unclaimed kick names it, and that task takes another worker',
+        sessionOfClaim(followUpClaim) === w(1) &&
+          sessionOfClaim(sideClaim) === w(2),
+        `follow-up=${sessionOfClaim(followUpClaim)} (want w1) other=${sessionOfClaim(sideClaim)} (want w2)`,
+      );
+
+      // Worker 1 is pinned, so it stays up when its run ends; a run that
+      // waited is woken into the family (naming worker 1) when it does.
+      // Burst 1's next run claims before the woken run and still takes its
+      // own worker, which needs no slot.
+      await sql`
+        UPDATE app.sandbox_sessions SET pinned = true
+        WHERE org_id = ${orgId} AND session_id = ${w(1)}
+      `;
+      const waitingTask = await insertTask('Waits for a worker', scribe);
+      const waiting = await kick(waitingTask, scribe);
+      const waitingClaim = await start(waiting);
+      await end(followUp);
+      const woken = await factsOf(waiting);
+      const again = await kick(burst[0] ?? '', scribe);
+      const againClaim = await start(again);
+      record(
+        'agent workers: a task’s next run takes its own worker, still up, while a woken run that has not claimed yet names that worker',
+        JSON.stringify(waitingClaim) ===
+          JSON.stringify({ parked: 'org_limit' }) &&
+          !woken.parked &&
+          woken.sessionId === w(1) &&
+          !woken.claimed &&
+          sessionOfClaim(againClaim) === w(1) &&
+          (await sessionStatus(w(3))) === null,
+        `waiting=${JSON.stringify(waitingClaim)} woken=${JSON.stringify(woken)} next=${sessionOfClaim(againClaim)} (want w1) w3=${await sessionStatus(w(3))}`,
+      );
+      await sql`
+        UPDATE app.sandbox_sessions SET pinned = false
+        WHERE org_id = ${orgId} AND session_id = ${w(1)}
+      `;
       await endAll();
     }
 

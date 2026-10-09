@@ -64,8 +64,8 @@ export interface WorkerFacts {
   base: string;
   /** The worker this run already holds a claim on (a recovered start). */
   claimed?: string;
-  /** Workers another live run names, or a process of an ended run of
-   * another task still runs in. */
+  /** Workers another run works in or has claimed, or a process of an ended
+   * run of another task still runs in. */
   occupied: ReadonlySet<string>;
   /** The family's workers that have a live session row. */
   workers: readonly FamilyWorker[];
@@ -83,8 +83,8 @@ export type WorkerChoice =
 
 /**
  * Which worker a run starts in. Pure: the claim reads the facts under the
- * agent's lock. A worker is free when no other live run names it; one that
- * takes no new slot is warm. In order:
+ * agent's lock. A worker is free when no other run works in it or has
+ * claimed it; one that takes no new slot is warm. In order:
  *
  * 0. the worker the run already claimed, when it is still free;
  * 1. the task's previous worker, which keeps its conversation and files;
@@ -361,14 +361,22 @@ async function readWorkerFacts(
   const sessionIds = family.map((row) => row.sessionId);
   const destroys = await sessionDestroyStates(tx, organizationId, sessionIds);
 
-  // Held by another live run of the agent: one working, one that claimed
-  // it, or a kick that still names its family's first worker.
+  // Held by another run of the agent: one working there, or one that
+  // claimed it and has not started yet. A run that has not claimed holds no
+  // worker, though its kick (or its wake) names its family's first worker:
+  // every kick names that one, so counting the name would send a task's
+  // next run away from its own worker, and a burst of starts to new
+  // workers, whenever another start came a moment earlier. The name still
+  // guards the worker against an idle release (`SBX-R18`). A start by an
+  // image that never claims shares worker 1 with a claim while both images
+  // serve; the per-session limit on processes bounds that.
   const others = await tx<{ sessionId: string }[]>`
     SELECT session_id AS "sessionId" FROM app.project_agent_runs
     WHERE org_id = ${organizationId} AND agent_id = ${run.agentId}
       AND id <> ${runId}
       AND (status = 'running'
-        OR (status = 'queued' AND waiting_for_capacity_at_ms IS NULL))
+        OR (status = 'queued' AND waiting_for_capacity_at_ms IS NULL
+          AND session_claimed_at_ms IS NOT NULL))
   `;
   // A process an ended run of another task left running there (its drain
   // died with the CLI alive): another task's run must not share the
