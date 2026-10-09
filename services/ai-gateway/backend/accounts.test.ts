@@ -45,7 +45,11 @@ function gate(): { wait: Promise<void>; open: () => void } {
 function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
   usage: UsageWindow[];
   usagePlan: Subscription | null;
-  refusals: { refresh?: RefreshRefusal; usage?: boolean; exchange?: boolean };
+  refusals: {
+    refresh?: RefreshRefusal;
+    usage?: boolean | 'rejected';
+    exchange?: boolean;
+  };
   gates: { refresh?: Promise<void>; usage?: Promise<void> };
   refreshCount: number;
   refreshedExpiresAt: string;
@@ -69,7 +73,7 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
     usagePlan: null as Subscription | null,
     refusals: {} as {
       refresh?: RefreshRefusal;
-      usage?: boolean;
+      usage?: boolean | 'rejected';
       exchange?: boolean;
     },
     gates: {} as { refresh?: Promise<void>; usage?: Promise<void> },
@@ -172,7 +176,13 @@ function fakeProvider(id: 'anthropic' | 'openai'): Provider & {
       state.usageCount += 1;
       await state.gates.usage;
       if (state.refusals.usage) {
-        throw new ProviderError(id, 'usage_failed', 'refused');
+        throw new ProviderError(
+          id,
+          state.refusals.usage === 'rejected'
+            ? 'access_token_rejected'
+            : 'usage_failed',
+          'refused',
+        );
       }
       return { windows: state.usage, subscription: state.usagePlan };
     },
@@ -755,6 +765,48 @@ describe('createAccountService', () => {
     now = new Date('2026-09-21T10:14:00.000Z');
     await service.list();
     expect(anthropic.usageCount).toBe(3);
+  });
+
+  it('recovers one exact access-token generation after an authenticated usage rejection', async () => {
+    const account = await connect();
+    anthropic.refusals.usage = 'rejected';
+    now = new Date('2026-09-21T10:10:00.000Z');
+
+    const [row] = await service.list();
+
+    expect(row?.status).toBe('active');
+    expect(anthropic.refreshCount).toBe(1);
+    expect(
+      cipher.open((await store.getAccount(account.id))?.accessToken ?? ''),
+    ).toBe('access-2');
+  });
+
+  it('keeps a rejected generation unavailable when its recovery is rate limited', async () => {
+    const account = await connect();
+    anthropic.refusals.usage = 'rejected';
+    anthropic.refusals.refresh = 'failed';
+    now = new Date('2026-09-21T10:10:00.000Z');
+
+    const [row] = await service.list();
+    expect(row?.status).toBe('error');
+    expect(anthropic.refreshCount).toBe(1);
+
+    now = new Date('2026-09-21T10:30:00.000Z');
+    await service.list();
+    expect(anthropic.usageCount).toBe(1 + 1);
+    expect((await store.getAccount(account.id))?.status).toBe('error');
+  });
+
+  it('does not export a known unavailable account through its CLI command', async () => {
+    const account = await connect();
+    anthropic.refusals.refresh = 'failed';
+    await store.updateAccount(account.id, (row) => {
+      row.status = 'error';
+    });
+
+    await expect(service.cliCommand(account.id)).rejects.toMatchObject({
+      code: 'unavailable',
+    });
   });
 
   it('does not bring back an account removed while it was being read', async () => {
