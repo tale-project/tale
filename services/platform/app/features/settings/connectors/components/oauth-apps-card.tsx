@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
@@ -11,11 +12,12 @@ import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 
@@ -118,6 +120,10 @@ interface OauthAppTarget {
   displayName: string;
   /** Where the effective app comes from when the org has no row. */
   envConfigured: boolean;
+  /** The Knowledge import lane's status read that decides this row failed,
+   * and neither the org's apps nor the catalog answer for it: whether an app
+   * stands behind the row is unknown, not missing. */
+  statusUnavailable: boolean;
 }
 
 /**
@@ -146,13 +152,19 @@ export function OauthAppsCard({
     GOOGLE_DRIVE_SLUG,
   );
   const entraSso = useEntraSsoSource(organizationId);
+  // An import lane's status read that failed is not an app that is missing
+  // (#3893): its row says the status is unavailable and offers nothing to
+  // configure, and the card names the failure and runs the read again.
+  const onedriveRead = readStateOf(onedriveStatus);
+  const driveImportRead = readStateOf(driveImportStatus);
   // Until every source has answered, no row can say whether an app stands
-  // behind it: its status masks instead of claiming "Not configured".
+  // behind it: its status masks instead of claiming "Not configured". A read
+  // that failed holds its row still through a retry instead.
   const loading =
     catalogLoading ||
     appsQuery.isLoading ||
-    onedriveStatus.isLoading ||
-    driveImportStatus.isLoading;
+    (onedriveStatus.isLoading && !onedriveRead.unavailable) ||
+    (driveImportStatus.isLoading && !driveImportRead.unavailable);
 
   const [editing, setEditing] = useState<OauthAppTarget | null>(null);
   const [removing, setRemoving] = useState<OauthAppTarget | null>(null);
@@ -168,24 +180,58 @@ export function OauthAppsCard({
         (summary) =>
           summary.authMethods.includes('oauth2') && summary.slug !== 'slack',
       )
-      .map((summary) => ({
-        slug: summary.slug,
-        displayName: summary.displayName,
-        envConfigured: hasDeploymentApp(
+      .map((summary) => {
+        const envConfigured = hasDeploymentApp(
           summary.slug,
           summary.oauthApp?.source,
           driveImportStatus.data?.source,
-        ),
-      })),
+        );
+        return {
+          slug: summary.slug,
+          displayName: summary.displayName,
+          envConfigured,
+          statusUnavailable:
+            summary.slug === GOOGLE_DRIVE_SLUG &&
+            driveImportRead.unavailable &&
+            !envConfigured &&
+            !orgApps.has(summary.slug),
+        };
+      }),
     {
       slug: ONEDRIVE_SLUG,
       displayName: t('connectors.oauthApps.onedriveTarget'),
       envConfigured: onedriveStatus.data?.source === 'env',
+      statusUnavailable:
+        onedriveRead.unavailable && !orgApps.has(ONEDRIVE_SLUG),
     },
   ];
 
+  // The status reads behind the rows that say so — the ones Try again runs.
+  const unavailable = (slug: string) =>
+    targets.some((target) => target.slug === slug && target.statusUnavailable);
+  const failedReads = [
+    ...(unavailable(ONEDRIVE_SLUG)
+      ? [{ read: onedriveRead, query: onedriveStatus }]
+      : []),
+    ...(unavailable(GOOGLE_DRIVE_SLUG)
+      ? [{ read: driveImportRead, query: driveImportStatus }]
+      : []),
+  ];
+  const retryStatus = () => {
+    for (const { query } of failedReads) void query.refetch();
+  };
+  // A read that works on retry takes the alert away; a focused Try again
+  // hands its focus to the card, not to the page.
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = () => {
+    sectionRef.current?.focus();
+  };
+
   return (
     <SettingsSection
+      ref={sectionRef}
+      tabIndex={-1}
+      className="outline-none"
       title={t('connectors.oauthApps.title')}
       description={t('connectors.oauthApps.description')}
     >
@@ -193,6 +239,20 @@ export function OauthAppsCard({
         <Alert
           variant="destructive"
           description={mapCredentialError(appsQuery.error)}
+        />
+      )}
+      {failedReads.length > 0 && (
+        <CatalogLoadError
+          // Each failure is announced again; Try again keeps its node, and
+          // the focus on it, through a retry that fails again.
+          failureKey={failedReads.reduce(
+            (count, { read }) => count + read.failureCount,
+            0,
+          )}
+          onFocusLost={focusSection}
+          message={t('connectors.oauthApps.statusLoadFailed')}
+          onRetry={retryStatus}
+          isRetrying={failedReads.some(({ read }) => read.retrying)}
         />
       )}
       <Skeletonize loading={loading} label={t('connectors.oauthApps.title')}>
@@ -230,14 +290,18 @@ export function OauthAppsCard({
                             ? 'green'
                             : target.envConfigured
                               ? 'blue'
-                              : 'slate'
+                              : target.statusUnavailable
+                                ? 'outline'
+                                : 'slate'
                         }
                       >
                         {orgApp
                           ? t('connectors.oauthApps.statusOrg')
                           : target.envConfigured
                             ? t('connectors.oauthApps.statusEnv')
-                            : t('connectors.oauthApps.statusNone')}
+                            : target.statusUnavailable
+                              ? t('connectors.oauthApps.statusUnavailable')
+                              : t('connectors.oauthApps.statusNone')}
                       </Badge>
                       {orgApp && (
                         <Button
@@ -248,7 +312,11 @@ export function OauthAppsCard({
                           {t('connectors.oauthApps.remove')}
                         </Button>
                       )}
+                      {/* An app may already stand behind a row whose
+                          status is unknown: configuring one now could
+                          override it, so the row waits for an answer. */}
                       {target.slug === ONEDRIVE_SLUG &&
+                        !target.statusUnavailable &&
                         entraSso.data?.available === true && (
                           <Button
                             variant="ghost"
@@ -258,13 +326,15 @@ export function OauthAppsCard({
                             {t('connectors.oauthApps.reuseSso')}
                           </Button>
                         )}
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => setEditing(target)}
-                      >
-                        {t('connectors.oauthApps.configure')}
-                      </Button>
+                      {!target.statusUnavailable && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setEditing(target)}
+                        >
+                          {t('connectors.oauthApps.configure')}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );

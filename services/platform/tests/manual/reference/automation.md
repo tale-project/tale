@@ -211,6 +211,20 @@ answers are owned by
 (#3864). The real disconnected-backend interaction and browser layout remain
 manual.
 
+The Settings > Connectors OAuth apps card tells a failed Knowledge import status
+read (OneDrive, and Google Drive's import lane) apart from a missing app: the
+row that read decides shows an EN/DE/FR Status unavailable badge without
+Configure or Use Entra ID SSO app, and one alert names the failure with Try
+again, which runs only the failed reads. The row holds still, and Try again
+stays busy and keeps its focus, during the retry, and keeps it again when the
+retry fails too; a retry that works hands focus to the card and shows Not
+configured with Configure, or the deployment app. A row the app list or the
+connector catalog already answers keeps its answer. These cases, the loading
+mask and the not-configured and deployment-app answers are owned by
+`app/features/settings/connectors/components/oauth-apps-card.status-read.test.tsx`
+(#3893). The real disconnected-backend interaction and browser layout remain
+manual.
+
 Pending retention reads distinguish successful null from failure. EN/DE/FR read
 errors expose a destructive alert and Try again; retry keeps the first-read
 failure visible and its focused button inert while fetching. A failed refresh
