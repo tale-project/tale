@@ -332,6 +332,170 @@ describe('a Codex model-capacity failure', () => {
   });
 });
 
+describe('a Claude subscription-access refusal', () => {
+  it('restores the typed refusal from a consumed terminal checkpoint', async () => {
+    io.stdout = ndjson([
+      { type: 'system', subtype: 'init', session_id: 'checkpoint-403' },
+      {
+        type: 'result',
+        subtype: 'success',
+        is_error: true,
+        api_error_status: 403,
+        result:
+          'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access',
+        session_id: 'checkpoint-403',
+      },
+    ]);
+    let now = Date.now();
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    io.beforeStdout = () => {
+      now += 6_000;
+    };
+    await drainHarnessWindow(KEYS).finally(() => {
+      clock.mockRestore();
+      io.beforeStdout = undefined;
+    });
+    expect(io.checkpoint).toMatchObject({
+      seq: 1,
+      state: {
+        ended: {
+          providerErrorKind: 'subscription_access_disabled',
+          apiErrorStatus: 403,
+        },
+      },
+    });
+    io.stdout = '';
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'selected-account',
+    });
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+    expect(io.resumedAt).toEqual([0, 1]);
+    expect(mutations).toContainEqual({
+      name: 'provider_credentials/mutations:recordBrokerFailureInternal',
+      args: {
+        organizationId: 'org-1',
+        brokerTokenHash: 'selected-account',
+        apiErrorStatus: 403,
+        providerErrorKind: 'subscription_access_disabled',
+      },
+    });
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'harness_error',
+      apiErrorStatus: 403,
+      agentSessionId: 'checkpoint-403',
+    });
+  });
+
+  it('never cools the replacement exec account from a stale drive', async () => {
+    io.stdout = ndjson([
+      {
+        type: 'result',
+        is_error: true,
+        api_error_status: 403,
+        result:
+          'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access',
+      },
+    ]);
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'replacement-exec',
+      brokerTokenHash: 'replacement-account',
+    });
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+    expect(failedMarks(mutations)).toEqual([]);
+  });
+
+  it('does not cool an account for an unrelated terminal 403', async () => {
+    io.stdout = ndjson([
+      {
+        type: 'result',
+        is_error: true,
+        api_error_status: 403,
+        result: 'Forbidden',
+      },
+    ]);
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      execId: 'exec-1',
+      brokerTokenHash: 'selected-account',
+    });
+    await driveTaskAgentTurnImpl(ctx, KEYS);
+    expect(
+      mutations.some(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      ),
+    ).toBe(false);
+    expect(failedMarks(mutations)[0]?.args).toMatchObject({
+      failureCode: 'harness_error',
+      apiErrorStatus: 403,
+    });
+  });
+
+  it.each([true, false])(
+    'cools only a broker-served account (broker=%s), keeping a counted retry',
+    async (brokerServed) => {
+      io.stdout = ndjson([
+        { type: 'system', subtype: 'init', session_id: 'conv-403' },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: true,
+          api_error_status: 403,
+          result:
+            'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access',
+          session_id: 'conv-403',
+        },
+      ]);
+      const { ctx, mutations } = makeCtx({
+        status: 'running',
+        execId: 'exec-1',
+        ...(brokerServed ? { brokerTokenHash: 'selected-account' } : {}),
+      });
+      await driveTaskAgentTurnImpl(ctx, KEYS);
+      const feedback = mutations.filter(
+        (m) =>
+          m.name ===
+          'provider_credentials/mutations:recordBrokerFailureInternal',
+      );
+      expect(feedback).toEqual(
+        brokerServed
+          ? [
+              {
+                name: 'provider_credentials/mutations:recordBrokerFailureInternal',
+                args: {
+                  organizationId: 'org-1',
+                  brokerTokenHash: 'selected-account',
+                  apiErrorStatus: 403,
+                  providerErrorKind: 'subscription_access_disabled',
+                },
+              },
+            ]
+          : [],
+      );
+      expect(failedMarks(mutations)[0]?.args).toMatchObject({
+        failureCode: 'harness_error',
+        apiErrorStatus: 403,
+        agentSessionId: 'conv-403',
+      });
+      if (brokerServed)
+        expect(mutations.indexOf(feedback[0]!)).toBeLessThan(
+          mutations.indexOf(failedMarks(mutations)[0]!),
+        );
+    },
+  );
+});
+
 describe('a 401 on a turn the broker did not serve', () => {
   it('stays an ordinary harness error — a static key or the gateway rotates nothing', async () => {
     io.stdout = CLAUDE_REVOKED;

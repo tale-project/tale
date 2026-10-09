@@ -12,3 +12,7 @@ services/platform/convex/migrations/*.snapshot.json linguist-vendored
 # The release source contract hashes these helpers' raw checkout bytes.
 .github/workflows/release-candidate-receipt.yml text eol=lf
 .github/workflows/release-candidate-source.yml text eol=lf
+
+# CI retirement admits these historical workflow fixtures by raw source hash.
+tools/cli/scripts/fixtures/ci-orphan-checks-6ad49e4/*.txt text eol=lf
+tools/cli/scripts/fixtures/ci-orphan-seven/*.txt text eol=lf

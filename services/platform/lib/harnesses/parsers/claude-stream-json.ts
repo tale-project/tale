@@ -329,6 +329,17 @@ class ClaudeStreamJsonParser implements HarnessEventParser {
       if (typeof ev.api_error_status === 'number') {
         out.apiErrorStatus = ev.api_error_status;
       }
+      // Only the CLI's terminal provider envelope has authority here. An
+      // ordinary quotation or arbitrary 403 must not cool an account.
+      if (
+        (this.slug === 'claude-code' || this.slug === 'claude-code-compact') &&
+        ev.is_error === true &&
+        ev.api_error_status === 403 &&
+        finalText?.trim() ===
+          'Your organization has disabled Claude subscription access for Claude Code · Use an Anthropic API key instead, or ask your admin to enable access'
+      ) {
+        out.providerErrorKind = 'subscription_access_disabled';
+      }
       if (typeof ev.duration_ms === 'number') out.durationMs = ev.duration_ms;
       // The turn's totals are the result's own: its `usage` counts every
       // model call of the turn, while a streamed assistant event carries
