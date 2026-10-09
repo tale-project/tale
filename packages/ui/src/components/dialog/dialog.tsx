@@ -10,6 +10,7 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { ChevronLeft, X } from 'lucide-react';
 import * as React from 'react';
 
+import { respectEscapeClaims } from '../overlays/claims-escape';
 import { CLOSE_BUTTON_CLASS } from '../overlays/close-button-class';
 import { PagePointerPin } from '../overlays/page-pointer-pin';
 
@@ -315,6 +316,7 @@ export function Dialog({
               else restoreFocus(event);
               onCloseAutoFocus?.(event);
             }}
+            onEscapeKeyDown={respectEscapeClaims()}
           >
             <PagePointerPin />
             {/* Close sits in the header row when headerActions exist, so it

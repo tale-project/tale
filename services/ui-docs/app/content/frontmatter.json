@@ -13,6 +13,13 @@
       "description": "Choose an action style, name icon controls, and handle loading or unavailable actions without losing context."
     }
   },
+  "components/code-editor": {
+    "slug": "components/code-editor",
+    "frontmatter": {
+      "title": "Code editor",
+      "description": "Edit code, JSON, YAML and templates with highlighting, completion and inline problems, and leave the field with the keyboard."
+    }
+  },
   "components/data-table": {
     "slug": "components/data-table",
     "frontmatter": {
@@ -76,6 +83,13 @@
       "description": "Show the next times a schedule starts, in the schedule's time zone, with the reader's own time and any clock change spelled out."
     }
   },
+  "components/schema-tree": {
+    "slug": "components/schema-tree",
+    "frontmatter": {
+      "title": "Schema tree",
+      "description": "Show the fields a value has, with each kind in words, whether it is required, and where it comes from."
+    }
+  },
   "components/tabs-and-navigation": {
     "slug": "components/tabs-and-navigation",
     "frontmatter": {
@@ -102,6 +116,27 @@
     "frontmatter": {
       "title": "Toast",
       "description": "Show brief completion feedback, avoid duplicate viewports, and keep essential information on the page."
+    }
+  },
+  "components/workflow-canvas": {
+    "slug": "components/workflow-canvas",
+    "frontmatter": {
+      "title": "Workflow canvas",
+      "description": "Draw a workflow from its data with an automatic layout, lines that route round every box, a keyboard path through it and a List view that says the same in text."
+    }
+  },
+  "components/workflow-paths": {
+    "slug": "components/workflow-paths",
+    "frontmatter": {
+      "title": "Workflow paths",
+      "description": "Show every way a run can go through a workflow, preview and pin one path at a time, and point out the nodes that end a run when they fail."
+    }
+  },
+  "components/workflow-playback": {
+    "slug": "components/workflow-playback",
+    "frontmatter": {
+      "title": "Workflow playback",
+      "description": "Show how a run went on a workflow chart, and replay it with values travelling the lines, a scrubber and the failure in focus."
     }
   },
   "foundations/accessibility": {

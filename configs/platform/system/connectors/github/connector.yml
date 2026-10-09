@@ -14,6 +14,12 @@ auth:
   - method: bearer
 actions:
   - name: list_repos
+    title: List repositories
+    i18n:
+      de:
+        title: Repositories auflisten
+      fr:
+        title: Lister les dépôts
     description: List repositories for the authenticated user.
     effects: read
     input:
@@ -46,6 +52,12 @@ actions:
         return { repos: r.json() };
     exampleInput: { visibility: 'all', per_page: 20 }
   - name: get_repo
+    title: Get repository
+    i18n:
+      de:
+        title: Repository abrufen
+      fr:
+        title: Récupérer un dépôt
     description: Get a single repository by owner and name.
     effects: read
     input:
@@ -70,6 +82,12 @@ actions:
         return { repo: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world' }
   - name: list_issues
+    title: List issues
+    i18n:
+      de:
+        title: Issues auflisten
+      fr:
+        title: Lister les issues
     description: List issues for a repository.
     effects: read
     input:
@@ -115,6 +133,12 @@ actions:
         return { issues: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', state: 'open' }
   - name: get_issue
+    title: Get issue
+    i18n:
+      de:
+        title: Issue abrufen
+      fr:
+        title: Récupérer une issue
     description: Get a single issue by number.
     effects: read
     input:
@@ -140,6 +164,12 @@ actions:
         return { issue: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', issue_number: 1 }
   - name: create_issue
+    title: Create issue
+    i18n:
+      de:
+        title: Issue erstellen
+      fr:
+        title: Créer une issue
     description: Create a new issue in a repository.
     effects: write
     input:
@@ -179,6 +209,12 @@ actions:
     exampleInput:
       { owner: 'octocat', repo: 'hello-world', title: 'Something is broken' }
   - name: list_pull_requests
+    title: List pull requests
+    i18n:
+      de:
+        title: Pull Requests auflisten
+      fr:
+        title: Lister les pull requests
     description: List pull requests for a repository.
     effects: read
     input:
@@ -229,6 +265,12 @@ actions:
         return { pull_requests: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', state: 'open' }
   - name: get_pull_request
+    title: Get pull request
+    i18n:
+      de:
+        title: Pull Request abrufen
+      fr:
+        title: Récupérer une pull request
     description: Get a single pull request by number.
     effects: read
     input:
@@ -254,6 +296,12 @@ actions:
         return { pull_request: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', pull_number: 1 }
   - name: create_pull_request
+    title: Create pull request
+    i18n:
+      de:
+        title: Pull Request erstellen
+      fr:
+        title: Créer une pull request
     description: Create a new pull request in a repository.
     effects: write
     input:
@@ -301,6 +349,12 @@ actions:
         base: 'main',
       }
   - name: merge_pull_request
+    title: Merge pull request
+    i18n:
+      de:
+        title: Pull Request mergen
+      fr:
+        title: Fusionner une pull request
     description: Merge a pull request into its base branch.
     effects: write
     input:
@@ -348,6 +402,12 @@ actions:
         merge_method: 'squash',
       }
   - name: get_pull_request_files
+    title: List pull request files
+    i18n:
+      de:
+        title: Dateien eines Pull Requests auflisten
+      fr:
+        title: Lister les fichiers d’une pull request
     description: List the files changed in a pull request (filename, status, additions, deletions, patch).
     effects: read
     input:
@@ -374,6 +434,12 @@ actions:
         return { files: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', pull_number: 1 }
   - name: get_pull_request_diff
+    title: Get pull request diff
+    i18n:
+      de:
+        title: Diff eines Pull Requests abrufen
+      fr:
+        title: Récupérer le diff d’une pull request
     description: Get the raw unified diff for a pull request.
     effects: read
     input:
@@ -395,6 +461,12 @@ actions:
         return { diff: r.text() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', pull_number: 1 }
   - name: create_pull_request_review
+    title: Submit pull request review
+    i18n:
+      de:
+        title: Review für einen Pull Request abgeben
+      fr:
+        title: Envoyer une revue de pull request
     description: Submit a review on a pull request (APPROVE, REQUEST_CHANGES, or COMMENT) with an optional body and inline comments.
     effects: write
     input:
@@ -444,6 +516,12 @@ actions:
         event: 'APPROVE',
       }
   - name: create_pull_request_review_comment
+    title: Add review comment
+    i18n:
+      de:
+        title: Review-Kommentar hinzufügen
+      fr:
+        title: Ajouter un commentaire de revue
     description: Add a single inline comment on a line of a pull request diff.
     effects: write
     input:
@@ -485,6 +563,12 @@ actions:
         path: 'src/index.ts',
       }
   - name: list_issue_comments
+    title: List issue comments
+    i18n:
+      de:
+        title: Kommentare eines Issues auflisten
+      fr:
+        title: Lister les commentaires d’une issue
     description: List comments on an issue or pull request conversation.
     effects: read
     input:
@@ -512,6 +596,12 @@ actions:
         return { comments: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', issue_number: 1 }
   - name: create_issue_comment
+    title: Comment on issue
+    i18n:
+      de:
+        title: Issue kommentieren
+      fr:
+        title: Commenter une issue
     description: Add a comment to an issue or pull request conversation.
     effects: write
     input:
@@ -543,6 +633,12 @@ actions:
         body: 'Thanks for the report!',
       }
   - name: update_issue
+    title: Update issue
+    i18n:
+      de:
+        title: Issue aktualisieren
+      fr:
+        title: Mettre à jour une issue
     description: Update an issue's title, body, state, labels, assignees, or milestone.
     effects: write
     input:
@@ -584,6 +680,12 @@ actions:
         state: 'closed',
       }
   - name: add_labels_to_issue
+    title: Add labels to issue
+    i18n:
+      de:
+        title: Labels zu einem Issue hinzufügen
+      fr:
+        title: Ajouter des étiquettes à une issue
     description: Add labels to an issue or pull request (additive, does not remove existing labels).
     effects: write
     input:
@@ -614,6 +716,12 @@ actions:
         labels: ['bug', 'triage'],
       }
   - name: list_commits
+    title: List commits
+    i18n:
+      de:
+        title: Commits auflisten
+      fr:
+        title: Lister les commits
     description: List commits for a repository.
     effects: read
     input:
@@ -648,6 +756,12 @@ actions:
         return { commits: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world' }
   - name: search_code
+    title: Search code
+    i18n:
+      de:
+        title: Code durchsuchen
+      fr:
+        title: Rechercher du code
     description: Search for code across GitHub repositories.
     effects: read
     input:
@@ -676,6 +790,12 @@ actions:
         return { total_count: j.total_count, items: j.items };
     exampleInput: { q: 'addEventListener repo:octocat/hello-world' }
   - name: list_import_issues
+    title: List issues to import
+    i18n:
+      de:
+        title: Issues für den Import auflisten
+      fr:
+        title: Lister les issues à importer
     description: Read matching issues for task intake. Follows up to 20 pages per run, returning an opaque nextCursor for continuation without skipping a partially consumed page.
     effects: read
     input:
@@ -699,6 +819,12 @@ actions:
       impl: github.list_import_issues
     exampleInput: { owner: example, repo: web, limit: 100 }
   - name: get_import_issue
+    title: Refresh imported issue
+    i18n:
+      de:
+        title: Importiertes Issue aktualisieren
+      fr:
+        title: Actualiser une issue importée
     description: Refresh a previously imported issue by immutable source identity, including closed or resolved issues outside the discovery filter. Marks a missing source unavailable without changing its Tale task.
     effects: read
     input:
@@ -723,6 +849,12 @@ actions:
         externalId: example/web#1
         externalIssue: { id: '1', title: Example, description: Details, url: 'https://example.com/issues/1', state: open, syncedAt: 0 }
   - name: refresh_import_issues
+    title: Refresh imported issues
+    i18n:
+      de:
+        title: Importierte Issues aktualisieren
+      fr:
+        title: Actualiser les issues importées
     description: Refresh up to 500 linked source snapshots with bounded request concurrency. Closed and unavailable issues remain linked to their existing Tale tasks.
     effects: read
     input:

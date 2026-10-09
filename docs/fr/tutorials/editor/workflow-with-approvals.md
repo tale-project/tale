@@ -60,7 +60,7 @@ Si ce nom existe déjà, l’import ajoute une version. Choisis une autre valeur
 
 Dans **Éditeur**, clique sur **Essai**. Cet exemple ne demande aucune donnée d’exécution ; un objet vide suffit. Passe à **Exécutions** : la liste doit afficher une exécution de test au statut **Réussie**.
 
-Ouvre l’exécution et vérifie sur le canvas que les deux nœuds affichent le statut **Exécuté**. Sélectionne `send` et examine ses données résolues. Le destinataire doit être `reviewer@example.com`, l’objet `Approval practice` et le texte la phrase de `draft`. Le connector utilise une simulation déterministe dans ce mode. Aucun e-mail n’est envoyé et aucune carte d’approbation n’apparaît.
+Ouvre l’exécution et vérifie sur le canevas que les deux nœuds affichent **Réussi**. Sélectionne `send` et examine ses données résolues. Le destinataire doit être `reviewer@example.com`, l’objet `Approval practice` et le texte la phrase de `draft`. Le connector utilise une simulation déterministe dans ce mode. Aucun e-mail n’est envoyé et aucune carte d’approbation n’apparaît.
 
 Le workflow comprend un test qui attend l’effet `imap-smtp.send`. Une simulation réussie vérifie le graphe et l’appel prévu. Elle ne prouve ni la validité des identifiants de messagerie ni la livraison du message.
 

@@ -3,7 +3,11 @@ import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { type CronPreview, previewCronExpression } from '../lib/cron-preview';
+import {
+  cronPatternText,
+  type CronPreview,
+  previewCronExpression,
+} from '../lib/cron-preview';
 
 /**
  * The words under a Cron field — one hook for every surface that takes a
@@ -44,22 +48,11 @@ export function useCronPreview(
         : t('trigger.cronInvalidReason', { reason: preview.reason })
       : undefined;
 
-  const pattern = useMemo(() => {
-    if (preview.kind !== 'ok') return undefined;
-    if (preview.pattern?.type === 'everyMinutes') {
-      return t('trigger.cronEveryMinutes', { n: preview.pattern.n });
-    }
-    if (preview.pattern?.type === 'everyHours') {
-      return t('trigger.cronEveryHours', { n: preview.pattern.n });
-    }
-    if (preview.pattern?.type === 'dailyAt') {
-      const { hour, minute } = preview.pattern;
-      const hh = String(hour).padStart(2, '0');
-      const mm = String(minute).padStart(2, '0');
-      return t('trigger.cronDailyAt', { time: `${hh}:${mm}` });
-    }
-    return undefined;
-  }, [preview, t]);
+  const pattern = useMemo(
+    () =>
+      preview.kind === 'ok' ? cronPatternText(preview.pattern, t) : undefined,
+    [preview, t],
+  );
 
   const description = useMemo(() => {
     if (!active) return undefined;

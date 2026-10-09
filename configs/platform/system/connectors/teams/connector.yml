@@ -26,6 +26,12 @@ auth:
       - Chat.ReadWrite
 actions:
   - name: list_teams
+    title: List teams
+    i18n:
+      de:
+        title: Teams auflisten
+      fr:
+        title: Lister les équipes
     description: List the teams the authenticated user has joined.
     effects: read
     input:
@@ -43,6 +49,12 @@ actions:
         return { teams: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: {}
   - name: get_team
+    title: Get team
+    i18n:
+      de:
+        title: Team abrufen
+      fr:
+        title: Récupérer une équipe
     description: Get a single team by ID.
     effects: read
     input:
@@ -63,6 +75,12 @@ actions:
         return { team: r.json() };
     exampleInput: { teamId: '19:team-demo@thread.tacv2' }
   - name: list_channels
+    title: List channels
+    i18n:
+      de:
+        title: Kanäle auflisten
+      fr:
+        title: Lister les canaux
     description: List all channels in a team.
     effects: read
     input:
@@ -84,6 +102,12 @@ actions:
         return { channels: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: { teamId: '19:team-demo@thread.tacv2' }
   - name: get_channel
+    title: Get channel
+    i18n:
+      de:
+        title: Kanal abrufen
+      fr:
+        title: Récupérer un canal
     description: Get a single channel by ID.
     effects: read
     input:
@@ -111,6 +135,12 @@ actions:
         channelId: '19:channel-general@thread.tacv2',
       }
   - name: list_messages
+    title: List channel messages
+    i18n:
+      de:
+        title: Kanalnachrichten auflisten
+      fr:
+        title: Lister les messages d’un canal
     description: Fetch messages from a channel.
     effects: read
     input:
@@ -147,6 +177,12 @@ actions:
         top: 20,
       }
   - name: send_message
+    title: Send channel message
+    i18n:
+      de:
+        title: Nachricht im Kanal senden
+      fr:
+        title: Envoyer un message dans un canal
     description: Send a message to a channel.
     effects: write
     input:
@@ -183,6 +219,12 @@ actions:
         content: 'Deploy finished.',
       }
   - name: list_members
+    title: List team members
+    i18n:
+      de:
+        title: Teammitglieder auflisten
+      fr:
+        title: Lister les membres de l’équipe
     description: List the members of a team.
     effects: read
     input:
@@ -212,6 +254,12 @@ actions:
         return { members: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: { teamId: '19:team-demo@thread.tacv2', top: 100 }
   - name: list_chats
+    title: List chats
+    i18n:
+      de:
+        title: Chats auflisten
+      fr:
+        title: Lister les conversations
     description: List the chats the authenticated user is part of.
     effects: read
     input:
@@ -233,6 +281,12 @@ actions:
         return { chats: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: { top: 20 }
   - name: send_chat_message
+    title: Send chat message
+    i18n:
+      de:
+        title: Chatnachricht senden
+      fr:
+        title: Envoyer un message dans une conversation
     description: Send a message to a chat.
     effects: write
     input:

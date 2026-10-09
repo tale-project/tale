@@ -121,6 +121,37 @@ export function previewCronExpression(
   }
 }
 
+/** The translate function of the session's language, bound to the
+ *  `automations` namespace. */
+export type CronTranslate = (
+  key: string,
+  options?: Record<string, unknown>,
+) => string;
+
+/**
+ * A recognised schedule in words ("Every 5 minutes", "Every day at 07:00"),
+ * or undefined for a shape the preview does not name — one wording for the
+ * Cron field's hint and the Start of the canvas.
+ */
+export function cronPatternText(
+  pattern: Extract<CronPreview, { kind: 'ok' }>['pattern'],
+  t: CronTranslate,
+): string | undefined {
+  if (pattern === null) return undefined;
+  switch (pattern.type) {
+    case 'everyMinutes':
+      return t('trigger.cronEveryMinutes', { n: pattern.n });
+    case 'everyHours':
+      return t('trigger.cronEveryHours', { n: pattern.n });
+    default: {
+      // `dailyAt`: one time of day.
+      const hh = String(pattern.hour).padStart(2, '0');
+      const mm = String(pattern.minute).padStart(2, '0');
+      return t('trigger.cronDailyAt', { time: `${hh}:${mm}` });
+    }
+  }
+}
+
 /**
  * Whether `timezone` names a zone `Intl` resolves — the check the bind
  * makes (`wallClockIn` throws on an unknown zone), so a surface can refuse

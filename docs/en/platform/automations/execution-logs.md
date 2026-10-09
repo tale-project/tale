@@ -7,7 +7,7 @@ Open an automation, switch to its **Runs** tab and select a row to understand wh
 
 <Frame caption="A finished test run: its status, mode, version, starter, and times above the workflow, with each node's result.">
 
-![The run page of a test run of Triage GitHub issues, marked Succeeded, Test, and v1 and started by you, with its start and finish times above the workflow graph, where the issues, open issues, score, and report nodes each show Ran; the run's effects list begins below the graph.](/images/platform/automation-run-detail.webp)
+![The run page of a test run of Triage GitHub issues, marked Succeeded, Test, and v1 and started by you, with its start and finish times above the workflow graph, where the issues, open issues, score, and report nodes each show Succeeded; the run's effects list begins below the graph.](/images/platform/automation-run-detail.webp)
 
 </Frame>
 
@@ -36,9 +36,11 @@ Leave the run on hold while you investigate. **Request stop** asks Tale to stop 
 
 ## Inspect the node that matters
 
-Select a node on the run’s canvas. **Resolved input** shows the actual values after template evaluation; **Output** shows what the step returned. These fields distinguish a bad reference from a service failure.
+A failed run opens with the node that failed in view. The node is framed in red and its bottom line shows the first line of its error; the nodes the run went through to reach it stand out while the others step back; and End says where the run failed, such as **Failed at Propose**.
 
-Node states include **Ran**, **Skipped**, **Failed**, **Never reached**, **Not reached yet** and, on a stopped run, **Stopped here** for the node the run was on when it was stopped. A skipped node may have a false condition, an unmet dependency, an alternate branch or a failure rule that permits continuation. Do not assume every skipped node is an error.
+Select a node on the run’s canvas to open its **Last run** tab. **Resolved input** shows the actual values after template evaluation; **Output** shows what the step returned. These fields distinguish a bad reference from a service failure.
+
+On the canvas, each node's bottom line says how it ended: **Succeeded**, **Failed**, **Skipped**, **Not run**, **Not reached yet** or, on a stopped run, **Stopped here** for the node the run was on when it was stopped. Each condition shows how it decided, **Yes** or **No**. The badge on the **Last run** tab names the same states **Ran**, **Failed**, **Skipped**, **Never reached**, **Not reached yet** and **Stopped here**. A skipped node may have a false condition, an unmet dependency, an alternate branch or a failure rule that permits continuation. Do not assume every skipped node is an error.
 
 For example, a reminder node may receive a customer name but an empty invoice ID. Inspect its upstream output: if the record now uses another field, correct the reference there rather than replacing the mail credential. Verify the corrected resolved input in a new test run.
 

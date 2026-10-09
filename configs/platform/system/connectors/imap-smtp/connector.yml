@@ -6,6 +6,11 @@
 # server/port config the native module reads.
 name: imap-smtp
 displayName: IMAP / SMTP Mailbox
+i18n:
+  de:
+    displayName: IMAP-/SMTP-Postfach
+  fr:
+    displayName: Boîte mail IMAP / SMTP
 description: >-
   Connect a private IMAP + SMTP mail server to Conversations — no Gmail or
   Outlook account required. Optional separate SMTP login for a relay
@@ -64,6 +69,12 @@ auth:
   - method: basic
 actions:
   - name: list_messages
+    title: List messages
+    i18n:
+      de:
+        title: Nachrichten auflisten
+      fr:
+        title: Lister les messages
     description: >-
       Fetch messages from an IMAP mailbox as standard email objects (from, to,
       subject, body, attachments). Omit mailbox for INBOX; pass `sent` to read
@@ -105,6 +116,12 @@ actions:
       impl: imap-smtp.list_messages
     exampleInput: { mailbox: 'INBOX', limit: 25 }
   - name: get_message
+    title: Get message
+    i18n:
+      de:
+        title: Nachricht abrufen
+      fr:
+        title: Récupérer un message
     description: >-
       Fetch one message by IMAP UID with plain/HTML body, file attachments
       (metadata plus base64 content when under 100 MiB; a larger part is
@@ -148,6 +165,12 @@ actions:
       impl: imap-smtp.get_message
     exampleInput: { uid: '42', mailbox: 'INBOX' }
   - name: send
+    title: Send email
+    i18n:
+      de:
+        title: E-Mail senden
+      fr:
+        title: Envoyer un e-mail
     description: Send an email through the configured SMTP server.
     effects: write
     input:

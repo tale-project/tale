@@ -197,33 +197,148 @@ trigger:
   revokedToast: The previous webhook URL has been revoked — senders using it now get 404.
 canvas:
   ariaLabel: Automation canvas
-  readsFrom: 'Reads {nodes}'
   unpinnedModel: No pinned provider — each run picks one automatically.
   empty:
     title: This version has no nodes
-    description:
-      An automation document is a list of nodes. Add one to the document
-      and it appears here.
+    description: An automation does its work in nodes. Ask your coding agent to add them.
   cycle:
     title: These nodes reference each other in a circle
     description:
       The order shown is the order the nodes are written in, not the
       order they would run in — the engine cannot run a cycle. Remove one of
       the references to break it.
+  view:
+    label: View
+    canvas: Canvas
+    list: List
+    source: Source
+  legend:
+    data: 'Solid line: reads the output of the node above'
+    control: 'Dashed line: runs after it, without reading its output'
+    gate: 'Condition: decides whether the node below runs'
+    yes: 'Yes: runs when the condition holds'
+    no: "No: runs when the condition doesn't hold"
+    completion: 'Dotted line: the run ends after this node'
+    conditional: "Dashed box: may not run, or didn't run"
+    loop: 'Frame: runs once per item, or repeats'
+  readsNothing: Reads no other node
+  node:
+    returnsUnknown: Shape known after a run
+    returns: 'Returns {shape}'
+    writes: Changes data in {connector}. A live run may wait for approval.
+    asks: May ask a question and wait for the answer.
+    catalog:
+      transform: Transform
+      llm: Language model
+      agent: Agent
+      subautomation: 'Calls {automation}'
+      subautomationUnset: Calls an automation
+      connector: '{connector} · {action}'
+      withModel: '{type} · {model}'
+      unknown: 'Unknown type {type}'
+    source:
+      input: 'run input ({keys})'
+      inputAll: run input
+      item: each item
+  gate:
+    asCode: Written as code
   edge:
-    data: '{target} reads the output of {source}'
-    control: '{target} runs after {source}'
+    carries: 'Carries {fields}'
   controlFlow:
-    when: 'when {value}'
-    elseOf: 'else of {value}'
-    forEach: 'for each {value}'
-    repeatUntil: 'repeat until {value}'
-    repeatUntilCapped: 'repeat until {value}, at most {maxRepeats}×'
-    onError: continue on error
+    forEach: 'For each item of {list}'
+    forEachRaw: For each item of its list
+    repeatUntilCapped: 'Repeats until {condition}, at most {maxRepeats}×'
+    repeatRaw: 'Repeats until its condition holds, at most {maxRepeats}×'
+    onError: Continues on error
+  updated: 'Now showing v{version}.'
+  selectionRemoved: '{node} is no longer in this version.'
+  newerVersion:
+    title: A newer version was saved
+    body: 'v{version} was saved while you were editing. Your draft is based on v{base}.'
+    show: 'Show v{version} and discard my draft'
+  start:
+    manual: By hand, the API or MCP
+    manualOnly: Only by hand, the API or MCP — no trigger
+    webhook: A request to its webhook URL
+    event: 'When {event}'
+    scheduleZone: '{schedule} · {zone}'
+    off: 'Off'
+    notLive: Waits for a live version
+    anyInput: Any JSON input
+    noFields: No input fields
+    fromTrigger: from the trigger
+    description: '{triggers}. Input: {fields}.'
+  end:
+    returnsNode: 'The output of {node}'
+    returnsNothing: Nothing — this automation has no output
+    fieldFrom: 'from {nodes}'
+    maybeEmpty: may be empty
+    emptyOnPath: empty on this path
+    succeeded: returns the output
+    failed: '{count, plural, =0 {no node stops the run} one {when # node fails} other {when one of # nodes fails}}'
+    stopped: when someone stops it
+    someEmpty: Some runs return empty values
+    failedAt: 'Failed at {node}'
 editor:
   unknownType: 'Unknown node type: {type}'
   catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
   invalidJson: This is not valid JSON yet, so the node was not changed.
+  fixSuggestion: 'Replace with {name}'
+  jsonMustBeObject: This must be a JSON object, in curly braces.
+  jsonMustBeList: This must be a JSON list, in square brackets.
+  inspector:
+    copyId: Copy node ID
+    tabs:
+      fields: Fields
+      shape: Shape
+      run: Last run
+  start:
+    title: Start
+    description: What starts this automation and what each run receives.
+    trigger: Trigger
+    editTrigger: Change in General
+    inputs: Inputs
+    inputsDescription: "The data each run receives, as a JSON Schema. A run whose input doesn't match is refused before any node runs."
+  end:
+    title: End
+    description: What a successful run returns, and how a run can end.
+    outputDescription: A JSON value. Read node outputs with templates, such as '{{' nodes.report.output '}}'.
+    outcomes: How a run ends
+  flow:
+    title: When it runs
+    always: On every run
+    some: 'On {count} of {total} paths'
+    never: 'Never: no combination of conditions lets it run'
+    skipWhen: Skipped when its condition is false
+    skipElse: 'Skipped when {node} runs'
+    skipUpstream: 'Skipped when {node} is skipped'
+    skipError: Skipped when it fails
+    failHalts: If it fails, the run stops with its error.
+    failContinues: '{count, plural, =0 {If it fails, the run goes on without it.} one {If it fails, the run goes on without it and skips # node that reads it.} other {If it fails, the run goes on without it and skips # nodes that read it.}}'
+    failsWhen: 'Fails when {reasons}.'
+  explain:
+    when: "Runs only if {condition}. Otherwise it's skipped, and so is every node that reads its output."
+    whenRaw: "Runs only if this condition holds. Otherwise it's skipped, and so is every node that reads its output."
+    forEach: 'Runs once for each item of {list}. Its output is the list of results.'
+    repeatUntil: 'Runs again until {condition}, at most {max} times in all.'
+    elseOf: 'Runs only when {node} is skipped by its own condition.'
+  shape:
+    receives: Receives
+    receivesCode: What its code reads as input
+    item: Each item
+    returns: Returns
+    readBy: Read by
+    readByOutput: The automation output
+    notRead: Nothing reads its output.
+    checking: Updating…
+    unavailable: "Couldn't work out the shapes. They appear after the next successful check."
+    origin:
+      declared: From its output schema
+      signature: 'As {connector} describes it'
+      inferred: Worked out from its code
+      fixed: 'Every node of this type ({type}) returns this'
+      child: 'What {automation} returns'
+      unknown: "Tale can't tell what this returns. A test run shows the real data."
   versionNotFound:
     title: "Version {version} doesn't exist"
     description: This automation has no version with that number — the link may be stale, or the number mistyped.
@@ -245,7 +360,6 @@ editor:
     typeUnlisted: Type a model that is not listed
     modelIdLabel: Model id
     modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
-  runTitle: In this run
   resolvedInput: Resolved input
   output: Output
   fields:
@@ -276,6 +390,13 @@ editor:
     repeatUntilDescription: Re-run this node until the expression is truthy.
     maxRepeats: Maximum repeats
     onError: On error
+    onErrorStop: Stop the run
+    onErrorContinue: Continue without it
+    onErrorDescription: What happens when this node fails. Continuing skips every node that reads its output.
+    maxRepeatsDescription: At most this many passes, from 1 to 20. Empty means 5.
+    maxRepeatsRange: Enter a whole number from 1 to 20.
+    elseOfNone: None
+    elseOfEmpty: No other node has a condition.
     output: Output
     type: Type
     id: ID
@@ -535,7 +656,7 @@ problems:
   refusedDeploy: This version has problems that block deploying it. Problems lists them.
   refusedDeployDraft: This version has problems that block deploying it. Discard your draft to see them in Problems.
   open: Show problems
-  notEditableHere: This part of the automation can't be edited here. Change it through MCP, the API or an uploaded package.
+  notEditableHere: Change this with your coding agent.
   nodeTitle: Problems in this node
   filter:
     label: Show problems
@@ -544,3 +665,77 @@ problems:
     warnings: Warnings
   emptyFiltered: '{filter, select, errors {No errors} warnings {No warnings} other {No problems}}'
   fieldPart: '{part}: {message}'
+condition:
+  group: '({parts})'
+  gt: '{a} is greater than {b}'
+  gte: '{a} is at least {b}'
+  lt: '{a} is less than {b}'
+  lte: '{a} is at most {b}'
+  eq: '{a} is {b}'
+  neq: '{a} is not {b}'
+  empty: '{a} is empty'
+  notEmpty: '{a} is not empty'
+  set: '{a} is set'
+  notSet: '{a} is not set'
+  contains: '{a} contains {b}'
+  notContains: "{a} doesn't contain {b}"
+  startsWith: '{a} starts with {b}'
+  endsWith: '{a} ends with {b}'
+  ref:
+    node: '{path} of {node}'
+    nodeOutput: 'the output of {node}'
+    input: '{path} of the run input'
+    inputWhole: the run input
+    item: '{path} of the item'
+    itemWhole: the item
+    index: "the item's position"
+    output: "{path} of this pass's result"
+    outputWhole: "this pass's result"
+    length: 'the number of {inner}'
+  literal:
+    valueTrue: 'true'
+    valueFalse: 'false'
+    valueNull: empty
+  quote: '"{text}"'
+paths:
+  button: '{count, plural, one {# path} other {# paths}}'
+  title: Possible paths
+  description: Every way a successful run can go. Point at one, or select it, to see it on the canvas.
+  single: 'Every run takes the same path: {count, plural, one {its # node runs} other {all # nodes run}}.'
+  row: 'Path {index}'
+  rowRuns: '{ran, plural, one {# of {total} nodes runs} other {# of {total} nodes run}}'
+  clause:
+    runs: '{node} runs'
+    skipped: '{node} is skipped'
+    fails: '{node} fails, the run goes on'
+    succeeds: '{node} succeeds'
+  more: "{count, plural, one {# more path isn't listed} other {# more paths aren't listed}}"
+  truncated: This automation has {count} conditions, too many to list every path. Each node still says when it runs.
+  halts:
+    title: Ends the run when it fails
+    row: '{node} fails when {reasons}'
+  showing: 'Showing path {index}: {ran, plural, one {# of {total} nodes runs} other {# of {total} nodes run}}.'
+  pill: 'Path {index} · {ran, plural, one {# of {total} nodes runs} other {# of {total} nodes run}}'
+  skip:
+    when: 'Skipped: condition false'
+    else: 'Skipped: {node} runs'
+    upstream: 'Skipped: {node} is skipped'
+    error: Fails, the run goes on
+failureReason:
+  external: a service it calls fails
+  code: its code throws an error
+  expression: one of its expressions fails
+  iteration: "its list can't be gone through"
+  inputContract: its input is refused
+  subautomation: the automation it calls fails
+source:
+  ariaLabel: Source of this automation (YAML)
+  copy: Copy YAML
+  download: Download YAML
+  readOnlyHint: To change the document, use the fields or your coding agent.
+codingAgent:
+  button: Edit with your coding agent
+  body: Coding agents such as Claude Code, Codex and Cursor change automations through Tale's MCP server. They read this automation, change and check it, and save a new version, which then appears here.
+  nameLabel: Name of this automation
+  setUp: Set up MCP
+  learnMore: How to connect a coding agent

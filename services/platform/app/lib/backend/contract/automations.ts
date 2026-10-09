@@ -10,6 +10,7 @@
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 
+import type { NodeTypeCatalog } from '@/lib/shared/schemas/node-type-catalog';
 import type { QuestionSet } from '@/lib/shared/schemas/questions';
 
 /** What a `waiting` run is parked on. `approval`, `ask` and `in_doubt`
@@ -73,15 +74,7 @@ export interface AutomationsContract {
   'automations/catalog:listNodeTypes': {
     kind: 'action';
     args: { organizationId: string };
-    returns: Array<{
-      hasEffect?: boolean;
-      type: string;
-      kind: 'connector' | 'core';
-      description: string;
-      allowedFields: string[];
-      requiredFields: string[];
-      outputKind: 'structured' | 'unstructured';
-    }>;
+    returns: NodeTypeCatalog;
   };
   'automations/human_asks:answerAsk': {
     kind: 'mutation';

@@ -19,6 +19,12 @@ auth:
       - https://www.googleapis.com/auth/drive.readonly
 actions:
   - name: list_files
+    title: List files
+    i18n:
+      de:
+        title: Dateien auflisten
+      fr:
+        title: Lister les fichiers
     description: List files in a Google Drive folder. Pagination is handled internally — the operation returns the complete file list in one call. When recursive is true, subfolders are traversed breadth-first and each file's relative path is reported as subfolderPath.
     effects: read
     input:
@@ -113,6 +119,12 @@ actions:
         return { files, truncated };
     exampleInput: { folderId: '1AbCdEfGhIjKlMnOpQrStUvWxYz', recursive: false }
   - name: download_file
+    title: Download file
+    i18n:
+      de:
+        title: Datei herunterladen
+      fr:
+        title: Télécharger un fichier
     description: Download a single binary file by Drive fileId and store it in file storage. Native Google Workspace formats (Docs/Sheets/Slides) are not supported by this operation.
     effects: read
     input:

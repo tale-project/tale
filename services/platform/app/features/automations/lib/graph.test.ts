@@ -3,13 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { DOC_EXAMPLE } from '@/lib/engine/api/docs';
 import type { NodeDef } from '@/lib/engine/core/types';
 
-import {
-  buildGraph,
-  controlFlowBadges,
-  deriveEdges,
-  orderedNodes,
-  rankNodes,
-} from './graph';
+import { buildGraph, deriveEdges, orderedNodes } from './graph';
 
 /**
  * The canvas has no edge list of its own — it reads the same references the
@@ -186,71 +180,11 @@ describe('orderedNodes', () => {
   });
 });
 
-describe('rankNodes', () => {
-  it('places a node one level below the deepest node it reads', () => {
-    const defs = nodes(
-      { id: 'a', type: 'transform', code: 'return 1;' },
-      {
-        id: 'b',
-        type: 'transform',
-        input: { v: '{{ nodes.a.output }}' },
-        code: 'return input.v;',
-      },
-      {
-        id: 'c',
-        type: 'transform',
-        input: { v: '{{ nodes.b.output }}', w: '{{ nodes.a.output }}' },
-        code: 'return input.v;',
-      },
-    );
-    const ranks = rankNodes(defs, deriveEdges(defs));
-    expect([...ranks]).toEqual([
-      ['a', 0],
-      ['b', 1],
-      ['c', 2],
-    ]);
-  });
-});
-
-describe('controlFlowBadges', () => {
-  it('renders one badge per declared control-flow field', () => {
-    expect(
-      controlFlowBadges({
-        id: 'a',
-        type: 'transform',
-        when: '{{ x }}',
-        forEach: '{{ items }}',
-        repeatUntil: '{{ done }}',
-        maxRepeats: 3,
-        onError: 'continue',
-        code: 'return 1;',
-      }),
-    ).toEqual([
-      { kind: 'when', value: '{{ x }}' },
-      { kind: 'forEach', value: '{{ items }}' },
-      { kind: 'repeatUntil', value: '{{ done }}', maxRepeats: 3 },
-      { kind: 'onError', value: 'continue' },
-    ]);
-  });
-
-  it('says nothing about the default error policy', () => {
-    expect(
-      controlFlowBadges({
-        id: 'a',
-        type: 'transform',
-        onError: 'fail',
-        code: 'return 1;',
-      }),
-    ).toEqual([]);
-  });
-});
-
 describe('buildGraph', () => {
   it('reads an absent document as an empty graph', () => {
     expect(buildGraph(null)).toEqual({
       nodes: [],
       edges: [],
-      ranks: new Map(),
       hasCycle: false,
     });
   });

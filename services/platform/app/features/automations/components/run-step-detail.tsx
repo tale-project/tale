@@ -27,8 +27,9 @@ export function RunStepDetail({
   badge,
 }: {
   runView: NodeRunView;
-  /** Section title; the inspector says "Run", the run dialog names the step. */
-  heading: string;
+  /** Section title: the run dialog names the step. The inspector's Last
+   *  run tab already says what this is, so it gives none. */
+  heading?: string;
   /** Extra mark beside the status — the run dialog uses it to say THIS is the
    * step the run is on, so the reader knows the detail below is live. */
   badge?: string;
@@ -37,7 +38,9 @@ export function RunStepDetail({
   return (
     <Stack gap={3}>
       <div className="flex flex-wrap items-center gap-2">
-        <SectionHeader as="h4" size="sm" title={heading} />
+        {heading !== undefined && (
+          <SectionHeader as="h4" size="sm" title={heading} />
+        )}
         <RunStatusBadge status={runView.status} />
         {badge !== undefined && (
           <Badge variant="outline" className="text-[10px]">

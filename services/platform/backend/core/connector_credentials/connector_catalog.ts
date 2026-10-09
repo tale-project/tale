@@ -90,6 +90,13 @@ function readConnectorIcon(
   }
 }
 
+/** A shipped connector's icon as an inline data URL, or `undefined` when it
+ * ships none — the same image the settings catalog shows, for the other
+ * surfaces that name a connector (the automation node-type catalog). */
+export function connectorIconUrl(slug: string): string | undefined {
+  return readConnectorIcon(resolveConnectorsDir(), slug);
+}
+
 /**
  * The shipped connectors as the settings page lists them — slug, display copy,
  * grouping tags, endpoint mode, accepted auth methods (in declaration order),

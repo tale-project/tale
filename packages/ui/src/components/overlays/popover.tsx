@@ -5,6 +5,7 @@ import { useState, type ReactNode } from 'react';
 
 import { useImeComposition } from '../../hooks/use-ime-composition';
 import { cn } from '../../lib/cn';
+import { respectEscapeClaims } from './claims-escape';
 
 interface PopoverProps {
   trigger: ReactNode;
@@ -83,6 +84,7 @@ export function Popover({
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={onCloseAutoFocus}
           onInteractOutside={onInteractOutside}
+          onEscapeKeyDown={respectEscapeClaims()}
           aria-labelledby={ariaLabelledby}
           aria-label={ariaLabel}
           className={cn(CONTENT_CLASSES, contentClassName)}

@@ -33,6 +33,12 @@ auth:
       - files:write
 actions:
   - name: list_channels
+    title: List channels
+    i18n:
+      de:
+        title: Channels auflisten
+      fr:
+        title: Lister les canaux
     description: List the conversations (channels, DMs, group messages) the bot can see.
     effects: read
     input:
@@ -62,6 +68,12 @@ actions:
         return { channels: j.channels || [], next_cursor: (j.response_metadata && j.response_metadata.next_cursor) || null };
     exampleInput: { types: 'public_channel', limit: 100 }
   - name: get_channel
+    title: Get channel
+    i18n:
+      de:
+        title: Channel abrufen
+      fr:
+        title: Récupérer un canal
     description: Get the details of one channel.
     effects: read
     input:
@@ -84,6 +96,12 @@ actions:
         return { channel: j.channel };
     exampleInput: { channel: 'C01234ABCDE' }
   - name: list_messages
+    title: List messages
+    i18n:
+      de:
+        title: Nachrichten auflisten
+      fr:
+        title: Lister les messages
     description: Fetch the message history of a channel.
     effects: read
     input:
@@ -122,6 +140,12 @@ actions:
         return { messages: j.messages || [], has_more: !!j.has_more, next_cursor: (j.response_metadata && j.response_metadata.next_cursor) || null };
     exampleInput: { channel: 'C01234ABCDE', limit: 50 }
   - name: send_message
+    title: Send message
+    i18n:
+      de:
+        title: Nachricht senden
+      fr:
+        title: Envoyer un message
     description: Send a message to a Slack channel or thread.
     effects: write
     input:
@@ -160,6 +184,12 @@ actions:
         return { channel: j.channel, ts: j.ts };
     exampleInput: { channel: 'C01234ABCDE', text: 'Deploy finished.' }
   - name: list_users
+    title: List workspace members
+    i18n:
+      de:
+        title: Workspace-Mitglieder auflisten
+      fr:
+        title: Lister les membres de l’espace de travail
     description: List the members of the Slack workspace.
     effects: read
     input:
@@ -186,6 +216,12 @@ actions:
         return { users: j.members || [], next_cursor: (j.response_metadata && j.response_metadata.next_cursor) || null };
     exampleInput: { limit: 100 }
   - name: get_user
+    title: Get user
+    i18n:
+      de:
+        title: Benutzer abrufen
+      fr:
+        title: Récupérer un utilisateur
     description: Get the profile of one workspace user.
     effects: read
     input:
@@ -208,6 +244,12 @@ actions:
         return { user: j.user };
     exampleInput: { user: 'U01234ABCDE' }
   - name: upload_file
+    title: Upload file
+    i18n:
+      de:
+        title: Datei hochladen
+      fr:
+        title: Téléverser un fichier
     description: Upload a text file and share it to a Slack channel.
     effects: write
     input:

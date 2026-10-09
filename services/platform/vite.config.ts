@@ -138,6 +138,10 @@ function coreChunk(id: string): string | null {
   return null;
 }
 
+/** What `@tale/ui/code-editor` loads, and nothing else of CodeMirror's. */
+const CODE_EDITOR_PACKAGES =
+  /\/node_modules\/(?:@codemirror\/(?:state|view|language|commands|autocomplete|lint|search|lang-javascript|lang-json|lang-yaml)|@lezer\/(?:common|highlight|lr|javascript|json|yaml|markdown)|style-mod|w3c-keyname|crelt|@marijn\/find-cluster-break)\//;
+
 /** The vendor chunk a dependency belongs to; `null` leaves it to the default chunking. */
 function vendorChunk(id: string): string | null {
   if (!id.includes('node_modules')) {
@@ -166,11 +170,12 @@ function vendorChunk(id: string): string | null {
   if (id.includes('/node_modules/katex/')) {
     return 'vendor-katex';
   }
-  if (
-    id.includes('codemirror') ||
-    id.includes('@codemirror') ||
-    id.includes('@lezer')
-  ) {
+  // The code editor's own packages: CodeMirror's core, the grammars the
+  // editor reads (JavaScript, JSON, YAML, Markdown) and their helpers. The
+  // other languages (Milkdown's code blocks reach every one through
+  // `@codemirror/language-data`) keep the default chunking, one lazy chunk
+  // per language; grouped here, the first code field loaded them all.
+  if (CODE_EDITOR_PACKAGES.test(id)) {
     return 'vendor-codemirror';
   }
   if (id.includes('lucide-react')) {
@@ -271,9 +276,12 @@ export default defineConfig({
       // discovers it mid-session and triggers a re-optimization that 504s the
       // in-flight dynamic import (an "Outdated Optimize Dep"), crashing the
       // feature into its error boundary:
-      //   - `elkjs`       -> the shared flow layout engine (lazy `elk.bundled.js`)
+      //   - `elkjs`       -> the shared flow layout engine (lazy `elk-api`,
+      //     which starts the layout worker, and `elk.bundled.js`, the
+      //     main-thread fallback)
       //   - react-json-view -> the JSON input/viewer (workflow step config panel)
       // Pre-bundling them keeps the optimizer hash stable from cold start.
+      'elkjs/lib/elk-api',
       'elkjs/lib/elk.bundled.js',
       '@microlink/react-json-view',
     ],

@@ -18,6 +18,7 @@ import { useCallback, useId, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
+import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
 import { useT } from '@/lib/i18n/client';
 import { automationDisplayName } from '@/lib/shared/schemas/automation_presentation';
 
@@ -31,10 +32,11 @@ import {
 } from '../hooks/queries';
 import { focusAutomationNode } from '../hooks/use-deselect-on-escape';
 import { useRunStarterLabel } from '../hooks/use-run-starter-label';
-import { readDocument, readPositions } from '../lib/document';
+import { readDocument } from '../lib/document';
 import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
-import { buildGraph } from '../lib/graph';
+import { flowGraphTarget } from '../lib/flow-ids';
 import { issueImportResultSchema, issueSource } from '../lib/issue-import';
+import { nodeCatalogView } from '../lib/node-face';
 import {
   cursorNodeStatus,
   isRunFinished,
@@ -52,11 +54,11 @@ import {
   AUTOMATION_WORKBENCH_INSPECTOR_COLUMNS,
 } from '../lib/workbench';
 import { AgentExecutionLog } from './agent-execution-log';
-import { AutomationCanvas } from './automation-canvas';
+import { AutomationCanvas, type CanvasRun } from './automation-canvas';
 import { EffectList } from './effect-list';
 import { IssueImportContinuation } from './issue-import-continuation';
 import { IssueImportResult } from './issue-import-result';
-import { NodeInspector } from './node-inspector';
+import { NodeInspector, type InspectorContext } from './node-inspector';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
 import { RunAskCard } from './run-ask-card';
 import { RunInDoubtCard } from './run-in-doubt-card';
@@ -182,21 +184,76 @@ function RunDetailBody({
     automationSlug,
     locale,
   );
-  const graph = useMemo(() => buildGraph(automation), [automation]);
-  const positions = useMemo(() => readPositions(automation), [automation]);
   const runStatusByNode = useMemo(
     () =>
       nodeStatusMap(
         projection,
-        graph.nodes.map((node) => node.id),
+        (automation?.nodes ?? []).map((node) => node.id),
         readRunCursorNode(run),
         cursorNodeStatus(run),
       ),
-    [graph.nodes, projection, run],
+    [automation?.nodes, projection, run],
   );
   const nodeTypes = useMemo(
-    () => mergeNodeTypes(catalogQuery.data),
-    [catalogQuery.data],
+    () => mergeNodeTypes(catalogQuery.data?.nodeTypes),
+    [catalogQuery.data?.nodeTypes],
+  );
+  const catalog = useMemo(
+    () => nodeCatalogView(nodeTypes, catalogQuery.data?.connectors ?? []),
+    [nodeTypes, catalogQuery.data?.connectors],
+  );
+  const canvasRun = useMemo<CanvasRun | null>(
+    () =>
+      run === null
+        ? null
+        : {
+            statusByNode: runStatusByNode,
+            projection,
+            status: readRunStatus(run.status),
+            startedBy: starterLabel(run),
+          },
+    [run, runStatusByNode, projection, starterLabel],
+  );
+  // A failed run opens on its failure: the node that failed comes into
+  // view, and the way the run took to it stands out.
+  const failedNode = useMemo(
+    () =>
+      [...runStatusByNode].find(([, status]) => status === 'error')?.[0] ??
+      null,
+    [runStatusByNode],
+  );
+  /** A condition opens its node; Start and End have no inspector of their
+   * own yet. */
+  const selectOnCanvas = useCallback((id: string | null) => {
+    if (id === null) {
+      setSelectedNodeId(null);
+      return;
+    }
+    const target = flowGraphTarget(id);
+    if (target.kind === 'node' || target.kind === 'gate') {
+      setSelectedNodeId(target.nodeId);
+    }
+  }, []);
+
+  // What the inspector reads besides the node: no check runs on a run's
+  // page, so it opens on what the run did and has no Shape tab.
+  const inspectorContext = useMemo<InspectorContext | null>(
+    () =>
+      automation === null
+        ? null
+        : {
+            doc: automation,
+            flow: analyzeFlow(automation.nodes),
+            analysis: null,
+            types: null,
+            shapeStatus: 'off',
+            diagnosticsStatus: 'ready',
+            settled: null,
+            catalog,
+            onSelect: (id) => selectOnCanvas(id),
+            sampleOf: (nodeId) => projection.byNode.get(nodeId)?.output,
+          },
+    [automation, catalog, selectOnCanvas, projection],
   );
 
   const runMissing = isMissingAutomationRead({
@@ -244,7 +301,7 @@ function RunDetailBody({
 
   const status = readRunStatus(run.status);
   const selectedNode =
-    graph.nodes.find((node) => node.id === selectedNodeId) ?? null;
+    automation?.nodes.find((node) => node.id === selectedNodeId) ?? null;
   const issueImport =
     issueSource(automationSlug) === null
       ? null
@@ -453,16 +510,30 @@ function RunDetailBody({
         )}
       >
         <div className={AUTOMATION_WORKBENCH_CANVAS_SLOT}>
-          <AutomationCanvas
-            graph={graph}
-            positions={positions}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={setSelectedNodeId}
-            inspectorId={inspectorId}
-            runStatusByNode={runStatusByNode}
-          />
+          {automation !== null ? (
+            <AutomationCanvas
+              automation={automation}
+              layoutKey={`${automationSlug}:run:${runId}`}
+              catalog={catalog}
+              selectedId={selectedNodeId}
+              onSelect={selectOnCanvas}
+              revealId={selectedNodeId ?? failedNode}
+              inspectorId={inspectorId}
+              {...(canvasRun !== null && { run: canvasRun })}
+            />
+          ) : (
+            versionQuery.isError && (
+              // The version read failed for now (not a deleted automation,
+              // which draws the trace): say so where the chart would be.
+              <Alert
+                variant="destructive"
+                title={t('detail.loadFailed.title')}
+                description={automationErrorMessage(versionQuery.error)}
+              />
+            )
+          )}
         </div>
-        {selectedNode !== null && (
+        {selectedNode !== null && inspectorContext !== null && (
           <NodeInspector
             id={inspectorId}
             node={selectedNode}
@@ -475,6 +546,8 @@ function RunDetailBody({
             }}
             organizationId={organizationId}
             onDeselect={deselectNode}
+            context={inspectorContext}
+            defaultTab="run"
           />
         )}
       </div>

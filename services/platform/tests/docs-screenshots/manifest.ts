@@ -33,6 +33,7 @@ import {
   DEMO_DATA_NOTICE,
   DEMO_DOCUMENTS,
   DEMO_EMPTY_DOCUMENT,
+  DEMO_FAILED_RUN,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LAUNCH_TASK_DETAIL,
@@ -415,6 +416,65 @@ async function showTriageAutomationExamples(page: Page): Promise<void> {
   }
   // Four matching examples plus the table's column-heading row.
   await expect(page.getByRole('row')).toHaveCount(5);
+}
+
+/** The Editor's canvas once its layout has landed: the chart is busy while
+ * the layout engine arranges the nodes. */
+const laidOutAutomationCanvas = (page: Page): Locator =>
+  page
+    .getByRole('group', {
+      name: t('automations.canvas.ariaLabel'),
+      exact: true,
+    })
+    .and(page.locator('[aria-busy="false"]'));
+
+/** The node box (or Start, End, or a condition) with this id on the canvas. */
+const flowNode = (page: Page, id: string): Locator =>
+  page.locator(`[data-flow-node="${id}"]`);
+
+/**
+ * Wait until an automation's Editor can be photographed: the saved version
+ * on screen, its canvas laid out, and the check of the draft settled — the
+ * Problems button no longer says it is checking.
+ */
+async function settleAutomationEditor(page: Page): Promise<void> {
+  await expect(
+    page.getByRole('button', {
+      name: t('automations.detail.versionSelect'),
+      exact: true,
+    }),
+  ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await expect(laidOutAutomationCanvas(page)).toBeVisible({
+    timeout: TIMEOUT.FIRST_PAINT,
+  });
+  const problems = page
+    .locator('[data-slot="issue-count-button"]')
+    .filter({ visible: true })
+    .first();
+  await expect(problems).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(problems).not.toHaveAccessibleName(
+    new RegExp(escapeRegExp(t('issues.checking'))),
+    { timeout: TIMEOUT.FIRST_PAINT },
+  );
+}
+
+/** Open a node's inspector from its box on the canvas. */
+async function openAutomationNode(page: Page, id: string): Promise<void> {
+  const box = flowNode(page, id);
+  await box.waitFor({ timeout: TIMEOUT.VISIBLE });
+  await box.click();
+}
+
+/**
+ * A plural message such as `{count, plural, one {# path} other {# paths}}`
+ * as a pattern for any count. The e2e `t()` returns the raw message, and a
+ * button that counts is found by its words, whatever the number.
+ */
+function pluralPattern(message: string): RegExp {
+  const forms = [...message.matchAll(/\{([^{}]*)\}/g)].map((match) =>
+    escapeRegExp(match[1] ?? '').replaceAll('#', String.raw`\d+`),
+  );
+  return new RegExp(`^(?:${forms.join('|')})$`);
 }
 
 export const SHOTS: readonly Shot[] = [
@@ -1413,8 +1473,11 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
-    // The Editor tab — the saved version's step graph on the canvas with the
-    // node inspector beside it and the version/run actions in the tab strip.
+    // The Editor tab — the saved version laid out between Start (the
+    // schedule in words, the run input's fields) and End: the condition in
+    // words above Triage, the Continues on error chip on Propose, the frames
+    // of the nodes that run once per item, and the node inspector beside the
+    // canvas with the version and run actions in the tab strip.
     name: 'automation-editor-canvas',
     section: 'platform',
     // A pack's automation is NAMED after its path with the separator
@@ -1424,7 +1487,7 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
     // Select the LLM step so the inspector shows a node's fields instead of
     // its "select a node" hint — the frame then teaches both halves at once.
-    // A node box is a button carrying `data-automation-node=<id>` (the same
+    // A node box is a button carrying `data-flow-node=<id>` (the same
     // attribute the inspector's Close restores focus to).
     prepare: async (page) => {
       await expect(
@@ -1433,23 +1496,18 @@ export const SHOTS: readonly Shot[] = [
           exact: true,
         }),
       ).toHaveAttribute('aria-current', 'page');
-      await expect(
-        page.getByRole('button', {
-          name: t('automations.detail.versionSelect'),
-          exact: true,
-        }),
-      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-      const triageStep = page.locator('[data-automation-node="triage"]');
-      await triageStep.waitFor({ timeout: 30_000 });
-      await triageStep.click();
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
     },
     // The inspector renders the selected node's Input field only once the
-    // node-type catalog has answered — gate on it so the panel is never
-    // captured mid-load.
+    // node-type catalog has answered, and the field is a code editor that
+    // loads on first use — gate on the loaded editor so the panel is never
+    // captured mid-load. (Start's face also reads "Input", as plain text.)
     readyWhen: (page) =>
-      page
-        .getByText(t('automations.editor.fields.input'), { exact: true })
-        .first(),
+      page.getByRole('textbox', {
+        name: t('automations.editor.fields.input'),
+        exact: true,
+      }),
   },
   {
     // The Editor's Problems list under the canvas: a draft whose triage
@@ -1460,21 +1518,17 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
     prepare: async (page) => {
-      await expect(
-        page.getByRole('button', {
-          name: t('automations.detail.versionSelect'),
-          exact: true,
-        }),
-      ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-      const triageStep = page.locator('[data-automation-node="triage"]');
-      await triageStep.waitFor({ timeout: 30_000 });
-      await triageStep.click();
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
       const prompt = page.getByRole('textbox', {
         name: t('automations.editor.fields.prompt'),
         exact: true,
       });
       await prompt.click();
       await prompt.press('ControlOrMeta+End');
+      // The Prompt is a code editor: `{{` closes itself with the caret
+      // inside, and the final `}}` steps over the closing braces, so the
+      // typed text ends as one template.
       await prompt.pressSequentially(' {{ nodes.nope.output }}');
       // The button's name opens with the panel's title ("Problems: 1 error")
       // once the check of the draft has settled.
@@ -1493,6 +1547,140 @@ export const SHOTS: readonly Shot[] = [
         })
         .getByRole('listitem')
         .first(),
+  },
+  {
+    // Possible paths open beside the canvas with Path 2 pinned: the nodes
+    // off that path dashed with the reason they don't run, End marking the
+    // outputs that stay empty on it, and the nodes whose failure ends the
+    // run listed under the paths.
+    name: 'automation-editor-paths',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      // The button counts the paths ("3 paths"); find it by its words.
+      await page
+        .getByRole('button', {
+          name: pluralPattern(t('automations.paths.button')),
+        })
+        .click();
+      await page.locator('[data-flow-path-row="path:2"]').click();
+    },
+    readyWhen: (page) =>
+      page.locator('[data-flow-path-row="path:2"][aria-pressed="true"]'),
+  },
+  {
+    // A Prompt in the code editor: `{{` typed on its last line became a
+    // template with the caret inside, and after `nodes.` the completion
+    // list offers the nodes that run earlier, with their shapes.
+    name: 'automation-editor-code',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
+      const prompt = page.getByRole('textbox', {
+        name: t('automations.editor.fields.prompt'),
+        exact: true,
+      });
+      await prompt.click();
+      // The prompt ends with a line break, so its end is an empty line.
+      await prompt.press('ControlOrMeta+End');
+      await prompt.pressSequentially('{{nodes.');
+    },
+    // Inbox is the one node that runs before Triage.
+    readyWhen: (page) =>
+      page
+        .getByRole('listbox')
+        .getByRole('option')
+        .filter({ hasText: 'inbox' })
+        .first(),
+  },
+  {
+    // A node's Shape tab: what Triage receives and returns, where the
+    // returned shape comes from (its output schema), and the nodes that read
+    // it. The shapes come from the check of the draft.
+    name: 'automation-editor-node-shape',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, 'triage');
+      await page
+        .getByRole('tab', {
+          name: t('automations.editor.inspector.tabs.shape'),
+          exact: true,
+        })
+        .click();
+      await expect(
+        page.getByText(t('automations.editor.shape.checking'), {
+          exact: true,
+        }),
+      ).toHaveCount(0, { timeout: TIMEOUT.FIRST_PAINT });
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', {
+        name: t('automations.editor.shape.returns'),
+        exact: true,
+      }),
+  },
+  {
+    // Start's inspector: the trigger in words with Change in General, the
+    // run input's fields as a tree, and the JSON Schema behind them in the
+    // code editor.
+    name: 'automation-editor-start',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await openAutomationNode(page, '__start');
+      await expect(
+        page.getByRole('link', {
+          name: t('automations.editor.start.editTrigger'),
+          exact: true,
+        }),
+      ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    },
+    // Start's schema field carries the run dialog's "Input schema" label.
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.detail.runInput.schema'),
+        exact: true,
+      }),
+  },
+  {
+    // The Source view: the whole document as highlighted YAML with line
+    // numbers and fold markers, Copy YAML and Download YAML, and the line
+    // saying how to change it.
+    name: 'automation-editor-source',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: async (page) => {
+      await settleAutomationEditor(page);
+      await page
+        .getByRole('radio', {
+          name: t('automations.canvas.view.source'),
+          exact: true,
+        })
+        .click();
+    },
+    // The source is a read-only code editor that loads on first use.
+    readyWhen: (page) =>
+      page.getByRole('textbox', {
+        name: t('automations.source.ariaLabel'),
+        exact: true,
+      }),
+  },
+  {
+    // The Editor on a phone: compact navigation, the canvas filling the
+    // height between Start and End, and the run and save controls in the
+    // toolbar at its foot.
+    name: 'automation-editor-canvas-mobile',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations/gmail-triage-inbox/editor',
+    prepare: settleAutomationEditor,
+    readyWhen: (page) => laidOutAutomationCanvas(page),
+    viewport: { width: 390, height: 844 },
   },
   {
     // An automation's General tab — its trigger (the pack's schedule: cron,
@@ -1518,6 +1706,8 @@ export const SHOTS: readonly Shot[] = [
     viewport: { width: 1440, height: 640 },
   },
   {
+    // The Test run dialog: the run input as JSON in the code editor, and the
+    // input schema expanded as a tree of fields with their kinds.
     name: 'automation-run-input',
     section: 'platform',
     route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/editor`,
@@ -1569,7 +1759,7 @@ export const SHOTS: readonly Shot[] = [
     // tab as a reader does: status, mode, version, starter and timing above
     // the workflow with every node's result; the effects list starts below
     // the fold (the canvas grows with the window). The canvas draws its
-    // boxes before the trace arrives — gate on the last node's result badge.
+    // boxes before the trace arrives — gate on the last node's run state.
     name: 'automation-run-detail',
     section: 'platform',
     route: `/dashboard/:orgId/automations/${DEMO_TEST_RUN.automation}/runs`,
@@ -1577,13 +1767,27 @@ export const SHOTS: readonly Shot[] = [
       await page.locator('a[href*="/runs/"]').first().click();
     },
     readyWhen: (page) =>
-      page
-        .locator('[data-automation-node="report"]')
-        .getByText(t('automations.runs.nodeStatus.ok'), { exact: true }),
+      page.locator('[data-flow-node="report"][data-flow-state="succeeded"]'),
     localizedReadyWhen: (page) =>
       page.getByRole('heading', {
         name: labelStart(labelPrefix('automations.runs.heading')),
       }),
+  },
+  {
+    // The seeded failed test run of the invoice digest: the node that failed
+    // in view, framed red with its error line, the way the run took to it
+    // brought forward while the rest steps back, and End saying where the
+    // run failed.
+    name: 'automation-run-failed',
+    section: 'platform',
+    route: `/dashboard/:orgId/automations/${DEMO_FAILED_RUN.automation}/runs`,
+    prepare: async (page) => {
+      await page.locator('a[href*="/runs/"]').first().click();
+    },
+    readyWhen: (page) =>
+      page.locator(
+        `[data-flow-node="${DEMO_FAILED_RUN.failsAt}"][data-flow-state="failed"]`,
+      ),
   },
   {
     // Settings > Connectors with Add credential open on its first step — the

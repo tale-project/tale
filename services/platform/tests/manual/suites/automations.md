@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 104 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 136 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -97,6 +97,32 @@ nodes:
     code: 'return { text: "hi " + input.who };'
 output:
   text: '{{ nodes.greet.output.text }}'
+```
+
+For the canvas boxes (`AUTO-F73`), a branch probe whose condition hangs
+**Yes** and **No** from one pill:
+
+```yaml
+# workflow.yml
+name: qa/branch-probe
+description: QA probe — a condition with an alternative, no connectors.
+nodes:
+  - id: score
+    type: transform
+    input: { total: 1200 }
+    code: 'return { total: input.total };'
+  - id: escalate
+    type: transform
+    when: '{{ nodes.score.output.total > 1000 }}'
+    input: { total: '{{ nodes.score.output.total }}' }
+    code: 'return { text: "escalate " + input.total };'
+  - id: file
+    type: transform
+    elseOf: escalate
+    input: { total: '{{ nodes.score.output.total }}' }
+    code: 'return { text: "file " + input.total };'
+output:
+  text: '{{ nodes.escalate.output?.text ?? nodes.file.output?.text }}'
 ```
 
 > **Agent note**: run state is Convex-reactive — never poll by reload. A run
@@ -200,16 +226,29 @@ output:
       live**, **Discard**, **Save** — nothing sits in the title row's right
       half. Body: the canvas alone fills the tab edge to edge under the strip
       — with no node selected there is no inspector column at all (AUTO-F37;
-      a selected node's inspector does not grow the canvas); the
+      a selected node's inspector does not grow the canvas). Its top left
+      holds the view switch (`automations.canvas.view.label`: **Canvas**,
+      **List**, **Source**); its top right the paths button
+      (`automations.paths.button`), the last-run eye once the automation has
+      run (`automations.detail.hideLastRun`) and, last, **Edit with your
+      coding agent** (`automations.codingAgent.button`); the zoom controls
+      and **Legend** (`flow.controls.legend`) sit bottom left. The
       trigger and the project bindings are the **General** tab (AUTO-F51),
       version history in the picker and executions in Runs (AUTO-F35) — none of them panels
       beside or under the canvas.
-- [ ] `AUTO-F13` · **Canvas graph** — On the workbench, inspect the canvas →
-      Region labelled **Automation canvas** (`automations.canvas.ariaLabel`); each
-      node is a box naming its type and inputs it reads
-      (`automations.canvas.readsFrom`); edges carry data/order semantics
-      (`automations.canvas.edge.data` / `automations.canvas.edge.control`); a
-      versionless/empty document shows `automations.canvas.empty.title`
+- [ ] `AUTO-F13` · **Canvas graph** — On the workbench of
+      `github-triage-issues`, inspect the canvas → a group labelled
+      **Automation canvas** (`automations.canvas.ariaLabel`), laid out by
+      itself: **Start** (`flow.node.entry`) on top, **End**
+      (`flow.node.exit`) at the bottom, every node below the nodes it reads.
+      Each node box shows its icon, a title from its ID, its catalog line,
+      what it returns once known and what it reads in its strip
+      (`flow.list.reads`, else `automations.canvas.readsNothing`); Score
+      sits in a frame headed by `automations.canvas.controlFlow.forEach`.
+      **Legend** (`flow.controls.legend`) opens `flow.legend.title` with
+      every line and box kind (`automations.canvas.legend.*`); a version with
+      no nodes shows `automations.canvas.empty.title` with **Edit with your
+      coding agent** as its action.
 - [ ] `AUTO-F14` · **Node inspector** — Click a node; **Close**
       (`common.aria.close`); Escape; click the box again; click empty canvas →
       First click opens the node's fields, rings the box, and moves focus into the
@@ -218,13 +257,17 @@ output:
       empty canvas all close the inspector and hand its width back to the
       canvas. A box near the canvas's right edge that the opening inspector
       would cover pans back into view. Canvas height stays
-      put; extra node fields scroll inside the inspector. Inspector heading is the
-      node id with a type badge (catalog copy is not dumped into the header).
-      Typed fields come first (e.g. **Prompt**), then **Input**
-      (`automations.editor.fields.input`); unused **Control flow**
-      (`automations.editor.controlFlowTitle`) is a closed disclosure that opens
-      when any of When / Else of / For each / Repeat until is set. Read-only
-      without the developer capability.
+      put; extra node fields scroll inside the inspector. The header reads the
+      node's title, its catalog line and its ID with **Copy node ID**
+      (`automations.editor.inspector.copyId`); **When it runs**
+      (`automations.editor.flow.title`) follows, then the tabs **Fields**,
+      **Shape** and, while a run is shown, **Last run**
+      (`automations.editor.inspector.tabs.*`). Typed fields come first (e.g.
+      **Prompt**), then **Input** (`automations.editor.fields.input`); unused
+      **Control flow** (`automations.editor.controlFlowTitle`) is a closed
+      disclosure that opens when any of When / Else of / For each / Repeat
+      until / Maximum repeats / On error is set. The URL carries
+      `?node=<id>`. Read-only without the developer capability.
 - [ ] `AUTO-F15` · **Edit → Save version** — Change a node field → **Save
       version** (`automations.detail.saveVersion`) → dialog
       (`automations.detail.saveDialog.title`) → enter a **Version message**
@@ -253,12 +296,12 @@ output:
       **Deploy** control.
 - [ ] `AUTO-F18` · **Test run (mock)** — On `qa/manual-probe` (undeployed is
   fine) → **Test run** (`automations.detail.runMock`); when the saved version declares inputs, fill **Run input (JSON)** (`automations.detail.runInput.label`) using **Input schema** (`automations.detail.runInput.schema`) — missing required fields and invalid JSON keep confirmation disabled → A run starts on the
-  version on screen; the canvas icon **Show last run** / **Hide last run**
-  (`automations.detail.showLastRun` / `automations.detail.hideLastRun`)
-  toggles per-node status overlays on the canvas
-  (`automations.runs.nodeStatus.*`), and the inspector gains an **In this
-  run** section (`automations.editor.runTitle`) with **Resolved input** /
-  **Output** (`automations.editor.resolvedInput` /
+  version on screen; the canvas shows it at once, each node's strip saying
+  how it ended (`flow.state.*`), and the eye at the canvas's top right,
+  **Hide last run** / **Show last run** (`automations.detail.hideLastRun` /
+  `automations.detail.showLastRun`), takes it off and back; the inspector
+  gains the **Last run** tab (`automations.editor.inspector.tabs.run`) with
+  **Resolved input** / **Output** (`automations.editor.resolvedInput` /
   `automations.editor.output`)
 - [ ] `AUTO-F19` · **Runs tab** — **Runs** tab (`automations.navigation.runs`)
       after AUTO-F18 → `…/{slug}/runs` lists the runs newest first under the
@@ -775,6 +818,143 @@ output:
       the node's sheet closes, the Problems sheet opens on All
       (`automations.problems.filter.all`) with focus on the first error, and
       Enter on it opens the node that holds the error with its field focused.
+- [ ] `AUTO-F70` · **Open Triage GitHub issues on the Editor tab** → **Start**
+      (`flow.node.entry`) sits above every node: under **Starts**
+      (`flow.node.triggers`) the schedule in words with its time zone and
+      next run, the state badge while it is not live
+      (`automations.canvas.start.notLive`), then **By hand, the API or MCP**
+      (`automations.canvas.start.manual`); under **Input** (`flow.node.inputs`)
+      owner and repo as required, trigger and firedAt as from the trigger
+      (`automations.canvas.start.fromTrigger`); a notice says the schedule
+      starts runs without owner and repo
+      (`automationIssues.codes.TRIGGER_INPUT_MISMATCH.cause`). **End** (`flow.node.exit`) at the
+      bottom says **The output of Report** (`automations.canvas.end.returnsNode`),
+      its shape once the check has answered, and the three ways a run ends
+      under **Ends** (`flow.node.outcomes`).
+- [ ] `AUTO-F71` · **Follow the line from Open issues to Report** → it runs
+      beside Score's frame, never through it; no line on the canvas crosses a
+      box, a condition pill, a frame header or a Yes / No label.
+- [ ] `AUTO-F72` · **Read the node boxes of Triage GitHub issues** → each shows
+      an icon, a title from its ID (**Open issues**), its catalog line
+      (**GitHub · List issues**, `automations.canvas.node.catalog.connector`;
+      **Transform**, **Language model · …**), what it returns once the check
+      has answered, and what it reads in its bottom strip
+      (`flow.list.reads`); no raw `{{ }}` and no raw type name such as
+      github.list_issues on any box. In Deutsch and Français the action titles are translated
+      (**GitHub · Issues auflisten**, **GitHub · Lister les issues**).
+- [ ] `AUTO-F73` · **Upload the branch probe (Preconditions) and open it** → a
+      condition pill above Escalate says
+      `automations.condition.gt` in words ("total of Score is greater than
+      1,000"); **Yes** (`flow.branch.yes`) leads to Escalate on the left,
+      **No** (`flow.branch.no`) to File on the right; Escalate and File have
+      dashed borders; the gate's name reads `flow.gate.name` and its
+      description `flow.gate.branches`.
+- [ ] `AUTO-F74` · **Open Gmail triage inbox** → Propose carries the chip
+      **Continues on error** (`automations.canvas.controlFlow.onError`); the
+      paths list has a path whose clause reads
+      `automations.paths.clause.fails`; Propose's **When it runs** says
+      `automations.editor.flow.failContinues`.
+- [ ] `AUTO-F75` · **Open the paths list, point at each path, then press Enter
+      on one** → the button (`automations.paths.button`) opens **Possible
+      paths** (`automations.paths.title`) as a panel under the view switch;
+      pointing previews a path, Enter pins it: off-path nodes turn dashed
+      with their reason (`automations.paths.skip.*`), End marks outputs
+      empty on that path (`automations.canvas.end.emptyOnPath`), and a screen
+      reader hears `automations.paths.showing` once; **Show all**
+      (`flow.paths.showAll`) or Escape restores every node. The panel stays
+      open while you click nodes.
+- [ ] `AUTO-F76` · **In the paths list, point at a node under Ends the run
+      when it fails** → the section (`automations.paths.halts.title`) rings
+      every halting node in red at once; Enter on a row opens that node in
+      the inspector.
+- [ ] `AUTO-F77` · **In a second window, save a new version through MCP while
+      the first shows the latest with no draft** → the first canvas glides
+      to the new layout in about a third of a second, a new node fades in,
+      changed nodes ring once, no node swaps sides with its row neighbour, a
+      screen reader hears `automations.canvas.updated`, and the open node
+      stays open (or the inspector closes with
+      `automations.canvas.selectionRemoved` when it is gone).
+- [ ] `AUTO-F78` · **With a draft open, save another version through MCP** →
+      an info notice above the canvas says
+      `automations.canvas.newerVersion.title` with
+      `automations.canvas.newerVersion.show`; nothing on the canvas moves
+      until you choose it, and choosing it shows the new version.
+- [ ] `AUTO-F79` · **In a Prompt, type `{{` then `nodes.`** → the field reads
+      `{{  }}` with the caret inside and suggestions open; after `nodes.` only
+      nodes that run earlier are offered, never the node itself or a later
+      one; after `.output.` the node's fields are listed with their kinds; the
+      finished expression shows as a tinted mono chip in the prose.
+- [ ] `AUTO-F80` · **Point at a reference in a code field, then press ⌘K ⌘I
+      (Ctrl+K Ctrl+I) on it** → the same type tooltip
+      (`codeEditor.typeInfo.label`) both ways; the keyboard one is read aloud
+      (`codeEditor.typeInfo.announce`).
+- [ ] `AUTO-F81` · **Misspell a node ID inside a transform's Code** → within
+      about a second a wavy underline sits under exactly that ID; F8 moves
+      to it and reads it (`codeEditor.diagnostics.atCursor`); ⌘. (Ctrl+.)
+      applies `automations.editor.fixSuggestion` with the closest ID; going
+      to the same problem from the Problems list selects the same span.
+- [ ] `AUTO-F82` · **Under Control flow, set On error to Continue without it,
+      Maximum repeats to 3 on a node with Repeat until, and an Else of
+      target** → **On error** (`automations.editor.fields.onError`) offers
+      `automations.editor.fields.onErrorStop` and
+      `automations.editor.fields.onErrorContinue`; **Else of** offers only
+      nodes with a condition, plus **None**
+      (`automations.editor.fields.elseOfNone`); 25 in **Maximum repeats** is
+      refused with `automations.editor.fields.maxRepeatsRange` and changes
+      nothing; each valid setting is in the saved version's Source.
+- [ ] `AUTO-F83` · **Open a node's Shape tab** → **Receives**, **Returns** with
+      where the shape comes from (`automations.editor.shape.origin.*`) and
+      **Read by** (`automations.editor.shape.readBy`), whose buttons open each
+      reader; **Show as TypeScript** (`schemaTree.asTypeScript`) shows the
+      same shape as a type.
+- [ ] `AUTO-F84` · **Select Start and edit its Input schema; select End and edit
+      its Output; save** → Start's inspector (`automations.editor.start.title`)
+      shows the trigger rows with **Change in General**
+      (`automations.editor.start.editTrigger`), the input fields as a tree and
+      **Input schema** (`automations.detail.runInput.schema`); End's
+      (`automations.editor.end.title`) shows **How a run ends** with each
+      halting node as a button, and **Output**
+      (`automations.editor.fields.output`); both edits are in the new version;
+      a problem in either opens there from the Problems list; `?node=__start`
+      and `?node=__end` open them from a link.
+- [ ] `AUTO-F85` · **Switch to Source** (`automations.canvas.view.source`) → the
+      whole document as highlighted YAML with line numbers, folding and
+      search (⌘F); **Copy YAML** (`automations.source.copy`) copies it and its
+      icon turns into a check for two seconds; **Download YAML**
+      (`automations.source.download`) saves `<name>-v<n>.yml`, with `-draft`
+      while a draft is open; `automations.source.readOnlyHint` stands under
+      the toolbar; a problem in `tests` goes to its line from the Problems
+      list.
+- [ ] `AUTO-F86` · **Switch to List** (`automations.canvas.view.list`) → the
+      nodes in run order, each with what it reads (`flow.list.reads`) and its
+      condition folded in as `flow.relation.onlyIf`; Enter opens a node; the
+      view stays in the URL as `?view=list` across a reload.
+- [ ] `AUTO-F87` · **Find Edit with your coding agent**
+      (`automations.codingAgent.button`) → it is the last button at the
+      canvas's top right in Canvas, List and Source, and the primary action of
+      a version with no nodes (`automations.canvas.empty.title`); its dialog
+      shows **Name of this automation** (`automations.codingAgent.nameLabel`)
+      to copy, **Set up MCP** (`automations.codingAgent.setUp`) opening
+      `/dashboard/{org}/settings/api/mcp`, and **How to connect a coding
+      agent** (`automations.codingAgent.learnMore`) opening the MCP endpoint
+      guide in a new tab.
+- [ ] `AUTO-F88` · **Upload a document whose `ui` block stacks every node at
+      0,0** → it is laid out automatically like any other; after a field edit
+      and **Save version**, Source shows the `ui` block unchanged.
+- [ ] `AUTO-F89` · **Open a failed run** → the failed node is in view, framed in
+      red with its error's first line in its strip; the way the run took to
+      it stands out while other nodes step back; End says
+      `automations.canvas.end.failedAt`; selecting a node opens its inspector
+      on **Last run** (`automations.editor.inspector.tabs.run`).
+- [ ] `AUTO-F90` · **Expand a node's Code field, edit, then go back** →
+      **Expand editor** (`codeEditor.expand`) opens the larger editor; **Back
+      to the field** (`codeEditor.collapse`) returns with the edit in place and
+      the caret where it was.
+- [ ] `AUTO-F91` · **Switch to Deutsch, Français and Deutsch (Schweiz)** →
+      every canvas, paths, Start/End, inspector and Source string is
+      translated; German conditions put the verb last ("… größer als 1.000
+      ist"); French shows « Canevas » with no-break spaces before `:`; Swiss
+      German shows «…» and "grösser".
 
 ## Boundary & error tests
 
@@ -798,9 +978,11 @@ output:
       disabled with reason `automations.detail.runLiveNeedsDeploy`; no dialog, no
       run row appears.
 - [ ] `AUTO-B6` · **Invalid JSON in a node** — In the inspector, type the
-      text `{ not json` into the **Input** field → Notice
-      `automations.editor.invalidJson`; the node is NOT changed (no dirty state
-      from the invalid text; Save version keeps the last valid document)
+      text `{ not json` into the **Input** code field → the field says
+      `automations.editor.invalidJson` and the editor marks where the JSON
+      breaks (`codeEditor.syntax.json`); the node is NOT changed (no dirty
+      state from the invalid text; Save version keeps the last valid
+      document), and the text stays as typed
 - [ ] `AUTO-B7` · **Two tabs editing the same automation** — Open the same
       automation's workbench in tabs A and B (both on the latest version). In
       B, edit a node and leave it unsaved. In A, edit another node → **Save**
@@ -892,6 +1074,20 @@ output:
       answers instead of the editor and the network log shows no validate
       request; posting a document to the validate route with that session
       answers 403 and saves nothing.
+- [ ] `AUTO-B17` · **In Input, type `{"a":1}` one character at a time, then
+      replace it with `1`** → the caret never jumps while typing; `1` shows
+      `automations.editor.jsonMustBeObject` under the field and the node keeps
+      `{"a":1}`.
+- [ ] `AUTO-B18` · **Take the network offline and change a reference** →
+      Start, End, conditions, frames and the paths list still update; the
+      Shape tab says `automations.editor.shape.unavailable`; **Save** works
+      again once the network is back.
+- [ ] `AUTO-B19` · **Edit a field of a connector node that has a `credential`,
+      then save** → Source shows the `credential` key unchanged in the new
+      version, and so does every key the inspector has no field for.
+- [ ] `AUTO-B20` · **Upload an automation with 40 nodes and 13 conditions** →
+      it lays out in about a second, typing in a prompt never stutters, and
+      the paths list says `automations.paths.truncated`.
 
 ## Run liveness — chaos recovery (backend, scripted)
 
@@ -925,11 +1121,12 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
 
 ## Accessibility (WCAG 2.1 AA)
 
-- [ ] `AUTO-A1` · **Canvas semantics** → The canvas is a labelled region
-      (**Automation canvas**, `automations.canvas.ariaLabel`); every node box is a
-      real `<button>` that is keyboard reachable and expands/controls the
-      inspector (`aria-expanded` / `aria-controls`). Enter/Space toggles the
-      inspector; Escape closes it (not while typing); **Close**
+- [ ] `AUTO-A1` · **Canvas semantics** → The canvas is a labelled group
+      (**Automation canvas**, `automations.canvas.ariaLabel`) described by
+      `flow.canvas.keyboardHelp`; the chart is one Tab stop with roving focus
+      (`AUTO-A11`), and every box is a real `<button>` that expands/controls
+      the inspector (`aria-expanded` / `aria-controls`). Enter/Space toggles
+      the inspector; Escape closes it (not while typing); **Close**
       (`common.aria.close`) is in the panel. Selection never needs a mouse.
 - [ ] `AUTO-A2` · **Status not by colour** → Run and node status badges each
       carry an icon AND a word (`automations.runs.status.*`,
@@ -978,6 +1175,33 @@ Those doors were Convex functions, gone with that backend: mark the five boxes
       `AUTO-F62`, press ⌘S (Ctrl+S) in the Prompt field → the browser's
       "Save page as" dialog does not open, focus moves to **Save** and its
       tooltip says `automations.problems.saveBlocked`; nothing is saved.
+- [ ] `AUTO-A11` · **Keyboard only on the canvas** → one Tab enters the chart
+      at Start; the arrows follow the lines and move along a row; Home and End
+      jump to Start and End; Enter opens the box; Tab leaves to the toolbars;
+      a screen reader hears each box's title, catalog line and what it reads;
+      the paths list works with the arrows, Enter and Escape.
+- [ ] `AUTO-A12` · **Keyboard only in the code editor** → Tab indents; Escape
+      then Tab leaves (`codeEditor.leaveArmed`); the legend chip
+      (`codeEditor.legend.leave`) shows only after keyboard focus; a condition
+      field never traps Tab; Ctrl+Space opens suggestions; the field's problem
+      is read as its description.
+- [ ] `AUTO-A13` · **At 390 px, in a node's sheet** → Escape closes the
+      suggestion list, then arms leaving, then closes the sheet; selecting text
+      never drags the sheet; code text is 16 px, so the page never zooms;
+      suggestions stay inside the sheet.
+- [ ] `AUTO-A14` · **With reduced motion on** → relayouts, refits, the changed
+      ring and the paths panel appear without movement; the caret does not
+      blink.
+- [ ] `AUTO-A15` · **In dark mode, with forced colours, at 200 % zoom, at
+      375 px and on touch** → tokens, lines, labels and squiggles stay
+      readable; toolbars and sheets stay usable; on the run page one finger
+      scrolls the page and two move the chart, with
+      `flow.canvas.touchHint` shown once.
+- [ ] `AUTO-A16` · **With a screen reader on Start, a condition and End** →
+      Start reads its triggers and fields
+      (`automations.canvas.start.description`); the condition reads
+      `flow.gate.name` then `flow.gate.branches`; End reads what it returns
+      and how a run ends.
 
 ## Performance
 

@@ -42,17 +42,17 @@ tests:
     input: { invoiceId: 'inv-1' }
 ```
 
-Der `ui`-Block speichert die Positionen auf dem Canvas. Verschieben ändert die Anordnung, nicht die Ausführung einer Node.
+Tale ordnet den Canvas anhand der Verweise zwischen den Nodes an, niemand platziert eine Node von Hand. Ein `ui`-Block ist freie Metadaten: Tale behält ihn unverändert und ignoriert ihn.
 
 ### Kanten entstehen, sie werden nicht deklariert
 
-Es gibt keine Kantenliste. Eine Node liest eine andere, indem sie sie referenziert — `{{ nodes.invoice.output.id }}` —, und genau diese Referenz _ist_ die Kante, die der Canvas zeichnet. Die Reihenfolge ergibt sich aus einer topologischen Sortierung über diese abgeleiteten Kanten. Deshalb verschwindet mit einer gelöschten Referenz auch ein Pfeil, und deshalb weist die Plattform zwei Nodes zurück, die einander lesen.
+Es gibt keine Kantenliste. Eine Node liest eine andere, indem sie sie referenziert — `{{ nodes.invoice.output.id }}` —, und genau diese Referenz _ist_ die Kante, die der Canvas zeichnet. Die Reihenfolge ergibt sich aus einer topologischen Sortierung über diese abgeleiteten Kanten. Deshalb verschwindet mit einer gelöschten Referenz auch eine Linie, und deshalb weist die Plattform zwei Nodes zurück, die einander lesen.
 
 Templates nutzen eine einzige `{{ }}`-Grammatik aus JavaScript-Ausdrücken über `input`, `nodes.<id>.output` und, innerhalb einer iterierenden Node, `item` und `index`.
 
 ### Die Ablaufsteuerung sitzt an der Node
 
-Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen. Der Canvas zeigt sie deshalb als Badges an genau der Box, die sie betreffen.
+Verzweigen und Wiederholen sind Felder an einer Node statt eigener Schritttypen. Der Canvas zeichnet jedes davon dort, wo es wirkt: Aus `when` wird eine Bedingung über ihrer Node, eine Alternative per `elseOf` hängt als Zweig **Nein** an dieser Bedingung, `forEach` und `repeatUntil` setzen die Node in einen Rahmen, und `onError: continue` gibt ihr einen Chip.
 
 | Feld                         | Wirkung                                                                                 |
 | ---------------------------- | --------------------------------------------------------------------------------------- |
@@ -79,6 +79,12 @@ Vier Typen sind eingebaut, und jede Connector-Aktion sowie jede Plattformfunktio
 Eine **strukturierte** Ausgabe hat benannte Felder, die du über `nodes.<id>.output.<field>` referenzierst. Eine **unstrukturierte** Ausgabe enthält freien Text. Verwende dafür `nodes.<id>.output.text` in einem Textausdruck; behandle die Ausgabe nicht wie ein Objekt mit weiteren Feldern.
 
 Ein Werkzeug ohne Ausgabeschema liefert unstrukturierte Ausgabe. Soll daraus strukturierte Eingabe für weitere Schritte entstehen, nutze eine `llm`-Node mit `outputSchema`. Die Validierung nennt bei einem Fehler die ungültige Referenz und die zulässigen Felder oder Kontexte. Korrigiere die Referenz, bevor du erneut speicherst.
+
+## Pfade, die ein Lauf nehmen kann {#paths}
+
+Jede Bedingung und jede Node, die fehlschlagen darf, während der Lauf weitergeht, eröffnet einem Lauf zwei Möglichkeiten. Tale probiert jede Kombination davon aus und behält die unterschiedlichen Wege, die ein erfolgreicher Lauf nehmen kann; jeder davon ist ein Pfad. Ein Pfad nennt die Bedingungen, die über ihn entscheiden, etwa welche Nodes laufen, welche übersprungen werden und welche fehlschlagen, während der Lauf weitergeht, und die Nodes, die auf ihm laufen. Eine Node, die auf jedem Pfad läuft, läuft immer; eine Node, die auf keinem läuft, kann nie laufen, und Tale warnt davor.
+
+Tale führt bis zu 32 Pfade auf und zählt die übrigen. Bei mehr als 12 Bedingungen und hingenommenen Fehlern sind die Kombinationen zu viele zum Durchgehen, deshalb führt Tale dann keinen Pfad auf; es sagt aber weiterhin bei jeder Node, wann sie läuft. Außerdem nennt Tale die Nodes, deren Fehler den Lauf beendet, und was jede von ihnen fehlschlagen lassen kann. Der Editor zeigt die Pfade im Canvas, wie [Den möglichen Pfaden folgen](/de/platform/automations/editor#paths) beschreibt; ein Client des [MCP-Endpoints](/de/develop/mcp-endpoint) liest dieselben Pfade aus `analysis.paths`.
 
 ## Was Tale vor einem Lauf prüft {#checks}
 
