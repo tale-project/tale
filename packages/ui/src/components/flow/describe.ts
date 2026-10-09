@@ -453,7 +453,7 @@ export function describeFlowGraph(
               node.outputs,
               node.outputsEmpty ?? t('node.noOutput'),
             ),
-            node.shape,
+            typeof node.shape === 'string' ? node.shape : node.shape?.text,
             outcomes.length > 0
               ? section(t('node.outcomes'), outcomes, '')
               : null,

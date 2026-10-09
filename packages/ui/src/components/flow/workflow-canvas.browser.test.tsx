@@ -229,6 +229,56 @@ describe('WorkflowCanvas', () => {
     );
   });
 
+  it('keeps Start and End at their size with a notice at their foot and a shape still being worked out', async () => {
+    const graph = triageFlowGraph();
+    const nodes: FlowGraph['nodes'][number][] = [];
+    for (const node of graph.nodes) {
+      if (node.kind === 'entry')
+        nodes.push(
+          Object.assign({}, node, {
+            notice: {
+              tone: 'warning' as const,
+              text: 'The schedule’s input misses title',
+            },
+          }),
+        );
+      else if (node.kind === 'exit')
+        nodes.push(
+          Object.assign({}, node, {
+            shape: null,
+            notice: { tone: 'info' as const, text: 'Some runs return empty' },
+          }),
+        );
+      else nodes.push(node);
+    }
+    const { container } = await renderLaidOut({ ...graph, nodes });
+    const boxes = renderedBoxes(container);
+    for (const node of nodes) {
+      if (node.kind !== 'entry' && node.kind !== 'exit') continue;
+      const plain = graph.nodes.find((each) => each.id === node.id);
+      if (plain === undefined) throw new Error(`no ${node.id}`);
+      // The size the check's answers cannot change, drawn as reserved.
+      expect(flowNodeSize(node).height).toBe(flowNodeSize(plain).height);
+      expect(
+        Math.abs((boxes.get(node.id)?.height ?? 0) - flowNodeSize(node).height),
+        `${node.id} height`,
+      ).toBeLessThan(1);
+    }
+    const foot = (id: string) =>
+      container.querySelector(
+        `[data-flow-node="${id}"] [data-slot="flow-node-strip"]`,
+      );
+    expect(foot('__start')).toHaveAttribute('data-flow-notice', 'warning');
+    expect(foot('__start')).toHaveTextContent(
+      'The schedule’s input misses title',
+    );
+    expect(foot('__end')).toHaveTextContent('Some runs return empty');
+    // The shape's row waits with a placeholder, not a blank.
+    expect(
+      container.querySelector('[data-flow-node="__end"] .animate-pulse'),
+    ).not.toBeNull();
+  });
+
   it('is one Tab stop that the arrows walk along the lines', async () => {
     const onSelect = vi.fn();
     await renderLaidOut(triageFlowGraph(), { onSelect });

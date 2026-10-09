@@ -107,6 +107,8 @@ export interface FlowEntryNode extends FlowNodeBase {
   inputs: readonly FlowRow[];
   /** The words when `inputs` is empty; "No input" when left out. */
   inputsEmpty?: string;
+  /** Shown at Start's foot in place of its strip's words, so it never
+   *  changes the box's size. */
   notice?: FlowNotice;
 }
 
@@ -118,10 +120,16 @@ export interface FlowExitNode extends FlowNodeBase {
   outputs: readonly FlowRow[];
   /** The words when `outputs` is empty; "Returns nothing" when left out. */
   outputsEmpty?: string;
-  /** A one-line shape of what it returns, shown in mono. */
-  shape?: string;
+  /**
+   * What a run returns in one line: a shape (a string, or `code`, shown in
+   * mono) or a sentence. `null` reserves the row while the host still
+   * works it out; leave it out for an End that has no row.
+   */
+  shape?: string | { text: string; code: boolean } | null;
   /** How a run ends: Succeeded, Failed, Stopped. */
   outcomes?: readonly FlowRow[];
+  /** Shown at End's foot in place of its strip's words, so it never
+   *  changes the box's size. */
   notice?: FlowNotice;
 }
 

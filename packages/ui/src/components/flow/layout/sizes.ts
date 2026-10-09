@@ -13,7 +13,9 @@ import type {
  * The layout reserves exactly these boxes and the renderer draws exactly
  * these boxes (a browser test measures each one), so a box never grows into
  * an edge. Nothing a canvas shows on top of a layout — a run's state, a
- * problem count, a highlight — changes a size, so none of it can move a box.
+ * problem count, a highlight, a notice at Start's or End's foot — changes
+ * a size, so none of it can move a box; a row that waits for the host's
+ * answer is reserved.
  * Every number sits on the 4-px grid.
  */
 
@@ -33,7 +35,6 @@ const FLOW_BOX = {
   row: 20,
   note: 16,
   shape: 20,
-  notice: 28,
 } as const;
 
 const FLOW_GATE = {
@@ -185,20 +186,17 @@ function entryHeight(node: FlowEntryNode): number {
   return frame(
     (node.triggers.length > 0
       ? sectionHeight(node.triggers, FLOW_SECTION_ROWS.triggers)
-      : 0) +
-      sectionHeight(node.inputs, FLOW_SECTION_ROWS.inputs) +
-      (node.notice ? FLOW_BOX.sectionGap + FLOW_BOX.notice : 0),
+      : 0) + sectionHeight(node.inputs, FLOW_SECTION_ROWS.inputs),
   );
 }
 
 function exitHeight(node: FlowExitNode): number {
   return frame(
     sectionHeight(node.outputs, FLOW_SECTION_ROWS.outputs) +
-      (node.shape ? FLOW_BOX.shape : 0) +
+      (node.shape !== undefined ? FLOW_BOX.shape : 0) +
       ((node.outcomes?.length ?? 0) > 0
         ? sectionHeight(node.outcomes ?? [], FLOW_SECTION_ROWS.outcomes)
-        : 0) +
-      (node.notice ? FLOW_BOX.sectionGap + FLOW_BOX.notice : 0),
+        : 0),
   );
 }
 

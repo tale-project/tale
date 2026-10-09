@@ -228,7 +228,10 @@ function emptiness(op: string, literal: Node): boolean | undefined {
   return undefined;
 }
 
-/** A value read for its truth: set, or (negated) not set. */
+/** A value read for its truth: it counts as yes — anything but `false`,
+ * `0`, an empty text, `null` or nothing — or, negated, as no. Said that
+ * way rather than "is set", since a flag that is set to `false` counts as
+ * no. */
 function truth(node: Node, negated: boolean): Phrase {
   const inner = unwrap(node);
   const length = lengthOf(inner);

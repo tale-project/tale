@@ -117,13 +117,28 @@ describe('conditionWithValues', () => {
           sentence: 'status of Triage ("normal") is not "urgent"',
           verdict: 'no',
         },
-        { sentence: 'notify of the run input is set', verdict: 'notChecked' },
+        {
+          sentence: 'notify of the run input counts as yes',
+          verdict: 'notChecked',
+        },
       ],
     });
     // Not all held: one of them did not.
     expect(answer.sentence).toBe(
-      'status of Triage ("normal") is not "urgent" or notify of the run input is not set',
+      'status of Triage ("normal") is not "urgent" or notify of the run input counts as no',
     );
+  });
+
+  it('says a flag set to false counts as no, rather than calling it not set', () => {
+    const NOTIFY = '{{ input.notify }}';
+    const explained = [
+      at(NOTIFY, 'input.notify', { kind: 'boolean', text: 'false' }),
+    ];
+    const said = (locale: string) =>
+      conditionWithValues(NOTIFY, explained, false, ctx(locale)).sentence;
+    expect(said('en')).toBe('notify of the run input (false) counts as no');
+    expect(said('de')).toBe('notify der Laufeingabe (falsch) als Nein zählt');
+    expect(said('fr')).toBe('notify de l’entrée (faux) compte comme non');
   });
 
   it('never rewrites a number it cannot read back exactly', () => {
