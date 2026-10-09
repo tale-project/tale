@@ -75,6 +75,7 @@ import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.in
 import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
 import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
+import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-github-schedules.integration.ts';
 import { checkTriggerStreakLockOrder } from './domains/automations/trigger-lock-order.integration.ts';
 import { checkTriggerPauseAfterFailures } from './domains/automations/trigger-pause.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
@@ -31462,7 +31463,8 @@ async function checkSsoAdminSurface(
 
 /**
  * Org provisioning on a THROWAWAY org: the shipped default automation packs
- * seed once (version 1, trigger bound, presentation stored), a re-run skips
+ * seed once (version 1, trigger bound switched off as the pack's repeat rule,
+ * presentation stored), a re-run skips
  * everything, a tombstoned pack stays deleted, and the starter content
  * seeds a Getting-started project with example tasks only while the org has
  * no project.
@@ -31512,6 +31514,35 @@ async function checkProvisioning(sql: Sql): Promise<void> {
     SELECT count(*)::text AS count FROM app.automation_triggers
     WHERE org_id = ${orgId}
   `;
+  // PROVN-R7: the shipped trigger is bound switched off, and the pack's
+  // repeat rule is stored as a rule, not as a cron expression.
+  const seededTriggers = await sql<
+    {
+      name: string;
+      enabled: boolean;
+      cron: string | null;
+      repeat: unknown;
+      nextDueAt: string | null;
+    }[]
+  >`
+    SELECT name, enabled, cron, schedule_rule -> 'repeat' AS repeat,
+           next_due_at_ms::text AS "nextDueAt"
+    FROM app.automation_triggers
+    WHERE org_id = ${orgId}
+  `;
+  const syncTrigger = seededTriggers.find(
+    (row) => row.name === 'imap-smtp-sync-emails',
+  );
+  record(
+    'org provisioning binds a shipped trigger switched off, as the pack’s repeat rule [PROVN-R7]',
+    seededTriggers.length >= 1 &&
+      seededTriggers.every((row) => !row.enabled && row.nextDueAt === null) &&
+      syncTrigger !== undefined &&
+      syncTrigger.cron === null &&
+      JSON.stringify(syncTrigger.repeat) ===
+        JSON.stringify({ frequency: 'minutely', interval: 5 }),
+    `seeded=${seededTriggers.map((row) => `${row.name}:${row.enabled ? 'on' : 'off'}/next=${row.nextDueAt ?? 'none'}`).join('|')} (want every one off, none due), sync cron=${syncTrigger?.cron ?? 'null'} repeat=${JSON.stringify(syncTrigger?.repeat ?? null)} (want null / minutely 5)`,
+  );
 
   // Idempotency: the second run provisions nothing and duplicates nothing.
   const again = await seedDefaultAutomationPacks(sql, orgId);
@@ -61694,6 +61725,10 @@ async function main(): Promise<void> {
       [
         'checkEventScopeAndIsolation',
         () => checkEventScopeAndIsolation(sql, authCtx, record),
+      ],
+      [
+        'checkSeededGithubSchedulesOff',
+        () => checkSeededGithubSchedulesOff(sql, record),
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [

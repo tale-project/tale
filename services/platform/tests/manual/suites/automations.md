@@ -58,8 +58,8 @@ through its task panel (`AUTO-F53`, `AUTO-B11`).
 **Seeding.** The builtin packs are provisioned from the builtin catalog
 (`configs/platform/custom/automations/` when `TALE_CONFIG_BUILTIN_DIR` is
 unset) at org creation and on deploy — and they always arrive as **Not
-deployed drafts** (`automations.list.notDeployed`); nothing runs until someone
-deploys a version. The eight org-scope packs are `gmail-sync-emails`,
+deployed drafts** (`automations.list.notDeployed`) whose triggers are switched
+off; nothing runs until someone deploys a version and turns its trigger on. The eight org-scope packs are `gmail-sync-emails`,
 `gmail-triage-inbox`, `outlook-sync-emails`, `outlook-triage-inbox`,
 `imap-smtp-sync-emails`, `imap-smtp-triage-inbox`, `github-triage-issues`,
 `github-review-pull-requests`. Two catches:

@@ -41,6 +41,12 @@ const MAX_PACK_SKILLS = 20;
  * webhook's `rotateToken` (a pack mints nothing to rotate). There is no
  * `api-key` kind — a programmatic start is what the REST and MCP surfaces
  * are for.
+ *
+ * A pack's `enabled` reads as **false** when omitted, unlike a write, where
+ * it reads as true: a seeded automation has nothing deployed, so its trigger
+ * waits for the person who deploys it to turn it on. The default is applied
+ * where the trigger is bound (the provisioning), not here — the schema hands
+ * the manifest back as written, which a native release compares against.
  */
 export const automationTriggerSchema = triggerWriteSchema.superRefine(
   (trigger, ctx) => {

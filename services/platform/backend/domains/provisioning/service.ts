@@ -24,6 +24,8 @@ import { EXAMPLE_TASKS } from './starter-content.ts';
  *    wins for behaviour; only the shipped presentation refreshes),
  *  - a pack the org DELETED stays deleted (the tombstone outlives deploys;
  *    saving the name again clears it),
+ *  - a pack's trigger is bound once, while the org has none for it, and
+ *    switched off unless the pack says otherwise,
  *  - starter content seeds only while the org has no project at all.
  *
  * The 0.4 default-AGENT provisioner is not ported: it had already been
@@ -141,10 +143,12 @@ export async function seedDefaultAutomationPacks(
         WHERE org_id = ${organizationId} AND name = ${name} LIMIT 1
       `;
       if (bound.length === 0) {
+        // Switched off unless the pack says otherwise: nothing is deployed
+        // yet, and the deploy offers to turn it on (PROVN-R7).
         await setTrigger(sql, {
           organizationId,
           name,
-          trigger: pack.trigger,
+          trigger: { ...pack.trigger, enabled: pack.trigger.enabled ?? false },
           actor: 'system:provisioning',
         });
       }
