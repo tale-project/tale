@@ -449,6 +449,8 @@ codeEditor:
   tabFocusOff: Tab rückt jetzt ein.
   expand: Editor vergrößern
   collapse: Zurück zum Feld
+  loadFailed: 'Der Editor wurde nicht geladen. Du kannst hier als reiner Text weiterbearbeiten.'
+  retry: 'Editor erneut laden'
   diagnostics:
     atCursor: '{severity} in Zeile {line}: {message}'
     severity:

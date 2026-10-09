@@ -449,6 +449,8 @@ codeEditor:
   tabFocusOff: Tab now indents.
   expand: Expand editor
   collapse: Back to the field
+  loadFailed: 'The editor didn''t load. You can keep editing here as plain text.'
+  retry: 'Try the editor again'
   diagnostics:
     atCursor: '{severity} on line {line}: {message}'
     severity:
