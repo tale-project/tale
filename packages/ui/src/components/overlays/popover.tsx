@@ -61,6 +61,9 @@ export function Popover({
   const { isComposing, compositionProps } = useImeComposition(
     open ?? uncontrolledOpen,
   );
+  const onEscapeKeyDown = respectEscapeClaims<KeyboardEvent>((event) => {
+    if (isComposing(event)) event.preventDefault();
+  });
   return (
     <PopoverPrimitive.Root
       open={open}
@@ -74,9 +77,7 @@ export function Popover({
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content
           {...compositionProps}
-          onEscapeKeyDown={(event) => {
-            if (isComposing(event)) event.preventDefault();
-          }}
+          onEscapeKeyDown={onEscapeKeyDown}
           align={align}
           side={side}
           sideOffset={sideOffset}
@@ -84,7 +85,6 @@ export function Popover({
           onOpenAutoFocus={onOpenAutoFocus}
           onCloseAutoFocus={onCloseAutoFocus}
           onInteractOutside={onInteractOutside}
-          onEscapeKeyDown={respectEscapeClaims()}
           aria-labelledby={ariaLabelledby}
           aria-label={ariaLabel}
           className={cn(CONTENT_CLASSES, contentClassName)}
