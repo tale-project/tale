@@ -97,6 +97,7 @@ export function coalesceKeyFor(args: {
 
 /** `<kind>:<id>` of the thing whose state this notification describes. */
 function coalesceSubject(args: {
+  type: NotificationType;
   resourceType: ResourceType;
   resourceId: string;
   taskId?: Id<'tasks'>;
@@ -104,6 +105,12 @@ function coalesceSubject(args: {
 }): string | null {
   if (args.taskId !== undefined) return `task:${args.taskId}`;
   if (args.resourceType === 'task') return `task:${args.resourceId}`;
+  if (args.type === 'agent_escalation' && args.resourceType === 'dashboard') {
+    const askId = args.params?.askId;
+    return typeof askId === 'string' && askId.length > 0
+      ? `ask:${askId}`
+      : null;
+  }
   const conversationId = args.params?.conversationId;
   if (typeof conversationId === 'string') {
     return `conversation:${conversationId}`;
