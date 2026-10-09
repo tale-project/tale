@@ -191,6 +191,12 @@ export interface SessionConfig {
    * (SANDBOX_MIN_FREE_DISK; 0 turns the floor off); unset is a twentieth of
    * each filesystem, at least 2 GiB and at most 20 GiB (host-disk.ts). */
   minFreeDiskBytes?: number;
+  /** Free space below which that disk is critical (SANDBOX_CRITICAL_FREE_DISK;
+   * 0 turns the tier off): released Docker-in-sandbox sessions are stopped
+   * at once, and the largest workspaces are logged. Unset is a quarter of
+   * the floor, at least 1 GiB; set or unset never above the floor, and off
+   * while the floor is (host-disk.ts). */
+  criticalFreeDiskBytes?: number;
   /** Hard wall-clock ceiling on a session's lifetime. */
   maxLifetimeMs: number;
   /** Idle ceiling — sessions with no runnerd activity past this are reaped. */

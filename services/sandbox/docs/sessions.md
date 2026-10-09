@@ -179,11 +179,24 @@ has been replaced by newly forked, untagged processes after the leader exits.
 
 **Session teardown is best effort, not a wrapper-cleanup guarantee.** runnerd
 passes SIGTERM to execs when it receives a graceful stop, but does not await
-their completion before exiting. Docker's force-removal path does not deliver
-that graceful stop at all. This change intentionally retains those teardown
-semantics; guaranteeing wrapper cleanup would require a separate provider and
-daemon shutdown change. The unit tests prove the manager's signal delivery,
-not provider teardown or the timing of wrapper completion.
+their completion before exiting. On Docker a stop removes the container with
+`docker rm --force`, which kills at once and delivers no graceful stop; only
+the max-linger self-reap's stop of a busy session asks first. Busy is an exec
+running through this spawner or, failing one, a live exec or an operation
+under way as runnerd's health reports it (asked with a 3 s bound): the
+platform follows a long turn by attach and hangs up at every drain window, so
+an exec it is draining is usually registered in no spawner. A daemon that
+does not answer could not act on the stop and is removed at once. The
+max-linger self-reap stops a busy session with `docker stop -t 5` (`-t 20` for
+a Docker-in-sandbox session, whose supervisor also shuts its inner engine down
+and whose dockerd waits up to 15 s for its own containers) and then removes it,
+inside the same lifecycle serialization as every other stop: a sweep or an
+idle reclaim already stopping the session is joined, never cut short. Idle
+stops, pressure reclaims, failed-create cleanup and destroys still remove at
+once: an idle session has nothing to end, and a destroy deletes the workspace
+and the inner image store a grace would flush into. Kubernetes deletes every
+Pod with a 5 s grace period. The unit tests prove the manager's signal
+delivery and which stops ask first, not the timing of wrapper completion.
 
 Avoid `pkill -9 -f '<command>'` for managed execs: the shim's argv contains the
 command too, so that pattern can kill the shim. runnerd then reports the shim's
@@ -351,7 +364,14 @@ storage per session**, including files held open by readers. At most four
 execs run at once and 16 exec records are retained. Completed spools are
 evicted first under the shared budget. An active writer that exhausts its
 budget ends with `OUTPUT_LIMIT`; unavailable or evicted history reports
-`REPLAY_UNAVAILABLE`. The disk-backed spool is the sole retained output history.
+`REPLAY_UNAVAILABLE`, and a journal or checkpoint write the disk refuses for
+want of space (`ENOSPC`, `EDQUOT`) ends the exec with `REPLAY_DISK_FULL`. The spawner forwards each
+of the three as the code of the stream's terminal `error` event; the platform
+ends the turn on it without reattaching, and names `REPLAY_DISK_FULL` in words of its
+own: the sandbox host ran out of disk space. The full-disk code carries the
+`REPLAY_` prefix on purpose: a platform older than the runtime already ends a
+turn on every `REPLAY_` code instead of reattaching. The disk-backed spool is
+the sole retained output history.
 
 A checkpoint is committed (written to a temporary file and renamed into
 place) before its acknowledged prefix is pruned, so a run can produce more
@@ -560,6 +580,22 @@ the disk stays short; a removal that frees nothing on that disk (the caches
 live on another one) pauses the removals for six hours. If a different
 filesystem becomes the most constrained after removal, upkeep stops that pass
 and reassesses next sweep instead of comparing free bytes across disks.
+
+The floor holds new work back; it does not stop what already runs, which
+writes until the disk is full, and with it the replay journal of every running
+exec. So the disk also has a critical tier, below which those writes are about
+to fail: `SANDBOX_CRITICAL_FREE_DISK`, unset a quarter of the floor, at least
+1 GiB, and never above the floor, set or unset (`0` turns it off, and so does
+a floor of `0`). The sweep reads it from the same five-second reading, and an unknown or
+unreadable disk is never critical. While the disk is below it, the sweep
+stops a released, idle Docker-in-sandbox session at once instead of after its
+full idle window — through runnerd's claim like every idle stop, so a turn
+that acquires it meanwhile keeps it — because its stop removes its inner image
+store, the most a stop gives back. It also logs the three largest workspaces,
+measured by one `du` of every workspace dir at the lowest CPU priority (and so
+the lowest best-effort I/O priority) and cut off after 30 seconds, at most
+every ten minutes. The spawner logs the disk going below the tier and coming
+back.
 
 The Docker observation reuses the spawner's existing `/etc/hostname` bind.
 Its full container identity and source path must agree with the selected

@@ -32,7 +32,7 @@ const io = vi.hoisted(() => ({
   released: [] as Array<{ execId: string; status: string }>,
   /** How many status probes still answer `running` for the predecessor. */
   predecessorRunningPolls: 0,
-  drainThrows: false,
+  drainThrows: false as boolean | 'disk-full',
   afterDrain: undefined as (() => void) | undefined,
   /** A terminal window the drain answers instead of `running`. */
   terminal: undefined as Record<string, unknown> | undefined,
@@ -51,6 +51,11 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
       execId: string;
       start?: { argv: string[]; stdin?: string };
     }) => {
+      if (io.drainThrows === 'disk-full') {
+        const { ExecDiskFullError } =
+          await import('../node_only/sandbox/helpers/session_client');
+        throw new ExecDiskFullError();
+      }
       if (io.drainThrows) {
         throw new Error('sandbox session attach failed (502)');
       }
@@ -301,8 +306,26 @@ describe('drive window failure', () => {
       m.name.endsWith(':markTaskAgentRunFailed'),
     );
     expect(failed?.args.failureCode).toBe('turn_crashed');
+    expect(failed?.args.error).toBe('the agent run stopped unexpectedly');
     // The cancel precedes the settle's key release.
     expect(io.released).toEqual([{ execId: 'exec-old', status: 'failed' }]);
+  });
+  it('names a full sandbox disk instead of an unexpected stop', async () => {
+    io.drainThrows = 'disk-full';
+    const run: RunState = { status: 'running', execId: 'exec-old' };
+    const { ctx, mutations } = makeCtx(run);
+
+    await driveTaskAgentTurnImpl(ctx, KEYS as never);
+
+    expect(io.cancels).toEqual(['exec-old']);
+    expect(run.status).toBe('failed');
+    const failed = mutations.find((m) =>
+      m.name.endsWith(':markTaskAgentRunFailed'),
+    );
+    expect(failed?.args.error).toBe(
+      'the agent run stopped: the sandbox host ran out of disk space',
+    );
+    expect(failed?.args.failureCode).toBe('turn_crashed');
   });
 });
 

@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 
 import {
+  belowDiskCritical,
   belowDiskFloor,
+  diskCriticalBytes,
   diskReserveBytes,
   DockerDataRootMount,
   HostDiskProbe,
@@ -32,6 +34,65 @@ describe('diskReserveBytes', () => {
     expect(
       belowDiskFloor({ totalBytes: 100 * GIB, availableBytes: 6 * GIB }),
     ).toBe(false);
+  });
+});
+
+describe('diskCriticalBytes', () => {
+  test('a quarter of the floor, at least 1 GiB and never above the floor', () => {
+    // Floors of 2, 5 and 20 GiB.
+    expect(diskCriticalBytes(20 * GIB)).toBe(GIB);
+    expect(diskCriticalBytes(100 * GIB)).toBe(1.25 * GIB);
+    expect(diskCriticalBytes(4096 * GIB)).toBe(5 * GIB);
+    expect(diskCriticalBytes(100 * GIB, 40 * GIB)).toBe(10 * GIB);
+    expect(diskCriticalBytes(100 * GIB, GIB / 2)).toBe(GIB / 2);
+  });
+
+  test('an operator’s tier stands as given, 0 turning it off; none while the floor is off', () => {
+    expect(diskCriticalBytes(100 * GIB, undefined, 3 * GIB)).toBe(3 * GIB);
+    expect(diskCriticalBytes(100 * GIB, undefined, 0)).toBe(0);
+    expect(diskCriticalBytes(100 * GIB, 0)).toBe(0);
+    expect(
+      belowDiskCritical({ totalBytes: 100 * GIB, availableBytes: 0 }, 0),
+    ).toBe(false);
+    expect(
+      belowDiskCritical(
+        { totalBytes: 100 * GIB, availableBytes: 2 * GIB },
+        undefined,
+        3 * GIB,
+      ),
+    ).toBe(true);
+  });
+
+  test('an operator’s tier never stands above the floor, and a floor of 0 turns it off too', () => {
+    // A 100 GiB disk keeps a 5 GiB floor unset.
+    expect(diskCriticalBytes(100 * GIB, undefined, 8 * GIB)).toBe(5 * GIB);
+    expect(diskCriticalBytes(100 * GIB, 4 * GIB, 8 * GIB)).toBe(4 * GIB);
+    expect(diskCriticalBytes(100 * GIB, 0, 2 * GIB)).toBe(0);
+    expect(
+      belowDiskCritical(
+        { totalBytes: 100 * GIB, availableBytes: GIB },
+        0,
+        2 * GIB,
+      ),
+    ).toBe(false);
+  });
+
+  test('an unknown or unreadable disk is never critical', () => {
+    expect(belowDiskCritical(null)).toBe(false);
+    expect(
+      belowDiskCritical({
+        totalBytes: 0,
+        availableBytes: 0,
+        unavailable: true,
+      }),
+    ).toBe(false);
+    // Below the 5 GiB floor of a 100 GiB disk, above its 1.25 GiB tier.
+    expect(
+      belowDiskCritical({ totalBytes: 100 * GIB, availableBytes: 2 * GIB }),
+    ).toBe(false);
+    expect(
+      belowDiskCritical({ totalBytes: 100 * GIB, availableBytes: GIB }),
+    ).toBe(true);
   });
 });
 

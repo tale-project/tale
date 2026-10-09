@@ -49,7 +49,12 @@ runtime_image`. A pull that fails is retried after 30 s, 1, 2, 5 and then every
 10 minutes, and creates wait meanwhile (`Retry-After` follows the next pull,
 5–60 s). `GET /health` reports `runtimeImage: { state, lastError,
 nextAttemptAtMs }` with `state` one of `unchecked`, `pulling`, `ready` or
-`missing`; a missing image never makes the spawner unhealthy. Session lookups whose backend inventory or endpoint
+`missing`; a missing image never makes the spawner unhealthy. Docker probes
+`GET /health` with `curl` (a runc exec each time) every 30 s, so a booting
+spawner reads healthy up to 30 s after it starts; failures in its first 30 s
+do not count. There is no faster start interval: Docker Compose refuses
+`start_interval` on Engine 24, the oldest engine Tale supports (compose.yml,
+the CLI generator and the image's `HEALTHCHECK` agree). Session lookups whose backend inventory or endpoint
 cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.
@@ -101,7 +106,13 @@ cap already-running writers; hard per-volume quotas require operator
 provisioning (docs/docker-in-container.md). Below either observed filesystem's
 floor every create answers 429 `host_disk`, and the build-cache upkeep
 removes the caches of organizations whose helpers are all stopped, the
-longest-stopped first. Creates refused for room wait in a
+longest-stopped first. Below its critical tier (`SANDBOX_CRITICAL_FREE_DISK`,
+a quarter of the floor, at least 1 GiB; never above the floor; `0`, or a
+floor of `0`, turns it off), where running
+sessions' writes are about to fail, the sweep also stops released idle
+Docker-in-sandbox sessions at once, which removes their inner image stores,
+and logs the three largest workspaces at most every ten minutes. Creates
+refused for room wait in a
 first-come line: freed room goes to the oldest waiter still asking, and each
 429 names the create's place (`queue: { position, waiting }`) with a
 `retry-after` for when it comes up (docs/sessions.md). At most 12 Docker CLI processes run at

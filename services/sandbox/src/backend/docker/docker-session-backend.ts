@@ -73,8 +73,13 @@ import {
   type WorkspaceTrash,
 } from '../../session/workspace-trash.ts';
 import {
+  largestWorkspaces,
+  type LargestWorkspaces,
+} from '../../session/workspace-usage.ts';
+import {
   dockerRm,
   dockerRmSucceeded,
+  dockerStop,
   isDockerMissingImage,
   isDockerNoSuchObject,
   runDocker,
@@ -99,6 +104,7 @@ import {
   type OrganizationTeardownResult,
   type SessionBackend,
   type SessionSpec,
+  type StopSessionOptions,
   type WorkspaceDeletion,
 } from '../types.ts';
 
@@ -904,6 +910,7 @@ export class DockerSessionBackend implements SessionBackend {
     sessionId: string,
     expectedCreatedAtMs?: number,
     expectedCreateAttemptId?: string,
+    graceMs = 0,
   ): Promise<{ existed: boolean; docker: boolean }> {
     const containerName = sessionContainerName(sessionId);
     let removalTarget = containerName;
@@ -943,6 +950,20 @@ export class DockerSessionBackend implements SessionBackend {
       }
     } catch {
       existed = false;
+    }
+    if (existed && graceMs > 0) {
+      // `rm --force` kills at once. A busy session gets its init's SIGTERM
+      // first, which runnerd passes on to its execs; the removal below then
+      // takes what the grace left, and its result is the one that counts.
+      const stop = await dockerStop(
+        removalTarget,
+        Math.max(1, Math.ceil(graceMs / 1000)),
+      );
+      if (stop.exitCode !== 0 && !isDockerNoSuchObject(stop.stderr)) {
+        console.warn(
+          `[sandbox.session] graceful stop of ${containerName} failed (exit ${stop.exitCode}); removing it at once: ${stop.stderr.trim() || 'no output'}`,
+        );
+      }
     }
     const removal = await dockerRm(removalTarget);
     if (!dockerRmSucceeded(removal)) {
@@ -1088,6 +1109,7 @@ export class DockerSessionBackend implements SessionBackend {
   async stopSession(
     sessionId: string,
     expectedCreatedAtMs?: number,
+    options: StopSessionOptions = {},
   ): Promise<boolean> {
     // Release compute but PRESERVE the host workspace dir — a later
     // createSession with the same sessionId re-mounts it (resume). The inner
@@ -1095,6 +1117,8 @@ export class DockerSessionBackend implements SessionBackend {
     const { existed, docker } = await this.removeContainer(
       sessionId,
       expectedCreatedAtMs,
+      undefined,
+      options.graceMs,
     );
     if (docker) await this.removeDindVolume(sessionId);
     // The pin belongs to the container that just went away; the resume's
@@ -1386,6 +1410,12 @@ export class DockerSessionBackend implements SessionBackend {
       });
     }
     return out;
+  }
+
+  /** One bounded, lowest-priority `du` over every workspace dir under the
+   * session root (workspace-usage.ts). */
+  largestWorkspaces(limit: number): Promise<LargestWorkspaces> {
+    return largestWorkspaces(this.cfg.hostSessionRoot, { limit });
   }
 
   /** Every workspace dir under the host session root, joined with the
