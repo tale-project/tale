@@ -16,13 +16,18 @@ import { t } from './i18n';
 const THREAD_URL = new RegExp(`/chat/(${ENTITY_ID})(?:[/?#]|$)`);
 
 /** The always-present composer textarea (resolved by its aria label). */
-export function composer(page: Page): Locator {
-  return page.getByRole('textbox', { name: t('chat.aria.chatInput') });
+export function composer(page: Page, resolveLabel: typeof t = t): Locator {
+  return page.getByRole('textbox', {
+    name: resolveLabel('chat.aria.chatInput'),
+  });
 }
 
 /** The composed-message send button (the Send⇄Stop toggle in its Send state). */
-export function sendButton(page: Page): Locator {
-  return page.getByRole('button', { name: t('chat.send'), exact: true });
+export function sendButton(page: Page, resolveLabel: typeof t = t): Locator {
+  return page.getByRole('button', {
+    name: resolveLabel('chat.send'),
+    exact: true,
+  });
 }
 
 /** The same toggle in its Stop state (visible only while a turn is in flight). */
@@ -34,8 +39,10 @@ function stopButton(page: Page): Locator {
 }
 
 /** The role=log region wrapping the rendered message bubbles. */
-export function messageLog(page: Page): Locator {
-  return page.getByRole('log', { name: t('chat.aria.messageHistory') });
+export function messageLog(page: Page, resolveLabel: typeof t = t): Locator {
+  return page.getByRole('log', {
+    name: resolveLabel('chat.aria.messageHistory'),
+  });
 }
 
 /**

@@ -1,5 +1,6 @@
 import { SiteHeader as SiteHeaderShell } from '@tale/marketing-ui/site-header';
 import { TaleLogo } from '@tale/ui/logo';
+import { useRouterState } from '@tanstack/react-router';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
 import { GithubLink } from '@/app/components/layout/github-link';
@@ -16,13 +17,21 @@ import {
   buildPlatformNavItems,
   buildResourcesNavItems,
 } from '@/app/content/nav-items';
-import type { NavMenuId } from '@/app/content/nav-menus';
+import { COMPARISON_NAV_ITEM, type NavMenuId } from '@/app/content/nav-menus';
+import { getPlatformIcon, getPlatformPage } from '@/app/content/platform-pages';
 import { HEADER_PRIMARY_CTA } from '@/app/content/site-ctas';
+import { getStartedUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { localizedPath } from '@/lib/i18n/locales';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 export function SiteHeader() {
   const { t } = useT('nav');
   const { t: tFooter } = useT('footer');
+  const locale = useCurrentLocale();
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
   const [openMenu, setOpenMenu] = useState<NavMenuId | null>(null);
 
   const setMenuOpen = useCallback((id: NavMenuId, open: boolean) => {
@@ -35,7 +44,18 @@ export function SiteHeader() {
   }, []);
 
   const platformRows = useMemo(() => buildPlatformNavItems(), []);
-  const resourcesRows = useMemo(() => buildResourcesNavItems(), []);
+  const resourcesRows = useMemo(() => buildResourcesNavItems(locale), [locale]);
+  const platformPage = getPlatformPage('hub');
+  const platformPath = localizedPath(locale, platformPage.path);
+  const platformActive =
+    pathname === platformPath || pathname.startsWith(`${platformPath}/`);
+  const platformOverview: NavMenuItemView = {
+    id: platformPage.id,
+    path: platformPage.path,
+    label: t('product.hub.label'),
+    description: t('product.hub.description'),
+    icon: getPlatformIcon('hub'),
+  };
 
   const platformItems: NavMenuItemView[] = platformRows.map((row) => ({
     id: row.id,
@@ -60,10 +80,21 @@ export function SiteHeader() {
         label={t('platform')}
         open={openMenu === 'platform'}
         onOpenChange={(open) => setMenuOpen('platform', open)}
+        active={platformActive}
+        overview={platformOverview}
         items={platformItems}
-        columns={1}
       />
-      <MarketingLink to="/pricing" tone="nav" active>
+      {COMPARISON_NAV_ITEM ? (
+        <MarketingLink
+          to={COMPARISON_NAV_ITEM.path}
+          tone="nav"
+          active
+          className="min-h-11"
+        >
+          {t(COMPARISON_NAV_ITEM.labelKey)}
+        </MarketingLink>
+      ) : null}
+      <MarketingLink to="/pricing" tone="nav" active className="min-h-11">
         {t('pricing')}
       </MarketingLink>
       <NavMenu
@@ -71,13 +102,13 @@ export function SiteHeader() {
         open={openMenu === 'resources'}
         onOpenChange={(open) => setMenuOpen('resources', open)}
         items={resourcesItems}
-        columns={1}
       />
     </>
   );
 
   const githubLabel = tFooter('githubAriaLabel');
   const getStartedLabel = t(HEADER_PRIMARY_CTA.labelKey);
+  const getStartedHref = getStartedUrl(locale);
 
   return (
     <SiteHeaderShell
@@ -88,6 +119,7 @@ export function SiteHeader() {
         <MarketingLink
           to="/"
           tone="plain"
+          activeOptions={{ exact: true, includeSearch: false }}
           aria-label={t('homeAriaLabel')}
           className="text-fg-base"
         >
@@ -99,24 +131,57 @@ export function SiteHeader() {
         <HeaderActions
           layout="desktop"
           getStartedLabel={getStartedLabel}
+          getStartedHref={getStartedHref}
           githubLabel={githubLabel}
         />
       }
       mobileNav={
-        <div className="flex flex-col gap-6">
+        <div className="[&_a[aria-current=page]]:bg-surface-site-inset [&_a]:hover:bg-surface-site-inset/70 flex flex-col gap-5">
+          <div className="border-border-base grid grid-cols-2 gap-1 border-b pb-3">
+            {COMPARISON_NAV_ITEM ? (
+              <MarketingLink
+                to={COMPARISON_NAV_ITEM.path}
+                tone="navMobile"
+                active
+                className="rounded-lg px-2 text-base"
+              >
+                {t(COMPARISON_NAV_ITEM.labelKey)}
+              </MarketingLink>
+            ) : null}
+            <MarketingLink
+              to="/pricing"
+              tone="navMobile"
+              active
+              className="rounded-lg px-2 text-base"
+            >
+              {t('pricing')}
+            </MarketingLink>
+          </div>
           <MobileNavGroup label={t('platform')}>
+            <li className="col-span-full">
+              <MarketingLink
+                to={platformPage.path}
+                tone="navMobile"
+                active
+                activeOptions={{ exact: true, includeSearch: false }}
+                className="rounded-lg px-2 text-base"
+              >
+                {t('product.hub.label')}
+              </MarketingLink>
+            </li>
             {platformRows.map((row) => (
               <li key={row.id}>
-                <MarketingLink to={row.path} tone="navMobile">
+                <MarketingLink
+                  to={row.path}
+                  tone="navMobile"
+                  active
+                  className="rounded-lg px-2 text-base"
+                >
                   {t(`product.${row.navKey}.label`)}
                 </MarketingLink>
               </li>
             ))}
           </MobileNavGroup>
-
-          <MarketingLink to="/pricing" tone="navMobile">
-            {t('pricing')}
-          </MarketingLink>
 
           <MobileNavGroup label={t('resources')}>
             {resourcesRows.map((row) => (
@@ -126,11 +191,17 @@ export function SiteHeader() {
                     href={row.href}
                     tone="navMobile"
                     showIcon={false}
+                    className="rounded-lg px-2 text-base"
                   >
                     {t(row.labelKey)}
                   </MarketingExternalLink>
                 ) : row.path ? (
-                  <MarketingLink to={row.path} tone="navMobile">
+                  <MarketingLink
+                    to={row.path}
+                    tone="navMobile"
+                    active
+                    className="rounded-lg px-2 text-base"
+                  >
                     {t(row.labelKey)}
                   </MarketingLink>
                 ) : null}
@@ -142,6 +213,7 @@ export function SiteHeader() {
             <HeaderActions
               layout="mobile"
               getStartedLabel={getStartedLabel}
+              getStartedHref={getStartedHref}
               githubLabel={githubLabel}
             />
           </div>
@@ -154,10 +226,12 @@ export function SiteHeader() {
 function HeaderActions({
   layout,
   getStartedLabel,
+  getStartedHref,
   githubLabel,
 }: {
   layout: 'desktop' | 'mobile';
   getStartedLabel: string;
+  getStartedHref: string;
   githubLabel: string;
 }) {
   const isMobile = layout === 'mobile';
@@ -171,7 +245,7 @@ function HeaderActions({
         size={isMobile ? 'lg' : 'default'}
       >
         <MarketingExternalLink
-          href={HEADER_PRIMARY_CTA.href}
+          href={getStartedHref}
           tone="plain"
           showIcon={false}
         >
@@ -196,7 +270,10 @@ function MobileNavGroup({
       <p className="text-fg-muted mb-2 text-xs font-medium tracking-wide uppercase">
         {label}
       </p>
-      <ul role="list" className="flex flex-col gap-3">
+      <ul
+        role="list"
+        className="grid grid-cols-1 gap-1 min-[360px]:grid-cols-2"
+      >
         {children}
       </ul>
     </div>

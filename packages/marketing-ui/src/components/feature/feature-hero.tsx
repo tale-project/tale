@@ -76,7 +76,7 @@ export function FeatureHero({
               align="start"
               eyebrow={eyebrow}
               title={title}
-              className="[--text-site-display:clamp(2.75rem,4.6vw,4.5rem)]"
+              className="[--text-site-display:clamp(2rem,4.6vw,4.5rem)] sm:[--text-site-display:clamp(2.75rem,4.6vw,4.5rem)]"
             />
             {supportingCopy}
           </Reveal>
@@ -94,6 +94,7 @@ export function FeatureHero({
               align="start"
               eyebrow={eyebrow}
               title={title}
+              className="[--text-site-display:clamp(2rem,5.8vw,5.25rem)] sm:[--text-site-display:clamp(2.75rem,5.8vw,5.25rem)]"
             />
             <Reveal className="flex max-w-lg min-w-0 flex-col gap-6 lg:pb-1">
               {supportingCopy}

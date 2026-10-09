@@ -35,7 +35,7 @@ export interface FeaturePageContent {
   eyebrow?: string;
   title: string;
   description: string;
-  /** Primary lead demo (DemoShell scene on an inset DemoStage). */
+  /** Actual product capture, including its own frame and caption. */
   visual?: ReactNode;
   /** Homepage-style stacked tour rows (copy + DemoStage + DemoShell). */
   tourHeading?: string;
@@ -115,6 +115,7 @@ export function FeaturePageLayout({
         title={content.title}
         description={content.description}
         visual={content.visual}
+        visualTreatment="plain"
       />
       {content.tourStages && content.tourStages.length > 0 ? (
         <DemoTourSection

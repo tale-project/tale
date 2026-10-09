@@ -7,6 +7,7 @@ import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { FormCard } from '@/app/components/blocks/form-card';
+import { formFieldErrorMessage } from '@/lib/forms/field-errors';
 import { type ContactInput, contactSchema } from '@/lib/forms/schemas';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
@@ -55,6 +56,8 @@ export function ContactPage() {
     mode: 'onBlur',
   });
   const errors = form.formState.errors;
+  const fieldError = (message?: string) =>
+    formFieldErrorMessage(message, tCommon);
 
   return (
     <FormCard
@@ -70,10 +73,11 @@ export function ContactPage() {
         label={t('fieldName')}
         htmlFor="c-name"
         required
-        error={errors.name?.message}
+        error={fieldError(errors.name?.message)}
       >
         <Input
           id="c-name"
+          required
           autoComplete="name"
           placeholder={t('placeholderName')}
           aria-invalid={Boolean(errors.name)}
@@ -85,10 +89,11 @@ export function ContactPage() {
         label={tCommon('email')}
         htmlFor="c-email"
         required
-        error={errors.email?.message}
+        error={fieldError(errors.email?.message)}
       >
         <Input
           id="c-email"
+          required
           type="email"
           autoComplete="email"
           placeholder={t('placeholderEmail')}
@@ -100,7 +105,7 @@ export function ContactPage() {
       <Field
         label={t('fieldCompany')}
         htmlFor="c-company"
-        error={errors.company?.message}
+        error={fieldError(errors.company?.message)}
       >
         <Input
           id="c-company"
@@ -115,10 +120,11 @@ export function ContactPage() {
         label={t('fieldMessage')}
         htmlFor="c-message"
         required
-        error={errors.message?.message}
+        error={fieldError(errors.message?.message)}
       >
         <Textarea
           id="c-message"
+          required
           rows={5}
           placeholder={t('placeholderMessage')}
           aria-invalid={Boolean(errors.message)}

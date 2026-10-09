@@ -12,7 +12,8 @@ import {
   type PlatformPageDef,
   type PlatformPageId,
 } from '@/app/content/platform-pages';
-import { DOCS_URL } from '@/lib/docs-url';
+import { getDocsUrl } from '@/lib/docs-url';
+import type { SupportedLocale } from '@/lib/i18n/locales';
 import type { LocalizedRoutePath } from '@/lib/seo/route-paths';
 
 interface PlatformNavItem {
@@ -41,12 +42,14 @@ export function buildPlatformNavItems(): readonly PlatformNavItem[] {
   }));
 }
 
-/** Resources rows — docs (external) first, then changelog / hardware. */
-export function buildResourcesNavItems(): readonly ResourcesNavItem[] {
+/** Resources rows — localized docs first, then supporting destinations. */
+export function buildResourcesNavItems(
+  locale: SupportedLocale = 'en',
+): readonly ResourcesNavItem[] {
   return [
     {
       id: RESOURCES_DOCS_ITEM.id,
-      href: DOCS_URL,
+      href: getDocsUrl(locale),
       labelKey: RESOURCES_DOCS_ITEM.labelKey,
       descriptionKey: RESOURCES_DOCS_ITEM.descriptionKey,
       icon: RESOURCES_DOCS_ITEM.icon,

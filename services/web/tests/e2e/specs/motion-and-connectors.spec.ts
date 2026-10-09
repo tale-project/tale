@@ -8,13 +8,6 @@ const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 for (const width of [390, 1280]) {
   for (const scene of [
     {
-      name: 'the agent roster',
-      path: '/platform/agents',
-      label: 'platformAgents.demos.connect.label',
-      parts: '[data-agent-row]',
-      opacities: ['1', '1', '1', '1', '1'],
-    },
-    {
       name: 'the Agents & connectors sandbox',
       path: '/',
       label: 'home.demos.sandbox.label',
@@ -126,16 +119,16 @@ test('changing motion preference completes an already-mounted offscreen demo', a
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await gotoClientPage(page, '/');
 
-  const govern = page.getByRole('img', {
-    name: t('home.demos.govern.label'),
+  const projects = page.getByRole('img', {
+    name: t('home.demos.projects.label'),
   });
   // This illustration is below the viewport and has not begun its timeline.
-  await expect(govern).not.toContainText(t('home.demos.govern.audit2'));
+  await expect(projects).not.toContainText(t('home.demos.projects.project3'));
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await expect(govern).toContainText(t('home.demos.govern.approved'));
-  await expect(govern).toContainText(t('home.demos.govern.audit2'));
+  await expect(projects).toContainText(t('home.demos.projects.project1'));
+  await expect(projects).toContainText(t('home.demos.projects.project3'));
 
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await govern.scrollIntoViewIfNeeded();
-  await expect(govern).toContainText(t('home.demos.govern.audit2'));
+  await projects.scrollIntoViewIfNeeded();
+  await expect(projects).toContainText(t('home.demos.projects.project3'));
 });
