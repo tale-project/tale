@@ -48,9 +48,14 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    (kind `model-api`), and the settlement's resolver reads that stamp. The same subject decides whom a task turn's connector
    calls act for: the connectors bridge (`domains/connectors/bridge-routes.ts`) resolves it on
    every call from the live run on the exec the turn's token names (`scope.connectorCaller`),
-   so a call is booked, audited and run for one person. A run's `started_by` is parsed only by
-   `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter anywhere else is
-   a defect.
+   so a call is booked, audited and run for one person. An automation's `llm` step — a
+   subautomation's included, which runs as one step of its parent's run — spends outside any
+   session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
+   run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
+   subject before each call and books the call after it. Every lane that measures a run's subject
+   builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A run's `started_by` is
+   parsed only by `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter
+   anywhere else is a defect.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
    `api-key:<userId>` / `trigger:<triggerId>` (the REST contract publishes it on `startedBy`;
    erasure and the trigger fire ledger read it) and `project_agent_runs.started_by` stays a bare
@@ -67,7 +72,8 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
    labelled row and no active user.
 9. **Spend in a project is the project's too.** Work that belongs to a project — a chat turn or
    title in one of its threads, an answer read aloud there, the chat's tool calls, a turn of one
-   of its agents or of an automation run in it (and that turn's images), a call made with the
+   of its agents or of an automation run in it (and that turn's images), a model call of such a
+   run's `llm` step, a call made with the
    project's own API key — names its projects to `incrementUsageLedger` (`projectIds`), which
    books the same figures into each project's buckets, `app.project_usage`, beside the ledger
    row. An automation run that names no project belongs to every project its automation is bound
@@ -89,6 +95,7 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
 | Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — | the thread's (`chat.generate_title` job) |
 | Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — | `project_agent_runs.project_id` |
 | Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| Automation `llm` step | `resolveAutomationRunAttribution` (`domains/automations/llm-metering.ts`) → `createPgUsageLedger` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
 | Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
 | Voice output | `domains/tts` | the requester | `__tts__` | — | the thread's |
 | Transcription | `domains/files/transcription.ts` | the requester | `__transcription__` | — | — |
@@ -112,6 +119,9 @@ page, the budget gate, erasure and retention are its readers. Beside it, `app.pr
   and a project agent run a schedule began.
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
+- `core/automations/llm_call.test.ts`, `domains/automations/llm-metering.test.ts` — an
+  automation's `llm` step is measured before each call, refused with `budget_exceeded` at a
+  reached cap, and booked under its run's subject after it, an empty reply included.
 - `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder
   with the key and books the gateway's figure under the person, `__direct_api__` and the key.
 - `domains/sandbox/image-generation.test.ts` — an agent's image is admitted and booked under its

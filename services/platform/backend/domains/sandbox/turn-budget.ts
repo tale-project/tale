@@ -1,9 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
+import { loadAttributedBudgetSubject } from '../governance/attributed-subject.ts';
 import {
-  loadBudgetSubject,
-  type OrgBudgetSubject,
   resolveTurnAllowance,
   type TurnAllowance,
 } from '../governance/budget-gate.ts';
@@ -78,36 +76,16 @@ export async function reserveTurnBudget(
     const attribution =
       args.subject ?? (await resolveSessionOpAttribution(tx, args));
     const userId = attribution?.userId ?? '';
-    const apiKey =
-      attribution?.apiKeyId !== undefined
-        ? { apiKeyId: attribution.apiKeyId }
-        : {};
-    // The projects the run is in: their caps bind the turn, a trigger's run
-    // included — it spends their budgets all the same.
-    const project =
-      attribution?.projectIds !== undefined
-        ? { projectIds: attribution.projectIds }
-        : {};
     // Nobody to measure — an op without a run to attribute, or a run a
     // trigger started — is evaluated against the organization's caps (and
     // the key's, were one involved) alone; a person is measured as they are
-    // now, teams and role included.
-    const subject: OrgBudgetSubject =
-      userId === '' || isAutomationSubject(userId)
-        ? {
-            organizationId: args.organizationId,
-            userId,
-            userTeamIds: [],
-            impersonal: true,
-            ...apiKey,
-            ...project,
-          }
-        : await loadBudgetSubject(tx, {
-            organizationId: args.organizationId,
-            userId,
-            ...apiKey,
-            ...project,
-          });
+    // now, teams and role included. The projects the run is in bind the
+    // turn either way: a trigger's run spends their budgets all the same.
+    const subject = await loadAttributedBudgetSubject(
+      tx,
+      args.organizationId,
+      attribution,
+    );
     // The chat lane's opens take the same budget-admission lock and hold on
     // their generation rows: the allowance counts live chat turns as well
     // as the unsettled ops, and they count it.

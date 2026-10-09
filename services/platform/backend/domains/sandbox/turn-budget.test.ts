@@ -53,6 +53,12 @@ function fakeSql(answers: Array<{ match: string; rows: unknown[] }>) {
   return { sql: sql as never, statements };
 }
 
+/** A workflow session's owner: the automation run it executes. */
+const WORKFLOW_SESSION = {
+  match: 'FROM app.sandbox_sessions s',
+  rows: [{ runId: 'run-1' }],
+};
+
 const ARGS = {
   organizationId: 'org-1',
   sessionId: 'pa-alice',
@@ -195,8 +201,9 @@ describe('reserveTurnBudget', () => {
       budgetCents: 500,
     });
     const { sql, statements } = fakeSql([
+      WORKFLOW_SESSION,
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'api-key:user-7',
@@ -370,8 +377,9 @@ describe('reserveTurnBudget', () => {
       budgetCents: 500,
     });
     const { sql, statements } = fakeSql([
+      WORKFLOW_SESSION,
       {
-        match: 'JOIN app.automation_runs ar',
+        match: 'FROM app.automation_runs ar WHERE',
         rows: [
           {
             startedBy: 'trigger:t-1',
@@ -442,8 +450,9 @@ describe('reserveTurnBudget', () => {
         budgetCents: 500,
       });
       const { sql, statements } = fakeSql([
+        WORKFLOW_SESSION,
         {
-          match: 'JOIN app.automation_runs ar',
+          match: 'FROM app.automation_runs ar WHERE',
           rows: [
             {
               startedBy: 'trigger:t-1',
@@ -506,8 +515,9 @@ describe('reserveTurnBudget', () => {
         budgetCents: 500,
       });
       const { sql, statements } = fakeSql([
+        WORKFLOW_SESSION,
         {
-          match: 'JOIN app.automation_runs ar',
+          match: 'FROM app.automation_runs ar WHERE',
           rows: [
             {
               startedBy: 'trigger:t-1',

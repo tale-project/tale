@@ -412,7 +412,8 @@ interface RunContext {
   automation: string;
   mode: 'mock' | 'live';
   deadline: number;
-  /** The llm door for this run's organization; live llm nodes go through it. */
+  /** The llm door for this run's organization; live llm nodes go through
+   * it, each call measured against and booked to the run's budgets. */
   llm: AutomationLlmCall;
   /** The agent door for this run's organization; live agent nodes kick, poll
    * and cancel their sandbox turns through it. */
@@ -672,9 +673,19 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
         input: effect.input,
       });
     }
+    if (result.kind === 'failed') {
+      // The inner step's cause is the sub-run's, as it would be at the top
+      // level: re-read from the sentence instead, a reached budget
+      // (`budget_exceeded`) read as `node_error`, which counts toward a
+      // schedule's pause.
+      throw new NodeFailure(
+        result.code,
+        `subautomation "${ref}" failed: ${result.message}`,
+      );
+    }
     if (result.kind !== 'done') {
       throw new Error(
-        `subautomation "${ref}" ${result.kind}: ${result.kind === 'failed' ? result.message : 'did not complete'}`,
+        `subautomation "${ref}" ${result.kind}: did not complete`,
       );
     }
     return result.output;
@@ -2023,8 +2034,9 @@ async function stepClaimedRun(
       // Built fresh every turn: each door closes over this invocation's ctx
       // and the run's own organization, and travels with this run alone —
       // a worker stepping two organizations' runs at once never lets one
-      // run's turn replace the other's gate.
-      llm: automationLlmCall(ctx, args.organizationId, { signal }),
+      // run's turn replace the other's gate. Each llm call is the run's
+      // spend.
+      llm: automationLlmCall(ctx, args.organizationId, args.runId, { signal }),
       agent: (agentHostFactory ?? automationAgentHost)(
         ctx,
         args.organizationId,
