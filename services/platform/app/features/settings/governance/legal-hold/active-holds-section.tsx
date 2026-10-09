@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
@@ -14,6 +15,7 @@ import { Lock, LockOpen } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useT } from '@/lib/i18n/client';
 
 import { useLegalHolds } from '../hooks/queries';
@@ -45,6 +47,7 @@ export function ActiveHoldsSection({
   organizationId,
 }: ActiveHoldsSectionProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const [targetTypeFilter, setTargetTypeFilter] = useState<
     FilterTargetType | 'all'
   >('all');
@@ -57,9 +60,19 @@ export function ActiveHoldsSection({
     data: rows,
     isLoading,
     isError,
+    error,
+    refetch,
+    isFetching,
+    errorUpdateCount,
   } = useLegalHolds(organizationId, {
     status: 'active',
     targetType: targetTypeFilter === 'all' ? undefined : targetTypeFilter,
+  });
+
+  const recovery = useListReadRecovery({
+    error,
+    results: rows ?? [],
+    retry: () => void refetch(),
   });
 
   const targetTypeOptions = useMemo(
@@ -241,19 +254,41 @@ export function ActiveHoldsSection({
             </Button>
           }
         />
-        <DataTable<LegalHoldRow>
-          columns={columns}
-          data={rows ?? []}
-          isLoading={isLoading}
-          approxRowCount={rows?.length}
-          getRowId={(row) => row._id}
-          emptyState={{
-            icon: Lock,
-            title: t('legalHold.sections.activeHolds.empty.title'),
-            description: t('legalHold.sections.activeHolds.empty.description'),
-          }}
-          caption={t('legalHold.sections.activeHolds.title')}
-        />
+        <div
+          ref={recovery.regionRef}
+          role="region"
+          aria-label={t('legalHold.sections.activeHolds.title')}
+          tabIndex={-1}
+          className="flex flex-col gap-4"
+        >
+          {recovery.failedWithRows && (
+            <CatalogLoadError
+              message={tCommon('errors.errorLoadingPage')}
+              onRetry={recovery.retryRead}
+              isRetrying={isFetching}
+              failureKey={errorUpdateCount}
+              onFocusLost={recovery.focusRegion}
+            />
+          )}
+          <DataTable<LegalHoldRow>
+            columns={columns}
+            data={rows ?? []}
+            isLoading={isLoading}
+            error={rows?.length ? null : error}
+            onRetry={recovery.retryRead}
+            onErrorFocusLost={recovery.focusRegion}
+            approxRowCount={rows?.length}
+            getRowId={(row) => row._id}
+            emptyState={{
+              icon: Lock,
+              title: t('legalHold.sections.activeHolds.empty.title'),
+              description: t(
+                'legalHold.sections.activeHolds.empty.description',
+              ),
+            }}
+            caption={t('legalHold.sections.activeHolds.title')}
+          />
+        </div>
       </SettingsSection>
 
       <PlaceHoldDialog

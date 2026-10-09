@@ -256,6 +256,21 @@ months, ISO week-year boundaries, out-of-window and future days are covered;
 a foreign organization reads zero. Chart granularity groups only current-window
 daily rows. Real PostgreSQL query execution remains an integration proof.
 
+Legal-hold lists distinguish settled read failures from successful empty responses
+and offer a retry for only the affected active-holds, pending-release,
+approved-release or history query. Cached rows remain visible during refetch and
+after a refetch failure; an incomplete history never claims to show all releases.
+`app/features/settings/governance/legal-hold/legal-hold-read-failure.test.tsx`
+covers these component states in jsdom. Live transport failures, layout and
+screen-reader recovery remain manual in [governance](../suites/governance.md).
+The same spec covers per-list keyboard retry through initial loading, repeated
+failure and recovery; cached retry stays mounted and focusable while busy,
+ignores duplicate activation and retains focus on repeated failure. Recovery
+hands focus to the localized list region, including passive refresh, without
+stealing focus moved outside the notice (TALE-625 B1). Post-frame assertions
+also cover focus moved after initial or cached errors unmount but before
+the deferred handoff runs, across all four lists (TALE-644).
+
 Text-only edits retain the original uploaded attachment references in both
 the send request and optimistic message, leave unrelated composer files
 staged, and keep regeneration on its original-prompt path:

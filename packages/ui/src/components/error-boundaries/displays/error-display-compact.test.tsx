@@ -105,6 +105,29 @@ describe('ErrorDisplayCompact', () => {
     const nextFrame = () =>
       new Promise((resolve) => requestAnimationFrame(resolve));
 
+    it('preserves focus moved after unmount before the handoff frame', async () => {
+      const onFocusLost = vi.fn();
+      const { rerender } = render(
+        <>
+          <button type="button">Elsewhere</button>
+          <ErrorDisplayCompact
+            error={new Error('Test error')}
+            reset={() => {}}
+            onFocusLost={onFocusLost}
+          />
+        </>,
+      );
+      screen.getByRole('button', { name: 'Try again' }).focus();
+      rerender(<button type="button">Elsewhere</button>);
+      expect(document.body).toHaveFocus();
+      const outside = screen.getByRole('button', { name: 'Elsewhere' });
+      outside.focus();
+      expect(outside).toHaveFocus();
+      await nextFrame();
+      expect(onFocusLost).not.toHaveBeenCalled();
+      expect(outside).toHaveFocus();
+    });
+
     it('hands the focus it held to onFocusLost', async () => {
       const onFocusLost = vi.fn();
       const { rerender } = render(
