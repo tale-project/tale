@@ -6,6 +6,7 @@ import { memo, useMemo } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { TaskActorDirectoryProvider } from '../hooks/task-actor-directory-context';
+import { isCollapsibleLane } from '../hooks/use-collapsed-lanes';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
 import { plannedTransitionKind } from '../hooks/use-task-status-choreography';
 import {
@@ -40,6 +41,8 @@ export const KanbanBoard = memo(function KanbanBoard({
   canWorkTask = readOnlyBoard,
   onAddTask,
   quickAdd,
+  collapsedLanes,
+  onLaneCollapsedChange,
 }: {
   tasks: TaskRow[];
   onOpenTask?: (task: TaskRow) => void;
@@ -52,6 +55,10 @@ export const KanbanBoard = memo(function KanbanBoard({
   onAddTask?: (status: TaskStatus) => void;
   /** Where each lane's "Add task" row creates. Absent with `onAddTask`. */
   quickAdd?: LaneQuickAddConfig;
+  /** The lanes folded to a rail (`useCollapsedLanes`). */
+  collapsedLanes?: ReadonlySet<TaskStatus>;
+  /** Fold or unfold a lane that can fold. Must be stable. */
+  onLaneCollapsedChange?: (status: TaskStatus, collapsed: boolean) => void;
 }) {
   const { t } = useT('tasks');
   const { confirmCancel, dialog } = useRunCancelConfirm();
@@ -141,6 +148,13 @@ export const KanbanBoard = memo(function KanbanBoard({
             dropHint={dropHints?.get(status) ?? null}
             {...(onAddTask !== undefined ? { onAddTask } : {})}
             {...(quickAdd !== undefined ? { quickAdd } : {})}
+            {...(onLaneCollapsedChange !== undefined &&
+            isCollapsibleLane(status)
+              ? {
+                  collapsed: collapsedLanes?.has(status) ?? false,
+                  onCollapsedChange: onLaneCollapsedChange,
+                }
+              : {})}
           />
         ))}
       </Row>

@@ -213,7 +213,9 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   the Docker data-root on XFS alone does not assign a project quota to each
   named volume. Tale does not configure those quotas. A fixed-size filesystem
   for the entire data-root bounds aggregate use, not individual sessions.
-  On K8s `emptyDir.sizeLimit` is enforced by eviction, which can lag writes.
+  On K8s the store's `emptyDir.sizeLimit` (`SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`,
+  default `20Gi`) and the Pod's `ephemeral-storage` limit are enforced by
+  eviction, which can lag writes.
   **Set a quota before exposing this to untrusted tenants** — an unbounded
   `docker build` loop can fill shared storage. Docker admission also observes
   the workspace filesystem and, where the spawner's hostname bind verifies

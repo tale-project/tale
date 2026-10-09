@@ -411,6 +411,12 @@ describe('the stepper and the effect ledger', () => {
       },
     });
     expect(model.calls).toHaveLength(1);
+    expect(model.calls[0]?.attempt).toEqual({
+      nodeId: 'summary',
+      itemIndex: 0,
+      pass: 0,
+      attempt: 2,
+    });
     expect(started.finished[0]?.output).toEqual({ text: 'a fresh summary' });
 
     const finished = fakeStepperWorld({

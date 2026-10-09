@@ -1,11 +1,13 @@
 title: Sandboxes
 sessionsTitle: Workspaces
 description:
-  Project agents reuse their workspaces across tasks. Workflow runs share one
-  workspace across their steps. A project agent's workspace stays until it goes
-  unused for longer than Workspace cleanup allows, or until its agent, project
-  or member is removed. Runtime status and organization quota allocation are
-  shown separately; a released allocation can still have a running container.
+  A project agent works each task it runs at the same time in a worker of its
+  own, a sandbox with its own workspace that later tasks reuse. Workflow runs
+  share one workspace across their steps. A worker's workspace stays until it
+  goes unused for longer than Workspace cleanup allows, or until its agent,
+  project or member is removed. Runtime status and organization quota
+  allocation are shown separately; a released allocation can still have a
+  running container.
 limits:
   title: Organization limits
   description:
@@ -14,6 +16,8 @@ limits:
     automatically and must fit within the deployment capacity.
   usage: 'Allocated: {used} / {limit}'
   usageUnavailable: Allocation data unavailable
+  # Under the agent workers limit: the runs a higher limit would start now.
+  waitingForWorkers: '{count, plural, one {# agent run is waiting for a free worker.} other {# agent runs are waiting for a free worker.}}'
   invalidSessions: Must be a whole number between 1 and 500.
   total: Total organization sessions
   totalValue: '{total} / {maxSessions}'
@@ -26,11 +30,11 @@ limits:
   saveFailed: Couldn't save sandbox limits
 quota:
   budgets:
-    project: Project agent sessions
+    project: Agent workers
     workflow: Workflow sessions
     render: Render sessions
   budgetHints:
-    project: Project agents reuse one sandbox across their tasks.
+    project: Each task an agent works on at the same time runs in a sandbox of its own.
     workflow: Agent and script steps share one sandbox per workflow run.
     render: Temporary sandboxes render web pages during website crawling.
 cleanup:
@@ -108,7 +112,7 @@ actions:
   destroy: Destroy
 destroyConfirm:
   title: Destroy sandbox?
-  description: This deletes the sandbox and its workspace. Any running task is cancelled. Once it is gone, the agent's next run creates a fresh sandbox.
+  description: This deletes the sandbox and its workspace. Any running task is cancelled. The agent's next run takes another free worker, or a fresh sandbox once this one is gone.
   confirm: Destroy
 toast:
   stopped: Task stopped
@@ -120,12 +124,17 @@ toast:
 empty:
   title: No workspaces yet
   description:
-    A project agent's workspace appears after its first task and stays until it
-    goes unused for longer than Workspace cleanup allows, or until its agent,
-    project or member is removed. A workflow run's workspace is reclaimed once
-    the run ends. Temporary crawler sessions are included in capacity counts
-    above.
+    A project agent's worker appears with its first task, one for each task it
+    works on at the same time. Its workspace stays until it goes unused for
+    longer than Workspace cleanup allows, or until its agent, project or member
+    is removed. A workflow run's workspace is reclaimed once the run ends.
+    Temporary crawler sessions are included in capacity counts above.
 accessDenied: You need developer or admin access to manage sandboxes.
+# Which of its agent's workers a workspace is: the agent's own, or one that
+# runs the agent for a member who started it.
+worker:
+  agent: Worker {number}
+  member: Member worker {number}
 deletedAgent: Deleted agent
 devices:
   title: Devices

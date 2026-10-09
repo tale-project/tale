@@ -42,10 +42,24 @@ gaps fail with `OUTPUT_GAP`. A failing output consumer also ends that attachment
 
 Cold runtime-image warming runs in the background. New local sessions wait
 with `429 runtime_image` and `Retry-After: 5`, while control, health and existing
-sessions remain available. Session lookups whose backend inventory or endpoint
+sessions remain available. Session containers start with `--pull=never`, so a
+host that lost the image (an `image prune` while no session ran) fails a create
+at once; that create restarts the warmup and answers the same `429
+runtime_image`. A pull that fails is retried after 30 s, 1, 2, 5 and then every
+10 minutes, and creates wait meanwhile (`Retry-After` follows the next pull,
+5–60 s). `GET /health` reports `runtimeImage: { state, lastError,
+nextAttemptAtMs }` with `state` one of `unchecked`, `pulling`, `ready` or
+`missing`; a missing image never makes the spawner unhealthy. Session lookups whose backend inventory or endpoint
 cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.
+
+Docker package-cache setup runs a short root helper to set each organization's
+cache volume to mode `1777`. Its BusyBox image is pinned to a multi-architecture
+digest in `src/volume.ts`; the repository's Renovate configuration tracks that
+pin. An uncached helper still needs Docker Hub on first use, within the existing
+120-second command bound. The pin fixes image identity; it does not preload the
+helper or remove that registry dependency.
 
 ## Authentication
 
@@ -104,6 +118,15 @@ There is no independently configured organization runtime ceiling. With
 `?organizationId=` the answer adds `deviceSessions`, the slots that
 organization's connected devices offer; the platform's ceiling for that
 organization is `maxSessions + deviceSessions`.
+
+Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
+CPU for the `default` profile) and a CPU weight below the control plane's:
+agent sessions and their organization's build helpers run at `--cpu-shares`
+256 (`SANDBOX_AGENT_CPU_SHARES`), `default` sessions at 128, against the
+default 1024 the database, backend and spawner keep (cgroup v2 weights of
+about 10 and 5 against 100). The weight matters only while the host's CPUs are
+saturated: busy sessions then yield to the control plane instead of stalling
+it, and on a host with spare CPU a session still uses its full quota.
 
 Size the ceiling against measured task peaks and the host resources remaining
 after platform services and safety headroom. See the
@@ -239,7 +262,7 @@ Pod and Secret identities, and preserves workspace PVCs and ambiguous objects.
 BuildKit solver parallelism follows the helper's CPU limit rounded down, at
 least one, and changes when an idle helper is recreated.
 
-The mirrors enable registry storage deletion so `registry:2` can expire cached
+The mirrors enable registry storage deletion so the registry can expire cached
 image layers after its seven-day lifetime. Without this setting, its expiry
 scheduler forgets failed deletions and the layers remain on disk. A spawner
 upgrade replaces older mirrors once no build is running, preserving their cache
@@ -261,6 +284,28 @@ let its agent sessions finish and unpin or stop any warm sessions, then leave
 the helpers stopped for the retention period. Its next build starts with a
 cold cache; session workspaces and package-cache volumes are separate.
 
+## Organization package caches
+
+On Docker, every session without Docker inside mounts its organization's
+pip (shared with uv), npm and bun cache volumes,
+`tale-sandbox-{pip,npm,bun}-cache-<organization>` with the
+`tale.sandbox-cache=1` label; sessions with Docker inside start with cold
+caches instead. None of these tools evicts on its own, so each create records
+the organization's last use under the session root, in
+`.package-caches/<organization>.used` beside `.pins/` and `.owners/`. Once an
+hour the host sweep removes an organization's three volumes when no session
+container of the organization exists, in any state, and that use is older
+than `SANDBOX_PACKAGE_CACHE_RETENTION` (14 days by default, as for the build
+caches; `off` keeps them until the organization is deleted). A session
+container the sweep sees counts as a use. Caches without a recorded use, such
+as those of a host upgraded from an earlier release, get one at first sight,
+so nothing goes before a full retention has passed. A create holds its
+organization's caches from before it prepares them until its container
+exists: no removal starts meanwhile, and a create that arrives during a
+removal waits for it; Docker also refuses to remove a volume a container
+mounts. The organization's next session after a removal starts with empty
+caches and fills them again.
+
 Kubernetes sessions use their inner Docker builder. The Kubernetes backend
 does not provision these organization helpers or call the Docker CLI during
 reconciliation. See the [Kubernetes deployment contract](docs/kubernetes.md).
@@ -270,6 +315,24 @@ attaches an organization build network, the spawner verifies the runtime's
 forwarding protection, including when adopting an older runtime image. Generated
 Docker containers explicitly disable IPv6 so IPv4-only deployments do not rely
 on host IPv6 firewall support. See the [operator environment reference](../../docs/en/self-hosted/configuration/environment-reference.md#sandbox-infrastructure).
+
+## Kubernetes session Pods
+
+Each session Pod's runner requests 256 MiB of node disk (`ephemeral-storage`)
+and may write 2 GiB outside its sized volumes (root filesystem, logs). Its
+limit adds the disk-backed `emptyDir` volumes it mounts: a crawler render's
+workspace (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, 4 GiB) and a DinD agent's inner
+Docker store (`SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`, 20 GiB). A session past
+its limit is evicted on its own instead of filling the node until the kubelet
+evicts platform Pods; `SANDBOX_K8S_EPHEMERAL_STORAGE_REQUEST` and
+`SANDBOX_K8S_EPHEMERAL_STORAGE_LIMIT` override the request and that headroom.
+
+Unset, session Pods schedule on any node. `SANDBOX_K8S_NODE_SELECTOR` (a JSON
+object of node labels), `SANDBOX_K8S_TOLERATIONS` (a JSON array of Pod
+tolerations) and `SANDBOX_K8S_PRIORITY_CLASS` place every session Pod,
+crawler renders included, on dedicated nodes and below the platform's
+priority; the spawner refuses to start on a value the apiserver would reject.
+See the [Kubernetes deployment contract](docs/kubernetes.md).
 
 ## Inner Docker networking
 
@@ -300,6 +363,13 @@ operator responsibilities and the egress IPv6 prerequisite.
 session root exists) `exec`s `entrypoint.sh` (the bun server launch) so signals
 reach the server directly. See the script headers for the split rationale.
 
+At start the Docker backend reads the daemon's live-restore setting and logs
+one warning when it is off: a daemon restart (an upgrade, a `daemon.json`
+change) then stops every session container and the spawner. The spawner never
+changes the host's daemon configuration; the
+[self-hosted docs](../../docs/en/self-hosted/operate/container-architecture.md#keep-sessions-running-through-a-docker-restart)
+describe turning it on, and why a Swarm node cannot.
+
 ```bash
 # from repo root
 docker build -f services/sandbox/Dockerfile .
@@ -307,6 +377,13 @@ docker build -f services/sandbox/Dockerfile .
 
 The `agent-light` profile keeps the agent user, coding tools and persistent
 workspace without inner Docker or BuildKit.
+
+The spawner pulls no helper image for sessions: an organization's new package
+cache volumes (pip, npm, bun) are made writable for every session uid (mode
+1777) by a short `--network none` run of `SANDBOX_RUNTIME_IMAGE` itself, with
+`/bin/chmod` as its entrypoint, so an air-gapped host needs nothing beyond the
+runtime image. A volume whose mode could not be set is removed again, and the
+next create makes it afresh.
 
 Reactivating a released session reserves its expected memory growth and checks
 disk headroom. Both create and acquire can return 429 `host_memory` or `host_disk`.

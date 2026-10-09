@@ -32,6 +32,7 @@ import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
+import { THREAD_COLUMN_CLASS } from '@tale/ui/thread/layout';
 import { ArrowDown, MessageSquare } from 'lucide-react';
 import {
   memo,
@@ -49,7 +50,6 @@ import {
   useResponseSlack,
 } from '../hooks/use-response-slack';
 import { createRowWaker, RowWakerContext } from '../hooks/use-row-wake';
-import { CHAT_MESSAGE_COLUMN_CLASS } from '../lib/layout';
 import type {
   ChatGenerationView,
   ChatMessageItem,
@@ -274,13 +274,15 @@ export const MessageThread = memo(function MessageThread({
         ref={containerRef}
         role="log"
         aria-label={t('aria.messageHistory')}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
+        // The column answers to the scroller's width (`@container`), not the
+        // window's: a chat beside an open panel is a narrow column.
+        className="@container flex min-h-0 flex-1 flex-col overflow-y-auto will-change-transform"
       >
         {/* The content wrapper's padding-top is the snap/slack inset — the
             surface's className carries the glass-bar clearance. */}
         <div
           ref={contentRef}
-          className={cn(CHAT_MESSAGE_COLUMN_CLASS, className)}
+          className={cn(THREAD_COLUMN_CLASS, 'py-6', className)}
         >
           {messages.length > 0 && (
             <RowWakerContext.Provider value={rowWaker}>

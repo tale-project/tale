@@ -115,7 +115,7 @@ export function ConversationAssigneePicker({
             assigneeId={assigneeUserId}
             name={assigneeName}
             size="sm"
-            className="border-background relative ml-2.5 border-2"
+            className="ring-background relative ml-2.5 ring-2"
           />
         </span>
         <span className="hidden items-center gap-2 @3xl/thread-header:flex">

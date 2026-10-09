@@ -655,9 +655,14 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         }
       }
     }
-    expect(step(job, 'Build and push').with?.['cache-from']).toBe(
+    expect(
+      String(step(job, 'Build and push').with?.['cache-from'])
+        .trim()
+        .split('\n'),
+    ).toEqual([
       'type=gha,scope=${{ matrix.service }}',
-    );
+      'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}-buildcache:amd64',
+    ]);
     const cache = String(step(job, 'Build and push').with?.['cache-to']);
     for (const [event, ref, expected] of [
       [

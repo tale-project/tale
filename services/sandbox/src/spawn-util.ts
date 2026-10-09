@@ -433,6 +433,14 @@ export function isDockerNoSuchObject(stderr: string): boolean {
   return /no such (object|container)/i.test(stderr);
 }
 
+/** Does a `docker run` stderr say the image is not on the host? With
+ * `--pull=never` the daemon answers "No such image"; a CLI that still tried
+ * an implicit pull says "Unable to find image" or, for a registry it cannot
+ * read, "pull access denied". */
+export function isDockerMissingImage(stderr: string): boolean {
+  return /no such image|unable to find image|pull access denied/i.test(stderr);
+}
+
 /**
  * `docker rm --force <name>`. Resolves with the CLI result — it never rejects,
  * and a host-side timeout reads as exitCode 124 — so callers MUST judge
@@ -466,7 +474,12 @@ export function dockerRmSucceeded(result: RunDockerResult): boolean {
  */
 export async function ensureImage(
   image: string,
-  opts: { attempts?: number; run?: typeof runDocker } = {},
+  opts: {
+    attempts?: number;
+    run?: typeof runDocker;
+    /** Hears why the last pull failed when the image stays absent. */
+    onFailure?: (detail: string) => void;
+  } = {},
 ): Promise<boolean> {
   // `run` is a test seam: the budget each call carries is part of the contract.
   const run = opts.run ?? runDocker;
@@ -487,6 +500,9 @@ export async function ensureImage(
     } else {
       console.error(
         `[sandbox] docker pull ${image} failed after ${attempts} attempts — stderr: ${result.stderr.trim()}`,
+      );
+      opts.onFailure?.(
+        result.stderr.trim() || `docker pull exited ${result.exitCode}`,
       );
     }
   }

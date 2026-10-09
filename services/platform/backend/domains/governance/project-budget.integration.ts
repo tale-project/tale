@@ -10,8 +10,9 @@ import { buildPeriodKeyFromTimestamp } from '../../core/governance/helpers.ts';
 import type { RecordCheck } from '../../integration-lane-helpers.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
 import {
-  openLlmStepCall,
-  settleLlmStepCall,
+  reserveLlmStepBudget,
+  llmStepOp,
+  recordLlmStepUsage,
 } from '../automations/llm-metering.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
 import {
@@ -20,11 +21,20 @@ import {
 } from '../chat/budget-admission.ts';
 import { createPgTurnStore } from '../chat/store.ts';
 import {
+  loadProjectSharedThread,
+  projectChatAccess,
+  setThreadSharedWithProject,
+} from '../chat/threads.ts';
+import { processErasure } from '../erasure/service.ts';
+import {
   openTranscriptionCall,
   settleTranscriptionCall,
   uploadTranscriptionSubject,
 } from '../files/transcription-metering.ts';
-import { settleSessionOpSpend } from '../sandbox/spend-settlement.ts';
+import {
+  reconcilePendingSessionOpKeys,
+  settleSessionOpSpend,
+} from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
 import { loadBudgetSubject, readBudgetStanding } from './budget-gate.ts';
 import { readInFlightReservations } from './budget-reservations.ts';
@@ -105,7 +115,13 @@ export async function checkProjectBudgets(
   const automationName = `itest/project-budget-${suffix}`;
   const runSession = `wf-itest-project-${suffix}`;
   let secondProjectId = '';
+  let llmSession = '';
   let runId = '';
+  const projectReaderId = randomUUID();
+  const erasureRequestId = randomUUID();
+  let erasureRunId = '';
+  let erasureSession = '';
+  const erasureAutomation = `itest/project-erasure-${suffix}`;
   // A hidden branch of the project's conversation, as an edit or a
   // regenerate leaves one: later turns run on it.
   const [branch] = await sql<{ id: string }[]>`
@@ -472,11 +488,11 @@ export async function checkProjectBudgets(
       return fixtureTx<{ id: string }[]>`
         INSERT INTO app.automation_runs (
           org_id, name, version, status, mode, started_by, input, checkpoints,
-          wake_at_ms, claim_epoch, started_at_ms
+          wake_at_ms, claim_epoch, lease_epoch, lease_expires_at_ms, started_at_ms
         ) VALUES (
           ${orgId}, ${automationName}, 1, 'running', 'live', 'trigger:itest',
           ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
-          ${null}, 1, ${now}
+          ${null}, 1, 1, ${now + 3_600_000}, ${now}
         ) RETURNING id
       `;
     });
@@ -532,39 +548,82 @@ export async function checkProjectBudgets(
       `admitted=${turn.allowed}, stamp=${JSON.stringify(runStamp[0]?.projectIds)} (want both projects), second project's hold=${JSON.stringify(secondHolds.projects?.[secondProjectId])} (want 10 cents), booked=${JSON.stringify(booked)} (want 60+7 and 7)`,
     );
 
-    // The run's llm steps are its spend too: each call holds its worst case
-    // in both projects while it runs, then is booked to both beside the
-    // ledger in the hold's place, under the automation subject and the
-    // automation's name.
+    // The run's llm steps are its spend too: each call is measured against
+    // both projects' caps, and booked to both beside the ledger, under the
+    // automation subject and the automation's name.
     const stepModel = `itest-model-${suffix}`;
-    const stepCall = {
+    const attemptFor = (nodeId: string) => ({
+      nodeId,
+      itemIndex: 0,
+      pass: 0,
+      attempt: 1,
+    });
+    for (const node of [
+      'llm-one',
+      'llm-two',
+      'llm-capped',
+      'llm-unknown',
+      'llm-crashed',
+    ]) {
+      await sql`
+        INSERT INTO app.automation_node_attempts
+          (org_id, run_id, node_id, kind, node_type, status, claim_epoch, started_at_ms)
+        VALUES (${orgId}, ${runId}, ${node}, 'llm', 'llm', 'started', 1, ${now})
+      `;
+    }
+    const reservation = (nodeId: string) => ({
       organizationId: orgId,
       runId,
-      automation: automationName,
+      attempt: attemptFor(nodeId),
       provider: 'itest',
       model: stepModel,
-    };
-    const bothProjects = {
+      reserveCents: 20,
+      reserveTokens: 50,
+    });
+    llmSession = llmStepOp(reservation('llm-one')).sessionId;
+    // Both calls would fit settled usage alone; only one fits the actual
+    // headroom once both the earlier model hold and the first LLM hold count.
+    const competing = await Promise.all([
+      reserveLlmStepBudget(sql, reservation('llm-one')),
+      reserveLlmStepBudget(sql, reservation('llm-two')),
+    ]);
+    const beforeCap = competing.find((result) => result.allowed);
+    record(
+      'project budgets: distinct direct LLM attempts serialize whole holds before a provider call',
+      competing.filter((result) => result.allowed).length === 1,
+      JSON.stringify(competing),
+    );
+    if (beforeCap === undefined || !beforeCap.allowed)
+      throw new Error('No direct LLM fixture admitted');
+    await sql`DELETE FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name = ${automationName} AND project_id = ${secondProjectId}`;
+    const heldAfterUnbind = await readInFlightReservations(sql, {
       organizationId: orgId,
       userId: '__automation__',
       userTeamIds: [],
-      projectIds: [projectId, secondProjectId],
-    };
-    const beforeCap = await openLlmStepCall(sql, {
-      ...stepCall,
-      promptTokens: 40,
-      maxOutputTokens: 100,
+      projectIds: [secondProjectId],
     });
-    const stepHolds = await readInFlightReservations(sql, bothProjects);
-    if (beforeCap.allowed) {
-      await settleLlmStepCall(sql, {
-        ...stepCall,
-        lease: beforeCap.lease,
-        inputTokens: 40,
-        outputTokens: 10,
-      });
-    }
-    const settledHolds = await readInFlightReservations(sql, bothProjects);
+    record(
+      'project budgets: a direct LLM hold retains the project unbound during the call',
+      heldAfterUnbind.projects?.[secondProjectId]?.costCents === 20,
+      JSON.stringify(heldAfterUnbind.projects),
+    );
+    await recordLlmStepUsage(sql, {
+      organizationId: orgId,
+      sessionId: beforeCap.sessionId,
+      execId: beforeCap.execId,
+      usage: { inputTokens: 40, outputTokens: 10, cents: 0 },
+    });
+    // Repeated delivery is idempotent; live bindings do not redirect spend.
+    await recordLlmStepUsage(sql, {
+      organizationId: orgId,
+      sessionId: beforeCap.sessionId,
+      execId: beforeCap.execId,
+      usage: { inputTokens: 40, outputTokens: 10, cents: 0 },
+    });
+    await sql`INSERT INTO app.automation_project_bindings
+      (org_id, automation_name, project_id, bound_at_ms, bound_by)
+      VALUES (${orgId}, ${automationName}, ${secondProjectId}, ${now}, ${userId})`;
     const stepBuckets = await sql<
       { projectId: string; tokens: number; requests: number }[]
     >`
@@ -598,17 +657,10 @@ export async function checkProjectBudgets(
       ].join('\n'),
     );
     clearOrgConfigCaches();
-    const atCap = await openLlmStepCall(sql, {
-      ...stepCall,
-      promptTokens: 40,
-      maxOutputTokens: 100,
-    });
+    const atCap = await reserveLlmStepBudget(sql, reservation('llm-capped'));
     record(
-      'project budgets: an automation’s llm step is held in, and booked to, every project its run is in',
+      'project budgets: an automation’s llm step is measured against, and booked to, every project its run is in',
       beforeCap.allowed &&
-        JSON.stringify(stepHolds.projects?.[secondProjectId]) ===
-          JSON.stringify({ costCents: 1, tokens: 140, requests: 1 }) &&
-        settledHolds.projects?.[secondProjectId] === undefined &&
         stepBuckets.length === 2 &&
         stepBuckets.find((row) => row.projectId === projectId)?.tokens === 72 &&
         secondBucket?.tokens === 57 &&
@@ -617,14 +669,360 @@ export async function checkProjectBudgets(
         stepLedger[0]?.userId === '__automation__' &&
         stepLedger[0].tokens === 50 &&
         !atCap.allowed &&
-        atCap.reason.includes("This project's monthly request limit"),
-      `before the cap=${JSON.stringify(beforeCap.allowed)} (want allowed), second project's hold while the call ran=${JSON.stringify(stepHolds.projects?.[secondProjectId])} (want 1 cent, 140 tokens, 1 request), after it=${JSON.stringify(settledHolds.projects?.[secondProjectId])} (want none), buckets=${JSON.stringify(stepBuckets)} (want 15+7+50 and 7+50 tokens, the second at 2 requests), ledger=${JSON.stringify(stepLedger)} (want 50 tokens under __automation__), at the cap=${JSON.stringify(atCap)} (want refused for the project's request limit)`,
+        atCap.violation?.scope === 'project' &&
+        atCap.violation.projectId === secondProjectId &&
+        atCap.violation.code === 'REQUEST_LIMIT' &&
+        atCap.violation.period === 'monthly' &&
+        atCap.violation.used === 2 &&
+        atCap.violation.limit === 2,
+      `before the cap=${JSON.stringify(beforeCap)} (want allowed), buckets=${JSON.stringify(stepBuckets)} (want 15+7+50 and 7+50 tokens, the second at 2 requests), ledger=${JSON.stringify(stepLedger)} (want 50 tokens under __automation__), at the cap=${JSON.stringify(atCap)} (want refused for the project's request limit)`,
+    );
+    await writeFile(
+      budgetsFile,
+      'enabled: true\nrules: []\nprojectRules: []\n',
+    );
+    clearOrgConfigCaches();
+    const unknown = await reserveLlmStepBudget(sql, {
+      ...reservation('llm-unknown'),
+      reserveCents: 2,
+      reserveTokens: 123,
+    });
+    if (!unknown.allowed)
+      throw new Error('Unknown-outcome fixture was refused');
+    await sql`UPDATE app.sandbox_session_ops SET started_at_ms = ${Date.now() - 180_001}
+      WHERE org_id = ${orgId} AND session_id = ${unknown.sessionId} AND exec_id = ${unknown.execId}`;
+    await recordLlmStepUsage(sql, {
+      organizationId: orgId,
+      sessionId: unknown.sessionId,
+      execId: unknown.execId,
+      usage: null,
+    });
+    const unknownFacts = await sql<
+      {
+        expected: number | null;
+        floor: number;
+        spent: number;
+        settled: boolean;
+      }[]
+    >`
+      SELECT expected_cents AS expected, floor_cents AS floor, spent_cents AS spent,
+        spend_settled_at_ms IS NOT NULL AS settled FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId} AND session_id = ${unknown.sessionId} AND exec_id = ${unknown.execId}`;
+    record(
+      'project budgets: unknown direct LLM outcome settles its durable reserved estimate, never no-key zero',
+      unknownFacts[0]?.expected === null &&
+        unknownFacts[0]?.floor === 2 &&
+        unknownFacts[0]?.spent === 2 &&
+        unknownFacts[0] !== undefined &&
+        unknownFacts[0].settled,
+      JSON.stringify(unknownFacts),
     );
 
-    // The other holds, on the real schema: a voice chunk being made holds
-    // its estimate in the project's thread until it is ready; a direct call
-    // past its deadline stops holding, and is still booked when it ends; a
-    // reply's later round raises its hold.
+    // A process can disappear after dispatch without saving terminal facts.
+    // The ordinary watchdog must find that running op and settle it once.
+    const crashedModel = `${stepModel}-crashed`;
+    const crashed = await reserveLlmStepBudget(sql, {
+      ...reservation('llm-crashed'),
+      model: crashedModel,
+      reserveCents: 3,
+      reserveTokens: 29,
+    });
+    if (!crashed.allowed) throw new Error('Crash fixture was refused');
+    const beforeCrash = await sql<{ running: boolean }[]>`
+      SELECT status = 'running' AND finalized_at_ms IS NULL
+        AND spend_settled_at_ms IS NULL AS running
+      FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId} AND session_id = ${crashed.sessionId} AND exec_id = ${crashed.execId}`;
+    const readCrashProjects = () => sql<{ projectId: string; cost: number }[]>`
+      SELECT project_id AS "projectId", cost_estimate_cents::float8 AS cost
+      FROM app.project_usage WHERE org_id = ${orgId} AND granularity = 'monthly'
+        AND project_id = ANY(${[projectId, secondProjectId]}) ORDER BY project_id`;
+    const beforeCrashProjects = await readCrashProjects();
+    await sql`DELETE FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name = ${automationName} AND project_id = ${secondProjectId}`;
+    await sql`UPDATE app.sandbox_session_ops SET started_at_ms = ${Date.now() - 180_001}
+      WHERE org_id = ${orgId} AND session_id = ${crashed.sessionId} AND exec_id = ${crashed.execId}`;
+    await reconcilePendingSessionOpKeys(sql, { batch: 100, now: Date.now() });
+    const crashFacts = await sql<
+      {
+        projectIds: string[] | null;
+        failed: boolean;
+        finalized: boolean;
+        expected: number | null;
+        floor: number;
+        spent: number;
+        settled: boolean;
+      }[]
+    >`
+      SELECT project_ids AS "projectIds", status = 'failed' AS failed,
+        finalized_at_ms IS NOT NULL AS finalized, expected_cents AS expected,
+        floor_cents AS floor, spent_cents AS spent,
+        spend_settled_at_ms IS NOT NULL AS settled FROM app.sandbox_session_ops
+      WHERE org_id = ${orgId} AND session_id = ${crashed.sessionId} AND exec_id = ${crashed.execId}`;
+    const afterCrashProjects = await readCrashProjects();
+    await reconcilePendingSessionOpKeys(sql, { batch: 100, now: Date.now() });
+    const afterRepeatedSweep = await readCrashProjects();
+    const crashLedger = await sql<
+      { cost: number; tokens: number; requests: number }[]
+    >`
+      SELECT cost_estimate_cents::float8 AS cost, total_tokens::float8 AS tokens,
+        request_count::float8 AS requests FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = ${automationName}
+        AND model = ${crashedModel} AND granularity = 'monthly'`;
+    record(
+      'project budgets: the ordinary sweep recovers a never-finalized direct LLM op once in its original projects',
+      beforeCrash[0] !== undefined &&
+        beforeCrash[0].running &&
+        crashFacts[0] !== undefined &&
+        JSON.stringify(crashFacts[0]?.projectIds) ===
+          JSON.stringify([projectId, secondProjectId].toSorted()) &&
+        crashFacts[0].failed &&
+        crashFacts[0].finalized &&
+        crashFacts[0]?.expected === null &&
+        crashFacts[0]?.floor === 3 &&
+        crashFacts[0]?.spent === 3 &&
+        crashFacts[0].settled &&
+        beforeCrashProjects.length === 2 &&
+        afterCrashProjects.length === 2 &&
+        afterCrashProjects.every(
+          (row) =>
+            row.cost ===
+            (beforeCrashProjects.find(
+              (prior) => prior.projectId === row.projectId,
+            )?.cost ?? -1) +
+              3,
+        ) &&
+        JSON.stringify(afterCrashProjects) ===
+          JSON.stringify(afterRepeatedSweep) &&
+        crashLedger.length === 1 &&
+        crashLedger[0]?.cost === 3 &&
+        crashLedger[0]?.tokens === 29 &&
+        crashLedger[0]?.requests === 1,
+      JSON.stringify({
+        beforeCrash,
+        crashFacts,
+        beforeCrashProjects,
+        afterCrashProjects,
+        afterRepeatedSweep,
+        crashLedger,
+      }),
+    );
+
+    // Refiling through a hidden sibling must end the root's old audience.
+    // The second member can access B, but not this conversation until the
+    // owner explicitly shares the canonical root again after the move.
+    await sql`INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt", "updatedAt")
+      VALUES (${projectReaderId}, ${`itest-budget-reader-${suffix}@example.test`}, 'Budget project reader', true, now(), now())`;
+    await sql`INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${randomUUID()}, ${orgId}, ${projectReaderId}, 'member', now())`;
+    await setThreadSharedWithProject(
+      sql,
+      { organizationId: orgId, userId },
+      projectThread,
+      true,
+    );
+    const beforeRefile = await loadProjectSharedThread(
+      sql,
+      orgId,
+      projectReaderId,
+      projectThread,
+    );
+    const targetAccess = await projectChatAccess(sql, {
+      organizationId: orgId,
+      userId: projectReaderId,
+      projectId: secondProjectId,
+    });
+    const refileBranch = await fetch(
+      `${base}/api/app/chat/threads/${branchThread}/project?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          cookie: ctx.cookie,
+          origin: base,
+        },
+        body: JSON.stringify({ projectId: secondProjectId }),
+      },
+    );
+    const movedLineage = await sql<
+      { threadId: string; projectId: string; shared: boolean | null }[]
+    >`
+      SELECT thread_id AS "threadId", project_id AS "projectId", shared_with_project AS shared
+      FROM app.thread_metadata WHERE org_id = ${orgId}
+        AND thread_id = ANY(${[projectThread, branchThread]})`;
+    const beforeReshare = await loadProjectSharedThread(
+      sql,
+      orgId,
+      projectReaderId,
+      projectThread,
+    );
+    await setThreadSharedWithProject(
+      sql,
+      { organizationId: orgId, userId },
+      projectThread,
+      true,
+    );
+    const afterReshare = await loadProjectSharedThread(
+      sql,
+      orgId,
+      projectReaderId,
+      projectThread,
+    );
+    record(
+      'project budgets: refiling through a hidden branch ends the original project share until the root is explicitly shared again',
+      beforeRefile?.id === projectThread &&
+        targetAccess === 'ok' &&
+        refileBranch.ok &&
+        movedLineage.length === 2 &&
+        movedLineage.every(
+          (row) =>
+            row.projectId === secondProjectId &&
+            row.shared !== null &&
+            !row.shared,
+        ) &&
+        beforeReshare === null &&
+        afterReshare?.id === projectThread &&
+        afterReshare.projectId === secondProjectId,
+      JSON.stringify({
+        beforeRefile: beforeRefile?.id,
+        targetAccess,
+        status: refileBranch.status,
+        movedLineage,
+        beforeReshare: beforeReshare?.id,
+        afterReshare: afterReshare?.id,
+      }),
+    );
+
+    // A producer is retired before its ops lose identity. A provider result
+    // arriving after erasure must use the preserved op's pseudonym, not
+    // recreate personal usage. Use the isolated reader created above.
+    const [erasureRun] = await sql.begin(async (fixtureTx) => {
+      await markAutomationWriterInTx(fixtureTx);
+      return fixtureTx<{ id: string }[]>`
+        INSERT INTO app.automation_runs (
+          org_id, name, version, status, mode, started_by, input, checkpoints,
+          wake_at_ms, claim_epoch, lease_epoch, lease_expires_at_ms, started_at_ms
+        ) VALUES (
+          ${orgId}, ${erasureAutomation}, 1, 'running', 'live', ${`user:${projectReaderId}`},
+          ${sql.json({})}, ${sql.json({ nodes: {}, executions: 0 })},
+          ${null}, 1, 1, ${Date.now() + 3_600_000}, ${Date.now()}
+        ) RETURNING id
+      `;
+    });
+    erasureRunId = erasureRun?.id ?? '';
+    for (const node of [
+      'erasure-settled',
+      'erasure-pending',
+      'erasure-too-late',
+    ]) {
+      await sql`
+        INSERT INTO app.automation_node_attempts
+          (org_id, run_id, node_id, kind, node_type, status, claim_epoch, started_at_ms)
+        VALUES (${orgId}, ${erasureRunId}, ${node}, 'llm', 'llm', 'started', 1, ${Date.now()})
+      `;
+    }
+    const erasureReservation = (nodeId: string) => ({
+      organizationId: orgId,
+      runId: erasureRunId,
+      attempt: attemptFor(nodeId),
+      provider: 'itest',
+      model: `erasure-${suffix}`,
+      reserveCents: 2,
+      reserveTokens: 20,
+    });
+    const settledRequest = await reserveLlmStepBudget(
+      sql,
+      erasureReservation('erasure-settled'),
+    );
+    const pendingRequest = await reserveLlmStepBudget(
+      sql,
+      erasureReservation('erasure-pending'),
+    );
+    if (!settledRequest.allowed || !pendingRequest.allowed)
+      throw new Error('Erasure direct LLM fixture was not admitted');
+    erasureSession = pendingRequest.sessionId;
+    await recordLlmStepUsage(sql, {
+      organizationId: orgId,
+      sessionId: settledRequest.sessionId,
+      execId: settledRequest.execId,
+      usage: { inputTokens: 8, outputTokens: 2, cents: 1 },
+    });
+    await sql`
+      INSERT INTO app.gdpr_erasure_requests (id, org_id, target_user_id, reason,
+        reason_code, requested_by, requested_at_ms, sla_deadline_at_ms, status)
+      VALUES (${erasureRequestId}, ${orgId}, ${projectReaderId}, 'Direct model settlement regression',
+        'consent_withdrawn', ${userId}, ${Date.now()}, ${Date.now() + 86_400_000}, 'pending')
+    `;
+    await processErasure(sql, erasureRequestId);
+    const afterErasure = await sql<
+      { execId: string; userId: string; settled: boolean }[]
+    >`
+      SELECT exec_id AS "execId", user_id AS "userId", spend_settled_at_ms IS NOT NULL AS settled
+      FROM app.sandbox_session_ops WHERE org_id = ${orgId} AND session_id = ${erasureSession}
+    `;
+    const [erasureReceipt] = await sql<
+      {
+        status: string;
+        counts: { modelApiRequests?: number; automationRuns?: number };
+      }[]
+    >`
+      SELECT status, counts FROM app.gdpr_erasure_requests WHERE id = ${erasureRequestId}
+    `;
+    let retiredAdmissionRefused = false;
+    try {
+      await reserveLlmStepBudget(sql, erasureReservation('erasure-too-late'));
+    } catch (error) {
+      retiredAdmissionRefused =
+        error instanceof Error &&
+        error.message === 'The LLM effect attempt is no longer current';
+    }
+    const lateUsage = {
+      organizationId: orgId,
+      sessionId: pendingRequest.sessionId,
+      execId: pendingRequest.execId,
+      usage: { inputTokens: 12, outputTokens: 3, cents: 2 },
+    };
+    await recordLlmStepUsage(sql, lateUsage);
+    await recordLlmStepUsage(sql, lateUsage);
+    const afterLateSettlement = await sql<
+      { userId: string; cost: number; requests: number }[]
+    >`
+      SELECT user_id AS "userId", cost_estimate_cents::float8 AS cost, request_count::int AS requests
+      FROM app.usage_ledger WHERE org_id = ${orgId} AND granularity = 'monthly'
+        AND agent_slug = ${erasureAutomation}
+    `;
+    const [personalUsage] = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND user_id = ANY(${[projectReaderId, `user:${projectReaderId}`, `api-key:${projectReaderId}`]})
+    `;
+    record(
+      'project budgets: erasure retires direct LLM producers and late settlement books once only under the erased-user pseudonym',
+      erasureReceipt?.status === 'done' &&
+        erasureReceipt.counts.modelApiRequests === 2 &&
+        erasureReceipt.counts.automationRuns === 1 &&
+        afterErasure.length === 1 &&
+        afterErasure[0]?.execId === pendingRequest.execId &&
+        afterErasure[0]?.userId === 'erased-user' &&
+        afterErasure[0] !== undefined &&
+        !afterErasure[0].settled &&
+        retiredAdmissionRefused &&
+        personalUsage?.count === 0 &&
+        afterLateSettlement.length === 1 &&
+        afterLateSettlement[0]?.userId === 'erased-user' &&
+        afterLateSettlement[0]?.cost === 2 &&
+        afterLateSettlement[0]?.requests === 1,
+      JSON.stringify({
+        erasureReceipt,
+        afterErasure,
+        retiredAdmissionRefused,
+        personalUsage,
+        afterLateSettlement,
+      }),
+    );
+
+    // The other holds, on the real schema: a direct call past its deadline
+    // stops holding, and is still booked when it ends; a reply's later round
+    // raises its hold.
     const inProject = {
       organizationId: orgId,
       userId,
@@ -634,23 +1032,7 @@ export async function checkProjectBudgets(
     const heldInProject = async (): Promise<number> =>
       (await readInFlightReservations(sql, inProject)).projects?.[projectId]
         ?.costCents ?? 0;
-    const chunkMessage = `itest-msg-${suffix}`;
     const baseline = await heldInProject();
-    await sql`
-      INSERT INTO app.tts_audio_chunks (
-        org_id, thread_id, message_id, user_id, chunk_index, text, status,
-        locale, created_at_ms, attempt_created_at_ms, reserved_cost_cents
-      ) VALUES (
-        ${orgId}, ${projectThread}, ${chunkMessage}, ${userId}, 0, 'Hello.',
-        'pending', 'en', ${Date.now()}, ${Date.now()}, 3
-      )
-    `;
-    const whileVoiced = await heldInProject();
-    await sql`
-      UPDATE app.tts_audio_chunks SET status = 'ready'
-      WHERE message_id = ${chunkMessage}
-    `;
-    const afterVoiced = await heldInProject();
 
     const directSlug = `itest-direct-${suffix}`;
     const lost = await openDirectCall(sql, {
@@ -696,16 +1078,14 @@ export async function checkProjectBudgets(
     const afterRound = await heldInProject();
     await sql`DELETE FROM app.generations WHERE thread_id = ${projectThread}`;
     record(
-      'project budgets: a voice chunk, a direct call and a reply’s later round hold in the project, and a lost direct call stops holding',
-      whileVoiced - baseline === 3 &&
-        afterVoiced === baseline &&
-        lost.allowed &&
+      'project budgets: a direct call and a reply’s later round hold in the project, and a lost direct call stops holding',
+      lost.allowed &&
         whileDirect - baseline === 5 &&
         released >= 1 &&
         afterRelease === baseline &&
         lateBooking[0]?.cost === 1.5 &&
         afterRound - beforeRound === 4,
-      `voice chunk held ${whileVoiced - baseline} then ${afterVoiced - baseline} (want 3 then 0), direct call held ${whileDirect - baseline} (want 5), released=${released} then ${afterRelease - baseline} (want ≥1 then 0), late booking=${JSON.stringify(lateBooking)} (want 1.5 cents), next round raised the reply's hold by ${afterRound - beforeRound} (want 4)`,
+      `direct call held ${whileDirect - baseline} (want 5), released=${released} then ${afterRelease - baseline} (want ≥1 then 0), late booking=${JSON.stringify(lateBooking)} (want 1.5 cents), next round raised the reply's hold by ${afterRound - beforeRound} (want 4)`,
     );
 
     // A recording added to the project's chat: its transcription is its
@@ -802,14 +1182,12 @@ export async function checkProjectBudgets(
     clearOrgConfigCaches();
     await sql`
       DELETE FROM app.sandbox_session_ops
-      WHERE org_id = ${orgId} AND session_id = ANY(${[opSession, runSession]})
+      WHERE org_id = ${orgId} AND session_id = ANY(${[opSession, runSession, llmSession, erasureSession]})
     `;
     await sql`
       DELETE FROM app.sandbox_session_ops
       WHERE org_id = ${orgId}
-        AND ((session_id = 'direct-call:llm-step'
-              AND agent_slug = ${automationName})
-          OR session_id = 'direct-call:itest'
+        AND (session_id = 'direct-call:itest'
           OR (session_id = 'direct-call:transcription'
               AND model_ref = ${`itest/itest-whisper-${suffix}`}))
     `;
@@ -827,16 +1205,12 @@ export async function checkProjectBudgets(
       WHERE org_id = ${orgId} AND model = ${`itest-whisper-${suffix}`}
     `;
     await sql`
-      DELETE FROM app.tts_audio_chunks
-      WHERE org_id = ${orgId} AND message_id = ${`itest-msg-${suffix}`}
-    `;
-    await sql`
       DELETE FROM app.sandbox_sessions
       WHERE org_id = ${orgId} AND session_id = ${runSession}
     `;
     await sql.begin(async (fixtureTx) => {
       await markAutomationWriterInTx(fixtureTx);
-      await fixtureTx`DELETE FROM app.automation_runs WHERE id = ${runId}`;
+      await fixtureTx`DELETE FROM app.automation_runs WHERE id = ANY(${[runId, erasureRunId]})`;
     });
     await sql`
       DELETE FROM app.automation_project_bindings
@@ -850,8 +1224,7 @@ export async function checkProjectBudgets(
     `;
     await sql`
       DELETE FROM app.usage_ledger
-      WHERE org_id = ${orgId}
-        AND agent_slug = ANY(${[agentSlug, automationName, `itest-direct-${suffix}`, `itest-unheld-${suffix}`]})
+      WHERE org_id = ${orgId} AND agent_slug = ANY(${[agentSlug, automationName, erasureAutomation, `itest-direct-${suffix}`, `itest-unheld-${suffix}`]})
     `;
     await sql`
       DELETE FROM app.project_usage
@@ -861,5 +1234,8 @@ export async function checkProjectBudgets(
     await sql`
       DELETE FROM app.projects WHERE id = ANY(${[projectId, secondProjectId]})
     `;
+    await sql`DELETE FROM app.gdpr_erasure_requests WHERE id = ${erasureRequestId}`;
+    await sql`DELETE FROM "member" WHERE "organizationId" = ${orgId} AND "userId" = ${projectReaderId}`;
+    await sql`DELETE FROM "user" WHERE "id" = ${projectReaderId}`;
   }
 }

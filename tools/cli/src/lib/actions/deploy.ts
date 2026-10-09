@@ -42,7 +42,6 @@ import { getContainerVersion } from '../docker/get-container-version';
 import { isContainerRunning } from '../docker/is-container-running';
 import { composeCreatedContainerFilters } from '../docker/list-service-containers';
 import { migrateConfigVolume } from '../docker/migrate-config-volume';
-import { pruneSupersededImages } from '../docker/prune-superseded-images';
 import { pullImage } from '../docker/pull-image';
 import { waitForHealthy } from '../docker/wait-for-healthy';
 import { waitForServiceHealthy } from '../docker/wait-for-service-healthy';
@@ -54,7 +53,6 @@ import {
 } from '../state/flip-pending';
 import { getCurrentColor } from '../state/get-current-color';
 import { getNextColor } from '../state/get-next-color';
-import { getPreviousVersion } from '../state/get-previous-version';
 import { setCurrentColor } from '../state/set-current-color';
 import { setPreviousVersion } from '../state/set-previous-version';
 import { withLock } from '../state/with-lock';
@@ -840,15 +838,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
           assumeYes: options.assumeYes ?? false,
         });
       }
-
-      // Each deploy pulls its images by version tag, so the versions it
-      // replaced keep their tags and stay on the host until removed here. The
-      // live version and the rollback target stay.
-      await pruneSupersededImages(
-        env.GHCR_REGISTRY,
-        [version, await getPreviousVersion(env.DEPLOY_DIR)],
-        { dryRun },
-      );
 
       if (!dryRun) {
         logger.success(`Deployment complete! Version ${version} is now live`);

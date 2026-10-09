@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 71 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -224,11 +224,11 @@ projects-list row ⋯ menu.
   replying is env-dependent — the mock stack may not run the mentioned agent):
   task detail sheet → **Comments** (`tasks.detail.comments`; empty state "No
   comments yet." `tasks.detail.noComments`) → type text containing `@` → the
-  mention picker **Mention a member or agent** (`tasks.mentionPicker.title`;
-  empty state **No matches** `tasks.mentionPicker.empty`) inserts a handle
-  (tip: a query containing a space dismisses the popup — type `@qa`, not `@QA
-  Team`; the inserted `@handle` renders as the display name after posting); an
-  agent handle shows the preview chip "{slug} will respond"
+  mention picker **Mention a member, agent, or automation**
+  (`tasks.mentionPicker.title`; empty state **No matches**
+  `tasks.mentionPicker.empty`) finds a name across its spaces (`@QA Team`) or a
+  handle (`@qa-team`), and the picked mention reads as the name in the field
+  and after posting; an agent mention shows the preview chip "{slug} will respond"
   (`tasks.mentionPreview.willRespond` — the substitution is the agent's
   **display name**, e.g. "Assistant will respond") or the queued variant
   (`tasks.mentionPreview.willQueue`) → **Comment** (`tasks.actions.comment`) →
@@ -407,6 +407,35 @@ projects-list row ⋯ menu.
   add an agent with **New agent** and delete the standard agent → **Assignee**
   (`tasks.fields.assignee`) in this project lists only the project's own
   agents and no **Standard agent**.
+- [ ] `PROJ-F62` · **An agent's handle on the Agents tab** — Add an agent
+  named "My Opus Agent #3" → its row on the **Agents** tab starts its caption
+  with `@my-opus-agent-3`; **Edit** (`projects.agents.rowEdit`) shows under
+  **Name** (`projects.agents.nameLabel`) **Mention it with @my-opus-agent-3.
+  Renaming the agent changes this.** (`projects.agents.handleHint`). Rename it
+  "QA Bot" and save → the row reads `@qa-bot`; rename it "qa bot" → the handle
+  stays `@qa-bot`. A new agent's create dialog shows no handle line.
+- [ ] `PROJ-F63` · **Two agents whose names make the same handle** — Add "My
+  Opus Agent #3" and then "My Opus Agent 3" → the second row reads
+  `@my-opus-agent-3-02`; in a task comment `@my-opus-agent-3` lists both, each
+  with its own handle in the caption, and picking each shows its own name.
+
+- [ ] `PROJ-F64` · **The equipment menu shows knowledge search and the write
+  tool** — Project → **Agents** → **New agent** → open **Skills, connectors &
+  tools** (`projects.agents.equipmentLabel`) → under **Knowledge**
+  (`projects.agents.tool.module.knowledge`) the first row **Search the
+  knowledge base** (`projects.agents.tool.knowledge_search`) reads **Always on
+  — no grant needed** (`projects.agents.tool.alwaysOn`), is switched on and
+  does not switch off when clicked; **Add and edit knowledge entries**
+  (`projects.agents.tool.knowledge_entry_write`) follows with **Writes data**
+  (`projects.agents.tool.writeBadge`). The agent's details list **Search the
+  knowledge base** first under **Platform tools**. An automation's agent step
+  shows the same two rows.
+- [ ] `PROJ-F65` · **The equipment menu searches as you type** — Open the same
+  menu → the caret is in the search field (`chat.skills.searchLabel`) → type
+  `knowledge` → only the Knowledge rows remain, still under their label → type
+  `zzz` → **Nothing matches your search.** (`chat.skills.searchEmpty`) → clear
+  the field, press Arrow Down → focus moves to the first row; Escape closes the
+  menu, and reopening shows every row again.
 
 ## Boundary & error tests
 
@@ -566,6 +595,11 @@ projects-list row ⋯ menu.
   group included. With focus on **Try again** (not pressed), a background
   refresh that fails again leaves it there; one that works moves it to the
   **Files** group.
+- [ ] `PROJ-B18` · **Names that make no plain handle** — Add agents named
+  "发票助手", "🚀", "Büro Agent" and a 60-character name → their rows read
+  `@agent`, `@agent-02`, `@buero-agent`, and a handle of at most 48 characters
+  with no trailing hyphen; mentioning each from a task comment shows its full
+  name in the field and in the chip, never an id.
 
 ## Performance
 

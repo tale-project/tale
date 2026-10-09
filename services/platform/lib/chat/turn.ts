@@ -349,6 +349,9 @@ export interface TurnStore {
  * booked usage replaces it once the turn settles. */
 export interface TurnSpend {
   readonly userId: string;
+  /** The projects captured with this request, also used by its settlement.
+   * An empty array is authoritative: refiling never changes a live bill. */
+  readonly projectIds?: readonly string[];
   /** The API key that authenticated the turn, when one did. */
   readonly apiKeyId?: string;
   readonly tokens: number;
@@ -1365,6 +1368,7 @@ export async function runTurn(
     // alone says has room.
     spend: {
       userId: request.userId,
+      projectIds: request.projectId !== undefined ? [request.projectId] : [],
       ...(request.apiKeyId !== undefined ? { apiKeyId: request.apiKeyId } : {}),
       tokens:
         context.estimatedTokens + (request.budget?.reserveOutputTokens ?? 0),

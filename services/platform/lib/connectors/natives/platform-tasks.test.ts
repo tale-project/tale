@@ -33,12 +33,14 @@ describe('localized workflow task comments', () => {
           authorType: 'agent',
           authorId: 'workflow',
           body: 'anchor',
+          bodyText: 'anchor',
           createdAt: 1,
         },
         {
           authorType: 'agent',
           authorId: 'workflow',
           body: 'Geprüft.',
+          bodyText: 'Geprüft.',
           bodyByLocale: bodies,
           createdAt: 2,
         },
@@ -61,6 +63,39 @@ describe('localized workflow task comments', () => {
     ).resolves.toMatchObject({
       count: 1,
       comments: [{ body: 'Geprüft.', bodyByLocale: bodies }],
+    });
+  });
+
+  it('finds a marker that names someone in the text read with names', async () => {
+    const listComments = vi.fn().mockResolvedValue({
+      comments: [
+        {
+          authorType: 'agent',
+          authorId: 'workflow',
+          body: 'Delivered to [@Ada](mention:user/u-1)',
+          bodyText: 'Delivered to @Ada Lovelace',
+          createdAt: 1,
+        },
+        {
+          authorType: 'user',
+          authorId: 'u-1',
+          body: 'Page 3 is off.',
+          bodyText: 'Page 3 is off.',
+          createdAt: 2,
+        },
+      ],
+      truncated: false,
+    });
+    const native = platformTaskNatives({ listComments } as never)[
+      'task.list_comments'
+    ];
+    await expect(
+      native?.({ taskId: 't-1', afterMarker: 'Delivered to @Ada Lovelace' }, {
+        organizationId: 'org-1',
+      } as never),
+    ).resolves.toMatchObject({
+      count: 1,
+      comments: [{ body: 'Page 3 is off.', bodyText: 'Page 3 is off.' }],
     });
   });
 
@@ -404,21 +439,38 @@ describe('task.start_agent', () => {
   });
 
   it('passes a start that started nothing through as data', async () => {
-    const busy = {
+    const blocked = {
       started: false,
-      reason: 'agent_busy',
-      runId: 'agent-run-2',
-      busyTaskId: 'task-2',
+      reason: 'blocked',
+      runId: null,
+      blockedBy: ['task-2'],
       taskId: 'task-1',
       agentId: 'agent-1',
     };
-    const startAgent = vi.fn().mockResolvedValue(busy);
+    const startAgent = vi.fn().mockResolvedValue(blocked);
     await expect(
       platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
         { taskId: 'task-1' },
         { organizationId: 'org-1', caller } as never,
       ),
-    ).resolves.toEqual(busy);
+    ).resolves.toEqual(blocked);
+  });
+
+  it('passes a started run that waits for a worker through as data', async () => {
+    const waiting = {
+      started: true,
+      runId: 'agent-run-3',
+      taskId: 'task-1',
+      agentId: 'agent-1',
+      waitingReason: 'org_limit',
+    };
+    const startAgent = vi.fn().mockResolvedValue(waiting);
+    await expect(
+      platformTaskNatives({ startAgent } as never)['task.start_agent']?.(
+        { taskId: 'task-1' },
+        { organizationId: 'org-1', caller } as never,
+      ),
+    ).resolves.toEqual(waiting);
   });
 
   it.each([

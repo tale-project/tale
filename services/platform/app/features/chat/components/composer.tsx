@@ -28,6 +28,10 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SendButton } from '@tale/ui/send-button';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
+import {
+  THREAD_COMPOSER_FIELD_CLASS,
+  THREAD_COMPOSER_FRAME_CLASS,
+} from '@tale/ui/thread/layout';
 import { Tooltip } from '@tale/ui/tooltip';
 import { toast } from '@tale/ui/use-toast';
 import { CircleStop, Loader2 } from 'lucide-react';
@@ -52,10 +56,6 @@ import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { hasVisibleText } from '@/lib/shared/utils/visible-text';
 
 import type { VideoLinkJob } from '../hooks/use-chat-video-links';
-import {
-  CHAT_COMPOSER_FIELD_CLASS,
-  CHAT_COMPOSER_FRAME_CLASS,
-} from '../lib/layout';
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { ComposerAttachments } from './composer-attachments';
@@ -406,7 +406,7 @@ export const Composer = memo(
             aria-label={t('aria.chatRegion')}
             as="section"
             // Soft top shadow lifts the composer off the conversation above it.
-            className={CHAT_COMPOSER_FRAME_CLASS}
+            className={THREAD_COMPOSER_FRAME_CLASS}
           >
             {onQuotedTextChange !== undefined && (
               <QuotedReferenceChip
@@ -496,7 +496,7 @@ export const Composer = memo(
                 // ring OFFSET shadow as a faint outline, so the offset goes to 0
                 // with it.
                 className={cn(
-                  CHAT_COMPOSER_FIELD_CLASS,
+                  THREAD_COMPOSER_FIELD_CLASS,
                   'text-foreground placeholder:text-muted-foreground relative resize-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0',
                 )}
               />

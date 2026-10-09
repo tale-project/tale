@@ -37,7 +37,7 @@ Gemini CLI is the exception: Tale never continues one of its conversations. A la
 
 With a stored API key or deployment-environment credential, Tale supplies a session-scoped gateway key. The original model-provider key stays at the platform. Calls through this gateway are metered and subject to the applicable spending rules, including allowance already assigned to other running turns.
 
-Vendor subscriptions use their supported agent runtime and receive the subscription credential in the session environment. They cannot be used as ordinary chat credentials or with an incompatible agent runtime, because the vendors permit subscription tokens only in their own runtime; [AI providers](/platform/admin/providers#use-subscriptions-in-tasks-not-in-chat) explains this. Their direct provider calls bypass Tale’s gateway metering and spending caps; review usage with the subscription provider.
+Vendor subscriptions use their supported agent runtime and receive the subscription credential in the session environment. Gemini is the exception: its Google sign-in is written to a file in the session’s home folder for the turn, and removed when the turn ends. They cannot be used as ordinary chat credentials or with an incompatible agent runtime, because the vendors permit subscription tokens only in their own runtime; [AI providers](/platform/admin/providers#use-subscriptions-in-tasks-not-in-chat) explains this. Their direct provider calls bypass Tale’s gateway metering and spending caps; review usage with the subscription provider.
 
 These model-credential rules do not mean the sandbox contains no secrets. Explicitly granted **Secrets**, and the token supplied for an equipped GitHub connection, can be available inside it. Grant only the access the task needs.
 

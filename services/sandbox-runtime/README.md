@@ -78,9 +78,11 @@ Attach replay waits for socket drain and disconnects a reader stalled for two
 seconds. The command continues under its existing deadline. Reconnect using
 the last sequence number. `replay-start` precedes history; `replay-complete`
 names the attachment's initial sequence watermark. Checkpoints are atomically
-committed and synced before acknowledged segments are removed. Normal disposal
-removes runtime-owned spool files; the entrypoint cleans their temporary directory
-at restart. Replay does not survive runtime restart, while the workspace does.
+committed (a temporary file renamed into place) before acknowledged segments are
+removed; they are not synced to disk, since nothing reads one after a restart.
+Normal disposal removes runtime-owned spool files; the entrypoint cleans their
+temporary directory at restart. Replay does not survive runtime restart, while
+the workspace does.
 
 Session idle and TTL cleanup atomically checks the current work generation and activity clock
 before freezing compute; see the [session contract](../sandbox/docs/sessions.md).
@@ -276,6 +278,13 @@ Docker logger or Kubernetes node owns rotation. They no longer accumulate in
 unbounded `/var/log/dockerd.log`, `/var/log/redsocks.log` or `/tmp/redsocks.log`
 files. Existing files are left intact; this change does not reclaim old logs.
 
+A session keeps its transparent egress up on its own. At boot the egress
+proxy's name is asked again for up to about five seconds before the session
+gives up on transparent egress (the first answer is used at once), and the
+session's redsocks runs under a restart loop as its own uid: one that exits is
+started again after 1 s, the delay doubling to 30 s and back to 1 s after a
+minute's good run.
+
 ```bash
 # from repo root
 docker build -f services/sandbox-runtime/Dockerfile .
@@ -292,10 +301,33 @@ during startup. An image update does not add models to the platform catalog;
 deploy the matching platform release before selecting newly supported models.
 
 BuildKit keeps native-addon headers and the built-in skill's Bun package cache
-outside runtime layers. OS tools, Office, TeX and the document libraries form
-a shared base without harness version arguments. Each harness installs in its
-own stage and exports an independent artifact layer, so refreshing one harness
-reuses the base and the other harnesses instead of storing new copies of them.
+outside runtime layers. Every host downloads and stores each layer whose bytes
+change, so the layout keeps a release's change to the layers it touched:
+
+- The OS chain (`tooling-base`: fonts and browser libraries, Office, TeX, the
+  Docker engine, then the everyday tools) carries no harness version argument
+  and no environment variable, and runs from the largest, stablest apt set to
+  the most often extended. Adding a tool rebuilds one small layer.
+- Each harness, the browser, and the document Python and Node libraries
+  install in stages that never build on the OS chain (`harness-base` holds just
+  Node and the download tools) and arrive as `COPY --link` layers of their own.
+  An OS change reinstalls none of them, and refreshing one re-ships only its
+  own layer. The guard in
+  `services/platform/tests/guards/dockerfile-fail-closed.guard.test.ts` holds
+  this layout.
+- A release build reads only its own registry cache, so an unchanged layer
+  keeps the previous release's bytes. Pull request and `main` builds read that
+  cache too, after their own.
+- Every base image and `COPY --from` image is pinned by digest; Renovate bumps
+  them, so a base refresh is a reviewed change rather than whatever a tag
+  pointed at when a cache missed.
+
+Payloads a headless Linux session never runs are removed in their stages:
+Cursor's two macOS-only single-executable builds, Codex's realtime voice host
+and Qwen's ripgrep builds for other platforms. The Python stdlib is compiled to
+hash-based bytecode at build time, because the read-only root cannot cache it
+at run time.
+
 The image remains shared by concurrent sessions.
 
 Headless Chromium is the only baked browser. Playwright scripts use their usual
@@ -345,9 +377,20 @@ selects the file matching the incoming settings and supplies only the bridge
 URL and a unique context filename through environment substitution. Repository
 settings cannot override that system policy. A platform/image policy mismatch
 fails before the CLI starts and asks for a runtime update. Agent execution
-remains non-root, and cancellation removes the private per-execution context
-file. Keep the harness catalog and runtime image aligned when changing Gemini
-settings.
+remains non-root. Keep the harness catalog and runtime image aligned when
+changing Gemini settings.
+
+The Gemini and Pi wrappers stage their per-execution files, then replace
+themselves with the CLI (`exec`, same pid): no Python process stays resident
+for the turn, and the CLI's exit status and signals are the execution's own.
+The prompt reaches the CLI on stdin from an anonymous temporary file. Nothing
+is left to remove the staged files when the CLI exits, so their names carry the
+execution's pid: Gemini's private context file under `~/.gemini/` (the only
+place Gemini reads a global context file from), and Pi's config directory
+under `$TMPDIR`. The next wrapper to start removes every one whose pid no
+longer runs, and the entrypoint empties `$TMPDIR` at every container start. A
+wrapper cancelled before its CLI starts removes what it staged itself. The
+Qwen, Hermes and OpenClaw wrappers run their CLI as a child and wait for it.
 
 ### Built-in skills
 
@@ -424,3 +467,9 @@ checks daemon liveness; `/readyz` also checks requested Docker capability.
 `/healthz` reuses that Docker snapshot and adds bounded, coalesced egress
 diagnostics when configured. Docker-disabled sessions remain ready; health
 failures do not hide activity or prevent file access and exec cancellation.
+A container launched with `TALE_RUNNERD_INCARNATION` (the spawner's creation
+stamp) names it as `incarnation` in `/healthz` and in every activity answer,
+and refuses with `409 incarnation_mismatch` an activity request whose
+`x-tale-runnerd-incarnation` header names another stamp, before anything
+changes. A malformed stamp is never named; without one, answers name none and
+requests are not checked.

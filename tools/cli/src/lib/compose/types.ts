@@ -197,6 +197,17 @@ export const THIRD_PARTY_IMAGES = {
 } as const satisfies Partial<Record<ServiceName, string>>;
 
 /**
+ * The pull-through registry mirror the spawner runs beside each
+ * organization's buildkitd: stock registry 2.8.3, pinned by digest so every
+ * host runs the same bytes. It is no compose service — the spawner pulls it at
+ * runtime from `SANDBOX_BUILDKITD_MIRROR_IMAGE`, and this is that variable's
+ * default in both compose pipelines and in the spawner's own config
+ * (`services/sandbox/src/config.ts`).
+ */
+export const BUILDKITD_MIRROR_IMAGE =
+  'registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373';
+
+/**
  * A single-architecture image needs the same selection in Compose and the
  * deploy pre-pull. ARM hosts also need amd64 emulation already configured.
  * Remove this exception once the object-store pin has a native arm64 build.

@@ -129,7 +129,7 @@ export async function sessionDestroyPending(
  * says nothing about a fresh workspace the id names today.
  */
 export async function sessionDestroyStates(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   sessionIds: readonly string[],
 ): Promise<Map<string, SandboxDestroyState>> {

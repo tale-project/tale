@@ -30,6 +30,20 @@ export class SessionIncarnationChangedError extends Error {
   }
 }
 
+/** A create found a LIVE session under the id's deterministic name — a
+ * running container, or a Pod that is neither terminating nor ended — that
+ * the route's registry does not hold: a peer replica's create, or compute
+ * this spawner lost track of (a restart before adoption). Nothing was
+ * touched. The route answers it as a duplicate, so the caller adopts the
+ * session through acquire instead of treating the create as failed and
+ * tearing down what runs under the id. */
+export class SessionExistsError extends Error {
+  constructor(sessionId: string, detail: string, options?: ErrorOptions) {
+    super(`session ${sessionId} already exists (${detail})`, options);
+    this.name = 'SessionExistsError';
+  }
+}
+
 export interface SweepOptions {
   /** Reap runtimes whose start time is older than this epoch-ms threshold. */
   staleBeforeMs: number;
@@ -57,7 +71,8 @@ export interface HostBackend {
 
   /** Liveness probe backing GET /health. */
   health(): Promise<HealthResult>;
-  /** Best-effort warm of the runtime image (no-op where the platform pulls). */
+  /** Make the runtime image present (no-op where the platform pulls).
+   * Throws while it stays absent, so the caller tries again later. */
   warmImage(): Promise<void>;
 
   /**
@@ -159,6 +174,14 @@ export interface CreateSessionResult {
    * the half-made workspace it provisioned itself.
    */
   resumed: boolean;
+  /**
+   * The incarnation runnerd named in the readiness answer this create waited
+   * for (see RUNNERD_INCARNATION_ENV): the route layer records it like any
+   * later runnerd answer, so a fresh or resumed session's first activity call
+   * needs no backend existence check. Absent when runnerd named none (an
+   * older runtime image, or a backend that launches without the stamp).
+   */
+  incarnation?: string;
 }
 
 /**
@@ -263,6 +286,10 @@ export interface SessionBackend {
     sessionId: string,
     expectedCreatedAtMs: number,
   ): Promise<boolean>;
+  /** Hear that a create found the runtime image missing on this host (an
+   * `image prune` on an idle Docker host removes it once no session uses
+   * it): the spawner pulls it again and holds creates until it is back. */
+  onRuntimeImageMissing?(listener: (detail: string) => void): void;
   /** List session objects (label-selected), for boot + periodic re-adoption
    * and the route layer's registry-miss re-resolve. THROWS when the backend
    * cannot list (daemon/API hiccup) — never returns `[]` for "couldn't tell":

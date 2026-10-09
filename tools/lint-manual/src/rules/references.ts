@@ -12,6 +12,7 @@ import { backtickedTokens } from '../parse';
 
 /** Registers whose citations must resolve, beside the guide itself. */
 const CITING = new Set(['automation.md', 'pins.md']);
+// Every `reference/automation/<suite>.md` shard cites boxes as well.
 
 /**
  * What a box ID looks like, independent of any prefix: uppercase and dashes,
@@ -66,6 +67,7 @@ export function references(repo: Repo): Finding[] {
     const citing = [
       ...(root.readme ? [root.readme] : []),
       ...root.reference.filter((doc) => CITING.has(doc.name)),
+      ...root.automationShards,
     ];
     for (const doc of citing) {
       for (const token of backtickedTokens(doc.text)) {
