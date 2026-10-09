@@ -14,6 +14,7 @@ page:
       p. ex. Réponds de manière concise. Utilise TypeScript par défaut
       pour le code.
 errors:
+  toggleFailed: "Ta préférence n'a pas été modifiée. Réessaie."
   saveFailed: Échec de l'enregistrement. Réessaie.
   loadFailed: Tes préférences n’ont pas pu être chargées. Les instructions personnalisées seront disponibles une fois les préférences chargées.
   tooLong: Les instructions personnalisées dépassent {max} caractères.
