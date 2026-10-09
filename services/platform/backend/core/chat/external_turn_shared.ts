@@ -500,7 +500,9 @@ const turnEndSchema = z.object({
     .optional(),
   isError: z.boolean().optional(),
   apiErrorStatus: z.number().optional(),
-  providerErrorKind: z.literal('model_capacity').optional(),
+  providerErrorKind: z
+    .enum(['model_capacity', 'subscription_access_disabled'])
+    .optional(),
 });
 const turnCheckpointSchema = z.object({
   version: z.literal(1),
