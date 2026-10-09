@@ -248,6 +248,25 @@ only an admin can lift them.
 - **Example**: The organization's balance at its provider is spent. Mia uploads a file → it
   shows **Failed** with the provider's refusal after one attempt, and it is not sent again.
 
+### KNOW-R18 · Indexing and searching count against the usage limits of whoever they are for
+
+Turning text into vectors is a request to the embedding model, and it counts like any other
+model request: indexing a file is the spend of the person who uploaded it — else of the
+document's creator, such as a synced drive's owner — in the document's project or the chat it
+was added to; indexing an emailed attachment, an inbound email or a page of a website a
+schedule scanned is the organization's; a search is the spend of the person searching, with
+the API key they search with and the project they search in. When a limit that applies has
+too little room, a search is refused before the model is asked, naming the limit, and is never
+answered as "nothing found"; indexing waits instead of failing: the document shows **Waiting
+for a usage limit** and indexing resumes by itself within the hour after the limit resets or
+is raised, after what it had already stored.
+
+- **Example**: Mia's monthly cost limit is used up. She uploads a handbook → it shows
+  **Waiting for a usage limit**; Ada raises the limit → within the hour the handbook is
+  indexed.
+- **Example**: A REST client searches with a key whose daily request limit is reached → 429
+  `BUDGET_EXCEEDED`, naming the key's limit and when it resets.
+
 ## How much a search returns
 
 ### KNOW-R13 · A search returns at most 50 passages, and 10 unless asked otherwise

@@ -58,6 +58,10 @@ The visual receives a `DemoStage` by default. Set `visualTreatment="plain"` when
 
 Use `SectionHeading layout="editorial"` when a section's description should sit beside its heading on desktop. `PageSection pad="compact"` provides shorter spacing for a proof strip or a small group of destinations. `surface="contrast"` creates an ink band with locally scoped foreground and action colors; neighboring sections keep their original palette. Reserve that change of pace for an important section rather than alternating every band.
 
+`MarketingSection` also accepts a `visual` slot beside the lead heading and controls. Use it for a
+page-specific pricing or hardware illustration; the host keeps the content, and existing sections
+without a visual retain their centered layout.
+
 ## Connect host routing
 
 Internal marketing links use the link component supplied by `MarketingRouterProvider`. Without that provider, the fallback is TanStack Router's Link, which still requires router context.
@@ -68,7 +72,7 @@ import {
   type MarketingLinkComponentProps,
 } from '@tale/marketing-ui/routing';
 
-function SiteLink({ to, activeProps: _activeProps, ...props }: MarketingLinkComponentProps) {
+function SiteLink({ to, activeProps: _activeProps, activeOptions: _activeOptions, ...props }: MarketingLinkComponentProps) {
   return <a href={to} {...props} />;
 }
 
@@ -78,6 +82,8 @@ export function MarketingRoot({ children }: { children: React.ReactNode }) {
 ```
 
 This plain-anchor adapter works without a client router and deliberately does not apply active-route styling. A localized router adapter should resolve locale prefixes and active styles in the host. Keep the package's `to` value a site path; do not duplicate locale routing inside each card or call to action.
+
+Pass `active` to `MarketingLink` for current-route styling. Use `activeOptions={{ exact: true, includeSearch: false }}` when a navigation link should match only its own page and remain current while query parameters change. The routing adapter forwards these options to the host router.
 
 ## Present product windows as illustrations
 

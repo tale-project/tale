@@ -1,6 +1,10 @@
 import type { Sql, TransactionSql } from 'postgres';
 
 import {
+  AUTOMATION_LLM_OP_KIND,
+  AUTOMATION_LLM_LIFETIME_MS,
+} from '../../core/automations/llm_budget.ts';
+import {
   type GatewayKeySettlementOutcome,
   type GatewayKeySettlementPort,
   type GatewaySpendReading,
@@ -15,6 +19,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { incrementUsageLedger } from '../governance/service.ts';
 import {
   resolveSessionOpAttribution,
+  withSessionOpBillingProjects,
   splitModelRef,
 } from './op-attribution.ts';
 
@@ -66,10 +71,15 @@ export interface SessionOpSettlementRow {
   organizationId: string;
   kind: string;
   mintedKeyId: string | null;
+  /** The hold the op took: 0 for a subscription turn's request, null when
+   * it reserved nothing. */
+  budgetCents: number | null;
   finalized: boolean;
   spendSettled: boolean;
   keyRevoked: boolean;
   hints: SpendHints;
+  startedAtMs: number;
+  reservedTokens: number | null;
 }
 
 /**
@@ -118,6 +128,9 @@ async function readSessionOpSettlement(
       settleAfter: number | null;
       floorCents: number | null;
       expectedCents: number | null;
+      startedAtMs: number;
+      budgetCents: number | null;
+      reservedTokens: number | null;
     }[]
   >`
     SELECT org_id AS "organizationId", kind,
@@ -127,7 +140,9 @@ async function readSessionOpSettlement(
            key_revoked_at_ms::float8 AS "keyRevokedAt",
            settle_after_ms::float8 AS "settleAfter",
            floor_cents::float8 AS "floorCents",
-           expected_cents::float8 AS "expectedCents"
+           expected_cents::float8 AS "expectedCents",
+           started_at_ms::float8 AS "startedAtMs", budget_cents::float8 AS "budgetCents",
+           reserved_tokens::float8 AS "reservedTokens"
     FROM app.sandbox_session_ops
     WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
     LIMIT 1
@@ -137,6 +152,9 @@ async function readSessionOpSettlement(
   return {
     organizationId: row.organizationId,
     kind: row.kind,
+    startedAtMs: row.startedAtMs,
+    budgetCents: row.budgetCents,
+    reservedTokens: row.reservedTokens,
     mintedKeyId: row.mintedKeyId,
     finalized: row.finalizedAt !== null,
     spendSettled: row.spendSettledAt !== null,
@@ -208,12 +226,17 @@ export async function settleSessionOpSpend(
     };
     const counted = usage.inputTokens > 0 || usage.outputTokens > 0;
     if (args.spentCents === null && !counted) return 'settled';
-    const attribution = await resolveSessionOpAttribution(tx, {
+    const attributionArgs = {
       organizationId: op.organizationId,
       sessionId: args.sessionId,
       execId: args.execId,
       kind: op.kind,
-    });
+    };
+    const attribution = await withSessionOpBillingProjects(
+      tx,
+      attributionArgs,
+      await resolveSessionOpAttribution(tx, attributionArgs),
+    );
     if (attribution === null) {
       // The fact is closed either way (the figure is on the op row); what is
       // lost is the ledger attribution, which needs a run to charge.
@@ -236,9 +259,58 @@ export async function settleSessionOpSpend(
       ...(attribution.agentSlug !== undefined
         ? { agentSlug: attribution.agentSlug }
         : {}),
+      ...(attribution.projectIds !== undefined
+        ? { projectIds: attribution.projectIds }
+        : {}),
       ...(ref !== null ? { model: ref.model, provider: ref.provider } : {}),
     });
     return 'settled';
+  });
+}
+
+/**
+ * Book a subscription turn — its hold a single request at no cost, its op
+ * keyless — as the request it was, once, with the tokens its harness
+ * reported when the caller has them. Any other op is left alone: a gateway
+ * turn books what its key spent, and a start that died before its mint
+ * spent nothing.
+ */
+export async function settleCostFreeTurn(
+  sql: Sql,
+  args: {
+    sessionId: string;
+    execId: string;
+    usage?: { inputTokens: number; outputTokens: number };
+  },
+): Promise<void> {
+  const rows = await sql<
+    {
+      budgetCents: number | null;
+      mintedKeyId: string | null;
+      spendSettledAt: number | null;
+    }[]
+  >`
+    SELECT budget_cents::float8 AS "budgetCents",
+           minted_key_id AS "mintedKeyId",
+           spend_settled_at_ms::float8 AS "spendSettledAt"
+    FROM app.sandbox_session_ops
+    WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
+    LIMIT 1
+  `;
+  const op = rows[0];
+  if (
+    op === undefined ||
+    op.budgetCents !== 0 ||
+    op.mintedKeyId !== null ||
+    op.spendSettledAt !== null
+  ) {
+    return;
+  }
+  await settleSessionOpSpend(sql, {
+    sessionId: args.sessionId,
+    execId: args.execId,
+    spentCents: 0,
+    ...(args.usage !== undefined ? { usage: args.usage } : {}),
   });
 }
 
@@ -300,8 +372,10 @@ export function pgGatewayKeySettlementPort(
 
 /**
  * Finish one op's settlement from wherever it stopped. An op that never
- * minted a key (the subscription lane, a start that died before its mint)
- * has nothing to settle: its facts are closed so its reservation frees.
+ * minted a key has no spend to read: a subscription turn — its hold a single
+ * request at no cost — is booked as that request, with whatever tokens its
+ * row carries, and a gateway start that died before its mint is closed with
+ * no booking; either way its reservation frees.
  */
 export async function reconcileSessionOpKey(
   sql: Sql,
@@ -309,6 +383,53 @@ export async function reconcileSessionOpKey(
 ): Promise<GatewayKeySettlementOutcome | null> {
   const op = await readSessionOpSettlement(sql, args);
   if (op === null || op.organizationId !== args.organizationId) return null;
+  if (op.kind === AUTOMATION_LLM_OP_KIND) {
+    if (op.spendSettled) return { spendSettled: true, keyRevoked: true };
+    const known = op.hints.expectedCents !== null;
+    const deadline =
+      op.hints.settleAfterMs ?? op.startedAtMs + AUTOMATION_LLM_LIFETIME_MS;
+    if (!known && Date.now() < deadline)
+      return { spendSettled: false, keyRevoked: true };
+    const cents = known ? op.hints.expectedCents : op.budgetCents;
+    if (
+      cents === null ||
+      !Number.isFinite(cents) ||
+      cents < 0 ||
+      (!known &&
+        (op.reservedTokens === null ||
+          !Number.isSafeInteger(op.reservedTokens) ||
+          op.reservedTokens < 0))
+    ) {
+      throw new Error(
+        'The direct LLM reservation has no valid settlement estimate',
+      );
+    }
+    if (!known) {
+      // A timeout/crash never proves zero spend. floor_cents marks the
+      // reserved estimate; expected_cents remains NULL (not reported usage).
+      const estimated = await sql<{ id: string }[]>`
+        UPDATE app.sandbox_session_ops SET
+          status = 'failed', finalized_at_ms = coalesce(finalized_at_ms, ${Date.now()}),
+          finished_at_ms = coalesce(finished_at_ms, ${Date.now()}), floor_cents = budget_cents
+        WHERE org_id = ${args.organizationId} AND session_id = ${args.sessionId}
+          AND exec_id = ${args.execId} AND kind = ${AUTOMATION_LLM_OP_KIND}
+          AND expected_cents IS NULL AND spend_settled_at_ms IS NULL
+        RETURNING id
+      `;
+      // A reported completion or another settlement won the row lock.
+      // Re-read its durable fact instead of replacing it with this estimate.
+      if (!estimated[0]) return reconcileSessionOpKey(sql, args);
+    }
+    await settleSessionOpSpend(sql, {
+      sessionId: args.sessionId,
+      execId: args.execId,
+      spentCents: cents,
+      ...(!known
+        ? { usage: { inputTokens: op.reservedTokens ?? 0, outputTokens: 0 } }
+        : {}),
+    });
+    return { spendSettled: true, keyRevoked: true };
+  }
   if (
     op.hints.settleAfterMs !== null &&
     Date.now() < op.hints.settleAfterMs &&
@@ -318,7 +439,12 @@ export async function reconcileSessionOpKey(
     return { spendSettled: op.spendSettled, keyRevoked: op.keyRevoked };
   }
   if (op.mintedKeyId === null) {
-    if (!op.spendSettled) {
+    if (!op.spendSettled && op.budgetCents === 0) {
+      await settleCostFreeTurn(sql, {
+        sessionId: args.sessionId,
+        execId: args.execId,
+      });
+    } else if (!op.spendSettled) {
       await sql`
         UPDATE app.sandbox_session_ops SET spend_settled_at_ms = ${Date.now()}
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
@@ -368,7 +494,9 @@ export async function reconcilePendingSessionOpKeys(
     SELECT org_id AS "organizationId", session_id AS "sessionId",
            exec_id AS "execId"
     FROM app.sandbox_session_ops
-    WHERE finalized_at_ms IS NOT NULL AND finalized_at_ms < ${cutoff}
+    WHERE ((finalized_at_ms IS NOT NULL AND finalized_at_ms < ${cutoff})
+        OR (kind = ${AUTOMATION_LLM_OP_KIND} AND finalized_at_ms IS NULL
+          AND started_at_ms <= ${options.now - AUTOMATION_LLM_LIFETIME_MS}))
       AND (spend_settled_at_ms IS NULL
         OR (minted_key_id IS NOT NULL AND key_revoked_at_ms IS NULL))
       AND (settle_after_ms IS NULL OR settle_after_ms <= ${options.now})

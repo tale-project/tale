@@ -48,8 +48,12 @@ import {
   harnessMountsMcp,
   harnessResumesConversations,
   isManagedHarness,
+  nextWindowDelayMs,
+  removeStagedSubscription,
   resolveHarnessTurnContextWindow,
   SKILLS_DIR,
+  SPAWNER_OUTAGE_BUDGET_MS,
+  spawnerOutageOutlasted,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
 import type { ActionCtx } from '../lib/ctx';
@@ -687,6 +691,21 @@ export async function releaseTurnKey(
     );
     spentCents = outcome.spentCents;
     pending = settlementPending(outcome);
+  } else if (op?.budgetCents === 0 && op.spendSettled !== true) {
+    // A subscription turn: no key to read a spend from. It cost the
+    // organization nothing per call, and is booked as the request it was,
+    // with the tokens its harness reported — before the terminal stamp
+    // below closes a keyless op without a booking.
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.recordSessionOpSpend,
+      {
+        sessionId,
+        execId,
+        spentCents: 0,
+        ...(args.usageTotals !== undefined ? { usage: args.usageTotals } : {}),
+      },
+    );
+    spentCents = 0;
   }
   await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
     organizationId: args.organizationId,
@@ -1170,6 +1189,28 @@ async function mintWorkflowTurnAuth(
     throw new Error(
       `provider "${args.providerSlug}" resolved to the subscription lane without an API base URL — rerun the automation`,
     );
+  }
+  // A subscription turn costs the organization nothing per call, but it is a
+  // request: it holds one while it runs, and is refused before any
+  // credential is vended once a request or token cap that binds its run is
+  // reached. Cost caps cannot bind it — it adds no cost.
+  const reservation = readReserveTurnBudgetResult(
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.reserveTurnBudget,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: 'workflow-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+        modelRef: `${args.providerSlug}/${args.modelId}`,
+        harness: args.harness,
+      },
+    ),
+  );
+  if (!reservation.allowed) {
+    throw new TurnBudgetExceededError(reservation.reason);
   }
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
@@ -1721,6 +1762,23 @@ export function isWorkflowTurnLive(
   );
 }
 
+/** Whether a newer agent exec of a live run holds its session now (a retry
+ * of the node, or the next agent node): that exec stages its own
+ * subscription credential, so an older turn must leave the file alone. */
+function heldByNewerExec(
+  state: AgentCursorState | null,
+  execId: string,
+): boolean {
+  const agent = state?.cursor?.agent;
+  return (
+    state !== null &&
+    LIVE_RUN_STATUSES.has(state.status) &&
+    agent !== undefined &&
+    agent.execId !== execId &&
+    agent.result === undefined
+  );
+}
+
 /**
  * Why a scheduled start must not run, or null when it may. Deliberately
  * LENIENT where `isWorkflowTurnLive` is strict: the kick enqueues the start
@@ -1841,6 +1899,9 @@ export async function driveWorkflowAgentTurnImpl(
       execId: args.execId,
       status: 'cancelled',
     });
+    if (!heldByNewerExec(state, args.execId)) {
+      await removeStagedSubscription(args.sessionId, args.harness);
+    }
     // The run went terminal while this turn was live, so the terminal
     // hooks' hibernate skipped past it — the op is terminal now.
     await ctx
@@ -1878,6 +1939,9 @@ export async function driveWorkflowAgentTurnImpl(
       onText: progress.onText,
       onTimeline: progress.onTimeline,
       ...(options.signal !== undefined && { signal: options.signal }),
+      ...(args.spawnerOutageSince !== undefined && {
+        spawnerOutageSince: args.spawnerOutageSince,
+      }),
     });
   } catch (err) {
     console.error('[agent-host] drive window threw:', err);
@@ -2369,6 +2433,9 @@ interface TurnKeys {
   providerSlug: string;
   gatewayModel: string;
   deadlineAt: number;
+  /** Since when the turn's spawner has been out of reach, carried from one
+   * drive window to the next while it stays away. */
+  spawnerOutageSince?: number;
 }
 
 /**
@@ -2470,6 +2537,30 @@ async function continueOrSettle(
   args: TurnKeys,
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
 ): Promise<void> {
+  if (spawnerOutageOutlasted(window)) {
+    // The spawner stayed out of reach past the outage budget: stop waiting
+    // and settle as a drain failure does — reap the exec first (best-effort:
+    // the spawner may answer again by now), so the CLI does not keep
+    // working unobserved.
+    console.error(
+      `[agent-host] the sandbox spawner stayed out of reach for ${args.execId} past the outage budget — settling the turn`,
+    );
+    await sessionCancelExec(args.sessionId, args.execId).catch((cancelErr) =>
+      console.warn(
+        '[agent-host] exec cancel after the spawner outage failed:',
+        cancelErr,
+      ),
+    );
+    await settleWorkflowAgentTurn(ctx, args, {
+      errored: true,
+      reason: `the agent turn stopped unexpectedly: the sandbox service could not be reached for ${Math.round(SPAWNER_OUTAGE_BUDGET_MS / 60_000)} minutes`,
+      // Past the deadline it is the deadline, as for a drain that died there.
+      failureCode: Date.now() > args.deadlineAt ? 'deadline' : 'turn_crashed',
+      text: '',
+      files: [],
+    });
+    return;
+  }
   if (window.kind === 'running') {
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
       organizationId: args.organizationId,
@@ -2480,7 +2571,7 @@ async function continueOrSettle(
       heartbeatAt: Date.now(),
     });
     await ctx.scheduler.runAfter(
-      0,
+      nextWindowDelayMs(window),
       internal.automations.agent_host.driveWorkflowAgentTurn,
       {
         organizationId: args.organizationId,
@@ -2493,6 +2584,9 @@ async function continueOrSettle(
         providerSlug: args.providerSlug,
         gatewayModel: args.gatewayModel,
         deadlineAt: args.deadlineAt,
+        ...(window.spawnerOutageSince !== undefined
+          ? { spawnerOutageSince: window.spawnerOutageSince }
+          : {}),
       },
     );
     return;
@@ -2572,6 +2666,8 @@ async function continueOrSettle(
         ? { exitCode: window.execResult.exitCode }
         : {}),
     });
+    // The turn that answers the question stages its credential again.
+    await removeStagedSubscription(args.sessionId, args.harness);
     return;
   }
   if (pendingAsk !== null) {
@@ -2636,6 +2732,7 @@ async function continueOrSettle(
         ? { agentResultStatus: ended.status }
         : {}),
       harvest: true,
+      execExited: window.exited,
     },
   );
 }
@@ -2654,6 +2751,9 @@ async function settleWorkflowAgentTurn(
     exitCode?: number;
     agentResultStatus?: string;
     harvest?: boolean;
+    /** The turn's exec exited on its own before the settle, so the harvest
+     * reads a box nothing is still writing to. */
+    execExited?: boolean;
   } = {},
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
@@ -2674,23 +2774,27 @@ async function settleWorkflowAgentTurn(
     // write. The record has its own first-wins gate, so finishing the dead
     // winner's job is safe: when the result is already there this returns
     // without touching anything.
-    const state = await ctx.runQuery(
-      internal.automations.queries.readAgentCursor,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
-      { organizationId: args.organizationId, runId: args.runId as never },
-    );
+    const state = await readCursorState(ctx, args);
     const agent = state?.cursor?.agent;
     if (
       agent === undefined ||
       agent.execId !== args.execId ||
       agent.result !== undefined
     ) {
+      // Settled by someone else (a cancel, the watchdog), but this turn's
+      // exec is over all the same.
+      if (!heldByNewerExec(state, args.execId)) {
+        await removeStagedSubscription(args.sessionId, args.harness);
+      }
       return;
     }
     console.warn(
       `[agent-host] finalize claim for ${args.execId} was burned with no recorded result — completing the dead settle's record`,
     );
   }
+  // The turn is over: its staged subscription credential leaves the session
+  // with it.
+  await removeStagedSubscription(args.sessionId, args.harness);
 
   // The broker account that served this exec, when one did: a 429 cools it
   // down, and a 401 on it is the broker refreshing the account under the
@@ -2740,6 +2844,7 @@ async function settleWorkflowAgentTurn(
         organizationId: args.organizationId,
         sessionId: args.sessionId,
         execId: args.execId,
+        ...(opts.execExited === true ? { execExited: true } : {}),
       });
       files = harvested.files.map((file) => ({
         name: file.path.split('/').at(-1) ?? file.path,

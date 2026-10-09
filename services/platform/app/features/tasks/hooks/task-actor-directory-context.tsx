@@ -10,8 +10,6 @@ import {
 } from './actor-directory-scope';
 import { useActorDirectory, useAssignableActors } from './use-actor-directory';
 
-export type { TaskMentionActor } from './actor-directory-scope';
-
 /** Task bodies and standalone consumers share the same directory as the
  * upstream ActorDirectoryProvider API, including its scope and mention index. */
 export function TaskActorDirectoryProvider({
@@ -126,6 +124,16 @@ export function useTaskMentionActors(
   projectId?: string,
 ) {
   return useScopedDirectory(organizationId, projectId).mentions;
+}
+
+/** Whether the people, agents and automations a mention can name are still
+ * on their way: a mention of someone not listed yet is not someone gone. */
+export function useTaskMentionsPending(
+  organizationId: string,
+  projectId?: string,
+): boolean {
+  return useScopedDirectory(organizationId, projectId).directory
+    .mentionsPending;
 }
 
 export function useTaskAssignableActors(

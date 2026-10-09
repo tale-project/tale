@@ -86,11 +86,10 @@ vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
   useTaskSubjectContract: () => null,
 }));
 vi.mock('./task-comments', () => ({
-  TaskComments: () => null,
   TaskCommentComposer: () => null,
   TaskCommentComposerSkeleton: () => null,
 }));
-vi.mock('./task-timeline', () => ({ TaskTimeline: () => null }));
+vi.mock('./task-conversation', () => ({ TaskConversation: () => null }));
 vi.mock('./task-dependencies', () => ({ TaskDependencies: () => null }));
 vi.mock('./task-automation-badge', () => ({ TaskAutomationBadge: () => null }));
 vi.mock('./task-subject-panel', () => ({ TaskSubjectPanel: () => null }));

@@ -6,7 +6,9 @@ before adding a lane that spends on the organization's behalf or a reader that f
 The ledger is `app.usage_ledger` (`db/migrations/0020_governance_usage.sql`): period buckets —
 daily, weekly, monthly — per (organization, user, agent, model, provider, API key, connector
 operation). `incrementUsageLedger` in [`service.ts`](service.ts) is its one writer; the usage
-page, the budget gate, erasure and retention are its readers.
+page, the budget gate, erasure and retention are its readers. Beside it, `app.project_usage`
+(`0155_project_usage.sql`) sums the same bookings per project, for a `project` budget rule
+(rule 9); the same writer fills it.
 
 ## Rules
 
@@ -15,7 +17,10 @@ page, the budget gate, erasure and retention are its readers.
    write-retired and goes in a later release (see _Not yet_).
 2. **`user_id` is a bare user id** — the person responsible for the spend — or the one sentinel
    `__automation__` (`lib/shared/constants/usage.ts`, `AUTOMATION_SUBJECT_ID`) for spend nobody is
-   responsible for. It never carries a door, a prefix, a session or a system marker.
+   responsible for. It never carries a door, a prefix, a session or a system marker. A team's, a
+   project's or the organization's own API key (`domains/api_keys/owners.ts`) is the one subject
+   that is a `"user"` id but no person: it books under the identity it acts as, the
+   `principal_user_id` of its `app.api_key_owners` row.
 3. **The person is who started the work.** A chat turn spends for the member who sent it (or the
    member a REST key acts for). A managed agent turn spends for the person who started the run —
    from a task, a comment, the REST API or the MCP endpoint — and a retry continues its starter's
@@ -26,8 +31,13 @@ page, the budget gate, erasure and retention are its readers.
 4. **A keyed start books to its key too.** When an API key authenticated the chat send or the run
    start, the ledger row carries `api_key_id` beside the person, so the key's own budget caps see
    the spend the docs promise them. Run rows keep the key in `automation_runs.api_key_id`
-   (`0110_run_billing_subject.sql`); the reservation stamps it on `sandbox_session_ops`, and an
-   unsettled op's hold counts against the key's caps as well as the person's.
+   (`0110_run_billing_subject.sql`) and `project_agent_runs.api_key_id`
+   (`0159_agent_run_api_key.sql`); the reservation stamps it on `sandbox_session_ops`, and an
+   unsettled op's hold counts against the key's caps as well as the person's. A project agent's
+   run takes the key of the call that started it — a REST start, comment or review
+   (`ProjectAuthContext.apiKeyId`), or a keyed automation run's `task.start_agent` step — and its
+   retry and a run its run delegated to carry it on; a comment that restarts a running turn
+   makes the turn its writer's, with the key it was written with or none.
 5. **`agent_slug` is a stable identifier, never a display name.** A chat assistant books under its
    slug, a project agent under its id (`project_agents.id`), an automation under its name (a
    unique path per organization), the system lanes under their sentinels (`__tts__`,
@@ -43,9 +53,28 @@ page, the budget gate, erasure and retention are its readers.
    (kind `model-api`), and the settlement's resolver reads that stamp. The same subject decides whom a task turn's connector
    calls act for: the connectors bridge (`domains/connectors/bridge-routes.ts`) resolves it on
    every call from the live run on the exec the turn's token names (`scope.connectorCaller`),
-   so a call is booked, audited and run for one person. A run's `started_by` is parsed only by
-   `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter anywhere else is
-   a defect.
+   so a call is booked, audited and run for one person — booked as a connector call under the
+   run's subject (`spender`), never as a model request. An automation's `llm` step — a
+   subautomation's included, which runs as one step of its parent's run — spends outside any
+   session: its run is its subject, through `resolveAutomationRunAttribution` — the mapping the
+   run's agent turns resolve through too — and `domains/automations/llm-metering.ts` measures that
+   subject under the shared admission lock and reserves the full priced prompt/output estimate on an `automation-llm` op before each call. The durable effect attempt identifies the op. Reported usage is persisted before idempotent settlement; an unknown outcome keeps its hold until the bounded request lifetime, then books the reserved estimate. Its `expected_cents` remains NULL and `floor_cents` records that estimate, so it is distinguishable from reported usage. A model without catalog pricing is refused before dispatch. Every lane that measures a run's subject
+   builds it with `loadAttributedBudgetSubject` (`attributed-subject.ts`). A call the platform
+   makes straight to a provider for a chat title or the Inbox's Improve is a direct
+   call (`direct-calls.ts`): it is recorded on an op row (kind `direct-call`) under the subject its
+   lane names — holding its worst case while a budget binds, nothing otherwise — and its cost
+   booked under that row's stamp, once. A transcription is one too — an uploaded recording's,
+   held at its whole length, and a dictation's — priced per audio minute from the catalog
+   (`files/transcription-metering.ts`); a video link's download is refused at the door while a
+   limit is reached (`directCallBlocked`), and the transcription it leads to holds its own. So is each
+   embedding request (`knowledge/embedding-meter.ts`): indexing a file, an inbound email or a
+   website's pages, and the query of every knowledge search — held at its estimated input under
+   whoever the work is for. A refused search answers the coded budget refusal; refused indexing
+   waits (`usage_limit` on a file, a deferred job for an email, a note on a website row) and the
+   hourly `knowledge.resume_usage_limited` pass resumes it. Voice output holds on its pending
+   chunk row instead. A run's `started_by` is
+   parsed only by `parseRunStarter` (`lib/shared/run-starter.ts`); a `split(':')` on a starter
+   anywhere else is a defect.
 7. **Door fields keep their format.** `automation_runs.started_by` stays `user:<id>` /
    `api-key:<userId>` / `trigger:<triggerId>` (the REST contract publishes it on `startedBy`;
    erasure and the trigger fire ledger read it) and `project_agent_runs.started_by` stays a bare
@@ -56,30 +85,77 @@ page, the budget gate, erasure and retention are its readers.
    the sentinel; the budget gate sums a member's rows by bare id and a team's by its members' bare
    ids; erasure deletes the subject's rows by bare id (and the legacy door forms); an impersonal
    subject (`OrgBudgetSubject.impersonal`) is measured against the organization's caps and, when
-   keyed, the key's — never a personal, team or role cap.
+   keyed, the key's — never a personal or role cap, and a team's cap only for a team's own key
+   (`loadBudgetSubject`), whose spend a team cap counts beside its members' (the key's binding,
+   `o.team_id`, never the ledger's `team_id`). The usage page shows a key identity as its own
+   labelled row and no active user.
+9. **Spend in a project is the project's too.** Work that belongs to a project — a chat turn or
+   title in one of its threads, an answer read aloud there, the chat's tool calls, a turn of one
+   of its agents or of an automation run in it (and that turn's images), a model call of such a
+   run's `llm` step, a call made with the
+   project's own API key — names its projects to `incrementUsageLedger` (`projectIds`), which
+   books the same figures into each project's buckets, `app.project_usage`, beside the ledger
+   row. An automation run that names no project belongs to every project its automation is bound
+   to — the set its language context, skills and session reach already use — so it counts toward
+   each, as a member's spend counts toward each of their teams; an automation bound to none
+   spends in no project. A `project` budget rule (the project caps file, `project-budgets.yml`;
+   the budgets file's `projectRules` only while that file has never been written,
+   `effectiveBudgetConfig`) is measured against its project's buckets, whoever spent: a project
+   cap binds an impersonal subject too, and work in several projects must fit each one's cap. Its
+   warning threshold warns whoever chats in the project: `/my/budget-status?projectId=` adds the
+   project to the reader's standing (`readBudgetStanding`). A hold in flight counts toward its
+   projects through its thread (`app.generations` and a pending voice chunk,
+   `app.tts_audio_chunks`, → `app.thread_metadata.project_id`) or the projects its reservation
+   stamped (`sandbox_session_ops.project_ids` — a managed turn's, a model request's, a direct
+   call's). A project's key spends in
+   its project whatever it calls (`loadBudgetSubject`). A recording's transcription is in the
+   project it was added in: the one its upload or its video link named in a project's new chat
+   (`file_metadata.project_id`, `video_link_jobs.project_id`), else the project of the
+   uploader's own chat — a thread id on a file is the uploader's claim, not proof of the project.
+   A video link's door check reads that project too.
+
+   Voice output reserves its estimated cost and one request under the projects captured at
+   admission (`tts_audio_chunks.project_ids`); `[]` means deliberately no project. A successful
+   request records its resolved model rate. Any already-reserved failure, watchdog expiry or
+   stale replacement records the saved estimate and one request once before releasing its hold,
+   including a failure before the provider POST: no durable dispatch distinction is available.
+   This is conservative estimated usage, not confirmation of a provider charge. A successful
+   provider response followed by a body/storage failure retains the resolved rate. A retry must
+   fit the remaining budget after the predecessor estimate; late results cannot charge that
+   predecessor again or release the successor's hold. Legacy `NULL` project stamps retain the
+   current-thread fallback, and a `NULL` saved price is never reconstructed. Ordinary age cleanup
+   defers pending attempts to their existing watchdog. Authorized history purge and erasure keep
+   their existing deletion behavior; the budget rule does not restore erased attribution or
+   promise a strict cap across that privacy boundary. Old admission writers must retire before
+   every new request receives these reservation guarantees.
 
 ## Lanes (the write side)
 
-| Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` |
-| --- | --- | --- | --- | --- |
-| Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key |
-| Chat title | `core/chat/generate_title.ts` → same ledger | the thread's member | `thread-title` | — |
-| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | — |
-| Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` |
-| Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above |
-| Voice output, transcription | `domains/tts`, `domains/files/transcription.ts` | the requester | `__tts__`, `__transcription__` | — |
-| Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key |
-| Connector call | `recordConnectorUsage` | the caller | optional | — |
+| Lane | Resolver | `user_id` | `agent_slug` | `api_key_id` | project |
+| --- | --- | --- | --- | --- | --- |
+| Chat turn (App, REST) | `lib/chat/turn.ts` → `createPgUsageLedger` | the sender / the member acted for | assistant slug | the REST key | the thread's |
+| Chat title | `core/chat/generate_title.ts`, held and booked as a direct call (`domains/chat/title-meter.ts`) | the thread's member | `thread-title` | the key that sent the message | the thread's (`chat.generate_title` job) |
+| Inbox Improve with AI | `domains/conversations/improve.ts`, held and booked as a direct call | the writer | `inbox-improve` | — | — |
+| Project agent turn (`task-agent` op) | `resolveSessionOpAttribution` | `project_agent_runs.started_by` (bare); `__automation__` for `trigger:` | `project_agents.id` | `project_agent_runs.api_key_id` | `project_agent_runs.project_id` |
+| Automation agent turn (`workflow-agent` op) | `resolveSessionOpAttribution` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| A managed turn on a provider subscription (either op) | as above; held as one request at no cost (`reserveTurnBudget` `costFree`, `budget_cents` 0) and booked at 0 cents with its harness's tokens when it ends (`releaseTurnKey`), or as a bare request when a watchdog ends it (`settleCostFreeTurn`) | as above | as above | as above | as above |
+| Automation `llm` step | `resolveAutomationRunAttribution` → immutable `automation-llm` op → `settleSessionOpSpend` | the person `started_by` names; `__automation__` for `trigger:` | automation name | `automation_runs.api_key_id` | `automation_runs.project_id`, else every project the automation is bound to |
+| Agent image generation (`generate_image`, one row per billed request, no tokens) | `resolveSessionOpAttribution` on the op the turn's token names (`domains/sandbox/image-generation.ts`) | the turn's person, as above; `__automation__` for `trigger:` | the turn's agent id or automation name | the run's key, as above | the run's, as above |
+| Voice output | `domains/tts` | the requester | `__tts__` | — | captured at admission; legacy `NULL` uses the current thread |
+| Transcription (an upload, a video link's audio, a dictation) | `domains/files/transcription-metering.ts`, held and booked as a direct call | the uploader — a retry continues their upload — or `__automation__` for a file nobody added; the dictating member | `__transcription__` | — | the one named at registration, else the uploader's own chat's |
+| Embeddings (knowledge indexing and search) | `domains/knowledge/embedding-meter.ts`, each request held and booked as a direct call | indexing: the uploader, else the holding document's creator (a synced drive's owner), else `__automation__` (an emailed attachment, an inbound email, a scheduled website scan); a website add or Scan now: the member; a search: the searcher (a sandbox turn: its run's subject) | `__embedding__` | the searching key; the key a website was added with | the document's, else the one the file was added in (`fileAttachmentProjectId`, as for a transcription); a search's project (a project chat's, a project URL's, a run's) |
+| Model endpoint request (`model-api` op) | `domains/model_api/metering.ts` stamps the op; settlement reads the stamp | the key holder | `__direct_api__` | the API key | a project's key's project |
+| Connector call (the assistant's tools; every live call through `runConnectorAction` whose body ran: an agent's bridge call, an automation's connector step, an Inbox send) | `recordConnectorUsage` — the assistant's tool bookkeeping, and the connector door's usage sink (`domains/connectors/service.ts`, `connectorSpender`); `connector_call_count` 1, no request | the member; an agent's call: its run's subject; an automation step: its run's subject (`resolveAutomationRunAttribution`); an email: its sender (`sentBy` on the send job); none for the platform's own sends | `assistant` for the chat tools; the agent's id or the automation's name | the key the turn or run came with | the chat's, the run's (a connector row adds nothing to a project's buckets) |
 
 ## Readers
 
 | Reader | What it assumes |
 | --- | --- |
-| Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel, folded through `usageLedgerSubject` so a legacy door form (`user:<id>`, `api-key:<id>`) is the person's row and `trigger:<id>` the sentinel's; the sentinel is a labelled row and no active user; project agent slugs resolve to names; a row is a transcription or speech row only when its seconds or characters are `> 0` (the upsert once stamped `0` on every second request) |
-| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids under the same forms, key caps `api_key_id`; an impersonal subject has no personal bucket |
+| Usage page (`core/governance/get_org_usage_metrics.ts`, `usage-metrics.ts`) | `user_id` is a `"user"` id or the sentinel, folded through `usageLedgerSubject` so a legacy door form (`user:<id>`, `api-key:<id>`) is the person's row and `trigger:<id>` the sentinel's; the sentinel is a labelled row and no active user; project agent slugs resolve to names; a row is a transcription or speech row only when its seconds or characters are `> 0` (the upsert once stamped `0` on every second request); a connector row counts no request and makes nobody active, an old one booked with a request included |
+| Budget gate (`budget-gate.ts`, `budget-reservations.ts`) | personal caps sum `user_id = ANY(<bare id>, user:<id>, api-key:<id>)` (`usageLedgerSubjectForms`), team caps the members' ids — and the identities of the team's own keys — under the same forms, key caps `api_key_id`, a project cap `app.project_usage`; an impersonal subject has no personal bucket; a request cap sums the requests of rows no connector names (`GOV-R15`), so a connector row booked with a request before connector calls stopped carrying one counts none |
 | Member's own view (`/my/budget-status`, Settings > Usage) | the same `usageLedgerSubjectForms(<own id>)` as the gate |
 | Erasure (`domains/erasure/service.ts`) | the subject's rows are `user_id IN (<id>, user:<id>, api-key:<id>)` — the two door forms cover rows booked before rule 2 held |
-| Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows |
+| Retention (`domains/retention/service.ts`) | buckets age by `updated_at_ms`; a legal hold protects a member's rows; a project's buckets age on the same clock and name no member |
 
 ## Guards
 
@@ -88,6 +164,32 @@ page, the budget gate, erasure and retention are its readers.
   and a project agent run a schedule began.
 - `domains/sandbox/turn-budget.test.ts`, `spend-settlement.test.ts` — reservation and settlement
   book the same subject and the key; a trigger run is impersonal.
+- `core/automations/llm_call.test.ts`, `domains/automations/llm-metering.test.ts` — an
+  automation's `llm` step reserves before each call, refused with `budget_exceeded` at a
+  reached cap, and booked under its run's subject after it, an empty reply included.
+- `domains/governance/direct-calls.test.ts` — a direct call holds its worst case whole (a row
+  that holds nothing while no budget binds), books once under its op row's stamp (a call past
+  its deadline too, and under the pseudonym once its person was erased), and its lost hold
+  lapses; `domains/erasure/service.lifecycle.test.ts` — erasure deletes a person's finished
+  direct-call rows and pseudonymises the running ones before the ledger pass; `domains/chat/title-meter.test.ts`, `core/chat/generate_title.test.ts`,
+  `jobs/task-list.generate-title.test.ts`, `domains/conversations/improve.test.ts` — the title and
+  Improve calls are held under their member (and key) and pick only models the member may use;
+  `domains/chat/store.test.ts`, `lib/chat/turn.test.ts`
+  — a reply's later rounds raise its hold; `core/file_metadata/transcribe_audio.metering.test.ts`,
+  `domains/knowledge/embedding-meter.test.ts`, `core/knowledge/embedding.test.ts` — each embedding
+  request is held at its estimated input and booked at what the provider reported;
+  `domains/knowledge/service.usage-limit.test.ts`, `message-index.test.ts`,
+  `usage-limit-resume.test.ts`, `domains/websites/service.usage-limit.test.ts`,
+  `core/knowledge/crawl_action.vectors.test.ts` — indexing a file, an email or a website waits at a
+  limit and resumes; `rest/v1-core.search-credential.test.ts`, `core/chat/assistant_tools.test.ts`,
+  `core/node_only/sandbox/workspace_tools_bridge.test.ts`, `domains/chat/capabilities.test.ts`,
+  `domains/sandbox/dispatch-routes.test.ts` — a search is metered as its searcher's (and key's)
+  and refused at a limit, never answered as nothing found;
+  `domains/files/transcription-metering.test.ts` — an upload's transcription holds its whole length
+  under its uploader and the chat's project, is refused (never retried) at a limit, books the
+  minutes transcribed (a failed attempt's finished chunks too), and a dictation is refused with
+  429 before the provider hears it; `domains/video_links/service.inflight_cap.test.ts` — a video
+  link starts no download at a limit.
 - `domains/model_api/metering.test.ts` — a model-endpoint request reserves under the key holder
   with the key and books the gateway's figure under the person, `__direct_api__` and the key.
 - `domains/sandbox/image-generation.test.ts` — an agent's image is admitted and booked under its
@@ -98,11 +200,36 @@ page, the budget gate, erasure and retention are its readers.
   — a task turn's connector calls act for the run's starter while the run is live, and for
   nobody after it ends or when a trigger started it; `jobs/task-list.agent-retry.test.ts` — an
   auto-retry keeps the failed run's starter.
-- `domains/governance/budget-gate.test.ts` — an impersonal subject binds no personal cap.
+- `domains/governance/budget-gate.test.ts`, `domains/sandbox/turn-budget.test.ts`,
+  `spend-settlement.test.ts`, `image-generation.test.ts`, `core/automations/agent_host.release.test.ts`,
+  `core/tasks/agent_run_host.context_window.test.ts`, `core/automations/agent_host.context_window.test.ts`,
+  `domains/tasks/agent-turn-shim.cost-free.test.ts` — a subscription turn holds one request at no
+  cost before any credential is vended, is refused at a reached request or token cap but never a
+  cost cap, books one request at 0 cents with its tokens however it ends, and its images draw on
+  the default allowance (`GOV-R16`).
+- `lib/connectors/dispatcher.test.ts`, `domains/connectors/service.usage.test.ts`,
+  `domains/governance/usage-ledger.test.ts`, `budget-gate.test.ts`, `usage-metrics.test.ts`,
+  `domains/conversations/send.test.ts` — a live connector call whose body ran is counted once, as
+  a connector call under its spender (a run's subject, a member, an email's sender), never as a
+  request (`GOV-R15`).
+- `domains/governance/budget-gate.test.ts` — an impersonal subject binds no personal cap; a
+  team's own key is held to its team's cap and counted toward it (`APIKEY-R9`); a project's cap
+  binds the work in it, whoever spends, and a project's key spends in its project (`GOV-R14`).
+- `domains/governance/usage-ledger.test.ts`, `budget-reservations.test.ts`,
+  `domains/sandbox/op-attribution.test.ts`, `turn-budget.test.ts`, `domains/chat/budget-admission.test.ts`,
+  `domains/tts/service.project-budget.test.ts`, `jobs/task-list.generate-title.test.ts` — each lane
+  names the project (`GOV-R14`); `domains/governance/project-budget.integration.ts` proves the
+  buckets, the holds and the refusal on the real schema.
 - `domains/governance/usage-metrics.test.ts`, `app/features/analytics/usage/usage-metrics-page.test.tsx`
-  — the sentinel is labelled and excluded from active users; a project agent shows its name.
+  — the sentinel is labelled and excluded from active users; a project agent shows its name; a
+  key identity is its own row and no active user.
 - `backend/integration-check.ts` — `checkSandboxGatewayKeyReclaim`: a trigger run books under the
   sentinel, a keyed run under person + key; the MCP one-shot run records its key.
+- `domains/tasks/agent-run-keys.integration.ts` (`checkAgentRunApiKeys`) — a keyed REST comment
+  books the agent's run to the key, its retry carries it, a steer moves it to the steerer's, and a
+  keyed automation run's agent spends under its key; `jobs/task-list.agent-retry.test.ts`,
+  `domains/tasks/service.member-work.test.ts`, `comments.automation-key.test.ts` and
+  `jobs/task-list.start-workflow.test.ts` pin each door.
 
 ## Not yet
 

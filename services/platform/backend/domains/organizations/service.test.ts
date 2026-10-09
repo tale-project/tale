@@ -38,6 +38,7 @@ interface Scenario {
   memberRole: string | null;
   slug: string | null;
   holds: { targetType: string; targetId: string }[];
+  legacyHeld?: boolean;
   /** Rows the final `DELETE FROM "organization" … RETURNING` answers. */
   orgDeleteReturns?: { id: string }[];
   /** What `information_schema.columns` lists as org_id-bearing app tables. */
@@ -106,6 +107,9 @@ function createRecordingTx(scenario: Scenario): {
     }
     if (text.includes('FROM app.legal_holds')) {
       return scenario.holds;
+    }
+    if (text.includes('FROM app.automation_runs')) {
+      return scenario.legacyHeld ? [{ id: 'held-run' }] : [];
     }
     if (
       text === "SELECT set_config('tale.automation_writer_protocol', $, true)"
@@ -366,6 +370,29 @@ describe('deleteOrganization', () => {
     expect(sends).toEqual([]);
   });
 
+  it('refuses a legacy execution hold before audit, cancellation or deletion [ORG-R12]', async () => {
+    const sends = installFakeBoss();
+    const { tx, statements } = createRecordingTx({
+      memberRole: 'owner',
+      slug: 'acme',
+      holds: [],
+      legacyHeld: true,
+    });
+    await expect(
+      deleteOrganization(tx, { userId: OWNER_ID }, ORG_ID, 'Acme'),
+    ).rejects.toMatchObject({
+      code: 'ORG_LEGACY_AUTOMATION_HELD',
+      status: 409,
+    });
+    expect(statements.filter(isWrite)).toEqual([]);
+    expect(sends).toEqual([]);
+    const probe = statements.find((s) =>
+      s.text.includes('FROM app.automation_runs'),
+    );
+    expect(probe?.text).toContain('legacy_quarantine IS NOT NULL');
+    expect(probe?.values).toEqual([ORG_ID]);
+  });
+
   it('refuses non-owners and the default organization before any write [ORG-R4] [ORG-R6]', async () => {
     const sends = installFakeBoss();
     const admin = createRecordingTx({
@@ -459,9 +486,12 @@ describe('deleteOrganization', () => {
     // (tasks and bindings reference projects) and alphabetical otherwise;
     // the governance ledger and the tombstone table are the deliberate
     // survivors — never a hand-kept list that a new table would miss. The
-    // realtime outbox sits in its own schema, outside the catalog walk.
+    // realtime outbox sits in its own schema, outside the catalog walk. The
+    // API keys bound to the organization go first, before the walk takes
+    // their bindings (none are held here, so no secret or identity follows).
     const deletes = writes.filter((t) => t.startsWith('DELETE FROM'));
     expect(deletes.map((t) => /^DELETE FROM ([\w."]+)/.exec(t)?.[1])).toEqual([
+      'app.api_key_owners',
       'app.automation_project_bindings',
       'app.memories',
       'app.sso_synced_team_members',

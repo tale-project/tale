@@ -70,6 +70,7 @@ usage:
   connector: Connector
   transcription: Transcription
   tts: Voice output
+  embedding: Knowledge indexing and search
   granularity:
     label: Granularity
     daily: Daily
@@ -111,9 +112,13 @@ usage:
       title: Per-user usage
       user: User
       automations: Automations (triggers)
+      teamKey: API key of team {name}
+      projectKey: API key of project {name}
+      organizationKey: API key of the organization
       note: Each row is the member who sent the chat or started the agent
-        run. Runs that a schedule, a webhook, or an event started share the
-        Automations (triggers) row.
+        run, or an API key that belongs to a team, a project or the
+        organization rather than to a person. Runs that a schedule, a
+        webhook, or an event started share the Automations (triggers) row.
       inputTokens: Input tokens
       outputTokens: Output tokens
       requests: Requests

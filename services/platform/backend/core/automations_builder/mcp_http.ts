@@ -413,6 +413,9 @@ async function handleMessage(
             {
               organizationId: rc.org.organizationId,
               userId: rc.user.userId,
+              // The key the call came with: what a capability spends — a
+              // search's embedding, a run it starts — is the key's too.
+              ...(rc.apiKeyId !== undefined ? { apiKeyId: rc.apiKeyId } : {}),
               method: name,
               params: args,
             },

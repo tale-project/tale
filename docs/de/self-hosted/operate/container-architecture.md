@@ -39,6 +39,20 @@ Die Laufzeit stellt auch Chromium und Playwright für Seitenrendering und Dokume
 
 Der Egress-Dienst blockiert private Adressen und Metadatenziele und kann eine Hostnamen-Freigabeliste erzwingen. Ein ausgefallener Ausgang kann Verweigerungen oder Netzwerkfehler verursachen; die genaue Meldung hängt von der Operation ab. [Härtung](/de/self-hosted/operate/security/hardening) beschreibt die Regeln, [Compose selbst betreiben](/de/self-hosted/install/own-compose) die nötigen Rechte und Mounts.
 
+## Sitzungen über einen Docker-Neustart erhalten
+
+Sandbox-Sitzungen und der Spawner laufen als Container des Docker-Daemons auf dem Host. Ohne Live Restore des Daemons stoppt ein Neustart, etwa für ein Paket-Upgrade oder eine Änderung an `/etc/docker/daemon.json`, alle diese Container: Laufende Agent-Turns, Builds und Seitenrenderings brechen ab, ihre Arbeitsverzeichnisse bleiben erhalten. Tale ändert die Daemon-Konfiguration des Hosts nicht; der Spawner protokolliert beim Start eine Warnung, solange Live Restore ausgeschaltet ist.
+
+Zum Einschalten ergänzt du die Einstellung in `/etc/docker/daemon.json` und behältst die übrigen Einträge der Datei:
+
+```json
+{
+  "live-restore": true
+}
+```
+
+Lade den Daemon danach mit `sudo systemctl reload docker` neu, oder sende auf einem Host ohne systemd `SIGHUP` an `dockerd`. Das Neuladen übernimmt die Einstellung, ohne Container zu stoppen. Live Restore hält Container über einen Daemon-Neustart und ein Patch-Release-Upgrade hinweg am Laufen; ein Upgrade auf eine neue Docker-Release-Linie kann sie trotzdem stoppen, plane es deshalb wie ein Wartungsfenster. Live Restore ist mit dem Swarm-Modus nicht vereinbar: Plane Daemon-Neustarts auf einem Swarm-Knoten stattdessen als Wartung ein. [Dockers Anleitung zu Live Restore](https://docs.docker.com/engine/daemon/live-restore/) nennt die übrigen Grenzen.
+
 ## Reparaturen des Wissensindex erkennen
 
 Ein beschädigter BM25-Index kann Importe scheitern lassen, obwohl die Dokumenttabellen noch lesbar sind. Das Backend prüft Wissensindizes mit `pdb.verify_index`. Ein Advisory Lock koordiniert Reparaturversuche pro Datenbank. Organisationsspezifische Datenbanken werden bei ihrer ersten Verwendung geprüft.

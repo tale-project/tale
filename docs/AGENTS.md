@@ -100,7 +100,10 @@ sparingly, with a comment.
   stack (the runbook is `services/platform/tests/docs-screenshots/README.md`). No hand-captured
   image ships. When a PR changes a route, grep the manifest for it and regenerate in the same PR.
 - CLI output: `tools/cli/scripts/cli-sample-outputs.sh` (sanitized) — but prefer fenced code.
-- EN captures only; alt text and captions translate per locale.
+- Docs share EN captures by default; alt text and captions translate per locale. The same
+  pipeline supports `--locales en,de,fr` for native UI captures used by marketing or a
+  locale-specific layout example. DE/FR files live under `<section>/<locale>/` and the
+  generated image manifest records each capture's locale.
 
 ## Commands
 

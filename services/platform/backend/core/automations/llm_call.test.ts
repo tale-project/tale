@@ -4,13 +4,17 @@
  * The llm door, off the wire: transport is `createBuilderModel`'s and proven
  * in its own suite, so these tests substitute it and prove what THIS module
  * owns — which connector serves an explicitly named model, how a reply
- * becomes `{text}` or schema-checked `{data}`, and that every refusal names
- * the problem.
+ * becomes `{text}` or schema-checked `{data}`, that every refusal names the
+ * problem, and that each call is measured against and booked to its run's
+ * budgets (the measure and the booking themselves are `llm-metering.ts`'s).
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { EmptyReplyError } from '../automations_builder/chat_wire';
 import type { ActionCtx } from '../lib/ctx';
+import { NodeFailure } from './failure';
 
 const {
   builderModel,
@@ -35,29 +39,60 @@ vi.mock('../lib/providers/org_providers', () => ({
 }));
 
 import {
-  automationLlmCall,
+  automationLlmCall as actualAutomationLlmCall,
   extractJsonValue,
   resolveServingTarget,
   schemaViolations,
   walkLlmServing,
 } from './llm_call';
 
+const ATTEMPT = { nodeId: 'model', itemIndex: 0, pass: 0, attempt: 1 };
+const PRICING = { inputCentsPerMillion: 100, outputCentsPerMillion: 200 };
+function automationLlmCall(
+  ...args: Parameters<typeof actualAutomationLlmCall>
+) {
+  const call = actualAutomationLlmCall(...args);
+  return (request: Parameters<typeof call>[0]) =>
+    call({ attempt: ATTEMPT, ...request });
+}
+
 const ORG = 'org_llm';
+const RUN = 'run_llm';
 
 /** Credential rows by provider slug; the fake ctx serves them. */
 let credentials: Record<string, unknown>;
+/** What the run's budget check answers. */
+let admission: unknown;
 
-const ctx = {
-  runQuery: vi.fn((_ref: unknown, args: { providerSlug: string }) =>
-    Promise.resolve(credentials[args.providerSlug] ?? null),
+const runQuery = vi.fn((_ref: unknown, args: { providerSlug: string }) =>
+  Promise.resolve(credentials[args.providerSlug] ?? null),
+);
+const runMutation = vi.fn((ref: unknown, _args: unknown) =>
+  Promise.resolve(
+    functionRefName(ref) === 'automations/mutations:reserveLlmStepBudget'
+      ? admission
+      : null,
   ),
-} as unknown as ActionCtx;
+);
+const ctx = { runQuery, runMutation } as unknown as ActionCtx;
+
+/** The bookings the door asked for, by their arguments. */
+function bookings(): unknown[] {
+  return runMutation.mock.calls
+    .filter(
+      ([ref]) =>
+        functionRefName(ref) === 'automations/mutations:recordLlmStepUsage',
+    )
+    .map(([, args]) => args);
+}
 
 const DIRECT = { status: 'active', authMethod: 'api-key' };
 
 beforeEach(() => {
   vi.clearAllMocks();
+  Reflect.deleteProperty(builderModel, 'prepare');
   credentials = {};
+  admission = { allowed: true, sessionId: 'session', execId: 'exec' };
   resolveConnectors.mockResolvedValue([
     { name: 'first', catalog: { source: 'static' } },
     { name: 'second', catalog: { source: 'static' } },
@@ -134,7 +169,7 @@ describe('automationLlmCall', () => {
       (connector: { name: string }): Promise<Array<{ id: string }>> =>
         Promise.resolve(
           connector.name === 'second'
-            ? [{ id: 'vendor/small-1', tags: ['chat'] }]
+            ? [{ id: 'vendor/small-1', tags: ['chat'], pricing: PRICING }]
             : [],
         ),
     );
@@ -142,6 +177,7 @@ describe('automationLlmCall', () => {
     const reply = await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'vendor/small-1',
       prompt: 'Summarize.',
@@ -172,11 +208,15 @@ describe('automationLlmCall', () => {
       second: { ...DIRECT, modelAllowlist: ['other/model'] },
     };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
 
     await expect(
-      automationLlmCall(ctx, ORG)({ model: 'vendor/small-1', prompt: 'x' }),
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
     ).rejects.toThrow(/no configured provider serves model "vendor\/small-1"/);
   });
 
@@ -187,12 +227,13 @@ describe('automationLlmCall', () => {
     ]);
     credentials = { openrouter: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'] },
+      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'], pricing: PRICING },
     ]);
 
     await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'anthropic/claude-haiku-4-5',
       prompt: 'Triage.',
@@ -215,12 +256,13 @@ describe('automationLlmCall', () => {
     ]);
     credentials = { anthropic: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'claude-haiku-4-5', tags: ['chat'] },
+      { id: 'claude-haiku-4-5', tags: ['chat'], pricing: PRICING },
     ]);
 
     await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'anthropic/claude-haiku-4-5',
       prompt: 'Triage.',
@@ -248,12 +290,13 @@ describe('automationLlmCall', () => {
       },
     };
     getProviderCatalog.mockResolvedValue([
-      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'] },
+      { id: 'anthropic/claude-haiku-4.5', tags: ['chat'], pricing: PRICING },
     ]);
 
     await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'anthropic/claude-haiku-4-5',
       prompt: 'Triage.',
@@ -275,18 +318,22 @@ describe('automationLlmCall', () => {
     getProviderCatalog.mockRejectedValue(new Error('models endpoint 500'));
 
     await expect(
-      automationLlmCall(ctx, ORG)({ model: 'vendor/small-1', prompt: 'x' }),
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
     ).rejects.toThrow(/catalog for "first", "second" was unreachable/);
   });
 
   it("hands the turn's signal to the model, so a stopping server cuts the request", async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
     const stop = new AbortController();
 
-    await automationLlmCall(ctx, ORG, { signal: stop.signal })({
+    await automationLlmCall(ctx, ORG, RUN, { signal: stop.signal })({
       model: 'vendor/small-1',
       prompt: 'one',
     });
@@ -300,14 +347,16 @@ describe('automationLlmCall', () => {
   it('resolves each model once per door, not once per call', async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
 
-    const door = automationLlmCall(ctx, ORG);
+    const door = automationLlmCall(ctx, ORG, RUN);
     await door({ model: 'vendor/small-1', prompt: 'one' });
+    const initialLookups = resolveConnectors.mock.calls.length;
     await door({ model: 'vendor/small-1', prompt: 'two' });
 
-    expect(resolveConnectors).toHaveBeenCalledTimes(1);
+    expect(initialLookups).toBe(2);
+    expect(resolveConnectors).toHaveBeenCalledTimes(initialLookups);
     expect(createBuilderModel).toHaveBeenCalledTimes(1);
     expect(builderModel).toHaveBeenCalledTimes(2);
   });
@@ -315,7 +364,7 @@ describe('automationLlmCall', () => {
   it('asks for the schema in the system prompt and returns the parsed data', async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
     builderModel.mockResolvedValue({ content: '```json\n{"score": 7}\n```' });
     const outputSchema = {
@@ -327,6 +376,7 @@ describe('automationLlmCall', () => {
     const reply = await automationLlmCall(
       ctx,
       ORG,
+      RUN,
     )({
       model: 'vendor/small-1',
       prompt: 'Score it.',
@@ -344,14 +394,14 @@ describe('automationLlmCall', () => {
   it('fails the call, naming the problem, when the reply defies the schema', async () => {
     credentials = { first: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/small-1', tags: ['chat'] },
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
     ]);
     const outputSchema = {
       type: 'object',
       properties: { score: { type: 'number' } },
       required: ['score'],
     };
-    const door = automationLlmCall(ctx, ORG);
+    const door = automationLlmCall(ctx, ORG, RUN);
 
     builderModel.mockResolvedValue({ content: 'about a seven, I think' });
     await expect(
@@ -365,13 +415,241 @@ describe('automationLlmCall', () => {
   });
 });
 
+describe('automationLlmCall and the run’s budgets', () => {
+  beforeEach(() => {
+    credentials = { first: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'], pricing: PRICING },
+    ]);
+  });
+
+  it('books each call’s tokens to its run, priced under the serving connector [GOV-R14]', async () => {
+    builderModel.mockResolvedValue({
+      content: 'a fine sentence',
+      usage: { prompt: 120, completion: 30, reported: true },
+    });
+
+    await automationLlmCall(
+      ctx,
+      ORG,
+      RUN,
+    )({ model: 'vendor/small-1', prompt: 'Summarize.' });
+
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: ORG,
+        runId: RUN,
+        attempt: ATTEMPT,
+        reserveTokens: expect.any(Number),
+      }),
+    );
+    expect(bookings()).toEqual([
+      {
+        organizationId: ORG,
+        sessionId: 'session',
+        execId: 'exec',
+        usage: { inputTokens: 120, outputTokens: 30, cents: 0.018 },
+      },
+    ]);
+  });
+
+  it('refuses the call before the provider once a cap binding the run is reached [GOV-R4]', async () => {
+    admission = {
+      allowed: false,
+      reason:
+        "Usage limit reached. This project's monthly cost limit is used up until 2026-11-01T00:00:00.000Z.",
+    };
+
+    const refusal = automationLlmCall(
+      ctx,
+      ORG,
+      RUN,
+    )({ model: 'vendor/small-1', prompt: 'x' });
+
+    await expect(refusal).rejects.toBeInstanceOf(NodeFailure);
+    await expect(refusal).rejects.toMatchObject({
+      code: 'budget_exceeded',
+      message: expect.stringContaining(
+        "This project's monthly cost limit is used up",
+      ),
+    });
+    expect(builderModel).not.toHaveBeenCalled();
+    expect(bookings()).toEqual([]);
+  });
+
+  it('measures every call of a door, not the first alone', async () => {
+    const door = automationLlmCall(ctx, ORG, RUN);
+    await door({ model: 'vendor/small-1', prompt: 'one' });
+    admission = { allowed: false, reason: 'Usage limit reached.' };
+
+    await expect(
+      door({ model: 'vendor/small-1', prompt: 'two' }),
+    ).rejects.toMatchObject({ code: 'budget_exceeded' });
+    expect(builderModel).toHaveBeenCalledTimes(1);
+  });
+
+  it('books a reply with no text before the step fails on it', async () => {
+    builderModel.mockRejectedValue(
+      new EmptyReplyError({ prompt: 40, completion: 8000, reported: true }),
+    );
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow(/no text content/);
+    expect(bookings()).toEqual([
+      expect.objectContaining({
+        usage: expect.objectContaining({ inputTokens: 40, outputTokens: 8000 }),
+      }),
+    ]);
+  });
+
+  it('books a reply that defies the node’s schema — the call was made', async () => {
+    builderModel.mockResolvedValue({
+      content: 'about a seven',
+      usage: { prompt: 10, completion: 4, reported: true },
+    });
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({
+        model: 'vendor/small-1',
+        prompt: 'x',
+        outputSchema: { type: 'object' },
+      }),
+    ).rejects.toMatchObject({ code: 'llm_output_invalid' });
+    expect(bookings()).toEqual([
+      expect.objectContaining({
+        usage: expect.objectContaining({ inputTokens: 10, outputTokens: 4 }),
+      }),
+    ]);
+  });
+
+  it('fails visibly when terminal facts cannot be persisted, preserving the server hold', async () => {
+    builderModel.mockResolvedValue({
+      content: 'answer',
+      usage: { prompt: 1, completion: 1, reported: true },
+    });
+    runMutation
+      .mockResolvedValueOnce(admission)
+      .mockRejectedValueOnce(new Error('connection reset'));
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow('connection reset');
+    expect(builderModel).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    undefined,
+    { prompt: 0, completion: 0 },
+    { prompt: NaN, completion: 2, reported: true },
+  ])(
+    'retains unknown provider usage instead of booking zero',
+    async (usage) => {
+      builderModel.mockResolvedValue({ content: 'answer', usage });
+      await automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' });
+      expect(bookings()).toEqual([expect.objectContaining({ usage: null })]);
+    },
+  );
+
+  it('records an unknown outcome before returning a transport failure', async () => {
+    builderModel.mockRejectedValueOnce(new Error('timeout'));
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow('timeout');
+    expect(bookings()).toEqual([expect.objectContaining({ usage: null })]);
+  });
+
+  it('resolves credentials before reserving paid work', async () => {
+    Object.assign(builderModel, {
+      prepare: vi.fn().mockRejectedValue(new Error('credential absent')),
+    });
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow('credential absent');
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(builderModel).not.toHaveBeenCalled();
+  });
+
+  it('closes a proven pre-dispatch cancellation at zero without calling the provider', async () => {
+    const stop = new AbortController();
+    runMutation.mockImplementationOnce(async () => {
+      stop.abort();
+      return admission;
+    });
+    await expect(
+      automationLlmCall(ctx, ORG, RUN, { signal: stop.signal })({
+        model: 'vendor/small-1',
+        prompt: 'x',
+      }),
+    ).rejects.toThrow();
+    expect(builderModel).not.toHaveBeenCalled();
+    expect(bookings()).toEqual([
+      expect.objectContaining({
+        usage: { inputTokens: 0, outputTokens: 0, cents: 0 },
+      }),
+    ]);
+  });
+
+  it('refuses absent catalog prices before reserving or calling', async () => {
+    getProviderCatalog.mockResolvedValue([
+      { id: 'vendor/small-1', tags: ['chat'] },
+    ]);
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow('catalog pricing');
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(builderModel).not.toHaveBeenCalled();
+  });
+
+  it('fails loudly on a budget answer it cannot read', async () => {
+    admission = { allowed: 'maybe' };
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toThrow(/unexpected shape/);
+    expect(builderModel).not.toHaveBeenCalled();
+  });
+});
+
 describe('resolveServingTarget', () => {
   // Pinned resolution moved to `resolvePinnedAgentServing` and is proven in
   // `lib/providers/agent_serving.test.ts`; this door is unpinned-only.
   it('walks connectors in order and serves from the first match', async () => {
     credentials = { first: DIRECT, second: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/shared', tags: ['chat'] },
+      { id: 'vendor/shared', tags: ['chat'], pricing: PRICING },
     ]);
 
     await expect(
@@ -386,7 +664,7 @@ describe('walkLlmServing', () => {
   it('answers the serving connector, or no target with the catalogs it could not read', async () => {
     credentials = { first: DIRECT, second: DIRECT };
     getProviderCatalog.mockResolvedValue([
-      { id: 'vendor/shared', tags: ['chat'] },
+      { id: 'vendor/shared', tags: ['chat'], pricing: PRICING },
     ]);
     await expect(
       walkLlmServing(ctx, ORG, 'vendor/shared'),

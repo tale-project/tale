@@ -897,6 +897,8 @@ export interface ChatTurnHandle {
     /** The refusal's stable code when the server names one
      * (`BUDGET_EXCEEDED`) — see `ChatTurnOutcome.code`. */
     code?: string;
+    /** See `ChatTurnOutcome.budgetScope`. */
+    budgetScope?: string;
   }>;
 }
 

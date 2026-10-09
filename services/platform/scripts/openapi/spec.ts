@@ -550,7 +550,9 @@ const runProperties: Record<string, Json> = {
       '`llm` node’s provider: the account or the provider, not the ' +
       'request. The agent codes (`harness_error`, `turn_crashed`, ' +
       '`session_gone`, `deadline`, `ask_expired`, `budget_exceeded`, …) — ' +
-      'an `agent` node’s turn, after its in-node retries. Retry on ' +
+      'an `agent` node’s turn, after its in-node retries. ' +
+      '`budget_exceeded` — a budget limit refused an `agent` node’s turn ' +
+      'or an `llm` node’s call, or the turn used up its allowance. Retry on ' +
       '`provider_error`, `provider_unreachable`, `rate_limited`, ' +
       '`turn_crashed`, `session_gone`, `harvest_failed`; alert a person on ' +
       'the rest.',
@@ -686,7 +688,7 @@ const documentIndexing: Json = {
         'skipped',
       ],
       description:
-        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
+        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, `usage_limit` resumes by itself once the usage limit allows it, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
     },
     indexedAt: {
       ...epochMs,
@@ -701,7 +703,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
+        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for a usage limit (`failed`): `usage_limit` — a limit that binds whoever the file is indexed for (its uploader, a synced drive’s owner, the organization for an emailed attachment) has too little room for its embeddings; indexing resumes by itself within the hour after the limit resets or is raised, after what it already embedded. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
     },
   },
 };
@@ -3976,7 +3978,10 @@ export function buildSpec(): Json {
         'Setup-folder binding a folder-driven automation reads off its task input — ' +
         'on the create and again on every repeat. It cannot be sent beside ' +
         '`externalUrl` (400 `INVALID_BODY`), and a name no root folder of the project ' +
-        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created.',
+        'carries is refused (400 `SETUP_FOLDER_MISSING`), nothing created. ' +
+        'While who can be mentioned in the project cannot be read, a ' +
+        'description with a mention answers 503 ' +
+        '`MENTION_DIRECTORY_UNAVAILABLE`, nothing created; send it again.',
       operationId: 'createTask',
       security: sec,
       parameters: taskCollectionParameters,
@@ -4010,7 +4015,21 @@ export function buildSpec(): Json {
               'Trimmed; the board’s title cap — a longer title is refused ' +
               'with 400 `INVALID_BODY`, never clipped',
           },
-          description: { type: 'string', maxLength: 20000 },
+          description: {
+            type: 'string',
+            maxLength: 20000,
+            description:
+              'Markdown. A mention is stored as a markdown link naming whom it mentions, ' +
+              '`[@Ada Lovelace](mention:user/<userId>)` — the kind is `user`, ' +
+              '`agent` (a project agent id) or `automation` (its store name), the ' +
+              'text in brackets the name when it was saved. A plain `@handle` ' +
+              '(an agent handle, a member’s email name, an automation store name, an ' +
+              'id, or an older name form) that names someone who can be mentioned on ' +
+              'the task is stored that way (notifying nobody); a mention link naming nobody who can is ' +
+              'stored as plain text. Mentions in code, math or a link’s text are text.' +
+              ' A task from GitHub or GlitchTip (`externalSystem`) keeps its ' +
+              '`@names` as written: they are that tracker’s people.',
+          },
           labels: {
             type: 'array',
             items: {
@@ -4286,12 +4305,31 @@ export function buildSpec(): Json {
               type: 'array',
               items: {
                 type: 'object',
-                required: ['id', 'authorType', 'authorId', 'body', 'createdAt'],
+                required: [
+                  'id',
+                  'authorType',
+                  'authorId',
+                  'body',
+                  'bodyText',
+                  'createdAt',
+                ],
                 properties: {
                   id: str,
                   authorType: { type: 'string', enum: ['user', 'agent'] },
                   authorId: str,
-                  body: str,
+                  body: {
+                    type: 'string',
+                    description:
+                      'The comment as stored: each mention a mention link, ' +
+                      '`[@Ada Lovelace](mention:user/<userId>)`',
+                  },
+                  bodyText: {
+                    type: 'string',
+                    description:
+                      'The same text with each mention read as `@` and the ' +
+                      'current name of whoever it names — for matching ' +
+                      'words or showing the comment as plain text',
+                  },
                   bodyByLocale: {
                     type: 'object',
                     additionalProperties: { type: 'string' },
@@ -4322,7 +4360,7 @@ export function buildSpec(): Json {
       tags: ['Tasks'],
       summary: 'Comment on a project task as the key holder',
       description:
-        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior. A later plain-text edit clears the old translations.',
+        'Any member who can read the project may comment; an editor seat is not required. The task must belong to the URL project, and both the project and the task must be active — an archived task refuses the comment (403 `TASK_ARCHIVED`) the way an archived project does (`PROJECT_ARCHIVED`). `body` is trimmed; whitespace alone is a missing body. Optional bodyByLocale carries equivalent translations for the reader’s UI language. Comments use the key holder as author and share the app’s per-user task:comment budget and mention behavior: a plain `@handle` that names someone who can be mentioned on the task (an agent handle, a member’s email name, an automation store name, an id, or an older name form) notifies them and is stored as a mention link, `[@Ada Lovelace](mention:user/<userId>)`, which every later read returns; a mention link naming nobody who can be mentioned there is stored as plain text. Mentions in code, math or a link’s text are text. A later plain-text edit clears the old translations. While who can be mentioned on the task cannot be read, a body with a mention answers 503 `MENTION_DIRECTORY_UNAVAILABLE` and nothing is posted; send it again.',
       operationId: 'addTaskComment',
       security: sec,
       parameters: taskParameters,
@@ -4335,7 +4373,9 @@ export function buildSpec(): Json {
             type: 'string',
             minLength: 1,
             maxLength: 10000,
-            description: 'Trimmed; whitespace alone is refused',
+            description:
+              'Trimmed; whitespace alone is refused. The limit counts the ' +
+              'text as sent; resolving its mentions never takes it past it',
           },
           bodyByLocale: {
             type: 'object',
@@ -5592,7 +5632,7 @@ export function buildSpec(): Json {
       post: {
         tags: ['Threads'],
         summary: 'Send a message and start a turn',
-        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
+        description: `${visibility} ${scope.project ? 'The project must be active; members can send without an editor seat. ' : ''}Answers 202 while the turn runs in the background; the 202 names the assistant message the reply lands in (\`messageId\`). Poll GET ${scope.item}/generation until status is idle, then read the messages. Send \`Idempotency-Key\` to make the send safe to retry: a repeat within 24 hours answers what the first attempt answered — the same \`messageId\` — with \`duplicate: true\` and queues nothing, and a repeat with a different body answers 409 \`IDEMPOTENCY_KEY_REUSED\`; a refused send remembers nothing. Every turn runs the built-in workspace assistant: its instructions, safety rules and three retrieval tools ride every request (about 3,000 prompt tokens per model round, counted in \`usage.inputTokens\` — a turn that calls a tool runs up to five rounds, each billing its full prompt again), and a request for a deliverable is redirected to Tasks by design — this is a conversation with the workspace, not a bare model call. A budget cap that binds the key holder — their own, one of their teams’, the conversation’s project’s, the organization’s or this API key’s — refuses the send with 429 \`BUDGET_EXCEEDED\` before anything is queued; a cap reached while an accepted send waited settles its \`messageId\` as failed with errorCode \`budget_exceeded\`. A turn failure appears as an assistant error message. Charges the execute bucket on top of the general REST bucket.`,
         operationId: scope.project ? 'postProjectThreadMessage' : 'postMessage',
         security: sec,
         parameters: [...itemParameters, sendIdempotencyKeyParam],
@@ -6507,6 +6547,12 @@ export function buildSpec(): Json {
               '`Retry-After` names the wait, retry with backoff',
           ),
           ...standardErrors,
+          '429': withDoorRefusal(
+            standardErrors['429'],
+            'embedding the query is a model request the key holder pays for, and a budget cap that binds it — the key holder’s own, one of their teams’, ' +
+              (scope.project ? 'the project’s, ' : '') +
+              'the organization’s or this API key’s — is reached (`BUDGET_EXCEEDED`): nothing is searched, `data` names the cap — `scope`, `period`, `limitCode`, `used`, `limit`, `resetsAt` — and `Retry-After` the wait in whole seconds until its period resets',
+          ),
         },
       },
     };
@@ -7234,6 +7280,17 @@ send under \`data.organizations\`; \`GET /api/v1/me\` lists them too, as its
 top-level \`organizations\`. The slug is matched without regard to case; a
 blank or whitespace-only header reads as absent.
 
+A key an Owner or Admin made for a member, a team, a project or the
+organization itself works in that one organization only, so it needs no
+\`X-Organization-Slug\` (one naming another organization answers 403
+\`ORG_FORBIDDEN\`). A team's, a project's or the organization's key is not a
+person: it acts with the role it was made with, a team's key sees what that
+team sees, and a project's key reaches its own project alone — the model
+endpoints, \`GET /me\`, \`GET /projects\` and the routes under
+\`/projects/{projectId}\` — while any other route answers 403
+\`API_KEY_SCOPE_FORBIDDEN\`. \`GET /api/v1/me\` names whose key it is, as
+\`key.owner\`.
+
 ## Requests
 
 Bodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole
@@ -7324,7 +7381,8 @@ UTF-16 code units\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
 \`cursor\` (\`INVALID_LIMIT\`, \`INVALID_CURSOR\`) names its parameter there
 too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
-\`ORG_FORBIDDEN\`, \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
+\`ORG_FORBIDDEN\`, \`API_KEY_SCOPE_FORBIDDEN\` (a project's key outside its
+project), \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
 \`INVALID_QUERY\`, \`INVALID_LIMIT\`, \`INVALID_CURSOR\`, \`INVALID_BODY\`,
 \`BODY_TOO_LARGE\`, \`METHOD_NOT_ALLOWED\`, \`NOT_FOUND\`, \`RATE_LIMITED\`,
 \`REQUEST_TIMEOUT\` (408 — the request did not finish arriving within 15
@@ -7703,9 +7761,9 @@ curl -H "Authorization: Bearer <api-key>" \\
                 },
                 scope: {
                   type: 'string',
-                  enum: ['user', 'team', 'org', 'apiKey'],
+                  enum: ['user', 'team', 'project', 'org', 'apiKey'],
                   description:
-                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), the organization’s (`org`) or this API key’s (`apiKey`)',
+                    'For BUDGET_EXCEEDED, whose cap is reached: the key holder’s own (`user`), one of their teams’ (`team`), that of the project the work belongs to (`project`), the organization’s (`org`) or this API key’s (`apiKey`)',
                 },
                 period: {
                   type: 'string',
@@ -8443,7 +8501,7 @@ curl -H "Authorization: Bearer <api-key>" \\
               nullable: true,
               description:
                 'The API key this request authenticated with — keys are minted, rotated and revoked in the app (Settings > API > REST), never through this surface, so this is where an unattended caller sees its own expiry coming. `null` only when the key was revoked while the request was in flight.',
-              required: ['id', 'name', 'expiresAt'],
+              required: ['id', 'name', 'expiresAt', 'owner'],
               additionalProperties: false,
               properties: {
                 id: str,
@@ -8456,10 +8514,47 @@ curl -H "Authorization: Bearer <api-key>" \\
                   description:
                     'When the key stops authenticating; `null` for a key minted to never expire',
                 },
+                owner: {
+                  type: 'object',
+                  description:
+                    'Whose key it is. `user`: a person’s own key, working in every organization they belong to. `member`: a key an Owner or Admin made for that member, working in this organization only. `team`, `project`, `organization`: a key that is not a person — it acts as its own identity with the role it was made with (`organization.role`), in this organization only; a team’s key sees what that team sees, and a project’s key reaches its project alone (any other route answers 403 `API_KEY_SCOPE_FORBIDDEN`). A key bound to one organization needs no `X-Organization-Slug`; one naming another organization answers 403 `ORG_FORBIDDEN`',
+                  required: ['kind', 'team', 'project'],
+                  additionalProperties: false,
+                  properties: {
+                    kind: {
+                      type: 'string',
+                      enum: [
+                        'user',
+                        'member',
+                        'team',
+                        'project',
+                        'organization',
+                      ],
+                    },
+                    team: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The team a team’s key belongs to',
+                    },
+                    project: {
+                      ...nullable({
+                        type: 'object',
+                        required: ['id', 'name'],
+                        properties: { id: str, name: nullable(str) },
+                      }),
+                      description: 'The project a project’s key belongs to',
+                    },
+                  },
+                },
               },
             },
             user: {
               type: 'object',
+              description:
+                'Who the key acts as: its holder, or — for a team’s, a project’s or the organization’s key — the key’s own identity, whose `email` is empty',
               required: ['id', 'email'],
               properties: { id: str, email: str },
             },
@@ -8479,7 +8574,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizations: {
               type: 'array',
               description:
-                'Every organization the key holder belongs to (disabled memberships excluded)',
+                'Every organization the key holder belongs to (disabled memberships excluded); for a key bound to one organization, that organization alone',
               items: {
                 type: 'object',
                 required: ['id', 'slug', 'name', 'role'],
@@ -8849,7 +8944,19 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'and trimmed at intake',
             },
             externalUrl: { type: 'string' },
-            description: { type: 'string' },
+            description: {
+              type: 'string',
+              description:
+                'Markdown, as stored: each mention a mention link, ' +
+                '`[@Ada Lovelace](mention:user/<userId>)`',
+            },
+            descriptionText: {
+              type: 'string',
+              description:
+                'Present with `description`: the same text with each ' +
+                'mention read as `@` and the current name of whoever it ' +
+                'names — for matching words or showing it as plain text',
+            },
             labels: {
               type: 'array',
               items: { type: 'string' },
@@ -10272,6 +10379,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'organizationId',
             'projectId',
             'name',
+            'handle',
             'harness',
             'model',
             'modelProvider',
@@ -10290,6 +10398,22 @@ curl -H "Authorization: Bearer <api-key>" \\
             organizationId: str,
             projectId: str,
             name: str,
+            handle: {
+              type: 'string',
+              pattern: '^[a-z0-9]+(-[a-z0-9]+)*$',
+              maxLength: 52,
+              description:
+                'The agent’s mention handle: lowercase letters, digits and ' +
+                'single hyphens, made from its current name ("My Opus Agent ' +
+                '#3" → `my-opus-agent-3`) and unique in the project (a second ' +
+                'agent whose name gives the same handle gets `-02`, then ' +
+                '`-03` …). It changes when the agent is renamed, and when a ' +
+                'member or an automation of the organization comes to answer ' +
+                'to it (an email name or a store name is the stronger claim). ' +
+                'Address an ' +
+                'agent by `id`; type `@handle` in a comment or a task ' +
+                'description to mention it.',
+            },
             harness: str,
             model: str,
             modelProvider: nullable(str),
@@ -10389,9 +10513,9 @@ curl -H "Authorization: Bearer <api-key>" \\
             status: { type: 'string', enum: ['active', 'superseded'] },
             source: {
               type: 'string',
-              enum: ['chat', 'manual', 'api'],
+              enum: ['chat', 'manual', 'api', 'agent'],
               description:
-                'The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form) or `api` (this door — a create or supersede over REST)',
+                'The lane the fact came through: `chat` (the assistant captured it), `manual` (typed into the Knowledge entries form), `api` (this door — a create or supersede over REST) or `agent` (a project agent or an automation’s agent step granted `knowledge_entry_write`; `createdBy` then names the agent — a project agent’s id or `automation:<name>` — not a user)',
             },
             documentId: {
               ...str,

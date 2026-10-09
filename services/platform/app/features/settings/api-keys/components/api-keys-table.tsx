@@ -23,6 +23,13 @@ interface ApiKeysTableProps {
   /** Whether the viewer may create a key. One whose right lapsed still sees
    * and revokes the keys they hold, but is offered no new one. */
   canCreate?: boolean;
+  /** Whether the viewer may make keys for others: a member, a team, a
+   * project or the organization (Owners and Admins). */
+  canCreateForOthers?: boolean;
+  /** The signed-in member, so a key made for them reads as theirs. */
+  viewerUserId?: string;
+  /** The signed-in member's role here: a key never acts above it. */
+  viewerRole?: string;
   error?: Error | null;
   onRetry?: () => void;
 }
@@ -49,12 +56,17 @@ export function ApiKeysTable({
   apiKeys,
   organizationId,
   canCreate = true,
+  canCreateForOthers = false,
+  viewerUserId,
+  viewerRole,
   error,
   onRetry,
 }: ApiKeysTableProps) {
   const { t: tEmpty } = useT('emptyStates');
-  const { columns, stickyLayout, pageSize } =
-    useApiKeysTableConfig(organizationId);
+  const { columns, stickyLayout, pageSize } = useApiKeysTableConfig(
+    organizationId,
+    viewerUserId,
+  );
 
   const { t: tSettings } = useT('settings');
 
@@ -69,11 +81,16 @@ export function ApiKeysTable({
 
   const handleDeleteItem = useCallback(
     async (id: string) => {
-      // `useRevokeApiKey` takes the keyId directly and throws on auth-client
-      // failure; the bar surfaces a destructive toast for the whole batch.
-      await revokeApiKey.mutateAsync(id);
+      // The key decides its door: the viewer's own ends at the api-key
+      // plugin, a key bound to this organization at its own. A failure
+      // throws; the bar surfaces a destructive toast for the whole batch.
+      const apiKey = apiKeys?.find((item) => item.id === id);
+      if (apiKey === undefined) {
+        throw new Error('API key not found');
+      }
+      await revokeApiKey.mutateAsync(apiKey);
     },
-    [revokeApiKey],
+    [apiKeys, revokeApiKey],
   );
 
   // No search box: an org holds a handful of keys, named deliberately —
@@ -149,6 +166,9 @@ export function ApiKeysTable({
           open={createOpen}
           onOpenChange={setCreateOpen}
           organizationId={organizationId}
+          canCreateForOthers={canCreateForOthers}
+          {...(viewerUserId !== undefined ? { viewerUserId } : {})}
+          {...(viewerRole !== undefined ? { viewerRole } : {})}
         />
       )}
     </Stack>

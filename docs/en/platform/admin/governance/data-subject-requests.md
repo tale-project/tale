@@ -20,6 +20,8 @@ Use **Settings > Governance > Data subject requests** as an Admin or Owner to pr
 
 Erasure permanently removes covered data; it is not a move to Trash. The receipt records the affected categories and counts, including chats, documents and uploads, preferences, feedback, notifications, usage, and audit-identifier scrubbing. The erasure also deletes the separate sandbox workspaces of the [agent runs the person started](/platform/projects/tasks#agent-runs-a-member-starts), even while work still runs in them, and the receipt counts them under **Sandbox workspaces**. A workspace counts only once the sandbox service has deleted its files, which can take a while for a large one. Until then, or while deleting them keeps failing, the receipt reads **Partial** with `sandboxWorkspaces` among its failed passes; choose **Retry** later, and the erasure completes once the files are gone. On Kubernetes, a workspace counts once its volume is handed to the cluster's storage provisioner; with a StorageClass whose `reclaimPolicy` is `Retain`, the volume's files stay until an operator removes the volume, although the receipt counts the workspace. A sandbox service or device that is not yet updated to this version cannot confirm the deletion, so the receipt stays **Partial** until it is updated.
 
+The **Model requests** category covers requests to the model API and direct model calls in automations. Settled requests are removed; a request still in progress keeps the information needed to finish accounting, with the person’s identity replaced by a pseudonym. Later usage is recorded under that pseudonym. If retiring the automation run or removing the identity fails, the receipt stays **Partial** and the dependent usage cleanup waits for a retry.
+
 Tasks that name the person as **Reviewer** lose that designation. A task review still waiting on them moves to the first eligible human fallback, the task creator or project creator, and that person is notified. On an archived task the review moves without a notification. Review decisions the person already made stay on record without their name.
 
 ## Check the policy before filing
@@ -45,6 +47,8 @@ Only the Owner can change this policy. Stronger safeguards apply immediately; we
 | Cancelled | No further execution is scheduled by this receipt. File a new request if the case must resume. |
 
 An open receipt for a subject can prevent a duplicate filing. Work from that receipt rather than creating repeated requests. A retry blocked at initial filing must satisfy the current approval and waiting-period policy again. A receipt awaiting approval keeps the approval requirement captured when it was filed: turning dual approval off later does not release it.
+
+Automation runs held during an upgrade are preserved while their earlier external actions remain unverified. An erasure still deletes the person's other eligible automation runs and reports erased and preserved counts separately. The receipt stays partial. These execution holds are separate from legal holds, and currently have no release action. Requesting a stop or retrying erasure does not clear them. An organization containing these holds also cannot be deleted.
 
 ## Manage the deadline
 

@@ -8,7 +8,7 @@
  * Conventions:
  *   - `name` is the dash-case output filename (content-named, never numbered);
  *     `section` picks the output dir `services/docs/public/images/<section>/`.
- *   - Locators resolve labels through `t()` (tests/e2e/helpers/i18n) — never a
+ *   - Locators resolve labels through the capture locale's `t()` — never a
  *     hardcoded English literal.
  *   - `readyWhen` waits on authoritative state (a locator), never on time.
  *   - `capture.element` crops to a region; omit for the full viewport.
@@ -21,10 +21,13 @@ import {
   sandboxQuotaTotal,
 } from '@tale/shared/schemas/governance';
 
-import { composer, messageLog, sendButton } from '../e2e/helpers/chat';
+import {
+  composer as chatComposer,
+  messageLog as chatMessageLog,
+  sendButton as chatSendButton,
+} from '../e2e/helpers/chat';
 import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
-import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_CHAT_PROMPTS,
   DEMO_DATA_NOTICE,
@@ -47,6 +50,15 @@ import {
   MOCK_PROVIDER_DISPLAY_NAME,
   MOCK_PROVIDER_SLUG,
 } from './demo-content';
+import { t } from './i18n';
+
+const composer = (page: Page): Locator => chatComposer(page, t);
+const messageLog = (page: Page): Locator => chatMessageLog(page, t);
+const sendButton = (page: Page): Locator => chatSendButton(page, t);
+// The unread-count badge contributes a suffix to the radio's accessible name.
+const inboxView = (page: Page): Locator =>
+  page.getByRole('radio', { name: labelStart(t('home.views.inbox')) });
+const labelPrefix = (key: string): string => t(key).split('{')[0].trim();
 
 export interface ShotContext {
   readonly orgId: string;
@@ -73,6 +85,9 @@ export interface Shot {
   readonly prepare?: (page: Page, ctx: ShotContext) => Promise<void>;
   /** The authoritative "state reached" gate. */
   readonly readyWhen: (page: Page, ctx: ShotContext) => Locator;
+  /** Confirm a native route-topic control after data readiness. Required for
+   * marketing captures, whose synthetic names may be the same in every language. */
+  readonly localizedReadyWhen?: (page: Page, ctx: ShotContext) => Locator;
   /**
    * Sanitization ONLY — run after `readyWhen`, before the screenshot.
    * Replace instance-local values (loopback URLs, machine hostnames) with
@@ -200,13 +215,18 @@ const RIG_SECRETS: readonly RigSwap[] = [
 const replaceRigNames = async (page: Page): Promise<void> => {
   await page.evaluate(
     ({ swaps, secrets }) => {
+      const environment = (
+        window as Window & {
+          __ENV__?: { SITE_URL?: string; SITE_ORIGINS?: string[] };
+        }
+      ).__ENV__;
       // The app prints absolute URLs from the origins the deployment
       // reports, which a capture on another host name does not share.
       const origins = new Set(
         [
           window.location.href,
-          window.__ENV__?.SITE_URL,
-          ...(window.__ENV__?.SITE_ORIGINS ?? []),
+          environment?.SITE_URL,
+          ...(environment?.SITE_ORIGINS ?? []),
         ]
           .filter(
             (url): url is string => url !== undefined && URL.canParse(url),
@@ -285,6 +305,11 @@ async function setDataNotice(page: Page, on: boolean): Promise<void> {
   await expect(toggle).toBeChecked({ checked: on });
 }
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
+/** The Add budget rule dialog on Policies & Limits. */
+const budgetRuleDialog = (page: Page): Locator =>
+  page.getByRole('dialog', {
+    name: t('governance.budgets.addRuleDialogTitle'),
+  });
 /** The seeded project without agents of its own. */
 const ONBOARDING_PROJECT = DEMO_PROJECTS[1].name;
 
@@ -411,6 +436,7 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       messageLog(page).getByText('Across the three onboarding calls'),
+    localizedReadyWhen: composer,
   },
   {
     name: 'chat-composer',
@@ -479,6 +505,8 @@ export const SHOTS: readonly Shot[] = [
   {
     name: 'project-task-detail',
     section: 'platform',
+    // The populated brief and saved discussion need the full dialog height.
+    viewport: { width: 1440, height: 1000 },
     route: '/dashboard/:orgId/projects',
     prepare: async (page, ctx) => {
       await page.goto(projectRoute(ctx, '/tasks/board'));
@@ -486,8 +514,21 @@ export const SHOTS: readonly Shot[] = [
         .getByText(DEMO_PROJECTS[0].tasks[0].title, { exact: true })
         .click();
     },
+    // The separate activity query can settle after the task and its comments.
+    // Wait for its seeded history before capturing the populated reading column.
     readyWhen: (page) =>
-      page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
+      page
+        .getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title })
+        .getByRole('heading', {
+          name: t('tasks.detail.activity'),
+          exact: true,
+        }),
+    localizedReadyWhen: (page) =>
+      page
+        .getByRole('dialog', {
+          name: DEMO_PROJECTS[0].tasks[0].title,
+        })
+        .getByRole('button', { name: labelStart(t('tasks.fields.priority')) }),
     capture: (page) =>
       page.getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title }),
   },
@@ -573,6 +614,10 @@ export const SHOTS: readonly Shot[] = [
       );
     },
     readyWhen: (page) => page.getByText(DEMO_PROJECTS[0].tasks[0].title),
+    localizedReadyWhen: (page) =>
+      page
+        .getByRole('button', { name: t('tasks.actions.create'), exact: true })
+        .first(),
     // The board renders SIX columns (Backlog … Cancelled) beside the Home
     // panel, which a project page never folds away, and they do not fit the
     // standard 1440 frame — the last one gets sliced. Widen just this shot.
@@ -636,6 +681,11 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByRole('button', { name: t('projects.agents.rowEdit') }).first(),
+    localizedReadyWhen: (page) =>
+      page.getByRole('button', {
+        name: t('projects.agents.newAgent'),
+        exact: true,
+      }),
     // Each row names the provider serving its model.
     sanitize: replaceRigNames,
   },
@@ -820,6 +870,8 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/knowledge-entries',
     readyWhen: (page) =>
       page.getByText(DEMO_KNOWLEDGE_ENTRIES[0].topic).first(),
+    localizedReadyWhen: (page) =>
+      page.getByPlaceholder(t('knowledgeEntries.searchPlaceholder')),
   },
   {
     // Knowledge > Products — structured records an agent reads by field
@@ -895,9 +947,11 @@ export const SHOTS: readonly Shot[] = [
       await page.waitForURL(/\/chat\/shared\//, { timeout: TIMEOUT.NAV });
     },
     // The heading prefers the thread's own title; the byline ("Shared by …
-    // on …") is the stable marker of the shared view. English is fine — the
-    // capture context pins the en locale like the other literal waits here.
-    readyWhen: (page) => page.getByText('Shared by', { exact: false }).first(),
+    // on …") is the stable marker of the shared view in each locale.
+    readyWhen: (page) =>
+      page
+        .getByText(labelPrefix('chat.share.byline'), { exact: false })
+        .first(),
   },
   {
     // A conversation handed to a project agent: the header's Create task →
@@ -1043,11 +1097,7 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/conversations/open',
     prepare: async (page) => {
-      await page
-        .getByRole('radio', {
-          name: new RegExp(`^${escapeRegExp(t('home.views.inbox'))}`),
-        })
-        .click();
+      await inboxView(page).click();
       await page.getByText(DEMO_INBOX[0].subject).first().click();
       await expect(
         page
@@ -1065,6 +1115,7 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByLabel(t('conversations.messagePlaceholder')).first(),
+    localizedReadyWhen: inboxView,
   },
   {
     // Show the indexed uploads through the real filters, keeping unrelated
@@ -1286,6 +1337,43 @@ export const SHOTS: readonly Shot[] = [
       page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
   },
   {
+    // An Owner's key for the organization itself: whom the key belongs to,
+    // and the role it acts with. Never capture the one-time secret.
+    name: 'settings-api-keys-organization',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/api/rest',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('settings.apiKeys.createKey') })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: t('settings.apiKeys.createKey'),
+      });
+      await dialog
+        .getByLabel(t('settings.apiKeys.form.name'))
+        .fill('Nightly export');
+      await dialog
+        .getByRole('combobox', { name: t('settings.apiKeys.form.owner') })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('settings.apiKeys.form.ownerOptions.organization'),
+        })
+        .click();
+      await dialog
+        .getByRole('combobox', { name: t('settings.apiKeys.form.role') })
+        .click();
+      await page.getByRole('option', { name: t('roles.developer') }).click();
+    },
+    readyWhen: (page) =>
+      page
+        .getByRole('dialog', { name: t('settings.apiKeys.createKey') })
+        .getByRole('combobox', { name: t('settings.apiKeys.form.role') })
+        .filter({ hasText: t('roles.developer') }),
+    capture: (page) =>
+      page.getByRole('dialog', { name: t('settings.apiKeys.createKey') }),
+  },
+  {
     // Settings > API > Models — the two base URLs, the models the member may
     // call and the tool setups. Gate on a listed model id: the list arrives
     // after the page chrome.
@@ -1494,6 +1582,10 @@ export const SHOTS: readonly Shot[] = [
       page
         .locator('[data-automation-node="report"]')
         .getByText(t('automations.runs.nodeStatus.ok'), { exact: true }),
+    localizedReadyWhen: (page) =>
+      page.getByRole('heading', {
+        name: labelStart(labelPrefix('automations.runs.heading')),
+      }),
   },
   {
     // Settings > Connectors with Add credential open on its first step — the
@@ -1720,9 +1812,9 @@ export const SHOTS: readonly Shot[] = [
     // The mock gateway lists a speech-to-text model, so Automatic resolves;
     // the "no model available" warning is a broken stack, never the shot.
     readyWhen: (page) => {
-      const resolved = t('governance.transcriptionModel.currentModel');
-      const prefix = resolved.slice(0, resolved.indexOf('{')).trim();
-      return page.getByText(prefix).first();
+      return page
+        .getByText(labelPrefix('governance.transcriptionModel.currentModel'))
+        .first();
     },
     // The model in use names the provider serving it.
     sanitize: replaceRigNames,
@@ -1742,7 +1834,7 @@ export const SHOTS: readonly Shot[] = [
     route: '/dashboard/:orgId/settings/governance/content-models',
     readyWhen: (page) =>
       imageGenerationSection(page).getByText(
-        /^Agents currently generate images with/,
+        labelPrefix('governance.imageGeneration.currentModel.pinned'),
       ),
     sanitize: replaceRigNames,
     capture: (page) => imageGenerationSection(page),
@@ -1756,7 +1848,9 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/content-models',
     readyWhen: (page) =>
-      standardAgentSection(page).getByText(/^For you, it runs on/),
+      standardAgentSection(page).getByText(
+        labelPrefix('governance.standardAgent.current'),
+      ),
     sanitize: replaceRigNames,
     capture: (page) => standardAgentSection(page),
   },
@@ -1785,6 +1879,44 @@ export const SHOTS: readonly Shot[] = [
     // Land the fold ON a section boundary (measured), not mid-row: any height is
     // a cut somewhere, so cut where the page already has a seam.
     viewport: { width: 1440, height: 1530 },
+  },
+  {
+    // A budget rule that caps one project: the Project scope, its picker with
+    // the project chosen, and a monthly cost cap, with the warning threshold
+    // that warns everyone chatting in the project left empty. Captured before
+    // it is confirmed, so the demo organization's rules stay as seeded.
+    name: 'governance-budget-project-rule',
+    section: 'platform',
+    route: '/dashboard/:orgId/settings/governance/policies-limits',
+    prepare: async (page) => {
+      await page
+        .getByRole('button', { name: t('governance.budgets.addRule') })
+        .first()
+        .click();
+      const dialog = budgetRuleDialog(page);
+      await dialog
+        .getByRole('combobox', { name: t('governance.budgets.scope') })
+        .click();
+      await page
+        .getByRole('option', {
+          name: t('governance.budgets.scopeLabels.project'),
+          exact: true,
+        })
+        .click();
+      await dialog.getByLabel(t('governance.budgets.costLimitUsd')).fill('200');
+      // The project last: its picker keeps focus without a keyboard ring.
+      await dialog
+        .getByRole('button', { name: t('governance.budgets.project') })
+        .click();
+      await page
+        .getByRole('option', { name: RELAUNCH_PROJECT, exact: true })
+        .click();
+    },
+    readyWhen: (page) =>
+      budgetRuleDialog(page)
+        .getByRole('button', { name: t('governance.budgets.project') })
+        .filter({ hasText: RELAUNCH_PROJECT }),
+    capture: (page) => budgetRuleDialog(page),
   },
   {
     // Governance > Policies & Limits — who may share a skill with the whole
@@ -2103,6 +2235,10 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/logs?category=member',
     readyWhen: (page) => page.locator('output').first(),
+    localizedReadyWhen: (page) =>
+      page
+        .getByRole('heading', { name: t('settings.logs.heading'), exact: true })
+        .first(),
   },
   {
     // Governance > Legal hold — the active-holds table and the Place legal

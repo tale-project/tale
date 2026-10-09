@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-1123 boxes across 21 suites. Every suite declares the ID prefix its
+1128 boxes across 21 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -43,7 +43,7 @@ directory and greppable as one token.
 | [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 41 |
 | [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 63 |
 | [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 27 |
-| [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 83 |
+| [governance](suites/governance.md) | `GOV-` | content models, guardrails, policies, legal hold, DSAR, logs, trash | 84 |
 | [knowledge](suites/knowledge.md) | `KNOW-` | documents, knowledge entries, products, contacts, websites | 68 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 20 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 70 |
@@ -52,7 +52,7 @@ directory and greppable as one token.
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 22 |
 | [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 66 |
 | [responsive](suites/responsive.md) | `RESP-` | mobile viewport, bottom tab bar, the phone's Home list, mobile save bar, the narrow page column, short viewports | 35 |
-| [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 122 |
+| [settings](suites/settings.md) | `SET-` | account, personalization, usage, org, teams, branding, connectors, API, providers | 126 |
 | [skills](suites/skills.md) | `SKILL-` | skill library: table + facets, create/upload bundles, visibility, equip on agents | 35 |
 | [tasks](suites/tasks.md) | `TASK-` | project task board/list: DnD lanes, task sheet, the task page, agent runs, outputs, human and agent review | 125 |
 | [video-links](suites/video-links.md) | `VID-` | YouTube/video link ingestion (backend pipeline) | 15 |
@@ -203,7 +203,8 @@ decide whether to continue.
 
 - **New behaviour earns a box** wherever a human still has to judge it — and
   **loses one** once a spec owns it end to end (move the row into
-  [`automation.md`](reference/automation.md) instead).
+  [`automation/<suite>.md`](reference/automation/) instead — see
+  [`automation.md`](reference/automation.md#moving-a-box-here)).
 - **Append IDs; never renumber one.**
 - **Keep a box about the product**, not about the round that wrote it: the
   round belongs in [`runs/`](runs), the reason a box is worded oddly belongs in

@@ -152,6 +152,19 @@ describe('createPgUsageLedger', () => {
     }
   });
 
+  it('books a turn in a project’s thread into the project’s buckets too [GOV-R14]', async () => {
+    const { sql, calls } = capturingSql();
+    await createPgUsageLedger(sql).record({
+      ...ENTRY,
+      projectIds: ['project_1'],
+    });
+    // The three ledger buckets and the project's three.
+    expect(calls.length).toBe(6);
+    expect(calls.filter((values) => values.includes('project_1'))).toHaveLength(
+      3,
+    );
+  });
+
   it('books a REST turn against the API key that authenticated it', async () => {
     const { sql, calls } = capturingSql();
     await createPgUsageLedger(sql).record({ ...ENTRY, apiKeyId: 'key_1' });
@@ -299,7 +312,12 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1' },
+      {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+        projectIds: [],
+      },
       { threadId: 'thread_b' },
     );
     expect(f.transactions).toEqual(['commit']);
@@ -314,7 +332,12 @@ describe('createPgTurnStore.beginTurn admission exclusion', () => {
     });
     expect(budget.admitChatTurnSpend).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org_1', userId: 'user_1' },
+      {
+        organizationId: 'org_1',
+        userId: 'user_1',
+        threadId: 'thread_1',
+        projectIds: [],
+      },
       undefined,
     );
   });
@@ -432,6 +455,7 @@ describe('createPgTurnStore.beginTurn', () => {
 
   const SPEND = {
     userId: 'user_1',
+    projectIds: ['original-project'],
     apiKeyId: 'key_1',
     tokens: 4_096.4,
     costCents: 12.5,
@@ -446,7 +470,13 @@ describe('createPgTurnStore.beginTurn', () => {
     );
     expect(claim?.text).toContain('user_id, api_key_id, reserved_cost_cents,');
     expect(claim?.values).toEqual(
-      expect.arrayContaining(['user_1', 'key_1', 12.5, 4_097]),
+      expect.arrayContaining([
+        'user_1',
+        'key_1',
+        12.5,
+        4_097,
+        ['original-project'],
+      ]),
     );
     // No budget policy is on: nothing to serialize, no admission.
     expect(budget.budgetPolicyActive).toHaveBeenCalledWith(f.sql, 'org_1');
@@ -469,6 +499,8 @@ describe('createPgTurnStore.beginTurn', () => {
         organizationId: 'org_1',
         userId: 'user_1',
         apiKeyId: 'key_1',
+        threadId: 'thread_1',
+        projectIds: ['original-project'],
       },
       // No partner column to leave out of the measure on an ordinary open.
       undefined,
@@ -503,7 +535,7 @@ describe('createPgTurnStore.beginTurn', () => {
     const claim = f.tx.find((statement) =>
       statement.text.includes('INSERT INTO app.generations'),
     );
-    expect(claim?.values.slice(-4)).toEqual([null, null, 0, 0]);
+    expect(claim?.values.slice(-5)).toEqual([null, null, 0, 0, []]);
   });
 });
 
@@ -563,6 +595,44 @@ describe('createPgTurnStore.endGeneration', () => {
           t.includes("status = 'failed'") && t.includes("status = 'pending'"),
       ),
     ).toBe(true);
+  });
+});
+
+describe('createPgTurnStore.holdNextRound [GOV-R5]', () => {
+  const ROUND = {
+    organizationId: 'org_1',
+    threadId: 'thread_1',
+    tokens: 1_200.4,
+    costCents: 0.8,
+  };
+
+  it('raises the generation row’s hold under the admission lock', async () => {
+    budget.budgetPolicyActive.mockResolvedValueOnce(true);
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).holdNextRound?.(ROUND);
+
+    expect(f.transactions).toEqual(['commit']);
+    const texts = f.tx.map((statement) => statement.text);
+    const lock = texts.findIndex((t) =>
+      t.includes('INSERT INTO app.budget_admissions'),
+    );
+    const raise = texts.findIndex(
+      (t) =>
+        t.includes('UPDATE app.generations') &&
+        t.includes('reserved_cost_cents = reserved_cost_cents +'),
+    );
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(raise).toBeGreaterThan(lock);
+    expect(f.tx[raise]?.values).toEqual(
+      expect.arrayContaining([0.8, 1_201, 'thread_1', 'org_1']),
+    );
+  });
+
+  it('holds nothing while no budget binds the organization', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).holdNextRound?.(ROUND);
+    expect(f.transactions).toEqual([]);
+    expect(f.tx).toEqual([]);
   });
 });
 

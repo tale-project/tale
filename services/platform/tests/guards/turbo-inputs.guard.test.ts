@@ -55,7 +55,8 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  *
  * `lint` and `typecheck` read outside the workspace too: `tsc` and oxlint's
  * type-aware rules build one program from its sources and every module they
- * import. Suites import the sandbox runtime's `build-gemini-settings.ts` and
+ * import. The capture manifest suite imports the marketing screenshot registry;
+ * other suites import the sandbox runtime's `build-gemini-settings.ts` and
  * daemon `file-ops.ts` and `exec-replay.ts`; the daemon modules both import
  * `protocol.ts`. An edit to any of these files alone can turn both verdicts:
  * both tasks list them (`STATIC_IMPORTS`) after the same two-entry prefix.
@@ -114,6 +115,11 @@ const OUTSIDE_READS = [
     // that exists, so a page that moves must turn its verdict.
     path: 'docs/en/platform',
     readers: 'tests/guards/domain-specs.guard.test.ts',
+  },
+  {
+    path: 'services/web/app/content/product-screenshots.ts',
+    readers:
+      'tests/docs-screenshots/manifest.test.ts selects native marketing capture readiness',
   },
   {
     path: 'knip.config.ts',
@@ -188,8 +194,18 @@ const OUTSIDE_READS = [
   },
 ];
 
-/** Every sandbox-runtime module the platform's sources import, and who imports it. */
+/** Every outside repo module the platform's sources import, and who imports it. */
 const STATIC_IMPORTS = [
+  {
+    path: 'tools/cli/src/lib/deployment/automation-cutover-sql.ts',
+    importers:
+      'backend/jobs/automation-floor.integration.ts proves the maintained CLI admission lock and census',
+  },
+  {
+    path: 'services/web/app/content/product-screenshots.ts',
+    importers:
+      'tests/docs-screenshots/manifest.test.ts imports the marketing capture source registry',
+  },
   {
     path: 'tools/cli/src/lib/deployment/automation-floor.ts',
     importers:

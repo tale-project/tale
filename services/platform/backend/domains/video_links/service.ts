@@ -1,6 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import { CHAT_AUDIO_MAX_DURATION_SEC } from '../../../lib/shared/file-types.ts';
+import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage.ts';
 import {
   isPlaylistUrl,
   detectPlatform,
@@ -20,14 +20,15 @@ import {
   reportBrowserSessionResult,
 } from '../browser_sessions/service.ts';
 import { chatShimHandlers } from '../chat/shim.ts';
+import { readThreadProjectId } from '../chat/threads.ts';
 import {
   deleteOrgBlobRefs,
   deleteUnheldOrgBlobRefs,
   putOrgBlobBytes,
 } from '../files/service.ts';
-import { loadBudgetSubject } from '../governance/budget-gate.ts';
+import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
+import { directCallBlocked } from '../governance/direct-calls.ts';
 import { markRagQueued } from '../knowledge/service.ts';
-import { checkTtsBudget } from '../tts/service.ts';
 import { hintVideoJobs, type VideoJobHintRow } from './hints.ts';
 
 /**
@@ -102,6 +103,9 @@ export interface VideoLinkJobRow {
   id: string;
   organizationId: string;
   threadId: string | null;
+  /** The project of the new chat the link was pasted into, before its
+   * thread existed (0158). */
+  projectId: string | null;
   uploadedBy: string;
   sourceUrl: string;
   sourceUrlHash: string;
@@ -130,6 +134,7 @@ export interface VideoLinkJobRow {
 
 const JOB_COLUMNS = `
   id, org_id AS "organizationId", thread_id AS "threadId",
+  project_id AS "projectId",
   uploaded_by AS "uploadedBy", source_url AS "sourceUrl",
   source_url_hash AS "sourceUrlHash", source_platform AS "sourcePlatform",
   pasted_token AS "pastedToken", video_title AS "videoTitle",
@@ -478,6 +483,9 @@ export async function settleHandoffJobsByStorageRef(
     storageId: string;
     transcriptionStatus: 'completed' | 'failed' | 'skipped';
     errorMessage?: string;
+    /** Why the transcription failed, when it knows (`budgetExceeded`);
+     * a plain transcription failure otherwise. */
+    reasonCode?: string;
   },
 ): Promise<void> {
   const now = Date.now();
@@ -487,7 +495,7 @@ export async function settleHandoffJobsByStorageRef(
         status = 'failed',
         status_changed_at_ms = ${now},
         progress = NULL,
-        error_reason_code = 'whisperFailed',
+        error_reason_code = ${args.reasonCode === 'budgetExceeded' ? 'budgetExceeded' : 'whisperFailed'},
         error_message = ${args.errorMessage ?? 'Whisper transcription failed'}
       WHERE status = 'transcribing_handoff' AND storage_ref = ${args.storageId}
       RETURNING id, org_id AS "organizationId", uploaded_by AS "uploadedBy"
@@ -655,6 +663,7 @@ function videoShimHandlers(sql: Sql): ShimHandlers {
         _creationTime: job.createdAt,
         organizationId: job.organizationId,
         threadId: job.threadId ?? undefined,
+        projectId: job.projectId ?? undefined,
         uploadedBy: job.uploadedBy,
         sourceUrl: job.sourceUrl,
         sourceUrlHash: job.sourceUrlHash,
@@ -701,17 +710,19 @@ function videoShimHandlers(sql: Sql): ShimHandlers {
         source?: string;
         uploadedBy?: string;
         threadId?: string;
+        projectId?: string;
       };
       return sql.begin(async (tx) => {
         const inserted = await tx<{ id: string }[]>`
           INSERT INTO app.file_metadata (
             org_id, storage_ref, file_name, content_type, size, source,
-            uploaded_by, thread_id, transcription_status, created_at_ms
+            uploaded_by, thread_id, project_id, transcription_status,
+            created_at_ms
           ) VALUES (
             ${args.organizationId}, ${args.storageId}, ${args.fileName},
             ${args.contentType}, ${args.size}, ${args.source ?? null},
-            ${args.uploadedBy ?? null}, ${args.threadId ?? null}, 'queued',
-            ${Date.now()}
+            ${args.uploadedBy ?? null}, ${args.threadId ?? null},
+            ${args.projectId ?? null}, 'queued', ${Date.now()}
           )
           RETURNING id
         `;
@@ -968,24 +979,41 @@ async function assertInFlightCapInTx(
   await assertInFlightCap(tx, organizationId);
 }
 
-const PROSPECTIVE_VIDEO_LINK_COST_CENTS = Math.ceil(
-  (CHAT_AUDIO_MAX_DURATION_SEC / 60) * 0.6,
-);
-
+/**
+ * The early answer at the door: a person already at a limit — counting
+ * the work in flight, and the limits of the chat's project — starts no
+ * download. Nothing is held here: the transcription a download may lead to
+ * holds its real length when it runs (`files/transcription-metering.ts`),
+ * and captions or a transcript copied from another job cost nothing.
+ */
 async function assertVideoBudget(
   sql: Sql,
-  organizationId: string,
-  userId: string,
+  args: {
+    organizationId: string;
+    userId: string;
+    threadId?: string | null;
+    projectId?: string | null;
+  },
 ): Promise<void> {
-  const budget = await checkTtsBudget(sql, {
-    ...(await loadBudgetSubject(sql, { organizationId, userId })),
-    prospectiveCostCents: PROSPECTIVE_VIDEO_LINK_COST_CENTS,
-    prospectiveRequests: 1,
+  // The chat's project: the one the composer named for a new chat, else
+  // the thread's (a thread the member owns — the door checks it).
+  const projectId =
+    args.projectId ??
+    (args.threadId != null
+      ? await readThreadProjectId(sql, args.organizationId, args.threadId)
+      : undefined);
+  const violation = await directCallBlocked(sql, {
+    organizationId: args.organizationId,
+    subject: {
+      userId: args.userId,
+      agentSlug: TRANSCRIPTION_SLUG,
+      ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+    },
   });
-  if (!budget.allowed) {
+  if (violation !== null) {
     throw new VideoLinkError(
       'budgetExceeded',
-      budget.reason ?? 'Usage limit reached — contact your administrator.',
+      budgetRefusalMessage(violation),
       429,
     );
   }
@@ -993,9 +1021,10 @@ async function assertVideoBudget(
 
 /**
  * Ingest a pasted video URL (the 0.4 `ingestVideoUrl`): playlist refusal,
- * budget gate (worst-case prospective Whisper cost), server-derived dedup
- * key + platform, in-thread dedup, org-wide donor clone (before — and
- * exempt from — the in-flight cap), cap, insert + `video.ingest` job.
+ * server-derived dedup key + platform, in-thread dedup, org-wide donor
+ * clone (before — and exempt from — the in-flight cap and the budget), the
+ * budget gate before a fresh download (`assertVideoBudget`), cap, insert +
+ * `video.ingest` job.
  * The route owns org membership + thread access + the rate limit.
  */
 export async function ingestVideoUrl(
@@ -1004,6 +1033,9 @@ export async function ingestVideoUrl(
     organizationId: string;
     userId: string;
     threadId?: string;
+    /** A project's new chat, before its thread exists — one the member may
+     * chat in (the door checks): the link's transcription counts toward it. */
+    projectId?: string;
     url: string;
     pastedToken: string;
     userLocale?: string;
@@ -1015,7 +1047,6 @@ export async function ingestVideoUrl(
       'Playlist URLs are not supported — paste a single video link instead',
     );
   }
-  await assertVideoBudget(sql, args.organizationId, args.userId);
 
   const serverNormalized = normalizeUrlForHash(args.url);
   const serverPlatform = detectPlatform(args.url);
@@ -1118,17 +1149,20 @@ export async function ingestVideoUrl(
     return inserted;
   }
 
+  // Only a fresh download can spend: the paths above are free.
+  await assertVideoBudget(sql, args);
   return sql.begin(async (tx) => {
     await assertInFlightCapInTx(tx, args.organizationId);
     const rows = await tx<{ id: string }[]>`
       INSERT INTO app.video_link_jobs (
-        org_id, thread_id, uploaded_by, source_url, source_url_hash,
-        source_platform, pasted_token, status, status_changed_at_ms,
-        attempts, lifecycle_status, created_at_ms
+        org_id, thread_id, project_id, uploaded_by, source_url,
+        source_url_hash, source_platform, pasted_token, status,
+        status_changed_at_ms, attempts, lifecycle_status, created_at_ms
       ) VALUES (
-        ${args.organizationId}, ${args.threadId ?? null}, ${args.userId},
-        ${args.url}, ${sourceUrlHash}, ${serverPlatform},
-        ${args.pastedToken}, 'queued', ${now}, 0, 'active', ${now}
+        ${args.organizationId}, ${args.threadId ?? null},
+        ${args.projectId ?? null}, ${args.userId}, ${args.url},
+        ${sourceUrlHash}, ${serverPlatform}, ${args.pastedToken}, 'queued',
+        ${now}, 0, 'active', ${now}
       )
       RETURNING id
     `;
@@ -1443,7 +1477,12 @@ export async function retryVideoLink(
       429,
     );
   }
-  await assertVideoBudget(sql, args.organizationId, args.userId);
+  await assertVideoBudget(sql, {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    threadId: job.threadId,
+    projectId: job.projectId,
+  });
   // Fast-fail on the pool BEFORE the cleanup below deletes the failed job's
   // blob and file row: a retry the cap refuses should leave them in place.
   // The locked count inside the transaction is the decision.

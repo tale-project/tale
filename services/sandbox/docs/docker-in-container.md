@@ -34,7 +34,12 @@ This reduces idle processes; the session retains its configured runtime
 boundary, privileges and resource limits throughout.
 
 Health checks do not start the engine or reset its idle timer. An intentionally
-sleeping engine remains ready for new work. A failed probe refuses new work
+sleeping engine remains ready for new work. runnerd's `/healthz` reports the
+engine as `docker: { engine, used }`: `cold` until the first Docker command,
+`running` while it starts or runs, `stopped` after it slept or failed, with
+`used` true once it has run in this container. A released session whose engine
+never ran gets the normal released idle window, since it has no image store a
+resume would lose. A failed probe refuses new work
 while runnerd stays live, but one slow probe does not cause session cleanup.
 Probe-based recovery requires at least three completed failures spanning five
 seconds; cached reads do not count again, and a healthy result or a new engine
@@ -189,6 +194,16 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   container metadata starts the engine immediately to honor restart policies.
   Running services, enabled restart policies and connected clients prevent
   automatic engine sleep.
+- **Store trim before sleep.** When an idle engine's images and build cache
+  use more than 10 GiB, it removes its dangling (untagged, unused) images and
+  prunes its build cache to the 5 GiB used most recently before it stops, so
+  a session that keeps its container (a pinned one) does not grow its inner
+  store without bound. Tagged images, images a container uses, containers and
+  volumes stay. The trim is bounded and best-effort: a failure is logged and
+  the engine stops anyway, and a Docker command arriving during the trim
+  keeps the engine running. A store whose volume is limited below 10 GiB (a
+  Kubernetes emptyDir sized smaller) is bounded by that limit instead: the
+  kubelet evicts the Pod at it, so the trim never runs there.
 - The inner `/var/lib/docker` is a **dedicated, ephemeral per-session volume**
   (Docker backend: a named volume `tale-dind-<session>`; K8s: a size-bounded
   `emptyDir`). It is **not** the workspace (nested overlay is rejected by the
@@ -213,7 +228,9 @@ override it with `SANDBOX_RUNTIME_CLASS`.
   the Docker data-root on XFS alone does not assign a project quota to each
   named volume. Tale does not configure those quotas. A fixed-size filesystem
   for the entire data-root bounds aggregate use, not individual sessions.
-  On K8s `emptyDir.sizeLimit` is enforced by eviction, which can lag writes.
+  On K8s the store's `emptyDir.sizeLimit` (`SANDBOX_K8S_DOCKER_STORAGE_SIZE_LIMIT`,
+  default `20Gi`) and the Pod's `ephemeral-storage` limit are enforced by
+  eviction, which can lag writes.
   **Set a quota before exposing this to untrusted tenants** — an unbounded
   `docker build` loop can fill shared storage. Docker admission also observes
   the workspace filesystem and, where the spawner's hostname bind verifies
@@ -246,6 +263,15 @@ case-sensitive organization hash; ownership labels are verified before any
 resource is reused. The daemon and mirrors have no published ports and do not
 join the shared sandbox network.
 
+A session with its organization's build network also starts its inner engine
+with the organization's `docker.io` mirror as registry mirror, reached over
+plain HTTP on that private network and outside the egress proxy. A `docker pull`
+or `docker compose pull` of a Docker Hub image then reuses the layers any
+session of the organization already fetched; when the mirror does not answer,
+the engine pulls from Docker Hub through the egress proxy as before. The engine
+uses registry mirrors for Docker Hub only, so `ghcr.io` and `quay.io` pulls
+go upstream.
+
 Sessions join both their organization's build network and the existing control
 network. The egress proxy joins the private build network under a local alias;
 forwarding rules prevent that proxy and the session's outer interfaces from
@@ -254,8 +280,11 @@ the transparent proxy and DNS path. A moved egress proxy is reattached and the
 builder's stale egress configuration is repaired during provisioning/adoption.
 
 The runtime derives its buildx builder name from the configured endpoint, so
-persistent workspaces do not retain an earlier global endpoint by name. Builder
-setup failure selects the local builder. A bare remote `docker build` needs
+persistent workspaces do not retain an earlier global endpoint by name. A
+resumed workspace whose agent user already owns that builder's definition
+selects it without starting the Docker CLI; otherwise startup inspects or
+creates it. Builder setup failure, including a failure to derive the name,
+selects the local builder and never stops the session from starting. A bare remote `docker build` needs
 `--load` before the resulting image can run in the session's inner engine.
 
 On upgrade, organization caches start cold. The old global containers are

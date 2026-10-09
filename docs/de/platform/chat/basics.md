@@ -80,7 +80,7 @@ Der Aufgabendialog öffnet sich mit deiner letzten Anfrage als Beschreibung, ein
 
 </Frame>
 
-Danach steht die Aufgabe über dem Nachrichtenfeld des Chats, mit dem, was sie gerade tut: **Der Agent arbeitet**, **Wartet auf einen Sandbox-Platz**, **Wird erneut versucht…**, **Bereit zur Prüfung** mit der Zahl der gelieferten Dateien oder **Der Agent konnte sie nicht fertigstellen**. **Öffnen** führt dich zur Aufgabe. Du wirst außerdem benachrichtigt, wenn sie zur Prüfung bereit ist und wenn der Agent nicht fertig wird; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) erklärt, wie es weitergeht.
+Danach steht die Aufgabe über dem Nachrichtenfeld des Chats, mit dem, was sie gerade tut: **Der Agent arbeitet**, **Wartet auf einen Worker** (oder ein anderer Zustand, der sagt, worauf der Lauf wartet), **Wird erneut versucht…**, **Bereit zur Prüfung** mit der Zahl der gelieferten Dateien oder **Der Agent konnte sie nicht fertigstellen**. **Öffnen** führt dich zur Aufgabe. Du wirst außerdem benachrichtigt, wenn sie zur Prüfung bereit ist und wenn der Agent nicht fertig wird; [Wenn der Agent nicht fertig wird](/de/platform/projects/task-automation#wenn-der-agent-nicht-fertig-wird) erklärt, wie es weitergeht.
 
 <Frame caption="Die Aufgabe, die ein Chat übergeben hat, zeigt ihren Fortschritt über dem Nachrichtenfeld.">
 
@@ -97,6 +97,8 @@ Dateien kommen nur aus deinem eigenen Gespräch mit. Eine Aufgabe nimmt nur die 
 ## Ein Gespräch fortsetzen oder aufbewahren
 
 Über die Antwortleiste kopierst du Text, gibst Feedback, öffnest Details oder zweigst das Gespräch an dieser Stelle ab. Mit einer Abzweigung probierst du eine andere Richtung aus und behältst den bisherigen Austausch.
+
+Deine eigenen Nachrichten stehen rechts. Von einer langen siehst du den Anfang; **Weiterlesen** öffnet den Rest an Ort und Stelle, **Weniger anzeigen** klappt ihn wieder zu. Zeige auf eine deiner Nachrichten oder setze den Tastaturfokus hinein, dann siehst du, wann du sie gesendet hast, und findest **Nachricht bearbeiten**: Damit änderst du den Text in einer neuen Version des Gesprächs. Auf einem Touchscreen ist beides immer zu sehen. Unter einer Nachricht, die du bearbeitet hast oder deren Antwort du mit **Erneut versuchen** neu angefordert hast, wechselst du mit **Vorheriger Zweig** und **Nächster Zweig** zwischen den Versionen; die Zahl dazwischen, etwa 2/3, zeigt, welche gerade zu sehen ist.
 
 Frühere Chats findest du im Bereich [Start](/de/platform#home); die Ansicht **Chats** über der Liste zeigt nur deine Chats. Pinne häufig benötigte Chats, gib ihnen erkennbare Titel oder verschiebe sie in ein Projekt, wenn das Thema längerfristig wird: Zieh sie auf das Projekt oder wähle **In Projekt verschieben…** in ihrem Menü. [Geteilte Chats](/de/platform/chat/shared-threads) erklärt die schreibgeschützte Freigabe für Kollegen.
 

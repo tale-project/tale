@@ -13,7 +13,9 @@ import { createServer as createHttpServer, request } from 'node:http';
 import { createConnection, createServer, type Socket } from 'node:net';
 
 import {
+  DOCKER_ENGINE_HEADER,
   DOCKER_RECOVERY_HEADER,
+  type DockerEngineState,
   InnerDockerHealth,
   LAZY_DOCKER_HEALTH_SOCKET,
 } from './inner-docker-health.ts';
@@ -28,6 +30,8 @@ interface ProxyOptions {
   healthSocket?: string;
   startEngine(signal: AbortSignal): Promise<EngineHandle>;
   canStop(): Promise<boolean>;
+  /** Runs once an idle engine is confirmed and before it stops; best-effort. */
+  beforeStop?(signal: AbortSignal): Promise<void>;
   idleMs?: number;
   retryIdleMs?: number;
   maxClients?: number;
@@ -48,8 +52,22 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
   const abort = new AbortController();
   let closePromise: Promise<void> | undefined;
   let engineHealth: InnerDockerHealth | undefined;
+  /** Set by the first activation: the inner store has had an engine since. */
+  let activated = false;
 
   async function health(): Promise<{
+    dockerReady: boolean;
+    dockerRecoveryRequired: boolean;
+    engine: DockerEngineState;
+  }> {
+    const reading = await readiness();
+    return {
+      ...reading,
+      engine: engine || starting ? 'running' : activated ? 'stopped' : 'cold',
+    };
+  }
+
+  async function readiness(): Promise<{
     dockerReady: boolean;
     dockerRecoveryRequired: boolean;
   }> {
@@ -96,6 +114,22 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
       scheduleIdle(options.retryIdleMs ?? 30_000);
       return;
     }
+    if (options.beforeStop) {
+      // The engine still serves while this runs, so a client that arrives
+      // meanwhile keeps it running; its close schedules the next check.
+      try {
+        await options.beforeStop(abort.signal);
+      } catch (error) {
+        console.warn('[lazy-docker] pre-stop work failed:', error);
+      }
+      if (
+        closed ||
+        clients.size ||
+        epoch !== checkEpoch ||
+        engine !== candidate
+      )
+        return;
+    }
     // Set the barrier synchronously before awaiting: new clients queue behind shutdown.
     engine = undefined;
     stopping = candidate.stop();
@@ -110,6 +144,7 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
     if (closed) throw new Error('Docker proxy closed');
     if (engine) return engine;
     if (!starting) {
+      activated = true;
       starting = options
         .startEngine(abort.signal)
         .then(async (started) => {
@@ -229,6 +264,7 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
               DOCKER_RECOVERY_HEADER,
               String(reading.dockerRecoveryRequired),
             );
+            res.setHeader(DOCKER_ENGINE_HEADER, reading.engine);
             res
               .writeHead(reading.dockerReady ? 200 : 503)
               .end(reading.dockerReady ? 'OK' : 'unavailable');
@@ -258,6 +294,12 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
   }
   return {
     ensureReady,
+    /** Reports the inner store as used without starting an engine: a store
+     * that already holds images (a Kubernetes runner restarted inside the
+     * same Pod keeps its store) is worth the full released window. */
+    markStoreUsed() {
+      activated = true;
+    },
     close() {
       if (closePromise) return closePromise;
       closed = true;
@@ -287,14 +329,37 @@ export async function createLazyDockerProxy(options: ProxyOptions) {
   };
 }
 
+/** Whether the inner Docker store already holds pulled or built images (its
+ * image database has entries). Best-effort: an unreadable store reads as
+ * empty, which keeps the shorter released window. */
+export async function storeHoldsImages(
+  imageDb = '/var/lib/docker/image/overlay2/imagedb/content/sha256',
+): Promise<boolean> {
+  try {
+    return (await readdir(imageDb)).length > 0;
+  } catch (error) {
+    if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
+      console.warn(
+        '[lazy-docker] could not read the inner image store:',
+        error,
+      );
+    return false;
+  }
+}
+
 function readEngineJson(
   socketPath: string,
   path: string,
   signal: AbortSignal,
+  {
+    method = 'GET',
+    timeoutMs = 2000,
+    maxBytes = 1024 * 1024,
+  }: { method?: 'GET' | 'POST'; timeoutMs?: number; maxBytes?: number } = {},
 ): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const req = request(
-      { socketPath, path, agent: false, signal },
+      { socketPath, path, method, agent: false, signal },
       (response) => {
         if (response.statusCode !== 200) {
           response.destroy();
@@ -305,7 +370,7 @@ function readEngineJson(
         let bytes = 0;
         response.on('data', (chunk: Buffer) => {
           bytes += chunk.length;
-          if (bytes > 1024 * 1024) {
+          if (bytes > maxBytes) {
             response.destroy(new Error('Docker inventory too large'));
             return;
           }
@@ -323,7 +388,7 @@ function readEngineJson(
     );
     const deadline = setTimeout(
       () => req.destroy(new Error('Docker inventory timed out')),
-      2000,
+      timeoutMs,
     );
     req.on('close', () => clearTimeout(deadline));
     req.on('error', reject);
@@ -383,6 +448,152 @@ export async function engineIsIdle(socketPath: string): Promise<boolean> {
   return true;
 }
 
+const GIB = 1024 ** 3;
+/** An idle engine whose images and build cache use more than this is trimmed
+ * before it stops, so a session that keeps its container for long (a pinned
+ * one) does not grow its inner store without bound. */
+const IDLE_STORE_TRIM_THRESHOLD_BYTES = 10 * GIB;
+/** The build cache such a trim leaves, the most recently used kept. */
+const IDLE_BUILD_CACHE_KEEP_BYTES = 5 * GIB;
+/** Inventory and prune answers list every image and cache record. */
+const TRIM_RESPONSE_MAX_BYTES = 16 * 1024 * 1024;
+
+function bytesOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function totalSizeOf(summary: unknown): number | undefined {
+  return summary && typeof summary === 'object' && 'TotalSize' in summary
+    ? bytesOf(summary.TotalSize)
+    : undefined;
+}
+
+/** Image and build-cache bytes from `/system/df`: the summaries newer
+ * engines add, else the layer total and cache records older ones report. */
+function storeBytes(usage: unknown): number {
+  if (!usage || typeof usage !== 'object')
+    throw new Error('Docker disk usage unavailable');
+  const images =
+    ('ImageUsage' in usage ? totalSizeOf(usage.ImageUsage) : undefined) ??
+    ('LayersSize' in usage ? bytesOf(usage.LayersSize) : undefined);
+  if (images === undefined)
+    throw new Error('Docker disk usage has no image total');
+  let cache =
+    'BuildCacheUsage' in usage ? totalSizeOf(usage.BuildCacheUsage) : undefined;
+  if (cache === undefined) {
+    cache = 0;
+    const records =
+      'BuildCache' in usage && Array.isArray(usage.BuildCache)
+        ? (usage.BuildCache as unknown[])
+        : [];
+    for (const record of records) {
+      if (record && typeof record === 'object' && 'Size' in record)
+        cache += bytesOf(record.Size) ?? 0;
+    }
+  }
+  return images + cache;
+}
+
+function reclaimedBytes(answer: unknown): number {
+  return answer && typeof answer === 'object' && 'SpaceReclaimed' in answer
+    ? (bytesOf(answer.SpaceReclaimed) ?? 0)
+    : 0;
+}
+
+function apiAtLeast(version: string, major: number, minor: number): boolean {
+  const [have, haveMinor] = version.split('.').map(Number);
+  return (
+    have !== undefined &&
+    haveMinor !== undefined &&
+    (have > major || (have === major && haveMinor >= minor))
+  );
+}
+
+/**
+ * Trim an idle engine's store when its images and build cache exceed
+ * `thresholdBytes`: remove dangling images, then prune the build cache down
+ * to `keepBytes`. Tagged images, images any container uses, volumes and
+ * containers are never touched. Bounded by its own deadline and the caller's
+ * signal; a failed prune is reported and the other still runs.
+ */
+export async function trimIdleEngineStore(
+  socketPath: string,
+  {
+    thresholdBytes = IDLE_STORE_TRIM_THRESHOLD_BYTES,
+    keepBytes = IDLE_BUILD_CACHE_KEEP_BYTES,
+    signal: callerSignal,
+    log = (message: string) => console.log(message),
+    warn = (message: string, error: unknown) => console.warn(message, error),
+  }: {
+    thresholdBytes?: number;
+    keepBytes?: number;
+    signal?: AbortSignal;
+    log?: (message: string) => void;
+    warn?: (message: string, error: unknown) => void;
+  } = {},
+): Promise<{ usedBytes: number; reclaimedBytes?: number }> {
+  const deadline = AbortSignal.timeout(150_000);
+  const signal = callerSignal
+    ? AbortSignal.any([callerSignal, deadline])
+    : deadline;
+  const version = await readEngineJson(socketPath, '/version', signal);
+  if (
+    !version ||
+    typeof version !== 'object' ||
+    !('ApiVersion' in version) ||
+    typeof version.ApiVersion !== 'string' ||
+    !/^\d+\.\d+$/.test(version.ApiVersion)
+  )
+    throw new Error('Docker API version unavailable');
+  const api = `/v${version.ApiVersion}`;
+  const usedBytes = storeBytes(
+    await readEngineJson(
+      socketPath,
+      `${api}/system/df?type=image&type=build-cache`,
+      signal,
+      { timeoutMs: 30_000, maxBytes: TRIM_RESPONSE_MAX_BYTES },
+    ),
+  );
+  if (usedBytes <= thresholdBytes) return { usedBytes };
+  const prune = { method: 'POST', timeoutMs: 60_000 } as const;
+  let reclaimed = 0;
+  try {
+    const filters = encodeURIComponent(JSON.stringify({ dangling: ['true'] }));
+    reclaimed += reclaimedBytes(
+      await readEngineJson(
+        socketPath,
+        `${api}/images/prune?filters=${filters}`,
+        signal,
+        { ...prune, maxBytes: TRIM_RESPONSE_MAX_BYTES },
+      ),
+    );
+  } catch (error) {
+    warn('[lazy-docker] dangling image prune failed:', error);
+  }
+  try {
+    // API 1.48 replaced keep-storage with a reserved and a maximum size;
+    // both at the same value keep exactly that much.
+    const keep = apiAtLeast(version.ApiVersion, 1, 48)
+      ? `reserved-space=${keepBytes}&max-used-space=${keepBytes}`
+      : `keep-storage=${keepBytes}`;
+    reclaimed += reclaimedBytes(
+      await readEngineJson(socketPath, `${api}/build/prune?${keep}`, signal, {
+        ...prune,
+        maxBytes: TRIM_RESPONSE_MAX_BYTES,
+      }),
+    );
+  } catch (error) {
+    warn('[lazy-docker] build cache prune failed:', error);
+  }
+  const gib = (bytes: number) => (bytes / GIB).toFixed(1);
+  log(
+    `[lazy-docker] idle Docker store used ${gib(usedBytes)} GiB (over ${gib(thresholdBytes)}); reclaimed ${gib(reclaimed)} GiB from dangling images and build cache`,
+  );
+  return { usedBytes, reclaimedBytes: reclaimed };
+}
+
 const PUBLIC_SOCKET = '/var/run/docker.sock';
 const PRIVATE_SOCKET = '/var/run/tale-docker/engine.sock';
 const ENTRYPOINT = '/entrypoint.sh';
@@ -390,7 +601,7 @@ const NODE = '/opt/node/bin/node';
 const ROOT_PATH = '/opt/node/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin';
 
 /** No workspace executable, loader hook, Docker context or mutable client config runs as root. */
-function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     PATH: ROOT_PATH,
     HOME: '/root',
@@ -408,6 +619,7 @@ function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     'TALE_DIND_INNER_POOL_OVERRIDE',
     'TALE_BUILDKIT_NETWORK_SUBNETS',
     'TALE_BUILDKITD_ENDPOINT',
+    'TALE_DOCKER_HUB_MIRROR',
     'TALE_GATEWAY_URL',
     'TALE_TRANSPARENT_EGRESS',
   ])
@@ -415,6 +627,22 @@ function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   env.TALE_LAZY_REDSOCKS_STARTED = boot.TALE_REDSOCKS_STARTED ?? '';
   env.TALE_LAZY_INNER_POOL = boot.TALE_DIND_INNER_POOL ?? '';
   env.TALE_LAZY_INNER_BIP = boot.TALE_DIND_INNER_BIP ?? '';
+  return env;
+}
+
+/** runnerd's environment: the boot environment with the Node settings the
+ * entrypoint withheld from this root process handed back. The agent uid can
+ * write both the dependency path and the compile cache, so only runnerd (and
+ * the execs it starts at that uid) may load from them. */
+export function runnerEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {
+    ...boot,
+    NODE_PATH: boot.TALE_RUNNER_NODE_PATH ?? '',
+  };
+  if (boot.TALE_RUNNER_NODE_COMPILE_CACHE)
+    env.NODE_COMPILE_CACHE = boot.TALE_RUNNER_NODE_COMPILE_CACHE;
+  delete env.TALE_RUNNER_NODE_PATH;
+  delete env.TALE_RUNNER_NODE_COMPILE_CACHE;
   return env;
 }
 
@@ -542,6 +770,9 @@ export async function runLazyDockerSupervisor() {
     startEngine: (signal) =>
       startEngineProcess(engineEnvironment(boot), signal),
     canStop: () => engineIsIdle(PRIVATE_SOCKET),
+    beforeStop: async (signal) => {
+      await trimIdleEngineStore(PRIVATE_SOCKET, { signal });
+    },
   });
   let runner: ReturnType<typeof spawn> | undefined;
   let shuttingDown = false;
@@ -569,12 +800,9 @@ export async function runLazyDockerSupervisor() {
         throw error;
     }
     if (hasExistingContainers) await proxy.ensureReady();
+    else if (await storeHoldsImages()) proxy.markStoreUsed();
     if (shuttingDown) return;
-    const runnerEnv: NodeJS.ProcessEnv = {
-      ...boot,
-      NODE_PATH: boot.TALE_RUNNER_NODE_PATH ?? '',
-    };
-    delete runnerEnv.TALE_RUNNER_NODE_PATH;
+    const runnerEnv = runnerEnvironment(boot);
     runner = spawn(
       '/usr/bin/setpriv',
       [

@@ -29,7 +29,9 @@ export async function checkProjectAgentRest(args: {
     return result;
   };
   const roster = z.object({
-    agents: z.array(z.looseObject({ id: z.string(), name: z.string() })),
+    agents: z.array(
+      z.looseObject({ id: z.string(), name: z.string(), handle: z.string() }),
+    ),
   });
   const agentEnvelope = z.object({
     agent: z.looseObject({
@@ -37,6 +39,7 @@ export async function checkProjectAgentRest(args: {
       projectId: z.string(),
       organizationId: z.string(),
       name: z.string(),
+      handle: z.string(),
       harness: z.string(),
       model: z.string(),
       modelProvider: z.string().nullable(),
@@ -128,6 +131,8 @@ export async function checkProjectAgentRest(args: {
   assert.deepEqual(created.tools, ['task_find', 'document_find']);
   assert.equal(created.modelProvider, 'itestagent');
   assert.equal(JSON.stringify(created).includes(secretValue), false);
+  // The mention handle is made from the name [PROJ-R18].
+  assert.equal(created.handle, 'reviewer');
   const itemPath = `${path}/${created.id}`;
   const listed = roster.parse(
     await (await expectStatus(rest('GET', path), 200)).json(),
@@ -145,8 +150,8 @@ export async function checkProjectAgentRest(args: {
     ).json(),
   );
   assert.deepEqual(
-    appListed.agents.map((agent) => agent.id),
-    [created.id],
+    appListed.agents.map((agent) => [agent.id, agent.handle]),
+    [[created.id, 'reviewer']],
   );
   assert.equal(
     agentEnvelope.parse(
@@ -166,6 +171,17 @@ export async function checkProjectAgentRest(args: {
   }
   // A duplicate name (any case) is the 409 every other duplicate answers.
   await expectStatus(rest('POST', path, { ...config, name: 'reviewer' }), 409);
+  // Another name that gives the same handle takes the next free one
+  // [PROJ-R18].
+  const twin = agentEnvelope.parse(
+    await (
+      await expectStatus(
+        rest('POST', path, { ...config, name: 'Reviewer!' }),
+        201,
+      )
+    ).json(),
+  ).agent;
+  assert.equal(twin.handle, 'reviewer-02');
   for (const body of [
     { ...config, projectId: otherProjectId },
     { ...config, agentId: created.id },
@@ -197,10 +213,16 @@ export async function checkProjectAgentRest(args: {
       );
     }
     await sql`UPDATE "member" SET role = 'editor' WHERE "organizationId" = ${orgId} AND "userId" = ${userId}`;
-    await expectStatus(
-      rest('PUT', itemPath, { ...richConfig, name: 'Editor review' }),
-      200,
-    );
+    const renamed = agentEnvelope.parse(
+      await (
+        await expectStatus(
+          rest('PUT', itemPath, { ...richConfig, name: 'Editor review' }),
+          200,
+        )
+      ).json(),
+    ).agent;
+    // A rename gives the agent the handle of its new name [PROJ-R19].
+    assert.equal(renamed.handle, 'editor-review');
     await expectStatus(rest('PUT', itemPath, config), 403);
     await expectStatus(
       rest('POST', path, { ...richConfig, name: 'Forbidden grant' }),
@@ -265,6 +287,50 @@ export async function checkProjectAgentRest(args: {
   ).agent;
   assert.equal(conditional.name, 'Conditionally saved');
   assert.ok(conditional.updatedAt >= saved.updatedAt);
+  // Renamed back to "Reviewer" the agent took the free `reviewer` again;
+  // renamed away it leaves it free for the next agent [PROJ-R19].
+  assert.equal(saved.handle, 'reviewer');
+  assert.equal(conditional.handle, 'conditionally-saved');
+  const third = agentEnvelope.parse(
+    await (
+      await expectStatus(
+        rest('POST', path, { ...config, name: 'Reviewer?' }),
+        201,
+      )
+    ).json(),
+  ).agent;
+  assert.equal(third.handle, 'reviewer');
+  // A rename that changes only case or punctuation keeps the handle.
+  const recased = agentEnvelope.parse(
+    await (
+      await expectStatus(
+        rest('PUT', `${path}/${twin.id}`, { ...config, name: 'REVIEWER!!' }),
+        200,
+      )
+    ).json(),
+  ).agent;
+  assert.equal(recased.handle, 'reviewer-02');
+  await expectStatus(rest('DELETE', `${path}/${twin.id}`), 204);
+  await expectStatus(rest('DELETE', `${path}/${third.id}`), 204);
+  // Two agents whose names give one handle, saved at the same moment, end up
+  // with two handles: the save that commits second takes the next one.
+  const racers = await Promise.all(
+    ['Racer', 'Racer!'].map(
+      async (name) =>
+        agentEnvelope.parse(
+          await (
+            await expectStatus(rest('POST', path, { ...config, name }), 201)
+          ).json(),
+        ).agent,
+    ),
+  );
+  assert.deepEqual(racers.map((racer) => racer.handle).sort(), [
+    'racer',
+    'racer-02',
+  ]);
+  for (const racer of racers) {
+    await expectStatus(rest('DELETE', `${path}/${racer.id}`), 204);
+  }
   const appEdited = await expectStatus(
     session('POST', `/api/app/projects/agents/${created.id}?orgId=${orgId}`, {
       ...config,
@@ -277,6 +343,7 @@ export async function checkProjectAgentRest(args: {
     await (await expectStatus(rest('GET', itemPath), 200)).json(),
   ).agent;
   assert.equal(readBack.name, 'Edited in app');
+  assert.equal(readBack.handle, 'edited-in-app');
 
   await sql`UPDATE app.projects SET archived_at_ms = ${Date.now()} WHERE id = ${projectId}`;
   await expectStatus(rest('GET', path), 200);

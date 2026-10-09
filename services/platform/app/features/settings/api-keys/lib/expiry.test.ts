@@ -22,7 +22,7 @@ describe('API key expiry', () => {
     expect(daysUntil(day(9, 7), NOW)).toBe(0);
   });
 
-  it('offers tomorrow through a year from today, the window the plugin accepts', () => {
+  it('offers tomorrow through a year from today, the window the plugin accepts [APIKEY-R10]', () => {
     const { minDate, maxDate } = customExpiryBounds(NOW);
     expect(minDate).toBe(day(9, 8));
     expect(maxDate).toBe(day(9, 7, 2027));

@@ -40,6 +40,8 @@ export interface TaskPayloads {
   'watchdog.transcriptions': Record<string, never>;
   /** Reconcile stalled RAG rows against the knowledge corpus. */
   'watchdog.rag_indexing': Record<string, never>;
+  /** Resume the knowledge work a usage limit parked, once it may run. */
+  'knowledge.resume_usage_limited': Record<string, never>;
   /** Fail erasure runs whose processor never finished. */
   'watchdog.erasures': Record<string, never>;
   /** Revoke sessions idle past their org's policy window. */
@@ -58,6 +60,9 @@ export interface TaskPayloads {
     taskId: string;
     workflowSlug: string;
     startedByUserId: string;
+    /** The API key the comment was written with: the run is the key's
+     * spend too, started through the key's door. */
+    apiKeyId?: string;
   };
   /** Re-attach the drive chain of an abandoned (but still live) turn. */
   'task.agent_drive': {
@@ -70,6 +75,8 @@ export interface TaskPayloads {
     harness: string;
     deadlineAt: number;
     sessionCreatedAt?: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Steer a LIVE task-agent turn with a comment (stdin or exec restart). */
   'task.agent_steer': {
@@ -93,6 +100,10 @@ export interface TaskPayloads {
     mentionSource?: 'comment' | 'description';
     author: string;
     authorId: string;
+    /** The API key the text was written with: the turn it restarts, or the
+     * run it kicks once the turn has ended, is the key's spend too. Absent
+     * from a steer queued before it was carried. */
+    authorApiKeyId?: string;
     attempt: number;
   };
   /** Daily sweep of idle rate-limit rows (cron). */
@@ -160,6 +171,8 @@ export interface TaskPayloads {
     providerSlug: string;
     gatewayModel: string;
     deadlineAt: number;
+    /** Since when the turn's spawner has been out of reach. */
+    spawnerOutageSince?: number;
   };
   /** Fire-and-forget AI naming of a thread from its first user message —
    * best-effort with a hard budget; the fallback title wins on any miss. */
@@ -168,6 +181,11 @@ export interface TaskPayloads {
     threadId: string;
     userId: string;
     firstMessage: string;
+    /** The API key that sent the message, when one did. */
+    apiKeyId?: string;
+    /** A guardrail refused the message: name the thread from its words,
+     * never by a model call. */
+    nameWithoutModel?: boolean;
   };
   /** One readiness-poll step of a parked send — self-chaining until the
    * media settle and the thread idles, then claims and runs the turn. */
@@ -217,6 +235,9 @@ export interface TaskPayloads {
       contentType: string;
       size: number;
     }>;
+    /** The member who sent it — or retried it — whose connector call the
+     * delivery is. Absent on a job queued before it was recorded. */
+    sentBy?: { userId: string };
   };
   /** Crash-recovery sweep: fail outbound sends stranded 'queued' by a lost or
    * expired send job so the retry/discard surface appears. */
@@ -235,15 +256,13 @@ export interface TaskPayloads {
    * re-derives every guard (task still in_progress and agent-assigned, the
    * failed run still newest, the consecutive-failure budget) and kicks —
    * the retry's start held until `startAfterMs` when the failed start met a
-   * subscription broker whose every account was cooling down. The retry of
-   * a run an automation or another agent started waits while its agent
-   * works another task in the same workspace, through a later check of
-   * itself (`task.agent_retry_recheck`). */
+   * subscription broker whose every account was cooling down. */
   'task.agent_retry': AgentRetryPayload;
-  /** A later check of an automatic retry that met its agent busy: the same
-   * handler and the same guards, re-derived, counting its checks
-   * (`agentBusyWaits`, bounded by `planAgentBusyWait`). At most one is
-   * queued per failed run (`agentRetryRecheckKey`, `short` policy). */
+  /** A later check of an automatic retry that met its agent busy, as an
+   * earlier image queued them: the same handler and the same guards,
+   * re-derived — it now simply kicks the retry. Nothing queues one any
+   * more; the queue stays so a check queued before the upgrade is
+   * delivered. */
   'task.agent_retry_recheck': AgentRetryPayload;
   /** Finish a settled turn's gateway-key settlement (book its spend, revoke
    * the key) that the host's own settle could not complete — scheduled by
@@ -359,6 +378,9 @@ export interface TaskPayloads {
     continuation?: number;
     scanStartedAt?: string;
     takeover?: string;
+    /** Who asked for the scan: its embeddings are their spend. A scan the
+     * scheduler started names nobody. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Register a website (or URL list) in the corpus + kick its first scan
    * (the 0.4 `registerAndSync`, fire-and-forget behind the create). */
@@ -368,6 +390,8 @@ export interface TaskPayloads {
     scanInterval: string;
     organizationId: string;
     urls?: string[];
+    /** Who added the site: its first scan is their spend. */
+    requestedBy?: { userId: string; apiKeyId?: string };
   };
   /** Push the corpus-side truth onto one (orgSlug, domain) websites row. */
   'websites.row_sync': { orgSlug: string; domain: string };
@@ -404,7 +428,8 @@ export interface AgentRetryPayload {
   agentId: string;
   expectedRunId: string;
   startAfterMs?: number;
-  /** The checks this retry already took while its agent was busy. */
+  /** The checks a retry took while its agent was busy, on a check an
+   * earlier image queued; read by nothing. */
   agentBusyWaits?: number;
 }
 
@@ -463,6 +488,7 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // next schedule — piling up retries of a sweep just delays the sweep.
   'watchdog.transcriptions': { retryLimit: 1, expireInSeconds: 300 },
   'watchdog.rag_indexing': { retryLimit: 1, expireInSeconds: 600 },
+  'knowledge.resume_usage_limited': { retryLimit: 1, expireInSeconds: 600 },
   'watchdog.erasures': { retryLimit: 1, expireInSeconds: 300 },
   'governance.revoke_idle_sessions': { retryLimit: 1, expireInSeconds: 300 },
   'tts.gc_chunks': { retryLimit: 1, expireInSeconds: 600 },
@@ -595,13 +621,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   'tts.watchdog_chunk': { retryLimit: 1, expireInSeconds: 120 },
   'tts.cleanup': { retryLimit: 0, expireInSeconds: 300 },
   'task.agent_retry': { retryLimit: 1, expireInSeconds: 600 },
-  // A retry that waits for its busy agent checks again through this queue,
-  // every check keyed by its failed run (`agentRetryRecheckKey`): `short`
-  // keeps at most ONE queued per failed run, so the arm delivered twice, a
-  // check replayed after its commit or two deliveries at once never fork a
-  // second chain of checks — the second send finds the first queued and is
-  // dropped. A queue of its own: the arm's queue keeps its standard policy,
-  // so a keyless arm from the previous image is never shut out mid-roll.
+  // A check an earlier image queued for a retry that waited for its busy
+  // agent, keyed by its failed run (`short`: at most ONE queued per failed
+  // run). No current code path queues one; the queue stays registered with
+  // its policy so such a check is still delivered, and it kicks the retry.
   'task.agent_retry_recheck': {
     policy: 'short',
     retryLimit: 1,

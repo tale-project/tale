@@ -7,7 +7,7 @@ import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
 import { createLiveHost } from '../../../lib/connectors/live-host.ts';
 import { isAutomationSubject } from '../../../lib/shared/constants/usage.ts';
-import { findOrganizationMember } from '../../auth/membership.ts';
+import { findActingMember } from '../../auth/membership.ts';
 import { verifyHostcallToken } from '../../core/connectors/hostcall_token.ts';
 import {
   bridgeConnectorStatusImpl,
@@ -26,7 +26,10 @@ import {
   sandboxDoorBodyLimit,
   toolResultTooLarge,
 } from '../sandbox/door-body-limit.ts';
-import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
+import {
+  resolveSessionOpAttribution,
+  type SessionOpAttribution,
+} from '../sandbox/op-attribution.ts';
 import { getSessionTokenByHash } from '../sandbox/sessions.ts';
 import { runConnectorAction } from './service.ts';
 
@@ -166,7 +169,9 @@ async function resolveTaskRunCaller(
   sql: Sql,
   auth: BridgeAuth,
   execId: string,
-): Promise<{ userId: string } | { blocker: BridgeBlocker }> {
+): Promise<
+  { userId: string; spender: SessionOpAttribution } | { blocker: BridgeBlocker }
+> {
   const live = await sql<{ id: string }[]>`
     SELECT id FROM app.project_agent_runs
     WHERE org_id = ${auth.organizationId} AND session_id = ${auth.sessionId}
@@ -184,9 +189,9 @@ async function resolveTaskRunCaller(
   // A run no member started is never handed to a stand-in (the task's
   // creator, the agent's): the call and its audit row would name someone
   // who did not act.
-  return userId === '' || isAutomationSubject(userId)
+  return attribution === null || userId === '' || isAutomationSubject(userId)
     ? { blocker: taskRunActsForNobodyBlocker() }
-    : { userId };
+    : { userId, spender: attribution };
 }
 
 /**
@@ -199,21 +204,30 @@ async function resolveTaskRunCaller(
 async function resolveBridgeCaller(
   sql: Sql,
   auth: BridgeAuth,
-): Promise<{ userId: string } | { blocker: BridgeBlocker }> {
+): Promise<
+  | { userId: string; spender?: SessionOpAttribution }
+  | { blocker: BridgeBlocker }
+> {
   const caller = auth.caller;
   if (caller === undefined) return { blocker: noConnectorCallerBlocker() };
   let userId: string;
+  /** A task run's subject — the person, the agent, the run's API key and
+   * projects — whose spend the call is. */
+  let spender: SessionOpAttribution | undefined;
   if (caller.kind === 'user') {
     userId = caller.userId;
   } else {
     const person = await resolveTaskRunCaller(sql, auth, caller.execId);
     if ('blocker' in person) return person;
     userId = person.userId;
+    spender = person.spender;
   }
-  const member = await findOrganizationMember(sql, auth.organizationId, userId);
+  // A run a team's or the organization's own key started acts for that
+  // key's identity, which has no member row of its own.
+  const member = await findActingMember(sql, auth.organizationId, userId);
   return member === null || member.role === 'disabled'
     ? { blocker: connectorCallerNotAMemberBlocker() }
-    : { userId };
+    : { userId, ...(spender !== undefined ? { spender } : {}) };
 }
 
 const HTTP_VERBS = {
@@ -314,6 +328,9 @@ export function createConnectorBridgeRoutes(deps: { sql: Sql }): Hono {
             input: dispatchArgs.input,
             mode: 'live',
             caller: { kind: 'user', userId: dispatchArgs.userId },
+            ...(caller.spender !== undefined
+              ? { spender: caller.spender }
+              : {}),
             // An agent's read calls leave no files in the organization's
             // store; an action that needs the store refuses instead.
             storeFiles: false,

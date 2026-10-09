@@ -22,8 +22,9 @@ const DNS_LABEL_MAX = 63;
  * containers so the existing one-shot sweep (label `tale.sandbox=1`) never
  * touches them. sessionId is ID_ALPHABET_RE-validated upstream, up to 64
  * characters: an id whose name would outgrow a DNS label (a project agent's
- * workspace for a member's runs, `pa-<agent id>-m<hash>`) is folded into a
- * hash, the way the Kubernetes backend names its Pods.
+ * workspace for a member's runs, `pa-<agent id>-m<hash>`, or a further worker
+ * of one of its workspaces, `…-w<n>`) is folded into a hash, the way the
+ * Kubernetes backend names its Pods.
  */
 export function sessionContainerName(sessionId: string): string {
   const name = `${SESSION_CONTAINER_PREFIX}${sessionId}`;

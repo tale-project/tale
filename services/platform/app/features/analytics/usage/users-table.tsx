@@ -20,6 +20,30 @@ export interface UserRow {
   tokens: number;
   costCents: number;
   requests: number;
+  /** An API key's own identity, not a person: what the key belongs to. */
+  apiKey?: {
+    kind: 'team' | 'project' | 'organization';
+    teamName: string | null;
+    projectName: string | null;
+  };
+}
+
+/** What an API key that is not a person belongs to, as the row's second
+ * line says it. */
+function apiKeyLabel(
+  apiKey: NonNullable<UserRow['apiKey']>,
+  t: ReturnType<typeof useT>['t'],
+): string {
+  switch (apiKey.kind) {
+    case 'team':
+      return t('usage.tables.users.teamKey', { name: apiKey.teamName ?? '—' });
+    case 'project':
+      return t('usage.tables.users.projectKey', {
+        name: apiKey.projectName ?? '—',
+      });
+    default:
+      return t('usage.tables.users.organizationKey');
+  }
 }
 
 interface UsersTableProps {
@@ -40,15 +64,18 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
         id: 'user',
         header: t('usage.tables.users.user'),
         cell: ({ row }) => (
-          <Text
-            as="span"
-            variant="label"
-            className="block max-w-[220px] truncate text-sm"
-          >
-            {isAutomationSubject(row.original.userId)
-              ? t('usage.tables.users.automations')
-              : row.original.displayName}
-          </Text>
+          <div className="flex max-w-[220px] min-w-0 flex-col">
+            <Text as="span" variant="label" className="block truncate text-sm">
+              {isAutomationSubject(row.original.userId)
+                ? t('usage.tables.users.automations')
+                : row.original.displayName}
+            </Text>
+            {row.original.apiKey !== undefined && (
+              <Text as="span" variant="muted" className="truncate text-xs">
+                {apiKeyLabel(row.original.apiKey, t)}
+              </Text>
+            )}
+          </div>
         ),
         size: 220,
       },

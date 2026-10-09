@@ -24,6 +24,11 @@ import { loadAgentLanguageContext } from '../tasks/agent-language.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import { automationAskShimHandlers } from './ask-shim.ts';
+import {
+  reserveLlmStepBudget,
+  type LlmStepUsage,
+  recordLlmStepUsage,
+} from './llm-metering.ts';
 import { beginNodeAttempt, finishNodeAttempt } from './node-attempts.ts';
 import {
   claimRun,
@@ -223,6 +228,20 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the stepper passes exactly this shape
       const args = raw as Parameters<typeof finishNodeAttempt>[1];
       return finishNodeAttempt(sql, args);
+    },
+
+    // An `llm` step's model call is its run's spend: measured against the
+    // caps that bind the run before the call, booked after it.
+    'automations/mutations:reserveLlmStepBudget': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
+      const args = raw as Parameters<typeof reserveLlmStepBudget>[1];
+      return reserveLlmStepBudget(sql, args);
+    },
+    'automations/mutations:recordLlmStepUsage': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the llm door passes exactly this shape
+      const args = raw as LlmStepUsage;
+      await recordLlmStepUsage(sql, args);
+      return null;
     },
 
     'automations/queries:loadRunForStep': async (raw) => {

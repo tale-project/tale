@@ -3,10 +3,14 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react';
 
 import {
-  agentHandleVariants,
-  automationHandleVariants,
-  memberHandleVariants,
-} from '../lib/mention-handles';
+  agentLegacyHandleVariants,
+  agentMentionEntry,
+  automationMentionEntry,
+  buildMentionHandleIndex,
+  type MentionHandleIndex,
+  memberMentionEntry,
+} from '@/lib/shared/mention-handles';
+
 import type {
   ActorDirectory,
   useAssignableActors,
@@ -17,14 +21,11 @@ export interface TaskActorScope {
   projectId?: string;
 }
 
-export interface TaskMentionActor {
-  name: string;
-  kind: 'user' | 'agent' | 'automation';
-}
-
 interface ScopedDirectory extends TaskActorScope {
   directory: ActorDirectory | ReturnType<typeof useAssignableActors>;
-  mentions: ReadonlyMap<string, TaskMentionActor>;
+  /** Who a mention names: by kind and id for a stored mention, by handle
+   * for a typed `@handle` (the server's own tiers). */
+  mentions: MentionHandleIndex;
 }
 
 // Both the public actor hook API and task/assignment boundaries share this
@@ -89,26 +90,33 @@ export function ActorDirectoryScopeValue({
   children?: ReactNode;
 }) {
   const { members, agents, automations } = directory;
-  const mentions = useMemo(() => {
-    const map = new Map<string, TaskMentionActor>();
-    // Match the server's collision order: agents have the strongest claim.
-    for (const member of members ?? []) {
-      for (const handle of memberHandleVariants(member)) {
-        map.set(handle, { name: member.name, kind: 'user' });
-      }
-    }
-    for (const automation of automations ?? []) {
-      for (const handle of automationHandleVariants(automation)) {
-        map.set(handle, { name: automation.name, kind: 'automation' });
-      }
-    }
-    for (const agent of agents ?? []) {
-      for (const handle of agentHandleVariants(agent)) {
-        map.set(handle, { name: agent.name, kind: 'agent' });
-      }
-    }
-    return map;
-  }, [members, agents, automations]);
+  // Listed as the server lists its directory (people, automations, agents),
+  // so a handle two of them answer to names the one the server picked.
+  const mentions = useMemo(
+    () =>
+      buildMentionHandleIndex([
+        ...(members ?? []).map((member) =>
+          memberMentionEntry({
+            id: member.id,
+            name: member.name,
+            email: member.email,
+          }),
+        ),
+        ...(automations ?? []).map((automation) =>
+          automationMentionEntry(automation),
+        ),
+        ...(agents ?? []).map((agent) =>
+          agentMentionEntry({
+            id: agent.id,
+            name: agent.name,
+            handle: agent.handle ?? null,
+            legacyHandles:
+              agent.legacyHandles ?? agentLegacyHandleVariants(agent.name),
+          }),
+        ),
+      ]),
+    [members, agents, automations],
+  );
   const value = useMemo(
     () => ({ organizationId, projectId, directory, mentions }),
     [organizationId, projectId, directory, mentions],

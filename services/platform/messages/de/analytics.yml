@@ -71,6 +71,7 @@ usage:
   connector: Connector
   transcription: Transkription
   tts: Sprachausgabe
+  embedding: Wissensindexierung und -suche
   granularity:
     label: Granularität
     daily: Täglich
@@ -112,10 +113,14 @@ usage:
       title: Nutzung pro Benutzer
       user: Benutzer
       automations: Automatisierungen (Trigger)
+      teamKey: API-Schlüssel des Teams {name}
+      projectKey: API-Schlüssel des Projekts {name}
+      organizationKey: API-Schlüssel der Organisation
       note: Jede Zeile steht für das Mitglied, das den Chat gesendet oder den
-        Agentenlauf gestartet hat. Läufe, die ein Zeitplan, ein Webhook oder
-        ein Ereignis gestartet hat, teilen sich die Zeile „Automatisierungen
-        (Trigger)“.
+        Agentenlauf gestartet hat, oder für einen API-Schlüssel, der einem
+        Team, einem Projekt oder der Organisation gehört statt einer Person.
+        Läufe, die ein Zeitplan, ein Webhook oder ein Ereignis gestartet hat,
+        teilen sich die Zeile „Automatisierungen (Trigger)“.
       inputTokens: Eingabe-Tokens
       outputTokens: Ausgabe-Tokens
       requests: Anfragen

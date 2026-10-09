@@ -9,17 +9,16 @@ import {
   startWorkflowAgentTurnImpl,
 } from '../core/automations/agent_host.ts';
 import { stepRunImpl } from '../core/automations/stepper.ts';
-import { generateThreadTitleImpl } from '../core/chat/generate_title.ts';
+import {
+  generateThreadTitleImpl,
+  TITLE_AGENT_SLUG,
+} from '../core/chat/generate_title.ts';
 import {
   driveTaskAgentTurnImpl,
   startTaskAgentTurnImpl,
   steerTaskAgentTurnImpl,
 } from '../core/tasks/agent_run_host.ts';
-import {
-  AGENT_BUSY_RETRY_MAX_WAITS,
-  planAgentBusyWait,
-  resolveAutoRetryBudget,
-} from '../core/tasks/task_auto_retry.ts';
+import { resolveAutoRetryBudget } from '../core/tasks/task_auto_retry.ts';
 import {
   automationShimHandlers,
   automationShimScheduler,
@@ -32,7 +31,8 @@ import { scanScheduledTriggers } from '../domains/automations/triggers.ts';
 import { sweepBrowserSessions } from '../domains/browser_sessions/service.ts';
 import { apiTurnPayloadSchema, runApiTurn } from '../domains/chat/rest-turn.ts';
 import { chatShimHandlers } from '../domains/chat/shim.ts';
-import { createPgUsageLedger } from '../domains/chat/store.ts';
+import { readThreadProjectId } from '../domains/chat/threads.ts';
+import { titleMeter } from '../domains/chat/title-meter.ts';
 import { runChatGenerationWatchdog } from '../domains/chat/watchdogs.ts';
 import { isBackendDraining } from '../domains/control/service.ts';
 import { runTranscribeJob } from '../domains/files/transcription.ts';
@@ -52,6 +52,7 @@ import {
   syncSessionPin,
   teardownSession,
 } from '../domains/sandbox/service.ts';
+import { releaseProjectAgentSessionSlot } from '../domains/sandbox/sessions.ts';
 import { reconcileSessionOpKey } from '../domains/sandbox/spend-settlement.ts';
 import { runSandboxWatchdog } from '../domains/sandbox/watchdogs.ts';
 import {
@@ -73,10 +74,11 @@ import {
   taskAgentShimScheduler,
 } from '../domains/tasks/agent-turn-shim.ts';
 import {
+  agentRunWorkDeadline,
+  claimAgentWorker,
+} from '../domains/tasks/agent-workers.ts';
+import {
   admitAutomatedStart,
-  findAgentBusyRun,
-  lockAgentForStart,
-  retireBusyRetry,
   SCHEDULE_REVOKED_BEFORE_LAUNCH,
 } from '../domains/tasks/delegated-start.ts';
 import { TaskError } from '../domains/tasks/errors.ts';
@@ -88,10 +90,7 @@ import {
   runStarterMayEditProject,
   sessionIdForAgentRun,
 } from '../domains/tasks/run-authority.ts';
-import {
-  announceAgentRunFailed,
-  retireAutoRetry,
-} from '../domains/tasks/run-failure-notice.ts';
+import { retireAutoRetry } from '../domains/tasks/run-failure-notice.ts';
 import { readInPlaceRetryState } from '../domains/tasks/run-start.ts';
 import { deferredAgentKickRefusal } from '../domains/tasks/service.ts';
 import { runTaskAgentWatchdog } from '../domains/tasks/watchdogs.ts';
@@ -109,7 +108,6 @@ import {
 import { createCtxShim } from '../lib/ctx-shim.ts';
 import { createDrainProbe } from '../lib/drain-probe.ts';
 import { processShutdown } from '../lib/shutdown.ts';
-import { addJobInTx } from './enqueue.ts';
 
 /** What the worker hands a handler beside its payload. */
 export interface TaskContext {
@@ -133,6 +131,12 @@ export type TaskHandler = (
 ) => Promise<void | { output: Record<string, Json> }>;
 
 export type BackendTaskList = Record<string, TaskHandler>;
+
+/** Who asked for a website scan: the scan's embeddings are their spend. */
+const SCAN_REQUESTER = z.object({
+  userId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
+});
 
 const orgScaffoldSchema = z.object({
   orgSlug: z.string().min(1),
@@ -185,6 +189,7 @@ const startWorkflowSchema = z.object({
   taskId: z.string().min(1),
   workflowSlug: z.string().min(1),
   startedByUserId: z.string().min(1),
+  apiKeyId: z.string().min(1).optional(),
 });
 
 const driveSchema = z.object({
@@ -200,6 +205,10 @@ const driveSchema = z.object({
   // drive continuation carries it or a later kick's resume check degrades
   // to the op-recovered leg.
   sessionCreatedAt: z.number().optional(),
+  // Since when the turn's spawner has been out of reach: the continuation
+  // carries it while the spawner stays away, so the outage budget counts
+  // from its start rather than from each window.
+  spawnerOutageSince: z.number().optional(),
 });
 
 const steerSchema = z.object({
@@ -222,6 +231,7 @@ const steerSchema = z.object({
   mentionSource: z.enum(['comment', 'description']).optional(),
   author: z.string(),
   authorId: z.string(),
+  authorApiKeyId: z.string().optional(),
   attempt: z.number(),
 });
 
@@ -241,19 +251,6 @@ export interface TaskDeps {
  * idempotent (at-least-once delivery), and every payload is re-validated at
  * the boundary.
  */
-/**
- * The key every later check of one failed run's automatic retry carries on
- * the `short` `task.agent_retry_recheck` queue — at most one of them is
- * queued at a time, whichever delivery sent it.
- */
-export function agentRetryRecheckKey(retry: {
-  organizationId: string;
-  taskId: string;
-  expectedRunId: string;
-}): string {
-  return `agent-retry:${retry.organizationId}:${retry.taskId}:${retry.expectedRunId}`;
-}
-
 /**
  * The signal a turn's drive window ends on: the job's own (pg-boss gave up
  * on it) or the process's shutdown. A window ended either way leaves the
@@ -279,7 +276,6 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         agentId: z.string().min(1),
         expectedRunId: z.string().min(1),
         startAfterMs: z.number().optional(),
-        agentBusyWaits: z.number().int().min(0).optional(),
       })
       .parse(payload);
     // The 0.5 port of `kickAutoRetryRun`: every guard re-derived in ONE
@@ -293,27 +289,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     // Attribution stays with the failed run's own starter — the retry
     // continues THEIR kick.
     // A run an automation step or another agent started is retried under
-    // the delegated start's admission too (#3977): the agent row is taken
-    // before the task row, the order every start that holds both keeps,
-    // and the retry starts only into a free workspace. While the agent
-    // works another task there, the retry waits — a later check of itself
-    // on `task.agent_retry_recheck`, at most one queued per failed run,
-    // every guard above re-derived at each check — until the workspace is
-    // free or the wait is over (`planAgentBusyWait`); then it is refused
-    // on the task's timeline and retired on the failed run, and no later
-    // delivery of it starts anything. A person's run, and its retries, are
-    // left as they were.
-    // The arm (`task.agent_retry`) and every check share this handler.
+    // the delegated start's per-task budget too (`admitAutomatedStart`). The
+    // retry is kicked at once, its agent busy on other tasks or not: the run
+    // it starts takes a worker of its own, or waits for one like any start
+    // (`domains/tasks/agent-workers.ts`). The arm (`task.agent_retry`) and a
+    // check an earlier image queued on `task.agent_retry_recheck` share this
+    // handler, so such a check simply kicks the retry.
     const outcome = await deps.sql.begin(async (tx) => {
-      // Written once, at the failed run's kick: read before any lock.
+      // Written once, at the failed run's kick.
       const startedVia = await startedViaOfRun(tx, input.expectedRunId);
-      const lockedAgent =
-        startedVia === undefined
-          ? undefined
-          : await lockAgentForStart(tx, {
-              organizationId: input.organizationId,
-              agentId: input.agentId,
-            });
       const tasks = await tx<
         {
           status: string;
@@ -345,10 +329,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         return 'superseded';
       }
       if (newest.status !== 'failed') return 'not_failed';
-      // Refused for good once (`retireBusyRetry`): every later delivery —
-      // the arm, a check queued before the refusal, the same job again —
-      // stands down, the agent busy or free by now. A newer run is a new
-      // decision and carries no mark.
+      // Refused for good once (`markAutoRetryRetired`, also by an earlier
+      // image that refused a retry whose agent stayed busy): every later
+      // delivery stands down. A newer run is a new decision and carries no
+      // mark.
       if (newest.autoRetryRefusedAt !== undefined) return 'retry_refused';
       // From here on, a refusal is this failed run's last word: nothing
       // starts the task again by itself, so the run is retired and the
@@ -396,23 +380,21 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         return 'budget_exhausted';
       }
       const agent =
-        lockedAgent !== undefined
-          ? lockedAgent
-          : ((
-              await tx<
-                {
-                  harness: string;
-                  model: string;
-                  modelProvider: string | null;
-                }[]
-              >`
-                SELECT harness, model, model_provider AS "modelProvider"
-                FROM app.project_agents
-                WHERE id = ${input.agentId}
-                  AND org_id = ${input.organizationId}
-                LIMIT 1
-              `
-            )[0] ?? null);
+        (
+          await tx<
+            {
+              harness: string;
+              model: string;
+              modelProvider: string | null;
+            }[]
+          >`
+            SELECT harness, model, model_provider AS "modelProvider"
+            FROM app.project_agents
+            WHERE id = ${input.agentId}
+              AND org_id = ${input.organizationId}
+            LIMIT 1
+          `
+        )[0] ?? null;
       if (!agent) {
         await retire(true);
         return 'agent_gone';
@@ -432,80 +414,25 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       // A run an automation step or another agent started stays one when
       // retried: it still counts as automated and may not delegate, and
       // the retry is an automated start the per-task budget admits like
-      // any other (`admitAutomatedStart`) — once its workspace is free,
-      // the order the delegated start judges them in. A person's run
-      // carries no provenance, so its retries are never counted or
-      // refused there.
+      // any other (`admitAutomatedStart`). A person's run carries no
+      // provenance, so its retries are never counted or refused there.
       let sessionId: string | undefined;
       if (startedVia !== undefined) {
-        const taskKeys = {
-          id: input.taskId,
-          organizationId: input.organizationId,
-          projectId: task.projectId,
-        };
-        // The workspace the retry would join: the standing one, or the
-        // member's own for a starter who may no longer edit the project
-        // but still works the task.
+        // The workspace family the retry works in: the standing one, or the
+        // member's own for a starter who may no longer edit the project but
+        // still works the task. Its worker is claimed when it starts.
         sessionId = await sessionIdForAgentRun(tx, {
           organizationId: input.organizationId,
           projectId: task.projectId,
           agentId: input.agentId,
           startedBy: newest.startedBy,
         });
-        const busy = await findAgentBusyRun(tx, {
-          organizationId: input.organizationId,
-          agentId: input.agentId,
-          sessionId,
-          taskId: input.taskId,
-        });
-        if (busy !== null) {
-          const wait = planAgentBusyWait({
-            waits: input.agentBusyWaits ?? 0,
-            failedAt: newest.settledAt,
-            now: Date.now(),
-          });
-          if (!wait.wait) {
-            const retired = await retireBusyRetry(tx, {
-              task: taskKeys,
-              agentId: input.agentId,
-              failedRunId: newest.id,
-            });
-            if (retired) {
-              await announceAgentRunFailed(tx, {
-                organizationId: input.organizationId,
-                runId: newest.id,
-              });
-            }
-            return 'agent_busy';
-          }
-          // In the same transaction as the check that found the agent
-          // busy: the retry is never lost between two checks. Keyed by
-          // the failed run on a `short` queue, so at most one check is
-          // queued for it: a second send — the arm or a check delivered
-          // again, two deliveries at once — finds that one and is
-          // dropped, and the one queued still re-derives everything.
-          const queued = await addJobInTx(
-            tx,
-            'task.agent_retry_recheck',
-            {
-              organizationId: input.organizationId,
-              taskId: input.taskId,
-              agentId: input.agentId,
-              expectedRunId: input.expectedRunId,
-              ...(input.startAfterMs !== undefined
-                ? { startAfterMs: input.startAfterMs }
-                : {}),
-              agentBusyWaits: wait.waits,
-            },
-            {
-              startAfter: new Date(wait.lookAt),
-              singletonKey: agentRetryRecheckKey(input),
-            },
-          );
-          return { busy, waits: wait.waits, queued: queued !== null };
-        }
         const admitted = await admitAutomatedStart(tx, {
-          task: taskKeys,
+          task: {
+            id: input.taskId,
+            organizationId: input.organizationId,
+            projectId: task.projectId,
+          },
           agentId: input.agentId,
         });
         if (!admitted.admitted) {
@@ -525,6 +452,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             ? { modelProvider: agent.modelProvider }
             : {}),
           startedBy: newest.startedBy,
+          ...(newest.apiKeyId !== undefined
+            ? { apiKeyId: newest.apiKeyId }
+            : {}),
           trigger: 'auto_retry',
           ...(startedVia !== undefined
             ? { startedVia, inPlace: newest.inPlace }
@@ -559,11 +489,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       }
       return 'kicked';
     });
-    if (typeof outcome === 'object') {
-      console.log(
-        `[task-agent] auto-retry waiting: agent_busy (${outcome.queued ? `check ${outcome.waits} of ${AGENT_BUSY_RETRY_MAX_WAITS} queued` : 'a check is already queued'}: run ${outcome.busy.id} on task ${outcome.busy.taskId})`,
-      );
-    } else if (outcome !== 'kicked') {
+    if (outcome !== 'kicked') {
       console.log(`[task-agent] auto-retry skipped: ${outcome}`);
     }
   };
@@ -648,6 +574,19 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       const { recoverStuckRagIndexing } =
         await import('../domains/file_metadata/watchdogs.ts');
       await recoverStuckRagIndexing(deps.sql);
+    },
+    'knowledge.resume_usage_limited': async () => {
+      const { requeueUsageLimitedFiles } =
+        await import('../domains/knowledge/usage-limit-resume.ts');
+      const { resumeUsageLimitedScans } =
+        await import('../domains/websites/service.ts');
+      const requeued = await requeueUsageLimitedFiles(deps.sql);
+      const rescanned = await resumeUsageLimitedScans(deps.sql);
+      if (requeued + rescanned > 0) {
+        console.info(
+          `[knowledge] resumed ${requeued} file(s) and ${rescanned} website scan(s) a usage limit had parked`,
+        );
+      }
     },
     'watchdog.erasures': async () => {
       const { recoverStuckErasureRequests } =
@@ -1051,21 +990,41 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           threadId: z.string().min(1),
           userId: z.string().min(1),
           firstMessage: z.string().min(1),
+          /** The API key that sent the message, when one did. */
+          apiKeyId: z.string().min(1).optional(),
+          /** A guardrail refused the message: no model may see it. */
+          nameWithoutModel: z.boolean().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 naming attempt on the chat shim — one small model
       // call raced against its timeout; any miss falls back to the derived
       // title, and the write fills only an absent title.
       const shim = createCtxShim(chatShimHandlers(deps.sql));
+      // Naming a thread is a model call the organization pays for, held
+      // against the member's limits — the key's that sent the message and
+      // the thread's project's too — and booked under its own agent slug, so
+      // analytics can separate "what the conversation cost" from "what
+      // naming it cost".
+      const projectId = await readThreadProjectId(
+        deps.sql,
+        input.organizationId,
+        input.threadId,
+      );
       await generateThreadTitleImpl(
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 action; every ctx facility it touches is covered by chatShimHandlers
         shim as unknown as Parameters<typeof generateThreadTitleImpl>[0],
         input,
-        // Naming a thread is a model call the org pays for. The shim has no
-        // ledger of its own, so the door hands it the same one the turn
-        // writes through — booked under its own agent slug so analytics can
-        // separate "what the conversation cost" from "what naming it cost".
-        (entry) => createPgUsageLedger(deps.sql).record(entry),
+        titleMeter(deps.sql, {
+          organizationId: input.organizationId,
+          subject: {
+            userId: input.userId,
+            agentSlug: TITLE_AGENT_SLUG,
+            ...(input.apiKeyId !== undefined
+              ? { apiKeyId: input.apiKeyId }
+              : {}),
+            ...(projectId !== undefined ? { projectIds: [projectId] } : {}),
+          },
+        }),
       );
     },
     'chat.api_turn': async (payload) => {
@@ -1123,6 +1082,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
               }),
             )
             .optional(),
+          sentBy: z.object({ userId: z.string().min(1) }).optional(),
         })
         .parse(payload);
       const { runSendMessageJob } =
@@ -1209,6 +1169,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           continuation: z.number().int().min(0).optional(),
           scanStartedAt: z.string().optional(),
           takeover: z.string().min(1).optional(),
+          requestedBy: SCAN_REQUESTER.optional(),
         })
         .parse(payload);
       await runWebsitesScan(deps.sql, input, context);
@@ -1221,6 +1182,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           scanInterval: z.string().min(1),
           organizationId: z.string().min(1),
           urls: z.array(z.string()).optional(),
+          requestedBy: SCAN_REQUESTER.optional(),
         })
         .parse(payload);
       await runWebsiteRegister(deps.sql, input);
@@ -1293,6 +1255,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         task,
         workflowSlug: input.workflowSlug,
         startedByUserId: input.startedByUserId,
+        ...(input.apiKeyId !== undefined
+          ? { startedVia: 'api-key' as const, apiKeyId: input.apiKeyId }
+          : {}),
       });
     },
 
@@ -1359,6 +1324,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           feedback: string | null;
           mentionSource: 'comment' | 'description' | null;
           deadlineAt: number;
+          startedAt: number;
+          launchedAt: number | null;
           status: string;
           execId: string;
           startedVia: string | null;
@@ -1373,7 +1340,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
                r.session_id AS "sessionId", r.harness, r.model,
                r.model_provider AS "modelProvider", r.feedback,
                r.mention_source AS "mentionSource",
-               r.deadline_at_ms::float8 AS "deadlineAt", r.status,
+               r.deadline_at_ms::float8 AS "deadlineAt",
+               r.started_at_ms::float8 AS "startedAt",
+               r.launched_at_ms::float8 AS "launchedAt", r.status,
                r.exec_id AS "execId", r.started_via AS "startedVia",
                r.started_via_automation AS "viaAutomation",
                via_agent.name AS "viaAgentName"
@@ -1435,6 +1404,37 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
         return;
       }
+      // The worker the run starts in: each run of the agent working at the
+      // same time as another works in a sandbox of its own. A run no worker
+      // can take now is parked with its reason and starts on its own when
+      // one frees; every start funnels through this job, so the kick, the
+      // wake, the retry and the recovery all choose here.
+      const claim = await claimAgentWorker(deps.sql, input);
+      if (claim === null) {
+        console.warn(
+          `[task-agent] turn job for ${input.execId} skipped (run no longer queued under it)`,
+        );
+        return;
+      }
+      if ('parked' in claim) {
+        console.warn(
+          `[task-agent] no free worker for ${input.execId} — parked (${claim.parked})`,
+        );
+        return;
+      }
+      if (claim.moved) {
+        // The workspace the run named before may now hold no run: give its
+        // slot back rather than waiting for the watchdog's backstop.
+        await releaseProjectAgentSessionSlot(deps.sql, {
+          organizationId: input.organizationId,
+          agentId: run.agentId,
+        }).catch((error: unknown) => {
+          console.warn(
+            `[task-agent] releasing idle workers after ${input.execId} moved failed:`,
+            error,
+          );
+        });
+      }
       // The kick-time resume plan (reused decision core over PG): does the
       // previous harness conversation continue, is the box swept, which
       // broker accounts rotate out. Every start scheduler funnels through
@@ -1444,7 +1444,7 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         taskId: run.taskId,
         agentId: run.agentId,
         harness: run.harness,
-        sessionId: run.sessionId,
+        sessionId: claim.sessionId,
       });
       // The REUSED 0.4 turn host on the ctx shim — the whole start: session
       // ensure, staging, key mint, exec, drain, settle choreography.
@@ -1460,9 +1460,10 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           taskId: run.taskId,
           agentId: run.agentId,
           execId: input.execId,
-          sessionId: run.sessionId,
+          sessionId: claim.sessionId,
           harness: run.harness,
-          deadlineAt: run.deadlineAt,
+          // Waiting for a worker used none of the run's working time.
+          deadlineAt: agentRunWorkDeadline(run, Date.now()),
           model: run.model,
           ...(run.modelProvider !== null
             ? { modelProvider: run.modelProvider }
@@ -1553,6 +1554,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           providerSlug: z.string().min(1),
           gatewayModel: z.string().min(1),
           deadlineAt: z.number(),
+          // See the task lane's drive schema.
+          spawnerOutageSince: z.number().optional(),
         })
         .parse(payload);
       // The REUSED 0.4 drive window on the ctx shim: it replays the exec's

@@ -11,6 +11,10 @@ export const DIRECT_API_AGENT_SLUG = '__direct_api__';
 const CONNECTOR_SLUG = '__connector__';
 export const TRANSCRIPTION_SLUG = '__transcription__';
 export const TTS_SLUG = '__tts__';
+// Embedding requests — the vectors knowledge indexing writes and every
+// knowledge search reads with: their own row, never folded into an
+// assistant's.
+export const EMBEDDING_SLUG = '__embedding__';
 // The feedback / chat-health ranking key for a row with no agent attribution
 // (arena rows, legacy pre-attribution rows). Distinct from the usage-page
 // sentinels above so the tables can label it differently; the backend
@@ -131,6 +135,10 @@ export function isTtsSlug(slug: string): boolean {
   return slug === TTS_SLUG;
 }
 
+export function isEmbeddingSlug(slug: string): boolean {
+  return slug === EMBEDDING_SLUG;
+}
+
 // True for any sentinel slug — used by the UI to suppress drilldown click
 // affordance on rows that don't represent a real agent.
 export function isSyntheticAgentSlug(slug: string): boolean {
@@ -138,6 +146,7 @@ export function isSyntheticAgentSlug(slug: string): boolean {
     isDirectApiSlug(slug) ||
     isConnectorSlug(slug) ||
     isTranscriptionSlug(slug) ||
-    isTtsSlug(slug)
+    isTtsSlug(slug) ||
+    isEmbeddingSlug(slug)
   );
 }

@@ -77,11 +77,42 @@ export function useTaskContractAutomations(
   organizationId: string,
   projectId: string | undefined,
 ): ContractAutomationEntry[] {
+  const { orgQuery, projectQuery } = useContractAutomationListings(
+    organizationId,
+    projectId,
+  );
+  return useMemo(
+    () => [...(projectQuery.data ?? []), ...(orgQuery.data ?? [])],
+    [orgQuery.data, projectQuery.data],
+  );
+}
+
+/** Whether the automations {@link useTaskContractAutomations} lists are
+ * still on their way: until they arrive, an automation it does not list may
+ * yet be there. */
+export function useTaskContractAutomationsPending(
+  organizationId: string,
+  projectId: string | undefined,
+): boolean {
+  const { orgQuery, projectQuery, orgSkipped, projectSkipped } =
+    useContractAutomationListings(organizationId, projectId);
+  return (
+    (!orgSkipped && orgQuery.data === undefined) ||
+    (!projectSkipped && projectQuery.data === undefined)
+  );
+}
+
+function useContractAutomationListings(
+  organizationId: string,
+  projectId: string | undefined,
+) {
   // '' means "not known yet" (empty board, modal still loading) — skip rather
   // than fire a member-gated query for no organization.
+  const orgSkipped = organizationId === '';
+  const projectSkipped = organizationId === '' || projectId === undefined;
   const orgQuery = useBackendQuery(
     'automations/queries:listAutomations',
-    organizationId === ''
+    orgSkipped
       ? 'skip'
       : {
           organizationId,
@@ -92,14 +123,11 @@ export function useTaskContractAutomations(
   );
   const projectQuery = useBackendQuery(
     'automations/queries:listAutomations',
-    organizationId === '' || projectId === undefined
+    projectSkipped || projectId === undefined
       ? 'skip'
       : { organizationId, projectId },
   );
-  return useMemo(
-    () => [...(projectQuery.data ?? []), ...(orgQuery.data ?? [])],
-    [orgQuery.data, projectQuery.data],
-  );
+  return { orgQuery, projectQuery, orgSkipped, projectSkipped };
 }
 
 /** Each listing's entries per locale, so a board's cards and pickers, which

@@ -1,9 +1,6 @@
 import type { Sql, TransactionSql } from 'postgres';
 
-import {
-  AUTOMATION_SUBJECT_ID,
-  isAutomationSubject,
-} from '../../../lib/shared/constants/usage.ts';
+import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import type { GatewaySpendReading } from '../../core/node_only/sandbox/gateway_key_settlement.ts';
 import {
   readVirtualKeySpend,
@@ -16,11 +13,8 @@ import {
   SANDBOX_TURN_MAX_GENERATED_IMAGES,
 } from '../../core/sandbox/session_constants.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
-import {
-  findBudgetViolation,
-  loadBudgetSubject,
-  type OrgBudgetSubject,
-} from '../governance/budget-gate.ts';
+import { loadAttributedBudgetSubject } from '../governance/attributed-subject.ts';
+import { findBudgetViolation } from '../governance/budget-gate.ts';
 import { budgetRefusalMessage } from '../governance/budget-refusal.ts';
 import {
   lockBudgetAdmission,
@@ -30,6 +24,7 @@ import { incrementUsageLedger } from '../governance/service.ts';
 import {
   resolveSessionOpAttribution,
   type SessionOpAttribution,
+  withSessionOpBillingProjects,
 } from './op-attribution.ts';
 
 /**
@@ -64,6 +59,8 @@ export interface ImageSubject {
   userId: string;
   agentSlug?: string;
   apiKeyId?: string;
+  /** The projects the turn's run is in: the image is their spend too. */
+  projectIds?: readonly string[];
 }
 
 export type ImageTurnContext =
@@ -83,6 +80,9 @@ function subjectOf(attribution: SessionOpAttribution | null): ImageSubject {
       : {}),
     ...(attribution.apiKeyId !== undefined
       ? { apiKeyId: attribution.apiKeyId }
+      : {}),
+    ...(attribution.projectIds !== undefined
+      ? { projectIds: attribution.projectIds }
       : {}),
   };
 }
@@ -133,7 +133,11 @@ export async function resolveImageTurnContext(
     if (ops.length === 0) return { status: 'ended' };
     outputDir = '/agent/output';
   }
-  const attribution = await resolveSessionOpAttribution(sql, args);
+  const attribution = await withSessionOpBillingProjects(
+    sql,
+    args,
+    await resolveSessionOpAttribution(sql, args),
+  );
   return { status: 'live', outputDir, subject: subjectOf(attribution) };
 }
 
@@ -226,30 +230,6 @@ async function lockOp(
   );
 }
 
-/** The subject a budget cap measures: the person as they are now (teams,
- * role), or for nobody's spend the organization's caps and the key's. */
-async function budgetSubjectOf(
-  sql: Sql | TransactionSql,
-  organizationId: string,
-  subject: ImageSubject,
-): Promise<OrgBudgetSubject> {
-  const apiKey =
-    subject.apiKeyId !== undefined ? { apiKeyId: subject.apiKeyId } : {};
-  return subject.userId === '' || isAutomationSubject(subject.userId)
-    ? {
-        organizationId,
-        userId: subject.userId,
-        userTeamIds: [],
-        impersonal: true,
-        ...apiKey,
-      }
-    : loadBudgetSubject(sql, {
-        organizationId,
-        userId: subject.userId,
-        ...apiKey,
-      });
-}
-
 function cents(value: number): string {
   return `${Math.round(value * 100) / 100} cents`;
 }
@@ -336,7 +316,14 @@ export async function admitImageGeneration(
           : `This turn may create ${left} more ${left === 1 ? 'image' : 'images'} (${SANDBOX_TURN_MAX_GENERATED_IMAGES} per turn), not ${args.images}.`,
       );
     }
-    const allowance = op.budgetCents ?? workflowAgentBudgetCents();
+    // A subscription turn holds no cents — its model costs nothing per
+    // call — so its images draw on the deployment's default allowance, as
+    // a turn that reserved nothing does.
+    const allowance =
+      op.budgetCents === null ||
+      (op.budgetCents === 0 && op.mintedKeyId === null)
+        ? workflowAgentBudgetCents()
+        : op.budgetCents;
     const room = allowance - modelSpentCents - op.imageSpentCents;
     if (holdCents > room) {
       return refused(
@@ -344,10 +331,13 @@ export async function admitImageGeneration(
         `This turn's spend allowance has ${cents(Math.max(0, room))} left, and ${args.images === 1 ? 'an image is' : `${args.images} images are`} held at ${cents(holdCents)} until ${args.images === 1 ? 'its' : 'their'} cost is known.`,
       );
     }
-    const subject = await budgetSubjectOf(
+    const billingSubject = subjectOf(
+      await withSessionOpBillingProjects(tx, args, args.subject),
+    );
+    const subject = await loadAttributedBudgetSubject(
       tx,
       args.organizationId,
-      args.subject,
+      billingSubject,
     );
     const violation = await findBudgetViolation(tx, subject, {
       // Every hold in flight — this turn's own allowance too: its model may
@@ -367,7 +357,13 @@ export async function admitImageGeneration(
         image_hold_cents = ${holdCents},
         image_hold_requests = ${args.images},
         images_admitted = images_admitted + ${args.images},
-        user_id = coalesce(user_id, ${args.subject.userId === '' ? null : args.subject.userId})
+        user_id = coalesce(user_id, ${args.subject.userId === '' ? null : args.subject.userId}),
+        -- A turn whose op its reservation did not stamp (a subscription
+        -- turn's) holds these images in its projects all the same.
+        project_ids = coalesce(
+          project_ids,
+          ${[...(subject.projectIds ?? [])]}
+        )
       WHERE id = ${op.id}
     `;
     const admission: ImageAdmission = {
@@ -459,6 +455,12 @@ export async function settleImageGeneration(
   const setKeyBudget = deps.setKeyBudget ?? setVirtualKeyBudget;
   const spent = args.charges.reduce((sum, charge) => sum + charge, 0);
   const settled = await sql.begin(async (tx) => {
+    // Settle against the admitted stamp, including an explicitly empty
+    // project list, even if a caller captured its context before a rebind.
+    const billingSubject =
+      args.charges.length === 0
+        ? args.subject
+        : subjectOf(await withSessionOpBillingProjects(tx, args, args.subject));
     for (const costCents of args.charges) {
       await incrementUsageLedger(tx, {
         organizationId: args.organizationId,
@@ -468,6 +470,9 @@ export async function settleImageGeneration(
           : {}),
         ...(args.subject.apiKeyId !== undefined
           ? { apiKeyId: args.subject.apiKeyId }
+          : {}),
+        ...(billingSubject.projectIds !== undefined
+          ? { projectIds: billingSubject.projectIds }
           : {}),
         provider: args.provider,
         model: args.model,

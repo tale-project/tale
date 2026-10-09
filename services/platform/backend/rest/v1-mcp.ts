@@ -5,6 +5,7 @@ import { loadConnectorCatalog } from '../../lib/connectors/dispatcher.ts';
 import { dispatch } from '../../lib/engine/api/dispatch.ts';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner.ts';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm.ts';
+import { findActingMember } from '../auth/membership.ts';
 import { handleMcpRequest } from '../core/automations_builder/mcp_http.ts';
 import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
 import { dispatchCapabilityAs } from '../domains/chat/capabilities.ts';
@@ -65,19 +66,21 @@ function mcpShimHandlers(sql: Sql): ShimHandlers {
     'members/internal_queries:getMemberRole': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the REST helper passes exactly this shape
       const args = raw as { userId: string; organizationId: string };
-      const rows = await sql<{ role: string }[]>`
-        SELECT "role" FROM "member"
-        WHERE "organizationId" = ${args.organizationId}
-          AND "userId" = ${args.userId}
-        LIMIT 1
-      `;
-      return rows[0]?.role ?? null;
+      // The member the key acts as — a team's or the organization's own key
+      // has no member row, and acts with the role it was made with.
+      const member = await findActingMember(
+        sql,
+        args.organizationId,
+        args.userId,
+      );
+      return member?.role ?? null;
     },
     'chat/capabilities_action:dispatchCapabilityAs': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the MCP layer passes exactly this shape
       const args = raw as {
         organizationId: string;
         userId: string;
+        apiKeyId?: string;
         method: string;
         params?: unknown;
       };

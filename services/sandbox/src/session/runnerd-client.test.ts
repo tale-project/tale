@@ -11,6 +11,9 @@ import { rejects } from 'node:assert/strict';
 
 import { withOperationBudget } from '../operation-budget.ts';
 import {
+  answeringIncarnation,
+  RunnerdActivityError,
+  runnerdActivity,
   runnerdAttach,
   runnerdExec,
   runnerdReadFile,
@@ -818,7 +821,12 @@ describe('runnerd replay continuity', () => {
     ).toBe(true);
     expect(seen).toHaveLength(1);
   });
-  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'])(
+  test.each([
+    'OUTPUT_GAP',
+    'OUTPUT_LIMIT',
+    'REPLAY_UNAVAILABLE',
+    'REPLAY_DISK_FULL',
+  ])(
     'daemon replay failure %s retains its terminal diagnostic code',
     async (code) => {
       setReplayBody('journal-gap', [
@@ -889,4 +897,82 @@ test('replay delivery awaits downstream consumers before parsing later events', 
   }
   await pumping;
   expect(seen).toEqual([1, 2]);
+});
+
+describe('session incarnation', () => {
+  test('an activity request names the incarnation it is meant for', async () => {
+    const named: Array<string | null> = [];
+    const daemon = Bun.serve({
+      port: 0,
+      fetch(request) {
+        named.push(request.headers.get('x-tale-runnerd-incarnation'));
+        return Response.json({ generation: 'g1', incarnation: '1700' });
+      },
+    });
+    try {
+      const target = { baseUrl: daemon.url.origin, token: 'test' };
+      expect(
+        await runnerdActivity({ ...target, incarnation: 1700 }, 'acquire'),
+      ).toEqual({ generation: 'g1', incarnation: '1700' });
+      await runnerdActivity(target, 'ticket');
+      expect(named).toEqual(['1700', null]);
+    } finally {
+      await daemon.stop(true);
+    }
+  });
+
+  test('a refusal by another incarnation names the one that answered', async () => {
+    const answers = [
+      Response.json(
+        { error: 'incarnation_mismatch', incarnation: '1800' },
+        { status: 409 },
+      ),
+      Response.json({ error: 'conflict' }, { status: 409 }),
+      new Response('not json', { status: 409 }),
+      Response.json({ error: 'reclaiming' }, { status: 503 }),
+    ];
+    const daemon = Bun.serve({
+      port: 0,
+      fetch: () => answers.shift() ?? new Response(null, { status: 500 }),
+    });
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const target = {
+        baseUrl: daemon.url.origin,
+        token: 'test',
+        incarnation: 1700,
+      };
+      const failures: unknown[] = [];
+      for (let i = 0; i < 4; i += 1)
+        failures.push(
+          await runnerdActivity(target, 'release', { generation: 'g1' }).catch(
+            (error: unknown) => error,
+          ),
+        );
+      expect(failures.every((f) => f instanceof RunnerdActivityError)).toBe(
+        true,
+      );
+      expect(failures).toMatchObject([
+        { status: 409, incarnation: '1800' },
+        { status: 409, incarnation: undefined },
+        { status: 409, incarnation: undefined },
+        { status: 503, incarnation: undefined },
+      ]);
+    } finally {
+      warn.mockRestore();
+      await daemon.stop(true);
+    }
+  });
+
+  test.each([
+    ['1700', 'registered'],
+    ['1800', 'replaced'],
+    [undefined, 'unnamed'],
+    ['', 'unnamed'],
+    [1700, 'unnamed'],
+    ['17e2', 'unnamed'],
+    ['12345678901234567', 'unnamed'],
+  ] as const)('an answer naming %p is %s', (named, expected) => {
+    expect(answeringIncarnation(1700, named)).toBe(expected);
+  });
 });

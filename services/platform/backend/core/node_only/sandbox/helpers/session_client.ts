@@ -271,6 +271,228 @@ function parseRetryAfterMs(res: Response): number | undefined {
   return Number.isFinite(seconds) && seconds >= 0 ? seconds * 1000 : undefined;
 }
 
+/** How long one acquire or create keeps asking again after answers that say
+ * "in a moment": a 503 `session_unavailable` (a sibling create of the id in
+ * flight, a backend listing that timed out, a container still starting) and
+ * a connection the spawner did not take (it is restarting). Long enough for
+ * a spawner restart or a slow `docker ps`; short against the turn it delays,
+ * so a spawner that stays away still fails the start. */
+const SPAWNER_TRANSIENT_RETRY_BUDGET_MS = 20_000;
+/** The first wait after a refused connection; it doubles per retry. */
+const SPAWNER_TRANSIENT_RETRY_MIN_MS = 250;
+/** The longest single wait, whatever the backoff or a `retry-after` says. */
+const SPAWNER_TRANSIENT_RETRY_MAX_MS = 5_000;
+
+/** The connection failures that say the spawner is not there right now
+ * rather than that the request went wrong: refused (restarting), reset
+ * (killed mid-connect) and a name lookup that timed out (its DNS entry is
+ * being replaced). */
+const TRANSIENT_CONNECTION_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'EAI_AGAIN',
+]);
+
+function errorCodeOf(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error))
+    return undefined;
+  return typeof error.code === 'string' ? error.code : undefined;
+}
+
+/** Whether a call failed because the spawner did not take the connection
+ * (see {@link TRANSIENT_CONNECTION_CODES}). The runtime's fetch reports the
+ * syscall on the failure's `cause`, or on each of an `AggregateError`'s
+ * errors when it tried several addresses. */
+function isTransientConnectionFailure(error: unknown): boolean {
+  if (!(error instanceof SpawnerUnreachableError)) return false;
+  const fetchFailure = error.cause;
+  const syscall =
+    fetchFailure instanceof Error ? fetchFailure.cause : undefined;
+  const codes =
+    syscall instanceof AggregateError
+      ? syscall.errors.map(errorCodeOf)
+      : [errorCodeOf(syscall)];
+  return codes.some(
+    (code) => code !== undefined && TRANSIENT_CONNECTION_CODES.has(code),
+  );
+}
+
+/** One call's allowance of retries of transient spawner answers: an
+ * acquire's or a create's {@link SPAWNER_TRANSIENT_RETRY_BUDGET_MS}, or, for
+ * an exec drain riding out a spawner outage, as long as its caller's signal
+ * lets it run. */
+class SpawnerRetryBudget {
+  private readonly deadline: number;
+  private retries = 0;
+
+  constructor(budgetMs: number = SPAWNER_TRANSIENT_RETRY_BUDGET_MS) {
+    this.deadline = Date.now() + budgetMs;
+  }
+
+  /** How long to wait before asking again — the spawner's own hint when it
+   * gave one, else a doubling backoff — or undefined once that wait would
+   * end past the budget. */
+  nextWaitMs(hintMs: number | undefined): number | undefined {
+    const backoff = SPAWNER_TRANSIENT_RETRY_MIN_MS * 2 ** this.retries;
+    const waitMs = Math.min(
+      SPAWNER_TRANSIENT_RETRY_MAX_MS,
+      Math.max(SPAWNER_TRANSIENT_RETRY_MIN_MS, hintMs ?? backoff),
+    );
+    if (Date.now() + waitMs > this.deadline) return undefined;
+    this.retries += 1;
+    return waitMs;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Wait `ms`, or reject with the signal's reason the moment it aborts. */
+function sleepUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+}
+
+/** Send one acquire or create request, waiting out a refused connection
+ * within the call's retry budget; any other failure, or one past the
+ * budget, is thrown as it came. */
+async function spawnerFetchRetryingConnection(
+  budget: SpawnerRetryBudget,
+  method: string,
+  path: string,
+  opts: () => { body?: string; signal?: AbortSignal },
+): Promise<Response> {
+  for (;;) {
+    try {
+      return await spawnerFetch(method, path, opts());
+    } catch (error) {
+      const waitMs = isTransientConnectionFailure(error)
+        ? budget.nextWaitMs(undefined)
+        : undefined;
+      if (waitMs === undefined) throw error;
+      console.warn(
+        `[sandbox] ${method} ${path}: the spawner did not take the connection; asking again in ${waitMs} ms`,
+      );
+      await sleep(waitMs);
+    }
+  }
+}
+
+/** A spawner call answered with a status its caller has no answer of its own
+ * for (a 404 is {@link SessionNotFoundError}). Keeps the status and the
+ * spawner's `retry-after`, so a drain can tell "not now" from a verdict. */
+export class SpawnerStatusError extends Error {
+  readonly status: number;
+  readonly retryAfterMs: number | undefined;
+  constructor(message: string, res: Response) {
+    super(message);
+    this.name = 'SpawnerStatusError';
+    this.status = res.status;
+    this.retryAfterMs = parseRetryAfterMs(res);
+  }
+}
+
+/**
+ * The error a refused exec, attach or checkpoint request is. A 503 the
+ * device hub gave because the session's device is not connected is
+ * {@link SandboxDeviceOfflineError}: the spawner did answer, and a device
+ * can stay away for hours (a closed laptop), so a drain fails on it as on
+ * any verdict, naming the device, instead of waiting it out as a spawner
+ * outage. Only a device's 503 is read, to tell that answer from the device
+ * spawner's own "not now". Anything else is a {@link SpawnerStatusError}, its
+ * body released: a drain that asks again every few seconds must not hold a
+ * connection per refused answer until it is collected. The release is not
+ * awaited — a cancel acknowledgement can stall.
+ */
+async function refusedAnswerErrorOf(
+  message: string,
+  res: Response,
+): Promise<SpawnerStatusError | SandboxDeviceOfflineError> {
+  if (res.status === 503 && res.headers.get(DEVICE_HEADER) !== null) {
+    return (
+      deviceOfflineIn(res, await safeText(res)) ??
+      new SpawnerStatusError(message, res)
+    );
+  }
+  void res.body?.cancel().catch((error: unknown) => {
+    console.warn('[session_client] releasing a refused answer failed:', error);
+  });
+  return new SpawnerStatusError(message, res);
+}
+
+/** The answers that say "not now" rather than anything about the exec: the
+ * spawner is at capacity (429), nothing answered behind a proxy (502), it is
+ * booting, adopting its sessions or could not list them in time (503
+ * `session_unavailable`), or a gateway stopped waiting for it (504). A
+ * device's offline answer is no such status: it arrives as
+ * {@link SandboxDeviceOfflineError}. */
+const SPAWNER_NOT_NOW_STATUSES: ReadonlySet<number> = new Set([
+  429, 502, 503, 504,
+]);
+
+/** The exec's stream broke before it delivered the exec's result: the
+ * connection dropped mid-read (the spawner restarted, the network cut it).
+ * It says nothing about the exec, which runnerd keeps running; a re-attach
+ * resumes after the cursor. A stream the spawner closed cleanly without a
+ * result is not this: it still costs the drain one of its failures. */
+class ExecStreamDroppedError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ExecStreamDroppedError';
+  }
+}
+
+/**
+ * Whether an exec drain lost the exec to the way there rather than to a
+ * verdict on it. Transport: the spawner did not take or answer the request
+ * ({@link SpawnerUnreachableError} — every fetch failure, the refused, reset
+ * and unresolved connections a restart causes included), the stream broke
+ * mid-read, the spawner answered "not now" ({@link SPAWNER_NOT_NOW_STATUSES}),
+ * or a call to it timed out. Everything else is a verdict: a 404
+ * ({@link SessionNotFoundError}), a device the hub reports not connected
+ * ({@link SandboxDeviceOfflineError}), a replay or protocol gap, an error the
+ * stream itself reported.
+ *
+ * Wider than the connection codes an acquire or a create waits out
+ * ({@link isTransientConnectionFailure}): a drain runs against an exec the
+ * same `SANDBOX_URL` already started, so a name that stops resolving while
+ * the spawner's container is replaced is the spawner being away, not a
+ * misconfiguration to fail fast on.
+ */
+export function isSpawnerTransportFailure(error: unknown): boolean {
+  if (
+    error instanceof SpawnerUnreachableError ||
+    error instanceof ExecStreamDroppedError
+  )
+    return true;
+  if (error instanceof SpawnerStatusError)
+    return SPAWNER_NOT_NOW_STATUSES.has(error.status);
+  return error instanceof Error && error.name === 'TimeoutError';
+}
+
+/** What a drain that rides out a spawner outage tells its caller about its
+ * hold on the exec's stream. */
+export interface ExecStreamContact {
+  /** The spawner answered with the exec's stream. */
+  onAttached(): void;
+  /** The stream was lost to the transport; the drain attaches again. */
+  onLost(error: unknown): void;
+}
+
 /** The exec SSE went silent past the idle-read deadline (no events AND no
  * keepalive — a half-open/wedged connection). The resilient drain re-attaches
  * via sinceSeq WITHOUT consuming its consecutive-failure budget: a genuinely
@@ -486,12 +708,29 @@ export async function sandboxDeviceDisconnect(
  * finishes first; a definitive 404 then allows the caller to recreate it. */
 export async function sessionAcquire(sessionId: string): Promise<boolean> {
   return traceSandboxPhase('acquire', async () => {
-    const response = await spawnerFetch(
-      'POST',
-      `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`,
-      { signal: AbortSignal.timeout(15_000) },
-    );
-    await throwIfDeviceOffline(response);
+    const path = `/v1/sessions/${encodeURIComponent(sessionId)}/acquire`;
+    const budget = new SpawnerRetryBudget();
+    let response: Response;
+    for (;;) {
+      response = await spawnerFetchRetryingConnection(
+        budget,
+        'POST',
+        path,
+        () => ({ signal: AbortSignal.timeout(15_000) }),
+      );
+      await throwIfDeviceOffline(response);
+      // `session_unavailable`: a create of the id is in flight, the backend
+      // listing timed out, or the container is still starting — the
+      // spawner says when to ask again (`retry-after`).
+      if (response.status !== 503) break;
+      const body = await safeText(response);
+      const waitMs = body.includes('session_unavailable')
+        ? budget.nextWaitMs(parseRetryAfterMs(response))
+        : undefined;
+      if (waitMs === undefined)
+        throw new Error(`Sandbox acquisition unavailable (503): ${body}`);
+      await sleep(waitMs);
+    }
     if (response.status === 429) throw await spawnerBusyErrorOf(response);
     if (response.status === 404) {
       // Rolling upgrade: an old spawner has neither activity routes nor the
@@ -599,28 +838,43 @@ async function createSession(
 ): Promise<SessionCreateResult> {
   const path = '/v1/sessions';
   const bodyJson = JSON.stringify(body);
+  const budget = new SpawnerRetryBudget();
+  let drainRetries = 0;
   // Re-sign per attempt: each retry needs a fresh timestamp (clock-skew window)
   // and a fresh nonce (spawner replay cache) — see signedHeaders.
-  for (let attempt = 0; ; attempt++) {
-    const res = await spawnerFetch('POST', path, {
-      body: bodyJson,
-      signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
-    });
+  for (;;) {
+    const res = await spawnerFetchRetryingConnection(
+      budget,
+      'POST',
+      path,
+      () => ({
+        body: bodyJson,
+        signal: AbortSignal.timeout(CREATE_TIMEOUT_MS),
+      }),
+    );
     if (res.status === 409) throw new SessionDuplicateError(body.sessionId);
     if (res.status === 429) throw await spawnerBusyErrorOf(res);
     // 503 "draining": the targeted colour is mid-flip. Re-POST so the bare
     // `sandbox` alias re-resolves onto the now-active colour. A 503 for an
     // offline device is final for this create: the session's workspace lives
-    // there. A non-draining 503 (or exhausted retries) falls through to the
-    // generic failure below.
+    // there. A 503 `session_unavailable` (a create of the id already in
+    // flight, the backend listing timed out) is asked again at its
+    // `retry-after`, within the create's retry budget. Any other 503, or
+    // exhausted retries, falls through to the generic failure below.
     if (res.status === 503) {
       const peek = await safeText(res);
       const offline = deviceOfflineIn(res, peek);
       if (offline) throw offline;
-      if (peek.includes('draining') && attempt < CREATE_DRAIN_RETRY_MAX) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, CREATE_DRAIN_RETRY_DELAY_MS),
-        );
+      if (peek.includes('draining') && drainRetries < CREATE_DRAIN_RETRY_MAX) {
+        drainRetries += 1;
+        await sleep(CREATE_DRAIN_RETRY_DELAY_MS);
+        continue;
+      }
+      const waitMs = peek.includes('session_unavailable')
+        ? budget.nextWaitMs(parseRetryAfterMs(res))
+        : undefined;
+      if (waitMs !== undefined) {
+        await sleep(waitMs);
         continue;
       }
       throw new Error(`sandbox session create failed (503): ${peek}`);
@@ -734,6 +988,46 @@ export async function sessionDestroyIfIdle(
   return { destroyed: parsed.destroyed === true, busy: parsed.busy === true };
 }
 
+/** Conditional stop (`?if_idle=1&keep_workspace=1`): the spawner no-ops
+ * with {busy:true} while the session still has a live exec, exactly as
+ * {@link sessionDestroyIfIdle} does, and otherwise releases its compute and
+ * KEEPS its workspace — the cleanup after a failed create of an agent
+ * session, whose id may name a workspace preserved for its next turn (a
+ * container lost to a host reboot or the OOM killer leaves exactly that).
+ * Deleting a workspace nothing owns any more stays the workspace cleanup's
+ * job. `workspaceKept: false` is the answer of a spawner or device older
+ * than the flag, which destroyed instead. Same non-2xx THROW contract as
+ * sessionDestroy. */
+export async function sessionStopIfIdle(
+  sessionId: string,
+  options: { signal?: AbortSignal } = {},
+): Promise<{ stopped: boolean; busy: boolean; workspaceKept: boolean }> {
+  const path = `/v1/sessions/${encodeURIComponent(sessionId)}?if_idle=1&keep_workspace=1`;
+  const res = await spawnerFetch('DELETE', path, {
+    signal: AbortSignal.any([
+      AbortSignal.timeout(30_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
+  });
+  await throwIfDeviceOffline(res);
+  if (!res.ok) {
+    throw new Error(`sandbox session stop failed (${res.status})`);
+  }
+  const answer = z
+    .object({
+      stopped: z.boolean().optional(),
+      destroyed: z.boolean().optional(),
+      busy: z.boolean().optional(),
+      workspaceKept: z.boolean().optional(),
+    })
+    .parse(await res.json());
+  return {
+    stopped: answer.stopped === true || answer.destroyed === true,
+    busy: answer.busy === true,
+    workspaceKept: answer.workspaceKept === true,
+  };
+}
+
 /** How far deleting a destroyed workspace's bytes has come, as the spawner
  * answers a destroy: `done` (Docker: no trash entry of the id is left),
  * `pending` (still being deleted in the background), `failed` (the last
@@ -815,10 +1109,16 @@ export type SandboxWorkspaceInventory = z.infer<
 /** GET /v1/workspaces — every workspace the spawner holds (stopped sessions'
  * preserved data included) and the organizations holding resources beyond
  * them. `null` from a spawner that predates the route; THROWS when the
- * spawner could not read its inventory. */
-export async function sandboxWorkspaceInventory(): Promise<SandboxWorkspaceInventory | null> {
+ * spawner could not read its inventory, or once `signal` aborts (the read
+ * gives up after 60 s on its own). */
+export async function sandboxWorkspaceInventory(
+  options: { signal?: AbortSignal } = {},
+): Promise<SandboxWorkspaceInventory | null> {
   const res = await spawnerFetch('GET', '/v1/workspaces', {
-    signal: AbortSignal.timeout(60_000),
+    signal: AbortSignal.any([
+      AbortSignal.timeout(60_000),
+      ...(options.signal ? [options.signal] : []),
+    ]),
   });
   if (res.status === 404) return null;
   if (!res.ok) {
@@ -1131,15 +1431,18 @@ export async function sessionStageFiles(
       }
     }
     const merged: SessionStageResult = { staged: [], skipped: [] };
+    // An inline file is identified by the digest of its bytes, and the digest
+    // rides the probe too: a runtime that lost its record of what it staged
+    // (every restart of a stopped session) checks the file already on disk
+    // against it instead of having the bytes sent again.
     const identified = options.reuse
-      ? files.map((file) =>
-          file.contentBase64 !== undefined
-            ? {
-                ...file,
-                sourceId: `sha256:${createHash('sha256').update(Buffer.from(file.contentBase64, 'base64')).digest('hex')}`,
-              }
-            : file,
-        )
+      ? files.map((file) => {
+          if (file.contentBase64 === undefined) return file;
+          const sha256 = createHash('sha256')
+            .update(Buffer.from(file.contentBase64, 'base64'))
+            .digest('hex');
+          return { ...file, sha256, sourceId: `sha256:${sha256}` };
+        })
       : files;
     let missing = identified;
     if (
@@ -1150,7 +1453,11 @@ export async function sessionStageFiles(
       try {
         const hits = new Map<string, { path: string; bytes: number }>();
         for (const batch of chunkStageFiles(
-          identified.map(({ path, sourceId }) => ({ path, sourceId })),
+          identified.map(({ path, sourceId, sha256 }) => ({
+            path,
+            sourceId,
+            ...(sha256 !== undefined ? { sha256 } : {}),
+          })),
         )) {
           const probe = await postStageFiles(
             sessionId,
@@ -1543,17 +1850,26 @@ export async function sessionGetExecCheckpoint(
         signal: AbortSignal.timeout(5_000),
       });
       if (!response.ok) {
-        // No error body is needed for recovery. Release it rather than
-        // leaving a failed attempt's connection alive through the backoff.
-        void response.body?.cancel().catch(() => {
-          // A failed transport may already have closed its response body.
-        });
-        if (response.status === 404) return null;
+        if (response.status === 404) {
+          // No error body is needed. Release it rather than leaving the
+          // connection alive until it is collected.
+          void response.body?.cancel().catch((error: unknown) => {
+            console.warn(
+              '[session_client] releasing a checkpoint answer failed:',
+              error,
+            );
+          });
+          return null;
+        }
         transientStatus = [408, 429, 500, 502, 503, 504].includes(
           response.status,
         );
-        throw new Error(
+        // Released by refusedAnswerErrorOf rather than kept alive through the
+        // backoff; a device that is not connected is retried like any 503
+        // and then named, never taken for the spawner being away.
+        throw await refusedAnswerErrorOf(
           `sandbox exec checkpoint read failed (${response.status})`,
+          response,
         );
       }
       return z
@@ -1628,6 +1944,17 @@ export class ExecOutputGapError extends ExecStreamProtocolError {
   readonly code = 'OUTPUT_GAP';
 }
 
+/** The session's runtime could not write the exec's output because the
+ * sandbox host's disk is full (runnerd's `REPLAY_DISK_FULL`), and ended the exec: a
+ * condition of the host, not a lost transcript, so it says so in its own
+ * words. Reattaching cannot help. */
+export class ExecDiskFullError extends ExecStreamProtocolError {
+  readonly code = 'REPLAY_DISK_FULL';
+  constructor() {
+    super('the sandbox host ran out of disk space');
+  }
+}
+
 /**
  * POST /v1/sessions/:id/exec as SSE. Streams stdout/stderr deltas to the
  * callbacks (the progress-bridge action feeds these through the agent adapter
@@ -1640,6 +1967,7 @@ async function sessionExec(
   signal: AbortSignal,
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/exec`;
   const bodyJson = JSON.stringify(body);
@@ -1662,9 +1990,19 @@ async function sessionExec(
     });
     if (res.status === 404) throw new SessionNotFoundError(sessionId);
     if (!res.ok || !res.body) {
-      throw new Error(`sandbox session exec failed (${res.status})`);
+      throw await refusedAnswerErrorOf(
+        `sandbox session exec failed (${res.status})`,
+        res,
+      );
     }
-    return await consumeExecSse(res.body, body.execId, callbacks, cursor);
+    return await consumeExecSse(
+      res.body,
+      body.execId,
+      callbacks,
+      cursor,
+      false,
+      onAttached,
+    );
   } finally {
     // Own this attachment's transport without aborting the caller's turn.
     subscription.abort();
@@ -1686,6 +2024,7 @@ async function sessionAttachExec(
   callbacks: SessionExecCallbacks = {},
   cursor?: ExecCursor,
   timeoutMs?: number,
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   callbacks.onReplayStarted?.();
   const query = sinceSeq > 0 ? `?sinceSeq=${sinceSeq}` : '';
@@ -1709,9 +2048,19 @@ async function sessionAttachExec(
     });
     if (res.status === 404) throw new SessionNotFoundError(sessionId);
     if (!res.ok || !res.body) {
-      throw new Error(`sandbox session attach failed (${res.status})`);
+      throw await refusedAnswerErrorOf(
+        `sandbox session attach failed (${res.status})`,
+        res,
+      );
     }
-    return await consumeExecSse(res.body, execId, callbacks, cursor, true);
+    return await consumeExecSse(
+      res.body,
+      execId,
+      callbacks,
+      cursor,
+      true,
+      onAttached,
+    );
   } finally {
     subscription.abort();
   }
@@ -1728,6 +2077,15 @@ async function sessionAttachExec(
  * reconnect makes progress) so a truly-dead exec doesn't loop forever; a
  * caller-aborted signal stops immediately (an explicit Stop already yields a
  * terminal 'cancelled' result, so it doesn't reach here).
+ *
+ * A caller that passes `contact` rides out a spawner outage instead: a
+ * transport failure ({@link isSpawnerTransportFailure} — a restart, a
+ * partition, a "not now" answer) costs none of that budget. The drain waits
+ * the spawner's `retry-after`, or a backoff doubling from 250 ms to 5 s, and
+ * attaches again, for as long as the caller's signal lets it run; `contact`
+ * hears when the stream is lost and when it flows again, so the caller can
+ * bound the outage across its windows. Only a caller whose signal ends the
+ * drain may pass it.
  */
 export async function drainSessionExecResilient(
   sessionId: string,
@@ -1737,6 +2095,7 @@ export async function drainSessionExecResilient(
   opts: {
     cursor?: ExecCursor;
     resumeSinceSeq?: number;
+    contact?: ExecStreamContact;
   } = {},
 ): Promise<SessionExecResult> {
   // External cursor lets the caller (run_agent) read the resume position; on a
@@ -1757,11 +2116,30 @@ export async function drainSessionExecResilient(
   // an exec that produced output existed, and re-running it would execute
   // the turn twice — and never on a resume, whose caller owns that recovery.
   let recreate = !startWithAttach;
+  // The outage being ridden out (with `contact`): when the stream was lost,
+  // and the waits between attempts, which start short again after it flows.
+  let outage: { since: number; budget: SpawnerRetryBudget } | undefined;
+  const onAttached = () => {
+    if (outage !== undefined) {
+      console.warn(
+        `[session_client] exec ${body.execId}: the spawner serves the stream again after ${Date.now() - outage.since} ms`,
+      );
+      outage = undefined;
+    }
+    opts.contact?.onAttached();
+  };
   for (;;) {
     try {
       if (recreate) {
         recreate = false;
-        return await sessionExec(sessionId, body, signal, callbacks, cursor);
+        return await sessionExec(
+          sessionId,
+          body,
+          signal,
+          callbacks,
+          cursor,
+          onAttached,
+        );
       }
       return await sessionAttachExec(
         sessionId,
@@ -1771,6 +2149,7 @@ export async function drainSessionExecResilient(
         callbacks,
         cursor,
         body.timeoutMs,
+        onAttached,
       );
     } catch (err) {
       if (signal.aborted) throw err;
@@ -1793,12 +2172,32 @@ export async function drainSessionExecResilient(
       // an arbitrarily long quiet phase can never exhaust MAX_RECONNECT_ATTEMPTS
       // — the only bound on a quiet phase is the action window (signal abort).
       if (err instanceof ExecStreamIdleError) {
+        opts.contact?.onLost(err);
         seqAtAttemptStart = cursor.lastSeq;
         continue;
       }
       // Progress since the last failure resets the consecutive-failure budget.
       if (cursor.lastSeq > seqAtAttemptStart) attempt = 0;
       seqAtAttemptStart = cursor.lastSeq;
+      if (opts.contact !== undefined && isSpawnerTransportFailure(err)) {
+        opts.contact.onLost(err);
+        if (outage === undefined) {
+          outage = {
+            since: Date.now(),
+            budget: new SpawnerRetryBudget(Number.POSITIVE_INFINITY),
+          };
+          console.warn(
+            `[session_client] exec ${body.execId} lost its stream to the transport (sinceSeq=${cursor.lastSeq}); attaching again until the spawner answers:`,
+            err instanceof Error ? err.message : String(err),
+          );
+        }
+        const waitMs =
+          outage.budget.nextWaitMs(
+            err instanceof SpawnerStatusError ? err.retryAfterMs : undefined,
+          ) ?? SPAWNER_TRANSIENT_RETRY_MAX_MS;
+        await sleepUnlessAborted(waitMs, signal);
+        continue;
+      }
       attempt += 1;
       if (attempt > MAX_RECONNECT_ATTEMPTS) throw err;
       recreate =
@@ -1877,8 +2276,13 @@ async function consumeExecSse(
   callbacks: SessionExecCallbacks,
   cursor?: ExecCursor,
   attaching = false,
+  /** Called once, at the stream's first bytes: the spawner serves the exec
+   * again. Not at the response headers — a connection that is accepted and
+   * cut before a byte arrives has not reached the exec. */
+  onAttached?: () => void,
 ): Promise<SessionExecResult> {
   const reader = body.getReader();
+  let delivered = false;
   const decoder = new TextDecoder('utf-8');
   const frameBudget = new SseFrameBudget();
   let result: SessionExecResult | null = null;
@@ -1970,6 +2374,7 @@ async function consumeExecSse(
       if (parsed?.code === 'ATTACH_BUSY')
         throw new ExecAttachBusyError(message);
       if (parsed?.code === 'OUTPUT_GAP') throw new ExecOutputGapError(message);
+      if (parsed?.code === 'REPLAY_DISK_FULL') throw new ExecDiskFullError();
       if (message === `exec ${execId} not found`) {
         throw new ExecNotFoundError(execId);
       }
@@ -1999,7 +2404,16 @@ async function consumeExecSse(
       let chunk: Awaited<ReturnType<typeof reader.read>>;
       try {
         chunk = await Promise.race([
-          reader.read(),
+          // A read that fails is the connection breaking under the stream;
+          // an abort is the caller's own cut and passes as it came.
+          reader.read().catch((cause: unknown) => {
+            if (cause instanceof Error && cause.name === 'AbortError')
+              throw cause;
+            throw new ExecStreamDroppedError(
+              `sandbox exec ${execId} stream broke: ${cause instanceof Error ? cause.message : String(cause)}`,
+              { cause },
+            );
+          }),
           new Promise<never>((_, reject) => {
             idleTimer = setTimeout(
               () => reject(new ExecStreamIdleError(execId)),
@@ -2012,6 +2426,10 @@ async function consumeExecSse(
       }
       const { value, done } = chunk;
       if (done) break;
+      if (!delivered && value.byteLength > 0) {
+        delivered = true;
+        onAttached?.();
+      }
       const text = decoder.decode(value, { stream: true });
       frameBudget.accept(text);
       parser.feed(text);

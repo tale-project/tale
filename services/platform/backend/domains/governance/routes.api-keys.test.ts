@@ -83,6 +83,8 @@ interface Tables {
   audit?: KeyAuditRow[];
   /** The deployment's accounts. */
   users?: Array<{ id: string; name: string | null; email: string | null }>;
+  /** `app.api_key_owners` rows of `org-1`, as the binding read answers. */
+  bound?: unknown[];
 }
 
 /**
@@ -148,10 +150,25 @@ function fakeSql(tables: Tables) {
           })),
       );
     }
+    // The bindings of keys made for a member, a team, a project or the
+    // organization — none of the keys these cases describe is bound.
+    if (text.includes('FROM app.api_key_owners o')) {
+      return Promise.resolve(tables.bound ?? []);
+    }
     return Promise.resolve(tables.live ?? []);
   };
   return { sql: sql as never, queries };
 }
+
+/** What a person's own key reads as beside its holder: no team, project or
+ * organization of its own. */
+const PERSONAL_SCOPE = {
+  ownerKind: 'user',
+  teamId: null,
+  teamName: null,
+  projectId: null,
+  projectName: null,
+};
 
 const KEY_ROW = {
   id: 'key-1',
@@ -319,6 +336,7 @@ describe('GET /api-keys', () => {
         ownerEmail: 'anna@example.test',
         status: 'expired',
         expiresAt: Date.parse('2026-09-20T00:00:00Z'),
+        ...PERSONAL_SCOPE,
       },
       {
         id: 'key-revoked',
@@ -329,6 +347,7 @@ describe('GET /api-keys', () => {
         ownerEmail: 'ben@example.test',
         status: 'revoked',
         expiresAt: null,
+        ...PERSONAL_SCOPE,
       },
       {
         id: 'key-foreign',
@@ -339,6 +358,7 @@ describe('GET /api-keys', () => {
         ownerEmail: null,
         status: 'unknown',
         expiresAt: null,
+        ...PERSONAL_SCOPE,
       },
     ]);
     expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
@@ -347,15 +367,16 @@ describe('GET /api-keys', () => {
       'budgets',
     );
     // The live key is already listed: only the other three are looked up,
-    // and only inside this organization. The secret column is never read.
+    // and only inside this organization — their bindings here first, then
+    // the auth store and the trail. The secret column is never read.
     const lookups = queries.slice(1);
-    expect(lookups[0]?.values).toEqual([
-      'org-1',
-      ['key-expired', 'key-revoked', 'key-foreign'],
-    ]);
-    expect(lookups[1]?.text).toContain("'api_key.created'");
-    expect(lookups[1]?.text).toContain("'api_key.revoked'");
-    expect(lookups[1]?.values).toContain('org-1');
+    const looked = ['key-expired', 'key-revoked', 'key-foreign'];
+    expect(lookups[0]?.text).toContain('FROM app.api_key_owners o');
+    expect(lookups[0]?.values).toEqual(['org-1', looked]);
+    expect(lookups[1]?.values).toEqual(['org-1', looked]);
+    expect(lookups[2]?.text).toContain("'api_key.created'");
+    expect(lookups[2]?.text).toContain("'api_key.revoked'");
+    expect(lookups[2]?.values).toContain('org-1');
     for (const lookup of lookups) {
       expect(lookup.text).not.toMatch(/k\."key"/);
     }
@@ -476,6 +497,7 @@ describe('describeRuleApiKeys', () => {
         ownerEmail: 'cara@example.test',
         status: 'holder_left',
         expiresAt: null,
+        ...PERSONAL_SCOPE,
       },
       {
         id: 'key-elsewhere',
@@ -486,6 +508,7 @@ describe('describeRuleApiKeys', () => {
         ownerEmail: null,
         status: 'unknown',
         expiresAt: null,
+        ...PERSONAL_SCOPE,
       },
     ]);
     // Only the holder this organization may name is looked up, and only
@@ -521,6 +544,7 @@ describe('describeRuleApiKeys', () => {
         ownerEmail: 'cara@example.test',
         status: 'holder_left',
         expiresAt: null,
+        ...PERSONAL_SCOPE,
       },
     ]);
   });
@@ -589,6 +613,7 @@ describe('describeRuleApiKeys', () => {
       ownerEmail: 'cara@example.test',
       status: 'revoked',
       expiresAt: null,
+      ...PERSONAL_SCOPE,
     });
     expect(left).toEqual({ ...whileMember, ownerName: null });
   });
@@ -611,6 +636,7 @@ describe('describeRuleApiKeys', () => {
       ownerEmail: 'cara@example.test',
       status: 'unavailable',
       expiresAt: null,
+      ...PERSONAL_SCOPE,
     });
   });
 

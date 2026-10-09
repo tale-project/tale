@@ -32,10 +32,12 @@ budgets:
   maxRequestsHelp: KI-Anfragen pro Zeitraum. Leer lassen für kein Limit.
   warningThreshold: Warnschwelle (%)
   warningThresholdHelp: Warnung, wenn die Nutzung diesen Prozentsatz des Limits überschreitet.
+  warningThresholdProjectHelp: Alle, die in diesem Projekt chatten, sehen eine Warnung, sobald die Nutzung des Projekts diesen Prozentsatz des Limits überschreitet.
   orgScopeTarget: Gesamte Organisation
   allUsers: Alle Benutzer
   overrideHint: 'Spezifischere Bereiche überschreiben allgemeinere: Benutzer >
-    Team > Rolle > Standard. Org-Limits gelten immer zusätzlich.'
+    Team > Rolle > Standard. Org-Limits gelten immer zusätzlich, die Limits
+    eines Projekts für die Arbeit in diesem Projekt.'
   noRulesTitle: Keine Budgetregeln konfiguriert
   noRulesDescription: Füge eine Regel hinzu, um Limits durchzusetzen.
   editRuleAriaLabel: Regel {index} bearbeiten
@@ -58,6 +60,13 @@ budgets:
   searchTeams: Teams suchen
   noTeamsFound: Keine Teams gefunden
   selectTeamAriaLabel: Team auswählen
+  project: Projekt
+  selectProject: Projekt auswählen...
+  searchProjects: Projekte suchen
+  noProjectsFound: Keine Projekte gefunden
+  selectProjectAriaLabel: Projekt auswählen
+  projectDeleted: Gelöschtes Projekt
+  projectDeletedHint: Dieses Projekt gibt es nicht mehr, darum begrenzt die Regel nichts. Wähle ein Projekt oder entferne die Regel.
   apiKey: API-Schlüssel
   selectApiKey: API-Schlüssel auswählen...
   searchApiKeys: API-Schlüssel suchen
@@ -76,6 +85,7 @@ budgets:
     default: Standard
     user: Benutzer
     team: Team
+    project: Projekt
     role: Rolle
     apiKey: API-Schlüssel
     org: Organisation
@@ -84,6 +94,9 @@ budgets:
     weekly: Wöchentlich
     monthly: Monatlich
   apiKeyOwnerUnknown: Inhaber unbekannt
+  apiKeyOwnerTeam: Team {name}
+  apiKeyOwnerProject: Projekt {name}
+  apiKeyOwnerOrganization: Die Organisation
   apiKeyInactive: Dieser Schlüssel kann in dieser Organisation nichts mehr verbrauchen, deshalb begrenzt die Regel nichts. Wähle einen aktiven Schlüssel oder entferne die Regel.
   apiKeyStatus:
     expired: Abgelaufen
@@ -1480,6 +1493,7 @@ dataSubjectRequests:
     wfExecutionsErased: Gelöschte Automatisierungsläufe
     startedAt: Gestartet
     completedAt: Abgeschlossen
+    legacyAutomationHold: Einige Automationsläufe wurden aufbewahrt, weil ihre früheren externen Aktionen noch nicht überprüft wurden. Ein erneuter Versuch hebt diese Sperren nicht auf.
     errorMessage: Fehler
     errorState:
       title: Diese Anfrage konnte nicht geladen werden
@@ -1516,21 +1530,41 @@ dataSubjectRequests:
     gdpr_erasure_rejected: Zurückgewiesen
     gdpr_erasure_cancelled: Abgebrochen
   categories:
+    modelApiRequests: Modellanfragen
     userMemories: Persönliche Memos
     userPreferences: Nutzereinstellungen
     messageFeedback: Nachrichten-Feedback
     fileMetadata: Im Chat hochgeladene Dateien
-    usageLedger: Token-Verbrauchsbuch
+    usageLedger: Nutzungseinträge
     twoFactorAttempts: 2FA-Versuche
     policyAcknowledgements: Richtlinien-Bestätigungen
     onedrive: OneDrive-Sync-Konfigurationen
     googleDriveSync: Google-Drive-Sync-Konfigurationen
     userCloudAuthorizations: Cloud-Import-Autorisierungen
     loginAttempts: Login-Versuche und Sperren
-    notifications: Sicherheitsbenachrichtigungen
+    notifications: Benachrichtigungen
     wfExecutions: Automatisierungsläufe
     promptTemplates: Persönliche Prompts
     sandboxWorkspaces: Sandbox-Arbeitsbereiche
+    threads: Chats
+    documents: Dokumente
+    uploads: Hochgeladene Dateien
+    preferences: Einstellungen
+    subscriptions: Gefolgte Aufgaben
+    feedback: Nachrichten-Feedback
+    memories: Persönliche Memos
+    directCalls: Direkte Modellaufrufe
+    videoLinks: Videolinks
+    cloudGrants: Cloud-Import-Autorisierungen
+    syncConfigs: Cloud-Sync-Konfigurationen
+    websiteScanNotes: Von der Person angeforderte Website-Scans
+    orgNotifications: Sicherheitsbenachrichtigungen über die Person
+    automationRuns: Automatisierungsläufe
+    agentRuns: Agentenläufe
+    reviewDecisions: Prüfentscheidungen
+    mentions: Erwähnungen in Aufgabentexten
+    authState: Anmelde- und Zwei-Faktor-Versuche
+    auditScrub: Audit-Log-Einträge
   legalHoldBlock:
     title: Löschung durch Legal Hold blockiert
     orgHeld: Ein organisationsweiter Legal Hold bewahrt jede Entität in diesem

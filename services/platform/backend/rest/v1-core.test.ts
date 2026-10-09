@@ -9,6 +9,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ApiKeyOwner } from '../domains/api_keys/owners.ts';
 import { DocumentError } from '../domains/documents/service.ts';
 import { FileError, openFileContent } from '../domains/files/service.ts';
 import {
@@ -181,17 +182,23 @@ function productRow(n: number) {
 }
 
 /** The core routes behind a stub door that sets the request variables. */
-function mount(sql: Sql, apiKeyId = 'key-1', role = 'admin') {
+function mount(
+  sql: Sql,
+  apiKeyId = 'key-1',
+  role = 'admin',
+  apiKeyOwner: ApiKeyOwner | null = null,
+) {
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('userId', 'user-1');
-    c.set('userEmail', 'user@example.com');
+    c.set('userEmail', apiKeyOwner === null ? 'user@example.com' : '');
     c.set('organizationId', 'org-1');
     c.set('orgSlug', 'acme');
     c.set('role', role);
     c.set('orgExplicit', false);
     c.set('clientIp', '203.0.113.9');
     c.set('apiKeyId', apiKeyId);
+    c.set('apiKeyOwner', apiKeyOwner);
     return next();
   });
   app.route('/', createCoreRoutes({ sql }));
@@ -526,9 +533,11 @@ describe('GET /me key', () => {
       id: 'key-1',
       name: 'Billing sync',
       expiresAt: KEY_EXPIRES_AT.getTime(),
+      owner: { kind: 'user', team: null, project: null },
     });
     const read = queries.find((q) => q.text.includes('FROM "apikey"'));
-    expect(read?.values).toEqual(['key-1']);
+    // A person's own key names no team and no project.
+    expect(read?.values).toEqual([null, null, 'key-1']);
   });
 
   it('answers expiresAt null for a key minted to never expire', async () => {
@@ -537,6 +546,7 @@ describe('GET /me key', () => {
       id: 'key-1',
       name: 'Billing sync',
       expiresAt: null,
+      owner: { kind: 'user', team: null, project: null },
     });
   });
 
@@ -549,6 +559,110 @@ describe('GET /me key', () => {
     const { body, queries } = await me(keyRow(), '');
     expect(body.key).toBeNull();
     expect(queries.some((q) => q.text.includes('FROM "apikey"'))).toBe(false);
+  });
+});
+
+/**
+ * A key bound to one organization — a team's, a project's, the
+ * organization's own, or one an admin made for a member — works there
+ * alone, so `/me` lists that one organization, with the role the key acts
+ * with, and names whose key it is.
+ */
+describe('GET /me for a key bound to one organization', () => {
+  const boundOwner = (
+    kind: ApiKeyOwner['kind'],
+    target: { teamId?: string; projectId?: string } = {},
+  ): ApiKeyOwner => ({
+    apiKeyId: 'key-1',
+    organizationId: 'org-1',
+    kind,
+    keyUserId: 'key-identity-1',
+    principalUserId: 'user-1',
+    teamId: target.teamId ?? null,
+    projectId: target.projectId ?? null,
+    role: kind === 'member' ? null : 'editor',
+    name: 'Sync key',
+    createdBy: 'admin-1',
+    createdAt: 1,
+    revokedAt: null,
+    revokedBy: null,
+  });
+  const meAs = async (owner: ApiKeyOwner, role = 'editor') => {
+    const { sql, queries } = fakeSql(
+      // Were the holder's memberships read, they would name two.
+      [
+        { organizationId: 'org-1', role: 'admin', name: 'Acme', slug: 'acme' },
+        { organizationId: 'org-2', role: 'admin', name: 'Beta', slug: 'beta' },
+      ],
+      (text) => {
+        if (text.includes('FROM "organization"')) return [{ name: 'Acme' }];
+        if (text.includes('FROM "apikey"')) {
+          return [
+            {
+              ...keyRow(),
+              teamName: owner.teamId === null ? null : 'Finance',
+              projectName: owner.projectId === null ? null : 'Launch',
+            },
+          ];
+        }
+        return undefined;
+      },
+    );
+    const res = await mount(sql, 'key-1', role, owner).request(
+      'http://localhost/me',
+    );
+    expect(res.status).toBe(200);
+    const body: {
+      user: { id: string; email: string };
+      organizations: unknown[];
+      key: { owner: unknown };
+    } = await res.json();
+    return { body, queries };
+  };
+
+  it('lists the one organization the key works in, with the role it acts with [APIKEY-R5]', async () => {
+    const { body, queries } = await meAs(boundOwner('organization'));
+    expect(body.organizations).toEqual([
+      { id: 'org-1', slug: 'acme', name: 'Acme', role: 'editor' },
+    ]);
+    // A key that is not a person has no address.
+    expect(body.user).toEqual({ id: 'user-1', email: '' });
+    expect(queries.some((q) => q.text.includes('FROM "member" m'))).toBe(false);
+    expect(body.key.owner).toEqual({
+      kind: 'organization',
+      team: null,
+      project: null,
+    });
+  });
+
+  it('names the team or the project whose key it is [APIKEY-R5]', async () => {
+    expect(
+      (await meAs(boundOwner('team', { teamId: 'team-1' }))).body.key.owner,
+    ).toEqual({
+      kind: 'team',
+      team: { id: 'team-1', name: 'Finance' },
+      project: null,
+    });
+    expect(
+      (await meAs(boundOwner('project', { projectId: 'project-1' }))).body.key
+        .owner,
+    ).toEqual({
+      kind: 'project',
+      team: null,
+      project: { id: 'project-1', name: 'Launch' },
+    });
+  });
+
+  it('lists only this organization for a key an admin made for a member [APIKEY-R5]', async () => {
+    const { body } = await meAs(boundOwner('member'), 'member');
+    expect(body.organizations).toEqual([
+      { id: 'org-1', slug: 'acme', name: 'Acme', role: 'member' },
+    ]);
+    expect(body.key.owner).toEqual({
+      kind: 'member',
+      team: null,
+      project: null,
+    });
   });
 });
 

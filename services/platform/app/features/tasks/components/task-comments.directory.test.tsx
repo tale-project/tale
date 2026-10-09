@@ -8,7 +8,7 @@ import {
   ActorDirectoryProvider,
   useProvidedActorDirectory,
 } from '../hooks/use-actor-directory';
-import { TaskComments } from './task-comments';
+import { TaskConversation } from './task-conversation';
 
 // A task's discussion names every author, and every text run of every
 // markdown body resolves its @mentions, against the actor directory. Each
@@ -79,6 +79,7 @@ vi.mock('@tale/ui/use-format-date', () => ({
   useFormatDate: () => ({
     formatRelative: () => 'just now',
     formatDate: () => 'Jan 1, 2026',
+    formatDateHeader: () => 'Today',
   }),
 }));
 
@@ -101,10 +102,16 @@ const COMMENTS = Array.from({ length: 40 }, (_, index) => ({
     '',
     `Closing note ${index}.`,
   ].join('\n'),
-  createdAt: 1_700_000_000_000 + index,
+  // Whom the comment named when it was saved: its typed `@ada`s show her.
+  mentions: [{ type: 'user' as const, id: 'user-ada' }],
+  // Ten minutes apart: each comment opens with its author, none continues
+  // the one before.
+  createdAt: 1_700_000_000_000 + index * 600_000,
 }));
 
 vi.mock('../hooks/queries', () => ({
+  // One page holds every comment here: the test is about the whole list.
+  TASK_DISCUSSION_PAGE_SIZE: 100,
   useTaskDiscussion: () => ({
     comments: COMMENTS,
     isLoading: false,
@@ -112,11 +119,13 @@ vi.mock('../hooks/queries', () => ({
     isLoadingEarlier: false,
     loadEarlier: () => undefined,
   }),
+  useTaskActivity: () => ({ activity: [] }),
+  useTaskAgentRuns: () => ({ runs: [] }),
 }));
 
 function renderComments(wrap?: (children: ReactNode) => ReactNode) {
   const list = (
-    <TaskComments
+    <TaskConversation
       taskId="task-1"
       organizationId="org-1"
       projectId="project-1"
@@ -126,7 +135,7 @@ function renderComments(wrap?: (children: ReactNode) => ReactNode) {
   return render(<>{wrap ? wrap(list) : list}</>);
 }
 
-describe('TaskComments — one actor directory per discussion', () => {
+describe('TaskConversation — one actor directory per discussion', () => {
   beforeEach(() => {
     reads.members = 0;
     reads.editors = 0;

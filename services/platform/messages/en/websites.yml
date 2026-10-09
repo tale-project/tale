@@ -65,6 +65,9 @@ viewDialog:
   scanPausedNotice: Scanning is paused after repeated failures to reach the
     knowledge database. Fix the connection under Settings → Data residency,
     then resume scanning.
+  embeddingLimitNotice: A usage limit stopped the last scan before every page
+    could be searched by meaning. Those pages are stored, and the scan picks
+    them up by itself once the limit resets or is raised.
   scanError:
     runtime: Scanning didn't run.
     notInCorpus: This URL list isn't in the crawler. Delete it and add it again.

@@ -115,6 +115,7 @@ function mount() {
     c.set('orgExplicit', false);
     c.set('clientIp', '203.0.113.9');
     c.set('apiKeyId', 'key-1');
+    c.set('apiKeyOwner', null);
     return next();
   });
   app.route('/', createCoreRoutes({ sql: fakeSql() }));
@@ -157,6 +158,7 @@ describe('GET /me', () => {
         id: 'key-1',
         name: 'Billing sync',
         expiresAt: Date.parse('2026-10-12T00:00:00.000Z'),
+        owner: { kind: 'user', team: null, project: null },
       },
     });
   });

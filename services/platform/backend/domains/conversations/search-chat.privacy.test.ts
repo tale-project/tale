@@ -22,7 +22,10 @@
  * would cut rows no ORDER BY ranks. A read with no ORDER BY comes back in
  * reverse seeding order, because Postgres promises no order either. So a
  * change to the leg's SQL surfaces here instead of passing against a stale
- * stand-in.
+ * stand-in. The two reads of the API-key owners the shared membership
+ * readers make are the one exception, answered by their exact text (see
+ * {@link answerKeyOwners}) — and the person's half of the acting audience
+ * still runs through the grammar.
  *
  * The real-database counterpart is narrower: the
  * `checkChatConversationSearchLeg` lane of `backend:integration` (the
@@ -43,6 +46,18 @@ type Predicate = (row: Row) => boolean;
 
 interface World {
   members: { organizationId: string; userId: string; role: string }[];
+  /** API keys that are their own identity (`app.api_key_owners`): a team's,
+   * a project's or the organization's, each acting with a role. */
+  apiKeys: {
+    id: string;
+    organizationId: string;
+    kind: 'team' | 'project' | 'organization';
+    principalUserId: string;
+    teamId: string | null;
+    projectId: string | null;
+    role: string;
+    revoked: boolean;
+  }[];
   teams: { id: string; organizationId: string }[];
   teamMembers: { teamId: string; userId: string }[];
   contacts: {
@@ -92,8 +107,12 @@ const descText = (a: unknown, b: unknown): number =>
 const TABLES: readonly Table[] = [
   {
     from: '"member"',
-    rows: (world) => world.members,
-    columns: ['organizationId', 'userId', 'role'],
+    rows: (world) =>
+      world.members.map((member) => ({
+        id: `member_${member.organizationId}_${member.userId}`,
+        ...member,
+      })),
+    columns: ['id', 'organizationId', 'userId', 'role'],
   },
   {
     from: '"teamMember" tm JOIN "team" t ON t."id" = tm."teamId"',
@@ -321,12 +340,7 @@ function parseWhere(
   return predicate;
 }
 
-function evaluate(
-  world: World,
-  strings: TemplateStringsArray,
-  values: unknown[],
-): Row[] {
-  const text = collapse(strings.join('?'));
+function evaluate(world: World, text: string, values: unknown[]): Row[] {
   const parts = STATEMENT.exec(text)?.groups;
   const table = TABLES.find((candidate) => candidate.from === parts?.from);
   if (parts?.select === undefined || !table) {
@@ -379,14 +393,95 @@ function evaluate(
   return rows.slice(0, limit).map(project);
 }
 
+/** `readServicePrincipal`: the live key whose own identity a user id is. */
+const KEY_IDENTITY_READ =
+  'SELECT o.api_key_id AS "apiKeyId", o.org_id AS "organizationId", o.owner_kind AS "kind", o.key_user_id AS "keyUserId", o.principal_user_id AS "principalUserId", o.team_id AS "teamId", o.project_id AS "projectId", o.role, o.name, o.created_by AS "createdBy", o.created_at_ms AS "createdAt", o.revoked_at_ms AS "revokedAt", o.revoked_by AS "revokedBy" FROM app.api_key_owners o JOIN "apikey" k ON k."id" = o.api_key_id WHERE o.key_user_id = ? AND o.owner_kind <> \'member\' AND o.revoked_at_ms IS NULL AND k."enabled" IS NOT FALSE AND (k."expiresAt" IS NULL OR k."expiresAt" > now()) LIMIT 1';
+
+/** `readActingAudience`: a person's teams, UNION the audience of a key that
+ * is its own identity — a team's key its team (while the team lives in this
+ * organization), a project's key its project. */
+const AUDIENCE_PERSON_PROJECTION = ', NULL::text AS "projectId"';
+const AUDIENCE_KEY_LEG =
+  'SELECT o.team_id, o.project_id FROM app.api_key_owners o LEFT JOIN "team" t ON t."id" = o.team_id AND t."organizationId" = o.org_id WHERE o.principal_user_id = ? AND o.org_id = ? AND o.revoked_at_ms IS NULL AND ((o.owner_kind = \'team\' AND t."id" IS NOT NULL) OR o.owner_kind = \'project\')';
+
+/**
+ * The two statements that read the API-key owners, outside the grammar
+ * above and so answered by their exact text: any edit to either throws here
+ * until this stand-in is taught it. The audience's person half — the
+ * `teamMember` join every organization filter rides on — still runs through
+ * the grammar.
+ */
+function answerKeyOwners(world: World, text: string, values: unknown[]): Row[] {
+  if (text === KEY_IDENTITY_READ) {
+    const [userId] = values;
+    return world.apiKeys
+      .filter((key) => key.principalUserId === userId && !key.revoked)
+      .slice(0, 1)
+      .map((key) => ({
+        apiKeyId: key.id,
+        organizationId: key.organizationId,
+        kind: key.kind,
+        keyUserId: key.principalUserId,
+        principalUserId: key.principalUserId,
+        teamId: key.teamId,
+        projectId: key.projectId,
+        role: key.role,
+        name: key.id,
+        createdBy: ADMIN,
+        createdAt: 1,
+        revokedAt: null,
+        revokedBy: null,
+      }));
+  }
+  const [personLeg, keyLeg, ...rest] = text.split(' UNION ');
+  if (
+    personLeg === undefined ||
+    !personLeg.includes(AUDIENCE_PERSON_PROJECTION) ||
+    keyLeg !== AUDIENCE_KEY_LEG ||
+    rest.length > 0
+  ) {
+    throw new Error(`the fake knows no such API-key owners read: ${text}`);
+  }
+  const personParams = personLeg.split('?').length - 1;
+  const personTeams = evaluate(
+    world,
+    personLeg.replace(AUDIENCE_PERSON_PROJECTION, ''),
+    values.slice(0, personParams),
+  ).map((row) => Object.assign(row, { projectId: null }));
+  const [userId, organizationId, ...extra] = values.slice(personParams);
+  if (extra.length > 0) {
+    throw new Error(`the statement binds more parameters: ${text}`);
+  }
+  const keyAudience = world.apiKeys
+    .filter(
+      (key) =>
+        key.principalUserId === userId &&
+        key.organizationId === organizationId &&
+        !key.revoked &&
+        ((key.kind === 'team' &&
+          world.teams.some(
+            (team) =>
+              team.id === key.teamId && team.organizationId === organizationId,
+          )) ||
+          key.kind === 'project'),
+    )
+    .map((key) => ({ teamId: key.teamId, projectId: key.projectId }));
+  return [...personTeams, ...keyAudience];
+}
+
 /** A `sql` stand-in answering from `world`, recording every statement. A
  * statement the fake cannot read rejects, as a failing query would. */
 function worldSql(world: World) {
   const statements: string[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    statements.push(collapse(strings.join('?')));
+    const text = collapse(strings.join('?'));
+    statements.push(text);
     return new Promise<Row[]>((resolve) => {
-      resolve(evaluate(world, strings, values));
+      resolve(
+        text.includes('app.api_key_owners')
+          ? answerKeyOwners(world, text, values)
+          : evaluate(world, text, values),
+      );
     });
   };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
@@ -474,6 +569,7 @@ function seedWorld(): void {
       { organizationId: ORG, userId: ASSIGNEE, role: 'member' },
       { organizationId: ORG, userId: PLAIN_MEMBER, role: 'member' },
     ],
+    apiKeys: [],
     teams: [{ id: TEAM_X, organizationId: ORG }],
     teamMembers: [{ teamId: TEAM_X, userId: TEAM_MEMBER }],
     contacts: [],
@@ -582,8 +678,10 @@ describe('searchConversationsForChat — assignment privacy [CONV-R2]', () => {
     const result = await search('user_chat_leg_stranger', 'refund');
     expect(result.conversations).toEqual([]);
     expect(result.truncated).toBe(false);
-    expect(result.statements).toHaveLength(1);
+    // The membership, then whether the caller is an API key's own identity.
+    expect(result.statements).toHaveLength(2);
     expect(result.statements[0]).toContain('FROM "member"');
+    expect(result.statements[1]).toBe(KEY_IDENTITY_READ);
   });
 
   it('answers a disabled member nothing, not even the rows assigned to them', async () => {
@@ -616,6 +714,71 @@ describe('searchConversationsForChat — assignment privacy [CONV-R2]', () => {
     expect(
       result.statements.filter((text) => text.includes('"teamMember"')),
     ).toHaveLength(1);
+  });
+});
+
+/**
+ * A team's, a project's or the organization's API key is no member: it acts
+ * with the role it was made with, and sees with the audience it was given —
+ * the same inbox the REST door shows it.
+ */
+describe('searchConversationsForChat — API keys that are their own identity [APIKEY-R6]', () => {
+  const KEY_USER = 'user_chat_leg_key_identity';
+  function addKey(
+    seed: Partial<World['apiKeys'][number]> &
+      Pick<World['apiKeys'][number], 'kind' | 'role'>,
+  ) {
+    world.apiKeys.push({
+      id: `key_${world.apiKeys.length + 1}`,
+      organizationId: ORG,
+      principalUserId: KEY_USER,
+      teamId: null,
+      projectId: null,
+      revoked: false,
+      ...seed,
+    });
+  }
+
+  it('shows a team’s key its team’s queue only', async () => {
+    addKey({ kind: 'team', teamId: TEAM_X, role: 'member' });
+    expect(await subjectsFor(KEY_USER)).toEqual(['Refund queued to team X']);
+  });
+
+  it('shows the organization’s key what its role shows', async () => {
+    addKey({ kind: 'organization', role: 'admin' });
+    expect(await subjectsFor(KEY_USER)).toHaveLength(3);
+    world.apiKeys = [];
+    addKey({ kind: 'organization', role: 'developer' });
+    // No team and no row of its own: like a plain member, nothing.
+    expect(await subjectsFor(KEY_USER)).toEqual([]);
+  });
+
+  it('shows a project’s key nothing, without scanning', async () => {
+    addKey({ kind: 'project', projectId: 'project_1', role: 'developer' });
+    const result = await search(KEY_USER, 'refund');
+    expect(result.conversations).toEqual([]);
+    expect(
+      result.statements.some((text) => text.includes('app.conversations')),
+    ).toBe(false);
+  });
+
+  it('shows a revoked key, or one bound to another organization, nothing', async () => {
+    addKey({ kind: 'organization', role: 'admin', revoked: true });
+    expect(await subjectsFor(KEY_USER)).toEqual([]);
+    world.apiKeys = [];
+    addKey({ kind: 'organization', role: 'admin', organizationId: OTHER_ORG });
+    expect(await subjectsFor(KEY_USER)).toEqual([]);
+  });
+
+  it('grants a team’s key nothing through a team of another organization', async () => {
+    addKey({ kind: 'team', teamId: FOREIGN_TEAM, role: 'member' });
+    world.teams.push({ id: FOREIGN_TEAM, organizationId: OTHER_ORG });
+    addConversation({
+      subject: 'Refund stamped with a foreign team',
+      assigneeTeamId: FOREIGN_TEAM,
+      lastMessageAt: 500,
+    });
+    expect(await subjectsFor(KEY_USER)).toEqual([]);
   });
 });
 

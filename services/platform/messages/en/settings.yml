@@ -253,6 +253,7 @@ organization:
   deleteLoading: Deleting…
   deleteSuccess: Organization deleted
   deleteFailed: Couldn't delete organization
+  deleteBlockedByLegacyAutomation: Automation runs are on hold because their earlier external actions have not been verified. Your organization was preserved. A stop request does not release these holds.
   deleteBlockedByLegalHold: An active legal hold is preserving this organization's data. Release every hold under Governance > Legal hold, then try again.
   deleteTypeNameLabel: Type the organization name to confirm
   deleteConfirmNameMismatch: The confirmation doesn't match the organization name. Reload the page and try again.
@@ -319,6 +320,7 @@ teams:
   deleteImpact:
     summary: 'This team has {members, plural, one {# member} other {# members}}. It is on the audience of {projects, plural, one {# project} other {# projects}}, {folders, plural, one {# folder} other {# folders}} and {documents, plural, one {# document} other {# documents}}, and {conversations, plural, one {# conversation is} other {# conversations are}} in its queue.'
     becomeOrgWide: '{count, plural, one {# item has} other {# items have}} no other team and will become visible to everyone in the organization.'
+    apiKeys: '{count, plural, one {# API key belongs to this team and will stop working.} other {# API keys belong to this team and will stop working.}}'
   description: Create and manage teams within your organization for granular
     access control
 credentials:
@@ -991,7 +993,10 @@ apiKeys:
   createKeySubmit: Create key
   keyCreated: API key created
   keyCreatedDescription: Copy your API key now — it won't be shown again.
+  keyCreatedDescriptionForOthers: "Copy the API key now — it won't be shown again."
+  keyCreatedForMember: Hand the key to {name} over a secure channel. A notification tells them it exists.
   yourApiKey: Your API key
+  newApiKey: New API key
   keyRevoked: API key revoked
   keyRevokeFailed: Couldn't revoke API key
   keyCreateFailed: Couldn't create API key
@@ -1005,6 +1010,17 @@ apiKeys:
     created: Added
     lastUsed: Last used
     expires: Expires
+    owner: Belongs to
+  owner:
+    you: You
+    team: Team {name}
+    project: Project {name}
+    organization: Organization
+    formerMember: Former member
+    deletedTeam: Deleted team
+    deletedProject: Deleted project
+    actsAs: Acts as {role}
+    madeBy: Made by {name}
   form:
     name: Key name
     namePlaceholder: Enter key name...
@@ -1026,6 +1042,36 @@ apiKeys:
     expiryDateHint: Pick a day up to one year from today.
     expiryDateRequired: Pick an expiration date.
     expiryDateRange: Pick a day between tomorrow and one year from today.
+    owner: Belongs to
+    ownerOptions:
+      self: You
+      member: Another member
+      team: A team
+      project: A project
+      organization: The organization
+    ownerHints:
+      member: The key acts as this member, with their role and teams, in this organization only. They are told it exists and can revoke it.
+      team: The key belongs to the team, not to a person. It acts with the role you choose, sees what the team sees, and keeps working when you leave.
+      project: The key belongs to the project, not to a person. It acts with the role you choose and reaches this project alone.
+      organization: The key belongs to the organization, not to a person. It acts with the role you choose and keeps working when you leave.
+    member: Member
+    memberPlaceholder: Choose a member
+    memberSearch: Search members...
+    memberEmpty: No member whose role is below yours
+    memberNoMatch: No member matches
+    team: Team
+    teamPlaceholder: Choose a team
+    teamSearch: Search teams...
+    teamEmpty: No teams
+    teamNoMatch: No team matches
+    project: Project
+    projectPlaceholder: Choose a project
+    projectSearch: Search projects...
+    projectEmpty: No active projects
+    projectNoMatch: No project matches
+    role: Acts as
+    roleHint: The role the key has in this organization. It cannot be above your own.
+    targetRequired: Choose whom the key belongs to.
   neverUsed: Never used
   neverExpires: Never
   expired: Expired
@@ -1208,6 +1254,8 @@ logs:
       document.trashed: Document moved to trash
       document.deleted: Document deleted
       folder.deleted: Folder deleted
+      knowledge_entry.created: Knowledge entry created
+      knowledge_entry.updated: Knowledge entry updated
       branding.updated: Branding updated
       branding.image_uploaded: Branding image uploaded
       branding.image_deleted: Branding image removed
@@ -1413,6 +1461,7 @@ logs:
       conversationMessage: Conversation message
       document: Document
       folder: Folder
+      knowledge_entry: Knowledge entry
       agent: Agent
       workflow: Automation
       workflow_run: Automation run

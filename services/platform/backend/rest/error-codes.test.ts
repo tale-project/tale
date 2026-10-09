@@ -287,6 +287,11 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   'TASK_FORBIDDEN',
   'TASK_LABELS_INVALID',
   'TASK_TITLE_INVALID',
+  // The managed task-instructions lane, which stores a description exactly
+  // as sent and so refuses a mention token naming nobody mentionable, is
+  // the configuration door's (`POST /api/app/tasks/{taskId}/configuration/
+  // instructions`); every REST door stores such a token as plain text.
+  'TASK_MENTION_INVALID',
   // Projects: the door validates the name (`nonBlank`), description and
   // external key (`externalKeySchema`) at the domain's own caps before the
   // create or the PATCH reaches the cores, and the agent name and
@@ -457,6 +462,9 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // an unknown slug `ORG_SLUG_INVALID` and never creates or deletes one.
   'ORG_NOT_FOUND',
   'ORG_SLUG_RETIRING',
+  // The app's organization delete refuses unresolved legacy automation
+  // holds; REST mounts no organization-deletion door.
+  'ORG_LEGACY_AUTOMATION_HELD',
   // The skill bundle's zip upload lane; the REST save writes SKILL.md
   // through the file layer, whose failure is a 500, never this code.
   'WRITE_FAILED',
@@ -474,6 +482,14 @@ const APP_ONLY_CODES: ReadonlySet<string> = new Set<string>([
   // `/api/auth/api-key/create` judges the holder's roles and grants;
   // REST authenticates existing keys and mounts no key-creation route.
   'API_KEY_CREATE_FORBIDDEN',
+  // And its update and delete: a key bound to an organization (a member's,
+  // a team's, a project's or the organization's own) is changed and ended
+  // at that organization's door, so `/api/auth/api-key/update` and
+  // `/delete` refuse it. REST mounts neither.
+  'API_KEY_ORGANIZATION_MANAGED',
+  // The app's members door refuses to make an API key's own identity a
+  // member; REST adds no member.
+  'MEMBER_ADD_FORBIDDEN',
   // The same door's team-name rule (one name per organization, judged in
   // the before-hooks of `/organization/create-team` and `/update-team`);
   // REST has no team write, and SCIM answers its own 409 `uniqueness`.

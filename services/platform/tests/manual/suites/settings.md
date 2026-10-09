@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 120 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 124 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -419,8 +419,8 @@ run.
   the row's **Revoke key** (`settings.apiKeys.revokeKey`) → Toast
   `settings.apiKeys.keyCreated`; the secret is revealed exactly once (gone
   after Done); the row is in the table after reload (columns
-  `settings.apiKeys.columns.name` / `…key` / `…expires` / `…created` /
-  `…lastUsed`);
+  `settings.apiKeys.columns.name` / `…owner` / `…expires` / `…created` /
+  `…lastUsed`, the masked key under the name);
   revoking confirms (`settings.apiKeys.revokeKeyTitle`), toasts
   `settings.apiKeys.keyRevoked`, and the row is gone after reload. The create
   dialog's hint (`settings.apiKeys.form.scopeHint`) says the key belongs to
@@ -442,6 +442,50 @@ run.
   picked day and the other key's reads **Never**
   (`settings.apiKeys.neverExpires`); `GET /api/v1/me` with the custom key
   reports the picked day as the key's `expiresAt`.
+- [ ] `SET-F77` · **A key for another member** — as an Admin,
+  `/dashboard/{org}/settings/api/rest` → **Create API key** → **Belongs to**
+  (`settings.apiKeys.form.owner`) = **Another member**
+  (`settings.apiKeys.form.ownerOptions.member`); open **Member**
+  (`settings.apiKeys.form.member`) and pick a Member → **Create key** → The
+  picker lists no Admin, no Owner and not you; the success view reads **New
+  API key** (`settings.apiKeys.newApiKey`) and tells you to hand the key to
+  the member (`settings.apiKeys.keyCreatedForMember`); the table's **Belongs
+  to** (`settings.apiKeys.columns.owner`) names the member, with **Made by**
+  you beneath (`settings.apiKeys.owner.madeBy`). Signed in as the member, the
+  bell shows **API key created for you** (`inbox.apiKeyCreatedForYou`), whose
+  link opens this page; the row reads **You** (`settings.apiKeys.owner.you`)
+  and **Revoke key** ends it. `GET /api/v1/me` with the key, sent without
+  `X-Organization-Slug` by a member of two organizations, answers 200 with
+  one organization and `key.owner.kind` `member`; with the other
+  organization's slug it answers 403 `ORG_FORBIDDEN` listing this one.
+- [ ] `SET-F78` · **A team's, a project's and the organization's key** — as an
+  Admin, create three keys with **Belongs to** = **A team**, **A project**
+  and **The organization** (`settings.apiKeys.form.ownerOptions.*`), each
+  with a role under **Acts as** (`settings.apiKeys.form.role`) → **Acts as**
+  offers Member, Editor and Developer for the team and the project, and Admin
+  too for the organization; the hint under **Belongs to** changes with the
+  choice (`settings.apiKeys.form.ownerHints.*`); each row's **Belongs to**
+  reads **Team ‹name›** / **Project ‹name›** / **Organization**
+  (`settings.apiKeys.owner.*`) with **Acts as ‹role›** beneath. `GET
+  /api/v1/me` answers an empty `user.email`, one organization with the chosen
+  role and `key.owner` naming the team or project; with the project's key,
+  `GET /api/v1/projects` lists that project alone and `GET /api/v1/contacts`
+  answers 403 `API_KEY_SCOPE_FORBIDDEN`, and a message sent with it in one of
+  the project's threads asking for the organization's contacts gets none;
+  the team's key lists the team's projects and the organization-wide ones,
+  not another team's.
+- [ ] `SET-F79` · **A key ends with what it belongs to** — with SET-F77's and
+  SET-F78's keys live: open the team's **Delete** confirmation → it counts the
+  team's API keys (`settings.teams.deleteImpact.apiKeys`); delete the team,
+  delete the project, and remove the member from the organization → each of
+  their keys answers 401 on its next call and leaves the table; the audit log
+  (**Settings → Governance → Logs**) shows one **API key revoked** row per
+  key, by the system, with the reason (`team_deleted`, `project_deleted`,
+  `member_removed`). The organization's key keeps working. Make a second key
+  for a Member as a second Admin, then change that Admin's role to Member →
+  the key answers 403 `ORG_FORBIDDEN` ("whoever made it is no longer an Owner
+  or Admin above the member"); remove that Admin instead → the key is revoked
+  with the reason `maker_removed`.
 - [ ] `SET-F33` · **MCP endpoint page** — `/dashboard/{org}/settings/api/mcp`
   → copy the endpoint (`settings.mcpEndpoint.copyEndpoint`); read the tool
   inventory; **Copy example request** (`settings.mcpEndpoint.copyExample`) →
@@ -893,6 +937,29 @@ run.
   `CLAUDE_CODE_OAUTH_TOKEN` with `ANTHROPIC_AUTH_TOKEN` and `ANTHROPIC_API_KEY`
   empty. Chat lists no model that only this credential serves
   ([CHAT-F59](chat.md)).
+- [ ] `SET-F80` · **Workers and their tasks in Workspaces** — With an agent
+  working two tasks ([tasks](tasks.md) `TASK-F81`), open
+  `/dashboard/{org}/settings/sandboxes` as owner → the agent has one row per
+  worker, its name over **Worker 1** and **Worker 2**
+  (`sandboxes.worker.agent`); **Current tasks** (`sandboxes.columns.task`)
+  names each task by its key and title (`WEB-12 Release notes`), cut short
+  with the whole name on hover, and selecting it opens
+  `/dashboard/{org}/tasks/{taskId}`; no task id prefix shows.
+- [ ] `SET-F81` · **The Agent workers limit** — **Organization limits**
+  (`sandboxes.limits.title`) → the first field reads **Agent workers**
+  (`sandboxes.quota.budgets.project`) with the hint that each task an agent
+  works on at the same time runs in a sandbox of its own
+  (`sandboxes.quota.budgetHints.project`). With a run waiting for a worker
+  ([tasks](tasks.md) `TASK-F82`), a line under the field reads **1 agent run
+  is waiting for a free worker.** (`sandboxes.limits.waitingForWorkers`); a
+  Developer sees no such line. Raise the limit to 3 and **Save** → the
+  waiting run starts on its own within about two minutes, as a third worker,
+  and the line goes away.
+- [ ] `SET-F82` · **Stop task stops one worker's task** — With an agent on
+  two tasks, choose **Stop task** (`sandboxes.actions.stop`) on its
+  **Worker 1** row → that task's run is cancelled, while the task on
+  **Worker 2** keeps **Working…** (`tasks.agentRun.status.running`) and its
+  row stays busy.
 
 ## Boundary & error tests
 
@@ -940,6 +1007,16 @@ run.
   `settings.account.profile.nameRequired`,
   `settings.organization.nameRequired`, `settings.teams.teamNameRequired`;
   after a reload the original values are unchanged and no team row was added.
+- [ ] `SET-B34` · **Keys of others, seen from a member** — sign in as the
+  Member SET-F77 made a key for (no Owner, Admin or Developer role, no
+  competence used with a key) and open `/dashboard/{org}/settings/api/rest`
+  → The page lists that key alone — never a team's, a project's, the
+  organization's or another member's key — and offers no **Create API key**
+  (`settings.apiKeys.createKey`). As a Developer member, **Create API key**
+  shows no **Belongs to** (`settings.apiKeys.form.owner`), only the
+  personal-key hint (`settings.apiKeys.form.scopeHint`). `DELETE
+  /api/app/api-keys/{id}` of a team's key from either session answers 404
+  `API_KEY_NOT_FOUND`, and the key keeps working.
 - [ ] `SET-B7` · **API key edge cases** — Create with a blank **Key name**;
   after SET-F32's revoke, call a REST endpoint with the revoked key (e.g.
   `curl -H "Authorization: Bearer <key>"` against the API) → The blank name is
@@ -1135,11 +1212,12 @@ run.
   B. Stop the sandbox service (`docker stop tale-sandbox`) → **Destroy** a
   project agent's **Stopped** workspace → while its row reads
   **Destroying**, start a task with that agent, and mention the agent in a
-  chat → each run reads **Waiting for a sandbox slot**
-  (`tasks.agentRun.waitingForSlot`, `chat.taskTray.waitingForSlot`) and
-  nothing runs in the workspace; start the service again (`docker start
-  tale-sandbox`) → the row leaves, then the runs start on their own in a
-  fresh workspace, whose file list holds nothing the old one did.
+  chat → each run reads **Waiting for a workspace**
+  (`tasks.agentRun.waiting.destroy_pending`), in the task and in the chat's
+  task tray, and nothing runs in the workspace; start the service again
+  (`docker start tale-sandbox`) → the row leaves, then the runs start on
+  their own in fresh workspaces, whose file lists hold nothing the old one
+  did.
 
 - [ ] `SET-B31` · **Concurrent device commands stay separate** — Two admins
   open **Add device** (`sandboxes.devices.add`) in the same organization;
@@ -1152,6 +1230,22 @@ run.
   own device. Repeat with two commands from the same admin. If command
   generation fails, **Try again** (`sandboxes.devices.addDialog.retry`)
   remains available inside the dialog.
+- [ ] `SET-B35` · **Destroy one worker while another is free** — Mode B.
+  With an agent whose **Worker 1** and **Worker 2** are both **Stopped**,
+  stop the sandbox service (`docker stop tale-sandbox`) and **Destroy**
+  Worker 1 → while its row reads **Destroying**, start the agent on a task →
+  its Run row never reads **Waiting for a workspace**
+  (`tasks.agentRun.waiting.destroy_pending`): the run is headed for Worker 2,
+  which can only start once the service is back. Start the service again →
+  the run works in Worker 2 (its task under **Current tasks** on the Worker 2
+  row), no fresh workspace opens, and the Worker 1 row leaves. With a
+  one-worker agent, `SET-B30` still holds.
+- [ ] `SET-B36` · **A worker gives its quota back when its own run ends** —
+  With an agent on two tasks, let the task on **Worker 1** finish while
+  **Worker 2** still works → within a minute the Worker 1 row reads **Quota
+  released** (`sandboxes.status.quotaReleased`) and the **Allocated** count
+  of **Agent workers** drops by one, while Worker 2 still reads **Quota
+  allocated** (`sandboxes.status.quotaInUse`).
 
 ## Accessibility (WCAG 2.1 AA)
 

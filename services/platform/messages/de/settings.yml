@@ -263,6 +263,7 @@ organization:
   deleteLoading: Lösche…
   deleteSuccess: Organisation gelöscht
   deleteFailed: Organisation konnte nicht gelöscht werden
+  deleteBlockedByLegacyAutomation: Automationsläufe bleiben gesperrt, weil ihre früheren externen Aktionen noch nicht überprüft wurden. Deine Organisation wurde nicht gelöscht. Eine Stopp-Anfrage hebt diese Sperren nicht auf.
   deleteBlockedByLegalHold: Ein aktiver Legal Hold bewahrt die Daten dieser Organisation. Gib alle Holds unter Richtlinien > Legal Hold frei und versuch es dann erneut.
   deleteTypeNameLabel: Tippe den Namen der Organisation zur Bestätigung
   deleteConfirmNameMismatch: Die Bestätigung stimmt nicht mit dem Namen der Organisation überein. Lade die Seite neu und versuch es erneut.
@@ -331,6 +332,7 @@ teams:
   deleteImpact:
     summary: 'Dieses Team hat {members, plural, one {# Mitglied} other {# Mitglieder}}. Es gehört zur Reichweite von {projects, plural, one {# Projekt} other {# Projekten}}, {folders, plural, one {# Ordner} other {# Ordnern}} und {documents, plural, one {# Dokument} other {# Dokumenten}}, und {conversations, plural, one {# Unterhaltung liegt} other {# Unterhaltungen liegen}} in seiner Warteschlange.'
     becomeOrgWide: '{count, plural, one {# Element hat kein weiteres Team und wird} other {# Elemente haben kein weiteres Team und werden}} für alle in der Organisation sichtbar.'
+    apiKeys: '{count, plural, one {# API-Schlüssel gehört diesem Team und funktioniert danach nicht mehr.} other {# API-Schlüssel gehören diesem Team und funktionieren danach nicht mehr.}}'
   description: Teams innerhalb deiner Organisation erstellen und verwalten für
     granulare Zugriffskontrolle
 credentials:
@@ -1044,7 +1046,10 @@ apiKeys:
   createKeySubmit: Schlüssel erstellen
   keyCreated: API-Schlüssel erstellt
   keyCreatedDescription: Kopiere deinen API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
+  keyCreatedDescriptionForOthers: Kopiere den API-Schlüssel jetzt. Er wird nicht erneut angezeigt.
+  keyCreatedForMember: Gib den Schlüssel über einen sicheren Kanal an {name} weiter. Eine Benachrichtigung informiert {name} darüber.
   yourApiKey: Dein API-Schlüssel
+  newApiKey: Neuer API-Schlüssel
   keyRevoked: API-Schlüssel widerrufen
   keyRevokeFailed: API-Schlüssel konnte nicht widerrufen werden
   keyCreateFailed: API-Schlüssel konnte nicht erstellt werden
@@ -1058,6 +1063,17 @@ apiKeys:
     created: Hinzugefügt
     lastUsed: Zuletzt verwendet
     expires: Läuft ab
+    owner: Gehört zu
+  owner:
+    you: Dir
+    team: Team {name}
+    project: Projekt {name}
+    organization: Organisation
+    formerMember: Ehemaliges Mitglied
+    deletedTeam: Gelöschtes Team
+    deletedProject: Gelöschtes Projekt
+    actsAs: Handelt als {role}
+    madeBy: Erstellt von {name}
   form:
     name: Schlüsselname
     namePlaceholder: Schlüsselnamen eingeben...
@@ -1079,6 +1095,36 @@ apiKeys:
     expiryDateHint: Wähle einen Tag, höchstens ein Jahr im Voraus.
     expiryDateRequired: Wähle ein Ablaufdatum.
     expiryDateRange: Wähle einen Tag zwischen morgen und einem Jahr ab heute.
+    owner: Gehört zu
+    ownerOptions:
+      self: Dir
+      member: Einem anderen Mitglied
+      team: Einem Team
+      project: Einem Projekt
+      organization: Der Organisation
+    ownerHints:
+      member: Der Schlüssel handelt als dieses Mitglied, mit dessen Rolle und Teams, und nur in dieser Organisation. Das Mitglied wird benachrichtigt und kann ihn widerrufen.
+      team: Der Schlüssel gehört dem Team, nicht einer Person. Er handelt mit der gewählten Rolle, sieht, was das Team sieht, und funktioniert weiter, wenn du gehst.
+      project: Der Schlüssel gehört dem Projekt, nicht einer Person. Er handelt mit der gewählten Rolle und erreicht nur dieses Projekt.
+      organization: Der Schlüssel gehört der Organisation, nicht einer Person. Er handelt mit der gewählten Rolle und funktioniert weiter, wenn du gehst.
+    member: Mitglied
+    memberPlaceholder: Mitglied auswählen
+    memberSearch: Mitglieder suchen...
+    memberEmpty: Kein Mitglied mit einer niedrigeren Rolle als deiner
+    memberNoMatch: Kein passendes Mitglied
+    team: Team
+    teamPlaceholder: Team auswählen
+    teamSearch: Teams suchen...
+    teamEmpty: Keine Teams
+    teamNoMatch: Kein passendes Team
+    project: Projekt
+    projectPlaceholder: Projekt auswählen
+    projectSearch: Projekte suchen...
+    projectEmpty: Keine aktiven Projekte
+    projectNoMatch: Kein passendes Projekt
+    role: Handelt als
+    roleHint: Die Rolle des Schlüssels in dieser Organisation. Sie kann nicht höher sein als deine eigene.
+    targetRequired: Wähle aus, wem der Schlüssel gehört.
   neverUsed: Nie verwendet
   neverExpires: Nie
   expired: Abgelaufen
@@ -1264,6 +1310,8 @@ logs:
       document.trashed: Dokument in den Papierkorb verschoben
       document.deleted: Dokument gelöscht
       folder.deleted: Ordner gelöscht
+      knowledge_entry.created: Wissenseintrag erstellt
+      knowledge_entry.updated: Wissenseintrag aktualisiert
       branding.updated: Branding aktualisiert
       branding.image_uploaded: Branding-Bild hochgeladen
       branding.image_deleted: Branding-Bild entfernt
@@ -1469,6 +1517,7 @@ logs:
       conversationMessage: Konversationsnachricht
       document: Dokument
       folder: Ordner
+      knowledge_entry: Wissenseintrag
       agent: Agent
       workflow: Automatisierung
       workflow_run: Automatisierungslauf

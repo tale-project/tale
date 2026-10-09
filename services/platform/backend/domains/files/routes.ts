@@ -56,6 +56,9 @@ const registerSchema = z.object({
   fileName: z.string().min(1).max(512),
   contentType: z.string().min(1).max(255),
   threadId: z.string().max(200).optional(),
+  /** The project a new chat's upload is made in, before its thread exists:
+   * what the upload costs (a recording's transcription) counts toward it. */
+  projectId: z.string().max(128).optional(),
   // Only the dedicated image intake can vouch for inspected product bytes.
   source: z
     .string()

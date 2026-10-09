@@ -116,5 +116,39 @@ export async function getOrgUsageMetricsPg(
       `;
       return new Map(agents.map((agent) => [agent.id, agent.name] as const));
     },
+    async (userIds) => {
+      if (userIds.length === 0) return new Map();
+      // The identities of this organization's team, project and
+      // organization keys: no person, so no active user.
+      const keys = await sql<
+        {
+          userId: string;
+          kind: 'team' | 'project' | 'organization';
+          teamName: string | null;
+          projectName: string | null;
+        }[]
+      >`
+        SELECT o.principal_user_id AS "userId", o.owner_kind AS "kind",
+               t."name" AS "teamName", p.name AS "projectName"
+        FROM app.api_key_owners o
+        LEFT JOIN "team" t ON t."id" = o.team_id
+        LEFT JOIN app.projects p ON p.id = o.project_id
+        WHERE o.org_id = ${organizationId} AND o.owner_kind <> 'member'
+          AND o.principal_user_id = ANY(${userIds})
+      `;
+      return new Map(
+        keys.map(
+          (key) =>
+            [
+              key.userId,
+              {
+                kind: key.kind,
+                teamName: key.teamName,
+                projectName: key.projectName,
+              },
+            ] as const,
+        ),
+      );
+    },
   );
 }

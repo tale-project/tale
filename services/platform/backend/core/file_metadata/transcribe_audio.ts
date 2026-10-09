@@ -1,8 +1,6 @@
 'use node';
 
 import { checkProviderHostPolicy } from '../../../lib/net/host-policy';
-import { TRANSCRIPTION_SLUG } from '../../../lib/shared/constants/usage';
-import { estimateTranscriptionCostCents } from '../governance/cost_estimation';
 import type { ActionCtx } from '../lib/ctx';
 import { classifyTranscriptionError } from '../lib/errors/classify_transcription_error';
 import { internal } from '../lib/handler_names';
@@ -157,6 +155,95 @@ async function readAudioBytes(
   return readBlobBytes(orgSlug, ref);
 }
 
+/** A transcription's model and price, as its hold and booking name them. */
+interface TranscriptionModelFacts {
+  organizationId: string;
+  provider: string;
+  model: string;
+  centsPerAudioMinute?: number;
+}
+
+/** A limit refused the transcription: never retried, the person sees the
+ * limit's sentence and may retry once there is room. */
+class TranscriptionBudgetError extends Error {
+  readonly code = 'BUDGET_EXCEEDED';
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'TranscriptionBudgetError';
+  }
+}
+
+/** The admission of a transcription, read off the untyped ctx seam: the
+ * lease is the shim's own and goes back to it as it came. */
+function readTranscriptionAdmission(
+  value: unknown,
+):
+  | { allowed: true; lease: unknown }
+  | { allowed: false; reason: string; cancelled: boolean } {
+  if (typeof value === 'object' && value !== null) {
+    const allowed: unknown = Reflect.get(value, 'allowed');
+    const lease: unknown = Reflect.get(value, 'lease');
+    const reason: unknown = Reflect.get(value, 'reason');
+    if (allowed === true && typeof lease === 'object' && lease !== null) {
+      return { allowed: true, lease };
+    }
+    if (allowed === false && typeof reason === 'string') {
+      return {
+        allowed: false,
+        reason,
+        cancelled: Reflect.get(value, 'cancelled') === true,
+      };
+    }
+  }
+  throw new Error(
+    'openTranscriptionCall answered with an unexpected shape — the transcription cannot be admitted',
+  );
+}
+
+/** Book what the attempt transcribed in its hold's place (the booking
+ * tries itself again), or release the hold of one that transcribed
+ * nothing. Never throws: the transcript, or the failure being recorded,
+ * matters more than its booking. */
+async function closeTranscriptionCall(
+  ctx: ActionCtx,
+  lease: unknown,
+  model: TranscriptionModelFacts | undefined,
+  transcribedSec: number,
+): Promise<void> {
+  try {
+    if (model !== undefined && transcribedSec > 0) {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.settleTranscriptionCall,
+        { ...model, lease, audioDurationSec: transcribedSec },
+      );
+    } else {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.releaseTranscriptionCall,
+        { lease },
+      );
+    }
+  } catch (error) {
+    console.error(
+      '[transcribeAudio] booking the transcription failed; its hold lapses at its deadline:',
+      error,
+    );
+  }
+}
+
+/** Whether the recording is still wanted: a removal skips its
+ * transcription, a deletion drops its row — either way, no further minute
+ * is sent to the provider or charged. */
+async function stillWanted(
+  ctx: ActionCtx,
+  storageId: BlobRef,
+): Promise<boolean> {
+  const row = await ctx.runQuery(
+    internal.file_metadata.internal_queries.getByStorageId,
+    { storageId },
+  );
+  return row !== null && row.transcriptionStatus !== 'skipped';
+}
+
 /** The pipeline body, hoisted so the 0.5 backend can run it on a ctx shim
  * (the wrapper above keeps the 0.4 wiring). */
 export async function transcribeAudioImpl(
@@ -247,6 +334,12 @@ export async function transcribeAudioImpl(
       return null;
     }
 
+    /** This attempt's hold, once admitted, and the seconds of audio its
+     * finished chunks transcribed — what the provider billed should the
+     * attempt fail partway. */
+    let lease: unknown;
+    let transcribedSec = 0;
+    let model: TranscriptionModelFacts | undefined;
     try {
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.updateFileTranscription,
@@ -332,10 +425,69 @@ export async function transcribeAudioImpl(
         throw new Error('Compression produced no output audio');
       }
 
+      // The recording is its uploader's spend: its whole length is held
+      // against their limits before the provider hears it, and refused
+      // when a limit has too little room for it.
+      model = {
+        organizationId: args.organizationId,
+        provider: modelData.providerName,
+        model: modelData.modelId,
+        ...(modelData.centsPerAudioMinute !== undefined
+          ? { centsPerAudioMinute: modelData.centsPerAudioMinute }
+          : {}),
+      };
+      const admission = readTranscriptionAdmission(
+        await ctx.runMutation(
+          internal.file_metadata.internal_mutations.openTranscriptionCall,
+          {
+            ...model,
+            storageId: args.storageId,
+            audioDurationSec: chunks.reduce(
+              (sum, chunk) => sum + chunk.durationSec,
+              0,
+            ),
+          },
+        ),
+      );
+      if (!admission.allowed) {
+        if (admission.cancelled) {
+          // Removed while it waited: nothing was held, nothing to report.
+          console.log(
+            JSON.stringify({
+              event: 'transcription.cancelled',
+              requestId,
+              storageId: args.storageId,
+              status: 'removed_before_hold',
+              attempt,
+            }),
+          );
+          return null;
+        }
+        throw new TranscriptionBudgetError(admission.reason);
+      }
+      lease = admission.lease;
+
       const chunkParagraphs: string[] = [];
       let totalDurationSec = 0;
       let chunkStartSec = 0;
       for (const chunk of chunks) {
+        if (chunk.index > 0 && !(await stillWanted(ctx, args.storageId))) {
+          // Removed mid-way: book the minutes already transcribed, send no
+          // more, and leave the row as the removal left it.
+          await closeTranscriptionCall(ctx, lease, model, transcribedSec);
+          lease = undefined;
+          console.log(
+            JSON.stringify({
+              event: 'transcription.cancelled',
+              requestId,
+              storageId: args.storageId,
+              status: 'removed_mid_way',
+              attempt,
+              transcribedSec,
+            }),
+          );
+          return null;
+        }
         const progressLabel =
           chunks.length === 1
             ? 'transcribing'
@@ -348,6 +500,10 @@ export async function transcribeAudioImpl(
           fileName: chunkFileName(args.fileName, chunk),
           timeoutMs: TRANSCRIBE_API_TIMEOUT_MS,
         });
+        // Billed the moment the provider answered: counted before anything
+        // below can throw.
+        const chunkDuration = result.duration ?? chunk.durationSec;
+        transcribedSec += chunkDuration;
         // Timestamps are only meaningful for video-link transcripts —
         // they let the agent cite "Chapter 3 @ 12:34" in summaries.
         // Regular microphone recordings don't carry that context, so
@@ -365,7 +521,6 @@ export async function transcribeAudioImpl(
         if (paragraphs.length > 0) {
           chunkParagraphs.push(paragraphs);
         }
-        const chunkDuration = result.duration ?? chunk.durationSec;
         totalDurationSec += chunkDuration;
         chunkStartSec += chunkDuration;
 
@@ -410,36 +565,19 @@ export async function transcribeAudioImpl(
         }),
       );
 
-      const metadata = await ctx.runQuery(
-        internal.file_metadata.internal_queries.getByStorageId,
-        { storageId: args.storageId },
-      );
-      const userId = metadata?.uploadedBy;
-      if (userId && totalDurationSec > 0) {
-        // The rewritten catalog schema carries no per-minute transcription
-        // price, so the estimate is 0 until it grows one — the ledger still
-        // records the audio minutes and the request.
-        const costEstimateCents = estimateTranscriptionCostCents(
-          totalDurationSec,
-          undefined,
-        );
-        await ctx.runMutation(
-          internal.governance.internal_mutations.recordTranscriptionUsage,
-          {
-            organizationId: args.organizationId,
-            userId,
-            agentSlug: TRANSCRIPTION_SLUG,
-            model: modelData.modelId,
-            provider: modelData.providerName,
-            audioDurationSec: totalDurationSec,
-            costEstimateCents,
-            timestamp: Date.now(),
-          },
-        );
-      }
+      // Booked apart from the completion above: a ledger write that fails
+      // must not send a finished transcript round again.
+      await closeTranscriptionCall(ctx, lease, model, transcribedSec);
+      lease = undefined;
 
       return null;
     } catch (error) {
+      // The chunks this attempt finished were billed: booked, and the rest
+      // of the hold released — a retry holds afresh.
+      if (lease !== undefined) {
+        await closeTranscriptionCall(ctx, lease, model, transcribedSec);
+        lease = undefined;
+      }
       const classification = classifyTranscriptionError(error);
       const sanitized = sanitizeTranscriptionError(error);
 
@@ -532,6 +670,10 @@ export async function transcribeAudioImpl(
           transcriptionStatus: 'failed',
           transcriptionError: sanitized,
           transcriptionProgress: '',
+          // A video link that handed its audio over says why it failed.
+          ...(classification.reason === 'budget_exceeded'
+            ? { transcriptionErrorCode: 'budgetExceeded' }
+            : {}),
         },
       );
       return null;

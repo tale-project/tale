@@ -54,6 +54,46 @@ function bucket(periodKey: string, index: number) {
 describe('getOrgUsageMetricsPg', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('counts a connector call as no request, a row booked before that rule included [GOV-R15]', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-10-08T12:00:00Z'));
+    const today = '2026-10-08';
+    const modelRow = Object.assign(bucket(today, 1), {
+      agentSlug: 'assistant',
+    });
+    // A search the assistant ran: booked with a request before connector
+    // calls stopped carrying one.
+    const toolRow = Object.assign(bucket(today, 2), {
+      agentSlug: 'assistant',
+      connectorName: 'chat-tools',
+      model: null,
+      provider: null,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      costEstimate: 0,
+    });
+    const { sql } = fakeSql((statement) =>
+      statement.text.includes('FROM app.usage_ledger')
+        ? [modelRow, toolRow]
+        : [],
+    );
+
+    const metrics = await getOrgUsageMetricsPg(sql, 'org_1', {
+      granularity: 'daily',
+      periodDays: 7,
+    });
+
+    expect(metrics.summary.totalRequests).toBe(1);
+    // Calling a connector alone makes nobody an active user.
+    expect(metrics.summary.activeUsers).toBe(1);
+    expect(metrics.topAgents).toEqual([
+      expect.objectContaining({ agentSlug: 'assistant', requests: 1 }),
+    ]);
+    expect(metrics.series.reduce((sum, point) => sum + point.requests, 0)).toBe(
+      1,
+    );
+  });
+
   it('keeps seven-day totals and prior spend isolated across chart granularities', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-09-28T12:00:00Z'));
     // All three granularities exist on write. The September monthly bucket
@@ -245,6 +285,49 @@ describe('getOrgUsageMetricsPg', () => {
     const byAgent = new Map(metrics.topAgents.map((a) => [a.agentSlug, a]));
     expect(byAgent.get('agent-1')).toMatchObject({ displayName: 'Alice' });
     expect(byAgent.get('invoices/monthly')).not.toHaveProperty('displayName');
+  });
+
+  it('books a key that is not a person as its own row, and never as an active user [APIKEY-R9]', async () => {
+    const today = buildPeriodKeyFromTimestamp('daily', Date.now());
+    const rows = [
+      { ...bucket(today, 0), userId: 'user_1' },
+      { ...bucket(today, 1), userId: 'key_identity' },
+    ];
+    const { sql, statements } = fakeSql((statement) => {
+      if (statement.text.includes('FROM app.usage_ledger')) return rows;
+      if (statement.text.includes('FROM app.api_key_owners o')) {
+        return [
+          {
+            userId: 'key_identity',
+            kind: 'team',
+            teamName: 'Finance',
+            projectName: null,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const metrics = await getOrgUsageMetricsPg(sql, 'org_1', {
+      granularity: 'daily',
+      periodDays: 7,
+    });
+
+    // Its spend counts; the key is no person.
+    expect(metrics.summary.totalRequests).toBe(2);
+    expect(metrics.summary.activeUsers).toBe(1);
+    const byUser = new Map(metrics.users.map((user) => [user.userId, user]));
+    expect(byUser.get('key_identity')?.apiKey).toEqual({
+      kind: 'team',
+      teamName: 'Finance',
+      projectName: null,
+    });
+    expect(byUser.get('user_1')).not.toHaveProperty('apiKey');
+    // Only this organization's keys answer for its subjects.
+    const read = statements.find((statement) =>
+      statement.text.includes('FROM app.api_key_owners o'),
+    );
+    expect(read?.values[0]).toBe('org_1');
   });
 
   it('folds the legacy door forms onto the person and a trigger form onto the automation bucket', async () => {

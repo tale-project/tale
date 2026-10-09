@@ -2,7 +2,7 @@ import { isAbsolute } from 'node:path';
 
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
-import { DEFAULT_LOGGING, imageRef } from '../types';
+import { BUILDKITD_MIRROR_IMAGE, DEFAULT_LOGGING, imageRef } from '../types';
 
 /**
  * Sandbox spawner — thin stateless docker-run service.
@@ -104,13 +104,13 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       // deployment.json sandboxRuntime section) to force it. The image refs the
       // spawner `docker run`s for the shared buildkitd + its pull-through
       // registry mirror; defaults match `tale deploy`'s re-tag (deploy.ts) and
-      // stock `registry:2`, overridable for a pinned/mirrored ref in fenced
-      // deploys (the spawner pulls the mirror at runtime — deploy.ts does not).
+      // the digest-pinned stock registry (BUILDKITD_MIRROR_IMAGE), overridable
+      // for a mirrored ref in fenced deploys (the spawner pulls the mirror at
+      // runtime — deploy.ts does not).
       SANDBOX_DOCKER_BUILD_CACHE: '${SANDBOX_DOCKER_BUILD_CACHE:-}',
       SANDBOX_BUILDKITD_IMAGE:
         '${SANDBOX_BUILDKITD_IMAGE:-tale-sandbox-buildkitd:latest}',
-      SANDBOX_BUILDKITD_MIRROR_IMAGE:
-        '${SANDBOX_BUILDKITD_MIRROR_IMAGE:-registry:2}',
+      SANDBOX_BUILDKITD_MIRROR_IMAGE: `\${SANDBOX_BUILDKITD_MIRROR_IMAGE:-${BUILDKITD_MIRROR_IMAGE}}`,
       // Shared sandbox network; the egress sidecar is addressed by its bare
       // `sandbox-egress` alias so spawned runtime containers route outbound
       // through it.
@@ -130,12 +130,16 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       '${PLATFORM_SHARED_CONFIG:-config-data}:/app/platform-config:ro',
     ],
     restart: 'unless-stopped',
+    // Each probe is a runc exec of curl, every 30 s, so a booting spawner
+    // reads healthy up to 30 s after it starts. No `start_interval`: Docker
+    // Compose refuses it on Engine 24, the oldest engine Tale supports.
+    // Mirrors compose.yml and the image's HEALTHCHECK.
     healthcheck: {
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health'],
-      interval: '10s',
+      interval: '30s',
       timeout: '5s',
       retries: 3,
-      start_period: '15s',
+      start_period: '30s',
     },
     depends_on: {
       'sandbox-egress': { condition: 'service_healthy' },

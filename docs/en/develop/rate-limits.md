@@ -3,7 +3,7 @@ title: Handle rate limits
 description: Plan REST, MCP and webhook traffic, interpret Retry-After and retry accepted work without duplicating it.
 ---
 
-Tale limits API traffic by the key holder. All API keys belonging to the same person share that person’s budget. Account for every integration and polling worker using that identity, rather than budgeting each key independently.
+Tale limits API traffic by the key holder. All API keys belonging to the same person share that person’s budget; a key an Owner or Admin made for a member, a team, a project, or the organization has a budget of its own. Account for every integration and polling worker using that identity, rather than budgeting each key independently.
 
 The limits below describe the current backend. An operator’s proxy or a downstream provider may impose additional limits.
 
@@ -54,7 +54,7 @@ Branch on `code`; `error` is a sentence describing the wait, and `requestId` ide
 3. Retry with a bounded exponential delay and jitter when refusals continue. For example, grow a delay from one second up to sixty seconds, always honoring a longer server-provided wait.
 4. Preserve the original idempotency key for operations that support one. A timeout after a run start may mean the run was already accepted.
 
-A spending cap answers `429` too, with `code` `BUDGET_EXCEEDED`: a budget rule that applies to the key holder — their own, a team’s, the organization’s, or the API key’s — has been reached. A short wait does not help. `Retry-After` names the time until the cap’s period resets, and `data` names the cap: `scope`, `period`, `limitCode`, `used`, `limit`, and `resetsAt` in epoch milliseconds. Nothing is queued; pause the work until `resetsAt`, or ask an administrator to raise the limit under [Policies & Limits](/platform/admin/governance/policies-and-limits). On the model endpoints, both 429s come in the OpenAI or Anthropic error shape with the same `code` and `Retry-After`. A spent budget names its cap in the message there instead of in `data`, and carries `x-should-retry: false` so the vendors' SDKs do not retry it on their own.
+A spending cap answers `429` too, with `code` `BUDGET_EXCEEDED`: a budget rule that applies to the key holder — their own, a team’s, the organization’s, or the API key’s, and for work in a project, the project’s — has been reached. A short wait does not help. `Retry-After` names the time until the cap’s period resets, and `data` names the cap: `scope`, `period`, `limitCode`, `used`, `limit`, and `resetsAt` in epoch milliseconds. Nothing is queued; pause the work until `resetsAt`, or ask an administrator to raise the limit under [Policies & Limits](/platform/admin/governance/policies-and-limits). On the model endpoints, both 429s come in the OpenAI or Anthropic error shape with the same `code` and `Retry-After`. A spent budget names its cap in the message there instead of in `data`, and carries `x-should-retry: false` so the vendors' SDKs do not retry it on their own.
 
 Other `4xx` responses usually need a corrected request, credential or permission. Do not treat every failure as a rate limit; use the [error model](/develop/api-reference#error-model).
 
@@ -64,4 +64,4 @@ An `ETag` response of `304` still costs a request. It saves response bytes, not 
 
 Request only the fields you need, such as `?fields=status,finishedAt` on a run. Slow down when a run is waiting for a human, and stop polling terminal runs. Follow [Start a run, then poll it](/develop/api-reference#start-a-run-then-poll-it) for states and idempotent starts.
 
-For larger imports, use supported batch operations such as `POST /api/v1/contacts/bulk`, and spread batches over time. Creating more keys for the same user does not increase the budget. If a workflow needs its own service identity, provision that identity through your normal account and permission process; do not use key rotation as a retry strategy.
+For larger imports, use supported batch operations such as `POST /api/v1/contacts/bulk`, and spread batches over time. Creating more keys for the same user does not increase the budget. A workflow that needs an identity and a budget of its own can use a key an Owner or Admin makes for a team, a project, or the organization; do not use key rotation as a retry strategy.

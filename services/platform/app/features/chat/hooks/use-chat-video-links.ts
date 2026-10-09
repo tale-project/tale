@@ -147,6 +147,9 @@ export interface UseChatVideoLinksResult {
 
 export function useChatVideoLinks(args: {
   threadId: string | undefined;
+  /** A project's new chat, before its thread exists: what a pasted link's
+   * transcription costs counts toward the project. */
+  projectId?: string;
   organizationId: string;
   locale: string;
 }): UseChatVideoLinksResult {
@@ -269,6 +272,9 @@ export function useChatVideoLinks(args: {
           await ingestVideoUrlRequest({
             organizationId: args.organizationId,
             ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
+            ...(args.threadId === undefined && args.projectId !== undefined
+              ? { projectId: args.projectId }
+              : {}),
             url: match.url,
             pastedToken: match.pastedToken,
             userLocale: args.locale,
@@ -290,7 +296,14 @@ export function useChatVideoLinks(args: {
       if (ingested > 0) nudgeChips();
       return ingested;
     },
-    [args.organizationId, args.threadId, args.locale, t, nudgeChips],
+    [
+      args.organizationId,
+      args.threadId,
+      args.projectId,
+      args.locale,
+      t,
+      nudgeChips,
+    ],
   );
 
   const cancelJob = useCallback(

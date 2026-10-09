@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { sessionStageFiles, type SessionStageFile } from './session_client';
@@ -358,6 +360,12 @@ describe('managed staging transport', () => {
           file.sourceId?.startsWith('sha256:'),
       ),
     ).toBe(true);
+    // The probe carries each file's digest, so a runtime that lost its record
+    // of what it staged checks the file on disk rather than asking again.
+    expect(calls[0]?.files.map((file) => file.sha256)).toEqual([
+      createHash('sha256').update('same').digest('hex'),
+      createHash('sha256').update('next').digest('hex'),
+    ]);
     expect(calls[1]?.files.map((file) => file.path)).toEqual(['inputs/new']);
     expect(calls[2]).toEqual({
       files: [],

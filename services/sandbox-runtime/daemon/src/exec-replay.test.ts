@@ -142,6 +142,79 @@ describe('disk exec replay', () => {
     }
   });
 
+  test.each([
+    ['ENOSPC', 'REPLAY_DISK_FULL'],
+    ['EDQUOT', 'REPLAY_DISK_FULL'],
+    ['EIO', 'REPLAY_UNAVAILABLE'],
+  ])(
+    'a journal write that fails with %s ends the replay as %s',
+    async (errno, code) => {
+      const originalOpen = fs.open;
+      const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
+        const file = await originalOpen(...args);
+        if (args[1] === 'ax') {
+          file.writev = async () => {
+            throw Object.assign(new Error('write failed'), { code: errno });
+          };
+        }
+        return file;
+      });
+      const replay = createReplay();
+      try {
+        await expectOutputLimit(replay.append(line(1), 1), code);
+        // The failure stands: nothing later is journaled past it.
+        await expectOutputLimit(replay.append(line(2), 2), code);
+        expect(
+          await replay.append(line(3), 3).then(
+            () => null,
+            (error: unknown) => error,
+          ),
+        ).toMatchObject({
+          message:
+            code === 'REPLAY_DISK_FULL'
+              ? 'The sandbox host ran out of disk space.'
+              : 'The complete execution transcript is unavailable.',
+        });
+      } finally {
+        opened.mockRestore();
+        await replay.dispose();
+      }
+    },
+  );
+
+  test.each([
+    ['ENOSPC', 'REPLAY_DISK_FULL'],
+    ['EDQUOT', 'REPLAY_DISK_FULL'],
+    ['EIO', 'REPLAY_UNAVAILABLE'],
+  ])(
+    'a checkpoint write that fails with %s ends the replay as %s',
+    async (errno, code) => {
+      const originalOpen = fs.open;
+      const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
+        const file = await originalOpen(...args);
+        if (args[1] === 'w') {
+          file.writeFile = async () => {
+            throw Object.assign(new Error('write failed'), { code: errno });
+          };
+        }
+        return file;
+      });
+      const replay = createReplay();
+      try {
+        await replay.append(line(1), 1);
+        await expectOutputLimit(
+          replay.saveCheckpoint({ seq: 1, state: null }),
+          code,
+        );
+        // The failure stands for the output after it as well.
+        await expectOutputLimit(replay.append(line(2), 2), code);
+      } finally {
+        opened.mockRestore();
+        await replay.dispose();
+      }
+    },
+  );
+
   test('checkpoint acknowledgements let lifetime output exceed the per-exec cap', async () => {
     const replay = createReplay({
       segmentBytes: 1,
@@ -162,21 +235,60 @@ describe('disk exec replay', () => {
     }
   });
 
-  test('a failed directory sync after checkpoint rename prevents stale replacement or further output', async () => {
-    const replay = createReplay();
+  test('a checkpoint is written and renamed into place without syncing to disk', async () => {
+    const replay = createReplay({ segmentBytes: 1, maxBytes: 4096 });
     const originalOpen = fs.open;
-    let syncFailures = 0;
+    const synced: string[] = [];
     const opened = spyOn(fs, 'open').mockImplementation(async (...args) => {
       const file = await originalOpen(...args);
-      if (args[1] === 'r') {
-        file.sync = async () => {
-          syncFailures += 1;
-          throw Object.assign(new Error('directory sync failed'), {
-            code: 'EIO',
-          });
-        };
-      }
+      file.sync = async () => {
+        synced.push(`sync ${String(args[0])}`);
+      };
+      file.datasync = async () => {
+        synced.push(`datasync ${String(args[0])}`);
+      };
       return file;
+    });
+    try {
+      for (let seq = 1; seq <= 3; seq++) await replay.append(line(seq), seq);
+      expect(await replay.saveCheckpoint({ seq: 2, state: 'second' })).toBe(
+        true,
+      );
+      expect(await replay.saveCheckpoint({ seq: 3, state: 'third' })).toBe(
+        true,
+      );
+      expect(synced).toEqual([]);
+      opened.mockRestore();
+      expect(await replay.getCheckpoint()).toEqual({ seq: 3, state: 'third' });
+      const directory: unknown = await Reflect.get(replay, 'directory');
+      if (typeof directory !== 'string')
+        throw new Error('missing spool directory');
+      // The temporary file is renamed over the checkpoint, never left beside it.
+      expect(
+        (await fs.readdir(directory)).filter((name) =>
+          name.startsWith('checkpoint'),
+        ),
+      ).toEqual(['checkpoint.json']);
+    } finally {
+      opened.mockRestore();
+      await replay.dispose();
+    }
+  });
+
+  test('a failure after checkpoint rename prevents stale replacement or further output', async () => {
+    const replay = createReplay();
+    const originalRm = fs.rm;
+    let pruneFailures = 0;
+    // The rename has exposed the new checkpoint; pruning the output it
+    // covers is the step that fails.
+    const removed = spyOn(fs, 'rm').mockImplementation(async (...args) => {
+      if (!String(args[0]).endsWith('checkpoint.tmp')) {
+        pruneFailures += 1;
+        throw Object.assign(new Error('segment removal failed'), {
+          code: 'EIO',
+        });
+      }
+      return originalRm(...args);
     });
     try {
       await replay.append(line(1), 1);
@@ -185,8 +297,8 @@ describe('disk exec replay', () => {
         .saveCheckpoint({ seq: 2, state: 'newer' })
         .catch(() => undefined);
       expect(result).toBeUndefined();
-      expect(syncFailures).toBe(1);
-      opened.mockRestore();
+      expect(pruneFailures).toBe(1);
+      removed.mockRestore();
       const directory: unknown = await Reflect.get(replay, 'directory');
       if (typeof directory !== 'string')
         throw new Error('missing spool directory');
@@ -205,7 +317,7 @@ describe('disk exec replay', () => {
         await fs.readFile(join(directory, 'checkpoint.json'), 'utf8'),
       ).toBe(committed);
     } finally {
-      opened.mockRestore();
+      removed.mockRestore();
       await replay.dispose();
     }
   });

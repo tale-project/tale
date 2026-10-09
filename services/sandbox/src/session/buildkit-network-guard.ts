@@ -1,8 +1,8 @@
 import {
-  assertBuildSubnet,
-  dockerIpv4Subnets,
-} from '../buildkit-network-pool.ts';
-import { readDockerMetadata } from '../buildkit-resources.ts';
+  buildkitNetworkPlan,
+  readDockerMetadata,
+  type BuildkitNetworkPlan,
+} from '../buildkit-resources.ts';
 import { buildkitdNetworkName } from '../buildkitd.ts';
 import { runDocker } from '../spawn-util.ts';
 import type { SpawnerConfig } from '../types.ts';
@@ -59,11 +59,9 @@ async function inspectSessionNetworks(
   }
 }
 
-export interface BuildkitNetworkPlan {
-  id: string;
-  subnets: string[];
-}
+export type { BuildkitNetworkPlan };
 
+/** The organization network as it is now, checked as the plan is. */
 export async function readBuildkitNetworkPlan(
   organizationId: string,
 ): Promise<BuildkitNetworkPlan> {
@@ -78,88 +76,156 @@ export async function readBuildkitNetworkPlan(
   if (result.exitCode !== 0) {
     throw new Error('buildkitd: cannot inspect session build network');
   }
-  const network = object(JSON.parse(result.stdout));
-  const labels = object(network.Labels);
-  if (
-    labels['tale.buildkitd'] !== '1' ||
-    labels['tale.org'] !== organizationId ||
-    network.Driver !== 'bridge' ||
-    network.Internal !== true ||
-    network.EnableIPv6 !== false
-  ) {
-    throw new Error(
-      'buildkitd: refusing foreign or non-private session build network',
-    );
-  }
-  const subnets = dockerIpv4Subnets(object(network.IPAM).Config);
-  if (subnets.length === 0) {
-    throw new Error('buildkitd: session build network has no IPv4 subnet');
-  }
-  for (const subnet of subnets) assertBuildSubnet(subnet);
-  if (typeof network.Id !== 'string' || !/^[a-f0-9]{64}$/.test(network.Id)) {
-    throw new Error('buildkitd: invalid private network identity');
-  }
-  return { id: network.Id, subnets: subnets.map((subnet) => subnet.address) };
+  return buildkitNetworkPlan(object(JSON.parse(result.stdout)), organizationId);
 }
 
-async function guardFamily(
-  containerName: string,
-  family: 'iptables' | 'ip6tables',
-  install: boolean,
-): Promise<void> {
+/** The FORWARD rules of both address families and whether IPv6 is off
+ * everywhere, read in ONE root exec: every exec is a CLI process and a round
+ * trip on the session create's path, and the guard is read before and after
+ * the attachment. Each family's listing is preceded by a line with its exit
+ * status, so a listing that failed is told apart from an empty one. */
+const FORWARD_RULES = `
+for family in iptables ip6tables; do
+  if rules=$(/usr/sbin/$family -w 5 -S FORWARD 2>/dev/null); then
+    printf '#tale-forward %s 0\\n%s\\n' "$family" "$rules"
+  else
+    printf '#tale-forward %s 1\\n' "$family"
+  fi
+done
+if (${IPV6_DISABLED}); then
+  printf '#tale-forward ipv6-disabled 0\\n'
+else
+  printf '#tale-forward ipv6-disabled 1\\n'
+fi
+`;
+
+interface ForwardRules {
+  /** A family's FORWARD listing; null when it could not be read. */
+  iptables: string | null;
+  ip6tables: string | null;
+  ipv6Disabled: boolean;
+}
+
+/** Parse {@link FORWARD_RULES} output. Missing sections are refused rather
+ * than read as an empty listing. */
+export function parseForwardRules(stdout: string): ForwardRules {
+  const listings = new Map<string, string[] | null>();
+  let ipv6Disabled: boolean | undefined;
+  let current: string[] | null = null;
+  for (const line of stdout.split('\n')) {
+    const marker =
+      /^#tale-forward (iptables|ip6tables|ipv6-disabled) ([01])$/.exec(line);
+    if (marker === null) {
+      current?.push(line);
+      continue;
+    }
+    const [, name, status] = marker;
+    if (name === 'ipv6-disabled') {
+      ipv6Disabled = status === '0';
+      current = null;
+    } else if (name !== undefined) {
+      current = status === '0' ? [] : null;
+      listings.set(name, current);
+    }
+  }
+  if (
+    !listings.has('iptables') ||
+    !listings.has('ip6tables') ||
+    ipv6Disabled === undefined
+  ) {
+    throw new Error('buildkitd: incomplete session forwarding guard listing');
+  }
+  const listing = (family: string) => listings.get(family)?.join('\n') ?? null;
+  return {
+    iptables: listing('iptables'),
+    ip6tables: listing('ip6tables'),
+    ipv6Disabled,
+  };
+}
+
+function guarded(listing: string): boolean {
+  return FORWARD_GUARD.test(
+    listing.split('\n').find((line) => line.startsWith('-A ')) ?? '',
+  );
+}
+
+async function readForwardRules(containerName: string): Promise<ForwardRules> {
   // Runtime PATH omits /usr/sbin and runnerd runs as an unprivileged uid.
   // Inspect real kernel rules as root; an image label or stale file is no proof.
-  const exec = ['exec', '--user', '0:0', containerName];
-  const command = `/usr/sbin/${family}`;
-  const list = [...exec, command, '-w', '5', '-S', 'FORWARD'];
-  let rules = await readDockerMetadata(list);
-  if (rules.exitCode !== 0 && family === 'ip6tables') {
-    const disabled = await readDockerMetadata([
-      ...exec,
-      '/bin/sh',
-      '-c',
-      IPV6_DISABLED,
-    ]);
-    if (disabled.exitCode === 0) return;
+  const rules = await readDockerMetadata([
+    'exec',
+    '--user',
+    '0:0',
+    containerName,
+    '/bin/sh',
+    '-c',
+    FORWARD_RULES,
+  ]);
+  if (rules.exitCode !== 0) {
+    throw new Error('buildkitd: cannot inspect session forwarding guard');
+  }
+  return parseForwardRules(rules.stdout);
+}
+
+/** The families whose first FORWARD rule is not the guard. IPv4 must be
+ * readable; IPv6 without netfilter is acceptable only while it is disabled
+ * on every interface and for future ones. */
+function unguardedFamilies(
+  rules: ForwardRules,
+): Array<'iptables' | 'ip6tables'> {
+  if (rules.iptables === null) {
+    throw new Error('buildkitd: cannot inspect session forwarding guard');
+  }
+  if (rules.ip6tables === null && !rules.ipv6Disabled) {
     throw new Error(
       'buildkitd: session IPv6 is enabled without a forwarding guard',
     );
   }
-  if (rules.exitCode !== 0) {
-    throw new Error('buildkitd: cannot inspect session forwarding guard');
-  }
-  const guarded = (stdout: string) =>
-    FORWARD_GUARD.test(
-      stdout.split('\n').find((line) => line.startsWith('-A ')) ?? '',
-    );
-  if (guarded(rules.stdout)) return;
+  const families: Array<'iptables' | 'ip6tables'> = [];
+  if (!guarded(rules.iptables)) families.push('iptables');
+  if (rules.ip6tables !== null && !guarded(rules.ip6tables))
+    families.push('ip6tables');
+  return families;
+}
+
+async function verifyForwardGuards(
+  containerName: string,
+  install: boolean,
+): Promise<void> {
+  const missing = unguardedFamilies(await readForwardRules(containerName));
+  if (missing.length === 0) return;
   if (install) {
-    const blocked = await runDocker(
-      [
-        ...exec,
-        command,
-        '-w',
-        '5',
-        '-I',
-        'FORWARD',
-        '1',
-        '-i',
-        'eth+',
-        '-m',
-        'conntrack',
-        '!',
-        '--ctstate',
-        'ESTABLISHED,RELATED',
-        '-j',
-        'DROP',
-      ],
-      { timeoutMs: 15_000 },
-    );
-    if (blocked.exitCode !== 0) {
-      throw new Error('buildkitd: cannot install session forwarding guard');
+    for (const family of missing) {
+      const blocked = await runDocker(
+        [
+          'exec',
+          '--user',
+          '0:0',
+          containerName,
+          `/usr/sbin/${family}`,
+          '-w',
+          '5',
+          '-I',
+          'FORWARD',
+          '1',
+          '-i',
+          'eth+',
+          '-m',
+          'conntrack',
+          '!',
+          '--ctstate',
+          'ESTABLISHED,RELATED',
+          '-j',
+          'DROP',
+        ],
+        { timeoutMs: 15_000 },
+      );
+      if (blocked.exitCode !== 0) {
+        throw new Error('buildkitd: cannot install session forwarding guard');
+      }
     }
-    rules = await readDockerMetadata(list);
-    if (rules.exitCode === 0 && guarded(rules.stdout)) return;
+    if (unguardedFamilies(await readForwardRules(containerName)).length === 0)
+      return;
   }
   throw new Error('buildkitd: session forwarding guard is not the first rule');
 }
@@ -174,10 +240,10 @@ export async function attachBuildkitNetwork(
   planned: BuildkitNetworkPlan,
 ): Promise<void> {
   const network = buildkitdNetworkName(organizationId);
-  await inspectSessionNetworks(containerName, organizationId, [
-    cfg.egressNetwork,
+  const [, observed] = await Promise.all([
+    inspectSessionNetworks(containerName, organizationId, [cfg.egressNetwork]),
+    readBuildkitNetworkPlan(organizationId),
   ]);
-  const observed = await readBuildkitNetworkPlan(organizationId);
   if (
     observed.id !== planned.id ||
     JSON.stringify(observed.subnets) !== JSON.stringify(planned.subnets)
@@ -186,8 +252,7 @@ export async function attachBuildkitNetwork(
       'buildkitd: private network changed during session startup',
     );
   }
-  await guardFamily(containerName, 'iptables', true);
-  await guardFamily(containerName, 'ip6tables', true);
+  await verifyForwardGuards(containerName, true);
   const connected = await runDocker(
     ['network', 'connect', planned.id, containerName],
     { timeoutMs: 15_000 },
@@ -200,10 +265,15 @@ export async function attachBuildkitNetwork(
   // A new interface must inherit the IPv6 default, and connecting must not
   // displace the first firewall rule. Any failure is fatal to session creation;
   // the backend tears down its container while preserving a resumed workspace.
-  await guardFamily(containerName, 'iptables', false);
-  await guardFamily(containerName, 'ip6tables', false);
-  await inspectSessionNetworks(containerName, organizationId, [
-    cfg.egressNetwork,
-    network,
+  // Both checks only read, so they run together; the firewall's verdict is
+  // reported first.
+  const [firewall, membership] = await Promise.allSettled([
+    verifyForwardGuards(containerName, false),
+    inspectSessionNetworks(containerName, organizationId, [
+      cfg.egressNetwork,
+      network,
+    ]),
   ]);
+  if (firewall.status === 'rejected') throw firewall.reason;
+  if (membership.status === 'rejected') throw membership.reason;
 }

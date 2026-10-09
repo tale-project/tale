@@ -109,6 +109,7 @@ interface Harness {
   scope: Scope;
   context: (args: Record<string, unknown>) => unknown;
   workState: (args: Record<string, unknown>) => unknown;
+  occupancy: (args: Record<string, unknown>) => unknown;
 }
 
 function createHarness(overrides: Partial<Harness> = {}) {
@@ -134,6 +135,7 @@ function createHarness(overrides: Partial<Harness> = {}) {
       workflowRun: null,
       pendingReview: null,
     }),
+    occupancy: () => ({ currentRun: null, workflowRun: null }),
     ...overrides,
   };
   const calls: { name: string; args: Record<string, unknown> }[] = [];
@@ -153,10 +155,15 @@ function createHarness(overrides: Partial<Harness> = {}) {
       if (name === 'tasks/internal_queries:getTaskByIdInternal') {
         const id = String(args.taskId);
         if (id === 't-foreign') return { _id: id, projectId: 'p-other' };
-        return id.startsWith('t-') ? { _id: id, projectId: 'p-1' } : null;
+        return id.startsWith('t-')
+          ? { _id: id, projectId: 'p-1', status: 'todo' }
+          : null;
       }
       if (name === 'tasks/internal_queries:getTaskContextForAgent') {
         return harness.context(args);
+      }
+      if (name === 'tasks/internal_queries:getTaskOccupancyForAgent') {
+        return harness.occupancy(args);
       }
       if (name === 'tasks/internal_queries:getTaskWorkStateForAgent') {
         return harness.workState(args);
@@ -943,5 +950,282 @@ describe('task_get reads what a manager decides with', () => {
     expect(foreign).toEqual(missing);
     expect(called('getTaskContextForAgent')).toHaveLength(0);
     expect(called('getTaskWorkStateForAgent')).toHaveLength(0);
+  });
+});
+
+describe('task_get compact occupancy', () => {
+  const run = (id: string, status: string) => ({
+    id,
+    seq: 1,
+    agentId: 'worker-1',
+    status,
+    trigger: 'manual',
+    startedAt: 1790000000000,
+    launchedAt: null,
+    settledAt: status === 'settled' ? 1790000000100 : null,
+    waitingForCapacity: false,
+    failureCode: null,
+    retryPending: false,
+    feedback: 'Private full context',
+    feedbackTruncated: false,
+  });
+
+  it('binds an old requested run and a newer live occupant without full context', async () => {
+    const { call, called } = createHarness({
+      occupancy: () => ({
+        requestedRun: run('old-run', 'settled'),
+        currentRun: run('new-run', 'running'),
+        workflowRun: null,
+      }),
+    });
+    const answer = await call('task_get', {
+      taskId: 't-0000',
+      view: 'occupancy',
+      requestedRunId: 'old-run',
+    });
+    expect(answer.status).toBe('ok');
+    expect(outputOf(answer)).toMatchObject({
+      view: 'occupancy',
+      task: { taskId: 't-0000', projectId: 'p-1', status: 'todo' },
+      requestedRun: { runId: 'old-run', live: false },
+      currentRun: { runId: 'new-run', live: true },
+      workflowRun: null,
+    });
+    expect(called('getTaskOccupancyForAgent')).toEqual([
+      {
+        name: 'tasks/internal_queries:getTaskOccupancyForAgent',
+        args: {
+          organizationId: 'org-1',
+          projectId: 'p-1',
+          taskId: 't-0000',
+          requestedRunId: 'old-run',
+        },
+      },
+    ]);
+    expect(called('getTaskContextForAgent')).toHaveLength(0);
+    expect(called('getTaskWorkStateForAgent')).toHaveLength(0);
+    expect(called('getTaskReviewFilesForAgent')).toHaveLength(0);
+    expect(JSON.stringify(answer)).not.toContain('Private full context');
+    expect(outputOf(answer)).not.toHaveProperty('pendingReview');
+    expect(outputOf(answer)).not.toHaveProperty('idle');
+    expect(outputOf(answer)).not.toHaveProperty('canStart');
+  });
+
+  it.each([
+    { view: 'occupancy', taskId: 'x'.repeat(201) },
+    { view: 'full' },
+    { view: null },
+    { requestedRunId: 'run' },
+    ...[null, '', ' ', 1, {}, 'x'.repeat(201)].map((requestedRunId) => ({
+      view: 'occupancy',
+      requestedRunId,
+    })),
+    ...[
+      'commentLimit',
+      'commentCursor',
+      'runLimit',
+      'runCursor',
+      'reviewFileCursor',
+    ].map((key) => ({ view: 'occupancy', [key]: null })),
+  ])(
+    'refuses incompatible occupancy arguments before optional reads: %j',
+    async (args) => {
+      const { call, called } = createHarness();
+      expect(
+        (await call('task_get', { taskId: 't-0000', ...args })).status,
+      ).toBe('invalid_args');
+      expect(called('getTaskOccupancyForAgent')).toHaveLength(0);
+      expect(called('getTaskContextForAgent')).toHaveLength(0);
+    },
+  );
+
+  it.each([
+    undefined,
+    {},
+    { currentRun: undefined, workflowRun: null },
+    {
+      currentRun: { ...run('run', 'running'), retryPending: undefined },
+      workflowRun: null,
+    },
+    { currentRun: run('run', 'unknown'), workflowRun: null },
+    {
+      currentRun: { ...run('run', 'running'), startedAt: 1e100 },
+      workflowRun: null,
+    },
+    { currentRun: null, workflowRun: {} },
+  ])('answers malformed occupancy as unknown: %j', async (raw) => {
+    const { call } = createHarness({ occupancy: () => raw });
+    const answer = await call('task_get', {
+      taskId: 't-0000',
+      view: 'occupancy',
+    });
+    expect(answer.status).toBe('error');
+    expect(answer).not.toHaveProperty('output');
+    expect(answer.message).toContain('unknown');
+  });
+
+  it('does not replace an unavailable requested run with an empty or different run', async () => {
+    for (const state of [
+      null,
+      { currentRun: null, workflowRun: null },
+      {
+        currentRun: null,
+        requestedRun: run('different', 'settled'),
+        workflowRun: null,
+      },
+    ]) {
+      const { call } = createHarness({ occupancy: () => state });
+      const answer = await call('task_get', {
+        taskId: 't-0000',
+        view: 'occupancy',
+        requestedRunId: 'requested',
+      });
+      expect(answer.status).toBe(state === null ? 'not_found' : 'error');
+      expect(answer).not.toHaveProperty('output');
+    }
+  });
+
+  it('propagates unavailable reads and preserves a successfully empty observation', async () => {
+    const { call, harness } = createHarness();
+    expect(
+      outputOf(await call('task_get', { taskId: 't-0000', view: 'occupancy' })),
+    ).toMatchObject({ currentRun: null, workflowRun: null });
+    harness.occupancy = () => {
+      throw new Error('database unavailable');
+    };
+    const answer = await call('task_get', {
+      taskId: 't-0000',
+      view: 'occupancy',
+    });
+    expect(answer.status).toBe('error');
+    expect(answer).not.toHaveProperty('output');
+  });
+
+  it.each([
+    { kind: 'project', projectId: 'p-1' },
+    { kind: 'org', allowedProjectIds: ['p-1'] },
+  ] as const)(
+    'preserves task scope before compact reads: %j',
+    async (scope) => {
+      const { call, called } = createHarness({
+        scope:
+          scope.kind === 'project'
+            ? scope
+            : { ...scope, allowedProjectIds: [...scope.allowedProjectIds] },
+      });
+      const foreign = await call('task_get', {
+        taskId: 't-foreign',
+        view: 'occupancy',
+        requestedRunId: 'foreign-run',
+      });
+      const missing = await call('task_get', {
+        taskId: 'missing',
+        view: 'occupancy',
+        requestedRunId: 'foreign-run',
+      });
+      expect(foreign).toEqual(missing);
+      expect(foreign.status).toBe('not_found');
+      expect(called('getTaskOccupancyForAgent')).toHaveLength(0);
+    },
+  );
+
+  it('retains queued capacity waits, retry state and person-bound workflow occupancy', async () => {
+    const { call } = createHarness({
+      occupancy: () => ({
+        currentRun: { ...run('queued', 'queued'), waitingForCapacity: true },
+        requestedRun: {
+          ...run('failed', 'failed'),
+          retryPending: false,
+          failureCode: 'harness_error',
+        },
+        workflowRun: {
+          runId: 'workflow',
+          status: 'waiting',
+          live: true,
+          waitingFor: 'ask',
+          automation: 'private name',
+          ask: { question: 'private question' },
+        },
+      }),
+    });
+    const answer = outputOf(
+      await call('task_get', {
+        taskId: 't-0000',
+        view: 'occupancy',
+        requestedRunId: 'failed',
+      }),
+    );
+    expect(answer).toMatchObject({
+      currentRun: {
+        runId: 'queued',
+        live: true,
+        waitingForCapacity: true,
+        retryPending: false,
+      },
+      requestedRun: {
+        runId: 'failed',
+        live: false,
+        retryPending: false,
+        failureCode: 'harness_error',
+      },
+    });
+    expect(answer.workflowRun).toEqual({
+      runId: 'workflow',
+      status: 'waiting',
+      live: true,
+      waitingFor: 'ask',
+    });
+    expect(answer.observed).toEqual({
+      startedAt: expect.any(String),
+      completedAt: expect.any(String),
+    });
+    expect(JSON.stringify(answer)).not.toContain('private');
+  });
+
+  it('measures a smaller response while leaving the full default context intact', async () => {
+    const description = 'Synthetic task context. '.repeat(800);
+    const { call, called } = createHarness({
+      context: () => ({
+        task: {
+          _id: 't-0000',
+          title: 'Fixture',
+          status: 'todo',
+          projectId: 'p-1',
+          description,
+        },
+        project: { instructions: 'Synthetic policy. '.repeat(800) },
+        subtasks: [],
+        blockedBy: [],
+        comments: [],
+        commentsHasMore: false,
+      }),
+      occupancy: () => ({
+        currentRun: run('current', 'running'),
+        requestedRun: run('requested', 'settled'),
+        workflowRun: null,
+      }),
+    });
+    const full = await call('task_get', { taskId: 't-0000' });
+    const compact = await call('task_get', {
+      taskId: 't-0000',
+      view: 'occupancy',
+      requestedRunId: 'requested',
+    });
+    expect((outputOf(full).task as Record<string, unknown>).description).toBe(
+      description,
+    );
+    expect(outputOf(full)).not.toHaveProperty('view');
+    const fullBytes = Buffer.byteLength(JSON.stringify(full));
+    const compactBytes = Buffer.byteLength(JSON.stringify(compact));
+    expect(compactBytes).toBeLessThan(fullBytes / 4);
+    expect(compactBytes).toBeLessThan(4096);
+    expect(called('getTaskContextForAgent')).toHaveLength(1);
+    expect(called('getTaskWorkStateForAgent')).toHaveLength(1);
+    expect(called('getTaskOccupancyForAgent')).toHaveLength(1);
+    console.info('Synthetic task_get bytes', {
+      fullBytes,
+      compactBytes,
+      reduction: 1 - compactBytes / fullBytes,
+    });
   });
 });

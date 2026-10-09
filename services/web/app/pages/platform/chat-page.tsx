@@ -1,7 +1,5 @@
 import {
   ChatHeroDemo,
-  ChatTourAgentsDemo,
-  ChatTourGovernDemo,
   ChatTourKnowledgeDemo,
   ChatTourProjectsDemo,
 } from '@/app/components/blocks/demos/content';
@@ -11,13 +9,9 @@ import { usePlatformTour } from '@/app/pages/platform/use-platform-tour';
 
 export function ChatPage() {
   const content = useFeaturePageContent('chat', 'platformChat');
-  // Chat leads with the Arena split (its signature scene) on its own story;
-  // the tour then shows an in-thread approval, projects, agents, and the
-  // libraries grounded replies cite.
+  // Two focused tours connect chat to its supporting project context.
   const tour = usePlatformTour('platformChat', [
-    { id: 'govern', demo: <ChatTourGovernDemo /> },
     { id: 'projects', demo: <ChatTourProjectsDemo /> },
-    { id: 'agents', demo: <ChatTourAgentsDemo /> },
     { id: 'knowledge', demo: <ChatTourKnowledgeDemo /> },
   ]);
 

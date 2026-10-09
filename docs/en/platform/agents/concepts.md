@@ -3,14 +3,14 @@ title: Understand project agents
 description: Decide what an agent should own and how its runtime, model, instructions and equipment fit together.
 ---
 
-A project agent is a named worker for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. It can work on files and commands in a sandbox. The [configured reviewer](/platform/projects/tasks#review-default), a person or an independent project agent, checks the result before completing the task. New reviews that require human independence or competence records go to the human review chain; a captured agent review needs explicit transfer to an eligible person.
+A project agent is a named configuration for tasks in one project. You configure how it runs and what it may use, then give it a task with a reviewable outcome. Each task it works on runs in a worker, a running copy of the agent that works on files and commands in a sandbox of its own, so one agent can work several tasks at once. The [configured reviewer](/platform/projects/tasks#review-default), a person or an independent project agent, checks the result before completing the task. New reviews that require human independence or competence records go to the human review chain; a captured agent review needs explicit transfer to an eligible person.
 
 ## Choose the right working mode
 
 | Use | Suitable work | What you configure |
 | --- | --- | --- |
 | Chat | Ask a question, retrieve knowledge or draft text in a conversation. | The message, model and optional project context. |
-| Project agent | Review a repository, prepare files or carry out a task over several turns. | A reusable worker in the project. |
+| Project agent | Review a repository, prepare files or carry out a task over several turns. | A reusable agent configuration in the project. |
 | Automation | Run defined steps, react to events or wait for an approval between actions. | A versioned workflow and its inputs. |
 
 A project chat still uses the built-in chat assistant. Adding a project to a chat does not select one of the project’s agents. An automation’s agent node has its own configuration.
@@ -32,7 +32,7 @@ An agent belongs to exactly one project. People who can read the project can see
 | Connectors and tools | Connected services and allowed platform operations. | Grant repository access and only the task tools needed. |
 | Secrets | Named organization credentials supplied to the running session. | Use a narrowly scoped token for a service without a connector. |
 
-The skills, connectors, tools and secret-name lists each allow up to 25 entries. A grant to a write tool authorizes its supported writes within its access rules; an instruction asking the agent to be careful does not remove that permission. Only an Owner or Admin may change secret grants.
+The skills, connectors, tools and secret-name lists each allow up to 25 entries. A grant to a write tool authorizes its supported writes within its access rules; an instruction asking the agent to be careful does not remove that permission. Only an Owner or Admin may change secret grants. Searching the project's knowledge needs no grant: every agent has it.
 
 ```mermaid
 flowchart LR
@@ -45,6 +45,6 @@ flowchart LR
 
 ## Check readiness before assigning work
 
-The provider credential must support the selected agent runtime and model, and sandbox capacity must be available. Success in ordinary Chat proves neither condition. A task should explain what success looks like and include the material the agent needs to inspect.
+The provider credential must support the selected agent runtime and model, and sandbox capacity must be available: a run waits until one of your organization’s [agent workers](/platform/projects/project-agents#run-one-agent-on-several-tasks) is free. Success in ordinary Chat proves neither condition. A task should explain what success looks like and include the material the agent needs to inspect.
 
 [Create a project agent](/platform/projects/project-agents) once those choices are clear. [Task automation](/platform/projects/task-automation) explains starting, steering and reviewing its work.

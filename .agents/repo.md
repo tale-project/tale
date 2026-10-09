@@ -129,7 +129,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   `<PREFIX><kind><n>` (`NAV-F3`, `CHAT-B1`, `A11Y-A2`) — the prefix is the suite, the letter is
   what kind of check it is (F functional, B boundary, A accessibility, P performance). **Append,
   never renumber.** Ship new behaviour with its box, or with a row in `reference/automation.md`
-  when a spec owns it end to end. The platform's `tests/manual/scripts/check-guide.ts` is the
+  when a spec owns it end to end — a box a spec takes over moves to
+  `reference/automation/<suite>.md`, one file per suite so parallel PRs do not append to the same
+  lines. The platform's `tests/manual/scripts/check-guide.ts` is the
   content half of the gate: it resolves the i18n keys, routes and spec names a suite cites, and is
   an authoring aid rather than a CI job — run it on every suite you touch.
 - **Judge the platform against its user docs** — the pages under `docs/en/platform/` are the
@@ -156,7 +158,14 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
-  title must itself be commitlint-shaped.
+  title must itself be commitlint-shaped. **Land through the merge queue**: `gh pr merge --auto`
+  (the queue sets squash) queues a PR once its checks and review pass, and the queue re-runs CI on the PR stacked
+  on `main` plus the PRs ahead of it. A branch does not have to be up to date with `main` — never
+  rebase, merge `main` in or `gh pr update-branch` just because a PR reads *behind*; rebase only for
+  a real conflict (`git merge-tree --write-tree --name-only origin/main HEAD`), and never bypass
+  the queue with an admin merge. A PR's own CI is the fast tier (format, lint, types, knip, unit,
+  commitlint, SAST); E2E, Build, CLI, UI, Browser and backend integration run only in the queue —
+  run the ones your change touches locally before queueing ([CI guide](../.github/CI.md#merge-queue)).
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
@@ -289,7 +298,9 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   sandbox runtime's `build-gemini-settings.ts` and daemon `file-ops.ts` and
   `exec-replay.ts`, which suites import, plus the daemon modules' shared `protocol.ts`:
   `tsc` and oxlint's type-aware rules type every module the sources import. Its guard is
-  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The catalog glob explicitly
+  `services/platform/tests/guards/turbo-inputs.guard.test.ts`. The capture-manifest test also
+  imports `services/web/app/content/product-screenshots.ts`; test, lint and typecheck hash
+  that registry through the same guard's reader and static-import tables. The catalog glob explicitly
   excludes nested `.turbo/` output: explicit inputs include otherwise ignored task logs, so
   running a catalog skill must not invalidate the platform test cache. The guard changes logs
   and real catalog/skill source in an isolated Git fixture and checks the actual Turbo hashes.
@@ -305,7 +316,16 @@ own files), then list the outside files as `$TURBO_ROOT$/<path>`:
   while unrelated sandbox source and the daemon's production build retain their hashes.
 - [`services/docs/turbo.json`](../services/docs/turbo.json) gives `@tale/docs` the root `docs/`
   tree (test, build), its JSON maps (typecheck, lint), and the root `README*.md` plus `@tale/ui`'s
-  i18n catalogs and test framework (test). Its guard is `services/docs/tests/turbo-inputs.test.ts`.
+  i18n catalogs and test framework (test). Its screenshot-manifest test also hashes the marketing
+  source registry at `services/web/app/content/product-screenshots.ts`. Its guard is
+  `services/docs/tests/turbo-inputs.test.ts`.
+- [`services/web/turbo.json`](../services/web/turbo.json) gives `@tale/web`'s product-capture tests
+  the docs capture manifest and registered EN/DE/FR source images. Its guard,
+  `services/web/tests/turbo-inputs.test.ts`, derives the source paths from the registry and verifies
+  their actual Turbo dry-run hashes. A newly registered source must enter the task's input glob.
+  Native motion recording also imports platform capture and video helpers: lint and typecheck
+  hash their full static dependency closure; unit tests hash the encoder's ffmpeg helper and
+  capture-options parser. The same guard checks the actual hashes for all three tasks.
 - [`tools/cli/turbo.json`](../tools/cli/turbo.json) hashes the shared root
   `.github/release-candidate-contract.json` through CLI transit for lint/typecheck/test
   and directly for its source-reading tests. The candidate contract refresh script
@@ -487,16 +507,15 @@ default means deleting the override and fixing what surfaces:
   backfill was shipped (the `0093`/`0098` external-key precedent). Paying it down means a
   forward-only migration that canonicalises `app.folders.name` where no twin exists and detaches
   or renames the loser where one does, documented like `0098_external_keys_canonical_twins.sql`.
-- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block: an `llm`
-  node's spend is not metered at all (`backend/core/automations/llm_call.ts` → `model_call.ts`
-  parses no usage and writes no ledger row), and an `agent` node's cents settle on
-  `app.sandbox_session_ops` under the automation's name and user, never on the run
-  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`); the stepper drops the
-  agent settle's `usage` when it records the node. A `usage` that read `0` for every `llm` node
-  would be a fabricated figure, so the surface says a run carries none (2026-09, round g).
-  Paying it down means (1) parsing usage in `parseChatReply` and booking it through
-  `incrementUsageLedger({agentSlug: run.automation})` for `llm` nodes, (2) keeping
-  `settled.usage` in the agent checkpoint trace, then (3) `?include=usage` summing both.
+- **No usage or cost on a run** — `GET …/runs/{runId}` carries no `usage` block. An `llm`
+  node's call is booked to the usage ledger under the run's subject and the automation's name
+  (`backend/domains/automations/llm-metering.ts`, 2026-10-08), and an `agent` node's cents
+  settle on `app.sandbox_session_ops` under the same subject
+  (`backend/domains/sandbox/spend-settlement.ts`, `op-attribution.ts`) — but neither lands on
+  the run itself: the stepper keeps no `llm` node's usage and drops the agent settle's `usage`
+  when it records the node, and the ledger's buckets sum across runs. Paying it down means
+  (1) keeping each `llm` node's usage and the agent's `settled.usage` in the node's checkpoint
+  trace, then (2) `?include=usage` summing them.
 - **Approvals have no REST twin** — a run parked on `waitingFor: approval` can only be decided
   in the app (`backend/domains/approvals/routes.ts`); over REST the `detail`
   (`approval:<approvalId>`) names something no door takes (2026-09, round g). The ask half was
@@ -750,6 +769,9 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   that the old execution is retired, an authorized decision about unknown external effects, and
   a guarded release contract. Never clear the hold or manufacture node-attempt evidence merely
   because a stop was requested, a lease expired, or the old containers disappeared.
+  Erasure deletes other eligible subject runs and records the held runs separately on a partial
+  receipt; organization deletion returns an explicit conflict. These are containment, not a
+  retirement contract or a release of the holds.
 - **A run lease compares the clocks of the hosts it spans** — the stepper stamps and checks the
   30 s lease with its own host's clock (`claimRun`, `heartbeatRun`, `sweepOverdueRuns`), and the
   read model's `stalled` compares it with the database's. Workers on hosts whose clocks differ by

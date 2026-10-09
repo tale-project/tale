@@ -73,6 +73,9 @@ describe('automationShimHandlers', () => {
         'documents/internal_queries:listFilesByFolderInternal',
         'automations/human_asks:getPendingAskForExec',
         'sandbox/session_mutations:upsertSessionOp',
+        // The llm door's budget check and booking.
+        'automations/mutations:reserveLlmStepBudget',
+        'automations/mutations:recordLlmStepUsage',
       ]),
     );
   });

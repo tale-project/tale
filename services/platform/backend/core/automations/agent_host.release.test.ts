@@ -35,7 +35,15 @@ interface Call {
   args: Record<string, unknown>;
 }
 
-function makeCtx(op: { spendSettled?: boolean; keyRevoked?: boolean } = {}) {
+function makeCtx(
+  op: {
+    spendSettled?: boolean;
+    keyRevoked?: boolean;
+    /** Null: the op never minted a key (a subscription turn). */
+    mintedKeyId?: string | null;
+    budgetCents?: number;
+  } = {},
+) {
   const mutations: Call[] = [];
   const scheduled: Call[] = [];
   const ctx = {
@@ -47,10 +55,13 @@ function makeCtx(op: { spendSettled?: boolean; keyRevoked?: boolean } = {}) {
       return null;
     },
     runQuery: async () => ({
-      mintedKeyId: 'vk-1',
+      ...(op.mintedKeyId === null
+        ? {}
+        : { mintedKeyId: op.mintedKeyId ?? 'vk-1' }),
       startedAt: 1,
       spendSettled: op.spendSettled ?? false,
       keyRevoked: op.keyRevoked ?? false,
+      ...(op.budgetCents !== undefined ? { budgetCents: op.budgetCents } : {}),
     }),
     runAction: async () => null,
     scheduler: {
@@ -193,5 +204,45 @@ describe('releaseTurnKey', () => {
     await expect(releaseTurnKey(ctx, ARGS)).resolves.toEqual({ won: false });
     expect(mutations).toEqual([]);
     expect(gateway.readVirtualKeySpend).not.toHaveBeenCalled();
+  });
+
+  describe('a turn that minted no key', () => {
+    it('books a subscription turn as one request at no cost, with its tokens, before the terminal stamp [GOV-R16]', async () => {
+      const { ctx, mutations } = makeCtx({ mintedKeyId: null, budgetCents: 0 });
+
+      await expect(
+        releaseTurnKey(ctx, {
+          ...ARGS,
+          usageTotals: { inputTokens: 1_200, outputTokens: 300 },
+        }),
+      ).resolves.toEqual({ won: true, spentCents: 0 });
+
+      expect(gateway.readVirtualKeySpend).not.toHaveBeenCalled();
+      expect(names(mutations)).toEqual([
+        'claimSessionOpFinalize',
+        'recordSessionOpSpend',
+        'upsertSessionOp',
+      ]);
+      expect(mutations[1]?.args).toEqual({
+        sessionId: 'pa-alice',
+        execId: 'exec-A',
+        spentCents: 0,
+        usage: { inputTokens: 1_200, outputTokens: 300 },
+      });
+    });
+
+    it('books nothing for a gateway start that died before its mint', async () => {
+      const { ctx, mutations } = makeCtx({
+        mintedKeyId: null,
+        budgetCents: 500,
+      });
+
+      await releaseTurnKey(ctx, ARGS);
+
+      expect(names(mutations)).toEqual([
+        'claimSessionOpFinalize',
+        'upsertSessionOp',
+      ]);
+    });
   });
 });

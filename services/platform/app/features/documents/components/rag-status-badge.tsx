@@ -12,7 +12,10 @@ import { useCallback, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
-import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/backend/core/knowledge/rag_error_codes';
+import {
+  RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
+  RAG_ERROR_USAGE_LIMIT,
+} from '@/backend/core/knowledge/rag_error_codes';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
 
@@ -176,6 +179,38 @@ export function RagStatusBadge({
           </div>
         </ViewDialog>
       </>
+    );
+  }
+
+  // Parked by a usage limit: not a failure — indexing resumes by itself once
+  // the limit allows it. Said in the reader's language; the stored English
+  // sentence stays in the record.
+  if (effectiveStatus === 'failed' && errorCode === RAG_ERROR_USAGE_LIMIT) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsFailedDialogOpen(true);
+          }}
+          className="cursor-pointer"
+          aria-label={t('rag.dialog.usageLimit.title')}
+        >
+          <Badge variant="orange" dot>
+            {t('rag.status.usageLimit')}
+          </Badge>
+        </button>
+        <ViewDialog
+          open={isFailedDialogOpen}
+          onOpenChange={setIsFailedDialogOpen}
+          title={t('rag.dialog.usageLimit.title')}
+          description={t('rag.dialog.usageLimit.description')}
+        >
+          {null}
+        </ViewDialog>
+        {retryButton}
+      </span>
     );
   }
 

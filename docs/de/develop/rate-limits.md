@@ -3,7 +3,7 @@ title: Anfragelimits berücksichtigen
 description: Plane REST-, MCP- und Webhook-Aufrufe, interpretiere Retry-After und wiederhole angenommene Arbeit ohne Duplikate.
 ---
 
-Tale begrenzt API-Verkehr pro Schlüsselinhaber. Alle API-Schlüssel derselben Person teilen deren Budget. Berücksichtige daher sämtliche Integrationen und Polling-Prozesse dieser Identität, statt jeden Schlüssel einzeln zu planen.
+Tale begrenzt API-Verkehr pro Schlüsselinhaber. Alle API-Schlüssel derselben Person teilen deren Budget; ein Schlüssel, den ein Inhaber oder Admin für ein Mitglied, ein Team, ein Projekt oder die Organisation erstellt hat, hat ein eigenes. Berücksichtige daher sämtliche Integrationen und Polling-Prozesse dieser Identität, statt jeden Schlüssel einzeln zu planen.
 
 Die folgenden Grenzen gelten für das aktuelle Backend. Ein vorgeschalteter Proxy oder nachgelagerter Anbieter kann zusätzliche Limits setzen.
 
@@ -54,7 +54,7 @@ Entscheide anhand von `code`. `error` beschreibt die Wartezeit als Satz; `reques
 3. Vergrößere bei weiteren Ablehnungen den Abstand exponentiell mit einer Obergrenze und einer zufälligen Streuung. Beispielsweise kann er von einer auf sechzig Sekunden wachsen; eine längere Servervorgabe hat Vorrang.
 4. Behalte bei unterstützten Operationen den ursprünglichen Idempotenzschlüssel. Nach einem Timeout beim Laufstart kann der Lauf bereits angenommen worden sein.
 
-Auch ein Ausgabenlimit antwortet mit `429`, dann mit `code` `BUDGET_EXCEEDED`: Eine Budgetregel, die für den Schlüsselinhaber gilt – seine eigene, die eines Teams, der Organisation oder des API-Schlüssels –, ist ausgeschöpft. Kurzes Warten hilft hier nicht. `Retry-After` nennt die Zeit bis zum Zurücksetzen des Zeitraums, und `data` beschreibt die Grenze: `scope`, `period`, `limitCode`, `used`, `limit` und `resetsAt` in Epoch-Millisekunden. Es wird nichts eingereiht. Pausiere die Arbeit bis `resetsAt` oder bitte eine Person mit Administratorrechten, das Limit unter [Richtlinien & Limits](/de/platform/admin/governance/policies-and-limits) zu erhöhen. An den Modell-Endpunkten kommen beide `429` im Fehlerformat von OpenAI oder Anthropic, mit demselben `code` und `Retry-After`. Ein ausgeschöpftes Budget nennt seine Grenze dort in der Meldung statt in `data` und trägt `x-should-retry: false`, damit die SDKs der Anbieter es nicht selbst erneut versuchen.
+Auch ein Ausgabenlimit antwortet mit `429`, dann mit `code` `BUDGET_EXCEEDED`: Eine Budgetregel, die für den Schlüsselinhaber gilt – seine eigene, die eines Teams, der Organisation oder des API-Schlüssels und, für Arbeit in einem Projekt, die des Projekts –, ist ausgeschöpft. Kurzes Warten hilft hier nicht. `Retry-After` nennt die Zeit bis zum Zurücksetzen des Zeitraums, und `data` beschreibt die Grenze: `scope`, `period`, `limitCode`, `used`, `limit` und `resetsAt` in Epoch-Millisekunden. Es wird nichts eingereiht. Pausiere die Arbeit bis `resetsAt` oder bitte eine Person mit Administratorrechten, das Limit unter [Richtlinien & Limits](/de/platform/admin/governance/policies-and-limits) zu erhöhen. An den Modell-Endpunkten kommen beide `429` im Fehlerformat von OpenAI oder Anthropic, mit demselben `code` und `Retry-After`. Ein ausgeschöpftes Budget nennt seine Grenze dort in der Meldung statt in `data` und trägt `x-should-retry: false`, damit die SDKs der Anbieter es nicht selbst erneut versuchen.
 
 Andere `4xx`-Antworten erfordern meist korrigierte Daten, Zugangsdaten oder Berechtigungen. Behandle nicht jeden Fehler als Limitüberschreitung; nutze das [Fehlermodell](/de/develop/api-reference#fehlermodell).
 
@@ -64,4 +64,4 @@ Auch eine `304`-Antwort auf eine `ETag`-Prüfung zählt als Anfrage. Sie spart D
 
 Fordere nur benötigte Felder an, etwa `?fields=status,finishedAt` bei einem Lauf. Frage seltener ab, wenn ein Mensch entscheiden muss, und beende Polling bei abgeschlossenen Läufen. [Einen Lauf starten und abfragen](/de/develop/api-reference#einen-lauf-starten-dann-pollen) erklärt Zustände und idempotente Starts.
 
-Nutze bei größeren Importen unterstützte Sammelaufrufe wie `POST /api/v1/contacts/bulk` und verteile die Batches zeitlich. Weitere Schlüssel derselben Person vergrößern das Budget nicht. Benötigt ein Ablauf eine eigene Dienstidentität, richte sie über den normalen Konto- und Berechtigungsprozess ein. Schlüsselrotation ist keine Wiederholungsstrategie.
+Nutze bei größeren Importen unterstützte Sammelaufrufe wie `POST /api/v1/contacts/bulk` und verteile die Batches zeitlich. Weitere Schlüssel derselben Person vergrößern das Budget nicht. Braucht ein Ablauf eine eigene Identität und ein eigenes Budget, nutze einen Schlüssel, den ein Inhaber oder Admin für ein Team, ein Projekt oder die Organisation erstellt. Schlüsselrotation ist keine Wiederholungsstrategie.

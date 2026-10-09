@@ -11,8 +11,10 @@ import { describe, expect, it } from 'vitest';
 
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
+  resolveAutomationRunAttribution,
   resolveSessionOpAttribution,
   splitModelRef,
+  withSessionOpBillingProjects,
 } from './op-attribution.ts';
 
 interface Statement {
@@ -39,12 +41,63 @@ const TASK_OP = {
 };
 const WORKFLOW_OP = { ...TASK_OP, sessionId: 'wf-1', kind: 'workflow-agent' };
 
+describe('admitted billing projects [GOV-R14]', () => {
+  it.each([{ projectIds: ['project-a', 'project-b'] }, { projectIds: [] }])(
+    'preserves a non-null stamp after live bindings change: $projectIds',
+    async ({ projectIds }) => {
+      const { sql, statements } = fakeSql([
+        { match: 'FROM app.sandbox_session_ops', rows: [{ projectIds }] },
+      ]);
+      const subject = {
+        userId: 'current-user',
+        apiKeyId: 'key-1',
+        agentSlug: 'automation',
+        projectIds: ['project-a', 'project-c'],
+      };
+      await expect(
+        withSessionOpBillingProjects(sql, WORKFLOW_OP, subject),
+      ).resolves.toEqual({ ...subject, projectIds });
+      expect(statements[0]?.values).toEqual(['org-1', 'wf-1', 'exec-1']);
+      expect(statements[0]?.text).toContain('WHERE org_id = ?');
+    },
+  );
+
+  it.each([null, undefined])(
+    'keeps legacy fallback for %j',
+    async (projectIds) => {
+      const { sql } = fakeSql([
+        {
+          match: 'FROM app.sandbox_session_ops',
+          rows: projectIds === undefined ? [] : [{ projectIds }],
+        },
+      ]);
+      const subject = { userId: 'user-1', projectIds: ['project-current'] };
+      await expect(
+        withSessionOpBillingProjects(sql, WORKFLOW_OP, subject),
+      ).resolves.toEqual(subject);
+    },
+  );
+
+  it('cannot turn missing attribution into an authorized subject', async () => {
+    const { sql, statements } = fakeSql([]);
+    await expect(
+      withSessionOpBillingProjects(sql, WORKFLOW_OP, null),
+    ).resolves.toBeNull();
+    expect(statements).toHaveLength(0);
+  });
+});
+/** The workflow session's owner: the automation run it executes. */
+const SESSION = {
+  match: 'FROM app.sandbox_sessions s',
+  rows: [{ runId: 'run-1' }],
+};
+
 describe('resolveSessionOpAttribution — task-agent', () => {
   it('books the person who kicked the run under the agent’s id [SBX-R14]', async () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
-        rows: [{ startedBy: 'user-1', agentId: 'agent-1' }],
+        rows: [{ startedBy: 'user-1', agentId: 'agent-1', apiKeyId: null }],
       },
     ]);
     await expect(resolveSessionOpAttribution(sql, TASK_OP)).resolves.toEqual({
@@ -55,6 +108,28 @@ describe('resolveSessionOpAttribution — task-agent', () => {
     expect(
       statements.some((s) => s.text.includes('FROM app.sandbox_session_ops')),
     ).toBe(false);
+  });
+
+  it('books a run started with an API key to the person AND the key [SBX-R14]', async () => {
+    const { sql } = fakeSql([
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [
+          {
+            startedBy: 'user-1',
+            agentId: 'agent-1',
+            apiKeyId: 'key-1',
+            projectId: 'project-1',
+          },
+        ],
+      },
+    ]);
+    await expect(resolveSessionOpAttribution(sql, TASK_OP)).resolves.toEqual({
+      userId: 'user-1',
+      agentSlug: 'agent-1',
+      apiKeyId: 'key-1',
+      projectIds: ['project-1'],
+    });
   });
 
   it('falls back to the op row’s stamp when the run row is gone', async () => {
@@ -74,7 +149,13 @@ describe('resolveSessionOpAttribution — task-agent', () => {
     const { sql, statements } = fakeSql([
       {
         match: 'FROM app.project_agent_runs r',
-        rows: [{ startedBy: 'trigger:schedule-1', agentId: 'agent-1' }],
+        rows: [
+          {
+            startedBy: 'trigger:schedule-1',
+            agentId: 'agent-1',
+            apiKeyId: null,
+          },
+        ],
       },
     ]);
     await expect(resolveSessionOpAttribution(sql, TASK_OP)).resolves.toEqual({
@@ -100,19 +181,31 @@ describe('resolveSessionOpAttribution — task-agent', () => {
 
 describe('resolveSessionOpAttribution — workflow-agent', () => {
   const run = (startedBy: string, apiKeyId: string | null = null) => ({
-    match: 'JOIN app.automation_runs ar',
+    match: 'FROM app.automation_runs ar WHERE',
     rows: [{ startedBy, name: 'invoices/monthly', apiKeyId }],
   });
 
   it('derives the person from a `user:` starter, never the door string [SBX-R14]', async () => {
-    const { sql } = fakeSql([run('user:user-2')]);
+    const { sql } = fakeSql([SESSION, run('user:user-2')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
     ).resolves.toEqual({ userId: 'user-2', agentSlug: 'invoices/monthly' });
   });
 
   it('books a keyed start to the person AND the key [SBX-R14]', async () => {
-    const { sql } = fakeSql([run('api-key:user-3', 'key-1')]);
+    const { sql } = fakeSql([SESSION, run('api-key:user-3', 'key-1')]);
+    await expect(
+      resolveSessionOpAttribution(sql, WORKFLOW_OP),
+    ).resolves.toEqual({
+      userId: 'user-3',
+      agentSlug: 'invoices/monthly',
+      apiKeyId: 'key-1',
+    });
+  });
+
+  it('books a run a capability started with a key to the key as well [SBX-R14]', async () => {
+    // An MCP `invoke_capability` start records `user:` beside the key.
+    const { sql } = fakeSql([SESSION, run('user:user-3', 'key-1')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
     ).resolves.toEqual({
@@ -123,14 +216,14 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
   });
 
   it('leaves the key out when a keyed run predates the column', async () => {
-    const { sql } = fakeSql([run('api-key:user-3')]);
+    const { sql } = fakeSql([SESSION, run('api-key:user-3')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
     ).resolves.toEqual({ userId: 'user-3', agentSlug: 'invoices/monthly' });
   });
 
   it('books a trigger-started run under the automation sentinel [SBX-R14]', async () => {
-    const { sql } = fakeSql([run('trigger:t-1')]);
+    const { sql } = fakeSql([SESSION, run('trigger:t-1')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
     ).resolves.toEqual({
@@ -140,7 +233,7 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
   });
 
   it('reads a pre-prefix bare starter as the person', async () => {
-    const { sql } = fakeSql([run('user-4')]);
+    const { sql } = fakeSql([SESSION, run('user-4')]);
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
     ).resolves.toMatchObject({ userId: 'user-4' });
@@ -148,6 +241,7 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
 
   it('falls through to the op stamp for a starter it cannot read', async () => {
     const { sql } = fakeSql([
+      SESSION,
       run('system:automation'),
       {
         match: 'FROM app.sandbox_session_ops',
@@ -157,6 +251,186 @@ describe('resolveSessionOpAttribution — workflow-agent', () => {
     await expect(
       resolveSessionOpAttribution(sql, WORKFLOW_OP),
     ).resolves.toEqual({ userId: 'user-5', agentSlug: 'x', apiKeyId: 'key-2' });
+  });
+});
+
+describe('resolveAutomationRunAttribution — a model step’s subject [GOV-R14]', () => {
+  const RUN = { organizationId: 'org-1', runId: 'run-9' };
+  const row = (startedBy: string) => ({
+    match: 'FROM app.automation_runs ar WHERE',
+    rows: [
+      {
+        startedBy,
+        name: 'invoices/monthly',
+        apiKeyId: 'key-1',
+        projectId: null,
+        boundProjectIds: ['project-1', 'project-2'],
+      },
+    ],
+  });
+
+  it('names the person, automation, key and projects its agent steps are booked under', async () => {
+    const { sql, statements } = fakeSql([row('api-key:user-3')]);
+    await expect(resolveAutomationRunAttribution(sql, RUN)).resolves.toEqual({
+      userId: 'user-3',
+      agentSlug: 'invoices/monthly',
+      apiKeyId: 'key-1',
+      projectIds: ['project-1', 'project-2'],
+    });
+    // Read by the run's own id, in its organization: no session involved.
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.values).toEqual(['org-1', 'run-9']);
+  });
+
+  it('books a run a trigger started under the automation sentinel', async () => {
+    const { sql } = fakeSql([row('trigger:t-1')]);
+    await expect(
+      resolveAutomationRunAttribution(sql, RUN),
+    ).resolves.toMatchObject({
+      userId: AUTOMATION_SUBJECT_ID,
+      agentSlug: 'invoices/monthly',
+    });
+  });
+
+  it('names no one for a run that is gone, or a starter it cannot read', async () => {
+    await expect(
+      resolveAutomationRunAttribution(fakeSql([]).sql, RUN),
+    ).resolves.toBeNull();
+    await expect(
+      resolveAutomationRunAttribution(
+        fakeSql([row('system:automation')]).sql,
+        RUN,
+      ),
+    ).resolves.toBeNull();
+  });
+});
+
+describe('resolveSessionOpAttribution — the project the work is in [GOV-R14]', () => {
+  it('names the project an agent’s run is in, a schedule’s run included', async () => {
+    for (const startedBy of ['user-1', 'trigger:schedule-1']) {
+      const { sql } = fakeSql([
+        {
+          match: 'FROM app.project_agent_runs r',
+          rows: [{ startedBy, agentId: 'agent-1', projectId: 'project-1' }],
+        },
+      ]);
+      await expect(
+        resolveSessionOpAttribution(sql, TASK_OP),
+      ).resolves.toMatchObject({ projectIds: ['project-1'] });
+    }
+  });
+
+  it('names the project an automation run is in, whoever started it', async () => {
+    for (const startedBy of ['user:user-2', 'api-key:user-3', 'trigger:t-1']) {
+      const { sql } = fakeSql([
+        SESSION,
+        {
+          match: 'FROM app.automation_runs ar WHERE',
+          rows: [
+            {
+              startedBy,
+              name: 'invoices/monthly',
+              apiKeyId: null,
+              projectId: 'project-1',
+            },
+          ],
+        },
+      ]);
+      await expect(
+        resolveSessionOpAttribution(sql, WORKFLOW_OP),
+      ).resolves.toMatchObject({ projectIds: ['project-1'] });
+    }
+  });
+
+  it('names every project an automation is bound to for a run that names none, as such a run acts in each', async () => {
+    const { sql, statements } = fakeSql([
+      SESSION,
+      {
+        match: 'FROM app.automation_runs ar WHERE',
+        rows: [
+          {
+            startedBy: 'trigger:t-1',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+            projectId: null,
+            boundProjectIds: ['project-1', 'project-2'],
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(sql, WORKFLOW_OP),
+    ).resolves.toMatchObject({ projectIds: ['project-1', 'project-2'] });
+    // The bindings are read with the run, by its automation's name.
+    expect(statements[1]?.text).toContain(
+      'FROM app.automation_project_bindings b WHERE b.org_id = ar.org_id AND b.automation_name = ar.name',
+    );
+  });
+
+  it('names only the run’s own project when it names one, whatever else its automation is bound to', async () => {
+    const { sql } = fakeSql([
+      SESSION,
+      {
+        match: 'FROM app.automation_runs ar WHERE',
+        rows: [
+          {
+            startedBy: 'user:user-2',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+            projectId: 'project-2',
+            boundProjectIds: ['project-1', 'project-2'],
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(sql, WORKFLOW_OP),
+    ).resolves.toMatchObject({ projectIds: ['project-2'] });
+  });
+
+  it('names none for a run of an automation in no project, and reads the stamp’s once the run is gone', async () => {
+    const outside = fakeSql([
+      SESSION,
+      {
+        match: 'FROM app.automation_runs ar WHERE',
+        rows: [
+          {
+            startedBy: 'user:user-2',
+            name: 'invoices/monthly',
+            apiKeyId: null,
+            projectId: null,
+            boundProjectIds: null,
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(outside.sql, WORKFLOW_OP),
+    ).resolves.not.toHaveProperty('projectIds');
+    const stamped = fakeSql([
+      {
+        match: 'FROM app.sandbox_session_ops',
+        rows: [
+          {
+            userId: 'identity-1',
+            agentSlug: '__direct_api__',
+            apiKeyId: 'key-1',
+            projectIds: ['project-1'],
+          },
+        ],
+      },
+    ]);
+    await expect(
+      resolveSessionOpAttribution(stamped.sql, {
+        ...TASK_OP,
+        kind: 'model-api',
+      }),
+    ).resolves.toEqual({
+      userId: 'identity-1',
+      agentSlug: '__direct_api__',
+      apiKeyId: 'key-1',
+      projectIds: ['project-1'],
+    });
   });
 });
 
