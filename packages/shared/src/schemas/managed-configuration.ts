@@ -11,7 +11,7 @@ import {
   projectAgentInputSchema,
   PROJECT_INSTRUCTIONS_MAX_CHARS,
 } from './projects';
-import { scheduleRuleSchema } from './schedule-rule';
+import { normalizeScheduleRule, scheduleRuleSchema } from './schedule-rule';
 
 /** Explicit identities: these resources never find a target by display name.
  * Review contexts alone may explicitly create their declared UUID. Native writers retain the
@@ -130,24 +130,39 @@ const scheduleExtras = {
   wakeOnSlotFreed: z.literal(true).optional(),
 };
 
+/** A managed schedule's zone, stored the way the declaration spells it (any
+ * spelling `Intl` resolves): spaces around it are refused, since a stored
+ * zone with them never compared equal to its declaration. */
+const managedZone = z
+  .string()
+  .min(1)
+  .max(100)
+  .refine(
+    (zone) => zone.trim() === zone,
+    'A time zone cannot start or end with a space.',
+  );
+
 /** A managed schedule runs on a cron expression or a repeat rule. The cron
  * shape keeps exactly the keys it always had, so an existing schedule's hash
- * does not move and nothing reads as drifted. */
+ * does not move and nothing reads as drifted. A repeat rule reads in its
+ * normal form (times and weekdays sorted and once each, a window that spans
+ * the whole week dropped) — the form the platform stores — so a declaration
+ * and its readback hash alike whatever order the file lists them in. */
 export const managedAutomationScheduleSchema = z.union([
   z.strictObject({
     ...project,
     name,
     cron: z.string().min(1).max(200),
-    timezone: z.string().min(1).max(100),
+    timezone: managedZone,
     enabled: z.boolean(),
     ...scheduleExtras,
   }),
   z.strictObject({
     ...project,
     name,
-    repeat: scheduleRuleSchema,
+    repeat: scheduleRuleSchema.transform(normalizeScheduleRule),
     startDate: isoDateSchema,
-    timezone: z.string().min(1).max(100),
+    timezone: managedZone,
     enabled: z.boolean(),
     ...scheduleExtras,
   }),

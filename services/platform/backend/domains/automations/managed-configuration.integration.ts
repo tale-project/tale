@@ -3,7 +3,10 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 
-import type { ManagedPlatformResource } from '@tale/shared/schemas/managed-configuration';
+import {
+  managedAutomationScheduleSchema,
+  type ManagedPlatformResource,
+} from '@tale/shared/schemas/managed-configuration';
 import type { Sql } from 'postgres';
 
 import { createProject } from '../projects/service.ts';
@@ -21,6 +24,7 @@ import {
   setTrigger,
   versionRow,
 } from './store.ts';
+import { scanScheduledTriggers } from './triggers.ts';
 
 export async function checkManagedAutomationConfiguration(
   sql: Sql,
@@ -308,6 +312,109 @@ export async function checkManagedAutomationConfiguration(
       'managed schedules preserve IDs, cursors, failure accounting and both deliberate and automatic pauses',
       true,
       'equal readback and cron edit retain every operational field; explicit native recovery still resets the streak',
+    );
+
+    // A managed apply never reaches behind itself: when the new definition's
+    // next instant equals the old one, 0170's trigger drops it and the scan
+    // recomputes — from the apply, not from the last native save, so an
+    // occurrence of the new definition between the last fire and the apply
+    // is neither started nor counted.
+    const HOUR = 3_600_000;
+    const applyAt = Date.now();
+    const topOfHour = (at: number) => at - (at % HOUR);
+    const firedAt = topOfHour(applyAt - 3 * HOUR);
+    const between = new Date(applyAt - 1.5 * HOUR).getUTCHours();
+    const fireHour = new Date(firedAt).getUTCHours();
+    await setTrigger(sql, {
+      organizationId: ctx.orgId,
+      name,
+      trigger: {
+        kind: 'schedule',
+        cron: `0 ${fireHour} * * *`,
+        timezone: 'UTC',
+        enabled: true,
+      },
+      actor: ctx.userId,
+    });
+    await sql`UPDATE app.automation_triggers SET last_fired_at_ms = ${firedAt}, last_due_at_ms = ${firedAt}, updated_at_ms = ${firedAt - HOUR} WHERE org_id = ${ctx.orgId} AND name = ${name}`;
+    const daily = await read('automation-schedule');
+    await write(
+      {
+        kind: 'automation-schedule',
+        config: {
+          ...schedule,
+          cron: `0 ${[fireHour, between].sort((a, b) => a - b).join(',')} * * *`,
+        },
+      },
+      daily.hash,
+      edited.hash,
+    );
+    const cursorOf = async () =>
+      (
+        await sql<
+          {
+            nextDueAt: number | null;
+            lastDueAt: number | null;
+            lastFiredAt: number | null;
+          }[]
+        >`SELECT next_due_at_ms::float8 AS "nextDueAt", last_due_at_ms::float8 AS "lastDueAt", last_fired_at_ms::float8 AS "lastFiredAt" FROM app.automation_triggers WHERE org_id = ${ctx.orgId} AND name = ${name}`
+      )[0];
+    // The apply left the next instant where it was, so the database dropped
+    // it: the scan, not the save, decides what comes next.
+    assert.equal((await cursorOf())?.nextDueAt, null);
+    await scanScheduledTriggers(sql);
+    const cursor = await cursorOf();
+    assert.equal(cursor?.lastFiredAt, firedAt);
+    assert.ok((cursor?.lastDueAt ?? 0) >= applyAt);
+    assert.equal(cursor?.nextDueAt, firedAt + 24 * HOUR);
+    const startedSince = await sql<{ count: number }[]>`
+      SELECT count(*)::int AS count FROM app.automation_runs
+      WHERE org_id = ${ctx.orgId} AND name = ${name} AND started_at_ms >= ${applyAt}
+    `;
+    assert.equal(startedSince[0]?.count, 0);
+    record(
+      'a managed apply never fires an occurrence from before the apply',
+      true,
+      'the dropped next instant is recomputed from the apply: nothing between the last fire and the apply starts',
+    );
+
+    // A declaration converges however it orders its times or spells its
+    // zone: the zone is stored as declared, the rule in the normal form the
+    // declaration itself parses to.
+    const spelled = await read('automation-schedule');
+    const declared = {
+      projectId,
+      name,
+      repeat: {
+        frequency: 'daily' as const,
+        interval: 1,
+        times: ['17:00', '09:00'],
+      },
+      startDate: '2026-01-01',
+      timezone: 'utc',
+      enabled: true,
+    };
+    await write(
+      {
+        kind: 'automation-schedule',
+        config: managedAutomationScheduleSchema.parse(declared),
+      },
+      spelled.hash,
+      edited.hash,
+    );
+    const readback = await read('automation-schedule');
+    assert.deepEqual(
+      readback.config,
+      managedAutomationScheduleSchema.parse(declared),
+    );
+    assert.equal(
+      (await listTriggers(sql, ctx.orgId, name))[0]?.timezone,
+      'utc',
+    );
+    record(
+      'a managed schedule converges however it orders its times or spells its zone',
+      true,
+      'the readback equals the parsed declaration: times in normal order, the zone as written',
     );
 
     await assert.rejects(

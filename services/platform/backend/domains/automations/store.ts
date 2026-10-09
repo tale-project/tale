@@ -1744,7 +1744,19 @@ export async function setTrigger(
   // Managed configuration alone sends the slot-wake opt-in, beside the
   // shared contract.
   const { write, wakeOnSlotFreed } = takeWakeOptIn(args.trigger);
-  const trigger = checkTrigger(write, now);
+  const checked = checkTrigger(write, now);
+  // A managed declaration keeps its zone's spelling (`utc` stays `utc`, any
+  // spelling `Intl` resolves to the same zone), so its readback hashes like
+  // the declaration and an apply converges; a native save stores the
+  // canonical spelling.
+  const declaredZone =
+    args.managed !== undefined && isRecord(write) ? write.timezone : undefined;
+  const trigger =
+    typeof declaredZone === 'string' &&
+    checked.timezone !== null &&
+    declaredZone.trim() === declaredZone
+      ? { ...checked, timezone: declaredZone }
+      : checked;
   const minted = trigger.kind === 'webhook' ? mintWebhookToken() : undefined;
   const mintedHash =
     minted !== undefined ? await hashWebhookToken(minted) : null;
@@ -1945,6 +1957,17 @@ export async function setTrigger(
           ELSE NULL
         END,
         last_due_at_ms = CASE
+          -- A managed apply keeps the row's updated_at (below), which the
+          -- scan's floor would otherwise read: when 0170's trigger drops a
+          -- next-due the apply left unchanged, the scan would count from the
+          -- last native save and fire an occurrence of the new definition
+          -- from before the apply. The claim cursor carries the apply's
+          -- instant instead, so nothing before it is fired or counted.
+          WHEN ${args.managed !== undefined}::boolean AND EXCLUDED.kind = 'schedule'
+            THEN GREATEST(
+              CASE WHEN t.kind = EXCLUDED.kind THEN COALESCE(t.last_due_at_ms, 0) ELSE 0 END,
+              ${now}::bigint
+            )
           WHEN t.kind = EXCLUDED.kind THEN t.last_due_at_ms
           ELSE NULL
         END,
