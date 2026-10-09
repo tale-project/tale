@@ -7,7 +7,6 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
 import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -29,24 +28,24 @@ import {
   isCredentialSelectionResolvable,
   listCredentials,
 } from '../provider_credentials/service.ts';
-import { websitesAfterEmbeddingChange } from '../websites/service.ts';
 import {
   KnowledgeAdminError,
   deleteKnowledgeConnection,
-  deleteKnowledgeEmbedding,
   listEmbeddingRecommendationsForOrg,
   probeKnowledgeConnection,
   readKnowledgeConnectionView,
   readKnowledgeEmbeddingView,
   writeKnowledgeConnection,
-  writeKnowledgeEmbedding,
 } from './admin.ts';
+import {
+  assertKnowledgeAdmin,
+  removeKnowledgeEmbedding,
+  saveKnowledgeEmbedding,
+} from './embedding-save.ts';
 import {
   fetchKnowledgeDocument,
   KnowledgeError,
   searchKnowledgeForOrg,
-  requeueDocumentsWithoutVectors,
-  requeueEmbeddingBlockedDocuments,
 } from './service.ts';
 
 const searchSchema = z.object({
@@ -185,16 +184,10 @@ export function createKnowledgeRoutes(deps: {
 
   // ---- Admin config (data-residency page): connection + embedding -------
   const requireKnowledgeAdmin = (c: Context<OrgEnv>): Response | null => {
-    if (
-      defineAbilityFor(c.get('orgMember').role).cannot('write', 'orgSettings')
-    ) {
-      return c.json(
-        {
-          error: 'ORG_FORBIDDEN',
-          message: `Role "${c.get('orgMember').role}" cannot manage the knowledge configuration.`,
-        },
-        403,
-      );
+    try {
+      assertKnowledgeAdmin(c.get('orgMember').role);
+    } catch (error) {
+      return handleAdminError(c, error);
     }
     return null;
   };
@@ -288,63 +281,6 @@ export function createKnowledgeRoutes(deps: {
     }
   });
 
-  // The websites follow the model too: their page says whether search can
-  // reach them, and a saved model is what embeds the pages crawled without
-  // one. Best-effort — the setting is saved either way; a site a failure
-  // here skipped is embedded by its next scheduled scan.
-  const websitesFollowEmbedding = async (
-    organizationId: string,
-    orgSlug: string,
-    change: 'saved' | 'removed',
-  ): Promise<void> => {
-    try {
-      const { queued } = await websitesAfterEmbeddingChange(
-        deps.sql,
-        organizationId,
-        change,
-      );
-      if (queued > 0) {
-        console.info(
-          `[knowledge] embedding configured for ${orgSlug}: queued a scan of ${queued} website(s) to embed their pages`,
-        );
-      }
-    } catch (error) {
-      console.warn(
-        `[knowledge] embedding ${change} for ${orgSlug}: the websites could not follow:`,
-        error instanceof Error ? error.message : error,
-      );
-    }
-  };
-
-  // So do the documents already indexed: vectors are kept per width, so a
-  // model of another width finds none of theirs, and each would be missing
-  // from search by meaning until someone indexed it again. Best-effort like
-  // the websites — the setting is saved either way, and saving it again
-  // picks up whatever a failure here left.
-  const documentsFollowEmbedding = async (
-    organizationId: string,
-    orgSlug: string,
-  ): Promise<number> => {
-    try {
-      const { requeued } = await requeueDocumentsWithoutVectors(deps.sql, {
-        organizationId,
-        orgSlug,
-      });
-      if (requeued > 0) {
-        console.info(
-          `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} indexed document(s) that have no vector of the model's width`,
-        );
-      }
-      return requeued;
-    } catch (error) {
-      console.warn(
-        `[knowledge] embedding saved for ${orgSlug}: the indexed documents could not follow:`,
-        error instanceof Error ? error.message : error,
-      );
-      return 0;
-    }
-  };
-
   app.get('/embedding', async (c) => {
     const denied = requireKnowledgeAdmin(c);
     if (denied) return denied;
@@ -395,30 +331,13 @@ export function createKnowledgeRoutes(deps: {
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
     try {
-      if (expectedHash === undefined)
-        await writeKnowledgeEmbedding(deps.sql, orgSlug, config);
-      else
-        await writeKnowledgeEmbedding(deps.sql, orgSlug, config, expectedHash);
-      // Configuring a model is only half the fix: every document that failed
-      // while there was none stays `failed` until something re-queues it, and
-      // the failure text tells the operator to configure one "then retry
-      // indexing" — one document at a time, by hand. Do it for them, and say
-      // how many, so the page can report the recovery instead of looking as
-      // though nothing happened.
-      const { requeued } = await requeueEmbeddingBlockedDocuments(deps.sql, {
-        organizationId: c.get('orgId'),
-      });
-      if (requeued > 0) {
-        console.info(
-          `[knowledge] embedding configured for ${orgSlug}: re-queued ${requeued} document(s) that had failed on the embedding model`,
-        );
-      }
-      const reembedded = await documentsFollowEmbedding(
-        c.get('orgId'),
-        orgSlug,
+      const { requeued } = await saveKnowledgeEmbedding(
+        deps.sql,
+        { organizationId: c.get('orgId'), orgSlug },
+        config,
+        expectedHash,
       );
-      await websitesFollowEmbedding(c.get('orgId'), orgSlug, 'saved');
-      return c.json({ ok: true, requeued: requeued + reembedded });
+      return c.json({ ok: true, requeued });
     } catch (error) {
       return handleAdminError(c, error);
     }
@@ -429,8 +348,10 @@ export function createKnowledgeRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
-    await deleteKnowledgeEmbedding(deps.sql, orgSlug);
-    await websitesFollowEmbedding(c.get('orgId'), orgSlug, 'removed');
+    await removeKnowledgeEmbedding(deps.sql, {
+      organizationId: c.get('orgId'),
+      orgSlug,
+    });
     return c.json({ ok: true });
   });
 
