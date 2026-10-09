@@ -459,6 +459,10 @@ connectors:
     statusOrg: App der Organisation
     statusEnv: App des Deployments
     statusNone: Nicht eingerichtet
+    statusUnavailable: Status nicht verfügbar
+    statusLoadFailed:
+      Es konnte nicht geprüft werden, ob die Apps für den Wissens-Import
+      eingerichtet sind. Du kannst sie einrichten, sobald die Prüfung klappt.
     orgClientId: 'Client-ID: {clientId}'
     configure: Einrichten
     remove: Entfernen

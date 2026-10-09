@@ -471,6 +471,10 @@ connectors:
     statusOrg: App de l'organisation
     statusEnv: App du déploiement
     statusNone: Non configurée
+    statusUnavailable: Statut indisponible
+    statusLoadFailed:
+      Impossible de vérifier si les apps de l'import de connaissances sont
+      configurées. Tu pourras les configurer dès que la vérification aboutira.
     orgClientId: 'ID client : {clientId}'
     configure: Configurer
     remove: Retirer
