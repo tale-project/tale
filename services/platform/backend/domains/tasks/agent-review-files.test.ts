@@ -182,6 +182,8 @@ describe('review file manifest and selection', () => {
     ['unsupported_storage', { ...metadata, storageRef: 'old-storage' }, entry],
     ['invalid_metadata', { ...metadata, size: 3 }, entry],
     ['invalid_metadata', metadata, { ...entry, fileName: 'bad\0name' }],
+    ['invalid_metadata', metadata, { ...entry, fileType: 'text/plain\r\n' }],
+    ['invalid_metadata', metadata, { ...entry, fileName: 'bad\x7fname' }],
     [
       'too_large',
       { ...metadata, size: 20 * 1024 * 1024 + 1 },
@@ -209,6 +211,11 @@ describe('review file manifest and selection', () => {
         message:
           'This review file is unavailable; read its current manifest for the reason',
       });
+      await expect(
+        stageAgentReviewFile('session', request, () =>
+          authorizeAgentReviewFile(tx, auth, request),
+        ),
+      ).rejects.toMatchObject({ code: 'TASK_REVIEW_FILE_UNAVAILABLE' });
       expect(sessionStageFiles).not.toHaveBeenCalled();
     },
   );
@@ -257,6 +264,114 @@ describe('review file manifest and selection', () => {
 
 describe('review file snapshot transfer', () => {
   const authorize = () => authorizeAgentReviewFile(tx, auth, request);
+  const acceptedCases = [
+    { fileName: 'blank.bin', fileType: '' },
+    {
+      fileName: 'long-mime.bin',
+      fileType: `application/x-${'a'.repeat(241)}`,
+    },
+    ...[240, 241, 255].map((length) => ({
+      fileName: 'a'.repeat(length),
+      fileType: 'application/octet-stream',
+    })),
+    { fileName: 'é'.repeat(121), fileType: 'application/octet-stream' },
+    {
+      fileName: `${'🦀'.repeat(60)}é.bin`,
+      fileType: 'application/octet-stream',
+    },
+    {
+      fileName: `../${'界'.repeat(80)}.bin`,
+      fileType: 'application/octet-stream',
+    },
+    { fileName: 'unknown.bin', fileType: 'unknown' },
+  ];
+  it.each(
+    (['attachment', 'output'] as const).flatMap((kind) =>
+      acceptedCases.map((display, index) => ({ kind, display, index })),
+    ),
+  )(
+    'stages accepted $kind metadata case $index without changing display metadata',
+    async ({ kind, display }) => {
+      const selected = { ...entry, ...display };
+      const changed = {
+        ...task,
+        attachments: kind === 'attachment' ? [selected] : [],
+        outputs: kind === 'output' ? [selected] : [],
+      };
+      vi.mocked(loadTaskOrThrow).mockResolvedValue(changed);
+      vi.mocked(readAgentTaskReviewAccess).mockResolvedValue({
+        ...access,
+        task: changed,
+      });
+      const manifest = await readAgentTaskReviewFiles(tx, manifestArgs);
+      expect(manifest.files).toEqual([
+        { kind, ...selected, unavailableReason: null },
+      ]);
+      const result = await stageAgentReviewFile('session', request, authorize);
+      expect(result).toMatchObject({
+        kind,
+        ...display,
+        fileId: selected.fileId,
+        bytes: 4,
+      });
+      const leaf = result.path.split('/').at(-1)!;
+      expect(Buffer.byteLength(leaf)).toBeLessThanOrEqual(240);
+      expect(leaf).not.toMatch(/[\\/\x00-\x1f\x7f�]/);
+      expect(['', '.', '..']).not.toContain(leaf);
+      expect(result.path.split('/')).toHaveLength(9);
+      expect(stageUrlForBlobRef).toHaveBeenLastCalledWith(
+        metadata.storageRef,
+        'org',
+        4,
+        4,
+      );
+      expect(sessionStageFiles).toHaveBeenLastCalledWith('session', [
+        {
+          path: result.path,
+          url: 'https://signed-stage.test/private-capability',
+        },
+      ]);
+      expect(
+        (await stageAgentReviewFile('session', request, authorize)).path,
+      ).toBe(result.path);
+    },
+  );
+  it('isolates distinct blobs whose normalized bounded leaves share a prefix', async () => {
+    const outputs = [
+      { ...entry, fileId: 'first', fileName: `${'界'.repeat(80)}/a.bin` },
+      { ...entry, fileId: 'second', fileName: `${'界'.repeat(80)}\\b.bin` },
+    ];
+    const changed = { ...task, outputs };
+    vi.mocked(loadTaskOrThrow).mockResolvedValue(changed);
+    vi.mocked(readAgentTaskReviewAccess).mockResolvedValue({
+      ...access,
+      task: changed,
+    });
+    vi.mocked(getTaskReviewFileMetadata).mockResolvedValue(
+      new Map(
+        outputs.map((file) => [
+          file.fileId,
+          {
+            ...metadata,
+            id: file.fileId,
+            storageRef: `s3:acme/${file.fileId}`,
+          },
+        ]),
+      ),
+    );
+    const paths: string[] = [];
+    for (const file of outputs) {
+      const selected = { ...request, fileId: file.fileId };
+      const result = await stageAgentReviewFile('session', selected, () =>
+        authorizeAgentReviewFile(tx, auth, selected),
+      );
+      expect(result.fileName).toBe(file.fileName);
+      expect(result.fileId).toBe(file.fileId);
+      paths.push(result.path);
+    }
+    expect(paths[0]).not.toBe(paths[1]);
+    expect(paths[0]!.split('/').at(-1)).toBe(paths[1]!.split('/').at(-1));
+  });
   it('reuses the signed stage path, returns exact identity and rechecks after bytes', async () => {
     const ordering: string[] = [];
     const read = vi.fn(async () => {
