@@ -768,10 +768,21 @@ function RunDetailBody({
             nodeType={nodeTypes.find((def) => def.type === selectedNode.type)}
             catalogUnavailable={catalogQuery.isError}
             runView={projection.byNode.get(selectedNode.id)}
-            recordStep={recordQuery.data?.nodes.find(
-              (step) => step.path === selectedNode.id,
-            )}
-            recordDetail={nodeQuery.data ?? undefined}
+            {...(recordQuery.data !== null &&
+              recordQuery.data !== undefined && {
+                runRecord: (() => {
+                  const step = recordQuery.data.nodes.find(
+                    (each) => each.path === selectedNode.id,
+                  );
+                  const detail = nodeQuery.data ?? undefined;
+                  return {
+                    organizationId,
+                    runId,
+                    ...(step !== undefined && { step }),
+                    ...(detail !== undefined && { detail }),
+                  };
+                })(),
+              })}
             readOnly
             onChange={() => {
               // A recorded run is history: the inspector renders it read-only.

@@ -18,6 +18,17 @@ import { EffectList } from './effect-list';
 import { RunStatusBadge } from './run-status-badge';
 import { RunStepConditions } from './run-step-conditions';
 import { RunStepData } from './run-step-data';
+import { RunStepItems } from './run-step-items';
+
+/** A step as the run's record keeps it, and where to read more of it. */
+export interface RunStepRecord {
+  organizationId: string;
+  runId: string;
+  /** Why it ran or not, and its items or passes. */
+  step?: RecordedStep;
+  /** What it read, received and returned. */
+  detail?: NodeRunDetail;
+}
 
 /**
  * What ONE step of a run did: its status, why it was skipped or how it failed,
@@ -29,17 +40,14 @@ import { RunStepData } from './run-step-data';
  */
 export function RunStepDetail({
   runView,
-  step,
-  detail,
+  record,
   heading,
   badge,
 }: {
   runView: NodeRunView;
-  /** The step as the run's record keeps it: why it ran or not. */
-  step?: RecordedStep;
-  /** The step read whole from the record: what it read, received and
-   *  returned. In place of the trace's input and output. */
-  detail?: NodeRunDetail;
+  /** The step as the run's record keeps it. Its data takes the place of
+   *  the trace's input and output. */
+  record?: RunStepRecord;
   /** Section title: the run dialog names the step. The inspector's Last
    *  run tab already says what this is, so it gives none. */
   heading?: string;
@@ -69,14 +77,21 @@ export function RunStepDetail({
       {runView.error !== undefined && (
         <Alert variant="destructive" description={runView.error} />
       )}
-      {step !== undefined && <RunStepConditions step={step} />}
+      {record?.step !== undefined && <RunStepConditions step={record.step} />}
+      {record?.step?.counts !== undefined && (
+        <RunStepItems
+          organizationId={record.organizationId}
+          runId={record.runId}
+          step={record.step}
+        />
+      )}
       {runView.note !== undefined && (
         <Text as="p" variant="muted" className="text-xs text-pretty">
           {runView.note}
         </Text>
       )}
-      {detail !== undefined && <RunStepData detail={detail} />}
-      {detail === undefined && runView.input !== undefined && (
+      {record?.detail !== undefined && <RunStepData detail={record.detail} />}
+      {record?.detail === undefined && runView.input !== undefined && (
         <div>
           <Text as="p" className="mb-1 text-xs font-medium">
             {t('editor.resolvedInput')}
@@ -84,7 +99,7 @@ export function RunStepDetail({
           <JsonViewer data={runView.input} collapsed={1} />
         </div>
       )}
-      {detail === undefined && runView.output !== undefined && (
+      {record?.detail === undefined && runView.output !== undefined && (
         <div>
           <Text as="p" className="mb-1 text-xs font-medium">
             {t('editor.output')}

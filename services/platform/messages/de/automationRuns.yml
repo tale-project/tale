@@ -100,6 +100,16 @@ data:
   elided: Manche Werte waren zu umfangreich, um sie vollständig zu speichern.
   redacted: Geheimnisse sind ausgeblendet.
   notReached: Dieser Schritt lief nicht, deshalb gibt es keine Daten.
+items:
+  items: '{count, plural, one {# Element} other {# Elemente}}'
+  passes: '{count, plural, one {# Durchgang} other {# Durchgänge}}'
+  failedCount: '{count} fehlgeschlagen'
+  keptHint: Tale speichert die ersten 200 Elemente und jedes fehlgeschlagene.
+  failedOnly: Nur fehlgeschlagene
+  item: Element {index}
+  pass: Durchgang {index}
+  more: Mehr anzeigen
+  label: Elemente und Durchgänge von {step}
 values:
   items: '{count, plural, one {# Element} other {# Elemente}}'
   fields: '{count, plural, one {# Feld} other {# Felder}}'

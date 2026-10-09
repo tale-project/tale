@@ -93,7 +93,7 @@ describe('RunStepData', () => {
             shape: {},
             bytes: 30,
             hash: 'h1',
-            redacted: [{ pointer: '/apiKey', kind: 'secret' }],
+            redacted: [{ pointer: '/apiKey', why: 'key' }],
           },
           output: {
             summary: { kind: 'array', length: 400 },
@@ -101,7 +101,7 @@ describe('RunStepData', () => {
             bytes: 9_000_000,
             hash: null,
           },
-        } as Partial<NodeRunDetail>)}
+        })}
       />,
     );
     expect(screen.getByText('Received')).toBeVisible();

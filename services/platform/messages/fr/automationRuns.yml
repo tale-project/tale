@@ -100,6 +100,16 @@ data:
   elided: Certaines valeurs étaient trop volumineuses pour être conservées en entier.
   redacted: Les secrets sont masqués.
   notReached: 'Cette étape ne s’est pas exécutée : il n’y a donc pas de données.'
+items:
+  items: '{count, plural, one {# élément} other {# éléments}}'
+  passes: '{count, plural, one {# passage} other {# passages}}'
+  failedCount: '{count} en échec'
+  keptHint: Tale conserve les 200 premiers éléments et chaque élément en échec.
+  failedOnly: Seulement en échec
+  item: Élément {index}
+  pass: Passage {index}
+  more: Afficher plus
+  label: Éléments et passages de l’étape {step}
 values:
   items: '{count, plural, one {# élément} other {# éléments}}'
   fields: '{count, plural, one {# champ} other {# champs}}'
