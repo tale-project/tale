@@ -92,6 +92,15 @@ invalidate indexed delete/edit dialogs; a later failed save preserves an earlier
 acknowledged save while the cache is unchanged:
 `app/features/settings/governance/components/model-access-editor.test.tsx`.
 
+<a id="home-modal-shortcut-isolation"></a>
+Home's Alt+Up/Down shortcuts leave focused dialog controls and editable fields
+alone, ignore already handled events and inert/hidden navigator ancestors, and
+still open adjacent Home rows outside a modal. Coverage lives in
+`app/features/home/components/home-panel.test.tsx` (the real window listener
+with the shared Search-style Dialog), `app/features/home/lib/row-navigation.test.ts`,
+and `app/features/home/components/home-panel.browser.test.tsx` (Chromium keyboard and focus).
+
+
 Personalization distinguishes a failed preferences read from a successful null
 response. Localized errors offer Try again without a switch, editor or save path
 until preferences load. Pending retries preserve the alert and keyboard focus;
