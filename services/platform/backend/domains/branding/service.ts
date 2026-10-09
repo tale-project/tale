@@ -103,13 +103,18 @@ export class BrandingError extends Error {
 }
 
 /**
- * Who may change the organization's branding — read it for editing, save
- * it, upload or delete its images: a role with the org-settings
- * capability, which owners and admins hold. Anyone else is refused, with
- * the capability named, before anything is read or written.
+ * Whether a role may change the organization's branding — read it for
+ * editing, save it, upload or delete its images: a role with the
+ * org-settings capability, which owners and admins hold.
  */
+export function mayChangeBranding(role: string): boolean {
+  return defineAbilityFor(role).can('write', 'orgSettings');
+}
+
+/** Refuse a role that may not change the branding, naming the capability
+ * it lacks, before anything is read or written. */
 export function assertBrandingWriter(role: string): void {
-  if (defineAbilityFor(role).cannot('write', 'orgSettings')) {
+  if (!mayChangeBranding(role)) {
     throw new BrandingError(
       'ORG_FORBIDDEN',
       `Role "${role}" lacks the org-settings capability required to modify branding.`,
