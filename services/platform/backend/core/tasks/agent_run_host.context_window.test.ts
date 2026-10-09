@@ -44,6 +44,10 @@ const io = vi.hoisted(() => ({
     | { providerSlug: string; modelId: string; apiBaseUrl: string },
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
+  /** What the turn's budget reservation answers. */
+  reservation: { allowed: true, budgetCents: 500 } as
+    | { allowed: true; budgetCents: number }
+    | { allowed: false; reason: string },
   brokerRow: null as unknown,
   ensures: 0,
 }));
@@ -253,7 +257,7 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
         return { execId: 'exec-rotated' };
       }
       if (name === 'sandbox/session_mutations:reserveTurnBudget') {
-        return { allowed: true, budgetCents: 500 };
+        return io.reservation;
       }
       if (
         name === 'provider_credentials/mutations:selectBrokerAccountInternal'
@@ -299,6 +303,7 @@ beforeEach(() => {
   io.windows = [];
   io.subscription = undefined;
   io.sessionRefusal = undefined;
+  io.reservation = { allowed: true, budgetCents: 500 };
   io.brokerRow = null;
   io.ensures = 0;
   vi.mocked(resolveProviderCredential).mockReset();
@@ -571,6 +576,68 @@ describe('a task agent start', () => {
     },
   );
 
+  it('holds a subscription start as one request at no cost [GOV-R16]', async () => {
+    io.subscription = {
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+    };
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      authMethod: 'subscription-key',
+      credentialId: 'credential-1',
+      name: 'Team subscription',
+      secret: 'synthetic-subscription-key',
+    } as never);
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      model: 'claude-sonnet-4-6',
+      modelProvider: 'anthropic',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(1);
+    expect(
+      mutations.find(
+        (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+      )?.args,
+    ).toMatchObject({
+      kind: 'task-agent',
+      defaultBudgetCents: 0,
+      costFree: true,
+      modelRef: 'anthropic/claude-sonnet-4-6',
+    });
+  });
+
+  it('refuses a subscription start at a reached request cap, before any credential is vended [GOV-R16]', async () => {
+    io.subscription = {
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+    };
+    io.reservation = {
+      allowed: false,
+      reason: 'Request limit reached for this monthly period (50 / 50)',
+    };
+    const { ctx, mutations } = makeCtx({ status: 'queued', execId: 'exec-1' });
+
+    await startTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      model: 'claude-sonnet-4-6',
+      modelProvider: 'anthropic',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(resolveProviderCredential).not.toHaveBeenCalled();
+    expect(
+      mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args,
+    ).toMatchObject({ failureCode: 'budget_exceeded' });
+  });
+
   it('fails a start the broker refused while every account cooled down, naming when the first is back', async () => {
     io.subscription = {
       providerSlug: 'anthropic',
@@ -629,7 +696,11 @@ describe('a task agent start', () => {
       mutations.find(
         (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
       )?.args,
-    ).toEqual({ runId: 'run-1', execId: 'exec-1' });
+    ).toEqual({
+      runId: 'run-1',
+      execId: 'exec-1',
+      reason: 'destroy_pending',
+    });
     expect(
       mutations.some(
         (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
@@ -676,7 +747,12 @@ describe('a task agent start', () => {
       mutations.find(
         (m) => m.name === 'tasks/agent_runs:parkTaskAgentRunForCapacity',
       )?.args,
-    ).toEqual({ runId: 'run-1', execId: 'exec-1', execRefused: true });
+    ).toEqual({
+      runId: 'run-1',
+      execId: 'exec-1',
+      execRefused: true,
+      reason: 'exec_limit',
+    });
     expect(
       mutations.some(
         (m) =>

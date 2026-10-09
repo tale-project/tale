@@ -12,11 +12,17 @@
 import { describe, expect, test } from 'bun:test';
 
 import * as mirror from '../../../sandbox-runtime/daemon/src/protocol.ts';
-import type { RunnerdExecEvent as MirrorEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
+import type {
+  RunnerdExecEvent as MirrorEvent,
+  RunnerdHealth as MirrorHealth,
+} from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import { isRunnerdExecEvent as isMirroredExecEvent } from '../../../sandbox-runtime/daemon/src/protocol.ts';
 import { ID_ALPHABET_RE } from '../wire.ts';
 import * as canonical from './runnerd-protocol.ts';
-import type { RunnerdExecEvent as CanonicalEvent } from './runnerd-protocol.ts';
+import type {
+  RunnerdExecEvent as CanonicalEvent,
+  RunnerdHealth as CanonicalHealth,
+} from './runnerd-protocol.ts';
 import { isRunnerdExecEvent } from './runnerd-protocol.ts';
 
 /** Daemon-local values the mirror carries whose canonical home is elsewhere
@@ -35,6 +41,12 @@ function constantsOf(mod: object): Map<string, unknown> {
   return out;
 }
 
+/** True only when A and B are the same type, not merely assignable. */
+type Exactly<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+
 describe('runnerd protocol mirror', () => {
   const canon = constantsOf(canonical);
   const mirr = constantsOf(mirror);
@@ -46,10 +58,34 @@ describe('runnerd protocol mirror', () => {
       { t: 'fail', code: 'OUTPUT_LIMIT', message: 'limit' },
       { t: 'fail', code: 'OUTPUT_GAP', message: 'gap' },
       { t: 'fail', code: 'REPLAY_UNAVAILABLE', message: 'unavailable' },
+      { t: 'fail', code: 'REPLAY_DISK_FULL', message: 'disk full' },
     ];
     const mirrored: MirrorEvent[] = events;
     const roundTrip: CanonicalEvent[] = mirrored;
     expect(roundTrip).toEqual(events);
+  });
+
+  test('both declarations describe the same Docker engine health', () => {
+    const readings: CanonicalHealth[] = (
+      ['cold', 'running', 'stopped'] as const
+    ).map((engine) => ({
+      ok: true,
+      bootedAtMs: 1,
+      lastActivityAtMs: 2,
+      liveExecs: 0,
+      dockerReady: true,
+      docker: { engine, used: engine !== 'cold' },
+    }));
+    const mirrored: MirrorHealth[] = readings;
+    const roundTrip: CanonicalHealth[] = mirrored;
+    expect(roundTrip).toEqual(readings);
+    // Assignability alone lets either copy drop the optional field; the
+    // typecheck fails here unless both declare it identically.
+    const sameDocker: Exactly<
+      CanonicalHealth['docker'],
+      MirrorHealth['docker']
+    > = true;
+    expect(sameDocker).toBe(true);
   });
 
   test.each([
@@ -113,6 +149,7 @@ describe('runnerd protocol mirror', () => {
       [{ t: 'replay-complete', throughSeq: 0 }, true],
       [exit, true],
       [{ t: 'fail', code: 'OUTPUT_LIMIT', message: 'storage full' }, true],
+      [{ t: 'fail', code: 'REPLAY_DISK_FULL', message: 'disk full' }, true],
       [null, false],
       [[], false],
       [{ t: 'stdout', b64: 'YQ' }, false],

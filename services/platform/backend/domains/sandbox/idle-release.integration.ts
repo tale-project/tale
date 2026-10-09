@@ -145,17 +145,29 @@ export async function checkSandboxIdleRelease(
       VALUES (${taskId}, ${orgId}, ${projectId}, 'Idle release proof', 'in_progress', 'a0', ${userId}, 'user', ${now}, ${now})
     `;
     await insertSession(projectSessionId, 'project_agent', agentId);
-    // The new turn has no op yet and can reference a different incarnation;
-    // the owner guard must still protect this agent's standing workspace.
+    // A live run of the same agent in another of its workers holds nothing
+    // here: each worker is guarded by the runs that name it.
     await sql`
       INSERT INTO app.project_agent_runs (
         id, org_id, project_id, task_id, agent_id, session_id, exec_id, status,
         harness, model, started_by, started_at_ms, deadline_at_ms, updated_at_ms
       ) VALUES (
         ${projectRunId}, ${orgId}, ${projectId}, ${taskId}, ${agentId},
-        ${`pending-${randomUUID()}`}, ${randomUUID()}, 'queued', 'opencode',
+        ${`idle-${randomUUID()}`}, ${randomUUID()}, 'running', 'opencode',
         'itest', ${userId}, ${now}, ${now + 3_600_000}, ${now}
       )
+    `;
+    await check(
+      "the agent's run in another worker holds no compute here",
+      projectSessionId,
+      true,
+    );
+    // The new turn has no op yet and may meet a later incarnation of its
+    // workspace; naming the workspace, it still protects it.
+    await sql`
+      UPDATE app.project_agent_runs
+      SET session_id = ${projectSessionId}, status = 'queued'
+      WHERE id = ${projectRunId}
     `;
     await check(
       'queued project owner protects the pre-exec gap',

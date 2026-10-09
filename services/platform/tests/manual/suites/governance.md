@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 86 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 93 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -160,7 +160,9 @@ agent.
   the **Project** select appears (placeholder
   `governance.budgets.selectProject`, aria-label
   `governance.budgets.selectProjectAriaLabel`) and offers the active
-  projects, and **Warning threshold (%)** is gone; pick one, set **Max
+  projects, and **Warning threshold (%)** says everyone chatting in the
+  project sees its warning (`governance.budgets.warningThresholdProjectHelp`);
+  pick one, set **Max
   requests** 2 → **Confirm** → reload → the row's **Scope** reads
   **Project** and its **Target** the project's name. As a member far from
   any personal cap, send one message in a new chat of that project (its
@@ -205,6 +207,74 @@ agent.
   (`conversations.editor.improveLimitReachedDescription`) — in your
   language, German and French too, never the server's English. **Delete
   the rule after**
+- [ ] `GOV-F57` · **A transcription is held to the limits of whoever added
+  the recording** — with an OpenAI credential serving `whisper-1`, read
+  your monthly cost under **Settings → Usage**, then GOV-F4-style give
+  yourself a **User** rule with **Max cost** a cent above it. In a
+  project's new chat, add a recording longer than two minutes before the
+  first send → its chip reads **Usage limit reached**
+  (`chat.transcription.limitReached`), its tooltip saying where to see the
+  limit (`chat.transcription.limitReachedHint`), in German and French too,
+  and it never retries by itself. In a browser without built-in speech
+  recognition (Firefox), dictate into the composer → the toast reads
+  `chat.dictation.limitReached`. Paste a YouTube link → refused before any
+  download. Delete the rule, choose **Try again**
+  (`chat.transcription.retry`) on the chip → it transcribes, and **Usage
+  analytics** books **Transcription** under you at 0.6¢ a minute — and the
+  project's usage counts it too, though the chat had no thread yet
+- [ ] `GOV-F58` · **Knowledge indexing and search wait for a reached limit**
+  — with an embedding model set, GOV-F4-style give yourself a **User** rule
+  with **Max cost** at your monthly cost under **Settings → Usage**. Upload
+  a text document → its badge reads **Waiting for a usage limit**
+  (`documents.rag.status.usageLimit`), its dialog explains it in your
+  language, German and French too. Search with your API key
+  (`POST /api/v1/knowledge/search`) → 429 `BUDGET_EXCEEDED` with
+  `Retry-After`. Add a website → its details say a usage limit stopped the
+  scan (`websites.viewDialog.embeddingLimitNotice`). Raise the rule's
+  **Max cost** to a few cents above your monthly cost and, in a new chat,
+  ask about something your documents hold → the reply runs, holding what
+  is left, and the assistant says the search did not run because of a
+  usage limit, naming it, never that nothing was found. Delete the rule →
+  within the hour the document reads **Indexed**, the website's notice is
+  gone, and **Usage analytics** lists **Knowledge indexing and search**
+  (`analytics.usage.embedding`) under you
+- [ ] `GOV-F59` · **A connector call never counts as a request** — read your
+  monthly requests under **Settings → Usage**, then GOV-F4-style give
+  yourself a **User** rule with **Max requests** two above that figure. In a
+  chat you already have (a new chat's title is a request of its own), ask
+  the assistant to search your documents for three different things in one
+  message → the reply runs, and **Settings → Usage** shows your requests up
+  by one, the reply, never by its searches. Send one more message there →
+  it runs. Delete the rule
+- [ ] `GOV-F60` · **A subscription turn is a request at no cost** — with a
+  project agent whose model a provider subscription serves (a Claude or
+  ChatGPT subscription credential), GOV-F4-style give yourself a **User**
+  rule with **Max cost** at your monthly cost under **Settings → Usage**.
+  Start the agent on a task → it runs, and **Usage analytics** books one
+  request for it at $0.00, with its tokens. Change the rule to **Max
+  requests** at your monthly requests and start it again → the run fails
+  at its start with the request limit named, and no subscription account
+  is used. Delete the rule
+- [ ] `GOV-F61` · **An agent run started with a key counts toward the key**
+  — GOV-F4b-style give your own REST key a rule with **Max requests** 1.
+  With that key, comment on a task in a project that has an agent
+  (`POST /api/v1/projects/{id}/tasks/{taskId}/comments`, a body that
+  mentions the agent) → the agent starts working. Once its run has ended,
+  comment again the same way → the new run fails at its start with the API
+  key's limit named, while you can still start the agent from the task in
+  the app. Delete the rule
+- [ ] `GOV-F62` · **A project's budget warns in its chats** — GOV-F54-style
+  give a project a **Project** rule with **Max requests** 10 and **Warning
+  threshold (%)** 10. As a member far from any personal cap, send one message
+  in a new chat of that project → the banner above the composer reads
+  **Project ‹name›: 8 of 10 request left this month**
+  (`chat.budgetRemainingProject`), with **Dismiss** and no **View usage**
+  link; a chat outside the project shows no such banner. Edit the rule to
+  **Max requests** 2 → in the project's chat the banner turns destructive,
+  reading **Project ‹name›: Usage limit reached · resets monthly**
+  (`chat.budgetLimitReachedProject`), and Send is blocked, while the chat
+  outside the project still sends. Every label reads in German and French
+  too. **Delete the rule after**
 - [ ] `GOV-F48` · **A rule outlives its key** — Save GOV-F4b-style rules on
   three members' keys, then make each key stop working: the holder revokes
   one under **Settings → API → REST**, an Admin removes the holder of the
@@ -261,8 +331,8 @@ agent.
   tab** — rows are auto-purged at the end of their grace window
   (`governance.trash.empty` describes this)
 - [ ] `GOV-F13` · **Sandbox quota** — `/dashboard/{org}/settings/sandboxes` →
-  **Organization limits** (`sandboxes.limits.title`) → change **Project agent
-  sessions**, **Workflow sessions**, and **Render sessions**
+  **Organization limits** (`sandboxes.limits.title`) → change **Agent
+  workers**, **Workflow sessions**, and **Render sessions**
   (`sandboxes.quota.budgets.project` / `…workflow` / `…render`) within the
   displayed deployment capacity → Save →
   reload → No page toast on save — the header Save cluster flashes **Saved**
@@ -656,6 +726,13 @@ agent.
   receipt lists **Sandbox workspaces**
   (`governance.dataSubjectRequests.categories.sandboxWorkspaces`) with `1`,
   and the member's workspace is gone from Sandboxes.
+- [ ] `GOV-F63` · **A receipt names every category** — after an erasure
+  (`GOV-F8`), open its receipt's **Full breakdown across all data
+  categories** (`governance.dataSubjectRequests.drawer.fullBreakdownTitle`)
+  → every row
+  reads a name — **Chats**, **Agent runs**, **Audit log entries** and the
+  rest (`governance.dataSubjectRequests.categories.*`) — never a bare pass
+  name such as `agentRuns`; German and French too.
 - [ ] `GOV-F50` · **The standard agent is on, and automatic** — On
   `content-models` in a fresh organization, find **Standard agent**
   (`governance.standardAgent.title`) → its switch
@@ -720,7 +797,7 @@ agent.
   scope row; no rule row is added (reload confirms). The same guard already
   covers the user/team/role scopes.
 - [ ] `GOV-B7` · **Sandbox quota bounds** — `/dashboard/{org}/settings/sandboxes` →
-  **Project agent sessions** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
+  **Agent workers** (`sandboxes.quota.budgets.project`) → enter `0` or `501` →
   Save → Validation message **"Must be a whole number between 1 and 500."**
   (`sandboxes.limits.invalidSessions`); save blocked. The same bounds apply to
   workflow and render limits.

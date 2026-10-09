@@ -571,7 +571,13 @@ export function WebsiteViewDialog({
   // stored `error` status — this site stopped retrying and needs a manual
   // resume, which the notice explains. Scan dumps stay on `title`, never in
   // the facts grid.
-  const statusNotice = paused ? t('viewDialog.scanPausedNotice') : null;
+  // A usage limit stopped the last scan's embedding: its pages are stored
+  // and keyword-searchable, and get their vectors once the limit allows.
+  const statusNotice = paused
+    ? t('viewDialog.scanPausedNotice')
+    : typeof website.metadata?.embeddingLimitedAt === 'number'
+      ? t('viewDialog.embeddingLimitNotice')
+      : null;
 
   const facts = useMemo<StatGridItem[]>(
     () => [
@@ -623,13 +629,7 @@ export function WebsiteViewDialog({
             {
               label: t('viewDialog.status'),
               value: (
-                <Text
-                  className={
-                    paused ? 'text-muted-foreground' : 'text-destructive'
-                  }
-                >
-                  {statusNotice}
-                </Text>
+                <Text className="text-muted-foreground">{statusNotice}</Text>
               ),
               colSpan: 2 as const,
             },
@@ -649,7 +649,7 @@ export function WebsiteViewDialog({
           ]
         : []),
     ],
-    [website, t, formatDate, scanIntervals, statusNotice, paused],
+    [website, t, formatDate, scanIntervals, statusNotice],
   );
 
   const failedPageCount = website.failedPageCount ?? 0;

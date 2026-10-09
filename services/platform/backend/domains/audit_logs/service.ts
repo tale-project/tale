@@ -7,6 +7,10 @@ import type { Sql, TransactionSql } from 'postgres';
 import { computeAuditHash } from '../../core/lib/helpers/audit_hash.ts';
 import { toJson } from '../../db/sql.ts';
 import {
+  channelAuditMetadata,
+  currentRequestChannel,
+} from '../../lib/request-channel.ts';
+import {
   buildAuditRecordHashInput,
   computeChangedFields,
   redactSensitiveFields,
@@ -186,11 +190,45 @@ async function selfCheckPriorRow(
   }
 }
 
+/**
+ * The row as the caller described it, plus the door it came through: inside
+ * a request channel (an MCP tool call, a REST definition write) `metadata`
+ * gains `via`, the tool, the API key and the client, and `requestId` the
+ * request's, unless the writer named its own `via` (the skills publish
+ * door). What the channel stamps WINS over a writer's key of the same name:
+ * the channel's `apiKeyId` is the key that made the call, and a writer that
+ * records another key (one it created, say) names it differently — an
+ * admin reading the row must never be pointed at the wrong key to revoke.
+ * Applied BEFORE hashing, so the stored row and its hash agree and the
+ * verifier, which rebuilds from the row, sees the same record.
+ */
+function withRequestChannel(args: CreateAuditLogArgs): CreateAuditLogArgs {
+  const channel = currentRequestChannel();
+  if (channel === undefined) return args;
+  const stamped =
+    args.metadata?.via === undefined
+      ? {
+          metadata: {
+            ...args.metadata,
+            ...channelAuditMetadata(channel),
+          },
+        }
+      : {};
+  return {
+    ...args,
+    ...stamped,
+    ...(args.requestId === undefined && channel.requestId !== undefined
+      ? { requestId: channel.requestId }
+      : {}),
+  };
+}
+
 /** Append one audit row to the org's chain inside the caller's transaction. */
 export async function createAuditLog(
   tx: TransactionSql,
-  args: CreateAuditLogArgs,
+  callerArgs: CreateAuditLogArgs,
 ): Promise<string> {
+  const args = withRequestChannel(callerArgs);
   const head = await lockChainHead(tx, args.organizationId);
   await selfCheckPriorRow(tx, args.organizationId, head.lastHash);
 

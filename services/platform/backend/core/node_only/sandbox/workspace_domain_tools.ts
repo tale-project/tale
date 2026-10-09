@@ -266,6 +266,9 @@ interface AgentRunAnswer {
   launchedAt: number | null;
   settledAt: number | null;
   waitingForCapacity: boolean;
+  /** Why a parked run waits (`org_limit`, `host`, `destroy_pending`,
+   * `exec_limit`); null otherwise. */
+  waitingReason?: string | null;
   failureCode: string | null;
   retryPending?: boolean;
   feedback: string | null;
@@ -397,6 +400,13 @@ function agentRunOccupancyView(
     ...(launchedAt !== undefined ? { launchedAt } : {}),
     ...(settledAt !== undefined ? { settledAt } : {}),
     ...(run.waitingForCapacity ? { waitingForCapacity: true } : {}),
+    // A started run that waits for a free worker says why, so a manager
+    // knows the agent it chose is not working yet.
+    ...(run.waitingForCapacity &&
+    run.waitingReason !== undefined &&
+    run.waitingReason !== null
+      ? { waitingReason: run.waitingReason }
+      : {}),
     ...(run.failureCode !== null ? { failureCode: run.failureCode } : {}),
     ...(typeof run.retryPending === 'boolean'
       ? { retryPending: run.retryPending }
@@ -817,9 +827,9 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'The task is closed (taskStatus); nothing started. An in-place start ' +
     'never works under a Done or Cancelled card: start it without ' +
     'moveToInProgress: false to reopen it deliberately, or report it.',
-  agent_busy:
-    'That agent is working another task (busyTaskId) in its workspace; ' +
-    'nothing started. Wait for it to finish or work on another task.',
+  self_start:
+    'You cannot start yourself on another task; nothing started. Hand it ' +
+    'to another agent, or report that it needs doing.',
   blocked:
     'Open tasks block this one (blockedBy); nothing started. Start it once ' +
     'they are done.',
@@ -830,6 +840,14 @@ const START_AGENT_GUIDANCE: Record<string, string> = {
     'Do not try before retryAfter. Report the refusal and re-read the task ' +
     'and every admission constraint before a later attempt.',
 };
+
+/** What a model is told when the run it started waits for a worker. */
+const STARTED_WAITING_GUIDANCE =
+  'Started, but the run waits for room (waitingReason: org_limit, every ' +
+  'agent worker is busy; host, the sandbox host is full; destroy_pending, ' +
+  'its workspace is being deleted; exec_limit, its sandbox is still ending ' +
+  'an earlier process) and starts by itself once room frees. Do not start ' +
+  'it again; go on with other work.';
 
 /** `task_start_agent`: a project agent's live run puts another agent of the
  * project to work (`domains/tasks/delegated-start.ts`). A confined run — one
@@ -932,9 +950,24 @@ async function runTaskStartAgent(
   if (!isRecord(answer) || typeof answer.outcome !== 'string') {
     return { status: 'error', message: 'The start answered nothing usable.' };
   }
-  const { outcome, ...rest } = answer;
+  const { outcome, waiting, ...rest } = answer;
   if (outcome === 'started') {
-    return { status: 'ok', output: { started: true, ...rest } };
+    // A run that waits for a free worker is started all the same; the
+    // model learns the agent is not working yet.
+    const waitingReason =
+      isRecord(waiting) && typeof waiting.reason === 'string'
+        ? waiting.reason
+        : undefined;
+    return {
+      status: 'ok',
+      output: {
+        started: true,
+        ...rest,
+        ...(waitingReason !== undefined
+          ? { waitingReason, guidance: STARTED_WAITING_GUIDANCE }
+          : {}),
+      },
+    };
   }
   return {
     status: 'ok',

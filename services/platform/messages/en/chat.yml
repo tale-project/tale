@@ -47,7 +47,6 @@ createTask:
 taskTray:
   label: Tasks from this chat
   working: The agent is working
-  waitingForSlot: Waiting for a sandbox slot
   retrying: Trying again…
   failed: The agent couldn't finish
   ready: Ready for review
@@ -216,6 +215,8 @@ transcription:
   transcribing: Transcribing…
   transcribed: Transcribed
   couldNotTranscribe: Couldn't transcribe
+  limitReached: Usage limit reached
+  limitReachedHint: A usage limit that applies to you has been reached. Settings > Usage shows when it resets; choose Try again once it has reset or been raised.
   viewTranscript: View transcript
   previewSubtitle: '{seconds}s transcribed'
   retry: Try again
@@ -284,6 +285,7 @@ videoLink:
     notUploader: Only the person who added this video can change it
     notRetryable: Can't retry right now — the video may already be processing again
     threadNotFound: This chat is no longer available
+    projectUnavailable: "This project isn't available to you any more. Paste the link into another chat."
   actions:
     removeLink: Remove
     retry: Try again
@@ -385,6 +387,7 @@ dictation:
   discard: Discard recording
   permissionDenied: Microphone access denied. Allow it in your browser settings.
   serviceUnavailable: Dictation is unavailable right now. The browser could not reach its speech service; check the connection and try again.
+  limitReached: Usage limit reached. Try the recording again once the limit resets or is raised.
 citations:
   source: Source {number}
   page: Page {page}
@@ -577,7 +580,9 @@ budgetExceededDefault: Usage limit reached for this period. Contact your adminis
 budgetRemaining: '{remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
 budgetRemainingOrg: 'Organization: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
 budgetRemainingTeam: 'Team {team}: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
+budgetRemainingProject: 'Project {project}: {remaining} of {limit} {type} left {period, select, daily {today} weekly {this week} other {this month}}'
 budgetLimitReached: 'Usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
+budgetLimitReachedProject: 'Project {project}: usage limit reached · resets {period, select, daily {daily} weekly {weekly} other {monthly}}'
 budgetRequestCredits: Request usage credits
 budgetRequestCreditsSent: Request sent to your admins
 budgetWarningDismiss: Dismiss

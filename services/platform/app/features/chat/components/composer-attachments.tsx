@@ -32,6 +32,7 @@ import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { isAudioOrVideo, isImage } from '@/lib/shared/file-types';
+import { isUsageLimitRefusal } from '@/lib/shared/usage-limit';
 
 import { transcriptionUnavailableKey } from '../utils/transcription-availability';
 
@@ -122,12 +123,17 @@ function StagedMedia({
   const inFlight = status === 'queued' || status === 'running';
   const failed = status === 'failed';
   const completed = status === 'completed';
+  // A reached usage limit is said in the reader's language, never as the
+  // server's English sentence.
+  const limited = failed && isUsageLimitRefusal(info?.error);
 
   let statusLabel: string;
   if (inFlight) {
     statusLabel = info?.progress || t('transcription.transcribing');
   } else if (completed) {
     statusLabel = t('transcription.transcribed');
+  } else if (limited) {
+    statusLabel = t('transcription.limitReached');
   } else if (failed || status === 'skipped') {
     statusLabel = t('transcription.couldNotTranscribe');
   } else {
@@ -165,7 +171,9 @@ function StagedMedia({
             failed
               ? transcriptionAvailable === false
                 ? t(transcriptionUnavailableKey(transcriptionUnavailableReason))
-                : info?.error
+                : limited
+                  ? t('transcription.limitReachedHint')
+                  : info?.error
               : undefined
           }
         >

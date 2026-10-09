@@ -67,6 +67,7 @@ sleep 0.1
 printf 'inner dockerd diagnostic\\n' >&2
 [ "$TALE_NETWORK_TEST_DOCKERD_FAIL" != '1' ] || exit 1
 printf 'dockerd %s\\n' "$*" >> "$TALE_NETWORK_TEST_LOG"
+printf 'dockerd-env NO_PROXY=%s no_proxy=%s\\n' "$NO_PROXY" "$no_proxy" >> "$TALE_NETWORK_TEST_LOG"
 exec sleep 30
 `,
   { mode: 0o755 },
@@ -629,6 +630,72 @@ printf 'POOL=%s\\n' "$TALE_DIND_INNER_POOL"
     expect(calls).toContain('--log-opt=max-file=1');
     expect(calls).toContain('--log-opt=compress=false');
     expect(result.stderr).toContain('inner dockerd diagnostic');
+  });
+  test("pulls docker.io through the organization's mirror, outside the proxy", () => {
+    const mirror =
+      'tale-buildkitd-mirror-0123456789abcdef01234567-docker-io:5000';
+    const { result, calls } = run(start, {
+      TALE_DOCKER_HUB_MIRROR: mirror,
+      NO_PROXY: '127.0.0.1,localhost',
+      no_proxy: '',
+    });
+    expect(result.status).toBe(0);
+    expect(calls).toContain(`--registry-mirror=http://${mirror}`);
+    expect(calls).toContain(`--insecure-registry=${mirror}`);
+    const host = mirror.slice(0, mirror.lastIndexOf(':'));
+    expect(calls).toContain(
+      `dockerd-env NO_PROXY=127.0.0.1,localhost,${host} no_proxy=127.0.0.1,localhost,${host}\n`,
+    );
+  });
+  test('without the organization build network, or with a malformed mirror, dockerd pulls from Docker Hub', () => {
+    const cases: Record<string, string>[] = [
+      {
+        TALE_BUILDKITD_ENDPOINT: '',
+        TALE_DOCKER_HUB_MIRROR: 'tale-buildkitd-mirror-a-docker-io:5000',
+      },
+      { TALE_DOCKER_HUB_MIRROR: 'mirror:5000 --insecure-registry=0.0.0.0/0' },
+    ];
+    for (const env of cases) {
+      const { result, calls } = run(start, {
+        ...env,
+        NO_PROXY: '127.0.0.1',
+        no_proxy: '',
+      });
+      expect(result.status).toBe(0);
+      expect(calls).not.toContain('--registry-mirror');
+      expect(calls).not.toContain('--insecure-registry');
+      expect(calls).toContain('dockerd-env NO_PROXY=127.0.0.1 no_proxy=\n');
+      if (env.TALE_BUILDKITD_ENDPOINT !== '')
+        expect(result.stderr).toContain('malformed TALE_DOCKER_HUB_MIRROR');
+    }
+  });
+  test('a mirror is exactly one lowercase host and port', () => {
+    const values = {
+      'tale-buildkitd-mirror-0123456789abcdef01234567-docker-io:5000': true,
+      'mirror.internal:1': true,
+      'mirror:5000 --insecure-registry=0.0.0.0/0': false,
+      mirror: false,
+      'mirror:': false,
+      ':5000': false,
+      'mirror:5000:1': false,
+      'Mirror:5000': false,
+      '-mirror:5000': false,
+      'mirror:123456': false,
+      'mirror:5000\nother:5000': false,
+      [`${'m'.repeat(129)}:5000`]: false,
+    };
+    const { result } = run(
+      Object.keys(values)
+        .map(
+          (value) =>
+            `if _valid_registry_mirror '${value}'; then echo yes; else echo no; fi`,
+        )
+        .join('\n'),
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim().split('\n')).toEqual(
+      Object.values(values).map((valid) => (valid ? 'yes' : 'no')),
+    );
   });
   test('a daemon startup failure keeps its diagnostic on container stderr', () => {
     const { result } = run(start, { TALE_NETWORK_TEST_DOCKERD_FAIL: '1' });

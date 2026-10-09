@@ -23,8 +23,9 @@ import type {
  * runs, that call's estimate and image requests on top; an automation's
  * `llm` step holds its worst case on an op row of its own
  * (`automations/llm-metering.ts`), and so does a call the platform makes
- * straight to a provider for a chat title or the Inbox's Improve
- * (`direct-calls.ts`), until each is booked; a voice output chunk holds its
+ * straight to a provider for a chat title, the Inbox's Improve, a
+ * transcription or an embedding request (`direct-calls.ts`), until each is
+ * booked; a voice output chunk holds its
  * estimate on its pending row (`app.tts_audio_chunks`). An admission adds
  * every other hold to the booked usage under the organization's admission
  * lock, so the holds it reads cannot change until its own is written.

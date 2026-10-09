@@ -88,6 +88,14 @@ interface Who {
    * thread. Required on purpose: an executor built without it is a
    * project thread nobody can read, never a widening. */
   projectId: string | null;
+  /** The API key that sent the turn's message. */
+  apiKeyId?: string;
+  /** Where a search's query embedding is held and booked. */
+  embeddingMeter?: {
+    open: (...args: never[]) => unknown;
+    settle: (...args: never[]) => unknown;
+    release: (...args: never[]) => unknown;
+  };
 }
 
 type ExecutorFactory = (ctx: unknown, who: Who) => Executor;
@@ -527,6 +535,61 @@ describe('rag_search', () => {
     expect(result.sources?.knowledgeEntries).toBe('searched (no matches)');
     expect(result.sources?.contacts).toBe('searched');
     expect(result.results?.map((entry) => entry.kind)).toEqual(['contact']);
+  });
+
+  it('meters the query as the turn’s spend, and says a usage limit stopped it — never as nothing found [GOV-R4] [KNOW-R18]', async () => {
+    const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded(
+        'Usage limit reached. Your monthly cost limit is used up until 2026-11-01T00:00:00.000Z.',
+      ),
+    );
+    const meter = { open: vi.fn(), settle: vi.fn(), release: vi.fn() };
+    const executor = await makeExecutor(createCtx().ctx, {
+      ...WHO,
+      embeddingMeter: meter,
+    });
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'acme' },
+    });
+
+    expect(searchKnowledgeMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ meter }),
+    );
+    // The refusal's own sentence: which limit, and when it resets.
+    expect(result.sources?.documents).toMatch(
+      /^not searched: Usage limit reached\. Your monthly cost limit is used up until 2026-11-01/,
+    );
+    expect(result.sources?.documents).toContain('do not treat it as nothing');
+    expect(result.sources?.webPages).toBe(result.sources?.documents);
+    // Nothing else matched either: the steer is why the search did not
+    // run, never "no matches".
+    expect(result.results).toEqual([]);
+    expect(result.message).toBe(result.sources?.documents);
+    expect(result.message).not.toContain('No matches');
+  });
+
+  it('says the email bodies went unsearched when a usage limit stopped a conversation search [KNOW-R18]', async () => {
+    const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
+    searchKnowledgeMock.mockRejectedValueOnce(
+      new EmbeddingBudgetExceeded('Usage limit reached.'),
+    );
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'invoice dispute', kind: 'conversation' },
+    });
+
+    expect(result.sources?.conversations).toMatch(
+      /^searched \(no matches\) — email bodies not searched: Usage limit reached\./,
+    );
+    expect(result.message).toMatch(/^not searched: Usage limit reached\./);
   });
 
   it('reads a denied subject as denied, without running its query', async () => {
@@ -1026,7 +1089,35 @@ describe('rag_fetch', () => {
       expect.objectContaining({
         connectorName: 'chat-tools',
         connectorOperation: 'rag_fetch',
-        projectId: 'project_1',
+        projectIds: ['project_1'],
+      }),
+    ]);
+  });
+
+  it('books a tool call to the API key that sent the turn’s message [GOV-R3]', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx, runMutation } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: ['org_org_1'],
+          projectIds: [],
+          includeHub: true,
+          userId: 'user_1',
+        }),
+        [FILTER_FN]: () => [],
+      },
+    });
+    const executor = await makeExecutor(ctx, { ...WHO, apiKeyId: 'key_1' });
+    await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 's3:acme/lead-verify.txt' },
+    });
+    expect(callsTo(runMutation, USAGE_FN)).toEqual([
+      expect.objectContaining({
+        userId: 'user_1',
+        apiKeyId: 'key_1',
+        connectorName: 'chat-tools',
       }),
     ]);
   });
@@ -1803,6 +1894,8 @@ describe('rag_search conversations leg', () => {
   // "No matches" and "no matches among what I could reach" are different
   // claims, and the bounded recency scan can only honestly make the second.
   it('says so when the bounded scan filled up', async () => {
+    // The email bodies were searched too, and matched nothing.
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
     const { ctx } = createCtx({
       reads: {
         [CONVERSATIONS_SEARCH_FN]: () => ({

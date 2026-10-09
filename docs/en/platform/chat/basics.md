@@ -80,7 +80,7 @@ The task dialog opens with your last request as the description, a link back to 
 
 </Frame>
 
-The task then shows above the chat's message box with what it's doing: **The agent is working**, **Waiting for a sandbox slot**, **Trying again…**, **Ready for review** with the number of files it delivered, or **The agent couldn't finish**. **Open** takes you to the task. You're also notified when it's ready for review and when the agent can't finish; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) explains what to do next.
+The task then shows above the chat's message box with what it's doing: **The agent is working**, **Waiting for a worker** (or another state that says what the run waits for), **Trying again…**, **Ready for review** with the number of files it delivered, or **The agent couldn't finish**. **Open** takes you to the task. You're also notified when it's ready for review and when the agent can't finish; [When the agent can't finish](/platform/projects/task-automation#when-the-agent-cant-finish) explains what to do next.
 
 <Frame caption="The task a chat handed over shows its progress above the message box.">
 

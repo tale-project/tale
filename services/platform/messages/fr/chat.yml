@@ -47,7 +47,6 @@ createTask:
 taskTray:
   label: Tâches issues de ce chat
   working: L’agent travaille
-  waitingForSlot: En attente d’une place de sandbox
   retrying: Nouvelle tentative…
   failed: L’agent n’a pas pu la terminer
   ready: Prête pour la revue
@@ -216,6 +215,8 @@ transcription:
   transcribing: Transcription en cours…
   transcribed: Transcrit
   couldNotTranscribe: Transcription impossible
+  limitReached: "Limite d'utilisation atteinte"
+  limitReachedHint: "Une limite d'utilisation qui s'applique à toi a été atteinte. Paramètres > Utilisation indique quand elle sera réinitialisée ; choisis Réessayer une fois la limite réinitialisée ou relevée."
   viewTranscript: Voir la transcription
   previewSubtitle: '{seconds}s transcrites'
   retry: Réessayer
@@ -285,6 +286,7 @@ videoLink:
     notUploader: Seule la personne qui a ajouté cette vidéo peut la modifier
     notRetryable: Nouvelle tentative impossible pour le moment — la vidéo est peut-être déjà en cours de traitement
     threadNotFound: Ce chat n'est plus disponible
+    projectUnavailable: "Ce projet ne t'est plus accessible. Colle le lien dans un autre chat."
   actions:
     removeLink: Retirer
     retry: Réessayer
@@ -386,6 +388,7 @@ dictation:
   discard: Supprimer l'enregistrement
   permissionDenied: Accès au microphone refusé. Autorise-le dans les paramètres de ton navigateur.
   serviceUnavailable: La dictée est indisponible pour le moment. Le navigateur ne parvient pas à joindre son service vocal ; vérifie la connexion et réessaie.
+  limitReached: Limite d'utilisation atteinte. Réessaie l'enregistrement une fois la limite réinitialisée ou relevée.
 citations:
   source: Source {number}
   page: Page {page}
@@ -583,7 +586,9 @@ budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette pér
 budgetRemaining: "Encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
 budgetRemainingOrg: "Organisation : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
 budgetRemainingTeam: "Équipe {team} : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
+budgetRemainingProject: "Projet {project} : encore {remaining} sur {limit} {type} {period, select, daily {aujourd'hui} weekly {cette semaine} other {ce mois-ci}}"
 budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period, select, daily {chaque jour} weekly {chaque semaine} other {chaque mois}}"
+budgetLimitReachedProject: "Projet {project} : limite d'utilisation atteinte · se réinitialise {period, select, daily {chaque jour} weekly {chaque semaine} other {chaque mois}}"
 budgetRequestCredits: Demander plus de crédits
 budgetRequestCreditsSent: Demande envoyée à tes admins
 budgetWarningDismiss: Fermer

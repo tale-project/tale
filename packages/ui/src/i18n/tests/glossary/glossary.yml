@@ -718,6 +718,19 @@ terms:
     _note:
       In product context (agent tools), `Tool` is the industry term in DE and
       FR. Use `Werkzeug` / `outil` only in metaphors.
+  - key: tech_agentWorker
+    category: technicalVocab
+    en: Agent worker
+    de: Agenten-Worker
+    fr: Worker d’agent
+    _note:
+      One running copy of a project agent, working one task in a sandbox of
+      its own; the agent itself is the configuration. `Worker` stays a
+      loanword in DE (der Worker, die Worker) and FR (le worker, les workers).
+      The organization limit is `sandboxes.quota.budgets.project`. Never use
+      it alone for the operations process `backend-worker`, which stays
+      `backend worker` / `Backend-Worker` / `worker backend`. `Instanz` and
+      `instance` are avoided because they already name the Tale deployment.
   - key: tech_pipeline
     category: loanword
     en: Pipeline

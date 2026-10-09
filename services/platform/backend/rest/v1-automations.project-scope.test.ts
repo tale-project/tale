@@ -16,6 +16,7 @@ import {
   getRun,
   listAutomations,
   listRunsPage,
+  unbindProjectInTx,
   requestLegacyRunStopInTx,
   versionRow,
 } from '../domains/automations/store.ts';
@@ -35,6 +36,7 @@ vi.mock('../domains/automations/store.ts', async (original) => ({
   getRun: vi.fn(),
   listAutomations: vi.fn(),
   listRunsPage: vi.fn(),
+  unbindProjectInTx: vi.fn(),
   requestLegacyRunStopInTx: vi.fn(),
   versionRow: vi.fn(),
 }));
@@ -61,6 +63,8 @@ function mount(
     project?: Partial<typeof project> | null;
     role?: string;
     orgExplicit?: boolean;
+    apiKeyId?: string;
+    requestId?: string;
   } = {},
 ) {
   const selected =
@@ -89,6 +93,8 @@ function mount(
   }) as unknown as Sql;
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
+    if (options.requestId !== undefined) c.set('requestId', options.requestId);
     c.set('userId', 'user-1');
     c.set('userEmail', 'user@example.com');
     c.set('organizationId', 'org-1');
@@ -118,6 +124,7 @@ beforeEach(() => {
   vi.mocked(beginRunInTx).mockResolvedValue({ runId: 'run-1', version: 1 });
   vi.mocked(bindProject).mockResolvedValue({ bound: true });
   vi.mocked(bindProjectInTx).mockResolvedValue({ bound: true });
+  vi.mocked(unbindProjectInTx).mockResolvedValue({ unbound: true });
   vi.mocked(cancelRun).mockResolvedValue({ cancelled: true });
   vi.mocked(cancelRunInTx).mockResolvedValue({ cancelled: true });
   vi.mocked(getRun).mockResolvedValue(run as never);
@@ -342,37 +349,27 @@ describe('project automation REST scope', () => {
 });
 
 describe('organization run scope', () => {
-  it('keeps shared definitions in the org catalog without revealing their project installations [AUTO-R2]', async () => {
+  it('leaves out a definition installed only in projects the key holder cannot read [AUTO-R2] [AUTO-R27]', async () => {
+    const definition = {
+      latestVersion: 1,
+      deployedVersion: 1,
+      description: null,
+      inputs: null,
+      presentation: null,
+      trigger: null,
+    };
     vi.mocked(listAutomations).mockResolvedValue([
-      {
-        name: 'shared',
-        latestVersion: 1,
-        deployedVersion: 1,
-        description: null,
-        inputs: null,
-        presentation: null,
-        projectIds: ['private-project'],
-        trigger: null,
-      },
+      { ...definition, name: 'hr/onboarding', projectIds: ['private-project'] },
+      { ...definition, name: 'shared', projectIds: [] },
     ]);
     const response = await mount().app.request('/api/v1/automations');
-    // The catalog names the installations the key holder can SEE — the
-    // scope a project-bound automation must be started in — and only
-    // those: `private-project` is not among the caller's projects, so the
-    // list is empty, never a leak of the hidden id.
+    // `private-project` is not among the caller's projects: the automation
+    // installed only there is left out, as the app's list leaves it out —
+    // listed with no installations, it would read as an organization
+    // automation, and its hidden project id never leaks. An organization
+    // automation is everyone's.
     expect(await response.json()).toEqual({
-      automations: [
-        {
-          name: 'shared',
-          latestVersion: 1,
-          deployedVersion: 1,
-          description: null,
-          inputs: null,
-          presentation: null,
-          projectIds: [],
-          trigger: null,
-        },
-      ],
+      automations: [{ ...definition, name: 'shared', projectIds: [] }],
     });
   });
 
@@ -478,6 +475,44 @@ describe('organization run scope', () => {
     expect(response.status).toBe(400);
     expect(beginRun).not.toHaveBeenCalled();
   });
+});
+
+/**
+ * Installing and uninstalling with an API key is the key's act: the binding
+ * writer records `api-key:<userId>`, and runs in the REST door's request
+ * channel so the audit rows name the key and the request [AUTO-R28].
+ */
+describe('installs made with an API key name the key [AUTO-R28]', () => {
+  it.each([
+    ['POST', 201, bindProjectInTx],
+    ['DELETE', 204, unbindProjectInTx],
+  ] as const)(
+    '%s runs as the key, inside its channel',
+    async (method, status, writer) => {
+      const { currentRequestChannel } =
+        await import('../lib/request-channel.ts');
+      const seen: unknown[] = [];
+      vi.mocked(writer).mockImplementationOnce(async () => {
+        seen.push(currentRequestChannel());
+        return { bound: true, unbound: true };
+      });
+      const response = await mount({
+        apiKeyId: 'key-7',
+        requestId: 'req-9',
+      }).app.request(
+        '/api/v1/projects/p-1/automations/billing__dunning',
+        json(method),
+      );
+      expect(response.status).toBe(status);
+      expect(seen).toEqual([
+        { via: 'api-key', requestId: 'req-9', apiKeyId: 'key-7' },
+      ]);
+      expect(writer).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ actor: 'api-key:user-1' }),
+      );
+    },
+  );
 });
 
 describe('legacy quarantine stop requests', () => {

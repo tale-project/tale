@@ -13,7 +13,10 @@ import {
 } from '../backend/types.ts';
 import { reportSandboxError } from '../error-reporting.ts';
 import {
+  belowDiskCritical,
   belowDiskFloor,
+  diskCriticalBytes,
+  type HostDisk,
   type HostDiskSource,
   type SessionDiskState,
 } from '../host-disk.ts';
@@ -69,12 +72,17 @@ import {
   validateCreateSession,
   validateExecSession,
 } from './validate-session.ts';
+import type { LargestWorkspaces } from './workspace-usage.ts';
 
 function b64decode(b64: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, 'base64'));
 }
 
-function unavailableSessionResponse(): Response {
+/** "Not now" for a session call: the spawner cannot yet say where the
+ * session stands (it is starting, a create of it is under way, the backend
+ * listing failed, or boot adoption has not run). Never a 404, which the
+ * platform reads as "gone". */
+export function unavailableSessionResponse(): Response {
   return jsonResponse({ error: 'session_unavailable' }, 503, {
     'retry-after': '1',
   });
@@ -149,6 +157,30 @@ const LIVENESS_PROBE_TIMEOUT_MS = 1_500;
 /** How long removing an ended container/Pod that failed waits to be tried
  * again. */
 const ENDED_REAP_BACKOFF_MS = 10 * 60_000;
+
+/** How long a stop lets a session with a live exec end its work before its
+ * compute is killed. runnerd passes the stop on to every exec and exits
+ * within 2 s (a harness writes its transcript, a wrapper restores what it
+ * staged); a Docker-in-sandbox session's supervisor also shuts its inner
+ * engine down, and dockerd waits up to 15 s for its own containers. An idle
+ * session's stop kills at once: it has nothing to end. */
+const BUSY_STOP_GRACE_MS = 5_000;
+const BUSY_DOCKER_STOP_GRACE_MS = 20_000;
+
+/** Busy sessions the linger reap stops at once: each graceful stop holds a
+ * docker CLI slot for up to its grace, and the rest stay for the others. */
+const LINGER_STOP_CONCURRENCY = 4;
+
+/** How long the linger reap waits for a session's runnerd to say whether it
+ * is busy, under the ordinary 5 s probe: a hung daemon holds one of its four
+ * lanes no longer than this, and is stopped at once after it. */
+const LINGER_HEALTH_PROBE_MS = 3_000;
+
+/** While the session disk is critical, its largest workspaces are logged at
+ * most this often (each measurement is a bounded `du` of every workspace). */
+const WORKSPACE_USAGE_LOG_MS = 10 * 60_000;
+const WORKSPACES_LOGGED = 3;
+const GIB = 1024 ** 3;
 
 /** How long a session that just started keeps part of its planned working
  * set reserved at admission: its turn is still growing toward it while
@@ -354,6 +386,15 @@ export class SessionRoutes {
   // Until when a create at capacity skips the reclaim walk: the last walk
   // found nothing (RECLAIM_NOTHING_FOR_MS).
   private nothingToReclaimUntilMs = 0;
+  // The session disk's critical state as the last sweep saw it, so each
+  // change is logged once; and the measurement of its largest workspaces.
+  private diskWasCritical = {
+    both: false,
+    workspace: false,
+    dockerData: false,
+  };
+  private workspaceUsageAtMs = Number.NEGATIVE_INFINITY;
+  private workspaceUsage: Promise<void> | null = null;
   // Settles when the destroy of that id is done (success or failure):
   // destroys of one id run one after another, and a create of the id waits
   // for the one under way instead of racing its workspace removal.
@@ -464,29 +505,97 @@ export class SessionRoutes {
     return this.registry.list().map((s) => s.sessionId);
   }
 
-  /** Force-stop every non-finished session (compute reclaimed, workspace
-   * preserved). Used by the spawner's max-linger self-reap so a spawner that
-   * lingered past its TTL can shut down without orphaning containers — even if
-   * the deploy died mid-roll. Returns the number stopped. */
+  /** Stop every non-finished session (compute reclaimed, workspace
+   * preserved); a busy one gets a grace to end its work first.
+   * Used by the spawner's max-linger self-reap so a spawner that lingered
+   * past its TTL can shut down without orphaning containers — even if the
+   * deploy died mid-roll. Returns the number stopped. */
   async stopAllSessions(): Promise<number> {
     let stopped = 0;
-    for (const s of this.registry.list()) {
-      try {
-        await this.backend.stopSession(s.sessionId, s.createdAtMs);
-        this.forgetReclaimed(s);
-        stopped += 1;
-      } catch (err) {
-        if (err instanceof SessionIncarnationChangedError) {
-          this.forgetReclaimed(s);
-          continue;
+    await forEachLimited(
+      this.registry.list(),
+      LINGER_STOP_CONCURRENCY,
+      async (s) => {
+        // A stop already under way (a sweep's, an idle reclaim's) owns the
+        // incarnation; a second one would cut its grace short. One that ends
+        // without stopping it (a claim a turn won, a failed removal) leaves
+        // the session to this reap's own stop.
+        for (
+          let pending = this.stopping.get(s.sessionId);
+          pending !== undefined;
+          pending = this.stopping.get(s.sessionId)
+        ) {
+          if (await pending) {
+            stopped += 1;
+            return;
+          }
+          if (this.registry.get(s.sessionId) !== s) return;
         }
-        console.warn(
-          `[sandbox.session] linger stop failed for ${s.sessionId}:`,
-          err,
+        const stop = this.lingerGraceMs(s)
+          .then((graceMs) =>
+            this.backend.stopSession(s.sessionId, s.createdAtMs, { graceMs }),
+          )
+          .then(
+            () => {
+              this.forgetReclaimed(s);
+              return true;
+            },
+            (err: unknown) => {
+              if (err instanceof SessionIncarnationChangedError) {
+                this.forgetReclaimed(s);
+                return false;
+              }
+              console.warn(
+                `[sandbox.session] linger stop failed for ${s.sessionId}:`,
+                err,
+              );
+              return false;
+            },
+          )
+          .finally(() => {
+            if (this.stopping.get(s.sessionId) === stop)
+              this.stopping.delete(s.sessionId);
+          });
+        this.stopping.set(s.sessionId, stop);
+        if (await stop) stopped += 1;
+      },
+    );
+    return stopped;
+  }
+
+  /** How long the linger reap lets this session's work end: a grace while
+   * it is busy, none for an idle session. Busy is an exec through this
+   * replica or, failing one, what runnerd counts: its live execs and its
+   * operations under way. The platform follows a long turn by attach and
+   * hangs up at every drain window, so an exec it is still draining is
+   * usually registered nowhere here. A daemon that does not answer gets no
+   * grace: it could not act on the stop. Never rejects. */
+  private async lingerGraceMs(session: RegistrySession): Promise<number> {
+    if (session.liveExecs.size === 0) {
+      try {
+        const health = await runnerdHealth(
+          {
+            baseUrl: session.endpoint,
+            token: this.tokenFor(session.sessionId),
+          },
+          AbortSignal.timeout(LINGER_HEALTH_PROBE_MS),
         );
+        if (
+          health.liveExecs === 0 &&
+          (health.activity?.activeOperations ?? 0) === 0
+        )
+          return 0;
+      } catch (error) {
+        console.warn(
+          `[sandbox.session] linger health probe failed for ${session.sessionId}; stopping it without a grace:`,
+          error,
+        );
+        return 0;
       }
     }
-    return stopped;
+    return (session.docker ?? this.cfg.dockerInContainer)
+      ? BUSY_DOCKER_STOP_GRACE_MS
+      : BUSY_STOP_GRACE_MS;
   }
 
   /** runnerd token for a session: derived from SANDBOX_TOKEN (always set —
@@ -669,6 +778,116 @@ export class SessionRoutes {
       console.warn('[sandbox.session] session disk unreadable:', error);
       return false;
     }
+  }
+
+  /** Which filesystems are below their critical tier (the probe's last
+   * readings): the workspaces' own, whose largest workspaces are then
+   * logged, and Docker's data root, where a Docker-in-sandbox session keeps
+   * its inner image store, so a released one then stops. They are one disk
+   * unless Docker's data root is watched apart. An unknown disk never is
+   * critical. Each change is logged once per filesystem. */
+  private diskCritical(): { workspace: boolean; dockerData: boolean } {
+    let workspace: HostDisk | null;
+    let dockerData: HostDisk | null | undefined;
+    try {
+      const apart = this.hostDisk.byFilesystem?.();
+      workspace = apart ? apart.workspace : this.hostDisk.latest();
+      dockerData = apart?.dockerData;
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return { workspace: false, dockerData: false };
+    }
+    if (dockerData === undefined) {
+      const both = this.criticalTransition('both', workspace);
+      return { workspace: both, dockerData: both };
+    }
+    return {
+      workspace: this.criticalTransition('workspace', workspace),
+      dockerData: this.criticalTransition('dockerData', dockerData),
+    };
+  }
+
+  private criticalTransition(
+    filesystem: 'both' | 'workspace' | 'dockerData',
+    disk: HostDisk | null,
+  ): boolean {
+    const { minFreeDiskBytes, criticalFreeDiskBytes } = this.cfg.session;
+    const critical = belowDiskCritical(
+      disk,
+      minFreeDiskBytes,
+      criticalFreeDiskBytes,
+    );
+    // A reading that is missing or a placeholder says nothing either way:
+    // the last verdict stands, unlogged, until a real one lands.
+    if (disk === null || disk.unavailable === true) return critical;
+    if (critical === this.diskWasCritical[filesystem]) return critical;
+    this.diskWasCritical[filesystem] = critical;
+    const name =
+      filesystem === 'dockerData' ? "Docker's data disk" : 'the session disk';
+    const actions = {
+      both: 'released Docker-in-sandbox sessions stop now and the largest workspaces are logged',
+      workspace: 'the largest workspaces are logged',
+      dockerData: 'released Docker-in-sandbox sessions stop now',
+    }[filesystem];
+    const free = `${(disk.availableBytes / GIB).toFixed(1)} GiB`;
+    const tier = `${(diskCriticalBytes(disk.totalBytes, minFreeDiskBytes, criticalFreeDiskBytes) / GIB).toFixed(1)} GiB`;
+    if (critical) {
+      console.warn(
+        `[sandbox.session] ${name} has ${free} free, below its critical ${tier}: running sessions are about to fail their writes; ${actions} (SANDBOX_CRITICAL_FREE_DISK)`,
+      );
+    } else {
+      console.log(
+        `[sandbox.session] ${name} has ${free} free again, above its critical ${tier}`,
+      );
+    }
+    return critical;
+  }
+
+  /** Log the largest workspaces of a critical session disk: at most every
+   * {@link WORKSPACE_USAGE_LOG_MS}, one measurement at a time, beside the
+   * sweep rather than in its way. */
+  private logLargestWorkspaces(): void {
+    const now = Date.now();
+    if (
+      this.workspaceUsage !== null ||
+      now - this.workspaceUsageAtMs < WORKSPACE_USAGE_LOG_MS
+    )
+      return;
+    const measuring = this.backend.largestWorkspaces?.(WORKSPACES_LOGGED);
+    if (measuring === undefined) return;
+    this.workspaceUsageAtMs = now;
+    this.workspaceUsage = this.sayLargestWorkspaces(measuring).finally(() => {
+      this.workspaceUsage = null;
+    });
+  }
+
+  private async sayLargestWorkspaces(
+    measuring: Promise<LargestWorkspaces>,
+  ): Promise<void> {
+    let usage: LargestWorkspaces;
+    try {
+      usage = await measuring;
+    } catch (error) {
+      console.warn(
+        '[sandbox.session] measuring the largest workspaces failed:',
+        error,
+      );
+      return;
+    }
+    const { largest, measured, total } = usage;
+    if (largest.length === 0) return;
+    const sizes = largest
+      .map(
+        (entry) => `${entry.sessionId} ${(entry.bytes / GIB).toFixed(1)} GiB`,
+      )
+      .join(', ');
+    const partial =
+      measured < total
+        ? ` (${measured} of ${total} workspaces measured in time)`
+        : '';
+    console.warn(
+      `[sandbox.session] the session disk is critical; its largest workspaces: ${sizes}${partial}`,
+    );
   }
 
   /** The disk read now, for upkeep that frees space on it and goes on only
@@ -1518,11 +1737,14 @@ export class SessionRoutes {
    */
   async sweepExpired(nowMs: number = Date.now()): Promise<number> {
     let reaped = 0;
+    const critical = this.diskCritical();
+    if (critical.workspace) this.logLargestWorkspaces();
     await forEachLimited(
       this.registry.list(),
       SWEEP_CONCURRENCY,
       async (session) => {
-        if (await this.sweepSession(session, nowMs)) reaped += 1;
+        if (await this.sweepSession(session, nowMs, critical.dockerData))
+          reaped += 1;
       },
     );
     // The build helpers follow the sessions just stopped, beside the sweep
@@ -1533,11 +1755,18 @@ export class SessionRoutes {
 
   /** Does this session keep the full idle window once released? A
    * Docker-in-sandbox session's resume starts its inner daemon on an empty
-   * image store, so stopping it early would cost every turn a re-pull. */
-  private keepsFullIdleWindow(session: RegistrySession): boolean {
+   * image store, so stopping it early would cost every turn a re-pull. An
+   * engine that never started has no store to lose, so that session gets the
+   * short window; a runtime that does not report its engine keeps the full
+   * one. */
+  private keepsFullIdleWindow(
+    session: RegistrySession,
+    health: RunnerdHealth,
+  ): boolean {
     return (
       (session.docker ?? this.cfg.dockerInContainer) &&
-      session.profile === 'agent'
+      session.profile === 'agent' &&
+      health.docker?.used !== false
     );
   }
 
@@ -1559,6 +1788,7 @@ export class SessionRoutes {
   private async sweepSession(
     s: RegistrySession,
     nowMs: number,
+    diskCritical = false,
   ): Promise<boolean> {
     if (this.reclaimClaims.has(s.sessionId)) return this.reclaimIdle(s);
     // Pinned ("always-on") sessions are exempt from BOTH idle and TTL reap.
@@ -1636,12 +1866,18 @@ export class SessionRoutes {
       }
       // Released by the platform (its turn or run settled, nothing holds it):
       // a few idle minutes are enough. The stop goes through runnerd's
-      // claim, so a turn that acquires the session meanwhile keeps it.
+      // claim, so a turn that acquires the session meanwhile keeps it. On a
+      // critical session disk a released Docker-in-sandbox session goes at
+      // once: its stop removes its inner image store, the most a stop gives
+      // back, and its resume's re-pull costs less than the writes of every
+      // running session failing.
       if (
         !expired &&
         health.activity?.released === true &&
-        !this.keepsFullIdleWindow(s) &&
-        idleForMs > Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)
+        ((diskCritical && (s.docker ?? this.cfg.dockerInContainer)) ||
+          (!this.keepsFullIdleWindow(s, health) &&
+            idleForMs >
+              Math.min(this.cfg.session.releasedIdleMs, s.idleTimeoutMs)))
       ) {
         return this.reclaimIdle(s);
       }

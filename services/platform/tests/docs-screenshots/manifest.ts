@@ -36,6 +36,7 @@ import {
   DEMO_FAILED_RUN,
   DEMO_INBOX,
   DEMO_KNOWLEDGE_ENTRIES,
+  DEMO_LAUNCH_TASK_DETAIL,
   DEMO_ORG_NAME,
   DEMO_OWNER,
   DEMO_PASSKEY_NAME,
@@ -574,15 +575,12 @@ export const SHOTS: readonly Shot[] = [
         .getByText(DEMO_PROJECTS[0].tasks[0].title, { exact: true })
         .click();
     },
-    // The separate activity query can settle after the task and its comments.
-    // Wait for its seeded history before capturing the populated reading column.
+    // The conversation reads the discussion and the history in separate
+    // queries. Wait for the seeded comment in the reading column.
     readyWhen: (page) =>
       page
         .getByRole('dialog', { name: DEMO_PROJECTS[0].tasks[0].title })
-        .getByRole('heading', {
-          name: t('tasks.detail.activity'),
-          exact: true,
-        }),
+        .getByText(DEMO_LAUNCH_TASK_DETAIL.comment, { exact: true }),
     localizedReadyWhen: (page) =>
       page
         .getByRole('dialog', {
@@ -2086,9 +2084,9 @@ export const SHOTS: readonly Shot[] = [
   },
   {
     // A budget rule that caps one project: the Project scope, its picker with
-    // the project chosen, and a monthly cost cap — no warning threshold, as a
-    // project's cap warns no one. Captured before it is confirmed, so the
-    // demo organization's rules stay as seeded.
+    // the project chosen, and a monthly cost cap, with the warning threshold
+    // that warns everyone chatting in the project left empty. Captured before
+    // it is confirmed, so the demo organization's rules stay as seeded.
     name: 'governance-budget-project-rule',
     section: 'platform',
     route: '/dashboard/:orgId/settings/governance/policies-limits',

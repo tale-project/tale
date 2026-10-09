@@ -36,21 +36,21 @@ import {
   useProjectHarnesses,
 } from '@/app/features/projects/hooks/queries';
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
-import {
-  findSelectedModel,
-  toModelOptions,
-} from '@/app/features/projects/lib/model-options';
 import { blankAutomationDocument } from '@/lib/automations/blank-document';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { EMITTED_EVENT_TYPES } from '@/lib/shared/event-types';
+import {
+  DEFAULT_HARNESS,
+  findSelectedModel,
+  toModelOptions,
+} from '@/lib/shared/harness-offer';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
 import { useCronPreview } from '../hooks/use-cron-preview';
 import { isValidTimezone, listTimezoneOptions } from '../lib/cron-preview';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
-import { DEFAULT_HARNESS } from './agent-node-fields';
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],

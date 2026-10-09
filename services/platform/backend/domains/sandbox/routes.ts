@@ -34,6 +34,7 @@ import {
 import { getSandboxDeploymentLimits } from './limits.ts';
 import { pinSession } from './service.ts';
 import {
+  countWaitingAgentRuns,
   getAgentNodeSandboxOp,
   listRunningOpsBySession,
   listSandboxViewsForOrg,
@@ -391,7 +392,10 @@ export function createSandboxRoutes(deps: {
       session.deletesAt = deletions.get(session.sessionId) ?? null;
       session.destroyState = destroys.get(session.sessionId) ?? null;
     }
-    return c.json({ sessions });
+    // The runs waiting for room, every one counted: what an admin weighs
+    // raising the limit of agent workers against.
+    const waitingRuns = await countWaitingAgentRuns(deps.sql, organizationId);
+    return c.json({ sessions, waitingRuns });
   });
 
   /** Cancel every running op on one session (the 0.4 `stopSandboxTask`). */

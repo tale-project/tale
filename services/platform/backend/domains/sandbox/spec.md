@@ -11,11 +11,11 @@ waiting work resumes are not covered; see Not yet.
 
 ## Who can do what
 
-| | Read limits and capacity | See the workspace list | Stop, pin or destroy a workspace |
-| --- | --- | --- | --- |
-| An owner or admin | yes | yes | yes |
-| A developer | yes | no | no |
-| An editor, a member or a viewer | no | no | no |
+|                                 | Read limits and capacity | See the workspace list | Stop, pin or destroy a workspace |
+| ------------------------------- | ------------------------ | ---------------------- | -------------------------------- |
+| An owner or admin               | yes                      | yes                    | yes                              |
+| A developer                     | yes                      | no                     | no                               |
+| An editor, a member or a viewer | no                       | no                     | no                               |
 
 ### SBX-R1 · Owners, admins and developers can read sandbox limits and capacity
 
@@ -98,7 +98,7 @@ Three kinds of work are counted separately, each against a limit the organizatio
 
 | Kind of work | Limit unless changed |
 | --- | --- |
-| Project agent sessions | 2 |
+| Agent workers | 2 |
 | Workflow sessions (automation runs) | 2 |
 | Render sessions (website crawling) | 2 |
 
@@ -109,7 +109,7 @@ none, and takes a slot again when it resumes. At the limit, the next start or re
 refused (`QUOTA_EXCEEDED`) before any sandbox is created; the other kinds are not affected.
 The refusal means "no room yet, ask again", not that the work failed.
 
-- **Example**: Ada's organization keeps the limit of 2 project agent sessions, and two agents
+- **Example**: Ada's organization keeps the limit of 2 agent workers, and two agents
   are working. A third agent is started on a task → refused as `QUOTA_EXCEEDED`. An
   automation run can still get its sandbox.
 
@@ -122,6 +122,51 @@ limit, because what frees is an empty workspace, not room.
 
 - **Example**: Ada destroys an agent's workspace. While its row reads **Destroying**, Mia
   starts the agent on a task → the start is refused with the reason `destroy_pending`.
+
+## Agent workers
+
+Every run of a project agent that works at the same time as another works in a sandbox of its
+own, a worker. One agent working three tasks at once has three workers.
+
+### SBX-R18 · Every agent worker is one sandbox and holds one agent-worker slot
+
+The limit of agent workers counts workers, not agents: one agent working three tasks at once
+holds three slots. A run that would need one more worker than the limit allows waits for a
+slot; a burst of starts opens no more workers than there are slots left.
+
+- **Example**: Ada's organization allows 2 agent workers. Scribe works two tasks → 2 of 2 are
+  in use. Lector is started on a task → its run waits until one of Scribe's workers frees.
+
+### SBX-R19 · A worker gives its slot back as soon as its own run ends
+
+A worker stops and frees its slot once no run of its own is left: none working in it, and none
+that has taken it and not started yet. The agent's other workers do not keep it up. A pinned
+worker keeps its slot (`SBX-R10`), and a worker whose last process is still ending keeps it
+until that process has ended.
+
+- **Example**: Ada's agent Scribe works "Release notes" in one worker and "Changelog" in
+  another. "Release notes" finishes → its worker stops and its slot is free at once, while
+  "Changelog" keeps working.
+
+### SBX-R20 · A run takes a free worker before a new one is opened
+
+A starting run takes, in order: its task's previous worker, a worker that is still up, a
+stopped worker (lowest number first), and only then a new one. When the only free worker is
+being destroyed, the run waits for the Destroy (`SBX-R9`) instead of opening a worker beside
+it.
+
+- **Example**: Scribe's workers 1 and 2 are stopped. Ada starts Scribe on a new task → it
+  works in worker 1, and no worker 3 is created.
+
+### SBX-R21 · A member's runs work in that member's own workers
+
+The runs a member starts work in workers kept for that member and the agent, apart from the
+workers of the runs editors start, and stay limited to their own task (`SBX-R7`) in whichever
+of them they work. A run whose starter lost the editor role while it waited moves into that
+member's workers when it starts. An editor's run never lands in a member's worker.
+
+- **Example**: Mia, a member, starts Scribe on two of her tasks → both work at once, each in
+  one of Mia's workers, without Scribe's secrets.
 
 ## Pinning and destroying a workspace
 
@@ -212,13 +257,19 @@ allowance. What that key spent is the turn's spend.
 ### SBX-R14 · A turn's spend is booked to whoever started the run
 
 The person who started the run is booked, under the agent or the automation that did the
-work. An automation run started with an API key is booked to the key's holder and to the key.
-A run that a schedule or another trigger started has no person behind it: it is booked to
-automations, and only the organization's spending limits are checked for it. How the run was
-started is never booked in a person's place.
+work. A run started with an API key — an automation's or an agent's — is booked to the key's
+holder and to the key. An agent's run is started with a key when a call made with the key
+starts it: a task's start, a comment or a review that names the agent, or an automation run
+started with the key whose step puts the agent to work. Its automatic retry is booked as the
+run it retries was. A comment that restarts a running turn makes the turn its writer's, and
+the key's it was written with, if any. A run that a schedule or another trigger started has
+no person behind it: it is booked to automations, and only the organization's spending limits
+are checked for it. How the run was started is never booked in a person's place.
 
 - **Example**: Mia starts an agent on her task, and the turn costs 25 cents → 25 cents are
   booked to Mia under that agent.
+- **Example**: Mia's script comments `@Researcher` on a task with her API key → the agent's
+  turns are booked to Mia and to that key, and count toward the key's limits.
 - **Example**: A schedule starts an automation at night → its agent step is booked to
   automations, and nobody's personal limit is touched.
 
@@ -237,10 +288,12 @@ longer exists when its spend is read is closed without an amount.
 Before a turn starts, its allowance is set aside against every spending limit that applies to
 its starter, together with what other work in flight already holds. When a limit refuses it,
 nothing is set aside and the refusal carries the limit's own sentence. An agent's image
-request is refused the same way (`budget_exceeded`) and holds nothing either.
+request is refused the same way (`budget_exceeded`) and holds nothing either. A turn on a
+provider subscription sets aside one request and no cost (`GOV-R16`).
 
-- **Example**: Mia's monthly cost limit is used up. She starts an agent on a task → the turn
-  is refused with the limit's sentence, and nothing is held against her limit.
+- **Example**: Mia's monthly cost limit is used up. She starts an agent whose model the gateway
+  serves on a task → the turn is refused with the limit's sentence, and nothing is held against
+  her limit.
 
 ## Not yet
 
@@ -249,8 +302,8 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
 - **Waiting for room**: what a task run, an automation step and a crawl do after `SBX-R8` and
   `SBX-R9` belongs to the tasks, automations and websites domains. Not covered here: a
   deployment that is full or short of memory, a workspace whose runtime already runs four execs,
-  the place in line a waiting start gets, giving a slot back when a turn ends, and waking the
-  waiting runs (`sessions.ts`, `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
+  the place in line a waiting start gets, and waking the waiting runs (`sessions.ts`,
+  `idle-release.ts`, `core/node_only/sandbox/capacity_refusal.ts`).
 - **Health checks and repair**: ending a session after its lifetime while sparing a turn that
   is still working, closing a crawler's sandbox that disappeared, collecting failed starts,
   reclaiming the sandboxes of ended runs and crawls, and picking a turn up again after a
@@ -283,12 +336,6 @@ request is refused the same way (`budget_exceeded`) and holds nothing either.
   leftovers nothing owns (`unused-rule.ts`, `workspace-cleanup.ts`).
 - **A session token stops working once it is revoked or has expired.** No unit test holds the
   check (`getSessionTokenByHash` in `sessions.ts`).
-- **Undecided: does a project agent's run count toward an API key?** The user docs say a run
-  started with an API key also counts toward that key
-  (`docs/en/platform/admin/governance/policies-and-limits.md`). The code books the key for an
-  automation's own agent step only: a project agent that such an automation puts to work is
-  booked to the key's holder alone, and `backend/domains/governance/README.md` lists no key
-  for a project agent's turn. One of the two is the intended rule.
 - **A run carries no figure of its own for `SBX-R14`**, and **a call cut short is booked at
   what the gateway kept** against `SBX-R15`; the contract debt ledger in
   [`.agents/repo.md`](../../../../../.agents/repo.md) records both.

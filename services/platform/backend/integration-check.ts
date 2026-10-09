@@ -31,6 +31,7 @@ import {
 import { request as httpRequest, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { serve } from '@hono/node-server';
 import { transactSerializable } from '@tale/shared/db/serializable';
@@ -135,7 +136,9 @@ import { checkAgentTaskMetadata } from './domains/tasks/agent-metadata.integrati
 import { checkAgentTaskReadTools } from './domains/tasks/agent-read-tools.integration.ts';
 import { checkAgentTaskReviewRouting } from './domains/tasks/agent-review-routing.integration.ts';
 import { checkAgentTaskReviews } from './domains/tasks/agent-review.integration.ts';
+import { checkAgentRunApiKeys } from './domains/tasks/agent-run-keys.integration.ts';
 import { checkSessionOpTranscriptMerge } from './domains/tasks/agent-turn-shim.integration.ts';
+import { checkAgentWorkers } from './domains/tasks/agent-workers.integration.ts';
 import { checkArchivedTaskWrites } from './domains/tasks/archived-writes.integration.ts';
 import { checkTaskAutomationOccupancy } from './domains/tasks/automation-occupancy.integration.ts';
 import { checkTaskBoardSearch } from './domains/tasks/board-search.integration.ts';
@@ -8920,6 +8923,92 @@ async function checkKnowledge(
       `indexed=${indexed} (status=${statusRows[0]?.status}${statusRows[0]?.error ? `, err=${statusRows[0].error.slice(0, 80)}` : ''}), hits=${search.success ? search.data.hits.length : 'ERR'}, searchHit=${searchRaw.includes('verdigris')}, fetchHit=${fetchRaw.includes('zeppelin ledger')}, documentHints=${ragHints[0]?.count ?? '0'} (want >= 2)`,
     );
 
+    // Embeddings are spend: the indexing above is booked under
+    // `__embedding__` as its uploader's, and a search as the searcher's. A
+    // reached limit parks the next file (`usage_limit`) and refuses the
+    // search with the coded 429; once the limit is lifted, the hourly pass
+    // puts the file back in the queue and it indexes.
+    const embeddingUsers = await sql<{ userId: string; requests: number }[]>`
+      SELECT user_id AS "userId", sum(request_count)::float8 AS requests
+      FROM app.usage_ledger
+      WHERE org_id = ${orgId} AND agent_slug = '__embedding__'
+        AND granularity = 'monthly'
+      GROUP BY user_id
+    `;
+    const quarterlyUploader = await sql<{ uploadedBy: string | null }[]>`
+      SELECT uploaded_by AS "uploadedBy" FROM app.file_metadata
+      WHERE id = ${quarterlyFileId}
+    `;
+    const { clearOrgConfigCaches: clearLimitCaches } =
+      await import('./lib/org-config.ts');
+    const limitGovernanceDir = path.join(configRoot, orgSlug, 'governance');
+    await mkdir(limitGovernanceDir, { recursive: true });
+    const limitBudgetsFile = path.join(limitGovernanceDir, 'budgets.yml');
+    await writeFile(
+      limitBudgetsFile,
+      [
+        'enabled: true',
+        'rules:',
+        '  - scope: org',
+        '    period: monthly',
+        '    maxRequests: 1',
+      ].join('\n'),
+    );
+    clearLimitCaches();
+    let parkedCode: string | null = null;
+    let refusedSearch = { status: 0, code: '' };
+    let resumed = false;
+    let requeued = 0;
+    try {
+      const limited = await uploadTextDocument(
+        'limited.txt',
+        'The limit probe: a document uploaded while the usage limit is reached.',
+      );
+      await waitFor(
+        async () => (await ragRow(limited.fileId)).code === 'usage_limit',
+        20_000,
+      );
+      parkedCode = (await ragRow(limited.fileId)).code;
+      const refused = await send(
+        'POST',
+        `/api/app/knowledge/search?orgId=${orgId}`,
+        { query: 'verdigris zeppelin ledger', limit: 5 },
+      );
+      const refusedBody = z
+        .object({ error: z.string() })
+        .loose()
+        .safeParse(await refused.json());
+      refusedSearch = {
+        status: refused.status,
+        code: refusedBody.success ? refusedBody.data.error : 'ERR',
+      };
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+      const { requeueUsageLimitedFiles } =
+        await import('./domains/knowledge/usage-limit-resume.ts');
+      requeued = await requeueUsageLimitedFiles(sql);
+      resumed = await waitFor(
+        async () => (await ragRow(limited.fileId)).status === 'completed',
+        20_000,
+      );
+    } finally {
+      await rm(limitBudgetsFile, { force: true });
+      clearLimitCaches();
+    }
+    record(
+      'knowledge embeddings are booked, wait at a reached limit, and resume once it lifts',
+      embeddingUsers.some(
+        (row) =>
+          row.userId === quarterlyUploader[0]?.uploadedBy && row.requests > 0,
+      ) &&
+        parkedCode === 'usage_limit' &&
+        refusedSearch.status === 429 &&
+        refusedSearch.code === 'BUDGET_EXCEEDED' &&
+        requeued >= 1 &&
+        resumed,
+      `embedding usage=${JSON.stringify(embeddingUsers)} (want the uploader with requests), parked=${parkedCode} (want usage_limit), search=${refusedSearch.status}/${refusedSearch.code} (want 429/BUDGET_EXCEEDED), requeued=${requeued} (want >= 1), resumed=${resumed}`,
+    );
+
     // Round h, h4 (S2): a document of one repeated passage is embedded once
     // per DISTINCT passage — its repeats are stored without a vector and
     // flagged, out of both legs — so it neither crowds the shared vector
@@ -14662,9 +14751,10 @@ async function checkAutomationTriggerDelivery(
 }
 
 /**
- * The platform MCP endpoint (/api/v1/mcp): the 0.4 protocol layer
- * (`handleMcpRequest`) reused whole over two pg-backed handlers — the engine
- * dispatch (org store, live) and the capability surface. Proves the frames
+ * The platform MCP endpoint (/api/v1/mcp): the MCP domain's protocol layer
+ * (`domains/mcp/protocol.ts`) over the two pg-backed surfaces its host binds
+ * (`domains/mcp/engine-host.ts`) — the engine dispatch (org store, live) and
+ * the capability surface. Proves the frames
  * (initialize, notification → 202, batch → -32600, unknown method → -32601,
  * GET → 405), the engine lane end-to-end (save → deploy → start_run, which
  * runs LIVE at this endpoint and settles through the durable stepper — the
@@ -14748,9 +14838,41 @@ async function checkMcp(
     method: 'initialize',
     params: {},
   });
+  // The newest revision, the server instructions within what clients keep,
+  // and the contract version as the server's.
+  const { API_CONTRACT_VERSION } =
+    await import('../lib/shared/constants/api-contract.ts');
+  const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');
   const initOk = z
-    .object({ result: z.object({ protocolVersion: z.literal('2025-06-18') }) })
+    .object({
+      result: z.object({
+        protocolVersion: z.literal('2025-11-25'),
+        instructions: z.string().min(1).max(2048),
+        serverInfo: z.object({ version: z.literal(API_CONTRACT_VERSION) }),
+      }),
+    })
     .safeParse(init.body).success;
+  const unsupported = await fetch(`${base}/api/v1/mcp`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${apiKey}`,
+      'x-organization-slug': orgSlug,
+      'mcp-protocol-version': '2024-11-05',
+    },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 31, method: 'ping' }),
+  });
+  const unsupportedOk =
+    unsupported.status === 400 &&
+    z
+      .object({
+        id: z.literal(31),
+        error: z.object({
+          code: z.literal(-32022),
+          data: z.object({ supported: z.array(z.string()).min(3) }),
+        }),
+      })
+      .safeParse(await unsupported.json()).success;
   const note = await rpc({
     jsonrpc: '2.0',
     method: 'notifications/initialized',
@@ -14764,7 +14886,7 @@ async function checkMcp(
   const unknownMethod = await rpc({
     jsonrpc: '2.0',
     id: 3,
-    method: 'resources/list',
+    method: 'completion/complete',
   });
   const unknownCode = z
     .object({ error: z.object({ code: z.number() }) })
@@ -15198,9 +15320,115 @@ async function checkMcp(
     missingRunShape.success &&
     missingRunShape.data.code === 'RUN_NOT_FOUND';
 
+  // The call counters (0180, MCP-R21): an initialize that names its client
+  // and a refused call land in the day's row of the key that made them;
+  // nothing a call carried is kept; a day past the 90-day window is swept.
+  const sentinel = `SENTINEL-${randomUUID()}`;
+  await rpc({
+    jsonrpc: '2.0',
+    id: 93,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'itest\u202Eclient', version: '1.0.0' },
+    },
+  });
+  await rpc({
+    jsonrpc: '2.0',
+    id: 94,
+    method: 'tools/call',
+    params: { name: 'get_run', arguments: { runId: sentinel } },
+  });
+  const activity = await sql<
+    {
+      method: string;
+      tool: string;
+      calls: number;
+      refusals: number;
+      clientName: string | null;
+      credentialId: string;
+      userId: string;
+    }[]
+  >`
+    SELECT method, tool, calls, refusals, client_name AS "clientName",
+           credential_id AS "credentialId", user_id AS "userId"
+    FROM app.mcp_client_activity WHERE org_id = ${orgId}
+  `;
+  const initRow = activity.find(
+    (row) => row.method === 'initialize' && row.clientName === 'itestclient',
+  );
+  const getRunRow = activity.find(
+    (row) => row.method === 'tools/call' && row.tool === 'get_run',
+  );
+  const memberSaveRow = activity.find(
+    (row) =>
+      row.method === 'tools/call' &&
+      row.tool === 'save_automation' &&
+      row.userId === memberUserId,
+  );
+  const leaked = JSON.stringify(activity).includes(sentinel);
+  const oldDay = 20000101;
+  await sql`
+    INSERT INTO app.mcp_client_activity (
+      org_id, user_id, credential_kind, credential_id, method, tool, day,
+      calls, last_at_ms
+    ) VALUES (
+      ${orgId}, ${memberUserId}, 'api-key', 'itest-old-key', 'ping', '',
+      ${oldDay}, 1, 0
+    ) ON CONFLICT DO NOTHING
+  `;
+  const activitySweep = createTaskList({ sql })['maintenance.mcp_activity_ttl'];
+  if (activitySweep !== undefined) await activitySweep({});
+  const oldLeft = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.mcp_client_activity
+    WHERE org_id = ${orgId} AND day = ${oldDay}
+  `;
+  record(
+    'MCP calls are counted per key and day, never what they carried (MCP-R21)',
+    initRow !== undefined &&
+      initRow.credentialId !== '' &&
+      getRunRow !== undefined &&
+      getRunRow.calls >= 2 &&
+      getRunRow.refusals >= 1 &&
+      memberSaveRow !== undefined &&
+      memberSaveRow.refusals >= 1 &&
+      memberSaveRow.credentialId !== initRow.credentialId &&
+      !leaked &&
+      oldLeft[0]?.n === 0,
+    `init=${JSON.stringify(initRow ?? null)}, get_run=${JSON.stringify(getRunRow ?? null)}, memberSave=${JSON.stringify(memberSaveRow ?? null)}, leaked=${leaked}, oldLeft=${oldLeft[0]?.n} (want 0)`,
+  );
+
+  // The Origin rule ships log-only (MCP-R22): a browser origin the
+  // deployment does not list is answered like the deployment's own while
+  // TALE_MCP_ORIGIN_ENFORCE is unset, so no client breaks before the
+  // per-client survey decides the default.
+  const pingFrom = async (origin: string): Promise<number> =>
+    (
+      await fetch(`${base}/api/v1/mcp`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+          'x-organization-slug': orgSlug,
+          origin,
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 41, method: 'ping' }),
+      })
+    ).status;
+  const foreignOriginStatus = await pingFrom('https://itest-foreign.example');
+  const ownOriginStatus = await pingFrom(base);
+  record(
+    'MCP answers a foreign browser origin while the Origin rule is log-only (MCP-R22)',
+    foreignOriginStatus === 200 && ownOriginStatus === 200,
+    `foreign→${foreignOriginStatus}, own→${ownOriginStatus} (want 200 both)`,
+  );
+
   record(
     'platform MCP endpoint (/api/v1/mcp)',
     initOk &&
+      unsupportedOk &&
+      toolNames.length === MCP_TOOLS.length &&
       note.status === 202 &&
       batch.status === 200 &&
       batchReplies.success &&
@@ -15233,12 +15461,1896 @@ async function checkMcp(
       knowledge.isError === (knowledgeShape.data.status === 'unavailable') &&
       annotationsOk &&
       refusalsOk,
-    `init=${initOk}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, annotations=${annotationsOk}, unknownName=${missingVersionsShape.success ? `${missingVersionsShape.data.code}+hint` : JSON.stringify(missingVersions.value).slice(0, 80)}, unknownRun=${missingRunShape.success ? `${missingRunShape.data.code}+hint` : JSON.stringify(missingRun.value).slice(0, 80)}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
+    `init=${initOk}, unsupported→${unsupportedOk ? '-32022' : '?'}, note→${note.status}, batch→${batch.status}/${batchReplies.success ? 'array' : '?'}, unknown→${unknownCode.success ? unknownCode.data.error.code : '?'}, GET→${getRes.status}, tools=${toolNames.length}, annotations=${annotationsOk}, unknownName=${missingVersionsShape.success ? `${missingVersionsShape.data.code}+hint` : JSON.stringify(missingVersions.value).slice(0, 80)}, unknownRun=${missingRunShape.success ? `${missingRunShape.data.code}+hint` : JSON.stringify(missingRun.value).slice(0, 80)}, save=${savedShape.success ? `v${savedShape.data.version}` : JSON.stringify(saved.value).slice(0, 120)}, deploy=${deployedShape.success}, run=${startedShape.success ? startedShape.data.mode : 'ERR'}/settled=${settled}/view=${runShape.success}, runDeployed=${oneShotShape.success ? `${oneShotShape.data.mode}/${oneShotShape.data.status}/row=${oneShotRecorded}` : JSON.stringify(oneShot.value).slice(0, 120)}, memberLive=${memberLiveRefused ? 'refused' : JSON.stringify(memberLive.value).slice(0, 80)}/noRun=${memberLeftNoRun}, memberRefusal=${refusalShape.success ? refusalShape.data.error.slice(0, 60) : 'ERR'}, memberRead=${memberListShape.success}, capHit=${capHit}, knowledge=${knowledgeShape.success ? knowledgeShape.data.status : JSON.stringify(knowledge.value).slice(0, 80)}`,
   );
   // This check spent ~16 requests of the shared `rest:api` token bucket the
   // three REST checks right after it live off — hand the bucket back (an
   // absent row re-initializes at full capacity).
+  // The run tools above drew from the execution budget too (MCP-R5).
   await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+}
+
+/**
+ * The MCP authoring tools at the editor's parity, on the real schema and the
+ * real HTTP door (MCP-R1–R4, R9, R14, R27; AUTO-R27, AUTO-R28; migration
+ * 0181): a save carries the version fields it leaves out and records its
+ * door, a stale base version or live version refuses as data, a member's
+ * agent starts a recorded mock run of any saved version but not a live one,
+ * a run waiting on a person names its question in get_run and takes the
+ * answer, an automation installed only in a team project the member cannot
+ * read is "not found" over MCP and REST and a developer outside the team
+ * cannot save onto it, installations and deletes go through, every one of
+ * those writes leaves an audit row stamped `via: mcp`, a re-created
+ * automation's history leaves out the deleted one's deploys, and a REST
+ * delete made with a key is audited as the key's.
+ */
+async function checkMcpAuthoringParity(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-parity');
+  let rpcId = 500;
+  /** One tool call: whether it was refused, and the JSON it answered. */
+  const tool = async (
+    name: string,
+    args: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{ isError: boolean; value: Record<string, unknown> }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: rpcId,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    });
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+          isError: z.boolean(),
+        }),
+      })
+      .safeParse(await res.json());
+    if (!parsed.success) return { isError: true, value: {} };
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return {
+      isError: parsed.data.result.isError,
+      value: value.success ? value.data : {},
+    };
+  };
+  const name = 'itest-parity/dunning';
+  const doc = { ...DOC_EXAMPLE.automation, name };
+  const settings = {
+    folder: 'Reports',
+    forms: [
+      {
+        file: 'settings.json',
+        title: 'Reminder settings',
+        fields: [{ key: 'days', label: 'Days', type: 'number' }],
+      },
+    ],
+  };
+  const taskContract = { workflow: name };
+
+  // MCP-R1: the editor saves v1 with its settings and task contract; the
+  // agent's v2 sends neither, and keeps both.
+  const appSave = await fetch(
+    `${base}/api/app/automations/${name}/save?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        document: doc,
+        message: 'app',
+        settings,
+        taskContract,
+      }),
+    },
+  );
+  const agentSave = await tool('save_automation', {
+    automation: doc,
+    message: 'agent',
+    baseVersion: 1,
+  });
+  const rows = await sql<
+    {
+      version: number;
+      settings: unknown;
+      taskContract: unknown;
+      createdVia: string | null;
+      apiKeyId: string | null;
+    }[]
+  >`
+    SELECT version, settings, task_contract AS "taskContract",
+           created_via AS "createdVia", api_key_id AS "apiKeyId"
+    FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    ORDER BY version
+  `;
+  const v2 = rows.find((row) => row.version === 2);
+  record(
+    'MCP save keeps the settings and task contract it leaves out, and records its door (MCP-R1, 0181)',
+    appSave.status === 201 &&
+      !agentSave.isError &&
+      agentSave.value.version === 2 &&
+      JSON.stringify(agentSave.value.carried) ===
+        JSON.stringify(['settings', 'taskContract']) &&
+      agentSave.value.baseVersionChecked === true &&
+      // jsonb stores object keys in its own order, so compare values.
+      isDeepStrictEqual(v2?.settings, settings) &&
+      isDeepStrictEqual(v2?.taskContract, taskContract) &&
+      v2?.createdVia === 'mcp' &&
+      typeof v2.apiKeyId === 'string' &&
+      rows.find((row) => row.version === 1)?.createdVia === 'app',
+    `app save → ${appSave.status} (want 201), agent save=${JSON.stringify(agentSave.value).slice(0, 160)}, v2=${JSON.stringify(v2 ?? null).slice(0, 200)}`,
+  );
+
+  // MCP-R1 under a race: agent saves that carry and editor saves that set
+  // the settings land in whatever order the name lock gives them, and each
+  // agent version carries exactly the version before it — read under the
+  // lock, never a copy that went stale while it waited.
+  const raceName = 'itest-parity/racing';
+  const raceDoc = { ...DOC_EXAMPLE.automation, name: raceName };
+  const formOf = (title: string) => ({
+    forms: [
+      {
+        file: 'settings.json',
+        title,
+        fields: [{ key: 'days', label: 'Days', type: 'number' }],
+      },
+    ],
+  });
+  const editorSave = (title: string) =>
+    fetch(`${base}/api/app/automations/${raceName}/save?orgId=${orgId}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        document: raceDoc,
+        message: title,
+        settings: formOf(title),
+      }),
+    });
+  const raceStart = await editorSave('start');
+  const [editorRacers, agentRacers] = await Promise.all([
+    Promise.all(['editor 1', 'editor 2', 'editor 3'].map(editorSave)),
+    Promise.all(
+      [1, 2, 3].map(() =>
+        tool('save_automation', { automation: raceDoc, message: 'agent' }),
+      ),
+    ),
+  ]);
+  const raceRows = await sql<
+    { version: number; settings: unknown; createdVia: string | null }[]
+  >`
+    SELECT version, settings, created_via AS "createdVia"
+    FROM app.automations WHERE org_id = ${orgId} AND name = ${raceName}
+    ORDER BY version
+  `;
+  const carriedInOrder = raceRows.every(
+    (row, index) =>
+      row.createdVia !== 'mcp' ||
+      JSON.stringify(row.settings) ===
+        JSON.stringify(raceRows[index - 1]?.settings),
+  );
+  record(
+    'MCP saves racing editor saves each carry the version just before them (MCP-R1)',
+    raceStart.status === 201 &&
+      editorRacers.every((res) => res.status === 201) &&
+      agentRacers.every((answer) => !answer.isError) &&
+      raceRows.map((row) => row.version).join(',') === '1,2,3,4,5,6,7' &&
+      raceRows.filter((row) => row.createdVia === 'mcp').length === 3 &&
+      carriedInOrder,
+    `editor=${editorRacers.map((res) => res.status).join(',')}, agent=${agentRacers.map((answer) => String(answer.isError)).join(',')}, rows=${JSON.stringify(raceRows.map((row) => `${row.version}/${row.createdVia}/${JSON.stringify(row.settings).slice(32, 52)}`))}`,
+  );
+
+  // MCP-R2: a save from v1 after v2 landed is refused, naming v2; a version
+  // field that does not fit its reader is refused with every problem.
+  const stale = await tool('save_automation', {
+    automation: doc,
+    baseVersion: 1,
+  });
+  const invalid = await tool('save_automation', {
+    automation: doc,
+    baseVersion: 2,
+    settings: { bogus: true },
+  });
+  const afterRefusals = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automations
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  const invalidIssues = z
+    .object({
+      data: z.object({ issues: z.array(z.object({ path: z.string() })) }),
+    })
+    .safeParse(invalid.value);
+  record(
+    'MCP save from a stale base version is refused with the latest (MCP-R2)',
+    stale.isError &&
+      stale.value.code === 'AUTOMATION_VERSION_STALE' &&
+      z.object({ latestVersion: z.literal(2) }).safeParse(stale.value.data)
+        .success &&
+      invalid.isError &&
+      invalid.value.code === 'INVALID_ARGUMENTS' &&
+      invalidIssues.success &&
+      invalidIssues.data.data.issues.some((issue) =>
+        issue.path.startsWith('settings'),
+      ) &&
+      afterRefusals[0]?.n === 2,
+    `stale=${JSON.stringify(stale.value).slice(0, 160)}, invalid=${JSON.stringify(invalid.value).slice(0, 160)}, versions=${afterRefusals[0]?.n} (want 2)`,
+  );
+
+  // MCP-R3: a deploy naming the wrong live version is refused; the right one
+  // answers what was live before, and an older version rolls back.
+  const first = await tool('deploy_automation', {
+    name,
+    version: 2,
+    expectedDeployedVersion: null,
+  });
+  const staleDeploy = await tool('deploy_automation', {
+    name,
+    version: 1,
+    expectedDeployedVersion: 1,
+  });
+  const rollback = await tool('deploy_automation', {
+    name,
+    version: 1,
+    expectedDeployedVersion: 2,
+  });
+  const restore = await tool('deploy_automation', {
+    name,
+    version: 2,
+    expectedDeployedVersion: 1,
+  });
+  const live = await sql<{ version: number }[]>`
+    SELECT version FROM app.automation_deployments
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  record(
+    'MCP deploy names the version it replaces and rolls back (MCP-R3)',
+    !first.isError &&
+      first.value.previousVersion === null &&
+      staleDeploy.isError &&
+      staleDeploy.value.code === 'AUTOMATION_DEPLOYMENT_STALE' &&
+      !rollback.isError &&
+      rollback.value.previousVersion === 2 &&
+      !restore.isError &&
+      live[0]?.version === 2,
+    `first=${JSON.stringify(first.value).slice(0, 120)}, stale=${String(staleDeploy.value.code)}, rollback=${JSON.stringify(rollback.value.previousVersion)}, live=v${live[0]?.version}`,
+  );
+
+  // The version view and the history.
+  const viewed = await tool('get_automation', { name });
+  const history = await tool('list_versions', { name });
+  const deployments = z
+    .object({ deployments: z.array(z.object({ version: z.number() })) })
+    .safeParse(history.value);
+  record(
+    'MCP get_automation answers the whole version, list_versions its deployments',
+    !viewed.isError &&
+      viewed.value.latestVersion === 2 &&
+      viewed.value.deployedVersion === 2 &&
+      viewed.value.createdVia === 'mcp' &&
+      isDeepStrictEqual(viewed.value.settings, settings) &&
+      deployments.success &&
+      deployments.data.deployments.length >= 3,
+    `view=${JSON.stringify(viewed.value).slice(0, 200)}, deployments=${deployments.success ? deployments.data.deployments.length : 'ERR'} (want ≥3)`,
+  );
+
+  // MCP-R4: a member's agent starts a recorded mock run of an undeployed
+  // version, and is refused a live one.
+  const v3 = await tool('save_automation', { automation: doc, baseVersion: 2 });
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-parity-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-parity-member'),
+  );
+  const mock = await tool(
+    'start_run',
+    { name, mode: 'mock', input: { min_total: 5, orders: [] } },
+    memberKey,
+  );
+  const liveRefused = await tool(
+    'start_run',
+    { name, mode: 'live', input: { min_total: 5, orders: [] } },
+    memberKey,
+  );
+  const mockRun = await sql<
+    { mode: string; version: number; startedBy: string }[]
+  >`
+    SELECT mode, version, started_by AS "startedBy" FROM app.automation_runs
+    WHERE org_id = ${orgId}
+      AND id = ${typeof mock.value.runId === 'string' ? mock.value.runId : ''}
+  `;
+  const page = await tool(
+    'list_runs',
+    { name, mode: 'mock', limit: 1 },
+    memberKey,
+  );
+  record(
+    "a member's agent starts a recorded mock run of any saved version, not a live one (MCP-R4)",
+    !v3.isError &&
+      !mock.isError &&
+      mockRun[0]?.mode === 'mock' &&
+      mockRun[0].version === 3 &&
+      mockRun[0].startedBy === `api-key:${memberId}` &&
+      liveRefused.isError &&
+      liveRefused.value.code === 'FORBIDDEN_DEVELOPER_SETTINGS' &&
+      !page.isError &&
+      'nextCursor' in page.value,
+    `mock=${JSON.stringify(mock.value).slice(0, 120)} row=${JSON.stringify(mockRun[0] ?? null)}, live=${String(liveRefused.value.code)}, page=${JSON.stringify(page.value).slice(0, 80)}`,
+  );
+
+  // MCP-R27: a run waiting on a person's answer names the question in
+  // get_run — the askId answer_run_ask needs — and the answer is recorded.
+  // A run of its own name, so the delete below never waits on it.
+  const { toJson } = await import('./db/sql.ts');
+  const askedAt = Date.now();
+  // A run row is written only by a writer that speaks the current protocol,
+  // so the fixture marks its transaction as the engine's writers do.
+  const askRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, detail, checkpoints,
+        started_at_ms
+      ) VALUES (
+        ${orgId}, 'itest-parity/asks', 1, 'waiting', 'live', ${`api-key:${userId}`},
+        'agent:ask_node',
+        ${sql.json(toJson({ nodes: {}, cursor: { node: 'ask_node', agent: { execId: 'exec-parity-ask', input: {}, harness: 'claude-code' } }, executions: {} }))},
+        ${askedAt}
+      ) RETURNING id
+    `;
+  });
+  const askRunId = askRun[0]?.id ?? '';
+  const plantedAsk = await sql<{ id: string }[]>`
+    INSERT INTO app.automation_human_asks (
+      org_id, run_id, node_id, session_id, exec_id, question, status,
+      expires_at_ms, created_at_ms
+    ) VALUES (
+      ${orgId}, ${askRunId}, 'ask_node', 'wf-parity-ask', 'exec-parity-ask',
+      'Send the reminder to Acme today?', 'pending', ${askedAt + 3_600_000},
+      ${askedAt}
+    ) RETURNING id
+  `;
+  const plantedAskId = plantedAsk[0]?.id ?? '';
+  const waitingRun = await tool('get_run', { runId: askRunId });
+  const polled = await tool('get_run', { runId: askRunId, detail: [] });
+  const askShape = z
+    .object({
+      run: z
+        .object({
+          waitingFor: z.literal('ask'),
+          ask: z.object({ askId: z.string(), question: z.string() }).loose(),
+        })
+        .loose(),
+    })
+    .safeParse(waitingRun.value);
+  const answeredAsk = await tool('answer_run_ask', {
+    runId: askRunId,
+    askId: askShape.success ? askShape.data.run.ask.askId : '',
+    answer: 'Yes, send it.',
+  });
+  const askRow = await sql<{ status: string; answer: string | null }[]>`
+    SELECT status, answer FROM app.automation_human_asks
+    WHERE org_id = ${orgId} AND id = ${plantedAskId}
+  `;
+  record(
+    "get_run names a waiting run's question and answer_run_ask answers it (MCP-R27)",
+    !waitingRun.isError &&
+      askShape.success &&
+      askShape.data.run.ask.askId === plantedAskId &&
+      askShape.data.run.ask.question === 'Send the reminder to Acme today?' &&
+      !polled.isError &&
+      !JSON.stringify(polled.value).includes('"input"') &&
+      JSON.stringify(polled.value).includes(plantedAskId) &&
+      !answeredAsk.isError &&
+      askRow[0]?.status === 'answered' &&
+      askRow[0].answer === 'Yes, send it.',
+    `get_run=${JSON.stringify(waitingRun.value).slice(0, 200)}, answer=${JSON.stringify(answeredAsk.value).slice(0, 120)}, row=${JSON.stringify(askRow[0] ?? null)}`,
+  );
+
+  // MCP-R9 / AUTO-R27: installed only in a team project the member is not
+  // in, the automation is "not found" to them over MCP and REST.
+  const now = Date.now();
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Parity HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const projectRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Parity HR project', ${teamRows[0]?.id ?? ''}, ${userId},
+            ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = projectRows[0]?.id ?? '';
+  const installed = await tool('set_automation_projects', {
+    name,
+    add: [hrProject],
+  });
+  const memberRead = await tool('get_automation', { name }, memberKey);
+  const memberList = await tool('list_automations', {}, memberKey);
+  const restRead = async (key: string) =>
+    (
+      await fetch(`${base}/api/v1/automations/itest-parity__dunning/versions`, {
+        headers: {
+          authorization: `Bearer ${key}`,
+          'x-organization-slug': orgSlug,
+        },
+      })
+    ).status;
+  const memberRest = await restRead(memberKey);
+  const ownerRest = await restRead(ownerKey);
+  const ownerRead = await tool('get_automation', { name });
+  record(
+    'an automation installed only in a project the member cannot read is hidden from them on MCP and REST (MCP-R9, AUTO-R27)',
+    !installed.isError &&
+      JSON.stringify(installed.value.added) === JSON.stringify([hrProject]) &&
+      memberRead.isError &&
+      memberRead.value.code === 'AUTOMATION_NOT_FOUND' &&
+      !JSON.stringify(memberList.value).includes(name) &&
+      memberRest === 404 &&
+      ownerRest === 200 &&
+      !ownerRead.isError,
+    `install=${JSON.stringify(installed.value).slice(0, 100)}, member get=${String(memberRead.value.code)}, member list hides=${!JSON.stringify(memberList.value).includes(name)}, REST member→${memberRest} owner→${ownerRest}`,
+  );
+
+  // MCP-R9: a developer outside the team cannot add a version to it — the
+  // save is refused as a taken name, create or not, and nothing is written.
+  const { cookie: devCookie, userId: devId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-parity-developer',
+    'developer',
+  );
+  const devKey = await asKeyCreator(sql, { orgId, userId: devId }, () =>
+    mintKey(devCookie, 'itest-mcp-parity-developer'),
+  );
+  const hiddenSave = await tool(
+    'save_automation',
+    { automation: doc, message: 'over a hidden one' },
+    devKey,
+  );
+  const hiddenCreate = await tool(
+    'save_automation',
+    { automation: doc, create: true },
+    devKey,
+  );
+  const afterHidden = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM app.automations
+    WHERE org_id = ${orgId} AND name = ${name}
+  `;
+  record(
+    'a developer who cannot see an automation cannot save a version onto it (MCP-R9)',
+    hiddenSave.isError &&
+      hiddenSave.value.code === 'AUTOMATION_NAME_TAKEN' &&
+      hiddenCreate.isError &&
+      hiddenCreate.value.code === 'AUTOMATION_NAME_TAKEN' &&
+      !JSON.stringify(hiddenSave.value).includes('"version"') &&
+      afterHidden[0]?.n === 3,
+    `save=${JSON.stringify(hiddenSave.value).slice(0, 160)}, create=${String(hiddenCreate.value.code)}, versions=${afterHidden[0]?.n} (want 3)`,
+  );
+  const removed = await tool('set_automation_projects', {
+    name,
+    remove: [hrProject],
+  });
+  const notInstalled = await tool('set_automation_projects', {
+    name,
+    remove: [hrProject],
+  });
+  const metrics = await tool(
+    'get_automation_metrics',
+    { mode: 'mock' },
+    memberKey,
+  );
+
+  // delete_automation against the latest version — once the member's mock
+  // run has finished, since a run still going refuses the delete — then the
+  // audit trail.
+  const mockSettled = await waitFor(async () => {
+    const statuses = await sql<{ status: string }[]>`
+      SELECT status FROM app.automation_runs
+      WHERE org_id = ${orgId} AND name = ${name}
+        AND status IN ('queued', 'running', 'waiting')
+    `;
+    return statuses.length === 0;
+  }, 30_000);
+  const staleDelete = await tool('delete_automation', {
+    name,
+    expectedLatestVersion: 1,
+  });
+  const deleted = await tool('delete_automation', {
+    name,
+    expectedLatestVersion: 3,
+  });
+  const audit = await sql<
+    {
+      action: string;
+      via: string | null;
+      tool: string | null;
+      requestId: string | null;
+    }[]
+  >`
+    SELECT action, metadata->>'via' AS via, metadata->>'tool' AS tool,
+           request_id AS "requestId"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_type = 'automation'
+      AND resource_id = ${name}
+    ORDER BY ts
+  `;
+  const viaMcp = (action: string, toolName: string) =>
+    audit.some(
+      (row) =>
+        row.action === action &&
+        row.via === 'mcp' &&
+        row.tool === toolName &&
+        row.requestId !== null,
+    );
+  record(
+    'every MCP write to an automation leaves an audit row naming the coding agent (MCP-R14, AUTO-R28)',
+    !removed.isError &&
+      JSON.stringify(removed.value.removed) === JSON.stringify([hrProject]) &&
+      notInstalled.isError &&
+      notInstalled.value.code === 'AUTOMATION_NOT_INSTALLED' &&
+      !metrics.isError &&
+      mockSettled &&
+      staleDelete.isError &&
+      staleDelete.value.code === 'AUTOMATION_VERSION_STALE' &&
+      !deleted.isError &&
+      deleted.value.versions === 3 &&
+      audit.some(
+        (row) => row.action === 'automation.version.saved' && row.via === null,
+      ) &&
+      viaMcp('automation.version.saved', 'save_automation') &&
+      viaMcp('automation.deployed', 'deploy_automation') &&
+      viaMcp('automation.project.bound', 'set_automation_projects') &&
+      viaMcp('automation.project.unbound', 'set_automation_projects') &&
+      viaMcp('automation.deleted', 'delete_automation'),
+    `removed=${JSON.stringify(removed.value).slice(0, 80)}, notInstalled=${String(notInstalled.value.code)}, deleted=${JSON.stringify(deleted.value).slice(0, 80)}, audit=${JSON.stringify(audit.map((row) => `${row.action}/${row.via ?? '-'}/${row.tool ?? '-'}`))}`,
+  );
+
+  // Created again under the same name, it starts a history of its own: the
+  // deleted automation's deploys are no rollback targets.
+  const recreated = await tool('save_automation', {
+    automation: doc,
+    create: true,
+  });
+  const freshHistory = await tool('list_versions', { name });
+  const freshDeployments = z
+    .object({ deployments: z.array(z.unknown()) })
+    .safeParse(freshHistory.value);
+  record(
+    "a re-created automation's history leaves out the deleted one's deploys",
+    !recreated.isError &&
+      recreated.value.version === 1 &&
+      !freshHistory.isError &&
+      freshDeployments.success &&
+      freshDeployments.data.deployments.length === 0,
+    `recreated=${JSON.stringify(recreated.value).slice(0, 100)}, deployments=${freshDeployments.success ? freshDeployments.data.deployments.length : 'ERR'} (want 0)`,
+  );
+
+  // AUTO-R28: a delete made with a key through the REST API is the key's —
+  // actor type API, the key's id and the request id on the row.
+  const restDelete = await fetch(
+    `${base}/api/v1/automations/itest-parity__dunning`,
+    {
+      method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${ownerKey}`,
+        'x-organization-slug': orgSlug,
+      },
+    },
+  );
+  const restRow = await sql<
+    {
+      actorType: string;
+      via: string | null;
+      apiKeyId: string | null;
+      requestId: string | null;
+    }[]
+  >`
+    SELECT actor_type AS "actorType", metadata->>'via' AS via,
+           metadata->>'apiKeyId' AS "apiKeyId", request_id AS "requestId"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'automation.deleted'
+      AND resource_type = 'automation' AND resource_id = ${name}
+    ORDER BY ts DESC
+    LIMIT 1
+  `;
+  record(
+    "a REST delete made with a key is audited as the key's (AUTO-R28)",
+    restDelete.status === 204 &&
+      restRow[0]?.actorType === 'api' &&
+      restRow[0].via === 'api-key' &&
+      typeof restRow[0].apiKeyId === 'string' &&
+      restRow[0].apiKeyId !== '' &&
+      restRow[0].requestId !== null,
+    `DELETE → ${restDelete.status} (want 204), row=${JSON.stringify(restRow[0] ?? null)}`,
+  );
+
+  // The lanes after this one spend the same request and execution budgets.
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+}
+
+/**
+ * The MCP discovery tools and the validator's organization warnings on the
+ * real schema (MCP-R15, MCP-R23): connected vs not-connected connectors, the
+ * names of agent secrets for an owner and an empty list for a member — never
+ * a value — projects and skills a member cannot read answered as not found,
+ * another organization's project, secret and connector invisible, the raised
+ * events, and the five warnings on `validate_automation` and on the editor's
+ * own validate route (the Problems panel).
+ */
+async function checkMcpDiscovery(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { EMITTED_EVENT_TYPES } = await import('../lib/shared/event-types.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-discovery');
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-discovery-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-discovery-member'),
+  );
+  let rpcId = 900;
+  /** One tool call: whether it was refused, the JSON it answered, and the
+   * raw body (searched for a secret's value). */
+  const tool = async (
+    name: string,
+    args: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{
+    isError: boolean;
+    value: Record<string, unknown>;
+    raw: string;
+  }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: rpcId,
+        method: 'tools/call',
+        params: { name, arguments: args },
+      }),
+    });
+    const raw = await res.text();
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+          isError: z.boolean(),
+        }),
+      })
+      .safeParse(JSON.parse(raw));
+    if (!parsed.success) return { isError: true, value: {}, raw };
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return {
+      isError: parsed.data.result.isError,
+      value: value.success ? value.data : {},
+      raw,
+    };
+  };
+  const now = Date.now();
+  const sentinel = `SENTINEL-discovery-${randomUUID()}`;
+  const secretName = 'ITEST_DISCOVERY_TOKEN';
+
+  // The organization's state: GitHub connected, one agent secret stored, a
+  // team project the member is not in. Another organization holds its own
+  // project, secret and connector.
+  const githubRows = await sql<{ id: string }[]>`
+    INSERT INTO app.connector_credentials (
+      org_id, connector_slug, auth_method, name, encrypted_data, config,
+      status, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${orgId}, 'github', 'bearer', 'itest-discovery', ${sql.json({})},
+      ${sql.json({})}, 'active', 'itest', ${now}, ${now}
+    )
+    RETURNING id
+  `;
+  const githubCredential = githubRows[0]?.id ?? '';
+  const storedSecret = await fetch(
+    `${base}/api/app/agent-secrets?orgId=${orgId}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({
+        name: secretName,
+        value: sentinel,
+        description: 'itest discovery secret',
+      }),
+    },
+  );
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Discovery HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const hrRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Discovery HR project', ${teamRows[0]?.id ?? ''},
+            ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = hrRows[0]?.id ?? '';
+  const foreignOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${foreignOrgId}, 'Discovery Foreign Tenant',
+            ${`discovery-foreign-${foreignOrgId.slice(0, 8)}`}, now())
+  `;
+  const foreignRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${foreignOrgId}, 'Foreign discovery project', 'itest', ${now},
+            ${now})
+    RETURNING id
+  `;
+  const foreignProject = foreignRows[0]?.id ?? '';
+  await sql`
+    INSERT INTO app.agent_secrets (
+      org_id, name, encrypted_value, created_by, updated_by, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${foreignOrgId}, 'ITEST_FOREIGN_SECRET', ${sql.json({ v: sentinel })},
+      'itest', 'itest', ${now}, ${now}
+    )
+  `;
+  // A catalogued connector nobody in this organization connected — the
+  // foreign tenant connects it, which must not count here.
+  const activeHere = new Set(
+    (
+      await sql<{ slug: string }[]>`
+        SELECT DISTINCT connector_slug AS slug FROM app.connector_credentials
+        WHERE org_id = ${orgId} AND status = 'active'
+      `
+    ).map((row) => row.slug),
+  );
+  const unconnected =
+    ['shopify', 'confluence', 'discord', 'twilio', 'tavily', 'glitchtip'].find(
+      (slug) => !activeHere.has(slug),
+    ) ?? 'shopify';
+  await sql`
+    INSERT INTO app.connector_credentials (
+      org_id, connector_slug, auth_method, name, encrypted_data, config,
+      status, created_by, created_at_ms, updated_at_ms
+    ) VALUES (
+      ${foreignOrgId}, ${unconnected}, 'bearer', 'itest-foreign',
+      ${sql.json({})}, ${sql.json({})}, 'active', 'itest', ${now}, ${now}
+    )
+  `;
+
+  try {
+    // list_connectors: connected here, not connected here (though connected
+    // in the other tenant), and the filter.
+    const connectors = await tool('list_connectors', {}, memberKey);
+    const connectorRows = z
+      .object({
+        connectors: z.array(
+          z.object({ slug: z.string(), connected: z.boolean() }).loose(),
+        ),
+      })
+      .safeParse(connectors.value);
+    const connectedOf = (slug: string) =>
+      connectorRows.success
+        ? connectorRows.data.connectors.find((row) => row.slug === slug)
+            ?.connected
+        : undefined;
+    const filtered = await tool('list_connectors', { query: 'GITHUB' });
+    record(
+      'MCP list_connectors says which connectors this organization connected, and no other organization’s (MCP-R23)',
+      !connectors.isError &&
+        connectedOf('github') === true &&
+        connectedOf(unconnected) === false &&
+        !filtered.isError &&
+        JSON.stringify(filtered.value).includes('"github"') &&
+        !JSON.stringify(filtered.value).includes(`"${unconnected}"`),
+      `github=${String(connectedOf('github'))} (want true), ${unconnected}=${String(connectedOf(unconnected))} (want false), filtered=${JSON.stringify(filtered.value).slice(0, 120)}`,
+    );
+
+    // list_agent_secrets: the owner reads the name and a masked preview,
+    // the member an empty list saying why; nobody a value, nobody another
+    // tenant's name.
+    const ownerSecrets = await tool('list_agent_secrets', {});
+    const memberSecrets = await tool('list_agent_secrets', {}, memberKey);
+    const ownerNames = z
+      .object({ secrets: z.array(z.object({ name: z.string() }).loose()) })
+      .safeParse(ownerSecrets.value);
+    record(
+      'MCP list_agent_secrets names secrets to an owner and nobody else, never a value or another organization’s (MCP-R23)',
+      storedSecret.status < 300 &&
+        !ownerSecrets.isError &&
+        ownerNames.success &&
+        ownerNames.data.secrets.some((row) => row.name === secretName) &&
+        !ownerSecrets.raw.includes(sentinel) &&
+        !ownerSecrets.raw.includes('ITEST_FOREIGN_SECRET') &&
+        !memberSecrets.isError &&
+        JSON.stringify(memberSecrets.value.secrets) === '[]' &&
+        typeof memberSecrets.value.note === 'string' &&
+        !memberSecrets.raw.includes(secretName),
+      `stored → ${storedSecret.status}, owner=${ownerSecrets.raw.includes(sentinel) ? 'VALUE LEAKED' : JSON.stringify(ownerSecrets.value).slice(0, 160)}, member=${JSON.stringify(memberSecrets.value).slice(0, 120)}`,
+    );
+
+    // list_projects and list_skills: the member's view leaves out the team
+    // project; the other tenant's project is nobody's here.
+    const memberProjects = await tool('list_projects', {}, memberKey);
+    const ownerProjects = await tool('list_projects', {});
+    const memberHrSkills = await tool(
+      'list_skills',
+      { projectId: hrProject },
+      memberKey,
+    );
+    const ownerHrSkills = await tool('list_skills', { projectId: hrProject });
+    const foreignSkills = await tool('list_skills', {
+      projectId: foreignProject,
+    });
+    const orgSkills = await tool('list_skills', {}, memberKey);
+    record(
+      'MCP list_projects and list_skills answer only projects the person can read in their organization (MCP-R23)',
+      !memberProjects.isError &&
+        !memberProjects.raw.includes(hrProject) &&
+        !ownerProjects.isError &&
+        ownerProjects.raw.includes(hrProject) &&
+        !ownerProjects.raw.includes(foreignProject) &&
+        memberHrSkills.value.code === 'PROJECT_NOT_FOUND' &&
+        !ownerHrSkills.isError &&
+        Array.isArray(ownerHrSkills.value.skills) &&
+        foreignSkills.value.code === 'PROJECT_NOT_FOUND' &&
+        !orgSkills.isError &&
+        Array.isArray(orgSkills.value.skills),
+      `member projects hide HR=${!memberProjects.raw.includes(hrProject)}, owner sees HR=${ownerProjects.raw.includes(hrProject)}, owner sees foreign=${ownerProjects.raw.includes(foreignProject)}, member HR skills=${String(memberHrSkills.value.code)}, foreign skills=${String(foreignSkills.value.code)}`,
+    );
+
+    // list_events, list_harnesses, list_models.
+    const events = await tool('list_events', {}, memberKey);
+    const eventNames = z
+      .object({
+        events: z.array(
+          z.object({ name: z.string(), description: z.string() }),
+        ),
+      })
+      .safeParse(events.value);
+    const harnesses = await tool('list_harnesses', {}, memberKey);
+    const harnessRows = z
+      .object({
+        harnesses: z.array(
+          z.object({ slug: z.string(), default: z.boolean() }).loose(),
+        ),
+      })
+      .safeParse(harnesses.value);
+    const models = await tool('list_models', {}, memberKey);
+    const noRuntime = await tool(
+      'list_models',
+      { harness: 'itest-no-such-runtime' },
+      memberKey,
+    );
+    record(
+      'MCP list_events, list_harnesses and list_models answer the raised events, the runtimes and the governed models',
+      eventNames.success &&
+        JSON.stringify(eventNames.data.events.map((e) => e.name).sort()) ===
+          JSON.stringify([...EMITTED_EVENT_TYPES].sort()) &&
+        harnessRows.success &&
+        harnessRows.data.harnesses.filter((row) => row.default).length === 1 &&
+        !models.isError &&
+        Array.isArray(models.value.models) &&
+        JSON.stringify(noRuntime.value.models) === '[]' &&
+        String(noRuntime.value.hint).includes('list_harnesses'),
+      `events=${eventNames.success ? eventNames.data.events.length : 'ERR'} (want ${EMITTED_EVENT_TYPES.length}), harnesses=${JSON.stringify(harnesses.value).slice(0, 160)}, models=${JSON.stringify(models.value).slice(0, 80)}, unknown runtime=${JSON.stringify(noRuntime.value).slice(0, 120)}`,
+    );
+
+    // The five warnings, on MCP for the owner and the member, and on the
+    // editor's validate route. A legacy trigger row waits for an event Tale
+    // does not raise (set_trigger refuses one today).
+    const name = 'itest-discovery/agent';
+    await sql`
+      INSERT INTO app.automation_triggers (
+        org_id, name, kind, event, enabled, created_by, created_at_ms,
+        updated_at_ms
+      ) VALUES (
+        ${orgId}, ${name}, 'event', 'invoice.paid', true, 'itest', ${now},
+        ${now}
+      )
+    `;
+    const doc = {
+      version: 1,
+      name,
+      nodes: [
+        {
+          id: 'reply',
+          type: 'agent',
+          model: 'test-model',
+          prompt: 'Draft the reply.',
+          harness: 'itest-no-such-runtime',
+          skills: ['itest-no-such-skill'],
+          connectors: ['github', unconnected, 'itest-gmial'],
+          secrets: [secretName, 'ITEST_NO_SUCH_SECRET'],
+        },
+      ],
+      output: '{{ nodes.reply.output.text }}',
+    };
+    const issueList = z.array(
+      z
+        .object({
+          code: z.string(),
+          params: z.record(z.string(), z.unknown()).optional(),
+        })
+        .loose(),
+    );
+    const verdict = z
+      .object({ errors: issueList, warnings: issueList })
+      .loose();
+    const ORG_CODES = new Set([
+      'SKILL_UNKNOWN',
+      'CONNECTOR_NOT_CONNECTED',
+      'SECRET_UNKNOWN',
+      'HARNESS_UNKNOWN',
+      'EVENT_UNKNOWN',
+    ]);
+    /** The org-state warnings of a verdict, as `CODE:subject` strings. */
+    const orgWarnings = (value: unknown): string[] | null => {
+      const parsed = verdict.safeParse(value);
+      if (!parsed.success) return null;
+      if (parsed.data.errors.some((issue) => ORG_CODES.has(issue.code))) {
+        return null;
+      }
+      return parsed.data.warnings
+        .filter((issue) => ORG_CODES.has(issue.code))
+        .map((issue) => {
+          const params = issue.params ?? {};
+          const subject =
+            params.skill ??
+            params.connector ??
+            params.secret ??
+            params.harness ??
+            params.event;
+          return `${issue.code}:${String(subject)}`;
+        })
+        .sort();
+    };
+    const expected = [
+      `CONNECTOR_NOT_CONNECTED:${unconnected}`,
+      'CONNECTOR_NOT_CONNECTED:itest-gmial',
+      'EVENT_UNKNOWN:invoice.paid',
+      'HARNESS_UNKNOWN:itest-no-such-runtime',
+      'SECRET_UNKNOWN:ITEST_NO_SUCH_SECRET',
+      'SKILL_UNKNOWN:itest-no-such-skill',
+    ].sort();
+    const ownerVerdict = await tool('validate_automation', {
+      automation: doc,
+      detail: [],
+    });
+    const memberVerdict = await tool(
+      'validate_automation',
+      { automation: doc, detail: [] },
+      memberKey,
+    );
+    const editor = await fetch(
+      `${base}/api/app/automations/${name}/validate?orgId=${orgId}`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ document: doc, detail: [] }),
+      },
+    );
+    const editorBody: unknown = await editor.json();
+    const ownerSeen = orgWarnings(ownerVerdict.value);
+    const memberSeen = orgWarnings(memberVerdict.value);
+    const editorSeen = orgWarnings(editorBody);
+    record(
+      'validation warns about a skill, connector, secret, runtime and event the organization lacks, over MCP and in the editor (MCP-R15)',
+      !ownerVerdict.isError &&
+        JSON.stringify(ownerSeen) === JSON.stringify(expected) &&
+        !('analysis' in ownerVerdict.value) &&
+        !('types' in ownerVerdict.value) &&
+        !ownerVerdict.raw.includes(sentinel) &&
+        // A member is told nothing about secret names.
+        JSON.stringify(memberSeen) ===
+          JSON.stringify(
+            expected.filter((entry) => !entry.startsWith('SECRET_UNKNOWN')),
+          ) &&
+        editor.status === 200 &&
+        JSON.stringify(editorSeen) === JSON.stringify(expected),
+      `owner=${JSON.stringify(ownerSeen)}, member=${JSON.stringify(memberSeen)}, editor ${editor.status}=${JSON.stringify(editorSeen)}, want ${JSON.stringify(expected)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name = 'itest-discovery/agent'
+    `;
+    await sql`
+      DELETE FROM app.connector_credentials
+      WHERE id = ${githubCredential} AND org_id = ${orgId}
+    `;
+    await fetch(`${base}/api/app/agent-secrets/${secretName}?orgId=${orgId}`, {
+      method: 'DELETE',
+      headers: { cookie, origin: base },
+    });
+    await sql`DELETE FROM app.agent_secrets WHERE org_id = ${foreignOrgId}`;
+    await sql`
+      DELETE FROM app.connector_credentials WHERE org_id = ${foreignOrgId}
+    `;
+    await sql`DELETE FROM app.projects WHERE org_id = ${foreignOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrgId}`;
+    // The lanes after this one spend the same request budget.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  }
+}
+
+/**
+ * The MCP resources, prompts and the Tale skill on the real schema (MCP-R24,
+ * MCP-R25): `initialize` advertises resources and prompts; `resources/list`
+ * names the references, the catalog and the automations a person can see —
+ * a member never sees one installed only in a team project they are not in;
+ * `resources/read` answers each kind of address as its tool does (a
+ * reference as markdown, the catalog's agent section, an automation, its
+ * deployed version and a run), never the webhook token the automation's
+ * trigger holds, and answers a hidden automation and another organization's
+ * as -32002 with `AUTOMATION_NOT_FOUND`; `prompts/get` attaches the
+ * automation it is about, and refuses a member's prompt about the hidden one
+ * and a prompt about a run that does not exist; the skill reads the same as
+ * a resource and as the session download, which refuses a request without a
+ * session; and the reads are counted in `app.mcp_client_activity`.
+ */
+async function checkMcpResourcesPrompts(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const mintKey = async (ownCookie: string, label: string): Promise<string> => {
+    const minted = z.looseObject({ key: z.string() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: ownCookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name: label }),
+        })
+      ).json(),
+    );
+    return minted.success ? minted.data.key : '';
+  };
+  const ownerKey = await mintKey(cookie, 'itest-mcp-resources');
+  const { cookie: memberCookie, userId: memberId } = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'mcp-resources-member',
+    'member',
+  );
+  const memberKey = await asKeyCreator(sql, { orgId, userId: memberId }, () =>
+    mintKey(memberCookie, 'itest-mcp-resources-member'),
+  );
+  let rpcId = 1200;
+  /** One JSON-RPC request: its HTTP status and the reply's body. */
+  const rpc = async (
+    method: string,
+    params: Record<string, unknown>,
+    key = ownerKey,
+  ): Promise<{ status: number; body: unknown; raw: string }> => {
+    rpcId += 1;
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${key}`,
+        'x-organization-slug': orgSlug,
+        'mcp-protocol-version': '2025-11-25',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: rpcId, method, params }),
+    });
+    const raw = await res.text();
+    let body: unknown = null;
+    try {
+      body = JSON.parse(raw);
+    } catch (error) {
+      console.warn('[itest] MCP reply is not JSON:', error);
+    }
+    return { status: res.status, body, raw };
+  };
+  const toolValue = async (
+    name: string,
+    args: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> => {
+    const reply = await rpc('tools/call', { name, arguments: args });
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+        }),
+      })
+      .safeParse(reply.body);
+    if (!parsed.success) return {};
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return value.success ? value.data : {};
+  };
+  const contentsShape = z.object({
+    result: z.object({
+      contents: z
+        .array(
+          z.object({ uri: z.string(), mimeType: z.string(), text: z.string() }),
+        )
+        .length(1),
+    }),
+  });
+  const errorShape = z.object({
+    error: z.object({
+      code: z.number(),
+      data: z.looseObject({ code: z.string().optional() }).optional(),
+    }),
+  });
+  /** One resource read: its text and type, or the error's codes. */
+  const read = async (
+    uri: string,
+    key = ownerKey,
+  ): Promise<{
+    text: string;
+    mimeType: string;
+    rpcCode?: number;
+    code?: string;
+    raw: string;
+  }> => {
+    const reply = await rpc('resources/read', { uri }, key);
+    const ok = contentsShape.safeParse(reply.body);
+    if (ok.success) {
+      const [contents] = ok.data.result.contents;
+      return {
+        text: contents?.text ?? '',
+        mimeType: contents?.mimeType ?? '',
+        raw: reply.raw,
+      };
+    }
+    const refused = errorShape.safeParse(reply.body);
+    return {
+      text: '',
+      mimeType: '',
+      raw: reply.raw,
+      ...(refused.success
+        ? {
+            rpcCode: refused.data.error.code,
+            ...(refused.data.error.data?.code === undefined
+              ? {}
+              : { code: refused.data.error.data.code }),
+          }
+        : {}),
+    };
+  };
+  const name = 'itest-resources/report';
+  const hidden = 'itest-resources/hr';
+  const foreignName = 'itest-resources/foreign';
+  const encoded = (automation: string) =>
+    `tale://automations/${encodeURIComponent(automation)}`;
+  const now = Date.now();
+  const teamRows = await sql<{ id: string }[]>`
+    INSERT INTO "team" ("id", "name", "organizationId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), 'Resources HR', ${orgId}, ${new Date()}, ${new Date()})
+    RETURNING "id"
+  `;
+  const hrRows = await sql<{ id: string }[]>`
+    INSERT INTO app.projects (org_id, name, team_id, created_by, created_at_ms,
+                              updated_at_ms)
+    VALUES (${orgId}, 'Resources HR project', ${teamRows[0]?.id ?? ''},
+            ${userId}, ${now}, ${now})
+    RETURNING id
+  `;
+  const hrProject = hrRows[0]?.id ?? '';
+  const foreignOrgId = randomUUID();
+  await sql`
+    INSERT INTO "organization" ("id", "name", "slug", "createdAt")
+    VALUES (${foreignOrgId}, 'Resources Foreign Tenant',
+            ${`resources-foreign-${foreignOrgId.slice(0, 8)}`}, now())
+  `;
+  await sql`
+    INSERT INTO app.automations (
+      org_id, name, version, document, created_by, created_at_ms
+    ) VALUES (
+      ${foreignOrgId}, ${foreignName}, 1,
+      ${sql.json({ version: 1, name: foreignName, nodes: [] })},
+      'itest', ${now}
+    )
+  `;
+  try {
+    // The organization's state: a deployed automation with a webhook
+    // trigger and a mock run, and one installed only in the HR project.
+    const saved = await toolValue('save_automation', {
+      automation: { ...DOC_EXAMPLE.automation, name },
+      message: 'resources lane',
+    });
+    const deployed = await toolValue('deploy_automation', {
+      name,
+      version: 1,
+    });
+    const trigger = await toolValue('set_trigger', {
+      name,
+      trigger: { kind: 'webhook' },
+    });
+    const token = typeof trigger.token === 'string' ? trigger.token : '';
+    const started = await toolValue('start_run', {
+      name,
+      mode: 'mock',
+      input: DOC_EXAMPLE.input,
+    });
+    const runId = typeof started.runId === 'string' ? started.runId : '';
+    await toolValue('save_automation', {
+      automation: { ...DOC_EXAMPLE.automation, name: hidden },
+      message: 'resources lane',
+    });
+    const installed = await toolValue('set_automation_projects', {
+      name: hidden,
+      add: [hrProject],
+    });
+
+    const init = await rpc('initialize', {
+      protocolVersion: '2025-11-25',
+      capabilities: {},
+      clientInfo: { name: 'itest-resources', version: '1.0.0' },
+    });
+    const capabilitiesOk = z
+      .object({
+        result: z.object({
+          capabilities: z.object({
+            resources: z.object({ subscribe: z.literal(false) }),
+            prompts: z.object({ listChanged: z.literal(false) }),
+          }),
+        }),
+      })
+      .safeParse(init.body).success;
+    const listShape = z.object({
+      result: z.object({
+        resources: z.array(z.object({ uri: z.string() })),
+        nextCursor: z.string().optional(),
+      }),
+    });
+    const ownerList = listShape.safeParse(
+      (await rpc('resources/list', {})).body,
+    );
+    const memberList = listShape.safeParse(
+      (await rpc('resources/list', {}, memberKey)).body,
+    );
+    const uris = (list: typeof ownerList): string[] =>
+      list.success ? list.data.result.resources.map((entry) => entry.uri) : [];
+    record(
+      'resources: initialize advertises them, and the list names what the person can see (MCP-R24)',
+      capabilitiesOk &&
+        uris(ownerList).includes('tale://docs/authoring') &&
+        uris(ownerList).includes('tale://catalog/connector') &&
+        uris(ownerList).includes(encoded(name)) &&
+        uris(ownerList).includes(encoded(hidden)) &&
+        !uris(ownerList).includes(encoded(foreignName)) &&
+        uris(memberList).includes(encoded(name)) &&
+        !uris(memberList).includes(encoded(hidden)) &&
+        JSON.stringify(installed.added) === JSON.stringify([hrProject]),
+      `init=${init.status}/${capabilitiesOk}, owner=${uris(ownerList)
+        .filter((uri) => uri.includes('itest-resources'))
+        .join(',')}, member=${uris(memberList)
+        .filter((uri) => uri.includes('itest-resources'))
+        .join(',')}, installed=${JSON.stringify(installed).slice(0, 80)}`,
+    );
+
+    const authoring = await read('tale://docs/authoring');
+    const triggers = await read('tale://docs/triggers');
+    const skill = await read('tale://docs/skill');
+    const agentKind = await read('tale://catalog/agent');
+    const automation = await read(encoded(name));
+    const live = await read(`${encoded(name)}/versions/deployed`);
+    const run = await read(`tale://runs/${encodeURIComponent(runId)}`);
+    const viewShape = z.looseObject({
+      latestVersion: z.literal(1),
+      deployedVersion: z.literal(1),
+    });
+    const parseJson = (text: string): unknown => {
+      try {
+        return JSON.parse(text);
+      } catch (error) {
+        console.warn('[itest] resource text is not JSON:', error);
+        return null;
+      }
+    };
+    record(
+      'resources/read answers each address as its tool does, never a webhook token (MCP-R24)',
+      typeof saved.version === 'number' &&
+        z
+          .object({ deployed: z.object({ version: z.literal(1) }) })
+          .safeParse(deployed).success &&
+        token !== '' &&
+        authoring.mimeType === 'text/markdown' &&
+        authoring.text.startsWith('# Automation authoring reference') &&
+        triggers.text.includes('at most 256 KiB') &&
+        skill.text.startsWith('---\nname: tale\n') &&
+        z
+          .looseObject({ reference: z.string().min(1) })
+          .safeParse(parseJson(agentKind.text)).success &&
+        automation.mimeType === 'application/json' &&
+        viewShape.safeParse(parseJson(automation.text)).success &&
+        viewShape.safeParse(parseJson(live.text)).success &&
+        z
+          .object({ run: z.looseObject({ runId: z.literal(runId) }) })
+          .safeParse(parseJson(run.text)).success &&
+        !automation.raw.includes(token) &&
+        !live.raw.includes(token),
+      `saved=${JSON.stringify(saved).slice(0, 60)}, deployed=${JSON.stringify(deployed).slice(0, 60)}, token=${token !== ''}, authoring=${authoring.mimeType}, triggers=${triggers.text.length}, skill=${skill.text.slice(0, 20)}, agent=${agentKind.text.slice(0, 60)}, automation=${automation.text.slice(0, 80)}, live=${live.rpcCode ?? 'ok'}, run=${run.rpcCode ?? run.text.slice(0, 60)}, tokenLeak=${automation.raw.includes(token) || live.raw.includes(token)}`,
+    );
+
+    const memberHidden = await read(encoded(hidden), memberKey);
+    const ownerHidden = await read(encoded(hidden));
+    const foreign = await read(encoded(foreignName));
+    const unknown = await read('tale://projects/p1');
+    record(
+      "resources/read refuses an automation the person cannot see and another organization's as not found (MCP-R24)",
+      memberHidden.rpcCode === -32002 &&
+        memberHidden.code === 'AUTOMATION_NOT_FOUND' &&
+        ownerHidden.rpcCode === undefined &&
+        foreign.rpcCode === -32002 &&
+        foreign.code === 'AUTOMATION_NOT_FOUND' &&
+        unknown.rpcCode === -32002,
+      `member hidden=${memberHidden.rpcCode}/${memberHidden.code}, owner hidden=${ownerHidden.rpcCode ?? 'ok'}, foreign=${foreign.rpcCode}/${foreign.code}, unknown=${unknown.rpcCode}`,
+    );
+
+    const promptsList = z
+      .object({
+        result: z.object({ prompts: z.array(z.object({ name: z.string() })) }),
+      })
+      .safeParse((await rpc('prompts/list', {})).body);
+    const edit = z
+      .object({
+        result: z.object({
+          messages: z
+            .array(
+              z.object({
+                content: z.looseObject({
+                  type: z.string(),
+                  resource: z.object({ uri: z.string() }).optional(),
+                }),
+              }),
+            )
+            .min(2),
+        }),
+      })
+      .safeParse(
+        (
+          await rpc('prompts/get', {
+            name: 'edit_automation',
+            arguments: { name },
+          })
+        ).body,
+      );
+    const memberTrigger = errorShape.safeParse(
+      (
+        await rpc(
+          'prompts/get',
+          { name: 'add_trigger', arguments: { name: hidden } },
+          memberKey,
+        )
+      ).body,
+    );
+    const missingRun = errorShape.safeParse(
+      (
+        await rpc('prompts/get', {
+          name: 'debug_failed_run',
+          arguments: { runId: 'itest-run-that-never-was' },
+        })
+      ).body,
+    );
+    record(
+      'prompts attach what they are about, read with the caller’s rights (MCP-R24)',
+      promptsList.success &&
+        JSON.stringify(promptsList.data.result.prompts.map((p) => p.name)) ===
+          JSON.stringify([
+            'edit_automation',
+            'debug_failed_run',
+            'add_trigger',
+          ]) &&
+        edit.success &&
+        edit.data.result.messages[1]?.content.resource?.uri === encoded(name) &&
+        memberTrigger.success &&
+        memberTrigger.data.error.code === -32602 &&
+        memberTrigger.data.error.data?.code === 'AUTOMATION_NOT_FOUND' &&
+        missingRun.success &&
+        missingRun.data.error.code === -32602 &&
+        missingRun.data.error.data?.code === 'RUN_NOT_FOUND',
+      `prompts=${promptsList.success ? promptsList.data.result.prompts.map((p) => p.name).join(',') : 'ERR'}, edit=${edit.success ? edit.data.result.messages[1]?.content.resource?.uri : 'ERR'}, member trigger=${memberTrigger.success ? `${memberTrigger.data.error.code}/${memberTrigger.data.error.data?.code}` : 'ERR'}, missing run=${missingRun.success ? `${missingRun.data.error.code}/${missingRun.data.error.data?.code}` : 'ERR'}`,
+    );
+
+    const download = await fetch(`${base}/api/app/mcp/skill`, {
+      headers: { cookie },
+    });
+    const downloaded = await download.text();
+    const anonymous = await fetch(`${base}/api/app/mcp/skill`);
+    const counted = await sql<{ method: string; calls: number }[]>`
+      SELECT method, calls FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method IN ('resources/list', 'resources/read', 'prompts/get')
+    `;
+    record(
+      'the Tale skill downloads as SKILL.md for a signed-in person only, the same file the resource serves (MCP-R25), and reads are counted',
+      download.status === 200 &&
+        (download.headers.get('content-disposition') ?? '').includes(
+          'filename="SKILL.md"',
+        ) &&
+        downloaded === skill.text &&
+        anonymous.status === 401 &&
+        ['resources/list', 'resources/read', 'prompts/get'].every((method) =>
+          counted.some((row) => row.method === method && row.calls > 0),
+        ) &&
+        !JSON.stringify(counted).includes('tale://'),
+      `download=${download.status}/${downloaded === skill.text}, anonymous=${anonymous.status}, counted=${JSON.stringify(counted)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automation_triggers
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automation_project_bindings
+      WHERE org_id = ${orgId} AND automation_name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automation_deployments
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`
+      DELETE FROM app.automations
+      WHERE org_id = ${orgId} AND name IN (${name}, ${hidden})
+    `;
+    await sql`DELETE FROM app.automations WHERE org_id = ${foreignOrgId}`;
+    await sql`DELETE FROM "organization" WHERE "id" = ${foreignOrgId}`;
+    await sql`DELETE FROM app.projects WHERE id = ${hrProject} AND org_id = ${orgId}`;
+    await sql`DELETE FROM "team" WHERE "id" = ${teamRows[0]?.id ?? ''}`;
+    // The lanes after this one spend the same request and execution budgets.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:execute'`;
+  }
+}
+
+/**
+ * Both MCP protocol eras on the real door, one key (MCP-R16, MCP-R26): a
+ * 2026-07-28 request — its revision and capabilities in `params._meta`,
+ * mirrored into `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` — is
+ * served without `initialize`: `server/discover` names the revisions and the
+ * contract version, the lists and reads answer `resultType`, the server and
+ * the cache hints, and a save names the client the request carries on the
+ * version row, the audit row and the call counter. Legacy `initialize`,
+ * calls and batches on the same key keep their 2025 answers. Refused before
+ * anything runs, each with HTTP 400: a revision it does not speak (-32022,
+ * in a header or in `_meta`), a header that does not say what the body says
+ * (-32020 — a delete whose `Mcp-Name` names a read leaves the automation in
+ * place), a missing envelope (-32602) and a batch on the modern revision
+ * (-32600); `initialize` and `ping` there are 404 -32601, and a read that
+ * finds nothing is -32602 with the tool's code.
+ */
+async function checkMcpEras(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const { DOC_EXAMPLE } = await import('../lib/engine/api/docs.ts');
+  const { API_CONTRACT_VERSION } =
+    await import('../lib/shared/constants/api-contract.ts');
+  const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');
+  const MODERN = '2026-07-28';
+  const CLIENT = 'itest-modern-agent';
+  const minted = z.looseObject({ key: z.string() }).safeParse(
+    await (
+      await fetch(`${base}/api/auth/api-key/create`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie, origin: base },
+        body: JSON.stringify({ name: 'itest-mcp-eras' }),
+      })
+    ).json(),
+  );
+  const apiKey = minted.success ? minted.data.key : '';
+  const door = {
+    authorization: `Bearer ${apiKey}`,
+    'x-organization-slug': orgSlug,
+    'content-type': 'application/json',
+  };
+  interface Reply {
+    readonly status: number;
+    readonly body: unknown;
+    readonly sessionId: string | null;
+  }
+  const send = async (
+    headers: Record<string, string>,
+    payload: unknown,
+  ): Promise<Reply> => {
+    const res = await fetch(`${base}/api/v1/mcp`, {
+      method: 'POST',
+      headers: { ...door, ...headers },
+      body: JSON.stringify(payload),
+    });
+    const raw = await res.text();
+    let body: unknown = null;
+    try {
+      body = raw === '' ? null : JSON.parse(raw);
+    } catch (error) {
+      console.warn('[itest] MCP reply is not JSON:', error);
+    }
+    return {
+      status: res.status,
+      body,
+      sessionId: res.headers.get('mcp-session-id'),
+    };
+  };
+  let rpcId = 1500;
+  /** One 2026-07-28 request with the headers its body implies, unless
+   * `headers` overrides one (an empty string leaves it out). */
+  const modern = async (
+    method: string,
+    params: Record<string, unknown> = {},
+    headers: Record<string, string> = {},
+    meta: Record<string, unknown> = {},
+  ): Promise<Reply> => {
+    rpcId += 1;
+    const named =
+      method === 'resources/read'
+        ? params.uri
+        : method === 'tools/call' || method === 'prompts/get'
+          ? params.name
+          : undefined;
+    const all: Record<string, string> = {
+      'mcp-protocol-version': MODERN,
+      'mcp-method': method,
+      ...(typeof named === 'string' ? { 'mcp-name': named } : {}),
+      ...headers,
+    };
+    return send(
+      Object.fromEntries(Object.entries(all).filter(([, v]) => v !== '')),
+      {
+        jsonrpc: '2.0',
+        id: rpcId,
+        method,
+        params: {
+          ...params,
+          _meta: {
+            'io.modelcontextprotocol/protocolVersion': MODERN,
+            'io.modelcontextprotocol/clientCapabilities': {},
+            'io.modelcontextprotocol/clientInfo': {
+              name: CLIENT,
+              version: '1.0.0',
+            },
+            ...meta,
+          },
+        },
+      },
+    );
+  };
+  /** One legacy (2025-11-25) request, or a batch. */
+  const legacy = async (payload: unknown): Promise<Reply> =>
+    send({ 'mcp-protocol-version': '2025-11-25' }, payload);
+  const errorShape = z.object({
+    error: z.object({
+      code: z.number(),
+      message: z.string(),
+      data: z.looseObject({}).optional(),
+    }),
+  });
+  const errorOf = (reply: Reply) => {
+    const parsed = errorShape.safeParse(reply.body);
+    return parsed.success ? parsed.data.error : undefined;
+  };
+  const toolText = (reply: Reply): Record<string, unknown> => {
+    const parsed = z
+      .object({
+        result: z.object({
+          content: z.array(z.object({ text: z.string() })).min(1),
+        }),
+      })
+      .safeParse(reply.body);
+    if (!parsed.success) return {};
+    const value = z
+      .record(z.string(), z.unknown())
+      .safeParse(JSON.parse(parsed.data.result.content[0]?.text ?? '{}'));
+    return value.success ? value.data : {};
+  };
+  const name = 'itest-eras/report';
+  try {
+    const discovered = await modern('server/discover');
+    const discoverOk =
+      discovered.status === 200 &&
+      discovered.sessionId === null &&
+      z
+        .object({
+          result: z.object({
+            resultType: z.literal('complete'),
+            supportedVersions: z.array(z.string()),
+            capabilities: z.object({ tools: z.object({}) }),
+            instructions: z.string().min(1).max(2048),
+            _meta: z.object({
+              'io.modelcontextprotocol/serverInfo': z.looseObject({
+                version: z.literal(API_CONTRACT_VERSION),
+              }),
+            }),
+            ttlMs: z.number().int().min(0),
+            cacheScope: z.literal('private'),
+          }),
+        })
+        .refine(
+          (body) =>
+            JSON.stringify(body.result.supportedVersions) ===
+            JSON.stringify([MODERN, '2025-11-25', '2025-06-18', '2025-03-26']),
+        )
+        .safeParse(discovered.body).success;
+    const listed = await modern('tools/list');
+    const listedTools = z
+      .object({
+        result: z.object({
+          tools: z.array(z.object({ name: z.string() })),
+          resultType: z.literal('complete'),
+          ttlMs: z.number(),
+          cacheScope: z.literal('private'),
+        }),
+      })
+      .safeParse(listed.body);
+    record(
+      'MCP 2026-07-28: server/discover and tools/list answer without initialize, complete, with the server and cache hints (MCP-R26)',
+      discoverOk &&
+        listed.status === 200 &&
+        listedTools.success &&
+        listedTools.data.result.tools.length === MCP_TOOLS.length,
+      `discover=${discovered.status}/${discoverOk}/session=${discovered.sessionId ?? 'none'}, tools/list=${listed.status}/${listedTools.success ? listedTools.data.result.tools.length : JSON.stringify(listed.body).slice(0, 120)} (want ${MCP_TOOLS.length})`,
+    );
+
+    // A save on the modern revision, between legacy calls on the same key.
+    const init = await legacy({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-11-25',
+        capabilities: {},
+        clientInfo: { name: 'itest-legacy-script', version: '1.0.0' },
+      },
+    });
+    // The day's row for a method names the latest client that called it on
+    // this key, and the 2026-07-28 refusals below send `initialize` again
+    // under the modern client: read the legacy one before they do.
+    const legacyInitRow = await sql<{ clientName: string | null }[]>`
+      SELECT client_name AS "clientName" FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method = 'initialize'
+    `;
+    const saved = await modern('tools/call', {
+      name: 'save_automation',
+      arguments: {
+        automation: { ...DOC_EXAMPLE.automation, name },
+        message: 'eras lane',
+      },
+    });
+    const savedValue = toolText(saved);
+    const legacyRead = await legacy({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'get_automation', arguments: { name } },
+    });
+    const legacyView = toolText(legacyRead);
+    const legacyBatch = await legacy([
+      { jsonrpc: '2.0', id: 3, method: 'ping' },
+      { jsonrpc: '2.0', id: 4, method: 'tools/list' },
+    ]);
+    const modernRead = await modern('tools/call', {
+      name: 'get_automation',
+      arguments: { name },
+    });
+    const versionRows = await sql<
+      { createdVia: string | null; clientName: string | null }[]
+    >`
+      SELECT created_via AS "createdVia", client_name AS "clientName"
+      FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    const auditRows = await sql<
+      { via: string | null; clientName: string | null }[]
+    >`
+      SELECT metadata->>'via' AS via, metadata->>'clientName' AS "clientName"
+      FROM app.audit_logs
+      WHERE org_id = ${orgId} AND resource_type = 'automation'
+        AND resource_id = ${name} AND action = 'automation.version.saved'
+    `;
+    const legacyResult = z
+      .object({ result: z.record(z.string(), z.unknown()) })
+      .safeParse(legacyRead.body);
+    record(
+      'MCP: a 2026-07-28 save names its client on the version and the audit row, between 2025-11-25 calls and a batch on the same key (MCP-R26)',
+      z
+        .object({
+          result: z.object({ protocolVersion: z.literal('2025-11-25') }),
+        })
+        .safeParse(init.body).success &&
+        saved.status === 200 &&
+        savedValue.version === 1 &&
+        legacyRead.status === 200 &&
+        legacyView.clientName === CLIENT &&
+        legacyResult.success &&
+        legacyResult.data.result.resultType === undefined &&
+        Array.isArray(legacyBatch.body) &&
+        legacyBatch.body.length === 2 &&
+        z
+          .object({
+            result: z.looseObject({ resultType: z.literal('complete') }),
+          })
+          .safeParse(modernRead.body).success &&
+        versionRows.length === 1 &&
+        versionRows[0]?.createdVia === 'mcp' &&
+        versionRows[0]?.clientName === CLIENT &&
+        auditRows.length === 1 &&
+        auditRows[0]?.via === 'mcp' &&
+        auditRows[0]?.clientName === CLIENT,
+      `init=${init.status}, save=${saved.status}/${JSON.stringify(savedValue).slice(0, 80)}, legacy read=${legacyRead.status}/client=${String(legacyView.clientName)}, batch=${legacyBatch.status}/${Array.isArray(legacyBatch.body) ? legacyBatch.body.length : 'not an array'}, modern read=${modernRead.status}, version=${JSON.stringify(versionRows)}, audit=${JSON.stringify(auditRows)}`,
+    );
+
+    // Refused before anything runs.
+    const unknownInMeta = await modern(
+      'tools/list',
+      {},
+      { 'mcp-protocol-version': '2027-01-01' },
+      { 'io.modelcontextprotocol/protocolVersion': '2027-01-01' },
+    );
+    const unknownHeader = await send(
+      { 'mcp-protocol-version': '2024-11-05' },
+      { jsonrpc: '2.0', id: 31, method: 'tools/list' },
+    );
+    const supportedOk = (reply: Reply): boolean => {
+      const error = errorOf(reply);
+      const supported = error?.data?.supported;
+      return (
+        reply.status === 400 &&
+        error?.code === -32022 &&
+        Array.isArray(supported) &&
+        supported.includes(MODERN) &&
+        supported.includes('2025-11-25')
+      );
+    };
+    // A proxy that rewrites the name a request is routed on, not the body:
+    // the delete never runs.
+    const disguisedDelete = await modern(
+      'tools/call',
+      {
+        name: 'delete_automation',
+        arguments: { name, expectedLatestVersion: 1 },
+      },
+      { 'mcp-name': 'get_automation' },
+    );
+    const noMethodHeader = await modern('tools/list', {}, { 'mcp-method': '' });
+    const stillThere = await sql<{ count: string }[]>`
+      SELECT count(*)::text AS count FROM app.automations
+      WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    const noEnvelope = await send(
+      { 'mcp-protocol-version': MODERN, 'mcp-method': 'tools/list' },
+      { jsonrpc: '2.0', id: 32, method: 'tools/list' },
+    );
+    const modernBatch = await send({ 'mcp-protocol-version': MODERN }, [
+      { jsonrpc: '2.0', id: 33, method: 'tools/list' },
+    ]);
+    const removedInit = await modern('initialize', {
+      protocolVersion: MODERN,
+      capabilities: {},
+    });
+    const removedPing = await modern('ping');
+    const missing = await modern('resources/read', {
+      uri: 'tale://automations/itest-eras%2Fnever-saved',
+    });
+    record(
+      'MCP 2026-07-28 refusals: -32022, -32020 before anything runs, -32602 envelope, batch -32600, 404 for initialize/ping, -32602 for a read that finds nothing (MCP-R16, MCP-R26)',
+      supportedOk(unknownInMeta) &&
+        supportedOk(unknownHeader) &&
+        disguisedDelete.status === 400 &&
+        errorOf(disguisedDelete)?.code === -32020 &&
+        noMethodHeader.status === 400 &&
+        errorOf(noMethodHeader)?.code === -32020 &&
+        stillThere[0]?.count === '1' &&
+        noEnvelope.status === 400 &&
+        errorOf(noEnvelope)?.code === -32602 &&
+        modernBatch.status === 400 &&
+        errorOf(modernBatch)?.code === -32600 &&
+        removedInit.status === 404 &&
+        errorOf(removedInit)?.code === -32601 &&
+        removedPing.status === 404 &&
+        errorOf(removedPing)?.code === -32601 &&
+        missing.status === 200 &&
+        errorOf(missing)?.code === -32602 &&
+        errorOf(missing)?.data?.code === 'AUTOMATION_NOT_FOUND',
+      `unknown in _meta=${unknownInMeta.status}/${errorOf(unknownInMeta)?.code}, unknown header=${unknownHeader.status}/${errorOf(unknownHeader)?.code}, disguised delete=${disguisedDelete.status}/${errorOf(disguisedDelete)?.code}/rows=${stillThere[0]?.count}, no Mcp-Method=${noMethodHeader.status}/${errorOf(noMethodHeader)?.code}, no envelope=${noEnvelope.status}/${errorOf(noEnvelope)?.code}, batch=${modernBatch.status}/${errorOf(modernBatch)?.code}, initialize=${removedInit.status}/${errorOf(removedInit)?.code}, ping=${removedPing.status}/${errorOf(removedPing)?.code}, missing read=${missing.status}/${errorOf(missing)?.code}/${String(errorOf(missing)?.data?.code)}`,
+    );
+
+    const counted = await sql<{ method: string; clientName: string | null }[]>`
+      SELECT method, client_name AS "clientName" FROM app.mcp_client_activity
+      WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND method IN ('server/discover', 'initialize')
+    `;
+    record(
+      'MCP: server/discover is counted with the client a 2026-07-28 request names, initialize with the legacy one (MCP-R21, MCP-R26)',
+      counted.some(
+        (row) => row.method === 'server/discover' && row.clientName === CLIENT,
+      ) && legacyInitRow[0]?.clientName === 'itest-legacy-script',
+      `counted=${JSON.stringify(counted)}, initialize right after the legacy call=${JSON.stringify(legacyInitRow)}`,
+    );
+  } finally {
+    await sql`
+      DELETE FROM app.automations WHERE org_id = ${orgId} AND name = ${name}
+    `;
+    // The lanes after this one spend the same request budget.
+    await sql`DELETE FROM app.rate_limits WHERE name = 'rest:api'`;
+  }
 }
 
 /** The retired standalone goal-authoring endpoint no longer accepts work. */
@@ -15543,15 +17655,16 @@ async function checkGovernance(
     `bucket tokens=${chatBucket?.totalTokens ?? 'MISSING'} cost=${chatBucket?.costEstimateCents ?? 'MISSING'} (want > 0), connectorBuckets=${connectorBuckets[0]?.count}, blocked=${refused.success ? refused.data.status : 'ERR'} ("${refused.success ? refused.data.reason : ''}"), cap=${cap} (want 9000), autoRefs=${autoPick.accessibleModelRefs.join(',')} (want vendor/itest-model), reopened=${reopened.allowed}`,
   );
 
-  // Budget scope alignment over the live 0.5 enforcer (the composer's Send
-  // gate, TTS, and video links all ride `checkTtsBudget`): a default-tier
+  // Budget scope alignment over the live 0.5 enforcer (`checkOrgBudget`,
+  // the shared gate every lane measures with): a default-tier
   // token cap is a PERSONAL cap, measured against the member's own usage;
   // a team rule is a SHARED cap, measured against the usage of the team's
   // CURRENT members with the team rule's own values — read through
   // membership, never the ledger's `team_id`, which most lanes do not book.
   // Two members whose combined tokens exceed the per-member cap must both
   // stay allowed; the team's own cost cap must still bind the aggregate.
-  const { checkTtsBudget } = await import('./domains/tts/service.ts');
+  const { checkOrgBudget } =
+    await import('./domains/governance/budget-gate.ts');
   const teammate = 'itest-budget-teammate';
   await sql`
     INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
@@ -15630,9 +17743,9 @@ async function checkGovernance(
     prospectiveCostCents: 0,
     prospectiveRequests: 0,
   };
-  const mixedScopes = await checkTtsBudget(sql, budgetArgs);
+  const mixedScopes = await checkOrgBudget(sql, budgetArgs);
   await seedTeamUsage(teammate, 0, 150);
-  const teamCapHit = await checkTtsBudget(sql, budgetArgs);
+  const teamCapHit = await checkOrgBudget(sql, budgetArgs);
   await unlink(path.join(governanceDir, 'budgets.yml'));
   orgConfig.clearOrgConfigCaches();
   record(
@@ -54145,6 +56258,119 @@ async function checkArena(
     voteRows.length === 1 && voteRows[0]?.rating === 'negative',
     `rows=${voteRows.length} rating=${voteRows[0]?.rating}`,
   );
+
+  // ---- a comparison started in a new chat is named once ------------------
+  // Its first message lands in both columns while both are untitled: only
+  // the visible column queues a title, and that title names the visible
+  // column alone. A hidden column that wins takes its partner's name as it
+  // stands then — a rename included — and one that wins while its partner's
+  // title is still being made is named from its own first message.
+  const { setThreadTitleIfAbsent } = await import('./domains/chat/threads.ts');
+  const newPair = async (): Promise<{ a: string; b: string }> => {
+    const thread = z
+      .object({ id: z.string() })
+      .safeParse(
+        await (
+          await post(`/api/app/chat/threads?orgId=${orgId}`, { kind: 'direct' })
+        ).json(),
+      );
+    const a = thread.success ? thread.data.id : '';
+    const pair = z
+      .object({ threadIdB: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${a}/arena/ensure?orgId=${orgId}`,
+            {},
+          )
+        ).json(),
+      );
+    return { a, b: pair.success ? pair.data.threadIdB : '' };
+  };
+  const titleOf = async (threadId: string): Promise<string | null> =>
+    (
+      await sql<{ title: string | null }[]>`
+        SELECT title FROM app.threads WHERE id = ${threadId}
+      `
+    )[0]?.title ?? null;
+  const titleJobsFor = async (threadIds: string[]): Promise<string[]> =>
+    (
+      await sql<{ threadId: string }[]>`
+        SELECT data ->> 'threadId' AS "threadId" FROM pgboss.job
+        WHERE name = 'chat.generate_title'
+          AND data ->> 'threadId' = ANY(${threadIds})
+      `
+    ).map((job) => job.threadId);
+  const openWith = async (pair: { a: string; b: string }): Promise<void> => {
+    for (const threadId of [pair.a, pair.b]) {
+      await appendMessageRow(sql, {
+        organizationId: orgId,
+        threadId,
+        role: 'user',
+        parts: [{ type: 'text', text: 'Plan the launch' }],
+        text: 'Plan the launch',
+        status: 'complete',
+      });
+    }
+  };
+  const settleForB = async (pair: { a: string; b: string }) =>
+    z
+      .object({ continueThreadId: z.string() })
+      .safeParse(
+        await (
+          await post(
+            `/api/app/chat/threads/${pair.a}/arena/settle?orgId=${orgId}`,
+            { verdict: 'b_better' },
+          )
+        ).json(),
+      );
+
+  const named = await newPair();
+  await openWith(named);
+  const titleJobs = await titleJobsFor([named.a, named.b]);
+  await setThreadTitleIfAbsent(sql, orgId, named.a, 'Launch plan');
+  const namedTitles = [await titleOf(named.a), await titleOf(named.b)];
+
+  const renamed = await newPair();
+  await sql`
+    UPDATE app.threads SET title = 'Renamed launch' WHERE id = ${renamed.a}
+  `;
+  await seedArenaRoundReplies(sql, orgId, renamed.a, renamed.b);
+  const wonByB = await settleForB(renamed);
+  const winnerTitle = await titleOf(renamed.b);
+
+  // B wins before A's title is written: B queues its own, and A's title,
+  // landing late, names A alone.
+  const early = await newPair();
+  await openWith(early);
+  // A's title still being made: its job not run, A untitled.
+  await sql`
+    DELETE FROM pgboss.job
+    WHERE name = 'chat.generate_title' AND data ->> 'threadId' = ${early.a}
+  `;
+  await sql`UPDATE app.threads SET title = NULL WHERE id = ${early.a}`;
+  await seedArenaRoundReplies(sql, orgId, early.a, early.b);
+  const wonEarly = await settleForB(early);
+  const earlyJobs = await titleJobsFor([early.b]);
+  await setThreadTitleIfAbsent(sql, orgId, early.a, 'Late title');
+  const earlyWinnerTitle = await titleOf(early.b);
+  record(
+    'arena: a comparison in a new chat queues one title, for its visible column; a winning hidden column takes its partner’s name, or queues its own while that is not written yet',
+    named.a !== '' &&
+      named.b !== '' &&
+      titleJobs.length === 1 &&
+      titleJobs[0] === named.a &&
+      namedTitles[0] !== null &&
+      namedTitles[1] === null &&
+      wonByB.success &&
+      wonByB.data.continueThreadId === renamed.b &&
+      winnerTitle === 'Renamed launch' &&
+      wonEarly.success &&
+      wonEarly.data.continueThreadId === early.b &&
+      earlyJobs.length === 1 &&
+      earlyWinnerTitle !== 'Late title',
+    `title jobs=${JSON.stringify(titleJobs.map((id) => (id === named.a ? 'visible' : 'hidden')))} (want ["visible"]), titles=${JSON.stringify(namedTitles)} (want the visible column's, the hidden untitled), renamed pair's winner=${wonByB.success ? (wonByB.data.continueThreadId === renamed.b ? 'B' : 'A') : 'shape-fail'} titled ${JSON.stringify(winnerTitle)} (want "Renamed launch"), early winner's title jobs=${earlyJobs.length} (want 1) and title after A's late one=${JSON.stringify(earlyWinnerTitle)} (want anything but "Late title")`,
+  );
 }
 
 async function checkGovernanceEnforcement(
@@ -61833,6 +64059,24 @@ async function main(): Promise<void> {
       ],
       ['checkMcp', () => checkMcp(sql, baseUrl, authCtx, `itest-${orgSuffix}`)],
       [
+        'checkMcpAuthoringParity',
+        () =>
+          checkMcpAuthoringParity(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpDiscovery',
+        () => checkMcpDiscovery(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpResourcesPrompts',
+        () =>
+          checkMcpResourcesPrompts(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkMcpEras',
+        () => checkMcpEras(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
         'checkRetiredBuilderRoute',
         () => checkRetiredBuilderRoute(baseUrl, authCtx),
       ],
@@ -62079,6 +64323,10 @@ async function main(): Promise<void> {
         () => checkAutomatedRetryAgentBusy(sql, baseUrl, authCtx, record),
       ],
       [
+        'checkAgentRunApiKeys',
+        () => checkAgentRunApiKeys(sql, baseUrl, authCtx, record),
+      ],
+      [
         'checkWorkerDrainHandOff',
         () => checkWorkerDrainHandOff(sql, boss, record),
       ],
@@ -62127,6 +64375,7 @@ async function main(): Promise<void> {
         'checkExecLimitPark',
         () => checkExecLimitPark(sql, baseUrl, authCtx, record),
       ],
+      ['checkAgentWorkers', () => checkAgentWorkers(sql, authCtx, record)],
       [
         'checkTaskRunConnectorCaller',
         () => checkTaskRunConnectorCaller(sql, baseUrl, authCtx, record),

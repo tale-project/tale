@@ -1044,6 +1044,18 @@ export async function processErasure(
     return removed.length;
   });
 
+  // The subject's coding agents' daily call counters (when, which method and
+  // tool, the client's own name): kept for their activity view, never as
+  // evidence, so they go with the person.
+  await pass('mcpActivity', async () => {
+    const removed = await sql<{ day: number }[]>`
+      DELETE FROM app.mcp_client_activity
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING day
+    `;
+    return removed.length;
+  });
+
   await pass('memories', async () => {
     const removed = await sql<{ id: string }[]>`
       DELETE FROM app.memories
@@ -1124,13 +1136,13 @@ export async function processErasure(
   });
 
   // Calls the platform made straight to a provider for the subject — a
-  // chat title, Improve: one op row each (kind `direct-call`), the
-  // settlement's record of whose call it is. A row whose
-  // call was booked, or closed having spent nothing, has done its work and
-  // is deleted. A call still running — or past its deadline, which a late
-  // end still books — keeps its row and loses the identity, so it books
-  // under the pseudonym. After the requests above, and before the ledger
-  // pass: a hold or a failure that stopped them stops this pass too.
+  // chat title, Improve, a transcription, an embedding request: one op row
+  // each (kind `direct-call`), the settlement's record of whose call it is.
+  // A row whose call was booked, or closed having spent nothing, has done
+  // its work and is deleted. A call still running — or past its deadline,
+  // which a late end still books — keeps its row and loses the identity, so
+  // it books under the pseudonym. After the requests above, and before the
+  // ledger pass: a hold or a failure that stopped them stops this pass too.
   await pass('directCalls', async () => {
     if (!modelRequestsDeidentified)
       throw new Error('Model request de-identification did not complete');
@@ -1262,6 +1274,22 @@ export async function processErasure(
       RETURNING id
     `;
     return onedrive.length + googleDrive.length;
+  });
+
+  // A website whose scan a usage limit stopped names who asked for the scan
+  // (`metadata.embeddingLimitRequestedBy`, a member and the key they used),
+  // so the hourly pass resumes it as their spend. The note stays — the
+  // site's pages still wait for their vectors — but no longer names the
+  // subject: the scan resumes as the organization's.
+  await pass('websiteScanNotes', async () => {
+    const cleared = await sql<{ id: string }[]>`
+      UPDATE app.websites
+         SET metadata = metadata - 'embeddingLimitRequestedBy'
+       WHERE org_id = ${organizationId}
+         AND metadata -> 'embeddingLimitRequestedBy' ->> 'userId' = ${targetUserId}
+      RETURNING id
+    `;
+    return cleared.length;
   });
 
   // The org-level security and system bells ABOUT the subject, which are a

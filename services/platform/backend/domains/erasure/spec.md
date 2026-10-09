@@ -57,8 +57,9 @@ without a new approval. A request that has finished in the meantime is not run a
 | runs of a project agent | kept, with the person's identity replaced by a pseudonym |
 | finished model API and direct automation model requests | deleted |
 | model API and direct automation model requests still in progress | kept, with the person's identity replaced by a pseudonym |
-| finished model calls Tale made for them (a chat title, Improve with AI) | deleted |
+| finished model calls Tale made for them (a chat title, Improve with AI, a transcription, the embeddings of their uploads and searches) | deleted |
 | such model calls still in progress | kept, with the person's identity replaced by a pseudonym, so their cost is booked under it |
+| a website scan a usage limit stopped while it was theirs to pay for | kept, no longer naming them: it resumes as the organization's |
 
 The receipt counts each of these steps. Automation runs are retired before their model
 requests lose the identity, so an admitted call that finishes later books only under the

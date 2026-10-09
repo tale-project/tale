@@ -1,5 +1,3 @@
-import { randomUUID } from 'node:crypto';
-
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
@@ -7,6 +5,7 @@ import {
   mergeTimelineParts,
   type TimelinePart,
 } from '../../../lib/harnesses/timeline';
+import type { AgentRunWaitingReason } from '../../../lib/shared/agent-run-waiting';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
@@ -33,6 +32,7 @@ import { sandboxToolShimHandlers } from '../sandbox/shim.ts';
 import {
   markSessionOpKeyRevoked,
   scheduleGatewayKeyReconcile,
+  settleCostFreeTurn,
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
@@ -43,13 +43,13 @@ import {
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
 import {
-  emitTaskRunHint,
   failAgentRunFromTurn,
   isStandardAgentRefusal,
   kickAgentRun,
   launchAgentRun,
   settleAgentRun,
 } from './agent-runs.ts';
+import { parkAgentRunInTx } from './agent-workers.ts';
 import { isTaskRunConfined } from './run-authority.ts';
 import {
   agentRecordTaskOutputsTrusted,
@@ -161,7 +161,13 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
 
     'tasks/agent_runs:setTaskAgentRunRunning': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
-      const args = raw as { runId: string; execId: string };
+      const args = raw as {
+        runId: string;
+        execId: string;
+        /** The deadline the start works to; an image that passes none
+         * keeps the kick's. */
+        deadlineAt?: number;
+      };
       // Exec-fenced: a start whose exec the queued-run recovery rotated away
       // (or whose run was cancelled) learns it here and stands down instead
       // of spawning — the host reads the boolean.
@@ -251,17 +257,23 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The person whose steer restarts the turn; absent from a steer
          * queued before it was carried. */
         startedBy?: string;
+        /** The API key they wrote with; absent when they wrote without one. */
+        apiKeyId?: string;
       };
       // The SINGLE-WINNER claim: guarded on (running, fromExecId), so two
       // concurrent steers cannot both rotate — the loser re-reads and sees
       // the new incarnation. The superseded chain orphans itself because
       // every settle mark is exec-guarded. The restarted turn is booked to
-      // the person who steered it: spend follows the run's starter.
+      // the person who steered it, and to the key they wrote with or none:
+      // spend follows the run's starter.
       const execId = `${args.fromExecId}-2`;
+      const startedBy = args.startedBy ?? null;
       const rows = await sql<{ id: string }[]>`
         UPDATE app.project_agent_runs SET
           exec_id = ${execId},
-          started_by = coalesce(${args.startedBy ?? null}, started_by),
+          started_by = coalesce(${startedBy}, started_by),
+          api_key_id = CASE WHEN ${startedBy}::text IS NULL THEN api_key_id
+                            ELSE ${args.apiKeyId ?? null} END,
           updated_at_ms = ${Date.now()}
         WHERE id = ${args.runId} AND status = 'running'
           AND exec_id = ${args.fromExecId}
@@ -276,6 +288,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         taskId: string;
         authorId: string;
+        /** The API key the text was written with. */
+        apiKeyId?: string;
         feedback: string;
         mentionSource?: MentionSource;
       };
@@ -352,6 +366,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                   mentionSource: 'comment' as const,
                 }),
             startedBy: args.authorId,
+            ...(args.apiKeyId !== undefined ? { apiKeyId: args.apiKeyId } : {}),
           });
         } catch (error) {
           // The organization's standard agent no longer starts for the
@@ -403,51 +418,11 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
          * pass for a quarter hour of progress — and onto a fresh exec, since
          * the refused one's key and op row are closed as cancelled. */
         execRefused?: boolean;
+        /** Why it waits (`runParkReason`); absent when the refusal has no
+         * wording of its own. */
+        reason?: AgentRunWaitingReason;
       };
-      const parked = await sql.begin(async (tx) => {
-        const now = Date.now();
-        const rows = await tx<
-          {
-            organizationId: string;
-            taskId: string;
-            agentId: string;
-            execId: string;
-          }[]
-        >`
-          UPDATE app.project_agent_runs SET
-            status = 'queued',
-            exec_id = ${args.execRefused === true ? randomUUID() : args.execId},
-            launched_at_ms = CASE WHEN ${args.execRefused === true}
-              THEN NULL ELSE launched_at_ms END,
-            waiting_for_capacity_at_ms = ${now},
-            updated_at_ms = ${now}
-          WHERE id = ${args.runId} AND exec_id = ${args.execId}
-            AND status = ${args.execRefused === true ? 'running' : 'queued'}
-          RETURNING org_id AS "organizationId", task_id AS "taskId",
-            agent_id AS "agentId", exec_id AS "execId"
-        `;
-        // The card now reads "Waiting for a sandbox slot", not "Queued".
-        const row = rows[0];
-        if (row !== undefined) {
-          await emitTaskRunHint(tx, {
-            organizationId: row.organizationId,
-            taskId: row.taskId,
-          });
-          if (args.wakeAfterMs !== undefined && args.wakeAfterMs > 0) {
-            await addJobInTx(
-              tx,
-              'task.agent_park_wake',
-              {
-                organizationId: row.organizationId,
-                runId: args.runId,
-                execId: row.execId,
-              },
-              { startAfter: new Date(Date.now() + args.wakeAfterMs) },
-            );
-          }
-        }
-        return row;
-      });
+      const parked = await sql.begin((tx) => parkAgentRunInTx(tx, args));
       // A parked run holds no slot: a standing workspace its start resumed
       // before the sandbox host refused the create reads `active` with no
       // compute, where the reconcile would heal it to destroyed. Free it back
@@ -629,6 +604,15 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       // its spend fact closes at the terminal stamp, which also releases the
       // budget reservation it may hold.
       const keyless = args.mintedKeyId === undefined;
+      // Except a subscription turn's: it is the request it was, booked
+      // before that stamp closes it — whatever ended it, its host's release
+      // or a watchdog's failure.
+      if (terminal && keyless) {
+        await settleCostFreeTurn(sql, {
+          sessionId: args.sessionId,
+          execId: args.execId,
+        });
+      }
       const upsert = async (
         db: Sql | TransactionSql,
         liveTimeline: TimelinePart[] | undefined,
@@ -884,9 +868,9 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         /** The workspace of the turn that ended. */
         sessionId?: string;
       };
-      // Stop the agent's standing session unless a sibling turn is live —
-      // and wake the oldest parked runs on the freed slot, and the oldest
-      // run parked on the ended turn's workspace.
+      // Stop each of the agent's workers no live run names — and wake the
+      // next parked runs on a freed slot, or the agent's oldest parked run
+      // when the ended turn's worker stayed up.
       return releaseProjectAgentSessionSlot(sql, args);
     },
 
@@ -933,6 +917,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           resumedBy: string | null;
           spendSettledAt: number | null;
           keyRevokedAt: number | null;
+          budgetCents: number | null;
         }[]
       >`
         SELECT minted_key_id AS "mintedKeyId",
@@ -940,7 +925,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
                started_at_ms::float8 AS "startedAt",
                resumed_by AS "resumedBy",
                spend_settled_at_ms::float8 AS "spendSettledAt",
-               key_revoked_at_ms::float8 AS "keyRevokedAt"
+               key_revoked_at_ms::float8 AS "keyRevokedAt",
+               budget_cents::float8 AS "budgetCents"
         FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${args.execId}
         LIMIT 1
@@ -955,6 +941,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         // The settlement facts a replayed settle resumes from.
         spendSettled: row.spendSettledAt !== null,
         keyRevoked: row.keyRevokedAt !== null,
+        // The hold the turn took: 0 for a subscription turn's request.
+        ...(row.budgetCents !== null ? { budgetCents: row.budgetCents } : {}),
       };
     },
 

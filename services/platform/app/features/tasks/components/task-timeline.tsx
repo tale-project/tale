@@ -55,6 +55,10 @@ import {
 } from '../utils/task-timeline';
 import { TaskActorName } from './task-actor-preview-popover';
 import { TaskAgentRunStatusBadge } from './task-agent-run-status-badge';
+import {
+  isAgentRunWaiting,
+  TaskAgentRunWaitingNote,
+} from './task-agent-run-waiting';
 import { TaskStatusGlyph } from './task-status-glyph';
 
 /** An agent run's cost, as the conversation and the details panel show it. */
@@ -199,50 +203,61 @@ function TaskTimelineEntryContent({
         ? resolveActor('agent', run.delegatedByAgentId).name
         : undefined;
     return (
-      <ThreadEvent
-        className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
-        glyph={
-          <span
-            className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
-            aria-hidden
-          >
-            <Bot className="size-3" />
+      <>
+        <ThreadEvent
+          className="[contain-intrinsic-block-size:auto_1.5rem] [content-visibility:auto]"
+          glyph={
+            <span
+              className="bg-primary/10 text-primary inline-flex size-5 items-center justify-center rounded-full"
+              aria-hidden
+            >
+              <Bot className="size-3" />
+            </span>
+          }
+          time={<ThreadTime value={run.startedAt} format={timeFormat} />}
+          trailing={
+            <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
+          }
+        >
+          <ThreadEventActor>
+            <TaskActorName preview={agentPreview} name={agentPreview.name} />
+          </ThreadEventActor>{' '}
+          {t('timeline.runLabel')}
+          <span aria-hidden="true"> · </span>
+          <span>
+            {t(`agentRuns.trigger.${run.trigger}`)}
+            {run.durationMs !== undefined
+              ? ` · ${Math.round(run.durationMs / 1000)}s`
+              : ''}
+            {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
           </span>
-        }
-        time={<ThreadTime value={run.startedAt} format={timeFormat} />}
-        trailing={
-          <TaskAgentRunStatusBadge run={run} agentName={agentPreview.name} />
-        }
-      >
-        <ThreadEventActor>
-          <TaskActorName preview={agentPreview} name={agentPreview.name} />
-        </ThreadEventActor>{' '}
-        {t('timeline.runLabel')}
-        <span aria-hidden="true"> · </span>
-        <span>
-          {t(`agentRuns.trigger.${run.trigger}`)}
-          {run.durationMs !== undefined
-            ? ` · ${Math.round(run.durationMs / 1000)}s`
-            : ''}
-          {run.costCents > 0 ? ` · ${formatCents(run.costCents)}` : ''}
-        </span>
-        {workflowPreview ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            <TaskActorName
-              preview={workflowPreview}
-              name={workflowPreview.name}
+          {workflowPreview ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              <TaskActorName
+                preview={workflowPreview}
+                name={workflowPreview.name}
+              />
+            </>
+          ) : null}
+          {delegatorName !== undefined ? (
+            <>
+              <span aria-hidden="true"> · </span>
+              {t('timeline.startedByAgent')}{' '}
+              <TaskActorName preview={delegatorPreview} name={delegatorName} />
+            </>
+          ) : null}
+        </ThreadEvent>
+        {isAgentRunWaiting(run) ? (
+          // Why the run waits, under its line, in the sentence's column.
+          <div className="pl-8">
+            <TaskAgentRunWaitingNote
+              organizationId={organizationId}
+              reason={run.waitingReason}
             />
-          </>
+          </div>
         ) : null}
-        {delegatorName !== undefined ? (
-          <>
-            <span aria-hidden="true"> · </span>
-            {t('timeline.startedByAgent')}{' '}
-            <TaskActorName preview={delegatorPreview} name={delegatorName} />
-          </>
-        ) : null}
-      </ThreadEvent>
+      </>
     );
   }
 

@@ -688,7 +688,7 @@ const documentIndexing: Json = {
         'skipped',
       ],
       description:
-        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
+        '`pending` — never queued; `skipped` — the file opts out of indexing; `unsupported` — TERMINAL: the platform cannot index these bytes and a retry reproduces the answer, `errorCode` says why (`unsupported_type`, `image_no_vision`, `empty`, `not_text`, `malformed`); `failed` — see `error` / `errorCode`: the job retries `embedding_upstream`, `indexer_error` and `index_rebuilding` by itself, `usage_limit` resumes by itself once the usage limit allows it, the rest wait for an admin (a provider account, the organization’s policy) and a `retry-indexing`; a `failed` with no `errorCode` is a failure the platform settled without classifying it, usually an indexing run that stopped before it finished (a lost job, a stopped worker) — request a `retry-indexing` rather than wait for one',
     },
     indexedAt: {
       ...epochMs,
@@ -703,7 +703,7 @@ const documentIndexing: Json = {
       type: 'string',
       enum: [...RAG_ERROR_CODES],
       description:
-        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
+        'The stable cause to branch on, present with `unsupported`, and with `failed` whenever the platform classified the cause — a `failed` without one was settled unclassified, usually after its indexing run stopped before it finished; request a `retry-indexing` for it. Terminal (`unsupported`): `unsupported_type` — no extractor for the type; `image_no_vision` — an image and no OCR lane; `empty` — no text to index; `not_text` — binary bytes behind a text extension, re-export as UTF-8; `malformed` — the bytes do not parse as the format the extension claims. Retried by the job (`failed`): `embedding_upstream` — the provider was unreachable, rate-limited or 5xx; `indexer_error` — a platform-side store fault; `index_rebuilding` — the search index is being rebuilt. Waits for a usage limit (`failed`): `usage_limit` — a limit that binds whoever the file is indexed for (its uploader, a synced drive’s owner, the organization for an emailed attachment) has too little room for its embeddings; indexing resumes by itself within the hour after the limit resets or is raised, after what it already embedded. Waits for an admin (`failed`): `embedding_not_configured`, `embedding_provider_refused` (the provider refused the account or credential, the model answers vectors of another width than the settings state, or the platform cannot use the embedding credential — none configured, deleted, disabled or unreadable), `index_repair_failed`, `secret_detected`, `pii_blocked`. Saving corrected embedding settings, or adding or repairing the credential the embedding model uses, re-queues every document that failed on the embedding model.',
     },
   },
 };
@@ -4721,11 +4721,15 @@ export function buildSpec(): Json {
       tags: ['Automations'],
       summary: 'List automations',
       description:
-        'The organization’s automation definitions, by name, as a complete set ' +
-        '(not paginated). Each carries the ids of the projects it is installed ' +
-        'in that the key holder can see — the scope a project-bound automation ' +
-        'must be started in. Read `/api/v1/projects/{id}/automations` for the ' +
-        'automations installed in one visible project.',
+        'The organization’s automation definitions the key holder can see, by ' +
+        'name, as a complete set (not paginated): every automation installed ' +
+        'in no project, and every one installed in a project they can read — ' +
+        'one installed only in projects they cannot read is left out, and its ' +
+        'reads answer 404 as for one that does not exist. Each carries the ids ' +
+        'of the projects it is installed in that the key holder can see — the ' +
+        'scope a project-bound automation must be started in. Read ' +
+        '`/api/v1/projects/{id}/automations` for the automations installed in ' +
+        'one visible project.',
       operationId: 'listAutomations',
       security: sec,
       responses: {
@@ -6547,6 +6551,12 @@ export function buildSpec(): Json {
               '`Retry-After` names the wait, retry with backoff',
           ),
           ...standardErrors,
+          '429': withDoorRefusal(
+            standardErrors['429'],
+            'embedding the query is a model request the key holder pays for, and a budget cap that binds it — the key holder’s own, one of their teams’, ' +
+              (scope.project ? 'the project’s, ' : '') +
+              'the organization’s or this API key’s — is reached (`BUDGET_EXCEEDED`): nothing is searched, `data` names the cap — `scope`, `period`, `limitCode`, `used`, `limit`, `resetsAt` — and `Retry-After` the wait in whole seconds until its period resets',
+          ),
         },
       },
     };
@@ -6601,7 +6611,7 @@ export function buildSpec(): Json {
           code: {
             type: 'integer',
             description:
-              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, or arguments that do not match the advertised input schema), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait)',
+              '-32700 parse error, -32600 invalid request, -32601 unknown method, -32602 invalid params (an unknown tool, a `tools/call` without a name, a malformed resource address, an unknown prompt or its arguments; on 2026-07-28 also a missing or malformed `params._meta` envelope, `data.missing` / `data.malformed`, and a resource address that reads nothing), -32002 a resource address that reads nothing on the 2025 revisions (`data.code` names the refusal), -32603 a resource read that failed unexpectedly (`data.requestId`), -32020 a 2026-07-28 request whose `MCP-Protocol-Version`, `Mcp-Method` or `Mcp-Name` header is missing or does not say what its body says, -32022 unsupported protocol revision (`data.supported`), -32000 a tool call in a batch that exceeded the key holder’s request budget (`data.retryAfterMs` names the wait). Arguments that do not match a tool’s advertised input schema are a tool result flagged `isError` whose text names the tool-error code INVALID_ARGUMENTS (a tool code, not a REST one), never an error envelope',
           },
           message: str,
         },
@@ -6615,14 +6625,27 @@ export function buildSpec(): Json {
       tags: ['MCP'],
       summary: 'The platform MCP endpoint',
       description:
-        'JSON-RPC over HTTP (MCP protocol 2025-06-18, or 2025-03-26 when the ' +
-        'client proposes it; JSON responses only, no SSE). One message per ' +
-        'request, or a JSON-RPC batch answered as an array. Authenticate with ' +
+        'JSON-RPC over HTTP, both MCP protocol eras on one endpoint ' +
+        '(JSON responses only, no SSE). On 2025-11-25, or 2025-06-18 or ' +
+        '2025-03-26 when the client proposes it, the client opens with ' +
+        '`initialize`, which answers `instructions` and reports the API ' +
+        'contract version as `serverInfo.version`; a request carries one ' +
+        'message, or a JSON-RPC batch answered as an array. On 2026-07-28 ' +
+        'there is no `initialize`: every request carries its revision and ' +
+        'the client’s capabilities in `params._meta`, mirrored into the ' +
+        '`MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers; ' +
+        '`server/discover` answers the revisions, capabilities and ' +
+        'instructions; a request carries one message; and every result adds ' +
+        '`resultType` and the server under `_meta`, with `ttlMs` and ' +
+        '`cacheScope` where a client may cache it. Authenticate with ' +
         'the same Bearer org API key as the REST API. Call `tools/list` for ' +
         'the tool inventory — automation authoring, run and trigger management, ' +
         'and the organization’s capability surface — and the `get_docs` tool ' +
-        'for the in-band authoring reference. Tool arguments are checked ' +
-        'against the advertised input schema. GET answers 405. See the MCP ' +
+        'for the in-band authoring reference; `resources/list` and ' +
+        '`prompts/list` name what a client reads by address (the references, ' +
+        'automations, runs) and the ready-made prompts. Tool arguments are checked ' +
+        'against the advertised input schema, and every problem comes back ' +
+        'at once as a tool result (code INVALID_ARGUMENTS). GET answers 405. See the MCP ' +
         'endpoint page in the developer docs for the full tour.',
       operationId: 'mcp',
       security: sec,
@@ -6635,7 +6658,7 @@ export function buildSpec(): Json {
             maxItems: 20,
             items: jsonRpcMessage,
             description:
-              'A JSON-RPC batch — at most 20 messages; every tool call beyond the first draws from the request budget like a request of its own',
+              'A JSON-RPC batch, on the 2025 revisions only — at most 20 messages; every tool call, resource read or listing, or prompt beyond the first draws from the request budget like a request of its own',
           },
         ],
       }),
@@ -6651,10 +6674,20 @@ export function buildSpec(): Json {
             'A notification (a message without an id), or a batch of notifications alone — acknowledged, no body',
         },
         '400': jsonResponse(
-          'The body could not be acted on: not JSON (-32700), not a JSON-RPC 2.0 message, an id that is not a string or an integer, an empty batch, or an unsupported `MCP-Protocol-Version` header (-32600)',
+          'The body could not be acted on: not JSON (-32700); not a JSON-RPC 2.0 message, an id that is not a string or an integer, an empty batch, or a batch naming 2026-07-28 (-32600); an `MCP-Protocol-Version` header or a `_meta` revision the endpoint does not speak (-32022, with `data.supported` listing the ones it does and `data.requested`); or, on 2026-07-28, a missing or malformed `params._meta` envelope (-32602) or a header that is missing or does not say what the body says (-32020). Nothing runs',
           jsonRpcError,
         ),
+        // Two shapes: the endpoint's own JSON-RPC error, and the door's
+        // REST envelope for an `X-Organization-Slug` that names no
+        // organization (appended below with the other door refusals).
+        '404': jsonResponse(
+          'On 2026-07-28 only: a method that revision does not have — `initialize`, `ping` or one the endpoint does not serve (-32601), as a JSON-RPC error. The 2025 revisions answer an unknown method with 200',
+          { oneOf: [jsonRpcError, ref('Error')] },
+        ),
         '401': standardErrors['401'],
+        '403': errorResponse(
+          'Where the operator enforces the browser-origin rule, the request carries an `Origin` header the deployment does not accept (`ORIGIN_FORBIDDEN`) — a CLI or server client sends none',
+        ),
         '429': standardErrors['429'],
       },
     },

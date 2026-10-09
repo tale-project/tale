@@ -172,6 +172,41 @@ describe('reserveTurnBudget', () => {
     );
   });
 
+  it('holds a subscription turn as one request at no cost [GOV-R16]', async () => {
+    gate.resolveTurnAllowance.mockResolvedValue({
+      allowed: true,
+      budgetCents: 0,
+    });
+    const { sql, statements } = fakeSql([
+      {
+        match: 'FROM app.project_agent_runs r',
+        rows: [{ startedBy: 'user-1', agentId: 'agent-alice' }],
+      },
+    ]);
+
+    const result = await reserveTurnBudget(sql, {
+      ...ARGS,
+      defaultBudgetCents: 0,
+      costFree: true,
+      modelRef: 'anthropic/claude-sonnet-4-5',
+    });
+
+    expect(result).toEqual({ allowed: true, budgetCents: 0 });
+    // No cent floor: the turn is measured at no cost, request and token
+    // caps alone.
+    expect(gate.resolveTurnAllowance).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ defaultCents: 0, costFree: true }),
+    );
+    // A 0-cent hold is still a hold: one request while the turn runs.
+    const upsert = statements.find((s) =>
+      s.text.includes('INSERT INTO app.sandbox_session_ops'),
+    );
+    expect(upsert?.values).toEqual(
+      expect.arrayContaining(['task-agent', 'user-1', 'agent-alice', 0]),
+    );
+  });
+
   it('records nothing when the cap refuses [SBX-R16]', async () => {
     gate.resolveTurnAllowance.mockResolvedValue({
       allowed: false,

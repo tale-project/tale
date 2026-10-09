@@ -314,6 +314,17 @@ describe('an automation agent turn', () => {
         mutations.find((m) => m.args.brokerTokenHash !== undefined)?.args
           .brokerTokenHash,
       ).toBe('stable-selected-account-hash');
+      // The subscription turn holds its request — at no cost — before the
+      // credential is vended (GOV-R16).
+      expect(
+        mutations.find(
+          (m) => m.name === 'sandbox/session_mutations:reserveTurnBudget',
+        )?.args,
+      ).toMatchObject({
+        kind: 'workflow-agent',
+        defaultBudgetCents: 0,
+        costFree: true,
+      });
     },
   );
 

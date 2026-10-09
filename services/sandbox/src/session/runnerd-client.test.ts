@@ -821,7 +821,12 @@ describe('runnerd replay continuity', () => {
     ).toBe(true);
     expect(seen).toHaveLength(1);
   });
-  test.each(['OUTPUT_GAP', 'OUTPUT_LIMIT', 'REPLAY_UNAVAILABLE'])(
+  test.each([
+    'OUTPUT_GAP',
+    'OUTPUT_LIMIT',
+    'REPLAY_UNAVAILABLE',
+    'REPLAY_DISK_FULL',
+  ])(
     'daemon replay failure %s retains its terminal diagnostic code',
     async (code) => {
       setReplayBody('journal-gap', [

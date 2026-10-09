@@ -244,14 +244,22 @@ export async function foldOrgUsageMetrics(
     // (`user:<id>`, `api-key:<id>`, `trigger:<id>`); they are the same
     // member's spend (or the automation bucket's) and fold onto one row.
     const subjectId = usageLedgerSubject(row.userId);
+    // Classify by schema discriminator (connectorName / audioDurationSec /
+    // model) so connector and transcription rows route to their own buckets
+    // instead of collapsing under the LLM "Direct API" sentinel.
+    const kind = classifyUsageRow(row);
+    // A connector call is counted as one, never as a model request: rows
+    // booked before that rule carry a request, and fold to none like the
+    // rest, as the request caps read them.
+    const requests = kind === 'connector' ? 0 : row.requestCount;
 
     if (!currentKeySet.has(row.periodKey)) {
       // Rows outside the current window but inside the prior one feed deltas.
       if (prevKeySet.has(row.periodKey)) {
-        prevTotalRequests += row.requestCount;
+        prevTotalRequests += requests;
         prevTotalTokens += row.totalTokens;
         prevTotalCostCents += row.costEstimate;
-        if (row.requestCount > 0 && !isAutomationSubject(subjectId)) {
+        if (requests > 0 && !isAutomationSubject(subjectId)) {
           prevActiveUserIds.add(subjectId);
         }
       }
@@ -265,27 +273,23 @@ export async function foldOrgUsageMetrics(
     const seriesPoint = seriesMap.get(chartKey);
     if (!seriesPoint) continue;
 
-    seriesPoint.requests += row.requestCount;
+    seriesPoint.requests += requests;
     seriesPoint.inputTokens += row.inputTokens;
     seriesPoint.outputTokens += row.outputTokens;
     seriesPoint.tokens += row.totalTokens;
     seriesPoint.costCents += row.costEstimate;
 
-    totalRequests += row.requestCount;
+    totalRequests += requests;
     totalInputTokens += row.inputTokens;
     totalOutputTokens += row.outputTokens;
     totalTokens += row.totalTokens;
     totalCostCents += row.costEstimate;
     // The automation sentinel is a bucket, not a member — it holds the spend
     // of trigger-started runs and never counts as an active user.
-    if (row.requestCount > 0 && !isAutomationSubject(subjectId)) {
+    if (requests > 0 && !isAutomationSubject(subjectId)) {
       activeUserIds.add(subjectId);
     }
 
-    // Classify by schema discriminator (connectorName / audioDurationSec /
-    // model) so connector and transcription rows route to their own buckets
-    // instead of collapsing under the LLM "Direct API" sentinel.
-    const kind = classifyUsageRow(row);
     const agentSlugForBucket = bucketAgentSlug(row, kind);
     let agentBucket = agentBuckets.get(agentSlugForBucket);
     if (!agentBucket) {
@@ -297,7 +301,7 @@ export async function foldOrgUsageMetrics(
       };
       agentBuckets.set(agentSlugForBucket, agentBucket);
     }
-    agentBucket.requests += row.requestCount;
+    agentBucket.requests += requests;
     agentBucket.tokens += row.totalTokens;
     agentBucket.costCents += row.costEstimate;
 
@@ -322,7 +326,7 @@ export async function foldOrgUsageMetrics(
         };
         modelBuckets.set(modelKey, modelBucket);
       }
-      modelBucket.requests += row.requestCount;
+      modelBucket.requests += requests;
       modelBucket.tokens += row.totalTokens;
       modelBucket.costCents += row.costEstimate;
     }
@@ -347,7 +351,7 @@ export async function foldOrgUsageMetrics(
         };
         voiceModelBuckets.set(voiceKey, voiceBucket);
       }
-      voiceBucket.requests += row.requestCount;
+      voiceBucket.requests += requests;
       voiceBucket.characters += row.characterCount ?? 0;
       voiceBucket.costCents += row.costEstimate;
     }
@@ -372,7 +376,7 @@ export async function foldOrgUsageMetrics(
     userBucket.outputTokens += row.outputTokens;
     userBucket.tokens += row.totalTokens;
     userBucket.costCents += row.costEstimate;
-    userBucket.requests += row.requestCount;
+    userBucket.requests += requests;
   }
 
   // Sort by cost descending — it's the only metric that compares fairly across

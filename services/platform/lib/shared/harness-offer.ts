@@ -1,11 +1,22 @@
 /**
- * The (provider, model) picker vocabulary shared by every surface that saves
- * a pinned model pick — the project-agent dialog and the automation agent
- * node. One option per (provider, model) pair, exactly as the composer
- * listing carries them: the pick stores the PAIR (`model` + `modelProvider`),
- * so two providers serving the same id stay separately pickable — collapsing
- * them was how a pick silently landed on the wrong provider's bill.
+ * Which agent runtime (harness) a listed model is offered to, and the
+ * (provider, model) picker vocabulary built on that rule — shared by every
+ * surface that saves a pinned model pick (the project-agent dialog, the
+ * automation agent node) and by the MCP endpoint's model listing, so an
+ * agent and a person are offered the same models for the same runtime. One
+ * option per (provider, model) pair, exactly as the composer listing
+ * carries them: the pick stores the PAIR (`model` + `modelProvider`), so two
+ * providers serving the same id stay separately pickable — collapsing them
+ * was how a pick silently landed on the wrong provider's bill.
+ *
+ * Browser-safe: the app and the backend import it alike.
  */
+
+import type { HarnessGatewayWire } from '@tale/shared/schemas/providers';
+
+/** The harness an automation's agent step runs on when it names none — the
+ * runtime's own default and the "Default (Claude Code)" the picker labels. */
+export const DEFAULT_HARNESS = 'claude-code';
 
 /** One (provider, model) pair the agent can call — a composer model listing
  * entry. The same model id can appear once per provider that serves it. */
@@ -24,7 +35,7 @@ export interface ModelOption {
 }
 
 /** The wire a harness speaks to the gateway, as the listing carries it. */
-export type HarnessToolWire = 'anthropic' | 'openai-chat' | 'openai-responses';
+export type HarnessToolWire = HarnessGatewayWire;
 
 /** A `listComposerModels` row, narrowed to the fields the mapping reads. */
 export interface ComposerModelListingRow {

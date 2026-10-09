@@ -74,6 +74,10 @@ mcpEndpoint:
       title: Run & trigger management
       description: Operate what is deployed — start and poll durable runs,
         browse versions, bind and unbind triggers.
+    discovery:
+      title: Discovery
+      description: Look up what an automation may name — models, agent
+        runtimes, skills, connectors, secret names, projects and events.
     capability:
       title: Capabilities & knowledge
       description: This organization's own surface — search what it can do,
@@ -1163,6 +1167,10 @@ logs:
       Audit logs will appear here as actions are performed in your
       organization.
     detailTitle: Audit log details
+    viaLabel: Source
+    viaLabels:
+      mcp: Coding agent
+    clientLabel: Client
     columns:
       timestamp: Timestamp
       action: Action
@@ -1355,6 +1363,13 @@ logs:
       automation.run.cancelled: Automation run stopped
       automation.run.deleted: Automation run deleted
       automation.run.in_doubt_resolved: Interrupted automation step decided
+      automation.version.saved: Automation version saved
+      automation.deployed: Automation deployed
+      automation.deleted: Automation deleted
+      automation.trigger.set: Automation trigger changed
+      automation.trigger.deleted: Automation trigger removed
+      automation.project.bound: Automation installed in a project
+      automation.project.unbound: Automation removed from a project
       create_connector: Created connector
       delete_connector: Deleted connector
       update_credential: Updated credential
@@ -1466,6 +1481,7 @@ logs:
       workflow: Automation
       workflow_run: Automation run
       automation_trigger: Automation trigger
+      automation: Automation
       workflow_creation: Automation creation
       workflow_update: Automation update
       customer: Contact

@@ -608,6 +608,18 @@ output:
       `model` (no `modelProvider`), and a live run of that node succeeds.
       **Type a model that is not listed** (`automations.editor.llm.typeUnlisted`)
       shows the id box for free text.
+- [ ] `AUTO-F92` · **What the organization lacks warns, never blocks** — In
+      an organization without Gmail connected, open an automation whose
+      `agent` node names a skill nobody added, the connector `gmail`, a
+      secret nobody stored and the agent runtime `cursor` → **Problems** lists
+      four warnings, `automationIssues.codes.HARNESS_UNKNOWN.title`,
+      `automationIssues.codes.SKILL_UNKNOWN.title`,
+      `automationIssues.codes.CONNECTOR_NOT_CONNECTED.title` and
+      `automationIssues.codes.SECRET_UNKNOWN.title`, each going to the node,
+      with a closest name where one is close; **Save version** succeeds. MCP
+      `validate_automation` with an ordinary member's key answers the same
+      warnings except the secret one. Connect Gmail in **Settings ›
+      Connectors** → the next check no longer lists it (MCP-R15).
 - [ ] `AUTO-F51` · **General tab** — Open
       `/dashboard/{org}/automations/{slug}/general` with the developer
       capability, edit the cron and add a project, leave for **Editor**,

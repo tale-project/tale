@@ -39,6 +39,15 @@ describe("conversation.send_message's payload", () => {
     );
   });
 
+  it('keeps who sent it, whose connector call the delivery is', async () => {
+    const handler = createTaskList({ sql: SQL })['conversation.send_message'];
+    await handler?.({ ...PAYLOAD, sentBy: { userId: 'u1' } });
+    expect(runSendMessageJob).toHaveBeenCalledWith(
+      SQL,
+      expect.objectContaining({ sentBy: { userId: 'u1' } }),
+    );
+  });
+
   it('sends without one when the payload names none', async () => {
     const handler = createTaskList({ sql: SQL })['conversation.send_message'];
     await handler?.(PAYLOAD);

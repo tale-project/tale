@@ -33,6 +33,7 @@ budgets:
   maxRequestsHelp: Total de requêtes IA par période. Laisse vide pour aucune limite.
   warningThreshold: Seuil d'alerte (%)
   warningThresholdHelp: Alerte lorsque l'utilisation dépasse ce pourcentage de la limite.
+  warningThresholdProjectHelp: Toutes les personnes qui discutent dans ce projet voient une alerte dès que l'utilisation du projet dépasse ce pourcentage de la limite.
   orgScopeTarget: Organisation entière
   allUsers: Tous les utilisateurs
   overrideHint: "Les portées plus spécifiques remplacent les plus larges :
@@ -1575,17 +1576,37 @@ dataSubjectRequests:
     userPreferences: Préférences utilisateur
     messageFeedback: Retours sur messages
     fileMetadata: Fichiers déposés en chat
-    usageLedger: Journal de consommation de tokens
+    usageLedger: "Relevés d'utilisation"
     twoFactorAttempts: Tentatives 2FA
     policyAcknowledgements: Accusés de réception de politiques
     onedrive: Configurations de synchronisation OneDrive
     googleDriveSync: Configurations de synchronisation Google Drive
     userCloudAuthorizations: Autorisations d'importation cloud
     loginAttempts: Tentatives de connexion et verrouillages
-    notifications: Notifications de sécurité
+    notifications: Notifications
     wfExecutions: Exécutions d'automatisation
     promptTemplates: Prompts personnels
     sandboxWorkspaces: Espaces de travail de sandbox
+    threads: Chats
+    documents: Documents
+    uploads: Fichiers téléversés
+    preferences: Préférences
+    subscriptions: Tâches suivies
+    feedback: Retours sur messages
+    memories: Mémoires personnelles
+    mcpActivity: Activité des agents de code
+    directCalls: Appels directs aux modèles
+    videoLinks: Liens vidéo
+    cloudGrants: "Autorisations d'importation cloud"
+    syncConfigs: Configurations de synchronisation cloud
+    websiteScanNotes: Analyses de sites web demandées par la personne
+    orgNotifications: Notifications de sécurité la concernant
+    automationRuns: "Exécutions d'automatisation"
+    agentRuns: "Exécutions d'agents"
+    reviewDecisions: Décisions de relecture
+    mentions: Mentions dans le texte des tâches
+    authState: Tentatives de connexion et de double authentification
+    auditScrub: "Entrées du journal d'audit"
   legalHoldBlock:
     title: Effacement bloqué par une rétention légale
     orgHeld: Une rétention organisationnelle préserve toutes les entités de ce

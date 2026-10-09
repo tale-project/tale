@@ -6,6 +6,7 @@ import {
   type ExecuteTurnArgs,
 } from '../../core/chat/turn_action.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
+import { embeddingMeter } from '../knowledge/embedding-meter.ts';
 import {
   assertChatTurnBudget,
   type ChatTurnAdmissionExclude,
@@ -21,7 +22,10 @@ import { createPgTurnStore, createPgUsageLedger } from './store.ts';
  * `createPgUsageLedger`) and every `ctx.run*` dispatched through
  * `chatShimHandlers`. The 0.4 tool executor (`rag_search` / `rag_fetch` /
  * `web_fetch`) is NOT overridden: `executeTurn` builds it on the same shim
- * ctx, so the fixed three-tool loadout runs unchanged over 0.5 SQL.
+ * ctx, so the fixed three-tool loadout runs unchanged over 0.5 SQL. Its
+ * knowledge searches embed their query through the meter this host hands
+ * `executeTurn` (`meterEmbeddings`): the turn's own spend, held and booked
+ * like the reply.
  *
  * Same execution contract as the 0.4 action host: the caller awaits the
  * turn (at-most-once, no retry — an LLM spend must not replay), streaming
@@ -147,6 +151,11 @@ export async function runChatTurn(
         }),
         usage: createPgUsageLedger(sql),
       },
+      meterEmbeddings: (subject) =>
+        embeddingMeter(sql, {
+          organizationId: request.organizationId,
+          subject,
+        }),
     },
   );
 }

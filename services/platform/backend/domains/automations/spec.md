@@ -21,6 +21,7 @@ then belongs to the project it ran in.
 | Change an automation | yes | no |
 | Start a live run | yes | no |
 | See a run in a project | only when they can read that project | only when they can read that project |
+| See an automation installed only in projects | when they can read one of them | when they can read one of them |
 | Have a draft checked for problems | yes | no |
 
 Four things are not settled and are listed under Not yet: who can see a run of the
@@ -53,6 +54,20 @@ automation is installed in. A project of another organization is hidden the same
   run's input is shown.
 - **Example**: Zoe belongs to a different organization. With her own API key she asks for a run
   at this project's address → not found, as for a project that does not exist.
+
+### AUTO-R27 · An automation installed only in projects you cannot read is hidden from you
+
+An automation installed nowhere belongs to the organization and every member sees it. One
+installed in projects is seen by whoever can read one of them. For anyone else it is left out
+of the automation list and of the list over the API and MCP, and reading it, its versions or
+its trigger over the API or MCP answers "not found", as for one that does not exist. Its runs by
+name answer "not found" too, unless runs of it are in a scope the person can read. Listed with
+no installations, it would read as an organization automation, where it cannot run.
+
+- **Example**: `hr/onboarding` is installed only in a project shared with the HR team. Mia, an
+  ordinary member outside that team, lists the automations with her API key → it is not there;
+  she asks for its versions → "not found"; she asks for its runs → "not found", as for a name
+  nobody saved. Ada, in the HR team, sees it and its versions.
 
 ## Versions and deployment
 
@@ -91,6 +106,24 @@ version, deployed or not.
   2 → refused. He starts a test run of version 2 → it runs.
 - **Example**: A schedule is switched on for an automation with nothing deployed. Its time
   comes → no run starts, and the trigger shows `not_deployed`.
+
+### AUTO-R28 · Every change to an automation's definition leaves an audit row
+
+Saving a version, deploying one, setting or removing the trigger, installing the automation in
+a project or removing it from one, and deleting the automation each write a row to the audit
+log in the same step, whoever made the change and through whichever door: the app, a package
+upload, the API, a coding agent, managed configuration. The row names the automation, the
+versions or the project involved and who made the change, never the document or a webhook
+token. A change that changed nothing, such as an install that was already there, writes none.
+A change made with an API key, through the REST API or a coding agent, is recorded as the key's
+(actor type API), naming the key and the request, never as a change made in the app.
+
+- **Example**: Ben deploys version 7 over version 6 → the audit log shows "Automation deployed"
+  by Ben, from version 6 to version 7. He installs it again in a project it is already in → no
+  new row.
+- **Example**: Ada's key "ci" deletes `billing/dunning` through the REST API → the row reads
+  "Automation deleted" by Ada, actor type API, with the key's id and the request id, so an
+  admin knows which key to revoke.
 
 ## Checking a version for problems
 
@@ -430,7 +463,8 @@ requesting a stop leaves that hold intact (`AUTO-R26`).
   `backend/rest/v1-automations.ts`).
 - **Package upload with its carried skills, managed configuration, and the builder and MCP
   doors** (`upload.ts`, `backend/core/automations/upload_impl.ts`, `managed-configuration.ts`,
-  `dispatch-store.ts`, `backend/core/automations_builder/`).
+  `dispatch-store.ts`, `backend/core/automations_builder/`, `backend/domains/mcp/`); the MCP
+  door's own rules are the [MCP spec](../mcp/spec.md).
 - **Undecided: who can stop a run?** The app's own run endpoints let any member stop a run of
   the organization, and an editor of the project stop a run in a project, an archived one
   included (`routes.ts`, `project-visibility.ts`). The API and MCP let only an owner, admin or

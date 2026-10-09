@@ -10,6 +10,55 @@ combining both. Each entry records before/after behavior, changed paths, source 
 and proof. Repeated patterns across workflows count once; suggestions and retained
 baseline behavior do not count.
 
+## Recovering a canceled workflow tail
+
+A required `CI ready` job uses `always()` so it can explicitly reject canceled or
+missing evidence. Under runner pressure, a canceled workflow can keep that final job
+queued while a newer duplicate waits on the workflow concurrency lock. Keep the final
+check enforced: a skipped required job can count as passing.
+
+The CLI workspace owns a bounded recovery command for one explicitly selected pair:
+
+```sh
+bun tools/cli/scripts/ci-retire-tail.ts --pr 123 --older-run 1000 --replacement-run 1001
+```
+
+Its default is a read-only manifest. Both runs must belong to the same open, non-draft
+Tale PR, current head and base, branch, event and native workflow. The replacement
+must be newer and pending with no jobs. The predecessor must have exactly one
+unallocated, queued final check; every other job must be terminal with at least one
+cancellation and no failure. GitHub reports an unassigned runner as either `0` or
+`null`; a missing runner field or a positive runner ID is refused. Complete,
+attempt-bound job inventories are paged with
+fixed limits. A changed, stale, incomplete, foreign or unreadable observation preserves
+both runs. Actual work that is still queued or running is never eligible.
+
+After reviewing an eligible manifest, add `--apply --receipt /absolute/private/path.jsonl`
+to cancel that predecessor. The command repeats the complete observation, refuses a
+changed graph, exclusively creates an owner-only receipt, flushes its file and parent directory, and
+sends at most one
+cancellation request using existing `gh` authentication. It creates no credential or
+permission grant. Without existing Actions write access, keep the read-only manifest
+for an authorized operator. Metadata reads and writes share a 60-second, 40-request
+budget; each read includes at most five pages of 100 jobs.
+
+The receipt distinguishes confirmed cancellation, accepted but still pending readback,
+and an unknown outcome after dispatch. A lost response is never retried automatically:
+inspect the exact run before another decision and retain the receipt. Reusing its path
+is refused. GitHub does not offer a compare-and-cancel operation, so re-observation
+bounds the race but cannot make the read and cancellation atomic. A later run attempt,
+new head, a different PR containing the same code, workflow aggregates still queued,
+or all-success predecessors need separate source review; this command does not infer
+that they are disposable. It changes no required check or merge rule and is not an
+org-wide cancellation scheduler. Applying requires a POSIX filesystem that supports
+file and directory synchronization; Windows retains read-only operation. Any receipt
+or directory-flush failure preserves the runs before dispatch.
+
+The caller owns credential selection. A managed worker supplies its existing,
+authorized credential as `GH_TOKEN` for this command's process, following its
+provisioned instructions; an operator may use their existing `gh` authentication.
+The shared command does not look up agent secrets or change global authentication.
+
 ## Current execution graph
 
 - **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run

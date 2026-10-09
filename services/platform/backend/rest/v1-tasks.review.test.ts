@@ -96,6 +96,8 @@ function mount(
     deployed?: boolean;
     /** Who created the task — nobody's own (an import's) by default. */
     taskCreatedBy?: string;
+    /** The API key the call came with; none by default. */
+    apiKeyId?: string;
   } = {},
 ) {
   const queries: Captured[] = [];
@@ -182,6 +184,7 @@ function mount(
     c.set('role', options.role ?? 'admin');
     c.set('orgExplicit', true);
     c.set('clientIp', '203.0.113.9');
+    if (options.apiKeyId !== undefined) c.set('apiKeyId', options.apiKeyId);
     return next();
   });
   app.route('/', createTaskRestRoutes({ sql }));
@@ -337,6 +340,36 @@ describe('POST /projects/{id}/tasks/{taskId}/review', () => {
         startedVia: 'api-key',
         task: expect.objectContaining({ id: 't-1', status: 'in_progress' }),
       }),
+    );
+  });
+
+  it('decides with the person’s access and the key’s spend: what the decision starts books to the key [SBX-R14]', async () => {
+    const { request, tx } = mount({ apiKeyId: 'key-1' });
+    const res = await request('POST', {
+      decision: 'request_changes',
+      comment: 'Box 302 is too high — the January credit note is missing.',
+      workflowSlug: 'vat-return-desk',
+      actor,
+    });
+    expect(res.status).toBe(200);
+    const relayed = expect.objectContaining({
+      userId: 'user-9',
+      apiKeyId: 'key-1',
+    });
+    expect(service.addTaskComment).toHaveBeenCalledWith(
+      tx,
+      relayed,
+      expect.anything(),
+    );
+    expect(service.updateTaskStatus).toHaveBeenCalledWith(
+      tx,
+      relayed,
+      't-1',
+      'in_progress',
+    );
+    expect(service.startWorkflowForTaskInTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({ startedByUserId: 'user-9', apiKeyId: 'key-1' }),
     );
   });
 

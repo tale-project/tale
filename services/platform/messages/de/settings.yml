@@ -76,6 +76,11 @@ mcpEndpoint:
       title: Lauf- & Trigger-Verwaltung
       description: Betreiben, was live ist — Läufe starten und abfragen,
         Versionen durchsehen, Trigger setzen und lösen.
+    discovery:
+      title: Nachschlagen
+      description: Nachsehen, was eine Automatisierung nennen darf — Modelle,
+        Agent-Laufzeiten, Skills, Connectors, Namen von Secrets, Projekte
+        und Ereignisse.
     capability:
       title: Capabilities & Wissen
       description: Die eigene Oberfläche der Organisation — durchsuchen, was
@@ -1219,6 +1224,10 @@ logs:
       Audit-Protokolle werden hier angezeigt, sobald Aktionen in
       deiner Organisation durchgeführt werden.
     detailTitle: Audit-Protokoll-Details
+    viaLabel: Quelle
+    viaLabels:
+      mcp: Coding-Agent
+    clientLabel: Client
     columns:
       timestamp: Zeitstempel
       action: Aktion
@@ -1411,6 +1420,13 @@ logs:
       automation.run.cancelled: Automatisierungslauf gestoppt
       automation.run.deleted: Automatisierungslauf gelöscht
       automation.run.in_doubt_resolved: Über unterbrochenen Automatisierungsschritt entschieden
+      automation.version.saved: Automatisierungsversion gespeichert
+      automation.deployed: Automatisierung live geschaltet
+      automation.deleted: Automatisierung gelöscht
+      automation.trigger.set: Automatisierungs-Trigger geändert
+      automation.trigger.deleted: Automatisierungs-Trigger entfernt
+      automation.project.bound: Automatisierung in einem Projekt installiert
+      automation.project.unbound: Automatisierung aus einem Projekt entfernt
       create_connector: Connector erstellt
       delete_connector: Connector gelöscht
       update_credential: Zugangsdaten aktualisiert
@@ -1522,6 +1538,7 @@ logs:
       workflow: Automatisierung
       workflow_run: Automatisierungslauf
       automation_trigger: Automatisierungs-Trigger
+      automation: Automatisierung
       workflow_creation: Erstellung der Automatisierung
       workflow_update: Automatisierungs-Update
       customer: Kontakt

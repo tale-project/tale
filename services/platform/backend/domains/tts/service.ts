@@ -17,7 +17,6 @@ import {
   TTS_WATCHDOG_BUFFER_MS,
 } from '../../../lib/shared/constants/tts.ts';
 import { TTS_SLUG } from '../../../lib/shared/constants/usage.ts';
-import type { BudgetCheckResult } from '../../core/governance/budget_enforcement.ts';
 import { estimateTtsCostCents } from '../../core/governance/cost_estimation.ts';
 import { resolveTtsModel } from '../../core/lib/providers/resolve_tts_model.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
@@ -44,10 +43,8 @@ import { chatShimHandlers } from '../chat/shim.ts';
 import { loadOwnedThread, readThreadProjectId } from '../chat/threads.ts';
 import { deleteOrgBlobRefs, putOrgBlobBytes } from '../files/service.ts';
 import {
-  checkOrgBudget,
   findBudgetViolation,
   loadBudgetSubject,
-  type OrgBudgetSubject,
 } from '../governance/budget-gate.ts';
 import {
   lockBudgetAdmission,
@@ -241,24 +238,6 @@ export async function setThreadVoiceOutputOverride(
       voice_output_override = ${args.override}
     WHERE thread_id = ${args.threadId}
   `;
-}
-
-// ----------------------------------------------------------------- budget
-
-/**
- * The org budget gate as the TTS/transcription reservations, the video-link
- * lane and the budget-status banner consume it. The evaluation itself is the
- * shared `governance/budget-gate.ts` — the managed harness turns ride the
- * same rules through `resolveTurnAllowance` — so the lanes cannot drift.
- */
-export async function checkTtsBudget(
-  sql: Sql | TransactionSql,
-  args: OrgBudgetSubject & {
-    prospectiveCostCents: number;
-    prospectiveRequests: number;
-  },
-): Promise<BudgetCheckResult> {
-  return checkOrgBudget(sql, args);
 }
 
 // ---------------------------------------------------------------- reserve

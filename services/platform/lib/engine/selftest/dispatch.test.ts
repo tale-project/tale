@@ -135,6 +135,30 @@ describe('dispatch — the shared method table', () => {
     }
   });
 
+  it('get_docs serves a topic the host provides, the authoring reference for "authoring", and refuses any other', async () => {
+    const docs = vi.fn((topic: string) =>
+      topic === 'triggers' ? '# Triggers reference' : undefined,
+    );
+    const ctx = { store: dispatchStore(), docs };
+    expect(await dispatch('get_docs', { topic: 'triggers' }, ctx)).toEqual({
+      docs: '# Triggers reference',
+    });
+    const authoring = await dispatch('get_docs', { topic: 'authoring' }, ctx);
+    expect(authoring).toEqual(await dispatch('get_docs', {}, ctx));
+    expect(docs).toHaveBeenCalledTimes(1);
+    expect(
+      await dispatch('get_docs', { topic: 'settings' }, ctx),
+    ).toMatchObject({ code: 'INVALID_PARAMS' });
+    // A host that serves no further references answers the same refusal.
+    expect(
+      await dispatch(
+        'get_docs',
+        { topic: 'triggers' },
+        { store: dispatchStore() },
+      ),
+    ).toMatchObject({ code: 'INVALID_PARAMS' });
+  });
+
   it('get_catalog lists the built-in node types with their output kind', async () => {
     const { node_types } = (await dispatch(
       'get_catalog',
@@ -260,8 +284,9 @@ describe('dispatch — the shared method table', () => {
     const store: DispatchStore = {
       ...base,
       startRun: async () => {
-        throw new Error(
-          'Role "member" lacks the developer-settings capability',
+        throw Object.assign(
+          new Error('Role "member" lacks the developer-settings capability'),
+          { name: 'ActorAuthError', code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
         );
       },
     };
@@ -579,10 +604,21 @@ describe('dispatch — run and trigger management', () => {
     const result = (await dispatch(
       'start_run',
       { name: 'order-report' },
-      { store },
+      { store, allowLive: true },
     )) as { error?: string; hint?: string };
     expect(result.error).toContain('has no version to run');
     expect(result.hint).toContain('deploy_automation');
+  });
+
+  it('start_run on the mocks refuses an automation nothing was saved under', async () => {
+    const store = dispatchStore();
+    const result = (await dispatch(
+      'start_run',
+      { name: 'order-report', mode: 'mock' },
+      { store },
+    )) as { code?: string; hint?: string };
+    expect(result.code).toBe('AUTOMATION_NOT_FOUND');
+    expect(result.hint).toContain('list_automations');
   });
 
   it('get_run and cancel_run answer for an unknown run instead of throwing', async () => {
@@ -766,6 +802,8 @@ describe('automation names are "/"-separated slug paths', () => {
       version: 1,
       testsPassed: true,
       warnings: [],
+      carried: [],
+      baseVersionChecked: false,
     });
 
     const read = (await dispatch(
@@ -791,8 +829,9 @@ describe('automation names are "/"-separated slug paths', () => {
   it("the host's own refusal on save comes back as data, not a throw", async () => {
     const store = dispatchStore();
     store.save = async () => {
-      throw new Error(
-        '"runs/nightly" starts with a word the platform reserves',
+      throw Object.assign(
+        new Error('"runs/nightly" starts with a word the platform reserves'),
+        { code: 'AUTOMATION_NAME_RESERVED', status: 400 },
       );
     };
     const result = await dispatch(
@@ -800,8 +839,9 @@ describe('automation names are "/"-separated slug paths', () => {
       { automation: { ...DOC_EXAMPLE.automation, name: 'runs/nightly' } },
       { store },
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       error: '"runs/nightly" starts with a word the platform reserves',
+      code: 'AUTOMATION_NAME_RESERVED',
     });
   });
 });

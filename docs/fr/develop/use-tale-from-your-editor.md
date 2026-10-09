@@ -349,6 +349,36 @@ Pour partager le serveur avec une équipe dans un `.mcp.json` versionné, fais r
 
 `claude mcp list` indique si Claude Code joint le serveur.
 
+### Prompts et ressources dans Claude Code {#prompts-and-resources}
+
+Une fois le serveur enregistré sous le nom `tale`, tape `/` dans Claude Code pour trouver les prompts de Tale : `/tale:edit_automation`, `/tale:debug_failed_run` et `/tale:add_trigger`. Les arguments suivent la commande, séparés par des espaces, par exemple `/tale:debug_failed_run <run-id>`. Chaque prompt joint ce dont il traite et demande à l’agent de te consulter avant toute mise en service.
+
+Tape `@` pour mentionner une ressource de Tale, par exemple `@tale:tale://runs/<run-id>` pour une exécution ou `@tale:tale://docs/triggers` pour la référence des déclencheurs. Claude Code la lit avec ta clé et la joint à ton message. [Ressources et prompts](/fr/develop/mcp-endpoint#resources-and-prompts) liste chaque adresse et chaque prompt.
+
+### Installer le skill Tale {#tale-skill}
+
+Le skill Tale est un fichier `SKILL.md` au format Agent Skills. Il apprend à ton agent comment travailler dans Tale : la boucle de modification, les tests sur les simulations, les déclencheurs, l’analyse d’une exécution échouée, la lecture d’un refus et les règles qu’il respecte, comme te consulter avant toute mise en service. Ce n’est pas l’un des skills de ton organisation, et il ne nomme ni hôte, ni organisation, ni clé : une seule copie sert à tous tes projets. Place-le là où ton agent lit ses skills :
+
+| Agent | Ce projet | Tous tes projets |
+| --- | --- | --- |
+| Claude Code | `.claude/skills/tale/SKILL.md` | `~/.claude/skills/tale/SKILL.md` |
+| Codex | `.agents/skills/tale/SKILL.md` | `~/.agents/skills/tale/SKILL.md` |
+
+Lis-le par le point d’accès MCP avec ta clé. L’exemple l’enregistre pour Claude Code dans le projet courant ; pour un autre agent, change le dossier :
+
+```bash
+mkdir -p .claude/skills/tale
+curl --fail-with-body "$TALE_URL/api/v1/mcp" \
+  --header "Authorization: Bearer $TALE_API_KEY" \
+  --header "X-Organization-Slug: $TALE_ORG_SLUG" \
+  --header 'MCP-Protocol-Version: 2025-11-25' \
+  --header 'Content-Type: application/json' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"tale://docs/skill"}}' \
+  | jq -r '.result.contents[0].text' > .claude/skills/tale/SKILL.md
+```
+
+Un agent connecté peut aussi lire `tale://docs/skill` et enregistrer le fichier lui-même. Le skill correspond à la version de Tale dont il provient : récupère-le de nouveau après une mise à jour. Les références vers lesquelles il renvoie sont lues à chaque fois depuis ton déploiement.
+
 ## Confier tes scripts à un agent de projet
 
 Pour que la modification se fasse dans Tale, dans une sandbox et avec la revue d’une personne, confie le script à un [agent de projet](/fr/platform/projects/project-agents). Tale exécute alors un environnement de code comme OpenCode dans une sandbox, avec le modèle configuré sur l’agent. L’exécution compte dans les budgets du membre qui l’a démarrée et lui est attribuée ; une exécution que tu lances en REST t’est imputée, pas à la clé API. Les fichiers modifiés reviennent comme résultats de la tâche, qui attend ensuite la revue d’une personne. [Choisir un environnement d’agent](/fr/platform/agents/harnesses) compare les environnements ; OpenCode passe uniquement par la passerelle de modèles de Tale et ne reçoit donc jamais de clé de fournisseur.

@@ -49,7 +49,12 @@ runtime_image`. A pull that fails is retried after 30 s, 1, 2, 5 and then every
 10 minutes, and creates wait meanwhile (`Retry-After` follows the next pull,
 5–60 s). `GET /health` reports `runtimeImage: { state, lastError,
 nextAttemptAtMs }` with `state` one of `unchecked`, `pulling`, `ready` or
-`missing`; a missing image never makes the spawner unhealthy. Session lookups whose backend inventory or endpoint
+`missing`; a missing image never makes the spawner unhealthy. Docker probes
+`GET /health` with `curl` (a runc exec each time) every 30 s, so a booting
+spawner reads healthy up to 30 s after it starts; failures in its first 30 s
+do not count. There is no faster start interval: Docker Compose refuses
+`start_interval` on Engine 24, the oldest engine Tale supports (compose.yml,
+the CLI generator and the image's `HEALTHCHECK` agree). Session lookups whose backend inventory or endpoint
 cannot be read, or whose nonterminal runtime is still starting, answer
 `503 session_unavailable` and `Retry-After: 1`; callers retry without treating
 that temporary uncertainty as a lost session.
@@ -101,7 +106,13 @@ cap already-running writers; hard per-volume quotas require operator
 provisioning (docs/docker-in-container.md). Below either observed filesystem's
 floor every create answers 429 `host_disk`, and the build-cache upkeep
 removes the caches of organizations whose helpers are all stopped, the
-longest-stopped first. Creates refused for room wait in a
+longest-stopped first. Below its critical tier (`SANDBOX_CRITICAL_FREE_DISK`,
+a quarter of the floor, at least 1 GiB; never above the floor; `0`, or a
+floor of `0`, turns it off), where running
+sessions' writes are about to fail, the sweep also stops released idle
+Docker-in-sandbox sessions at once, which removes their inner image stores,
+and logs the three largest workspaces at most every ten minutes. Creates
+refused for room wait in a
 first-come line: freed room goes to the oldest waiter still asking, and each
 429 names the create's place (`queue: { position, waiting }`) with a
 `retry-after` for when it comes up (docs/sessions.md). At most 12 Docker CLI processes run at
@@ -252,6 +263,15 @@ shorter, before using its local builder. Cancelling a caller ends only its wait;
 the shared producer retains its organization lease until its own budget expires
 or it finishes. Expired queued producers cannot mutate Docker later, and a late
 result never attaches a network to a session that already fell back.
+A full check reads the organization network once (which also answers whether
+the egress proxy is attached and what the session attaches by), the proxy by
+the container id it was last found under, its forwarding firewall, all four
+helpers in one inspect and the builder's egress fence in one exec. Once it
+finds every helper running as it would be launched now, creates in the next
+minute confirm that with one `docker inspect` of the proxy and the four helpers
+by id: a restart or replacement of any of them, a moved proxy address or a
+changed stamp falls back to the full check, which a spawner's adoption of
+running sessions always runs.
 Session creation has one `SANDBOX_SESSION_CREATE_TIMEOUT_MS` budget (180 seconds
 by default) covering provisioning through environment delivery on Docker and
 Kubernetes. Request cancellation propagates to outstanding work. Docker failed
@@ -260,7 +280,13 @@ and its organization marker for retry or explicit destroy. Kubernetes failed
 creation has a separate 30-second cleanup budget, removes only API-acknowledged
 Pod and Secret identities, and preserves workspace PVCs and ambiguous objects.
 BuildKit solver parallelism follows the helper's CPU limit rounded down, at
-least one, and changes when an idle helper is recreated.
+least one, and changes when an idle helper is recreated. So does the builder's
+cache cap: `SANDBOX_BUILDKITD_MAX_CACHE`, or by default a tenth of the session
+disk's size rounded down to whole GiB (read with `statfs` on the session root,
+as admission does, again at most every ten minutes), at least 1 GiB and at most the 20 GiB the policy
+ships with; the floor low disk space never prunes below is a tenth of the cap,
+at most 2 GiB. The spawner passes both in bytes, and they are part of the
+builder's stamp.
 
 The mirrors enable registry storage deletion so the registry can expire cached
 image layers after its seven-day lifetime. Without this setting, its expiry
@@ -270,11 +296,23 @@ volumes. Layers whose expiry already failed are not scheduled again by the
 registry; they remain until the organization's stopped caches are reclaimed.
 
 After no agent session may still depend on an organization's cache helpers
-(only Docker-enabled agent sessions build), the `SANDBOX_SESSION_MAX_IDLE_MS` window (30
-minutes by default) starts. The helpers then stop, the builder pruning its cache
-to `SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first; their network and
-volumes remain intact and the next build restarts them. Legacy global cache helpers retire once their remaining sessions drain,
-with their cache volumes retained.
+(only Docker-enabled agent sessions build), their own `SANDBOX_BUILDKITD_IDLE_MS`
+window (10 minutes by default, apart from the session idle window) starts. The
+helpers then stop, the builder pruning its cache to
+`SANDBOX_BUILDKITD_IDLE_CACHE` (5 GB by default) first. The network and the
+builder's cache volume remain intact; the three registry mirrors are removed
+with their cache volumes (each inspected by id right before its removal, which
+must find it owned and stopped; a volume goes by exact name and ownership
+label), because the builder's pruned cache keeps the base layers its builds
+used. Mirror caches of an organization that is not building thus drop to zero.
+The next build recreates the mirrors and starts the builder again. A stopped
+helper whose stamp and image are current is started by its container id
+instead of being removed and recreated; a drifted one, or one that fails to
+start, is recreated. Legacy global cache helpers stop once their remaining sessions drain, and
+after `SANDBOX_BUILDKITD_CACHE_RETENTION` stopped the maintenance sweep, never
+a session create, removes them with their four cache volumes (exact names,
+legacy ownership label only, each removal logged; a volume that cannot go is
+tried again an hour later).
 
 An organization's stopped helpers and all four cache volumes are removed after
 `SANDBOX_BUILDKITD_CACHE_RETENTION` (14 days by default), or sooner while the

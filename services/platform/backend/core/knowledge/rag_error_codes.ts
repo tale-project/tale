@@ -68,6 +68,13 @@ export const RAG_ERROR_SECRET_DETECTED = 'secret_detected';
  * lifted by an admin changing the policy. */
 export const RAG_ERROR_PII_BLOCKED = 'pii_blocked';
 
+/** A usage limit that binds whoever the indexing is for — the uploader, a
+ * synced drive's owner, nobody for an emailed attachment — has too little
+ * room for its embedding requests. Parked, not failed for good: indexing
+ * resumes by itself once the limit resets or is raised (the hourly
+ * `knowledge.resume_usage_limited` pass), or when someone retries it. */
+export const RAG_ERROR_USAGE_LIMIT = 'usage_limit';
+
 /** Anything else the indexer could not classify — a store or database fault
  * on the platform's side; the raw cause is in the platform log, the job
  * retries by itself. */
@@ -87,6 +94,7 @@ export const RAG_ERROR_CODES = [
   RAG_ERROR_EMBEDDING_UPSTREAM,
   RAG_ERROR_INDEX_REBUILDING,
   RAG_ERROR_INDEX_REPAIR_FAILED,
+  RAG_ERROR_USAGE_LIMIT,
   RAG_ERROR_INDEXER_ERROR,
 ] as const;
 
@@ -98,6 +106,14 @@ export const RAG_ERROR_CODES = [
 export const INDEX_PARKED_RAG_ERROR_CODES = [
   RAG_ERROR_INDEX_REBUILDING,
   RAG_ERROR_INDEX_REPAIR_FAILED,
+] as const;
+
+/** Every code a file parks under: the corpus's index is bad, or a usage
+ * limit binds its indexing. The RAG watchdog leaves them to the passes that
+ * resume them (the index health report, the hourly usage-limit re-queue). */
+export const PARKED_RAG_ERROR_CODES = [
+  ...INDEX_PARKED_RAG_ERROR_CODES,
+  RAG_ERROR_USAGE_LIMIT,
 ] as const;
 
 /** The codes that land on `unsupported`: a retry reproduces the answer, so

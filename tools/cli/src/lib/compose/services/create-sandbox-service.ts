@@ -130,12 +130,16 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
       '${PLATFORM_SHARED_CONFIG:-config-data}:/app/platform-config:ro',
     ],
     restart: 'unless-stopped',
+    // Each probe is a runc exec of curl, every 30 s, so a booting spawner
+    // reads healthy up to 30 s after it starts. No `start_interval`: Docker
+    // Compose refuses it on Engine 24, the oldest engine Tale supports.
+    // Mirrors compose.yml and the image's HEALTHCHECK.
     healthcheck: {
       test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:8003/health'],
-      interval: '10s',
+      interval: '30s',
       timeout: '5s',
       retries: 3,
-      start_period: '15s',
+      start_period: '30s',
     },
     depends_on: {
       'sandbox-egress': { condition: 'service_healthy' },

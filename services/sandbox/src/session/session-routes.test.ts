@@ -26,6 +26,7 @@ import {
   type SessionSpec,
 } from '../backend/types.ts';
 import type { SpawnerConfig } from '../types.ts';
+import type { RunnerdHealth } from './runnerd-protocol.ts';
 import { deriveRunnerdToken } from './session-naming.ts';
 import { SessionRoutes, settlesWithin } from './session-routes.ts';
 import { TEST_SESSION_CONFIG } from './session-test-config.ts';
@@ -93,6 +94,7 @@ const fakeHealth = {
   liveExecs: 0,
   dockerReady: undefined as boolean | undefined,
   dockerRecoveryRequired: undefined as boolean | undefined,
+  docker: undefined as RunnerdHealth['docker'],
 };
 const fakeActivities = new Map<string, ActivityGate>();
 let legacyDaemon = false;
@@ -115,6 +117,9 @@ const daemonLastActivity = new Map<string, number>();
 const daemonIncarnations = new Map<string, string>();
 // The incarnation each activity request named, in arrival order.
 const activityIncarnations: Array<{ path: string; named: string | null }> = [];
+// Per-daemon live exec counts (by session token) /healthz reports, over
+// fakeHealth's shared one: an exec runnerd runs that no spawner registered.
+const daemonLiveExecs = new Map<string, number>();
 
 function ndjson(
   lines: Array<{ t: string; seq?: number; [key: string]: unknown }>,
@@ -208,11 +213,14 @@ beforeAll(() => {
           ...incarnation,
           lastActivityAtMs:
             daemonLastActivity.get(token) ?? fakeHealth.lastActivityAtMs,
-          liveExecs: fakeHealth.liveExecs,
+          liveExecs: daemonLiveExecs.get(token) ?? fakeHealth.liveExecs,
           ...(dockerReady === undefined ? {} : { dockerReady }),
           ...(fakeHealth.dockerRecoveryRequired === undefined
             ? {}
             : { dockerRecoveryRequired: fakeHealth.dockerRecoveryRequired }),
+          ...(fakeHealth.docker === undefined
+            ? {}
+            : { docker: fakeHealth.docker }),
           ...(legacyDaemon ? {} : { activity: activity.snapshot() }),
         });
       }
@@ -323,6 +331,21 @@ beforeAll(() => {
                 truncated: { stdout: false, stderr: false },
                 timedOut: false,
                 cancelled: false,
+              },
+            ]),
+            { headers: { 'content-type': 'application/x-ndjson' } },
+          );
+        }
+        if (text.includes('__disk_full__')) {
+          // runnerd's journal hit ENOSPC (exec-replay.ts): the exec ends.
+          return new Response(
+            ndjson([
+              { t: 'start', execId: 'e1', startedAtMs: 1, seq: 1 },
+              {
+                t: 'fail',
+                code: 'REPLAY_DISK_FULL',
+                message: 'The sandbox host ran out of disk space.',
+                seq: 2,
               },
             ]),
             { headers: { 'content-type': 'application/x-ndjson' } },
@@ -675,6 +698,7 @@ beforeEach(() => {
   fakeHealth.liveExecs = 0;
   fakeHealth.dockerReady = undefined;
   fakeHealth.dockerRecoveryRequired = undefined;
+  fakeHealth.docker = undefined;
   fakeActivities.clear();
   legacyDaemon = false;
   legacyIdleReclaim = false;
@@ -685,6 +709,7 @@ beforeEach(() => {
   daemonLastActivity.clear();
   daemonIncarnations.clear();
   activityIncarnations.length = 0;
+  daemonLiveExecs.clear();
 });
 
 describe('SessionRoutes (fake runnerd)', () => {
@@ -1866,6 +1891,26 @@ describe('SessionRoutes (fake runnerd)', () => {
       );
     },
   );
+
+  test('a journal that ran out of disk ends the exec stream with REPLAY_DISK_FULL, never a result, and keeps the session', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await routes.handleCreate(
+      JSON.stringify({ sessionId: 'disk-full', organizationId: 'org_disk' }),
+    );
+    const { events } = await readSse(
+      await routes.handleExec(
+        new Request('http://x'),
+        'disk-full',
+        JSON.stringify({ execId: 'full', command: ['echo', '__disk_full__'] }),
+      ),
+    );
+    expect(events.map((event) => event.event)).toEqual(['phase', 'error']);
+    expect(events[1]?.data).toEqual({
+      code: 'REPLAY_DISK_FULL',
+      message: 'The sandbox host ran out of disk space.',
+    });
+    expect(routes.holds('disk-full')).toBe(true);
+  });
 
   test('env/files/attach against unknown session → 404', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
@@ -3903,6 +3948,179 @@ describe('SessionRoutes (fake runnerd)', () => {
       expect([...stopped]).toEqual(['drain-owned']);
     });
 
+    test('the linger reap lets a session with a live exec end its work, and stops an idle one at once', async () => {
+      const graces = new Map<string, number | undefined>();
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        {
+          ...fakeBackend,
+          async stopSession(id, _stamp, options) {
+            graces.set(id, options?.graceMs);
+            return fakeBackend.stopSession(id);
+          },
+        },
+      );
+      for (const [sessionId, docker] of [
+        ['linger-busy', false],
+        ['linger-busy-docker', true],
+        ['linger-idle', false],
+      ] as const) {
+        expect(
+          (
+            await routes.handleCreate(
+              JSON.stringify({
+                sessionId,
+                organizationId: 'org_linger',
+                profile: 'agent',
+                docker,
+              }),
+            )
+          ).status,
+        ).toBe(201);
+      }
+      const callers = [new AbortController(), new AbortController()];
+      try {
+        for (const [index, sessionId] of [
+          'linger-busy',
+          'linger-busy-docker',
+        ].entries()) {
+          const exec = await routes.handleExec(
+            new Request('http://sandbox/exec', {
+              signal: callers[index]?.signal,
+            }),
+            sessionId,
+            JSON.stringify({ execId: `hang-${sessionId}`, command: ['true'] }),
+          );
+          await exec.body?.getReader().read();
+        }
+        expect(await routes.stopAllSessions()).toBe(3);
+      } finally {
+        for (const caller of callers) caller.abort();
+      }
+      expect(Object.fromEntries(graces)).toEqual({
+        'linger-busy': 5_000,
+        'linger-busy-docker': 20_000,
+        'linger-idle': 0,
+      });
+      expect(routes.sessionIds()).toEqual([]);
+    });
+
+    test('the linger reap asks runnerd whether a session is busy: an exec it follows by attach, or an operation, keeps its grace', async () => {
+      const tokenOf = (id: string) => deriveRunnerdToken(cfg.sandboxToken, id);
+      const graces = new Map<string, number | undefined>();
+      const routes = new SessionRoutes(
+        { ...cfg, dockerInContainer: true },
+        {
+          ...fakeBackend,
+          async stopSession(id, _stamp, options) {
+            graces.set(id, options?.graceMs);
+            return fakeBackend.stopSession(id);
+          },
+        },
+      );
+      for (const [sessionId, docker] of [
+        ['linger-attached', false],
+        ['linger-attached-docker', true],
+        ['linger-operating', false],
+        ['linger-silent', false],
+        ['linger-quiet', false],
+      ] as const) {
+        expect(
+          (
+            await routes.handleCreate(
+              JSON.stringify({
+                sessionId,
+                organizationId: 'org_linger',
+                profile: 'agent',
+                docker,
+              }),
+            )
+          ).status,
+        ).toBe(201);
+      }
+      // Between drain windows nothing is attached, so no exec is registered
+      // here; runnerd still runs one.
+      daemonLiveExecs.set(tokenOf('linger-attached'), 1);
+      daemonLiveExecs.set(tokenOf('linger-attached-docker'), 1);
+      const operating = new ActivityGate(() => 0);
+      operating.enter();
+      fakeActivities.set(tokenOf('linger-operating'), operating);
+      // A daemon that does not answer could not act on a stop's signal.
+      deadDaemons.add(tokenOf('linger-silent'));
+      expect(await routes.stopAllSessions()).toBe(5);
+      expect(Object.fromEntries(graces)).toEqual({
+        'linger-attached': 5_000,
+        'linger-attached-docker': 20_000,
+        'linger-operating': 5_000,
+        'linger-silent': 0,
+        'linger-quiet': 0,
+      });
+      expect(routes.sessionIds()).toEqual([]);
+    });
+
+    test('the linger reap joins a stop already under way instead of cutting it short', async () => {
+      const release = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      let stops = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async stopSession(id) {
+          stops += 1;
+          started.resolve();
+          await release.promise;
+          return fakeBackend.stopSession(id);
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'linger-joined', organizationId: 'org_a' }),
+      );
+      fakeHealth.lastActivityAtMs = 0;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await started.promise;
+      const linger = routes.stopAllSessions();
+      release.resolve();
+      expect(await sweep).toBe(1);
+      expect(await linger).toBe(1);
+      expect(stops).toBe(1);
+    });
+
+    test('the linger reap stops a session itself when the stop it joined ends without stopping it', async () => {
+      const release = Promise.withResolvers<void>();
+      const started = Promise.withResolvers<void>();
+      let stops = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async stopSession(id) {
+          stops += 1;
+          if (stops === 1) {
+            started.resolve();
+            await release.promise;
+            throw new Error('docker rm timed out');
+          }
+          return fakeBackend.stopSession(id);
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'linger-refused',
+          organizationId: 'org_a',
+        }),
+      );
+      fakeHealth.lastActivityAtMs = 0;
+      const sweep = routes.sweepExpired(
+        Date.now() + cfg.session.maxLifetimeMs + 1,
+      );
+      await started.promise;
+      const linger = routes.stopAllSessions();
+      release.resolve();
+      expect(await sweep).toBe(0);
+      expect(await linger).toBe(1);
+      expect(stops).toBe(2);
+      expect(routes.sessionIds()).toEqual([]);
+    });
+
     test.each(['get', 'pin'])(
       'a %s miss whose endpoint resolves after drain begins cannot adopt a peer',
       async (action) => {
@@ -5525,6 +5743,27 @@ describe('sweep and adoption hygiene', () => {
     expect(stopped.has('dind-1')).toBe(true);
   });
 
+  test('a released Docker-in-sandbox agent session keeps the full idle window only once its engine has run', async () => {
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      fakeBackend,
+    );
+    await create(routes, 'dind-used', 'agent');
+    await release(routes, 'dind-used');
+    const now = Date.now();
+    fakeHealth.lastActivityAtMs = now - 6 * 60_000;
+    // A slept engine still holds its image store.
+    fakeHealth.docker = { engine: 'stopped', used: true };
+    expect(await routes.sweepExpired(now)).toBe(0);
+    fakeHealth.docker = { engine: 'running', used: true };
+    expect(await routes.sweepExpired(now)).toBe(0);
+    // Never started: nothing to re-pull, so the short window applies.
+    fakeHealth.docker = { engine: 'cold', used: false };
+    expect(await routes.sweepExpired(now)).toBe(1);
+    expect(stopped.has('dind-used')).toBe(true);
+    expect(destroyed.size).toBe(0);
+  });
+
   test('a running session whose runnerd stays unreachable is stopped after five sweeps', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await create(routes, 'wedged-1');
@@ -6613,6 +6852,199 @@ describe('disk-aware admission', () => {
       { availableBytes: 3 * GIB, short: true },
       { availableBytes: 8 * GIB, short: false },
     ]);
+  });
+
+  /** Two Docker-in-sandbox sessions, one of them released by its platform
+   * and active a moment ago. */
+  async function releasedDockerSessions(routes: SessionRoutes): Promise<void> {
+    for (const id of ['dind-released', 'dind-held'])
+      expect((await create(routes, id)).status).toBe(201);
+    const ticket: unknown = await (
+      await routes.handleActivity('dind-released', 'ticket')
+    ).json();
+    await routes.handleActivity(
+      'dind-released',
+      'release',
+      JSON.stringify(ticket),
+    );
+    fakeHealth.lastActivityAtMs = Date.now();
+  }
+
+  test('below its critical tier, the sweep stops a released Docker-in-sandbox session at once and logs the largest workspaces at most every ten minutes', async () => {
+    let available = 50;
+    const measured: number[] = [];
+    const warnings: string[] = [];
+    const warn = spyOn(console, 'warn').mockImplementation(
+      (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      },
+    );
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async largestWorkspaces(limit) {
+          measured.push(limit);
+          return {
+            largest: [
+              { sessionId: 'big', bytes: 12 * GIB },
+              { sessionId: 'dind-held', bytes: 3 * GIB },
+            ],
+            measured: 2,
+            total: 3,
+          };
+        },
+      },
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    try {
+      await releasedDockerSessions(routes);
+      // Below the 5 GiB floor, above the 1.25 GiB tier: the released session
+      // keeps its full idle window, and nothing is measured.
+      available = 4;
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(measured).toEqual([]);
+      available = 1;
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('dind-released')).toBe(true);
+      // Held by its turn: never stopped for the disk.
+      expect(stopped.has('dind-held')).toBe(false);
+      expect(reclaimRequests).toHaveLength(1);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toEqual([3]);
+      expect(
+        warnings.filter((line) => line.includes('below its critical 1.3 GiB')),
+      ).toHaveLength(1);
+      expect(warnings).toContain(
+        '[sandbox.session] the session disk is critical; its largest workspaces: big 12.0 GiB, dind-held 3.0 GiB (2 of 3 workspaces measured in time)',
+      );
+      // Still critical a sweep later: said and measured once.
+      expect(await routes.sweepExpired()).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toEqual([3]);
+      expect(
+        warnings.filter((line) => line.includes('below its critical')),
+      ).toHaveLength(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('a critical tier acts on each watched filesystem for what lives there', async () => {
+    const warnings: string[] = [];
+    const warn = spyOn(console, 'warn').mockImplementation(
+      (...args: unknown[]) => {
+        warnings.push(args.map(String).join(' '));
+      },
+    );
+    let measured = 0;
+    let workspaceFree = 50;
+    let dockerFree = 50;
+    const reading = (free: number) => ({
+      totalBytes: 100 * GIB,
+      availableBytes: free * GIB,
+    });
+    const routes = new SessionRoutes(
+      { ...cfg, dockerInContainer: true },
+      {
+        ...fakeBackend,
+        async largestWorkspaces() {
+          measured += 1;
+          return { largest: [], measured: 0, total: 0 };
+        },
+      },
+      undefined,
+      undefined,
+      {
+        latest: () => reading(Math.min(workspaceFree, dockerFree)),
+        read: () =>
+          Promise.resolve(reading(Math.min(workspaceFree, dockerFree))),
+        byFilesystem: () => ({
+          workspace: reading(workspaceFree),
+          dockerData: reading(dockerFree),
+        }),
+      },
+    );
+    try {
+      await releasedDockerSessions(routes);
+      // Only the workspace disk is critical: its largest workspaces are
+      // logged, and no Docker-in-sandbox session stops, since its inner
+      // image store lives on Docker's data disk.
+      workspaceFree = 1;
+      expect(await routes.sweepExpired()).toBe(0);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(measured).toBe(1);
+      expect(stopped.has('dind-released')).toBe(false);
+      expect(
+        warnings.some((line) =>
+          line.startsWith(
+            '[sandbox.session] the session disk has 1.0 GiB free',
+          ),
+        ),
+      ).toBe(true);
+      // Docker's data disk turns critical too: the released session stops.
+      dockerFree = 1;
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('dind-released')).toBe(true);
+      expect(
+        warnings.some((line) =>
+          line.startsWith(
+            "[sandbox.session] Docker's data disk has 1.0 GiB free",
+          ),
+        ),
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('an unknown disk, or a critical tier of 0, stops nothing for the disk', async () => {
+    const off = {
+      ...cfg,
+      dockerInContainer: true,
+      session: { ...cfg.session, criticalFreeDiskBytes: 0 },
+    };
+    let measured = 0;
+    const backend = {
+      ...fakeBackend,
+      async largestWorkspaces() {
+        measured += 1;
+        return { largest: [], measured: 0, total: 0 };
+      },
+    };
+    let available: number | null = 50;
+    const reading = () =>
+      available === null
+        ? null
+        : { totalBytes: 100 * GIB, availableBytes: available * GIB };
+    const source = {
+      latest: reading,
+      read: () => Promise.resolve(reading()),
+    };
+    for (const [routes, after] of [
+      [new SessionRoutes(off, backend, undefined, undefined, source), 1],
+      [
+        new SessionRoutes(
+          { ...cfg, dockerInContainer: true },
+          backend,
+          undefined,
+          undefined,
+          source,
+        ),
+        null,
+      ],
+    ] as const) {
+      available = 50;
+      await releasedDockerSessions(routes);
+      available = after;
+      expect(await routes.sweepExpired()).toBe(0);
+      expect(stopped.has('dind-released')).toBe(false);
+      await routes.handleDestroy('dind-released');
+      await routes.handleDestroy('dind-held');
+    }
+    expect(measured).toBe(0);
   });
 });
 

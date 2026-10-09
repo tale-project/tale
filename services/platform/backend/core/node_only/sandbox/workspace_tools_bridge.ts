@@ -12,6 +12,10 @@ import {
 import { TASK_COMMENT_LOCALES_MAX } from '../../../../lib/shared/schemas/task-comment';
 import { readDocumentText } from '../../knowledge/document_text';
 import {
+  EmbeddingBudgetExceeded,
+  type EmbeddingMeter,
+} from '../../knowledge/embedding';
+import {
   FETCH_WINDOW_CHARS,
   fetchWebPageByUrl,
   windowText,
@@ -302,15 +306,20 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'or claims it is still live. A later live run of the same manager can ' +
     'replay; current grant and project authority are checked every time. ' +
     'Never fall back from a refused repair to an unguarded start. Answers ' +
-    '{started, runId, reason?}: reason stale_repair (the rejected review no ' +
+    '{started, runId, reason?, waitingReason?}. An agent working other tasks ' +
+    'is started all the same, in a worker of its own; waitingReason on a ' +
+    'started run says why it waits for room (org_limit: every agent worker ' +
+    'is in use; host: the sandbox host is full; destroy_pending: its ' +
+    'workspace is being deleted; exec_limit: its sandbox is still ending an ' +
+    'earlier process) and that it starts by itself. reason stale_repair (the rejected review no ' +
     'longer authorizes this repair; reread and retire the outdated intent), ' +
     'stale_question (that question is no ' +
     'longer open — the task was decided, a newer run or review exists, or the ' +
     'assignee changed; nothing changed), already_running (the task is being ' +
     'worked), in_review or ' +
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
-    'agent_busy (that agent is working another task — wait or work on ' +
-    'another task), blocked (an open task blocks it) or paused (three automated ' +
+    'self_start (you named yourself; hand the task to another agent), ' +
+    'blocked (an open task blocks it) or paused (three automated ' +
     'starts on this task within the hour, their automatic retries ' +
     'included) start nothing. The run answers to whoever your run ' +
     'answers to and names you as the agent that started it; an agent you ' +
@@ -492,6 +501,9 @@ export async function dispatchWorkspaceToolImpl(
     /** The token's own `turnOp` — the turn a generation is booked and
      * delivered for. Read by `generate_image` alone. */
     turn?: TurnOpRef;
+    /** Where a knowledge search's query embedding is held and booked — the
+     * turn's spend. Absent, nothing is metered. */
+    embeddingMeter?: EmbeddingMeter;
     tool: string;
     callArgs: unknown;
   },
@@ -567,6 +579,7 @@ async function runWorkspaceTool(
     userId?: string;
     taskRunExecId?: string;
     turn?: TurnOpRef;
+    embeddingMeter?: EmbeddingMeter;
     tool: string;
     callArgs: unknown;
   },
@@ -683,6 +696,9 @@ async function runWorkspaceTool(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      ...(args.embeddingMeter !== undefined
+        ? { embeddingMeter: args.embeddingMeter }
+        : {}),
       tool: args.tool,
       callArgs,
     });
@@ -922,6 +938,24 @@ const KNOWLEDGE_ACCESS_BLOCKERS: Record<
  * configured or its corpus/pool is unusable — surfaced as guidance, not a
  * transport error, so the agent tells the user instead of retrying. */
 function knowledgeUnavailable(error: unknown): ToolResult {
+  // A usage limit refused the query's embedding: nothing is broken, the
+  // search simply did not run — said as such, never as "nothing found",
+  // in the refusal's own sentence, which names the limit and its reset.
+  if (error instanceof EmbeddingBudgetExceeded) {
+    console.info(`[sandbox] knowledge search refused: ${error.message}`);
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'usage_limit',
+          guidance:
+            `Knowledge search did not run. ${error.message} Say so to the ` +
+            'person you work for; it works again once the limit resets or ' +
+            'is raised. Do not treat it as nothing found.',
+        },
+      ],
+    };
+  }
   // Same split as the chat leg: the real error to the log, a stable sentence
   // to the agent. There is no Settings → Knowledge page — the embedding
   // configuration lives under Settings → Data residency, and pointing an
@@ -950,6 +984,7 @@ async function runKnowledgeTool(
     organizationId: string;
     sessionId: string;
     userId?: string;
+    embeddingMeter?: EmbeddingMeter;
     tool: 'rag_search' | 'rag_fetch';
     callArgs: Record<string, unknown>;
   },
@@ -984,6 +1019,9 @@ async function runKnowledgeTool(
         query,
         limit,
         access: access.scope,
+        ...(args.embeddingMeter !== undefined
+          ? { meter: args.embeddingMeter }
+          : {}),
       });
       return { status: 'ok', output: result };
     } catch (error) {

@@ -63,6 +63,9 @@ export interface RunnerdHealth {
   dockerReady?: boolean;
   /** Sustained probe failure or observed terminal Docker state; permits fenced idle recovery. */
   dockerRecoveryRequired?: boolean;
+  /** The lazy inner engine: `used` once it has started in this container.
+   * Absent without Docker and on older runtime images. */
+  docker?: { engine: 'cold' | 'running' | 'stopped'; used: boolean };
   bootedAtMs: number;
   /** The creation stamp the container was launched with (see
    * RUNNERD_INCARNATION_ENV); absent when it was launched without one. */
@@ -170,7 +173,8 @@ export type RunnerdExecEvent = (
         | 'BAD_REQUEST'
         | 'OUTPUT_LIMIT'
         | 'REPLAY_UNAVAILABLE'
-        | 'OUTPUT_GAP';
+        | 'OUTPUT_GAP'
+        | 'REPLAY_DISK_FULL';
       message: string;
     }
 ) & { seq?: number };
@@ -229,7 +233,8 @@ export function isRunnerdExecEvent(value: unknown): value is RunnerdExecEvent {
           value.code === 'BAD_REQUEST' ||
           value.code === 'OUTPUT_LIMIT' ||
           value.code === 'REPLAY_UNAVAILABLE' ||
-          value.code === 'OUTPUT_GAP')
+          value.code === 'OUTPUT_GAP' ||
+          value.code === 'REPLAY_DISK_FULL')
       );
     default:
       return false;

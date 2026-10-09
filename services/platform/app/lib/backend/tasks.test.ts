@@ -681,6 +681,8 @@ describe('the task run list adapter', () => {
       status: 'running',
       error: null,
       trigger: 'manual',
+      waitingForCapacityAt: null,
+      waitingReason: null,
       startedAt: 1_000,
       launchedAt: 1_100,
       settledAt: null,
@@ -733,6 +735,49 @@ describe('the task run list adapter', () => {
     expect(runs[1]).not.toHaveProperty('workflowSlug');
     for (const key of ['workflowSlug', 'wfExecutionId', 'delegatedByAgentId']) {
       expect(runs[2]).not.toHaveProperty(key);
+    }
+  });
+
+  it('keeps why a parked run waits and the worker a live one holds, and nothing for the others', async () => {
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        runs: [
+          wireRun({
+            id: 'run-waiting',
+            status: 'queued',
+            launchedAt: null,
+            waitingForCapacityAt: 1_050,
+            waitingReason: 'org_limit',
+          }),
+          // A park an earlier image wrote kept no reason.
+          wireRun({
+            id: 'run-legacy-park',
+            status: 'queued',
+            launchedAt: null,
+            waitingForCapacityAt: 1_050,
+          }),
+          wireRun({ id: 'run-working', worker: 2 }),
+          wireRun({ id: 'run-done', status: 'settled', settledAt: 2_000 }),
+        ],
+      }),
+    );
+    const runs = (await taskReadAdapters['tasks/queries:listTaskAgentRuns']?.(
+      { organizationId: 'org-1', taskId: 't1' },
+      {},
+    )?.queryFn()) as Record<string, unknown>[];
+    expect(runs[0]).toMatchObject({
+      runId: 'run-waiting',
+      status: 'queued',
+      waitingForCapacity: true,
+      waitingReason: 'org_limit',
+    });
+    expect(runs[0]).not.toHaveProperty('worker');
+    expect(runs[1]).toMatchObject({ waitingForCapacity: true });
+    expect(runs[1]).not.toHaveProperty('waitingReason');
+    expect(runs[2]).toMatchObject({ runId: 'run-working', worker: 2 });
+    for (const run of [runs[2], runs[3]]) {
+      expect(run).not.toHaveProperty('waitingForCapacity');
+      expect(run).not.toHaveProperty('waitingReason');
     }
   });
 });

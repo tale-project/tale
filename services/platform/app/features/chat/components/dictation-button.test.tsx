@@ -18,6 +18,8 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'dictation.transcribing': 'Transcribing…',
         'dictation.permissionDenied': 'Microphone access denied',
         'dictation.serviceUnavailable': 'Dictation is unavailable right now',
+        'dictation.limitReached':
+          'Usage limit reached. Try the recording again once the limit resets or is raised.',
         'dictation.notSupported': 'Speech recognition not supported',
         'transcription.noModel':
           'No compatible model is available for audio-file transcription.',
@@ -321,6 +323,26 @@ describe('DictationButton', () => {
         />,
       );
     }
+
+    it('says a usage limit refused the recording, and keeps it for a retry [GOV-R4]', () => {
+      armFallback();
+      recorderState.hasFailedRecording = true;
+      recorderState.error = 'limit-reached';
+      render(
+        <DictationButton
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable
+        />,
+      );
+      expect(toastMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          title:
+            'Usage limit reached. Try the recording again once the limit resets or is raised.',
+        }),
+      );
+      expect(screen.getByLabelText('Try again')).toBeInTheDocument();
+    });
 
     it('renders the persistent pill with retry and discard when a recording failed', () => {
       renderFailed();

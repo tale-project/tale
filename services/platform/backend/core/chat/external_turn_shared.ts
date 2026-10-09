@@ -44,6 +44,7 @@ import {
   drainSessionExecResilient,
   ExecReplayGapError,
   ExecStreamProtocolError,
+  isSpawnerTransportFailure,
   SessionNotFoundError,
   sessionCancelExec,
   sessionDeleteFiles,
@@ -51,6 +52,7 @@ import {
   sessionPutExecCheckpoint,
   sessionWriteExecStdin,
   type ExecCursor,
+  type ExecStreamContact,
   type SessionExecCheckpoint,
   sessionStageFiles,
   type SessionExecBody,
@@ -89,6 +91,41 @@ const EXTERNAL_TURN_DEADLINE_MS = (() => {
     ? configured
     : 30 * 60_000;
 })();
+
+/** How long a turn waits out a sandbox spawner it cannot reach before its
+ * run settles as failed: long enough for a spawner restart, a deploy or a
+ * short partition, and at most a third of runnerd's orphan window
+ * ({@link EXTERNAL_TURN_DEADLINE_MS}, counted from the turn's last attach),
+ * so the exec the turn finds again is still the one it left. */
+export const SPAWNER_OUTAGE_BUDGET_MS = Math.min(
+  10 * 60_000,
+  Math.floor(EXTERNAL_TURN_DEADLINE_MS / 3),
+);
+/** The pause before the next window of a turn whose spawner is away, so a
+ * window that ends at once (its checkpoint read refused) does not chain its
+ * successor in a tight loop. */
+const SPAWNER_OUTAGE_REDRIVE_MS = 5_000;
+
+/** Whether a window ended in a spawner outage that has outlasted
+ * {@link SPAWNER_OUTAGE_BUDGET_MS}: the turn stops waiting and settles. */
+export function spawnerOutageOutlasted(
+  window: HarnessWindowResult,
+  now: number = Date.now(),
+): boolean {
+  return (
+    window.kind === 'running' &&
+    window.spawnerOutageSince !== undefined &&
+    now - window.spawnerOutageSince >= SPAWNER_OUTAGE_BUDGET_MS
+  );
+}
+
+/** How long after a `running` window its successor starts: at once while
+ * the exec's stream flows, after a pause while the spawner is away. */
+export function nextWindowDelayMs(window: HarnessWindowResult): number {
+  return window.kind === 'running' && window.spawnerOutageSince !== undefined
+    ? SPAWNER_OUTAGE_REDRIVE_MS
+    : 0;
+}
 
 /** The gateway base URL as a session's CONTAINER reaches it (sandbox network
  * alias, never the host address). */
@@ -440,6 +477,11 @@ export type HarnessWindowResult =
       text: string;
       timeline: HarnessTimelinePart[];
       agentSessionId?: string;
+      /** Set while the turn's spawner is out of reach: since when no window
+       * has got through to the exec's stream (`spawnerOutageSince` carried
+       * in, or this window's first transport failure). Absent once the
+       * stream flowed again. */
+      spawnerOutageSince?: number;
     }
   | {
       kind: 'terminal';
@@ -499,6 +541,10 @@ export async function drainHarnessWindow(args: {
    * window before its exec launched would lose the start.
    */
   signal?: AbortSignal;
+  /** The outage the window before ended in (its result's
+   * `spawnerOutageSince`), so an outage that outlasts one window is measured
+   * from its start. */
+  spawnerOutageSince?: number;
 }): Promise<HarnessWindowResult> {
   const glue = getHarnessGlue(
     isHarnessSlug(args.harness) ? args.harness : 'claude-code',
@@ -637,11 +683,37 @@ export async function drainHarnessWindow(args: {
     harnessError = state.harnessError;
     lastNotifiedEventCount = -1;
   };
+  // A spawner that restarts, crashes or is cut off for a while is not a
+  // verdict on the turn: runnerd keeps its exec running in the session
+  // container. The drain rides such an outage out within the window, and the
+  // window ends `running` with the outage's start, so its host chains the
+  // next window, which resumes from the checkpoint, and bounds the outage.
+  let outageSince = args.spawnerOutageSince;
+  const contact: ExecStreamContact = {
+    onAttached: () => {
+      outageSince = undefined;
+    },
+    onLost: () => {
+      outageSince ??= Date.now();
+    },
+  };
   if (args.start === undefined) {
-    const checkpoint = await sessionGetExecCheckpoint(
-      args.sessionId,
-      args.execId,
-    );
+    let checkpoint: SessionExecCheckpoint | null;
+    try {
+      checkpoint = await sessionGetExecCheckpoint(args.sessionId, args.execId);
+    } catch (error) {
+      if (!isSpawnerTransportFailure(error)) throw error;
+      console.warn(
+        `[harness-window] ${args.execId}: the spawner did not answer the checkpoint read; the turn waits for it:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return {
+        kind: 'running',
+        text: '',
+        timeline: [],
+        spawnerOutageSince: outageSince ?? Date.now(),
+      };
+    }
     if (checkpoint !== null) restoreCheckpoint(checkpoint);
   }
   let lastCheckpointAt = Date.now();
@@ -836,6 +908,7 @@ export async function drainHarnessWindow(args: {
             },
             {
               cursor,
+              contact,
               ...(resumeDrain ? { resumeSinceSeq: cursor.lastSeq } : {}),
             },
           ),
@@ -933,6 +1006,7 @@ export async function drainHarnessWindow(args: {
       text,
       timeline,
       ...(agentSessionId !== undefined ? { agentSessionId } : {}),
+      ...(outageSince !== undefined ? { spawnerOutageSince: outageSince } : {}),
     };
   }
 

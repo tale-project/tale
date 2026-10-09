@@ -44,10 +44,11 @@ tightens the limit of the person it belongs to, and the reverse.
 
 ### GOV-R14 · A project's limit caps everything spent in the project, whoever spends it
 
-What a project spent is everything done in it: the chats in its threads (their titles, the
-answers read aloud and the assistant's tool calls included), the turns of its agents and the
-agent and `llm` steps of the automations run in it, with the images they make, and the calls made
-with its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
+What a project spent is everything done in it: its chats (their titles, the answers read aloud,
+the recordings transcribed in them, even before a new chat's first message, the files indexed for
+them and the assistant's tool calls and searches included), the turns of its agents and the agent
+and `llm` steps of the automations run in it, with the images they make, and the calls made with
+its own API keys. Its limit binds that work on top of the limits of whoever asked for it, a run a
 schedule started included, and binds nothing done outside the project. A run that names no
 project, of an automation installed in several projects, is each one's work: it counts toward,
 and must fit, every one of their limits, as a member's spend counts toward each of their teams.
@@ -79,20 +80,47 @@ What running work may still cost is set aside against the person's and the organ
 limits, so several things started at the same moment cannot overrun a limit together: a chat
 reply's every round as it starts, an agent's allowance, a voice chunk's estimate, and the
 estimated largest cost of a call Tale makes straight to a model — an automation's `llm` step, a
-chat's title, a rewrite with Improve with AI. Such a call is refused when a limit has too little
-room for that cost; a chat's title is then made from the first message, without a call. With no
-limit set, work gets the deployment's default allowance.
+chat's title, a rewrite with Improve with AI, a transcription at the recording's length, each
+embedding request of knowledge indexing and search. Such a call is refused when a limit has too
+little room for that cost; a chat's title is then made from the first message, without a call, and
+indexing waits for the limit (`KNOW-R18`). With no limit set, work gets the deployment's default
+allowance.
 
 - **Example**: Two agents are working for Mia and hold most of what is left under her limit.
   She starts a third → it gets only what remains, or is refused.
 
+### GOV-R15 · A connector call is counted on its own, never as a model request
+
+Every call Tale makes through a connector is counted as a connector call, at no cost, under whoever
+made it and with the API key it came with: the assistant's search and web tools, an agent's or an
+automation's connector step, an email sent from the Inbox. A request limit counts model requests
+alone, so connector calls never use it up.
+
+- **Example**: Mia's rule allows 20 requests a day and she has used 19. Her next chat reply
+  searches the documents five times → the reply runs, and its searches add nothing to her
+  requests.
+
+### GOV-R16 · A turn on a subscription is a request at no cost
+
+An agent turn served by a provider subscription the organization pays its vendor for apart from
+Tale costs nothing per call. It is counted as one request, with the tokens its agent reports, and
+holds that request while it runs. Request and token limits bind it; a cost limit cannot, since it
+adds no cost.
+
+- **Example**: The organization's monthly cost limit is used up. Mia starts an agent that runs on
+  the team's Claude subscription → it runs, and counts as one request.
+
 ### GOV-R6 · A warning comes before a limit is reached, for each limit on its own
 
-The organization's limit, an API key's limit and a person's limit each have their own warning
-threshold, and each is measured against its own usage.
+The organization's limit, an API key's limit, a project's limit and a person's limit each have
+their own warning threshold, and each is measured against its own usage. A project's warning is
+shown to everyone chatting in the project, and names the project.
 
 - **Example**: The organization has used 85% of its monthly limit, and the warning threshold
   is 80% → a warning is shown, although Mia's own limit is far from reached.
+- **Example**: The Website relaunch project has used 85% of its monthly limit, with a threshold
+  of 80% → Mia, writing in one of its chats, sees that much is left of the project's limit; in
+  a chat outside the project she sees no such warning.
 
 ### GOV-R7 · A member can see the limits that apply to them, with what they have used
 
@@ -170,13 +198,6 @@ It counts only in the organization it was granted in.
   (`moderation.ts`).
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
-- **A project's limit and transcription**: an audio or video file transcribed for a project's
-  chat is booked to the person who added it, not to the project, and a project's limit warns
-  no one before it is reached.
-- **Transcriptions, embeddings and a video link's download hold nothing while they run**: a
-  transcription is counted once it is done and never checked before it starts; the embeddings
-  that index knowledge and search it are not counted at all; a video link's download is checked
-  against the spend already counted, not against work in flight.
 - **Legacy voice reservations**: previous writers left no saved price or project stamp. `NULL`
   projects retain the current-thread fallback, unlike an explicitly empty project list; an
   unknown legacy price is not invented. Every new admission receives the reservation guarantee

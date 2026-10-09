@@ -456,6 +456,44 @@ describe('processErasure', () => {
     expect(settle?.values[2]).toMatchObject({ automationRuns: 3 });
   });
 
+  it("deletes the subject's coding-agent call counters in the organization", async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('DELETE FROM app.mcp_client_activity'))
+        return [{ day: 20261007 }, { day: 20261008 }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const removed = fake.statements.find((s) =>
+      s.text.startsWith('DELETE FROM app.mcp_client_activity'),
+    );
+    expect(removed?.text).toBe(
+      'DELETE FROM app.mcp_client_activity WHERE org_id = ? AND user_id = ? RETURNING day',
+    );
+    expect(removed?.values).toEqual(['org_1', 'subject']);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ mcpActivity: 2 });
+  });
+
   it('deletes unheld runs while preserving and reporting legacy-held subject runs [ERASE-R9]', async () => {
     vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
     const fake = fakeSql((text, values) => {
@@ -659,6 +697,43 @@ describe('processErasure', () => {
         s.text.includes('counts = ?'),
     );
     expect(settle?.values[2]).toMatchObject({ directCalls: 2 });
+  });
+
+  it('takes the subject’s name off a website note a usage limit left, keeping the note [ERASE-R5]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'running'",
+        )
+      )
+        return [
+          {
+            organizationId: 'org_1',
+            targetUserId: 'subject',
+            status: 'running',
+          },
+        ];
+      if (text.startsWith('UPDATE app.websites')) return [{ id: 'site-1' }];
+      if (text.startsWith('SELECT EXISTS')) return [{ elsewhere: false }];
+      return undefined;
+    });
+
+    await processErasure(fake.sql, 'req-1');
+
+    const stripped = fake.statements.find((s) =>
+      s.text.startsWith('UPDATE app.websites'),
+    );
+    expect(stripped?.text).toContain(
+      "SET metadata = metadata - 'embeddingLimitRequestedBy'",
+    );
+    expect(stripped?.values).toEqual(['org_1', 'subject']);
+    const settle = fake.statements.find(
+      (s) =>
+        s.text.startsWith('UPDATE app.gdpr_erasure_requests SET status = ?') &&
+        s.text.includes('counts = ?'),
+    );
+    expect(settle?.values[2]).toMatchObject({ websiteScanNotes: 1 });
   });
 
   it.each(['automationRuns', 'modelApiRequests'] as const)(

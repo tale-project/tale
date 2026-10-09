@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 150 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 156 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -888,6 +888,40 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   `tasks.board.expandLane`) → the lane opens with its cards. Before the cards
   load, the placeholder already shows the rails.
 
+### One agent on several tasks
+
+These boxes need a project agent that can run, and an Owner or Admin who can
+set **Agent workers** (`sandboxes.quota.budgets.project`) under
+`/dashboard/{org}/settings/sandboxes`; leave it at 2 unless a box says
+otherwise. Mark them **ENVIRONMENT** without a runnable harness.
+
+- [ ] `TASK-F81` · **One agent works two tasks at once** — Start the same
+  agent on two tasks → both Run rows read **Working…**
+  (`tasks.agentRun.status.running`) at the same time and each task gets its
+  own report; on `/dashboard/{org}/settings/sandboxes` the agent has two
+  rows, its name over **Worker 1** and **Worker 2**
+  (`sandboxes.worker.agent`), each naming its own task under **Current
+  tasks** (`sandboxes.columns.task`).
+- [ ] `TASK-F82` · **A third start waits for a worker, then starts on its
+  own** — With both workers of `TASK-F81` busy, start the agent on a third
+  task → its Run row and its timeline row read **Waiting for a worker**
+  (`tasks.agentRun.waiting.org_limit`) with the sentence that all agent
+  workers are busy (`tasks.agentRun.waitingWhy.org_limit`), and no retry
+  caption appears. Let one of the first two finish → the third reads
+  **Working…** without a reload and without anyone pressing **Start agent**,
+  in the worker the finished run left: no **Worker 3** row appears. Start a
+  fourth task and, while it waits, press **Cancel run**
+  (`tasks.agentRun.cancel`) → it is cancelled without having worked; start
+  it again and, while it waits, assign the task to another agent → the
+  reassignment goes through and the waiting run is cancelled.
+- [ ] `TASK-F83` · **A manager starts a busy agent** — With the manager of
+  `TASK-F53`, while the second agent works one task, have the manager start
+  it on another → the answer is `started`, the second task's timeline lists
+  the delegated run (`tasks.agentRuns.trigger.delegated`) and shows no **Run
+  refused** (`tasks.activity.agentRunRefused`) row, and both tasks are
+  worked at once. Ask the manager to start itself on a further task → the
+  answer is `self_start` and nothing starts.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -1276,6 +1310,32 @@ needs a project agent that can run, and TASK-B27 a team the member is not in.
   second tab that still shows the task as it was before the archive gets one
   error toast for a comment it sends, and after reload nothing has landed.
   **Restore** (`tasks.actions.restore`) → the comment field is back.
+- [ ] `TASK-B50` · **Every waiting reason reads its own words** — Make
+  runs wait for each reason: every agent worker busy (`TASK-F82`), the
+  deployment full (lower `SANDBOX_MAX_SESSIONS` below the running sessions),
+  and the agent's only workspace being destroyed ([settings](settings.md)
+  `SET-B30`) → the Run row and the timeline row read **Waiting for a
+  worker**, **Waiting for room** and **Waiting for a workspace**
+  (`tasks.agentRun.waiting.org_limit`, `….host`, `….destroy_pending`), each
+  with its own sentence (`tasks.agentRun.waitingWhy.*`), in EN, DE and FR.
+  **Manage agent workers** (`tasks.agentRun.manageWorkers`) shows only under
+  the first, only for an Owner or Admin, and opens
+  `/dashboard/{org}/settings/sandboxes`; an Editor reads the same sentence
+  without the link.
+- [ ] `TASK-B51` · **A task's next run goes back to its worker** — On a
+  task the agent finished in **Worker 2**, ask for changes while Worker 2 is
+  free → the run works in Worker 2 again (its row on
+  `/dashboard/{org}/settings/sandboxes` names the task) and continues the
+  agent's conversation. Ask again while Worker 2 works another task → the
+  run takes another worker, starts fresh, and still has the task's
+  description, discussion, attachments and deliverables.
+- [ ] `TASK-B52` · **A member's two runs work in the member's own workers** —
+  As the Member of `TASK-F49`, start the agent on two of their own tasks at
+  once → both work; `/dashboard/{org}/settings/sandboxes` lists the agent
+  over **Member worker 1** and **Member worker 2**
+  (`sandboxes.worker.member`); each run keeps to its task without the
+  agent's secrets as in `TASK-F50`, and neither lands in a **Worker** row of
+  the agent's own.
 
 - [ ] `TASK-B41` · **Dates the server would refuse are named before Create** —
   **Create task** → keep today's start, pick a due date of yesterday → under the

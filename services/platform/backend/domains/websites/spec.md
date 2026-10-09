@@ -96,6 +96,18 @@ can call it. Without either, the websites page says that chat cannot search the 
 - **Example**: The organization's embedding model lost its credential → the websites page
   shows that chat cannot search these websites yet.
 
+### WEB-R11 · A usage limit pauses a scan's search by meaning, not the scan
+
+A scan's embeddings are the spend of whoever asked for it — the member who added the source or
+chose **Scan now** — or the organization's for a scan the schedule started. When a limit that
+applies has too little room, the scan still stores the pages, which the source's own search
+reads, but embeds nothing more; the source says that a usage limit stopped it, and the scan
+resumes by itself, under the same person, once the limit resets or is raised.
+
+- **Example**: Noah adds a site while his monthly limit is used up → the pages are stored, the
+  site's details say a usage limit stopped the scan, and once Ada raises the limit the site
+  becomes searchable by meaning within the hour.
+
 ## Not yet
 
 - **How a page is fetched and read**: sitemaps, links, `robots.txt`, rendering, and the limits

@@ -7,6 +7,10 @@ import type { Sql } from 'postgres';
 
 import type { SandboxWorkspaceInventory } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
+  memberWorkerSessionId,
+  standingWorkerSessionId,
+} from '../../core/sandbox/session_naming.test-helpers.ts';
+import {
   memberSessionIdForProjectAgent,
   standingSessionIdForProjectAgent,
 } from '../../core/sandbox/session_naming.ts';
@@ -493,6 +497,69 @@ export async function checkWorkspaceCleanup(
         (await statusOf(scheduled))?.status === 'stopped' &&
         destroyedWith(scheduled).length === 0,
       JSON.stringify(memberSweep),
+    );
+
+    // 4d. A member's extra workers belong to the member's family: they go
+    // with the member, and a custodian hold on the member keeps them,
+    // while the agent's own worker 2 and another member's are no part of it.
+    const leaverBase = memberSessionIdForProjectAgent(liveAgent, 'user-left2');
+    const leaverW2 = memberWorkerSessionId(liveAgent, 'user-left2', 2);
+    const standingW2 = standingWorkerSessionId(liveAgent, 2);
+    const otherW2 = memberWorkerSessionId(liveAgent, 'user-other', 2);
+    const heldW2 = memberWorkerSessionId(liveAgent, 'user-held', 2);
+    for (const sessionId of [leaverBase, leaverW2, standingW2, otherW2]) {
+      await session(sessionId, { ownerId: liveAgent });
+    }
+    await session(heldW2, { ownerId: liveAgent, at: old });
+    const leaverResult = await retireOwnerWorkspaces(
+      sql,
+      { organizationId: orgId, reason: 'member_removed', userId: 'user-left2' },
+      spawner,
+    );
+    const workerDeletions = await unusedWorkspaceDeletions(
+      sql,
+      orgId,
+      [heldW2, otherW2],
+      now,
+    );
+    const familyGoneAgent = randomUUID();
+    const familyHeldW2 = memberWorkerSessionId(familyGoneAgent, 'user-held', 2);
+    const familyFreeW2 = memberWorkerSessionId(familyGoneAgent, 'user-free', 2);
+    const familyStandingW2 = standingWorkerSessionId(familyGoneAgent, 2);
+    for (const sessionId of [familyHeldW2, familyFreeW2, familyStandingW2]) {
+      await session(sessionId, { ownerId: familyGoneAgent });
+    }
+    const familyJob = await retireOwnerWorkspaces(
+      sql,
+      {
+        organizationId: orgId,
+        reason: 'agent_deleted',
+        agentIds: [familyGoneAgent],
+      },
+      spawner,
+    );
+    record(
+      'workspace cleanup: a departed member’s extra workers go with the member, the agent’s own and another member’s stay, and a held member’s extra worker is kept and never dated',
+      leaverResult.retired === 2 &&
+        (await statusOf(leaverBase))?.status === 'destroyed' &&
+        (await statusOf(leaverW2))?.status === 'destroyed' &&
+        (await audited(leaverW2)).join() === 'member_removed' &&
+        (await statusOf(standingW2))?.status === 'stopped' &&
+        (await statusOf(otherW2))?.status === 'stopped' &&
+        destroyedWith(standingW2).length + destroyedWith(otherW2).length ===
+          0 &&
+        !workerDeletions.has(heldW2) &&
+        workerDeletions.has(otherW2) &&
+        familyJob.retired === 2 &&
+        familyJob.kept === 1 &&
+        (await statusOf(familyHeldW2))?.status === 'stopped' &&
+        (await statusOf(familyFreeW2))?.status === 'destroyed' &&
+        (await statusOf(familyStandingW2))?.status === 'destroyed',
+      JSON.stringify({
+        leaverResult,
+        familyJob,
+        dated: [...workerDeletions.keys()],
+      }),
     );
 
     // 5. An erasure takes the subject's workspace whatever runs in it.
