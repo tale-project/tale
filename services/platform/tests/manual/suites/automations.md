@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 170 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 171 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1254,6 +1254,20 @@ output:
       `t` (where the clock rests): a reload or the same link in a new tab
       opens the same view, step, item and moment; `automationRuns.view.chart`
       takes `view` out of the URL, and playing on to the end takes `t`.
+- [ ] `AUTO-F121` · **Run live a deployed automation whose `agent` node
+      has `input: { customer: '{{ input.customer }}', apiKey: 'k-123' }`
+      and the prompt "Name the customer in your input file", started with
+      `{ customer: 'Ada' }`** → the agent's reply names Ada, and its
+      **Agent log** (`automations.runs.agentLog.title`) shows it reading
+      `/agent/workspace/input.json`; select the step → its
+      `automationRuns.data.received` holds the `input` beside the prompt,
+      with `apiKey` shown as `automationRuns.data.redacted`. A **Test run**
+      of the same version receives the same `input`. Give the node an
+      input over 1 MiB (a transform returning `'x'.repeat(1100000)`) and
+      run live again → the run fails within seconds and the step's error
+      reads "staging input files failed: workspace/input.json (too_large)"
+      — env-gated: mark **ENVIRONMENT** without a runnable harness and a
+      model credential.
 
 ## Boundary & error tests
 

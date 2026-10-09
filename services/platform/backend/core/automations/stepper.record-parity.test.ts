@@ -9,8 +9,10 @@
  * Each document is a random DAG of transforms over a seeded generator (so a
  * failure reproduces): data references, `when` conditions driven by the run
  * input, `elseOf` branches, steps that fail and go on, `forEach` lists and
- * `repeatUntil` passes. Times, working time and attempts differ by nature and
- * are left out; so is metadata.
+ * `repeatUntil` passes. A second set turns some of the steps into agent
+ * steps, whose recorded input is the whole request the agent is handed,
+ * their own `input` included. Times, working time and attempts differ by
+ * nature and are left out; so is metadata.
  */
 
 import { seeded } from '@tale/ui/data/random-json';
@@ -27,6 +29,8 @@ import { stepRunImpl } from './stepper.ts';
 
 const DOCUMENTS = 150;
 const SEED = 20261009;
+const AGENT_DOCUMENTS = 60;
+const AGENT_SEED = 20261010;
 const RUN = { organizationId: 'org-1', runId: 'run-1' } as never;
 
 beforeAll(() => {
@@ -37,7 +41,13 @@ function pick<T>(random: () => number, items: readonly T[]): T | undefined {
   return items[Math.floor(random() * items.length)];
 }
 
-function generate(random: () => number, index: number): Automation {
+/** A seeded document; with `agents`, about half of its steps are agent
+ * steps (which never iterate, as a live one cannot). */
+function generate(
+  random: () => number,
+  index: number,
+  agents = false,
+): Automation {
   const count = 2 + Math.floor(random() * 5);
   const nodes: NodeDef[] = [];
   for (let i = 0; i < count; i++) {
@@ -46,15 +56,24 @@ function generate(random: () => number, index: number): Automation {
     const reads = earlier.filter(() => random() < 0.35);
     const input: Record<string, unknown> = { n: '{{ input.n }}' };
     for (const ref of reads) input[`r_${ref}`] = `{{ nodes.${ref}.output }}`;
-    const node: NodeDef = {
-      id,
-      type: 'transform',
-      input,
-      code: [
-        "if (input.fail === true) throw new Error('planned failure');",
-        `return { at: ${i}, n: input.n, item: typeof item === 'undefined' ? null : item };`,
-      ].join('\n'),
-    };
+    const agent = agents && random() < 0.5;
+    const node: NodeDef = agent
+      ? {
+          id,
+          type: 'agent',
+          model: 'test-model',
+          prompt: `Work on step ${i} of {{ input.n }}.`,
+          input,
+        }
+      : {
+          id,
+          type: 'transform',
+          input,
+          code: [
+            "if (input.fail === true) throw new Error('planned failure');",
+            `return { at: ${i}, n: input.n, item: typeof item === 'undefined' ? null : item };`,
+          ].join('\n'),
+        };
     if (random() < 0.25) {
       node.onError = 'continue';
       input.fail = `{{ input.f_${id} }}`;
@@ -71,8 +90,9 @@ function generate(random: () => number, index: number): Automation {
       node.elseOf = pick(random, withWhen)?.id ?? pick(random, earlier);
     }
     const shape = random();
-    if (shape < 0.2) node.forEach = '{{ input.list }}';
-    else if (shape < 0.3) {
+    // An agent step does not iterate.
+    if (!agent && shape < 0.2) node.forEach = '{{ input.list }}';
+    else if (!agent && shape < 0.3) {
       node.repeatUntil = 'output.n >= 0';
       node.maxRepeats = 2;
     }
@@ -155,21 +175,35 @@ async function durable(
   return [...world.nodeRuns.values()];
 }
 
+/** Run `documents` seeded documents through both executors and hold their
+ * records to each other. */
+async function expectSameRecords(
+  seed: number,
+  documents: number,
+  agents: boolean,
+): Promise<void> {
+  const random = seeded(seed);
+  for (let index = 0; index < documents; index++) {
+    const doc = generate(random, index, agents);
+    const input = inputFor(random, doc);
+    const inProcess = await execute(doc, {
+      input,
+      recorder: createRecorder({ now: () => 0 }),
+    });
+    const stepped = await durable(doc, input);
+    expect(
+      normalized(stepped),
+      `${JSON.stringify(doc)}\n${JSON.stringify(input)}`,
+    ).toEqual(normalized(inProcess.record ?? []));
+  }
+}
+
 describe('the run record is the same in both executors', () => {
   it(`for ${DOCUMENTS} seeded documents`, async () => {
-    const random = seeded(SEED);
-    for (let index = 0; index < DOCUMENTS; index++) {
-      const doc = generate(random, index);
-      const input = inputFor(random, doc);
-      const inProcess = await execute(doc, {
-        input,
-        recorder: createRecorder({ now: () => 0 }),
-      });
-      const stepped = await durable(doc, input);
-      expect(
-        normalized(stepped),
-        `${JSON.stringify(doc)}\n${JSON.stringify(input)}`,
-      ).toEqual(normalized(inProcess.record ?? []));
-    }
+    await expectSameRecords(SEED, DOCUMENTS, false);
+  }, 120_000);
+
+  it(`for ${AGENT_DOCUMENTS} seeded documents with agent steps`, async () => {
+    await expectSameRecords(AGENT_SEED, AGENT_DOCUMENTS, true);
   }, 120_000);
 });
