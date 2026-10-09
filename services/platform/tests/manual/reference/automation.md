@@ -65,6 +65,9 @@ and command/private-input coverage in `tools/cli/tests/observation.test.ts` and
 `tools/cli/src/commands/deploy/observe.test.ts`. They prove retained-byte verification,
 GET-only configuration access, existing-session cleanup, partial evidence on missing
 custody/ownership, exact local target binding and scoped temporary-tool cleanup.
+Authored failure phases survive the private and nested-native command boundaries
+without carrying exception payloads; unknown nested envelopes refuse, and cleanup
+failures take precedence over the phase diagnostic.
 Production observations and Ready acceptance remain separate deployment evidence.
 
 Bun Docker builders, runtimes and the React service generator match the pinned

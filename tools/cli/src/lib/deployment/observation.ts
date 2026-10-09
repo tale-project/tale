@@ -15,7 +15,9 @@ import { backendDataOwner } from './backend-cli';
 import { resolveDeploymentSpec, resolveValue } from './model';
 import {
   ObservationCleanupError,
-  OBSERVATION_SESSION_CLEANUP_FAILURE,
+  nativeObservationFailure,
+  observationPhases,
+  type SetObservationPhase,
 } from './observation-errors';
 import { observationFile } from './observation-files';
 import {
@@ -35,6 +37,13 @@ export interface ObserveDeploymentOptions {
   cliRef: string;
   deploymentRef: string;
   machineIdSha256: string;
+}
+interface ObservationDependencies {
+  exec?: typeof exec;
+  build?: () => { revision: string; binary: string };
+  machineId?: () => Buffer;
+  now?: () => number;
+  environment?: NodeJS.ProcessEnv;
 }
 const safeId = z
   .string()
@@ -92,13 +101,18 @@ const localDockerEnvironment = () => ({
 export async function observeDeployment(
   options: ObserveDeploymentOptions,
   privateInput: unknown,
-  dependencies: {
-    exec?: typeof exec;
-    build?: () => { revision: string; binary: string };
-    machineId?: () => Buffer;
-    now?: () => number;
-    environment?: NodeJS.ProcessEnv;
-  } = {},
+  dependencies: ObservationDependencies = {},
+) {
+  return observationPhases('host', (phase) =>
+    readDeployment(options, privateInput, dependencies, phase),
+  );
+}
+
+async function readDeployment(
+  options: ObserveDeploymentOptions,
+  privateInput: unknown,
+  dependencies: ObservationDependencies,
+  phase: SetObservationPhase,
 ) {
   const now = dependencies.now ?? performance.now.bind(performance);
   const deadline = now() + 60_000;
@@ -205,7 +219,9 @@ export async function observeDeployment(
       );
     return proof;
   };
+  phase('retained');
   const before = retained();
+  phase('containers');
   const ids = async () => {
     const output = (
       await run([
@@ -262,15 +278,19 @@ export async function observeDeployment(
       );
     return matches[0];
   };
+  phase('application');
   const app = await run(
     ['exec', '-i', service('db').id, 'sh', '-s'],
     migrationReadScript('db', OBSERVATION_APP_SQL),
   );
+  phase('knowledge');
   const knowledge = await run(
     ['exec', '-i', service('knowledge-db').id, 'sh', '-s'],
     migrationReadScript('knowledge-db', OBSERVATION_KNOWLEDGE_SQL),
   );
+  phase('database');
   const database = observedDatabaseFacts(app.stdout, knowledge.stdout);
+  phase('images');
   const images = [];
   for (const id of [
     ...new Set(captured.map((container) => container.image)),
@@ -284,6 +304,7 @@ export async function observeDeployment(
       throw preconditionError('Observed image identity changed.');
     images.push(image);
   }
+  phase('filesystems');
   const disk = (directory: string) => {
     const value = statfsSync(directory);
     return {
@@ -310,6 +331,7 @@ export async function observeDeployment(
     reason: 'retained_identity_missing',
   };
   if (before?.value.native) {
+    phase('tooling');
     const backend = service('backend-api').id;
     const temporary = `/tmp/tale-observe-${randomUUID()}`;
     const binary = `${temporary}/tale`;
@@ -403,6 +425,7 @@ export async function observeDeployment(
             : '',
         },
       };
+      phase('native');
       const result = await run(
         [
           'exec',
@@ -422,19 +445,8 @@ export async function observeDeployment(
         true,
       );
       const rawResponse: unknown = JSON.parse(result.stdout);
-      if (
-        z
-          .object({
-            ok: z.literal(false),
-            command: z.literal('tale'),
-            error: z.object({
-              summary: z.literal(OBSERVATION_SESSION_CLEANUP_FAILURE),
-              code: z.literal(3),
-            }),
-          })
-          .safeParse(rawResponse).success
-      )
-        throw new ObservationCleanupError('session');
+      const nativeFailure = nativeObservationFailure(rawResponse);
+      if (nativeFailure) throw nativeFailure;
       const envelope = z
         .object({
           ok: z.boolean(),
@@ -461,6 +473,7 @@ export async function observeDeployment(
       await cleanTemporary();
     }
   }
+  phase('stability');
   const after = retained();
   if (
     before?.sha256 !== after?.sha256 ||

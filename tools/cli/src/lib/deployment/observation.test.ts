@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { sha256 } from '../config/releases/identity';
 import type { exec } from '../docker/exec';
 import { observeDeployment } from './observation';
+import { ObservationPhaseError } from './observation-errors';
 const testPosix = test.skipIf(process.platform === 'win32');
 
 const roots: string[] = [];
@@ -409,5 +410,104 @@ testPosix(
     ).catch((failure: unknown) => failure);
     expect(String(error)).toContain('tooling cleanup could not be verified');
     expect(String(error)).not.toContain('synthetic private');
+  },
+);
+
+testPosix.each([
+  ['containers', 'ps'],
+  ['application', '1'.repeat(64)],
+  ['knowledge', '2'.repeat(64)],
+  ['images', 'image'],
+  ['tooling', 'mkdir'],
+] as const)(
+  'a refused %s phase remains distinguishable without private command output',
+  async (phase, trigger) => {
+    const f = fixture();
+    f.hook((args) => {
+      if (
+        trigger.length === 64
+          ? args.includes('sh') && args[2] === trigger
+          : args.includes(trigger)
+      )
+        throw Error('synthetic-private-output');
+    });
+    const error = await observeDeployment(
+      f.options,
+      f.input,
+      f.dependencies,
+    ).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(ObservationPhaseError);
+    expect((error as ObservationPhaseError).phase).toBe(phase);
+    expect(JSON.stringify(error)).not.toContain('synthetic-private-output');
+    expect((error as ObservationPhaseError).info.cause).toBeUndefined();
+  },
+);
+
+testPosix.each([false, true])(
+  'nested native refusal preserves its authored phase and still cleans tooling (%s)',
+  async (cleanupFails) => {
+    const f = fixture();
+    if (cleanupFails)
+      f.hook((args) => {
+        if (args.includes('rm')) throw Error('synthetic-private-cleanup');
+      });
+    const execute: typeof exec = async (command, args, options) => {
+      const result = await f.run(command, args, options);
+      if (!args.includes('observe-native')) return result;
+      return {
+        ...result,
+        exitCode: 3,
+        success: false,
+        stdout: JSON.stringify({
+          ok: false,
+          command: 'tale',
+          error: new ObservationPhaseError('nativeArtifacts').info,
+        }),
+      };
+    };
+    const error = await observeDeployment(f.options, f.input, {
+      ...f.dependencies,
+      exec: execute,
+    }).catch((failure: unknown) => failure);
+    expect(String(error)).toContain(
+      cleanupFails
+        ? 'tooling cleanup could not be verified'
+        : 'retained native artifact verification',
+    );
+    expect(f.calls.filter(({ args }) => args.includes('rm'))).toHaveLength(1);
+    expect(JSON.stringify(error)).not.toContain('synthetic-private');
+  },
+);
+
+testPosix(
+  'unknown nested native payload is replaced with an authored refusal after cleanup',
+  async () => {
+    const f = fixture();
+    const execute: typeof exec = async (command, args, options) => {
+      const result = await f.run(command, args, options);
+      if (!args.includes('observe-native')) return result;
+      return {
+        ...result,
+        exitCode: 3,
+        success: false,
+        stdout: JSON.stringify({
+          ok: false,
+          command: 'tale',
+          error: {
+            summary: 'synthetic-private-error',
+            code: 3,
+            cause: '/synthetic-private-path',
+          },
+        }),
+      };
+    };
+    const error = await observeDeployment(f.options, f.input, {
+      ...f.dependencies,
+      exec: execute,
+    }).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(ObservationPhaseError);
+    expect((error as ObservationPhaseError).phase).toBe('native');
+    expect(JSON.stringify(error)).not.toContain('synthetic-private');
+    expect(f.calls.filter(({ args }) => args.includes('rm'))).toHaveLength(1);
   },
 );

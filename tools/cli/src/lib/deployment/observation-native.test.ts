@@ -21,6 +21,7 @@ import { loadRelease } from '../config/releases/manifest';
 import { stageRelease } from '../config/releases/stage';
 import { fixture, temporary } from '../config/releases/tests/fixture';
 import { nativeServer } from '../config/releases/tests/native-fixture';
+import { ObservationPhaseError } from './observation-errors';
 import { observeNativeDeployment } from './observation-native';
 import { nativeDeploymentStateDirectory } from './provision-state';
 const testPosix = test.skipIf(process.platform === 'win32');
@@ -207,6 +208,44 @@ testPosix(
   },
 );
 
+testPosix.each([
+  ['receipt', 'nativeRetained'],
+  ['artifact', 'nativeArtifacts'],
+  ['authentication', 'nativeAuthentication'],
+  ['verification', 'nativeVerification'],
+] as const)(
+  'native %s refusal identifies its actual phase without private values',
+  async (fault, phase) => {
+    const f = await retained();
+    if (fault === 'receipt') chmodSync(f.receiptFile, 0o644);
+    if (fault === 'artifact')
+      writeFileSync(
+        join(f.stageDirectory, 'deployment.json'),
+        'synthetic-private-artifact',
+      );
+    if (fault === 'verification') f.server.faults.add('wrongWorkflow');
+    const error = await observeNativeDeployment(f.input, {
+      dataDirectory: f.dataDirectory,
+      fetch: (url, init) =>
+        fault === 'authentication' &&
+        new URL(String(url)).pathname === '/api/auth/sign-in/email'
+          ? Promise.resolve(
+              Response.json(
+                { error: 'synthetic-private-response' },
+                { status: 403 },
+              ),
+            )
+          : f.fetcher(url, init),
+    }).catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(ObservationPhaseError);
+    expect((error as ObservationPhaseError).phase).toBe(phase);
+    expect((error as ObservationPhaseError).info.code).toBe(3);
+    expect(JSON.stringify(error)).not.toContain('synthetic-private');
+    expect(JSON.stringify(error)).not.toContain('synthetic-password');
+    expect((error as ObservationPhaseError).info.cause).toBeUndefined();
+  },
+);
+
 testPosix(
   'missing retained state stays missing and never signs in or bootstraps',
   async () => {
@@ -273,7 +312,7 @@ testPosix.each([
         dataDirectory: f.dataDirectory,
         fetch: f.fetcher,
       }),
-    ).rejects.toThrow('Retained native configuration verification failed');
+    ).rejects.toThrow('native configuration verification');
     expect(f.auth.at(-1)).toBe('POST /api/auth/sign-out');
     expect(f.server.requests.every((call) => call.method === 'GET')).toBe(true);
   },
