@@ -90,13 +90,14 @@ export interface SandboxContract {
   };
   /** The organization's workspaces, and how many agent runs wait for room
    * (every one counted, by reason): the demand an admin weighs raising the
-   * limit of agent workers against. */
+   * limit of agent workers against. An api of the previous release answers
+   * the workspaces alone while a deploy rolls. */
   'sandbox/session_queries_public:listSandboxesForOrg': {
     kind: 'query';
     args: { organizationId: string };
     returns: null | {
       sessions: SandboxSessionListRow[];
-      waitingRuns: WaitingAgentRunCounts;
+      waitingRuns?: WaitingAgentRunCounts;
     };
   };
 }

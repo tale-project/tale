@@ -417,9 +417,10 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       <SandboxQuotaEditor
         organizationId={organizationId}
         // The demand a higher limit would meet: read with the workspaces,
-        // so only for those who manage them.
+        // so only for those who manage them. An api of the previous release
+        // answers no count while a deploy rolls.
         waitingForWorkers={
-          canManage ? data?.waitingRuns.byReason.org_limit : undefined
+          canManage ? data?.waitingRuns?.byReason.org_limit : undefined
         }
         deploymentLimits={
           deploymentLimits.isError ? undefined : deploymentLimits.data

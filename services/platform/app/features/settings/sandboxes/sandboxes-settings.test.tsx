@@ -520,6 +520,23 @@ describe('SandboxesSettings access', () => {
     ).toBeInTheDocument();
   });
 
+  it('shows the workspaces without a waiting count from an api of the previous release', () => {
+    state.canManage = true;
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: { sessions: [aliceRow] } }
+        : answer;
+    });
+    renderSettings();
+    expect(
+      screen.getByRole('spinbutton', { name: 'Agent workers' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Alice').closest('tr')).not.toBeNull();
+    expect(screen.queryByText(/waiting for a free worker/)).toBeNull();
+  });
+
   it('keeps the waiting count from a developer, who reads no workspaces', () => {
     const reads = query.getMockImplementation();
     query.mockImplementation((name: string) => {
