@@ -378,7 +378,20 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'still apply. Read the staged bytes before citing them as evidence. ' +
     'Staging makes no decision and starts nothing. A concurrent handoff or ' +
     'revocation refuses success, though previously authorized bytes may ' +
-    'remain in the workspace; read the current review again.',
+    'remain in the workspace; read the current review again. ' +
+    'An authorized manager with task_review and task_start_agent can admit a ' +
+    'bounded occurrence on an explicitly managed review context using ' +
+    '{operation:"start_batch",requestId:<UUID>,contextTaskId:<UUID>,targets:' +
+    '[{taskId,expected:{approvalId,runId,evidenceRevision}}]}. Declare 1–20 distinct ' +
+    'current reviews already captured to that context reviewer. This uses the ' +
+    'ordinary native admission guards and never grants or delegates reviews. ' +
+    'Reconcile the same request ID and envelope after an uncertain response. ' +
+    '{operation:"read_batch",batchId:<UUID>} returns each native decision and ' +
+    'an explicit complete/incomplete result. Complete means every declared ' +
+    'review action has its exact native receipt, including requests for changes; ' +
+    'it does not mean all source work passed. A settled incomplete batch remains ' +
+    'incomplete on replay. A new occurrence declares only remaining targets. ' +
+    'Reuse the context; do not create another task just to review this report.',
   task_upsert_by_external_ref:
     'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
     'task, keyed by (externalSystem, externalId) — a re-run updates the ' +

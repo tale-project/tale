@@ -78,7 +78,11 @@ const TASK = {
  * the project and task reads answer, the external-ref intake's create lane
  * lands (its project probe, its number, its insert), every other statement
  * answers nothing, and every statement is recorded with its values. */
-function stubSql(): { sql: Sql; statements: string[]; values: unknown[][] } {
+function stubSql(options: { reviewContextHeld?: boolean } = {}): {
+  sql: Sql;
+  statements: string[];
+  values: unknown[][];
+} {
   const statements: string[] = [];
   const values: unknown[][] = [];
   const tag = (strings: TemplateStringsArray, ...bound: unknown[]) => {
@@ -100,6 +104,19 @@ function stubSql(): { sql: Sql; statements: string[]; values: unknown[][] } {
     if (text.startsWith('INSERT INTO app.tasks')) {
       return Promise.resolve([{ id: 't-new' }]);
     }
+    if (options.reviewContextHeld) {
+      if (text.startsWith('WITH RECURSIVE tree AS')) {
+        return Promise.resolve([
+          { id: 't1', status: 'todo', archivedAt: null },
+        ]);
+      }
+      if (text.includes('FROM app.task_review_contexts')) {
+        return Promise.resolve([{ taskId: 't1', authorUserId: 'u1' }]);
+      }
+      if (text.includes('FROM app.legal_holds')) {
+        return Promise.resolve([{ targetType: 'org', targetId: 'o1' }]);
+      }
+    }
     return Promise.resolve([]);
   };
   const sql = Object.assign(tag, {
@@ -114,6 +131,29 @@ function stubSql(): { sql: Sql; statements: string[]; values: unknown[][] } {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the members the door's reads and transaction reach
   return { sql: sql as unknown as Sql, statements, values };
 }
+
+it('answers a held review context deletion with its native 409 refusal', async () => {
+  const { sql, statements } = stubSql({ reviewContextHeld: true });
+  const response = await createTaskRoutes({ sql, auth: {} as never }).request(
+    '/t1?orgId=o1',
+    { method: 'DELETE' },
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({
+    error: 'LEGAL_HOLD_ACTIVE',
+    message:
+      'This organization is under an active legal hold. Release the hold before deleting.',
+  });
+  expect(statements.some((text) => text.includes('FROM app.legal_holds'))).toBe(
+    true,
+  );
+  expect(statements.filter((text) => /^(DELETE|INSERT)\b/.test(text))).toEqual(
+    [],
+  );
+  expect(
+    statements.some((text) => text.startsWith('UPDATE app.project_agent_runs')),
+  ).toBe(false);
+});
 
 async function send(
   route: string,

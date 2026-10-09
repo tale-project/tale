@@ -352,6 +352,7 @@ interface HandlerNames {
       agentCreateTask: FunctionRef;
       agentRecordTaskOutputs: FunctionRef;
       agentReviewTask: FunctionRef;
+      agentReviewBatch: FunctionRef;
       agentStartTaskAgent: FunctionRef;
       agentUpdateTaskMetadata: FunctionRef;
       agentUpdateTaskStatus: FunctionRef;

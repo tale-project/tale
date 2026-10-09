@@ -33,6 +33,7 @@ import {
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
 import { syncRagDocumentScopes } from '../knowledge/service.ts';
+import { LegalHoldError } from '../legal_holds/service.ts';
 import { ensureDefaultProjectLabels } from '../tasks/service.ts';
 import {
   deleteProjectSecret,
@@ -94,6 +95,16 @@ function handleError<E extends OrgEnv>(
 ): Response {
   if (error instanceof ConfigurationError) {
     return c.json({ error: error.code, message: error.message }, error.status);
+  }
+  if (error instanceof LegalHoldError) {
+    return c.json(
+      {
+        error: error.code,
+        message: error.message,
+        ...(error.data !== undefined ? { data: error.data } : {}),
+      },
+      error.status,
+    );
   }
   if (error instanceof ProjectError) {
     return c.json(
