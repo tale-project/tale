@@ -968,6 +968,7 @@ providers:
   dialog:
     secret: API-Schlüssel
     subscriptionSecret: Abo-Schlüssel
+    subscriptionAccountId: ChatGPT-Konto-ID
     envName: Umgebungsvariable
     envNameHelp:
       Name der Deployment-Variable mit dem Schlüssel — das Präfix ist

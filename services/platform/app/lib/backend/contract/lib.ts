@@ -59,6 +59,8 @@ export interface LibContract {
       authMethods: Array<
         'api-key' | 'env' | 'subscription-key' | 'subscription-broker'
       >;
+      /** Declared vendor account identity field for static subscriptions. */
+      subscriptionAccountIdVar?: string;
       models: ProviderCatalogModel[];
       endpointMode?: 'fixed' | 'per-credential';
       baseUrl?: string;

@@ -195,6 +195,9 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   server: {
+    // The local sandbox device runs in Docker and reaches the host through
+    // Docker Desktop's host alias rather than localhost.
+    allowedHosts: ['host.docker.internal'],
     // WebDAV clients probe OPTIONS before authenticating. Let the backend
     // advertise DAV/Allow while retaining Vite's default origin restriction.
     // nosemgrep: trailofbits.javascript.apollo-graphql.v3-cors-audit.v3-potentially-bad-cors -- Vite's anchored localhost/loopback allowlist, not an Apollo wildcard; dev and preview reject foreign origins in webdav-preflight.test.ts.

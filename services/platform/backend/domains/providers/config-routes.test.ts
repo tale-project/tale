@@ -325,6 +325,11 @@ describe('native custom provider definition HTTP door', () => {
     expect(
       (await listed()).find((entry) => entry.name === 'openai'),
     ).not.toHaveProperty('definitionHash');
+    expect(
+      (await listed()).find((entry) => entry.name === 'openai'),
+    ).toMatchObject({
+      subscriptionAccountIdVar: 'TALE_SUBSCRIPTION_ACCOUNT_ID',
+    });
 
     const moved = await put({
       config: { ...definition, baseUrl: 'https://models.example.test/v2' },

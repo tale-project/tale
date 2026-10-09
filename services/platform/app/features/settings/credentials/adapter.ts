@@ -108,7 +108,11 @@ export interface CredentialSecretModule<Method extends string, Draft> {
   /** Whether anything has been typed — drives the discard-on-close prompt. */
   isDirty: (draft: Draft) => boolean;
   /** Whether the method's required fields are filled — the submit gate. */
-  isComplete: (method: Method, draft: Draft) => boolean;
+  isComplete: (
+    method: Method,
+    draft: Draft,
+    vendor?: CredentialVendor,
+  ) => boolean;
   /**
    * The mutation arguments for this method.
    *

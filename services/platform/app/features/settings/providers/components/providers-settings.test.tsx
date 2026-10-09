@@ -257,6 +257,17 @@ const openrouterProvider = {
   catalogError: 'OpenRouter API unreachable',
 } as unknown as ProviderCatalog;
 
+const openaiProvider = {
+  name: 'openai',
+  displayName: 'OpenAI',
+  apiFormat: 'openai',
+  baseUrl: 'https://api.openai.com/v1',
+  catalogSource: 'static',
+  authMethods: ['subscription-key'],
+  subscriptionAccountIdVar: 'TALE_SUBSCRIPTION_ACCOUNT_ID',
+  models: [model('gpt-6.1-sol')],
+} as unknown as ProviderCatalog;
+
 function credential(
   overrides: Partial<Omit<MaskedCredential, 'id'>> & {
     id: string;
@@ -609,6 +620,16 @@ describe('ProvidersSettings', () => {
       expect(
         screen.getAllByRole('option').map((option) => option.textContent),
       ).toEqual(['API key', 'Environment variable', 'Subscription broker']);
+    });
+
+    it('renders the declared subscription account field from the catalog shape', async () => {
+      fixtures.catalogs = [openaiProvider];
+      const { user } = renderPage();
+      const form = await pickProvider(user, 'OpenAI');
+
+      expect(
+        form.getByRole('textbox', { name: 'ChatGPT account ID' }),
+      ).toBeInTheDocument();
     });
 
     it('explains before the broker fields that a subscription never serves chat, and why', async () => {
