@@ -271,10 +271,10 @@ class EventStream implements EventStreamHandle {
       const max = Math.max(this.#maxMs, this.#retryMs ?? 0);
       // A stream that was healthy comes back the way a browser's EventSource
       // does: after the server's `retry:`, else the browser's default. The
-      // platform sends no `retry:`, so a deploy that drops every stream sees
-      // them all back together one default delay later — the herd real tabs
-      // make, which the run should meet. Only a stream that keeps failing
-      // backs off with full jitter.
+      // platform's event and progress streams send a `retry:` jittered per
+      // stream, so a deploy that drops every stream does not see them all
+      // back at once; a platform without it gets the herd real tabs would
+      // make. Only a stream that keeps failing backs off with full jitter.
       const delayMs =
         opened && this.#attempt === 0
           ? base
