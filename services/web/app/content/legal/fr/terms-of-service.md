@@ -63,7 +63,7 @@ La soumission d’un formulaire ne crée pas de relation contractuelle entre toi
 
 ### 6.1 Liens depuis le Site
 
-Notre Site peut contenir des liens vers des sites, services ou ressources tiers qui ne nous appartiennent ni ne sont contrôlés par nous, y compris notre site de documentation, formations et accords de service. Nous n’avons pas de contrôle et n’assumons aucune responsabilité pour le contenu, les pratiques de confidentialité ou la disponibilité de sites ou services tiers. L’inclusion d’un lien ne vaut pas approbation. Nous t’encourageons à lire les conditions et politiques de confidentialité de tout site tiers visité.
+Notre Site peut contenir des liens vers des sites, services ou ressources tiers qui ne nous appartiennent ni ne sont contrôlés par nous, y compris notre site de documentation et accords de service. Nous n’avons pas de contrôle et n’assumons aucune responsabilité pour le contenu, les pratiques de confidentialité ou la disponibilité de sites ou services tiers. L’inclusion d’un lien ne vaut pas approbation. Nous t’encourageons à lire les conditions et politiques de confidentialité de tout site tiers visité.
 
 ### 6.2 URL que tu soumets au Service
 

@@ -5,11 +5,8 @@ import { Tooltip } from '@tale/ui/tooltip';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import {
   Ban,
-  Bot,
   CalendarClock,
   CalendarSync,
-  Eye,
-  MessageCircleQuestion,
   MessageSquare,
   Repeat,
 } from 'lucide-react';
@@ -187,133 +184,6 @@ function SubtaskProgressRing({
         <span className="tabular-nums">
           {done}/{total}
         </span>
-      </span>
-    </Tooltip>
-  );
-}
-
-/**
- * Pulsing "agent is working" glyph — shown while the task has a live agent
- * run (`getTaskOpsIndicators`). The pulse is the acknowledgment signal of
- * the task-ops pack: assignment should never look dead.
- */
-export function AgentWorkingIndicator({
-  working,
-  className,
-}: {
-  working: boolean;
-  className?: string;
-}) {
-  return working ? <AgentWorkingChip className={className} /> : null;
-}
-
-function AgentWorkingChip({ className }: { className?: string }) {
-  const { t } = useT('tasks');
-  return (
-    <Tooltip content={t('agentRuns.working')}>
-      <span
-        className={cn('text-primary inline-flex items-center', className)}
-        aria-label={t('agentRuns.working')}
-        role="img"
-      >
-        <Bot className="size-3.5 shrink-0 animate-pulse" aria-hidden="true" />
-      </span>
-    </Tooltip>
-  );
-}
-
-/**
- * Amber "the agent needs your answer" glyph — the task's live automation run
- * is parked on an unanswered `ask_human` question (`getTaskOpsIndicators`).
- * Deliberately distinct from the working pulse: a run waiting on a person
- * must read as the viewer's move, not as the agent still grinding. Same
- * glyph as the answer card the task dialog opens onto (`RunAskCard`).
- */
-export function AgentNeedsAnswerIndicator({
-  asking,
-  className,
-}: {
-  asking: boolean;
-  className?: string;
-}) {
-  return asking ? <AgentNeedsAnswerChip className={className} /> : null;
-}
-
-function AgentNeedsAnswerChip({ className }: { className?: string }) {
-  const { t } = useT('tasks');
-  const label = t('agentRuns.needsAnswer');
-  return (
-    <Tooltip content={label}>
-      <span
-        className={cn(
-          'inline-flex items-center text-amber-600 dark:text-amber-400',
-          className,
-        )}
-        aria-label={label}
-        role="img"
-      >
-        <MessageCircleQuestion
-          className="size-3.5 shrink-0"
-          aria-hidden="true"
-        />
-      </span>
-    </Tooltip>
-  );
-}
-
-/**
- * "Needs review" chip — the task sits at the review gate waiting for a
- * human decision. Paired with the review card in the detail sheet. When the
- * waiting-on reviewer is known the chip shows a count (today always 1); the
- * tooltip names them ("You" for the viewer). Without a resolved reviewer the
- * bare glyph keeps the pre-reviewer behavior.
- */
-export function NeedsReviewIndicator({
-  needsReview,
-  reviewerName,
-  reviewerIsMe = false,
-  className,
-}: {
-  needsReview: boolean;
-  /** Display name of the reviewer the task waits on, when resolved. */
-  reviewerName?: string;
-  /** True when the viewer IS the reviewer — tooltip reads "Waiting on you". */
-  reviewerIsMe?: boolean;
-  className?: string;
-}) {
-  return needsReview ? (
-    <NeedsReviewChip
-      reviewerName={reviewerName}
-      reviewerIsMe={reviewerIsMe}
-      className={className}
-    />
-  ) : null;
-}
-
-function NeedsReviewChip({
-  reviewerName,
-  reviewerIsMe,
-  className,
-}: {
-  reviewerName?: string;
-  reviewerIsMe: boolean;
-  className?: string;
-}) {
-  const labels = useTaskCardStateLabels();
-  const hasNamedReviewer = reviewerIsMe || reviewerName !== undefined;
-  const label = labels.review(reviewerName, reviewerIsMe);
-  return (
-    <Tooltip content={label}>
-      <span
-        className={cn(
-          'inline-flex items-center gap-0.5 text-xs text-blue-600 dark:text-blue-400',
-          className,
-        )}
-        aria-label={label}
-        role="img"
-      >
-        <Eye className="size-3.5 shrink-0" aria-hidden="true" />
-        {hasNamedReviewer && <span className="tabular-nums">1</span>}
       </span>
     </Tooltip>
   );

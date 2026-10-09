@@ -2,6 +2,7 @@ import { buildBreadcrumbListJsonLd } from '@tale/ui/seo/builders/json-ld';
 import { useMemo } from 'react';
 
 import { FeatureCapability, FeatureCta } from '@/app/components/blocks/feature';
+import { PageIllustration } from '@/app/components/blocks/page-illustrations';
 import {
   CtaPair,
   MarketingCard,
@@ -67,21 +68,26 @@ export function AboutPage() {
   return (
     <>
       <PageSection pad="xl" border="b">
-        <MarketingStack max="lg" gap="lg">
-          <SectionHeading
-            size="display"
-            eyebrow={t('hero.eyebrow')}
-            title={t('hero.title')}
-            description={t('hero.description')}
-          />
-          <CtaPair
-            primary={{ label: t('hero.ctaContact'), to: CONTACT_PATH }}
-            secondary={{
-              label: t('hero.ctaGithub'),
-              href: EXTERNAL_LINKS.github,
-            }}
-          />
-        </MarketingStack>
+        <div className="grid min-w-0 items-center gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-16">
+          <MarketingStack max="full" gap="lg" align="start">
+            <SectionHeading
+              size="display"
+              eyebrow={t('hero.eyebrow')}
+              title={t('hero.title')}
+              description={t('hero.description')}
+              align="start"
+            />
+            <CtaPair
+              align="start"
+              primary={{ label: t('hero.ctaContact'), to: CONTACT_PATH }}
+              secondary={{
+                label: t('hero.ctaGithub'),
+                href: EXTERNAL_LINKS.github,
+              }}
+            />
+          </MarketingStack>
+          <PageIllustration kind="about" />
+        </div>
       </PageSection>
 
       <PageSection pad="md" border="b">

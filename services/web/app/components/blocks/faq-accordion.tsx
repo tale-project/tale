@@ -22,12 +22,7 @@ export const FAQ_KEYS = [
   'openSource',
   'onPrem',
   'enterprisePricing',
-  'enterpriseFeatures',
   'byoModels',
-  'aiProviders',
-  'hardware',
-  'ownHardwareModels',
-  'customTraining',
 ] as const;
 
 export function FaqAccordion() {

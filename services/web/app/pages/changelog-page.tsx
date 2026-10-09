@@ -9,6 +9,7 @@ import { ReleaseBody } from '@/app/components/blocks/changelog/release-body';
 import { useActiveRelease } from '@/app/components/blocks/changelog/use-active-release';
 import { useLiveReleases } from '@/app/components/blocks/changelog/use-live-releases';
 import { FeatureCta } from '@/app/components/blocks/feature';
+import { PageIllustration } from '@/app/components/blocks/page-illustrations';
 import { SiteContainer } from '@/app/components/layout/site-container';
 import {
   MarketingExternalLink,
@@ -241,24 +242,33 @@ export function ChangelogPage() {
   return (
     <>
       <PageSection pad="xl" border="b" className="relative overflow-hidden">
-        <MarketingStack max="md" gap="md" className="relative">
-          <SectionHeading
-            size="display"
-            eyebrow={t('eyebrow')}
-            title={t('title')}
-            description={t('description')}
-          />
-          <p className="text-fg-subtle text-center text-sm">
-            {t('sourceNote')}{' '}
-            <MarketingExternalLink
-              href={EXTERNAL_LINKS.githubReleases}
-              tone="subtle"
-            >
-              {t('githubLink')}
-            </MarketingExternalLink>
-            .
-          </p>
-        </MarketingStack>
+        <div className="grid min-w-0 items-center gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] lg:gap-16">
+          <MarketingStack
+            max="full"
+            gap="md"
+            align="start"
+            className="relative"
+          >
+            <SectionHeading
+              size="display"
+              eyebrow={t('eyebrow')}
+              title={t('title')}
+              description={t('description')}
+              align="start"
+            />
+            <p className="text-fg-subtle text-sm">
+              {t('sourceNote')}{' '}
+              <MarketingExternalLink
+                href={EXTERNAL_LINKS.githubReleases}
+                tone="subtle"
+              >
+                {t('githubLink')}
+              </MarketingExternalLink>
+              .
+            </p>
+          </MarketingStack>
+          <PageIllustration kind="changelog" />
+        </div>
       </PageSection>
 
       {/* Mobile: compact sticky chip scroller (not a tall vertical timeline). */}
