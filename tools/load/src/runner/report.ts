@@ -53,6 +53,8 @@ export interface RunReport {
   planRunId: string;
   targets: string[];
   shard: { index: number; count: number };
+  /** Shard reports this one was folded from; absent on a shard's own. */
+  mergedFrom?: number;
   processes: number;
   startedAt: string;
   endedAt: string;
@@ -228,6 +230,7 @@ export function mergeReports(
     ...first,
     peakUsers: reports.reduce((sum, r) => sum + r.peakUsers, 0),
     shard: { index: 0, count: reports.length },
+    mergedFrom: reports.length,
     processes: reports.reduce((sum, r) => sum + r.processes, 0),
     targets: [...new Set(reports.flatMap((r) => r.targets))],
     startedAt: reports.map((r) => r.startedAt).sort()[0] ?? first.startedAt,
@@ -302,9 +305,9 @@ export function renderMarkdown(report: RunReport): string {
     lines.push('');
     lines.push('## Stages');
     lines.push('');
-    if (report.shard.count > 1) {
+    if (report.mergedFrom !== undefined) {
       lines.push(
-        `Merged from ${report.shard.count} shards: load summed, p95 the slowest shard's (an upper bound), held only where every shard held.`,
+        `Merged from ${report.mergedFrom} shards: load summed, p95 the slowest shard's (an upper bound), held only where every shard held.`,
       );
       lines.push('');
     }

@@ -499,6 +499,10 @@ describe('mergeReports', () => {
     expect(renderMarkdown(merged)).toContain(
       'held through 200 users (stage 1)',
     );
+    expect(renderMarkdown(merged)).toContain('Merged from 2 shards');
+    // One shard's own report of a two-shard run makes no merge claim.
+    const { mergedFrom: _, ...shardOwn } = merged;
+    expect(renderMarkdown(shardOwn)).not.toContain('Merged from');
   });
 
   test('a harness failure exits 2, a threshold failure 1', () => {
