@@ -271,6 +271,17 @@ retry, and restore workflow actions only after a successful read. Successful
 empty reads retain the normal no-live-run state. These cases are owned by
 `app/features/tasks/components/task-subject-panel.test.tsx` (#3849).
 
+An assignee handoff stays with the task it was asked for. The task modal keeps
+its Assign picker while a parent link or a subtask opens another task, so the
+picker is keyed by the task: a live-run read that answers after the move opens
+no confirm and cancels nothing, a confirm left open closes, a change that needs
+no confirm still lands on the task it was picked for, and the next task's own
+handoff cancels and reassigns only that task. These cases are owned by
+`app/features/tasks/components/assignee-picker.handoff.test.tsx`, and through
+the modal's real parent link by
+`app/features/tasks/components/task-modal.assignee-handoff.test.tsx` (#3915).
+Real-browser navigation and a live run's cancellation remain manual.
+
 Task attachment uploads overlap while their drain, read and replace steps are
 serialized, and replacements read the latest saved list rather than an
 upload-start snapshot.
