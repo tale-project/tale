@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { AGENT_TOOL_CATALOG } from '../agent-tool-grants';
 import {
   managedAgentToolsSchema,
+  managedAutomationScheduleSchema,
   managedPlatformResourceSchema,
 } from './managed-configuration';
 import { PROJECT_AGENT_BINDINGS_MAX } from './projects';
@@ -54,4 +55,36 @@ describe('managed agent tool declarations', () => {
     ])
       expect(managedAgentToolsSchema.safeParse(config).success).toBe(false);
   });
+});
+
+describe('managed schedule slot-wake opt-in (#4540)', () => {
+  const schedule = {
+    projectId: 'project-a',
+    name: 'fleet/dispatch',
+    cron: '*/30 * * * *',
+    timezone: 'Europe/Zurich',
+    enabled: true,
+  };
+
+  it('declares the opt-in as true, and the opt-out by leaving it out', () => {
+    expect(
+      managedAutomationScheduleSchema.parse({
+        ...schedule,
+        wakeOnSlotFreed: true,
+      }),
+    ).toEqual({ ...schedule, wakeOnSlotFreed: true });
+    expect(managedAutomationScheduleSchema.parse(schedule)).toEqual(schedule);
+  });
+
+  it.each([false, 'true', 1, null])(
+    'refuses %j, so a readback and its declaration always hash alike',
+    (wakeOnSlotFreed) => {
+      expect(
+        managedAutomationScheduleSchema.safeParse({
+          ...schedule,
+          wakeOnSlotFreed,
+        }).success,
+      ).toBe(false);
+    },
+  );
 });

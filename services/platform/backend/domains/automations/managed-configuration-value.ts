@@ -35,6 +35,7 @@ export function managedScheduleValue(
     cron: string | null;
     timezone: string | null;
     enabled: boolean;
+    wakeOnSlotFreed?: boolean;
   } | null,
 ) {
   if (row === null) return null;
@@ -48,5 +49,6 @@ export function managedScheduleValue(
     cron: row.cron,
     timezone: row.timezone ?? 'UTC',
     enabled: row.enabled,
+    ...(row.wakeOnSlotFreed === true ? { wakeOnSlotFreed: true } : {}),
   });
 }

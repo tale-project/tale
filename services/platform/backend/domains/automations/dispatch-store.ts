@@ -53,6 +53,7 @@ import {
   type AutomationWriteVia,
   bindingProjectIds,
   bindProjectInTx,
+  lockAutomationProjectBindingsInTx,
   deleteAutomationCascade,
   listRunsPage,
   unbindProjectInTx,
@@ -908,6 +909,9 @@ export function pgAutomationStore(
         for (const projectId of new Set([...change.add, ...change.remove])) {
           await writableActorProject(tx, auth, projectId);
         }
+        await lockAutomationProjectBindingsInTx(tx, { organizationId, name }, [
+          ...new Set([...change.add, ...change.remove]),
+        ]);
         for (const projectId of new Set(change.remove)) {
           if (!installed.has(projectId)) {
             throw new AutomationError(
