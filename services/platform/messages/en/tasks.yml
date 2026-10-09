@@ -236,6 +236,11 @@ views:
   board: Board
   list: List
 board:
+  agentWorking: '{name} is working'
+  addTask: Add task
+  addToLane: 'Add task to {status}'
+  quickAddLabel: New task title
+  quickAdded: 'Added “{title}”'
   noTasks: No tasks
 list:
   showArchived: Show archived
