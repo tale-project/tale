@@ -817,15 +817,30 @@ describe('createPgTurnStore.streamProgress write gap', () => {
       await progress(`${long}!`, true);
       expect(writes()).toBe(4);
       // A stall's cancel poll waits only the shortest gap, however long the
-      // reply: 300 ms after the last write it reads the row again.
+      // reply: 300 ms after the last write it reads the row again. With
+      // nothing new to store it touches only the heartbeat.
+      const poll = (text: string) =>
+        store.streamProgress({
+          organizationId: 'org_1',
+          threadId: 'thread_1',
+          text,
+          poll: true,
+        });
+      const heartbeats = () =>
+        f.pool.filter((s) =>
+          s.text.includes('UPDATE app.generations SET heartbeat_at_ms'),
+        ).length;
       vi.advanceTimersByTime(300);
-      await store.streamProgress({
-        organizationId: 'org_1',
-        threadId: 'thread_1',
-        text: `${long}!`,
-        poll: true,
-      });
-      expect(writes()).toBe(5);
+      await poll(`${long}!`);
+      expect(writes() - heartbeats()).toBe(4);
+      expect(heartbeats()).toBe(1);
+      // A tail the throttle held back is stored by the next poll.
+      await progress(`${long}!?`);
+      expect(writes() - heartbeats()).toBe(4);
+      vi.advanceTimersByTime(300);
+      await poll(`${long}!?`);
+      expect(writes() - heartbeats()).toBe(5);
+      expect(heartbeats()).toBe(1);
     } finally {
       vi.useRealTimers();
     }

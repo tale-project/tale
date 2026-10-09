@@ -386,6 +386,12 @@ function pgTurnStore(
 ): TurnStore {
   let lastStreamWriteAt = 0;
   let lastCancelRequested = false;
+  /** What the last progress write stored, for a poll to compare against. */
+  let lastWritten: {
+    text: string;
+    reasoning: string;
+    messageId: string | undefined;
+  } | null = null;
   return {
     async appendMessage(message) {
       const stored = {
@@ -417,11 +423,38 @@ function pgTurnStore(
       if (update.flush !== true && nowMs - lastStreamWriteAt < gapMs) {
         return { cancelRequested: lastCancelRequested };
       }
+      const reasoning = update.reasoning ?? '';
+      // A poll with nothing new to store keeps the turn alive for the
+      // watchdog and reads the Stop, and leaves the text and the progress
+      // lane's clock alone: rewriting an unchanged long reply on every
+      // poll had every watcher read it again and push it to every tab.
+      if (
+        update.poll === true &&
+        update.flush !== true &&
+        lastWritten !== null &&
+        lastWritten.text === update.text &&
+        lastWritten.reasoning === reasoning &&
+        (update.messageId ?? lastWritten.messageId) === lastWritten.messageId
+      ) {
+        const polled = await sql<{ cancelRequested: boolean }[]>`
+          UPDATE app.generations SET heartbeat_at_ms = ${nowMs}
+          WHERE thread_id = ${update.threadId}
+            AND org_id = ${update.organizationId}
+          RETURNING cancel_requested AS "cancelRequested"
+        `;
+        lastCancelRequested = polled[0]?.cancelRequested ?? false;
+        return { cancelRequested: lastCancelRequested };
+      }
       lastStreamWriteAt = nowMs;
+      lastWritten = {
+        text: update.text,
+        reasoning,
+        messageId: update.messageId ?? lastWritten?.messageId,
+      };
       const rows = await sql<{ cancelRequested: boolean }[]>`
         UPDATE app.generations SET
           text = ${update.text},
-          reasoning = ${update.reasoning ?? ''},
+          reasoning = ${reasoning},
           message_id = coalesce(${update.messageId ?? null}, message_id),
           heartbeat_at_ms = ${nowMs}, updated_at_ms = ${nowMs}
         WHERE thread_id = ${update.threadId}
