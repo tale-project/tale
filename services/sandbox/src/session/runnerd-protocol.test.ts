@@ -41,6 +41,12 @@ function constantsOf(mod: object): Map<string, unknown> {
   return out;
 }
 
+/** True only when A and B are the same type, not merely assignable. */
+type Exactly<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2
+    ? true
+    : false;
+
 describe('runnerd protocol mirror', () => {
   const canon = constantsOf(canonical);
   const mirr = constantsOf(mirror);
@@ -72,6 +78,13 @@ describe('runnerd protocol mirror', () => {
     const mirrored: MirrorHealth[] = readings;
     const roundTrip: CanonicalHealth[] = mirrored;
     expect(roundTrip).toEqual(readings);
+    // Assignability alone lets either copy drop the optional field; the
+    // typecheck fails here unless both declare it identically.
+    const sameDocker: Exactly<
+      CanonicalHealth['docker'],
+      MirrorHealth['docker']
+    > = true;
+    expect(sameDocker).toBe(true);
   });
 
   test.each([
