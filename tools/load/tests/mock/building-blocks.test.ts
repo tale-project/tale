@@ -204,6 +204,30 @@ describe('bounds on what a caller can ask for', () => {
     for (const item of value) expect(item.length).toBeLessThanOrEqual(4096);
   });
 
+  test('nested arrays share one size bound instead of multiplying theirs', () => {
+    const huge = { minItems: 10_000_000 };
+    const value = valueForSchema(
+      createRandom(1),
+      {
+        type: 'array',
+        ...huge,
+        items: {
+          type: 'array',
+          ...huge,
+          items: {
+            type: 'array',
+            ...huge,
+            items: { type: 'string', minLength: 10_000_000 },
+          },
+        },
+      },
+      'items',
+      { keywords: [], locale: 'en' },
+    );
+    // Per-array bounds alone allow 50 × 50 × 50 strings of 4,096 characters.
+    expect(JSON.stringify(value).length).toBeLessThan(400_000);
+  });
+
   test('cluster workers split the provider-wide stream limit', () => {
     expect(workerStreamLimit(0, 4)).toBe(0);
     expect(workerStreamLimit(500, 4)).toBe(125);

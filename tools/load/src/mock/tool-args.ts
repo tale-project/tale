@@ -38,6 +38,16 @@ const MAX_DEPTH = 4;
 const MAX_GENERATED_ITEMS = 50;
 /** Longest string padding meets a minLength to. */
 const MAX_GENERATED_STRING = 4096;
+/**
+ * Array elements plus string characters one generated value holds at most.
+ * The per-array and per-string bounds alone multiply through nesting.
+ */
+const MAX_GENERATED_SIZE = 256 * 1024;
+
+/** What is left of one value's `MAX_GENERATED_SIZE`, spent as it is built. */
+interface SizeBudget {
+  left: number;
+}
 
 const FALLBACK_TERMS = [
   'quarterly report',
@@ -103,6 +113,7 @@ function stringFor(
   name: string,
   schema: Record<string, unknown>,
   hints: ArgumentHints,
+  budget: SizeBudget,
 ): string {
   const key = name.toLowerCase();
   const format = typeof schema.format === 'string' ? schema.format : '';
@@ -138,9 +149,11 @@ function stringFor(
   const minLength = Math.min(
     numberOr(schema.minLength, 0),
     MAX_GENERATED_STRING,
+    Math.max(budget.left, value.length),
   );
   if (value.length > maxLength) value = value.slice(0, maxLength);
   if (value.length < minLength) value = value.padEnd(minLength, 'x');
+  budget.left -= value.length;
   return value;
 }
 
@@ -172,6 +185,7 @@ export function valueForSchema(
   name: string,
   hints: ArgumentHints,
   depth = 0,
+  budget: SizeBudget = { left: MAX_GENERATED_SIZE },
 ): unknown {
   const schema = asRecord(schemaValue) ?? {};
   if ('const' in schema) return schema.const;
@@ -184,7 +198,7 @@ export function valueForSchema(
       const concrete = options.find(
         (option) => asRecord(option)?.type !== 'null',
       );
-      return valueForSchema(random, concrete, name, hints, depth);
+      return valueForSchema(random, concrete, name, hints, depth, budget);
     }
   }
   switch (schemaType(schema)) {
@@ -207,15 +221,18 @@ export function valueForSchema(
         MAX_GENERATED_ITEMS,
       );
       const out: unknown[] = [];
-      for (let i = 0; i < items; i++) {
-        out.push(valueForSchema(random, schema.items, name, hints, depth + 1));
+      for (let i = 0; i < items && budget.left > 0; i++) {
+        budget.left -= 1;
+        out.push(
+          valueForSchema(random, schema.items, name, hints, depth + 1, budget),
+        );
       }
       return out;
     }
     case 'object':
-      return objectForSchema(random, schema, hints, depth);
+      return objectForSchema(random, schema, hints, depth, budget);
     default:
-      return stringFor(random, name, schema, hints);
+      return stringFor(random, name, schema, hints, budget);
   }
 }
 
@@ -224,6 +241,7 @@ function objectForSchema(
   schema: Record<string, unknown>,
   hints: ArgumentHints,
   depth: number,
+  budget: SizeBudget,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const properties = asRecord(schema.properties);
@@ -237,7 +255,14 @@ function objectForSchema(
   );
   for (const [key, propertySchema] of Object.entries(properties)) {
     if (!required.has(key) && !chance(random, OPTIONAL_SHARE)) continue;
-    out[key] = valueForSchema(random, propertySchema, key, hints, depth + 1);
+    out[key] = valueForSchema(
+      random,
+      propertySchema,
+      key,
+      hints,
+      depth + 1,
+      budget,
+    );
   }
   return out;
 }
@@ -248,7 +273,9 @@ export function generateToolArguments(
   schema: Record<string, unknown>,
   hints: ArgumentHints,
 ): Record<string, unknown> {
-  return objectForSchema(random, schema, hints, 0);
+  return objectForSchema(random, schema, hints, 0, {
+    left: MAX_GENERATED_SIZE,
+  });
 }
 
 /**
