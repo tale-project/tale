@@ -1703,10 +1703,19 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
   },
   'node_only/sandbox/session_admin_actions:stopSandboxTask': {
     run: (args, ctx) =>
-      backendFetch<{ cancelled: number }>(
+      backendFetch<{ cancelled: number; refused: number }>(
         `/sandbox/sessions/${encodeURIComponent(stringArg(args, 'sessionId'))}/stop-task`,
         { orgId: requireOrg(args, ctx), body: {} },
-      ),
+      ).then((result) => {
+        if (result.refused > 0) {
+          throw new Error(
+            result.cancelled > 0
+              ? `${result.refused} sandbox task(s) could not be stopped`
+              : 'Sandbox task could not be stopped',
+          );
+        }
+        return null;
+      }),
     invalidate: invalidateSandboxSessions,
   },
   'node_only/sandbox/session_admin_actions:destroySandbox': {

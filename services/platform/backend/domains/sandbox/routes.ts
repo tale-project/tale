@@ -407,18 +407,23 @@ export function createSandboxRoutes(deps: {
     if (!owned[0]) return c.json({ error: 'SESSION_NOT_FOUND' }, 404);
     const ops = await listRunningOpsBySession(deps.sql, sessionId);
     let cancelled = 0;
+    let refused = 0;
     for (const op of ops) {
       try {
-        await sessionCancelExec(sessionId, op.execId);
-        cancelled += 1;
+        if (await sessionCancelExec(sessionId, op.execId)) {
+          cancelled += 1;
+        } else {
+          refused += 1;
+        }
       } catch (error) {
+        refused += 1;
         console.warn(
           `[sandbox] cancel exec ${op.execId} on ${sessionId} failed:`,
           error,
         );
       }
     }
-    return c.json({ cancelled });
+    return c.json({ cancelled, refused });
   });
 
   /** Reconcile the org's compute-holding rows with the spawner — the sweep's
