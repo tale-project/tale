@@ -19,11 +19,6 @@ import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useSetTaskReviewer } from '../hooks/mutations';
-import {
-  useActorDirectory,
-  useProvidedActorDirectory,
-  type ActorDirectory,
-} from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
 import {
   reviewerBlockedMessage,
@@ -48,33 +43,7 @@ interface TaskReviewerFieldProps {
 /** The task-specific read keeps the pending review identity and its configured
  * successor together. A stale picker cannot redirect another result. Names
  * come from the directory the task provides, or one read here outside it. */
-export function TaskReviewerField(props: TaskReviewerFieldProps) {
-  const provided = useProvidedActorDirectory(
-    props.task.organizationId,
-    props.task.projectId,
-  );
-  return provided ? (
-    <TaskReviewerFieldBody {...props} directory={provided} />
-  ) : (
-    <TaskReviewerFieldOwnDirectory {...props} />
-  );
-}
-
-function TaskReviewerFieldOwnDirectory(props: TaskReviewerFieldProps) {
-  const directory = useActorDirectory(
-    props.task.organizationId,
-    props.task.projectId,
-  );
-  return <TaskReviewerFieldBody {...props} directory={directory} />;
-}
-
-function TaskReviewerFieldBody({
-  task,
-  canEdit,
-  directory: { resolveActor },
-}: TaskReviewerFieldProps & {
-  directory: Pick<ActorDirectory, 'resolveActor'>;
-}) {
+export function TaskReviewerField({ task, canEdit }: TaskReviewerFieldProps) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const query = useBackendQuery('tasks/queries:getTaskReviewer', {
@@ -92,12 +61,6 @@ function TaskReviewerFieldBody({
   const state = query.data;
   const pending = state?.pendingReview;
   const recipient = pending?.reviewer;
-  const pendingName = recipient
-    ? resolveActor(
-        recipient.kind,
-        recipient.kind === 'user' ? recipient.userId : recipient.agentId,
-      ).name
-    : t('reviewer.none');
   const configuredAgentId =
     state?.reviewer.kind === 'agent'
       ? state.reviewer.agentId
@@ -129,6 +92,8 @@ function TaskReviewerFieldBody({
                 projectReviewer={
                   state?.projectReviewer ?? { kind: 'human_default' }
                 }
+                currentReviewer={recipient ?? state?.resolvedReviewer}
+                hasPendingReview={pending != null}
                 implementationAgentId={
                   pending
                     ? (pending.implementationAgentId ?? undefined)
@@ -180,14 +145,6 @@ function TaskReviewerFieldBody({
             </span>
           </SkeletonBox>
         </Skeletonize>
-      )}
-      {pending && (
-        <Text variant="caption">
-          {t('reviewer.pendingFor', { reviewer: pendingName })}
-        </Text>
-      )}
-      {pending && canEdit && (
-        <Text variant="caption">{t('reviewer.transferHint')}</Text>
       )}
       {blockedMessage && (
         <Text variant="caption" role="status">

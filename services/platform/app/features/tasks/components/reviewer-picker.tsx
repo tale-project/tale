@@ -3,6 +3,7 @@
 import type {
   ProjectTaskReviewer,
   TaskReviewer,
+  TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
@@ -30,6 +31,8 @@ interface ReviewerPickerProps {
   projectId?: string;
   reviewer: TaskReviewer;
   projectReviewer: ProjectTaskReviewer;
+  currentReviewer?: TaskReviewRecipient | null;
+  hasPendingReview?: boolean;
   implementationAgentId?: string;
   onChange: (reviewer: TaskReviewer) => void;
   onOpenChange?: (open: boolean) => void;
@@ -46,13 +49,15 @@ function describeReviewer(
   projectReviewer: ProjectTaskReviewer,
   resolveActor: ActorDirectory['resolveActor'],
   t: ReturnType<typeof useT>['t'],
+  currentReviewer?: TaskReviewRecipient | null,
 ) {
   const effective =
-    reviewer.kind === 'inherit'
+    currentReviewer ??
+    (reviewer.kind === 'inherit'
       ? projectReviewer.kind === 'agent'
         ? projectReviewer
         : null
-      : reviewer;
+      : reviewer);
   const actorId =
     effective?.kind === 'user' ? effective.userId : effective?.agentId;
   const resolved =
@@ -63,7 +68,7 @@ function describeReviewer(
           reviewer: resolveActor('agent', projectReviewer.agentId).name,
         })
       : t('reviewer.projectDefaultHuman');
-  const label = reviewer.kind === 'inherit' ? inheritLabel : resolved?.name;
+  const label = resolved?.name ?? t('reviewer.none');
   return { effective, actorId, resolved, inheritLabel, label };
 }
 
@@ -123,6 +128,7 @@ function ReviewerPickerTrigger(props: ReviewerPickerProps) {
     projectReviewer,
     directory.resolveActor,
     t,
+    props.currentReviewer,
   );
   const avatar = (
     <AssigneeAvatar
@@ -153,7 +159,7 @@ function ReviewerPickerTrigger(props: ReviewerPickerProps) {
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size="sm"
           aria-label={t('fields.reviewer')}
           // What the list's popover trigger says while it is shut.
           aria-haspopup="dialog"
@@ -161,7 +167,7 @@ function ReviewerPickerTrigger(props: ReviewerPickerProps) {
           data-state="closed"
           aria-disabled={busy || undefined}
           aria-busy={busy || undefined}
-          className="h-auto w-auto rounded-full p-1"
+          className="h-auto max-w-full min-w-0 gap-1.5 p-1 text-left whitespace-normal"
           onPointerDown={(event) => event.stopPropagation()}
           onClick={(event) => {
             event.stopPropagation();
@@ -176,9 +182,9 @@ function ReviewerPickerTrigger(props: ReviewerPickerProps) {
           }}
         >
           {avatar}
+          {name}
         </Button>
       </Tooltip>
-      {name}
     </span>
   );
 }
@@ -189,6 +195,8 @@ function ReviewerPickerList({
   projectId,
   reviewer,
   projectReviewer,
+  currentReviewer,
+  hasPendingReview = false,
   implementationAgentId,
   onChange,
   onOpenChange,
@@ -212,7 +220,13 @@ function ReviewerPickerList({
   } = useSharedAssignableActors(organizationId, projectId);
   const [open, setOpen] = useState(defaultOpen);
   const { effective, actorId, resolved, inheritLabel, label } =
-    describeReviewer(reviewer, projectReviewer, resolveActor, t);
+    describeReviewer(
+      reviewer,
+      projectReviewer,
+      resolveActor,
+      t,
+      currentReviewer,
+    );
 
   const { options, choices } = useMemo(() => {
     const choiceMap = new Map<string, TaskReviewer>([
@@ -348,11 +362,11 @@ function ReviewerPickerList({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
+            size="sm"
             aria-label={t('fields.reviewer')}
             aria-disabled={busy || undefined}
             aria-busy={busy || undefined}
-            className="h-auto w-auto rounded-full p-1"
+            className="h-auto max-w-full min-w-0 gap-1.5 p-1 text-left whitespace-normal"
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -366,6 +380,7 @@ function ReviewerPickerList({
             }}
           >
             {avatar}
+            {name}
           </Button>
         }
         tooltip={label}
@@ -397,11 +412,16 @@ function ReviewerPickerList({
             {(!scopeReady || agentsLoading) && (
               <Text variant="caption">{tCommon('actions.loading')}</Text>
             )}
+            {reviewer.kind === 'inherit' && (
+              <Text variant="caption">{inheritLabel}</Text>
+            )}
+            {hasPendingReview && (
+              <Text variant="caption">{t('reviewer.transferHint')}</Text>
+            )}
             <Text variant="caption">{t('reviewer.routingHint')}</Text>
           </div>
         }
       />
-      {name}
     </span>
   );
 }

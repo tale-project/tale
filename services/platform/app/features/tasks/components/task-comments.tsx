@@ -18,6 +18,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Pencil, Trash2 } from 'lucide-react';
 import { useCallback, memo, useRef, useState } from 'react';
 
+import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { useT } from '@/lib/i18n/client';
@@ -83,6 +84,8 @@ export const TaskCommentView = withTaskActorDirectory(TaskCommentViewContent);
 
 function TaskCommentViewContent({
   comment: c,
+  taskId,
+  outputFiles,
   organizationId,
   projectId,
   canComment,
@@ -94,6 +97,8 @@ function TaskCommentViewContent({
   onRequestDelete,
 }: {
   comment: TaskCommentData;
+  taskId?: string;
+  outputFiles?: ReadonlyArray<{ fileId: string; fileName: string }>;
   organizationId: string;
   projectId: string;
   canComment: boolean;
@@ -118,12 +123,21 @@ function TaskCommentViewContent({
     projectId,
   );
   const [editing, setEditing] = useState(false);
+  const [outputPreviewOpen, setOutputPreviewOpen] = useState(false);
 
   const author = resolveActor(c.authorType, c.authorId);
   const preview = isPreviewableTaskActor(c.authorType, c.authorId)
     ? resolveActorPreview(c.authorType, c.authorId)
     : null;
   const displayBody = pickCommentBody(c.body, c.bodyByLocale, locale);
+  const outputPathPattern =
+    taskId === undefined
+      ? undefined
+      : new RegExp(`/agent/output/${taskId}/([^\\s)]+)`);
+  const outputPath = outputPathPattern?.exec(displayBody)?.[0];
+  const outputFile = outputFiles?.find(
+    (file) => outputPath === `/agent/output/${taskId}/${file.fileName}`,
+  );
   const own =
     c.authorType === 'user' &&
     currentUserId !== undefined &&
@@ -158,61 +172,81 @@ function TaskCommentViewContent({
     ) : undefined;
 
   return (
-    <ThreadMessage
-      variant={own && !editing ? 'own' : 'other'}
-      continuation={continuation}
-      // Keep offscreen history in the DOM for browser find, keyboard access
-      // and draft state, while letting the browser skip its layout/paint.
-      // Editing needs normal layout so its mention menu may overflow the row.
-      className={cn(
-        'group/comment',
-        !editing &&
-          '[contain-intrinsic-block-size:auto_8rem] [content-visibility:auto]',
+    <>
+      <ThreadMessage
+        variant={own && !editing ? 'own' : 'other'}
+        continuation={continuation}
+        // Keep offscreen history in the DOM for browser find, keyboard access
+        // and draft state, while letting the browser skip its layout/paint.
+        // Editing needs normal layout so its mention menu may overflow the row.
+        className={cn(
+          'group/comment',
+          !editing &&
+            '[contain-intrinsic-block-size:auto_8rem] [content-visibility:auto]',
+        )}
+        avatar={
+          <AssigneeAvatar
+            assigneeType={c.authorType}
+            assigneeId={c.authorId}
+            name={author.name}
+          />
+        }
+        author={<TaskActorName preview={preview} name={author.name} />}
+        badge={
+          c.authorType === 'agent' ? (
+            <Badge variant="outline" className="px-1.5 py-0 text-[11px]">
+              {t('comment.agentBadge')}
+            </Badge>
+          ) : undefined
+        }
+        time={<ThreadTime value={c.createdAt} format={timeFormat} />}
+        meta={
+          c.editedAt != null ? (
+            <span className="italic">({t('comment.edited')})</span>
+          ) : undefined
+        }
+        actions={actions}
+        // A long body — an agent's report, a pasted log — reads at a glance and
+        // opens in place.
+        {...(editing ? {} : { clampHeight: own ? 384 : 320 })}
+      >
+        {editing ? (
+          <TaskCommentEditor
+            comment={c}
+            organizationId={organizationId}
+            projectId={projectId}
+            initialBody={displayBody}
+            onClose={() => setEditing(false)}
+          />
+        ) : (
+          <MentionText
+            body={displayBody}
+            organizationId={organizationId}
+            projectId={projectId}
+            mentions={c.mentions ?? NO_SAVED_MENTIONS}
+            {...(outputPath !== undefined && outputFile !== undefined
+              ? {
+                  linkOverrides: {
+                    [outputPath]: {
+                      href: outputPath,
+                      onClick: () => setOutputPreviewOpen(true),
+                    },
+                  },
+                }
+              : {})}
+            className="wrap-break-word"
+          />
+        )}
+      </ThreadMessage>
+      {outputFile !== undefined && (
+        <DocumentPreviewDialog
+          open={outputPreviewOpen}
+          onOpenChange={setOutputPreviewOpen}
+          fileId={outputFile.fileId}
+          fileName={outputFile.fileName}
+        />
       )}
-      avatar={
-        <AssigneeAvatar
-          assigneeType={c.authorType}
-          assigneeId={c.authorId}
-          name={author.name}
-        />
-      }
-      author={<TaskActorName preview={preview} name={author.name} />}
-      badge={
-        c.authorType === 'agent' ? (
-          <Badge variant="outline" className="px-1.5 py-0 text-[11px]">
-            {t('comment.agentBadge')}
-          </Badge>
-        ) : undefined
-      }
-      time={<ThreadTime value={c.createdAt} format={timeFormat} />}
-      meta={
-        c.editedAt != null ? (
-          <span className="italic">({t('comment.edited')})</span>
-        ) : undefined
-      }
-      actions={actions}
-      // A long body — an agent's report, a pasted log — reads at a glance and
-      // opens in place.
-      {...(editing ? {} : { clampHeight: own ? 384 : 320 })}
-    >
-      {editing ? (
-        <TaskCommentEditor
-          comment={c}
-          organizationId={organizationId}
-          projectId={projectId}
-          initialBody={displayBody}
-          onClose={() => setEditing(false)}
-        />
-      ) : (
-        <MentionText
-          body={displayBody}
-          organizationId={organizationId}
-          projectId={projectId}
-          mentions={c.mentions ?? NO_SAVED_MENTIONS}
-          className="wrap-break-word"
-        />
-      )}
-    </ThreadMessage>
+    </>
   );
 }
 

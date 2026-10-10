@@ -22,6 +22,7 @@ import {
   getPendingReviewForTask,
   replacePendingTaskReviewer,
   requestTaskReview,
+  resolveTaskReviewer,
   retargetPendingTaskReview,
   taskReviewRecipientOf,
 } from './reviews.ts';
@@ -610,5 +611,29 @@ describe('captured independent-agent review routing', () => {
       kind: 'user',
       userId: 'person',
     });
+  });
+});
+
+describe('live reviewer routing before a request', () => {
+  it('routes to the task creator using the same eligibility as a pending review', async () => {
+    const { tx, writes } = fixture();
+    expect(await resolveTaskReviewer(tx, task({ status: 'todo' }))).toEqual({
+      kind: 'user',
+      userId: 'creator',
+    });
+    expect(writes).toEqual([]);
+  });
+  it('falls through to the project creator when the task creator cannot edit', async () => {
+    vi.mocked(findOrganizationMember).mockResolvedValueOnce(null);
+    const { tx } = fixture();
+    expect(await resolveTaskReviewer(tx, task())).toEqual({
+      kind: 'user',
+      userId: 'project-creator',
+    });
+  });
+  it('returns no recipient when neither creator is eligible', async () => {
+    vi.mocked(findOrganizationMember).mockResolvedValue(null);
+    const { tx } = fixture();
+    expect(await resolveTaskReviewer(tx, task())).toBeNull();
   });
 });

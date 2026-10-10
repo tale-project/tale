@@ -11,7 +11,14 @@ import {
 } from '@tale/ui/table';
 import { useRouter } from '@tanstack/react-router';
 import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from 'react';
-import { Children, isValidElement, memo, useState } from 'react';
+import {
+  Children,
+  createContext,
+  isValidElement,
+  memo,
+  useContext,
+  useState,
+} from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -24,6 +31,18 @@ import { useCitationsContext } from './citations-context';
 import { CodeBlock, HighlightedCode } from './code-block';
 import { ImagePreviewDialog } from './image-preview-dialog';
 import { PaginatedMarkdownTable } from './paginated-markdown-table';
+
+/** Link replacements supplied by a surface that owns stored files. */
+export type MarkdownLinkOverride =
+  | string
+  | {
+      href: string;
+      onClick: (event: MouseEvent<HTMLAnchorElement>) => void;
+    };
+
+export const MarkdownLinkOverridesContext = createContext<
+  Readonly<Record<string, MarkdownLinkOverride>> | undefined
+>(undefined);
 
 export const markdownWrapperStyles = cn(
   '[&_p:not(:last-child)]:mb-2',
@@ -118,6 +137,24 @@ function MarkdownAnchor({
   ...rest
 }: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
   const router = useRouter();
+  const linkOverrides = useContext(MarkdownLinkOverridesContext);
+  const override = href === undefined ? undefined : linkOverrides?.[href];
+  const resolvedHref = typeof override === 'string' ? override : override?.href;
+  href = resolvedHref ?? href;
+  if (typeof override === 'object') {
+    return (
+      <a
+        {...rest}
+        href={href}
+        onClick={(event) => {
+          event.preventDefault();
+          override.onClick(event);
+        }}
+      >
+        {children}
+      </a>
+    );
+  }
   const classified = classifyLink(href);
 
   if (!classified) {

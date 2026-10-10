@@ -283,7 +283,7 @@ export function taskReviewRecipientOf(
     : null;
 }
 
-async function resolveReviewer(
+export async function resolveTaskReviewer(
   tx: TransactionSql | Sql,
   task: TaskRow,
 ): Promise<TaskReviewRecipient | null> {
@@ -375,7 +375,7 @@ async function mintTaskReview(
   const runKey = trigger.kind === 'agent_run' ? trigger.runId : undefined;
   let reviewer =
     args.reviewer === undefined
-      ? await resolveReviewer(tx, task)
+      ? await resolveTaskReviewer(tx, task)
       : args.reviewer;
   if (
     args.reviewer === undefined &&
@@ -803,7 +803,7 @@ export async function handoffPendingTaskReview(
   // query-free no-pending path. Agent handoffs always provide their recipient.
   const reviewer =
     args.reviewer === undefined
-      ? await resolveReviewer(tx, args.task)
+      ? await resolveTaskReviewer(tx, args.task)
       : args.reviewer;
   const runId = approvalRunId(current);
   if (reviewer?.kind === 'agent') {
