@@ -335,7 +335,7 @@ describe('the embedding floor in a declaration', () => {
           },
         },
       ],
-    }).resources[2]!;
+    }).resources[2];
     // The readback: the rule in the normal form the platform stores, the
     // zone as the declaration spells it.
     const stored = {
