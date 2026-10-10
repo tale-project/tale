@@ -175,7 +175,7 @@ describe('buildAuditExport — CSV', () => {
   });
 });
 
-describe('createAuditLog — written unsealed [AUDIT-R7]', () => {
+describe('createAuditLog — written unsealed [AUDIT-R8]', () => {
   const args = {
     organizationId: 'org_1',
     actorId: 'u1',
@@ -263,7 +263,7 @@ function fakePool(respond: (statement: Statement) => unknown[]): {
   return { sql: sql as unknown as Sql, statements: fake.statements };
 }
 
-describe('sealAuditChain — the sealer [AUDIT-R7]', () => {
+describe('sealAuditChain — the sealer [AUDIT-R8]', () => {
   it('hashes each waiting row onto the one before it and gives it the next position', async () => {
     const first = unsealedRow('a1', 1_000);
     const second = unsealedRow('a2', 2_000);

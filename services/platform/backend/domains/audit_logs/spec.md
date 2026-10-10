@@ -37,7 +37,7 @@ check raises the alert again instead of assuming it was seen.
 - **Example**: A break is found while notifications cannot be written → the break is on
   record, and the next check raises the alert.
 
-### AUDIT-R7 · An entry joins the chain within seconds, in the order it is sealed
+### AUDIT-R8 · An entry joins the chain within seconds, in the order it is sealed
 
 Writing an entry never waits for the chain: the entry is stored with the change it records and
 sealed by the worker shortly after, onto the entry sealed before it. The chain's order is the

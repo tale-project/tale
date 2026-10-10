@@ -281,7 +281,7 @@ describe('runScheduledIntegrityCheck — the tamper bell survives a failed write
   });
 });
 
-describe('verifyAuditChain — the order the sealer gives [AUDIT-R7]', () => {
+describe('verifyAuditChain — the order the sealer gives [AUDIT-R8]', () => {
   const START = 1_710_000_000_000;
 
   it('walks on from the rows sealed before positions into the sealer’s order', async () => {
