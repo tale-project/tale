@@ -74,7 +74,21 @@ function trail(listing: Listing, args: TrailArgs) {
 vi.mock('@/app/features/settings/audit-logs/hooks/queries', () => ({
   useListAuditLogsPaginated: (args: TrailArgs) => trail('audit', args),
   useListErrorLogsPaginated: (args: TrailArgs) => trail('errors', args),
-  useActivitySummary: () => ({ data: undefined, isLoading: false }),
+  useActivitySummary: () => ({
+    data: {
+      totalActions: 0,
+      successCount: 0,
+      failureCount: 0,
+      deniedCount: 0,
+      byCategory: {},
+      topActors: [],
+    },
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
 }));
 /** Every organization one listing was read for; `undefined` is a skip. */
 const readsOf = (listing: Listing) =>
