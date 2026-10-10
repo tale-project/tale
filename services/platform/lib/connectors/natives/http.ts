@@ -690,6 +690,11 @@ async function callApi(
         ...(base !== undefined
           ? { allowedHosts: [base.hostname] }
           : { credentialless: true }),
+        // A redirect to another port of the same host drops the signing
+        // header too, whatever its name.
+        ...(signing !== undefined && {
+          sensitiveHeaders: [signing.header[0]],
+        }),
       });
     } catch (error) {
       throw failedRequest(

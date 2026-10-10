@@ -364,6 +364,9 @@ describe('a call with a credential', () => {
     const call = natives({ fetch: api.fetch })['http.get'];
     await call({ url: '/orders' }, context(credential));
     expect(api.calls[0]?.options.headers).toEqual({ 'X-Shop-Key': TOKEN });
+    // A redirect to another port of the host drops it, as it drops
+    // Authorization.
+    expect(api.calls[0]?.options.sensitiveHeaders).toEqual(['X-Shop-Key']);
     await expect(
       causeOf(
         call(
