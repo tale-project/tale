@@ -23,12 +23,12 @@ import type { DiffKind } from '@tale/ui/data/value-diff';
 import type { ValueKind } from '@tale/ui/data/value-summary';
 import { z } from 'zod';
 
+import { reportText } from '../../engine/api/expect';
 import type { TestFailure, TestReport } from '../../engine/api/tests';
 import type { TransientRecord } from '../../engine/core/record/transient';
 import type { EvalTrace } from '../../engine/core/record/types';
 import type { BenchMark } from '../../engine/core/types';
 import { isRecord } from '../../utils/type-utils';
-import { cutText, storableText } from '../utils/storable-text';
 import { issueSchema } from './automation-issues';
 
 /**
@@ -462,12 +462,6 @@ function jsonBytes(value: unknown): number {
   return new TextEncoder().encode(JSON.stringify(value)).length;
 }
 
-function shortName(name: string): string {
-  return name.length > STORED_NAME_CHARS
-    ? `${storableText(cutText(name, STORED_NAME_CHARS))}…`
-    : name;
-}
-
 /**
  * The report a saved version keeps of a run of its tests, made at
  * `checkedAt`: each result without its run, its first-failure sentence and
@@ -519,11 +513,15 @@ export function storedTestReport(
   ): z.infer<typeof trimmedStoredReportSchema> => ({
     ...fields,
     ...(cut &&
-      fields.notRun !== undefined && { notRun: fields.notRun.map(shortName) }),
+      fields.notRun !== undefined && {
+        notRun: fields.notRun.map((name) =>
+          reportText(name, STORED_NAME_CHARS),
+        ),
+      }),
     trimmed: true,
     results: results.map(({ stored, failures }) => ({
       ...stored,
-      ...(cut && { name: shortName(stored.name) }),
+      ...(cut && { name: reportText(stored.name, STORED_NAME_CHARS) }),
       ...(failures.length > 0 && {
         failures: failures.map(({ kind }) => ({ kind })),
       }),
