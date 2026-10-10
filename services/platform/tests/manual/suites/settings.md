@@ -114,6 +114,9 @@ run.
   (`settings.account.profile.name`) → edit → header **Save**
   (`common.actions.save`) → The Save cluster flashes **Saved**
   (`common.actions.saved`) and disables again — no page toast; the new value
+  reaches other mounted current-user readers without a reload. Edit the name
+  again, then header **Discard** (`common.actions.discard`) → the last saved
+  name returns, not the name from before Save; the saved value
   is still in the Name field after a reload; the **Email** field
   (`settings.account.profile.email`) is read-only.
 - [ ] `SET-F4` · **Account security** — Same page → **Password** section
