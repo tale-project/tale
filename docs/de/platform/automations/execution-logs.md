@@ -42,6 +42,12 @@ Unter der Karte stehen der Schritt und sein Feld, etwa **Greet › input.email**
 
 Im Canvas ist die fehlgeschlagene Node rot umrahmt, und ihre unterste Zeile wiederholt den Titel des Fehlers; die Nodes, über die der Lauf zu ihr kam, treten hervor, während die übrigen zurücktreten; und Ende sagt, wo der Lauf fehlschlug, etwa **Fehlgeschlagen bei Propose**. Die Liste **Läufe** nennt die Ursache eines fehlgeschlagenen Laufs mit demselben Titel.
 
+<Frame caption="Ein fehlgeschlagener Lauf öffnet sich mit dem Wo und Warum; im Canvas tritt der Weg zur fehlgeschlagenen Node hervor.">
+
+![Die Seite eines fehlgeschlagenen Testlaufs von Invoice digest: die Karte The run failed at Totals mit dem Titel Its code threw an error, der Ursache, How to fix, Technical details, Totals › Code mit Show in editor, Show step und Retry from this step; im Canvas darunter sind Start und Invoices erfolgreich, Totals ist rot umrahmt mit Its code threw an error, und Digest, das nicht lief, ist gestrichelt.](/images/platform/automation-run-failed.webp)
+
+</Frame>
+
 Anwendungen erhalten über die [Lauf-API](/de/develop/api-reference) zusätzlich `failureCode`, wenn die Ursache eines fehlgeschlagenen Laufs klassifiziert wurde. `approval_rejected` bedeutet etwa, dass eine Person die Aktion abgelehnt hat; bei `llm_output_invalid` entsprach die Modellantwort nicht der geforderten Struktur. Ältere Fehler können ohne Code vorliegen. Der Code hilft bei der Untersuchung, belegt aber weder die Unbedenklichkeit noch den Erfolg eines neuen Versuchs.
 
 ## Herausfinden, warum ein Schritt lief oder übersprungen wurde {#conditions}
