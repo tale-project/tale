@@ -83,7 +83,7 @@ describe('localized marketing content discovery', () => {
 describe('llms.txt product facts', () => {
   it('exposes a factual Pages intro for AIO/LLMO crawlers', () => {
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/Ruler GmbH/);
-    expect(WEB_LLMS_PAGES_INTRO).toMatch(/MIT/);
+    expect(WEB_LLMS_PAGES_INTRO).toMatch(/open source/i);
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/Claude Code/);
     expect(WEB_LLMS_PAGES_INTRO).toMatch(/https:\/\/tale\.dev\/pricing/);
   });

@@ -74,16 +74,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
           expect(provenancePoster?.height).toBe(motionPoster.height);
         }
         await expect(figure).toContainText(t(`demo.pages.${id}.caption`));
-        await expect(figure).toContainText(t('demo.pages.interfaceLanguage'));
-        const original = IMAGE_MANIFEST.find((entry) => entry.id === sourceId);
-        expect(original).toBeDefined();
-        const fullSource = Object.values(original!.variants.webp).at(-1)!;
-        const fullLink = figure.getByRole('link', {
-          name: t('demo.pages.viewLabel'),
-          exact: true,
-        });
-        await expect(fullLink).toHaveAttribute('href', fullSource);
-        await expect(fullLink).toHaveAttribute('target', '_blank');
+        await expect(figure.getByRole('link')).toHaveCount(0);
         const bounds = await figure.boundingBox();
         expect(bounds).not.toBeNull();
         expect(bounds!.x).toBeGreaterThanOrEqual(0);

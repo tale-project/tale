@@ -34,7 +34,7 @@ Evaluate the application and the surrounding work separately. Can colleagues exp
 
 ## Choose around the ongoing responsibility
 
-Evaluate Lovable when collaborative application creation and managed publishing are central to the job. Evaluate Tale when you want a shared task workspace for a broader set of people and agents, including the work surrounding an application. Tale offers MIT source and deployment choice, but app development still requires a configured runtime, appropriate access, and an explicit hosting plan.
+Evaluate Lovable when collaborative application creation and managed publishing are central to the job. Evaluate Tale when you want a shared task workspace for a broader set of people and agents, including the work surrounding an application. Tale offers open-source code and deployment choice, but app development still requires a configured runtime, appropriate access, and an explicit hosting plan.
 
 [Discuss your team's workflow with Tale](https://tale.dev/request-demo).
 

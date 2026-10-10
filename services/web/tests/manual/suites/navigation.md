@@ -44,10 +44,10 @@ routes render without a backend.
   (`nav.resource.compare.label`) and **Pricing** (`nav.pricing`) →
   Platform places **Platform overview** above six modules **Chats → Projects
   → Knowledge → Agents → Automations → Governance** (labels under
-  `nav.product.*`); Resources lists **Documentation** (external) →
-  **Use cases** → **Changelog** → **Hardware** → **About us** (labels under
-  `nav.resource.*`); Compare and Pricing are direct header links; each panel
-  stays within the screen at 1024px, with readable descriptions in both themes.
+  `nav.product.*`); Resources lists **Documentation** (external) → **Compare**
+  → **Use cases** → **Changelog** → **Hardware** → **About us** (labels under
+  `nav.resource.*`); Pricing remains a direct header link; each panel stays
+  within the screen at 1024px, with readable descriptions in both themes.
 - [ ] `NAV-F2` · **Get started** — Header → **Get started** (`nav.getStarted`)
   → Get started opens the docs quickstart
   (`https://docs.tale.dev/get-started/quickstart`, `getStartedUrl(locale)`) — the

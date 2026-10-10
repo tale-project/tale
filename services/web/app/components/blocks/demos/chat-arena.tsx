@@ -59,7 +59,7 @@ export function ChatArena({
       <DemoShell
         label={scene.label}
         activeNav="chat"
-        className="mx-auto aspect-[7/10] min-h-200 max-w-4xl @lg/demo:aspect-[16/9] @lg/demo:min-h-144"
+        className="mx-auto aspect-[7/10] min-h-176 max-w-4xl @lg/demo:aspect-[16/9] @lg/demo:min-h-128"
       >
         <div className="flex h-full flex-col">
           {beat >= BEAT.prompt ? (

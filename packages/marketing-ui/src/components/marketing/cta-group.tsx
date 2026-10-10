@@ -7,7 +7,7 @@ import { MarketingExternalLink } from './external-link';
 import { MarketingLink } from './link';
 
 const ctaGroupVariants = cva(
-  'flex w-full flex-wrap items-center gap-3 sm:w-auto',
+  'flex w-full flex-wrap items-stretch gap-3 sm:w-auto',
   {
     variants: {
       align: {
@@ -60,7 +60,12 @@ function CtaActionButton({
 }) {
   if (action.href) {
     return (
-      <MarketingButton asChild tone={tone} size={size}>
+      <MarketingButton
+        asChild
+        tone={tone}
+        size={size}
+        className="h-full min-h-12 justify-center text-center"
+      >
         <MarketingExternalLink href={action.href} tone="plain" showIcon={false}>
           {action.label}
         </MarketingExternalLink>
@@ -69,7 +74,12 @@ function CtaActionButton({
   }
   if (action.to) {
     return (
-      <MarketingButton asChild tone={tone} size={size}>
+      <MarketingButton
+        asChild
+        tone={tone}
+        size={size}
+        className="h-full min-h-12 justify-center text-center"
+      >
         <MarketingLink to={action.to} tone="plain">
           {action.label}
         </MarketingLink>

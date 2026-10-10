@@ -65,7 +65,7 @@ export const WEB_SITE_DESCRIPTION =
  */
 export const WEB_LLMS_PAGES_INTRO = [
   'Tale is the open-source workspace for teams and AI agents. Coordinate people and agents on project boards: assign tasks, follow progress, and review the results together. Give agents project instructions, files, and tools; use automations for repeatable workflows with configured approvals. Project agents can use runtimes including Claude Code and Codex; supported capabilities vary by runtime.',
-  'Publisher: Ruler GmbH, Spiez, Switzerland. License: MIT. Community and Enterprise include the same product features; Enterprise adds professional operation and support. Current plans and terms: https://tale.dev/pricing.',
+  'Publisher: Ruler GmbH, Spiez, Switzerland. Tale is open source. Community and Enterprise include the same product features; Enterprise adds professional operation and support. Current plans and terms: https://tale.dev/pricing.',
   'Self-host with Docker on your infrastructure or use managed Cloud. Choose local or cloud model providers. Data flows depend on the providers, connectors, and external tools you configure.',
   `Documentation: ${TALE_DOCS_LLMS_TXT} — source: ${TALE_GITHUB_URL}`,
 ].join('\n\n');

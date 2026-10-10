@@ -119,8 +119,8 @@ export function TaskBoard({
         className={cn(
           'mx-auto max-w-4xl',
           elevation === 'hero'
-            ? 'min-h-160 @sm/demo:min-h-132 @4xl/demo:aspect-[16/10] @4xl/demo:min-h-116'
-            : 'min-h-184 @sm/demo:min-h-160 @4xl/demo:aspect-[16/10] @4xl/demo:min-h-136',
+            ? 'min-h-144 @sm/demo:min-h-120 @3xl/demo:aspect-[16/10] @3xl/demo:min-h-108'
+            : 'min-h-160 @sm/demo:min-h-144 @3xl/demo:aspect-[16/10] @3xl/demo:min-h-120',
         )}
       >
         <div className="demo-surface flex h-full flex-col gap-3 p-2 @sm/demo:p-3 @2xl/demo:gap-4 @2xl/demo:p-4">

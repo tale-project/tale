@@ -56,13 +56,17 @@ describe('site content contracts', () => {
     expect(resources.slice(1).every((r) => r.path)).toBe(true);
     expect(resources.map((row) => row.id)).toEqual([
       'docs',
+      'compare',
       'useCases',
       'changelog',
       'hardware',
       'about',
     ]);
-    expect(COMPARISON_NAV_ITEM).toMatchObject({ path: '/compare' });
-    expect(resources.some((row) => row.path === '/compare')).toBe(false);
+    expect(COMPARISON_NAV_ITEM).toMatchObject({
+      path: '/compare',
+      labelKey: 'resource.compare.label',
+    });
+    expect(resources.some((row) => row.path === '/compare')).toBe(true);
   });
 
   it.each(['en', 'de', 'fr'] as const)(

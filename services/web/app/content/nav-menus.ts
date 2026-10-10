@@ -10,6 +10,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   BookOpen,
   Building2,
+  GitCompareArrows,
   History,
   Server,
   BriefcaseBusiness,
@@ -38,7 +39,7 @@ interface NavMenuDef {
   items: readonly NavMenuItem[];
 }
 
-/** Comparison is a primary destination whenever its published hub exists. */
+/** Comparison is a Resources destination whenever its published hub exists. */
 export const COMPARISON_NAV_ITEM = listMarketingContent(
   'comparisons',
   'en',
@@ -47,11 +48,14 @@ export const COMPARISON_NAV_ITEM = listMarketingContent(
       id: 'compare',
       path: '/compare',
       labelKey: 'resource.compare.label',
+      descriptionKey: 'resource.compare.description',
+      icon: GitCompareArrows,
     } as const)
   : null;
 
-/** Resources — docs (external), use cases, changelog, hardware, about. */
+/** Resources — docs (external), comparisons, use cases, changelog, hardware, about. */
 const RESOURCES_MENU_ITEMS: readonly NavMenuItem[] = [
+  ...(COMPARISON_NAV_ITEM ? [COMPARISON_NAV_ITEM] : []),
   ...(['use-cases'] as const).flatMap((category): NavMenuItem[] => {
     if (
       !listMarketingContent(category, 'en').some(

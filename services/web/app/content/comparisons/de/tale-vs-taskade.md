@@ -16,13 +16,13 @@ Taskade und Tale verbinden beide Projekte mit Agentenarbeit. Es ist ein direkter
 | --- | --- | --- |
 | Arbeitsbereich | Gemeinsame Projekte mit zugewiesenen Aufgaben, Diskussionen und geprüften Ergebnissen. | Projekte mit eigenen Agenten, Wissen, Tools und Projektaktionen. |
 | Agentenkoordination | Ausgestattete Manager-Agenten delegieren bereite Aufgaben innerhalb konfigurierter Projektgrenzen. | Spezialisierte Agententeams mit gemeinsamem Workspace-Kontext und Ausführungskoordination. |
-| Runtime und Einführung | Konfigurierbare Runtimes, persistente Sandboxes und eine MIT-lizenzierte Bereitstellungsoption; Abonnements sind Runtime-spezifisch. | Projekt- und Agenteneinrichtung anhand deines benötigten Teamablaufs bewerten. |
+| Runtime und Einführung | Konfigurierbare Runtimes, persistente Sandboxes und eine Open-Source-Bereitstellungsoption; Abonnements sind Runtime-spezifisch. | Projekt- und Agenteneinrichtung anhand deines benötigten Teamablaufs bewerten. |
 
 ## Zwei Ansätze für Agententeams vergleichen
 
 Taskade dokumentiert eigene Agenten mit Wissen und Werkzeugen, Projektaktionen und teilbare Agentenanwendungen. Der Leitfaden zu mehreren Agenten beschreibt spezialisierte Teams, gemeinsamen Projektkontext und verschiedene Arten der Ausführungskoordination. Agentenzusammenarbeit gehört bereits zum Kern des Produkts. Siehe [eigene Agenten](https://www.taskade.com/learn/agents/custom-agents) und [Agententeams](https://www.taskade.com/learn/agents/multi-agents).
 
-Tale organisiert Menschen und Agenten über zugewiesene Projektaufgaben mit Diskussion und prüfbaren Ergebnissen. Projektagenten laufen in dauerhaften Sandbox-Arbeitsbereichen. Du richtest Anweisungen, Werkzeuge, Modell und kompatible Laufzeit ein; ein Manager kann bereite Arbeit innerhalb der vorgesehenen Regeln delegieren. Hinzu kommen MIT-Quellcode und die Wahl des Betriebsmodells. Siehe [Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents).
+Tale organisiert Menschen und Agenten über zugewiesene Projektaufgaben mit Diskussion und prüfbaren Ergebnissen. Projektagenten laufen in dauerhaften Sandbox-Arbeitsbereichen. Du richtest Anweisungen, Werkzeuge, Modell und kompatible Laufzeit ein; ein Manager kann bereite Arbeit innerhalb der vorgesehenen Regeln delegieren. Hinzu kommen Open-Source-Code und die Wahl des Betriebsmodells. Siehe [Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents).
 
 ## Ein Projekt mit wechselnden Zuständigkeiten testen
 

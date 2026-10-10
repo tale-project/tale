@@ -50,7 +50,7 @@ export function GovernGate({
         title={t('demos.automation.windowTitle')}
         activeNav="automations"
         domain="governance"
-        className="mx-auto min-h-176 max-w-4xl @sm/demo:min-h-136 @lg/demo:aspect-[16/9]"
+        className="mx-auto min-h-152 max-w-4xl @sm/demo:min-h-120 @lg/demo:aspect-[16/9]"
       >
         <div className="demo-surface flex h-full flex-col gap-4 p-4 @2xl/demo:gap-5 @2xl/demo:p-6">
           {beat >= BEAT.card ? (

@@ -16,13 +16,13 @@ Shared agents, background work, and team controls are not exclusive to one platf
 | --- | --- | --- |
 | Working surface | Shared projects with assigned tasks, files, and review | Shared agents used through its product, Slack, Teams, and Gmail |
 | Coordination | Project agents and manager delegation within configured capacity | Background subagents, evaluations, and administrative controls |
-| Setup choices | MIT Community Edition and supported runtimes for operating and adapting the workspace | VPC deployment is among the documented options |
+| Setup choices | Open-source Community Edition and supported runtimes for operating and adapting the workspace | VPC deployment is among the documented options |
 
 ## Recognize the overlap
 
 Gumloop documents shared agents, collaboration through Slack, Teams, and Gmail, background subagents, evaluations, and administrative controls. It also offers VPC deployment. The choice is not simply hosted automation versus private collaboration. [Explore Gumloop](https://www.gumloop.com/).
 
-Tale centers the team on projects with tasks, discussions, working files, and deliverables. You configure project agents, grant tools, and can let a manager delegate ready work. Persistent sandbox workspaces support work across multiple runs; parallel execution stays within configured capacity. Tale's MIT Community Edition and supported runtime choices are relevant if your team wants to operate and adapt the workspace itself. Read [project-agent configuration](https://docs.tale.dev/platform/projects/project-agents).
+Tale centers the team on projects with tasks, discussions, working files, and deliverables. You configure project agents, grant tools, and can let a manager delegate ready work. Persistent sandbox workspaces support work across multiple runs; parallel execution stays within configured capacity. Tale's open-source Community Edition and supported runtime choices are relevant if your team wants to operate and adapt the workspace itself. Read [project-agent configuration](https://docs.tale.dev/platform/projects/project-agents).
 
 ## Evaluate a cross-functional launch
 

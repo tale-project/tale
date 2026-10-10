@@ -16,13 +16,13 @@ Gemeinsame Agenten, Hintergrundarbeit und Teamkontrollen gibt es bei mehreren An
 | --- | --- | --- |
 | Arbeitsoberfläche | Gemeinsame Projekte mit zugewiesenen Aufgaben, Dateien und Prüfung | Gemeinsame Agenten im Produkt sowie über Slack, Teams und Gmail |
 | Koordination | Projektagenten und Manager-Delegation innerhalb der konfigurierten Kapazität | Hintergrund-Unteragenten, Auswertungen und Verwaltungskontrollen |
-| Einrichtung | MIT-lizenzierte Community Edition und unterstützte Laufzeiten für Betrieb und Anpassung | VPC-Bereitstellung gehört zu den dokumentierten Optionen |
+| Einrichtung | Open-Source-Community-Edition und unterstützte Laufzeiten für Betrieb und Anpassung | VPC-Bereitstellung gehört zu den dokumentierten Optionen |
 
 ## Überschneidungen anerkennen
 
 Gumloop dokumentiert gemeinsam genutzte Agenten, Zusammenarbeit über Slack, Teams und Gmail, Unteragenten im Hintergrund, Auswertungen und Administrationskontrollen. Auch VPC-Betrieb wird angeboten. Es geht also nicht schlicht um gehostete Automatisierung gegenüber privater Zusammenarbeit. [Gumloop kennenlernen](https://www.gumloop.com/).
 
-Tale bündelt Aufgaben, Diskussionen, Arbeitsdateien und Ergebnisse in Projekten. Du richtest Projektagenten ein, vergibst Werkzeuge und kannst einen Manager bereite Arbeit delegieren lassen. Dauerhafte Sandbox-Arbeitsbereiche tragen die Arbeit über mehrere Ausführungen; Parallelität bleibt innerhalb der konfigurierten Kapazität. Tales Community Edition unter MIT-Lizenz und die unterstützten Laufzeiten sind relevant, wenn dein Team den Arbeitsbereich selbst betreiben und anpassen möchte. Siehe [Projektagenten einrichten](https://docs.tale.dev/de/platform/projects/project-agents).
+Tale bündelt Aufgaben, Diskussionen, Arbeitsdateien und Ergebnisse in Projekten. Du richtest Projektagenten ein, vergibst Werkzeuge und kannst einen Manager bereite Arbeit delegieren lassen. Dauerhafte Sandbox-Arbeitsbereiche tragen die Arbeit über mehrere Ausführungen; Parallelität bleibt innerhalb der konfigurierten Kapazität. Tales Open-Source-Community-Edition und die unterstützten Laufzeiten sind relevant, wenn dein Team den Arbeitsbereich selbst betreiben und anpassen möchte. Siehe [Projektagenten einrichten](https://docs.tale.dev/de/platform/projects/project-agents).
 
 ## Eine Produkteinführung gemeinsam testen
 

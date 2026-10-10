@@ -62,7 +62,7 @@ export function ConnectAgents({
         label={scene.label}
         title={t('demos.connect.windowTitle')}
         activeNav="agents"
-        className="mx-auto min-h-160 max-w-4xl @sm/demo:min-h-144 @2xl/demo:aspect-[16/10] @2xl/demo:min-h-120"
+        className="mx-auto min-h-144 max-w-4xl @sm/demo:min-h-128 @2xl/demo:aspect-[16/10] @2xl/demo:min-h-112"
       >
         <div className="demo-surface flex h-full flex-col gap-3 p-3 @2xl/demo:gap-4 @2xl/demo:p-4">
           <DemoToolbar

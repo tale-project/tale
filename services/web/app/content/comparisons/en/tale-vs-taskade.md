@@ -16,13 +16,13 @@ Taskade and Tale both connect projects with agent work, making this a direct com
 | --- | --- | --- |
 | Work surface | Shared projects with assigned tasks, discussions and reviewed deliverables. | Projects with custom agents, knowledge, tools and project actions. |
 | Agent coordination | Equipped manager agents delegate ready tasks within configured project limits. | Specialist agent teams with shared workspace context and execution coordination. |
-| Runtime and rollout | Configurable runtimes, persistent sandboxes and an MIT-licensed deployment choice; subscription support is runtime-specific. | Evaluate its project and agent setup against the team workflow you need. |
+| Runtime and rollout | Configurable runtimes, persistent sandboxes and an open-source deployment choice; subscription support is runtime-specific. | Evaluate its project and agent setup against the team workflow you need. |
 
 ## Compare two approaches to agent teams
 
 Taskade documents custom agents with knowledge and tools, project actions, and shareable agent experiences. Its multi-agent guide describes specialist teams, shared workspace context, and several ways to coordinate execution. Agent collaboration is already a core part of the product. [Custom agents](https://www.taskade.com/learn/agents/custom-agents) and [multi-agent teams](https://www.taskade.com/learn/agents/multi-agents).
 
-Tale organizes people and agents around assigned project tasks with discussion and reviewable deliverables. Project agents run in persistent sandbox workspaces. You configure their instructions, tools, model, and compatible runtime; a manager can delegate ready work within the supported rules. Tale also offers MIT source and deployment choice. See [project agents](https://docs.tale.dev/platform/projects/project-agents).
+Tale organizes people and agents around assigned project tasks with discussion and reviewable deliverables. Project agents run in persistent sandbox workspaces. You configure their instructions, tools, model, and compatible runtime; a manager can delegate ready work within the supported rules. Tale also offers open-source code and deployment choice. See [project agents](https://docs.tale.dev/platform/projects/project-agents).
 
 ## Test a project with changing responsibilities
 

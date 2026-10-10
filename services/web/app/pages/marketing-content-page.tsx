@@ -13,14 +13,10 @@ import { ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { ComparisonHub } from '@/app/components/blocks/comparison-hub';
-import {
-  ComparisonIllustration,
-  ComparisonDecisionIllustration,
-} from '@/app/components/blocks/comparison-illustration';
+import { ProductScreenshot } from '@/app/components/blocks/product-screenshot';
 import { RelatedUseCases } from '@/app/components/blocks/related-use-cases';
-import { UseCaseHubIllustration } from '@/app/components/blocks/use-case-hub-illustration';
-import { UseCaseIllustration } from '@/app/components/blocks/use-case-illustration';
 import { MarketingProse } from '@/app/components/marketing/marketing-prose';
+import type { ProductScreenshotPage } from '@/app/content/product-screenshots';
 import { marketingContentHeading } from '@/lib/content/model';
 import type { MarketingContentDocument } from '@/lib/content/model';
 import { MARKETING_CONTENT_PATHS } from '@/lib/content/model';
@@ -35,6 +31,23 @@ const REVIEW_DATE_FORMATTERS = Object.fromEntries(
     new Intl.DateTimeFormat(locale, { dateStyle: 'long', timeZone: 'UTC' }),
   ]),
 ) as Record<SupportedLocale, Intl.DateTimeFormat>;
+
+function productPageForContent(
+  category: MarketingContentDocument['category'],
+  slug: string,
+  isHub: boolean,
+): ProductScreenshotPage {
+  if (category === 'comparisons') return isHub ? 'home' : 'projects';
+  if (isHub) return 'agents';
+  const normalized = slug.toLowerCase();
+  if (normalized.includes('research') || normalized.includes('knowledge'))
+    return 'knowledge';
+  if (normalized.includes('automation') || normalized.includes('workflow'))
+    return 'automations';
+  if (normalized.includes('chat') || normalized.includes('support'))
+    return 'chat';
+  return 'projects';
+}
 
 /** One editorial reading surface for sourced comparisons and practical work guides. */
 export function MarketingContentPage({
@@ -143,21 +156,9 @@ export function MarketingContentPage({
               </time>
             </p>
           </div>
-          {category === 'comparisons' ? (
-            isHub ? (
-              <div className="mx-auto w-56 sm:w-full">
-                <ComparisonIllustration />
-              </div>
-            ) : (
-              <ComparisonDecisionIllustration document={document} />
-            )
-          ) : isHub ? (
-            <div className="mx-auto w-56 sm:w-full">
-              <UseCaseHubIllustration />
-            </div>
-          ) : (
-            <UseCaseIllustration slug={slug} />
-          )}
+          <ProductScreenshot
+            page={productPageForContent(category, slug, isHub)}
+          />
         </div>
       </PageSection>
       {isComparisonHub ? (
