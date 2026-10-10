@@ -435,6 +435,8 @@ reviewer:
   search: "Rechercher des personnes et des agents"
   editorsOnly: Seuls les membres qui peuvent modifier ce projet peuvent être relecteurs.
   projectDefaultLabel: "Choix par défaut du projet"
+  handoffValue: "{choice} (relecteur enregistré : {recipient})"
+  capturedUnavailable: "Relecteur enregistré indisponible"
   projectDefault: "Choix du projet · {reviewer}"
   projectDefaultHuman: "Choix du projet · personne"
   independentAgent: "Choisis un autre agent que celui qui a effectué le travail."

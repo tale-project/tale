@@ -437,6 +437,8 @@ reviewer:
   search: "Personen und Agenten suchen"
   editorsOnly: Reviewer kann nur sein, wer dieses Projekt bearbeiten kann.
   projectDefaultLabel: "Projektstandard"
+  handoffValue: "{choice} (erfasster Reviewer: {recipient})"
+  capturedUnavailable: "Erfasster Reviewer nicht verfügbar"
   projectDefault: "Projektstandard · {reviewer}"
   projectDefaultHuman: "Projektstandard · Person"
   independentAgent: "Wähle einen anderen Agenten als den, der die Arbeit erledigt hat."

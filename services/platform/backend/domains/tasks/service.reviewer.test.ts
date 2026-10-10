@@ -1,6 +1,7 @@
 import type { TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createAuditLog } from '../audit_logs/service.ts';
 import {
   autoSubscribe,
   dismissReviewerAssignedNotifications,
@@ -8,11 +9,14 @@ import {
 } from '../collab/service.ts';
 import { loadProjectOrThrow, type ProjectRow } from '../projects/service.ts';
 import {
+  agentReviewerEligibility,
   getPendingReviewForTask,
+  type PendingTaskReview,
+  replacePendingTaskReviewer,
   retargetPendingTaskReview,
   reviewerEligibility,
 } from './reviews.ts';
-import { type TaskRow, updateTask } from './service.ts';
+import { setTaskReviewer, type TaskRow, updateTask } from './service.ts';
 
 vi.mock('../collab/service.ts', () => ({
   autoSubscribe: vi.fn(),
@@ -26,6 +30,8 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('./reviews.ts', () => ({
+  agentReviewerEligibility: vi.fn(),
+  replacePendingTaskReviewer: vi.fn(),
   getPendingReviewForTask: vi.fn(() => Promise.resolve(null)),
   closePendingTaskReviewOnStatusLeave: vi.fn(),
   collectPendingReviewsForProjects: vi.fn(() => Promise.resolve([])),
@@ -136,11 +142,17 @@ function taskRow(overrides: Partial<TaskRow> = {}): TaskRow {
 /** Every statement the fake answered, so a refusal can be shown to have
  * written nothing. */
 let statements: string[] = [];
+let activityValues: unknown[][] = [];
 
 function fakeTx(fixture: TaskRow): TransactionSql {
-  const tag = (strings: TemplateStringsArray): Promise<unknown[]> => {
+  const tag = (
+    strings: TemplateStringsArray,
+    ...values: unknown[]
+  ): Promise<unknown[]> => {
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
     statements.push(text);
+    if (text.startsWith('INSERT INTO app.task_activity'))
+      activityValues.push(values);
     return Promise.resolve(
       text.startsWith('SELECT ? FROM app.tasks WHERE id = ?') ? [fixture] : [],
     );
@@ -155,6 +167,12 @@ function fakeTx(fixture: TaskRow): TransactionSql {
 
 beforeEach(() => {
   statements = [];
+  activityValues = [];
+  vi.mocked(createAuditLog).mockReset();
+  vi.mocked(agentReviewerEligibility).mockReset().mockResolvedValue('eligible');
+  vi.mocked(replacePendingTaskReviewer)
+    .mockReset()
+    .mockResolvedValue(undefined);
   vi.mocked(loadProjectOrThrow).mockReset().mockResolvedValue(project);
   vi.mocked(retargetPendingTaskReview).mockReset().mockResolvedValue(undefined);
   vi.mocked(getPendingReviewForTask).mockReset().mockResolvedValue(null);
@@ -162,6 +180,184 @@ beforeEach(() => {
   vi.mocked(autoSubscribe).mockReset();
   vi.mocked(dismissReviewerAssignedNotifications).mockReset();
   vi.mocked(notifyTaskReviewerAssigned).mockReset();
+});
+
+function capturedReview(
+  approvalId: string,
+  reviewer: PendingTaskReview['reviewer'],
+): PendingTaskReview {
+  return {
+    approvalId,
+    taskId: 't-1',
+    round: 1,
+    requestedFor: reviewer?.kind === 'user' ? reviewer.userId : null,
+    reviewer,
+    agentSlug: null,
+    implementationAgentId: 'implementer',
+    evidenceRevision: null,
+    agentReviewBlockedReason: null,
+    runId: 'source-run',
+    createdAt: 1,
+  };
+}
+
+describe('setTaskReviewer captured handoff history', () => {
+  const inherit = { kind: 'inherit' } as const;
+  const prior = capturedReview('approval-a', {
+    kind: 'agent',
+    agentId: 'agent-a',
+  });
+  const identity = {
+    approvalId: prior.approvalId,
+    runId: prior.runId,
+    reviewer: prior.reviewer,
+  };
+
+  it.each([
+    [
+      'inherited agent',
+      inherit,
+      inherit,
+      { kind: 'agent', agentId: 'agent-b' },
+    ],
+    [
+      'agent to human',
+      inherit,
+      { kind: 'user', userId: 'u-bob' },
+      { kind: 'user', userId: 'u-bob' },
+    ],
+    [
+      'explicit agent',
+      { kind: 'agent', agentId: 'agent-a' },
+      { kind: 'agent', agentId: 'agent-b' },
+      { kind: 'agent', agentId: 'agent-b' },
+    ],
+    [
+      'explicit human',
+      { kind: 'user', userId: 'u-alice' },
+      { kind: 'user', userId: 'u-bob' },
+      { kind: 'user', userId: 'u-bob' },
+    ],
+  ] as const)(
+    'records configured choice and captured identity for %s',
+    async (_name, before, after, recipient) => {
+      const next = capturedReview('approval-b', recipient);
+      vi.mocked(getPendingReviewForTask).mockResolvedValue(next);
+      vi.mocked(loadProjectOrThrow).mockResolvedValue({
+        ...project,
+        defaultTaskReviewerAgentId: 'agent-b',
+      });
+      const priorIdentity =
+        before.kind === 'user' ? { ...identity, reviewer: before } : identity;
+      const tx = fakeTx(
+        taskRow({
+          reviewerUserId: before.kind === 'user' ? before.userId : null,
+          reviewerAgentId: before.kind === 'agent' ? before.agentId : null,
+        }),
+      );
+      await setTaskReviewer(tx, auth, 't-1', {
+        reviewer: after,
+        expected: { reviewer: before, pendingReview: priorIdentity },
+      });
+      const fromValue = JSON.stringify({
+        reviewer: before,
+        pendingReview: priorIdentity,
+      });
+      const nextIdentity = {
+        approvalId: next.approvalId,
+        runId: next.runId,
+        reviewer: next.reviewer,
+      };
+      const toValue = JSON.stringify({
+        reviewer: after,
+        pendingReview: nextIdentity,
+      });
+      expect(activityValues).toHaveLength(1);
+      expect(activityValues[0]).toEqual(
+        expect.arrayContaining(['reviewer.changed', fromValue, toValue]),
+      );
+      expect(createAuditLog).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          previousState: {
+            reviewer: before,
+            approvalId: prior.approvalId,
+            pendingReview: priorIdentity,
+          },
+          newState: {
+            reviewer: after,
+            approvalId: next.approvalId,
+            pendingReview: nextIdentity,
+          },
+        }),
+      );
+    },
+  );
+
+  it('records nothing when reselecting inheritance keeps the same captured review', async () => {
+    vi.mocked(getPendingReviewForTask).mockResolvedValue(prior);
+    await setTaskReviewer(
+      fakeTx(taskRow({ reviewerUserId: null })),
+      auth,
+      't-1',
+      {
+        reviewer: inherit,
+        expected: { reviewer: inherit, pendingReview: identity },
+      },
+    );
+    expect(activityValues).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('keeps ordinary configured-choice edits in the prior typed format without a handoff', async () => {
+    const tx = fakeTx(taskRow({ reviewerUserId: null }));
+    const next = { kind: 'user', userId: 'u-bob' } as const;
+    await setTaskReviewer(tx, auth, 't-1', {
+      reviewer: next,
+      expected: { reviewer: inherit, pendingReview: null },
+    });
+    expect(activityValues).toHaveLength(1);
+    expect(activityValues[0]).toEqual(
+      expect.arrayContaining([JSON.stringify(inherit), JSON.stringify(next)]),
+    );
+    expect(createAuditLog).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        previousState: {
+          reviewer: inherit,
+          approvalId: null,
+          pendingReview: null,
+        },
+        newState: { reviewer: next, approvalId: null, pendingReview: null },
+      }),
+    );
+  });
+
+  it('records nothing when the configured choice fails CAS before replacing a review', async () => {
+    await expect(
+      setTaskReviewer(fakeTx(taskRow()), auth, 't-1', {
+        reviewer: inherit,
+        expected: { reviewer: inherit, pendingReview: identity },
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_STALE' });
+    expect(replacePendingTaskReviewer).not.toHaveBeenCalled();
+    expect(activityValues).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('records nothing when the captured identity fails CAS', async () => {
+    vi.mocked(replacePendingTaskReviewer).mockRejectedValue(
+      Object.assign(new Error('stale'), { code: 'TASK_REVIEWER_STALE' }),
+    );
+    await expect(
+      setTaskReviewer(fakeTx(taskRow({ reviewerUserId: null })), auth, 't-1', {
+        reviewer: inherit,
+        expected: { reviewer: inherit, pendingReview: identity },
+      }),
+    ).rejects.toMatchObject({ code: 'TASK_REVIEWER_STALE' });
+    expect(activityValues).toEqual([]);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
 });
 
 describe('updateTask — the open review follows the reviewer', () => {

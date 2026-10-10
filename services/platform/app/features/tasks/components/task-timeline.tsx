@@ -2,6 +2,7 @@
 
 import {
   taskAgentReviewReceiptSchema,
+  taskReviewerHandoffValueSchema,
   taskReviewerSchema,
 } from '@tale/shared/schemas/task-review';
 import { mentionPlainText } from '@tale/ui/mentions/scan-mentions';
@@ -319,8 +320,36 @@ function TaskTimelineEntryContent({
         } catch {
           return resolveAssigneeId(value);
         }
+        if (
+          typeof parsed !== 'object' ||
+          parsed === null ||
+          Array.isArray(parsed)
+        )
+          return value;
+        const handoff = taskReviewerHandoffValueSchema.safeParse(parsed);
+        if (handoff.success) {
+          const { reviewer: choice, pendingReview } = handoff.data;
+          const recipient = pendingReview.reviewer;
+          return t('reviewer.handoffValue', {
+            choice:
+              choice.kind === 'inherit'
+                ? t('reviewer.projectDefaultLabel')
+                : resolveActor(
+                    choice.kind,
+                    choice.kind === 'user' ? choice.userId : choice.agentId,
+                  ).name,
+            recipient: recipient
+              ? resolveActor(
+                  recipient.kind,
+                  recipient.kind === 'user'
+                    ? recipient.userId
+                    : recipient.agentId,
+                ).name
+              : t('reviewer.capturedUnavailable'),
+          });
+        }
         const reviewer = taskReviewerSchema.safeParse(parsed);
-        if (!reviewer.success) return value;
+        if (!reviewer.success) return t('reviewer.capturedUnavailable');
         if (reviewer.data.kind === 'inherit')
           return t('reviewer.projectDefaultLabel');
         return resolveActor(

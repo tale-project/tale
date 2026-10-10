@@ -433,6 +433,8 @@ reviewer:
   search: "Search people and agents"
   editorsOnly: Only members who can edit this project can be the reviewer.
   projectDefaultLabel: "Project default"
+  handoffValue: "{choice} (captured reviewer: {recipient})"
+  capturedUnavailable: "Captured reviewer unavailable"
   projectDefault: "Project default · {reviewer}"
   projectDefaultHuman: "Project default · person"
   independentAgent: "Choose a different agent from the one that did the work."

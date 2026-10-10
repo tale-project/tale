@@ -7,9 +7,53 @@ import {
   setProjectTaskReviewerInputSchema,
   setTaskReviewerInputSchema,
   taskReviewerFromIds,
+  taskReviewerHandoffValueSchema,
 } from './task-review.ts';
 
 describe('explicit task review routing', () => {
+  it('validates configured choice separately from captured handoff identity', () => {
+    const value = {
+      reviewer: { kind: 'inherit' },
+      pendingReview: {
+        approvalId: 'approval-a',
+        runId: 'source-run',
+        reviewer: { kind: 'agent', agentId: 'agent-a' },
+      },
+    };
+    expect(taskReviewerHandoffValueSchema.parse(value)).toEqual(value);
+    expect(
+      taskReviewerHandoffValueSchema.parse({
+        ...value,
+        pendingReview: { ...value.pendingReview, reviewer: null, runId: null },
+      }).pendingReview.reviewer,
+    ).toBeNull();
+    for (const pendingReview of [
+      null,
+      { ...value.pendingReview, approvalId: '' },
+      { ...value.pendingReview, reviewer: { kind: 'inherit' } },
+      {
+        ...value.pendingReview,
+        reviewer: {
+          kind: 'agent',
+          agentId: 'agent-a',
+          name: 'Invented historical name',
+        },
+      },
+      { ...value.pendingReview, extra: true },
+    ]) {
+      expect(
+        taskReviewerHandoffValueSchema.safeParse({ ...value, pendingReview })
+          .success,
+      ).toBe(false);
+    }
+    expect(
+      taskReviewerHandoffValueSchema.safeParse({
+        ...value,
+        historicalName: 'Invented',
+      }).success,
+    ).toBe(false);
+  });
+
   it('keeps omitted and null legacy rows on the human-default inheritance path', () => {
     expect(taskReviewerFromIds({})).toEqual({ kind: 'inherit' });
     expect(

@@ -75,7 +75,11 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: (type: string, id: string) => ({
       type,
       id,
-      name: MEMBERS[id] ?? id,
+      name:
+        MEMBERS[id] ??
+        (type === 'agent'
+          ? i18n.t('timeline.deletedAgent', { ns: 'tasks' })
+          : id),
       isAgent: type === 'agent',
     }),
     resolveAssigneeId: (id: string) => MEMBERS[id] ?? id,
@@ -300,6 +304,135 @@ describe('typed reviewer history', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe.each([
+  [
+    'en',
+    'Project default',
+    'captured reviewer',
+    'Captured reviewer unavailable',
+  ],
+  [
+    'de',
+    'Projektstandard',
+    'erfasster Reviewer',
+    'Erfasster Reviewer nicht verfügbar',
+  ],
+  [
+    'fr',
+    'Choix par défaut du projet',
+    'relecteur enregistré',
+    'Relecteur enregistré indisponible',
+  ],
+  [
+    'de-CH',
+    'Projektstandard',
+    'erfasster Reviewer',
+    'Erfasster Reviewer nicht verfügbar',
+  ],
+] as const)(
+  'captured handoff history in %s',
+  (locale, projectDefault, captured, unavailable) => {
+    const handoff = (
+      approvalId: string,
+      reviewer: unknown,
+      choice: unknown = { kind: 'inherit' },
+    ) =>
+      JSON.stringify({
+        reviewer: choice,
+        pendingReview: { approvalId, runId: 'source-run', reviewer },
+      });
+
+    it('distinguishes inherited captured recipients without rewriting legacy rows', async () => {
+      await renderHistory(locale, [
+        wire('reviewer.changed', 'user-kim', 'user-alex'),
+        wire('reviewer.changed', '123', 'user-kim'),
+        wire(
+          'reviewer.changed',
+          JSON.stringify({ kind: 'agent', agentId: 'agent-reviewer' }),
+          JSON.stringify({ kind: 'inherit' }),
+        ),
+        wire(
+          'reviewer.changed',
+          handoff('approval-a', { kind: 'agent', agentId: 'agent-reviewer' }),
+          handoff('approval-b', { kind: 'user', userId: 'user-kim' }),
+        ),
+      ]);
+      expect(screen.getByText(/Kim Lee → Alex Doe/)).toBeInTheDocument();
+      expect(screen.getByText(/123 → Kim Lee/)).toBeInTheDocument();
+      expect(
+        screen.getByText(`Review agent → ${projectDefault}`, { exact: false }),
+      ).toBeInTheDocument();
+      const separator = locale === 'fr' ? ' : ' : ': ';
+      expect(
+        screen.getByText(
+          `${projectDefault} (${captured}${separator}Review agent) → ${projectDefault} (${captured}${separator}Kim Lee)`,
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/approval-[ab]/)).not.toBeInTheDocument();
+    });
+
+    it('uses only recorded IDs and never guesses an unavailable captured recipient', async () => {
+      await renderHistory(locale, [
+        wire(
+          'reviewer.changed',
+          handoff('approval-old-user', {
+            kind: 'user',
+            userId: 'missing-user',
+          }),
+          handoff('approval-new-user', { kind: 'user', userId: 'user-kim' }),
+        ),
+        wire(
+          'reviewer.changed',
+          handoff('approval-a', { kind: 'agent', agentId: 'missing-agent' }),
+          handoff('approval-b', null, { kind: 'user', userId: 'user-alex' }),
+        ),
+      ]);
+      const separator = locale === 'fr' ? ' : ' : ': ';
+      expect(
+        screen.getByText(
+          `${projectDefault} (${captured}${separator}missing-user) → ${projectDefault} (${captured}${separator}Kim Lee)`,
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+      const deletedAgent =
+        locale === 'fr'
+          ? 'Agent supprimé'
+          : locale === 'en'
+            ? 'Deleted agent'
+            : 'Gelöschter Agent';
+      expect(
+        screen.getByText(
+          `${projectDefault} (${captured}${separator}${deletedAgent}) → Alex Doe (${captured}${separator}${unavailable})`,
+          { exact: false },
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it('does not render unvalidated captured names or recompute recipients', async () => {
+      await renderHistory(locale, [
+        wire(
+          'reviewer.changed',
+          handoff('', {
+            kind: 'agent',
+            agentId: 'agent-reviewer',
+            name: 'Invented historical name',
+          }),
+          JSON.stringify({ kind: 'inherit' }),
+        ),
+      ]);
+      expect(
+        screen.getByText(`${unavailable} → ${projectDefault}`, {
+          exact: false,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Invented historical name/),
+      ).not.toBeInTheDocument();
+    });
+  },
+);
 
 describe.each([
   [

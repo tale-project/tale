@@ -1194,3 +1194,5 @@ is missing). One file per suite keeps parallel changes from appending to the
 same lines at the end of one register. A box that survives its automation is
 manual effort spent twice; `bun run lint:manual` rejects a box ID there that no
 suite defines, and a file there that names no suite.
+## Captured reviewer handoff history (TALE-616)
+|---|---|---|---|
