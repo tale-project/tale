@@ -90,6 +90,7 @@ import {
   useStartAutomationRun,
 } from '../hooks/mutations';
 import {
+  useApprovalAllowances,
   useAutomation,
   useAutomationProjects,
   useAutomationRun,
@@ -610,6 +611,21 @@ function AutomationEditorScope({
     (id: string) => modelNames.get(id),
     [modelNames],
   );
+  // What this automation may write without a person: its boxes say so.
+  const allowancesQuery = useApprovalAllowances(
+    organizationId,
+    automationSlug,
+    canAuthor,
+  );
+  const allowedWrites = useMemo(
+    () =>
+      new Set(
+        (allowancesQuery.data?.actions ?? [])
+          .filter((action) => action.allowance !== null)
+          .map((action) => action.type),
+      ),
+    [allowancesQuery.data],
+  );
   const deployedVersionNow = automationQuery.data?.deployedVersion;
   const triggerRowsShown = useMemo(
     () =>
@@ -731,6 +747,7 @@ function AutomationEditorScope({
             settled: settledDocument,
             catalog,
             modelLabel,
+            allowedWrites,
             onSelect: (id) => selectOnCanvas(id),
             sampleOf,
           },
@@ -744,6 +761,7 @@ function AutomationEditorScope({
       settledDocument,
       catalog,
       modelLabel,
+      allowedWrites,
       selectOnCanvas,
       sampleOf,
     ],
@@ -1854,6 +1872,7 @@ function AutomationEditorScope({
                   layoutKey={layoutKey}
                   catalog={catalog}
                   modelLabel={modelLabel}
+                  allowedWrites={allowedWrites}
                   triggers={triggerRowsShown}
                   check={canvasCheck}
                   startNotice={startNotice}

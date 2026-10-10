@@ -231,3 +231,30 @@ describe('nodeFace', () => {
     ]);
   });
 });
+
+describe('a write allowed without approval [APV-R13]', () => {
+  const mark = node({ id: 'mark', type: 'tasks.update_status' });
+
+  it('says so on its box, in a chip and in its sentence', () => {
+    const face = nodeFace(
+      mark,
+      ctx('en', { allowedWrites: new Set(['tasks.update_status']) }),
+    );
+    expect(face.chips).toContainEqual({
+      id: 'allowed',
+      label: 'Runs without approval',
+      tone: 'info',
+    });
+    expect(face.markers.find((marker) => marker.id === 'writes')?.label).toBe(
+      'Changes data in Tasks, without approval — an owner or admin allowed it.',
+    );
+  });
+
+  it('keeps the plain write mark for a write that asks', () => {
+    const face = nodeFace(mark, ctx('en', { allowedWrites: new Set() }));
+    expect(face.chips.some((chip) => chip.id === 'allowed')).toBe(false);
+    expect(face.markers.find((marker) => marker.id === 'writes')?.label).toBe(
+      'Changes data in Tasks. A live run may wait for approval.',
+    );
+  });
+});

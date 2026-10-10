@@ -579,7 +579,7 @@ export async function saveVersion(
  * keeps another member's screen from showing a deleted automation, a stale
  * deployedVersion badge or the previous trigger until reload.
  */
-async function emitDefinitionHint(
+export async function emitDefinitionHint(
   tx: TransactionSql | Sql,
   organizationId: string,
   name: string,

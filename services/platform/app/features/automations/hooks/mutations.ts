@@ -90,6 +90,14 @@ export function useSetAutomationProjects() {
   });
 }
 
+/** Set the writes the automation may make without a person — owner or
+ * admin only. */
+export function useSetApprovalAllowances() {
+  return useBackendMutation('automations/mutations:setApprovalAllowances', {
+    errorToast: false,
+  });
+}
+
 /** Delete the automation — versions, deployment, triggers and bindings.
  * Refused while a run is still live; run history is kept. */
 export function useDeleteAutomation() {

@@ -60,6 +60,16 @@ const {
     bound: [] as string[],
     /** The served-model roster the model pickers list. */
     models: [] as unknown[],
+    /** What the automation may write without approval. */
+    allowances: [] as Array<{
+      type: string;
+      used: boolean;
+      allowance: null | {
+        grantedBy: string;
+        grantedByName: string | null;
+        grantedAt: number;
+      };
+    }>,
   },
   /** Newest-first run log. Empty unless a test is pinning last-run chrome. */
   runsData: [] as Array<{
@@ -266,6 +276,10 @@ vi.mock('../hooks/queries', async (importOriginal) => {
           : { id: runId, input: { owner: 'acme' }, output: { sent: 2 } },
     }),
     useAutomationProjects: () => ({ data: projectsData.bound }),
+    // Nothing is allowed to write without approval unless a test says so.
+    useApprovalAllowances: () => ({
+      data: { actions: projectsData.allowances, canGrant: true },
+    }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
     // The stored trigger the deploy notice turns on: a weekday schedule.
     useAutomationTriggers: () => ({
@@ -524,6 +538,7 @@ beforeEach(() => {
   projectsData.list = [];
   projectsData.bound = [];
   projectsData.models = [];
+  projectsData.allowances = [];
   runsData.length = 0;
   state.document = {
     name: 'billing/dunning',

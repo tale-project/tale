@@ -27,6 +27,7 @@ import { useAutomation } from '../hooks/queries';
 import { automationDetailPathname } from '../lib/detail-paths';
 import {
   DOCUMENT_DIRTY_KEY,
+  ALLOWANCES_DIRTY_KEY,
   PROJECTS_DIRTY_KEY,
   TRIGGER_DIRTY_KEY,
 } from '../lib/dirty-keys';
@@ -38,7 +39,11 @@ import { AutomationVersionPickerTarget } from './automation-version-picker-targe
 /** The editor's controller reports its draft under this key (see `AutomationEditor`). */
 const EDITOR_DIRTY_KEYS = [DOCUMENT_DIRTY_KEY] as const;
 /** The General tab's sections report their drafts under these. */
-const GENERAL_DIRTY_KEYS = [TRIGGER_DIRTY_KEY, PROJECTS_DIRTY_KEY] as const;
+const GENERAL_DIRTY_KEYS = [
+  TRIGGER_DIRTY_KEY,
+  PROJECTS_DIRTY_KEY,
+  ALLOWANCES_DIRTY_KEY,
+] as const;
 
 interface AutomationDetailShellProps {
   organizationId: string;

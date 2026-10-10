@@ -7,6 +7,8 @@
 /** The Editor tab's draft: the automation's document. */
 export const DOCUMENT_DIRTY_KEY = 'document';
 
-/** The General tab's sections: the trigger binding and the project set. */
+/** The General tab's sections: the trigger binding, the project set and
+ * the writes allowed without approval. */
 export const TRIGGER_DIRTY_KEY = 'trigger';
 export const PROJECTS_DIRTY_KEY = 'projects';
+export const ALLOWANCES_DIRTY_KEY = 'approval-allowances';

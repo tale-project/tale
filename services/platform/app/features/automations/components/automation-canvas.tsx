@@ -109,6 +109,8 @@ export interface AutomationCanvasProps {
   layoutKey: string;
   catalog: NodeCatalogView;
   modelLabel?: (id: string) => string | undefined;
+  /** The step types allowed to write without approval: their boxes say so. */
+  allowedWrites?: ReadonlySet<string>;
   /** Start's trigger rows; by hand, the API or MCP when left out. */
   triggers?: readonly FlowRow[];
   /** What the draft check answered, when the reader may have one. */
@@ -188,6 +190,7 @@ export function AutomationCanvas({
   layoutKey,
   catalog,
   modelLabel,
+  allowedWrites,
   triggers,
   check = NO_CHECK,
   startNotice,
@@ -230,6 +233,7 @@ export function AutomationCanvas({
     automation,
     catalog,
     ...(modelLabel !== undefined && { modelLabel }),
+    ...(allowedWrites !== undefined && { allowedWrites }),
     triggers: triggers ?? manualOnly,
     check,
     ...(startNotice !== undefined && { startNotice }),

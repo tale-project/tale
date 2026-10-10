@@ -8,6 +8,22 @@ import { AutomationGeneralTab } from './automation-general-tab';
 
 const setTrigger = vi.fn();
 const setProjects = vi.fn();
+const setAllowances = vi.fn();
+/** The writes the automation makes, and whether the reader may allow them. */
+const allowancesData = vi.hoisted(() => ({
+  canGrant: true,
+  actions: [
+    { type: 'slack.send_message', used: true, allowance: null },
+  ] as Array<{
+    type: string;
+    used: boolean;
+    allowance: null | {
+      grantedBy: string;
+      grantedByName: string | null;
+      grantedAt: number;
+    };
+  }>,
+}));
 const ability = vi.hoisted(() => ({ canAuthor: true }));
 const automation = vi.hoisted(() => ({
   deployedVersion: undefined as number | undefined,
@@ -44,6 +60,19 @@ vi.mock('../hooks/queries', () => ({
     isPending: false,
   }),
   useAutomationProjects: () => ({ data: [], isPending: false }),
+  useApprovalAllowances: () => ({
+    data: {
+      actions: allowancesData.actions,
+      canGrant: allowancesData.canGrant,
+    },
+    isPending: false,
+  }),
+  useNodeTypeCatalog: () => ({
+    data: {
+      nodeTypes: [],
+      connectors: [{ name: 'slack', displayName: 'Slack' }],
+    },
+  }),
   useAutomation: () => ({
     data: { deployedVersion: automation.deployedVersion },
     isPending: false,
@@ -64,6 +93,10 @@ vi.mock('../hooks/mutations', () => ({
   useDeleteAutomationTrigger: () => ({ mutate: vi.fn(), isPending: false }),
   useSetAutomationProjects: () => ({
     mutateAsync: setProjects,
+    isPending: false,
+  }),
+  useSetApprovalAllowances: () => ({
+    mutateAsync: setAllowances,
     isPending: false,
   }),
   useStartAutomationRun: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -90,6 +123,11 @@ beforeEach(() => {
   automation.deployedVersion = undefined;
   setTrigger.mockResolvedValue({});
   setProjects.mockResolvedValue(undefined);
+  setAllowances.mockResolvedValue({ granted: [], withdrawn: [] });
+  allowancesData.canGrant = true;
+  allowancesData.actions = [
+    { type: 'slack.send_message', used: true, allowance: null },
+  ];
 });
 
 /** The tab under the detail shell, which mounts the editor registry. */
@@ -182,5 +220,44 @@ describe('AutomationGeneralTab', () => {
   it('passes an axe audit', async () => {
     const { container } = renderGeneralTab();
     await checkAccessibility(container);
+  });
+
+  it('lets an owner or admin allow a write without approval, saved with the tab [APV-R13]', async () => {
+    const { user } = renderGeneralTab();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Runs without approval' }),
+    ).toBeInTheDocument();
+    const slack = screen.getByRole('switch', { name: /Slack · Send message/ });
+    expect(slack).not.toBeChecked();
+    await user.click(slack);
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(setAllowances).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      name: 'gmail-triage-inbox',
+      allowed: ['slack.send_message'],
+    });
+  });
+
+  it('says who allowed a write, and shows a developer the writes read-only', () => {
+    allowancesData.canGrant = false;
+    allowancesData.actions = [
+      {
+        type: 'slack.send_message',
+        used: true,
+        allowance: {
+          grantedBy: 'u-ada',
+          grantedByName: 'Ada Lovelace',
+          grantedAt: Date.UTC(2026, 9, 9),
+        },
+      },
+    ];
+    renderGeneralTab();
+    const slack = screen.getByRole('switch', { name: /Slack · Send message/ });
+    expect(slack).toBeChecked();
+    expect(slack).toBeDisabled();
+    expect(screen.getByText(/Allowed by Ada Lovelace on/)).toBeVisible();
+    expect(
+      screen.getByText('Only an owner or an admin can change these.'),
+    ).toBeVisible();
   });
 });

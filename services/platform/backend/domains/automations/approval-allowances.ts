@@ -2,7 +2,12 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { findConnector } from '../../../lib/connectors/catalog.ts';
 import { auditDefinitionWrite } from './audit.ts';
-import { AutomationError, lockAutomationName, versionRow } from './store.ts';
+import {
+  AutomationError,
+  emitDefinitionHint,
+  lockAutomationName,
+  versionRow,
+} from './store.ts';
 
 /**
  * The writes one automation may make without a person approving each run —
@@ -187,6 +192,10 @@ export async function setApprovalAllowances(
         name: args.automation,
         previousState: { type },
       });
+    }
+    // Every open editor and General tab of the automation reads the set.
+    if (granted.length + withdrawn.length > 0) {
+      await emitDefinitionHint(tx, args.organizationId, args.automation);
     }
     return { granted, withdrawn };
   });

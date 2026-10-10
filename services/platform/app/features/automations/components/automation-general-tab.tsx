@@ -8,6 +8,7 @@ import { SECTION_DIVIDER_CLASS } from '@/app/features/settings/components/settin
 import { useAbility } from '@/app/hooks/use-ability';
 
 import { useAutomation } from '../hooks/queries';
+import { ApprovalAllowancesSection } from './approval-allowances-section';
 import { AutomationEditorActions } from './automation-editor-actions';
 import { ProjectBindingsSection } from './project-bindings-section';
 import { TriggerEditor } from './trigger-editor';
@@ -20,8 +21,9 @@ interface AutomationGeneralTabProps {
 }
 
 /**
- * The General tab: the automation's own settings — what starts it (Trigger)
- * and which projects' boards see it (Projects) — on the settings measure,
+ * The General tab: the automation's own settings — what starts it (Trigger),
+ * which projects' boards see it (Projects) and which writes it may make
+ * without a person approving each run — on the settings measure,
  * the way a project's General tab carries the project's.
  *
  * The sections are independent stores, but the page has ONE Save/Discard
@@ -71,6 +73,12 @@ function AutomationGeneralScope({
             name={automationSlug}
             canEdit={canEdit}
           />
+          {canEdit && (
+            <ApprovalAllowancesSection
+              organizationId={organizationId}
+              name={automationSlug}
+            />
+          )}
         </EditorGroup>
       </ContentArea>
     </>

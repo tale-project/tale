@@ -14,6 +14,21 @@ import type {
 
 import type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 import type { Issue } from '@/lib/engine/core/types';
+/** A write action of an automation, as its General tab lists it: whether a
+ * step of the latest version makes it, and who allowed it to run without a
+ * person. */
+export interface AutomationApprovalAllowanceRow {
+  /** `<connector>.<action>`. */
+  type: string;
+  used: boolean;
+  allowance: {
+    grantedBy: string;
+    /** The granter's name or email; null for someone erased or gone. */
+    grantedByName: string | null;
+    grantedAt: number;
+  } | null;
+}
+
 export type { LegacyRunQuarantine } from '@/lib/engine/api/dispatch';
 import type { RunDiff } from '@/lib/engine/core/record/compare';
 import type {
@@ -240,6 +255,13 @@ export interface AutomationsContract {
      * refuse one (`lib/shared/schemas/automation-issues.ts` reads them). */
     returns: { name: string; version: number; warnings?: unknown[] };
   };
+  'automations/mutations:setApprovalAllowances': {
+    kind: 'mutation';
+    /** The whole set of step types the automation may write without a
+     * person — owner or admin only. */
+    args: { organizationId: string; name: string; allowed: string[] };
+    returns: { granted: string[]; withdrawn: string[] };
+  };
   'automations/mutations:setAutomationProjects': {
     kind: 'mutation';
     args: { organizationId: string; name: string; projectIds: string[] };
@@ -444,6 +466,15 @@ export interface AutomationsContract {
     kind: 'query';
     args: { organizationId: string; runId: string };
     returns: null | RunInDoubt;
+  };
+  'automations/queries:listApprovalAllowances': {
+    kind: 'query';
+    args: { organizationId: string; name: string };
+    returns: {
+      actions: AutomationApprovalAllowanceRow[];
+      /** Whether the reader may change them: an owner or an admin. */
+      canGrant: boolean;
+    };
   };
   'automations/queries:listAutomationProjects': {
     kind: 'query';

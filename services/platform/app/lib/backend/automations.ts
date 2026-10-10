@@ -26,6 +26,8 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 type GetAutomationResult = ReturnsOf<'automations/queries:getAutomation'>;
 type ListVersionsResult = ReturnsOf<'automations/queries:listVersions'>;
 type ListTriggersResult = ReturnsOf<'automations/queries:listTriggers'>;
+type AutomationApprovalAllowanceRow =
+  ReturnsOf<'automations/queries:listApprovalAllowances'>['actions'][number];
 type ListTriggerRunsResult = ReturnsOf<'automations/queries:listTriggerRuns'>;
 type ListRunsResult = ReturnsOf<'automations/queries:listRuns'>;
 type GetRunResult = ReturnsOf<'automations/queries:getRun'>;
@@ -161,6 +163,19 @@ export const automationReadAdapters: Record<string, ReadAdapter> = {
           `/automations/${namePath(name)}/trigger/runs?limit=${limit}`,
           { orgId },
         ).then((body) => body.runs),
+    };
+  },
+  'automations/queries:listApprovalAllowances': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const name = args.name;
+    if (orgId === undefined || typeof name !== 'string') return null;
+    return {
+      queryKey: backendKey(orgId, 'automation', 'approval-allowances', name),
+      queryFn: () =>
+        backendFetch<{
+          actions: AutomationApprovalAllowanceRow[];
+          canGrant: boolean;
+        }>(`/automations/${namePath(name)}/approval-allowances`, { orgId }),
     };
   },
   'automations/queries:listAutomationProjects': (args, ctx) => {
@@ -684,6 +699,18 @@ export const automationWriteAdapters: Record<string, WriteAdapter> = {
         `/automations/${namePath(stringArg(args, 'name'))}/trigger`,
         { orgId: requireOrg(args, ctx), method: 'DELETE' },
       ).then(() => null),
+    invalidate: invalidateAutomations,
+  },
+  'automations/mutations:setApprovalAllowances': {
+    run: (args, ctx) =>
+      backendFetch<{ granted: string[]; withdrawn: string[] }>(
+        `/automations/${namePath(stringArg(args, 'name'))}/approval-allowances`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'PUT',
+          body: { allowed: args.allowed ?? [] },
+        },
+      ),
     invalidate: invalidateAutomations,
   },
   'automations/mutations:setAutomationProjects': {

@@ -398,6 +398,8 @@ canvas:
     returnsUnknown: Structure connue après une exécution
     returns: 'Renvoie {shape}'
     writes: Modifie des données dans {connector}. Une exécution réelle peut attendre une approbation.
+    writesAllowed: Modifie des données dans {connector}, sans approbation — un propriétaire ou un admin l’a autorisé.
+    runsWithoutApproval: S’exécute sans approbation
     asks: Peut poser une question et attendre la réponse.
     catalog:
       transform: Transformation
@@ -594,6 +596,16 @@ editor:
     type: Type
     id: Identifiant
     modelProvider: Fournisseur
+allowances:
+  title: S’exécute sans approbation
+  hint: Les écritures que cette automatisation peut faire sans qu’une personne approuve chaque exécution. Une règle de la politique d’approbation de ton organisation qui exige une personne reste prioritaire.
+  action: '{connector} · {action}'
+  grantedBy: 'Autorisé par {name} le {date}.'
+  formerMember: un ancien membre
+  asks: Demande à une personne avant chaque exécution en direct.
+  unused: Aucune étape de la dernière version ne le fait.
+  none: Cette automatisation ne fait aucune écriture qui attend une approbation.
+  readOnly: Seuls les propriétaires et les admins peuvent modifier cela.
 bindings:
   title: Projets
   countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
