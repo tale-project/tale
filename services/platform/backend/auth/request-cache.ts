@@ -480,7 +480,7 @@ export function createAuthRequestCache(
 
 /** How long a log row is kept. Every process reads it within a second; an
  * hour leaves room for one that was cut off from the database a while. */
-export const AUTH_INVALIDATION_RETENTION_MS = 60 * 60 * 1000;
+const AUTH_INVALIDATION_RETENTION_MS = 60 * 60 * 1000;
 /** Rows one reclaim DELETE takes, and the rounds one sweep runs at most. */
 const RECLAIM_BATCH = 5_000;
 const RECLAIM_MAX_BATCHES = 20;
