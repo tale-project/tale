@@ -845,6 +845,93 @@ describePosix('managed source-Compose runtime adoption', () => {
     ).toHaveLength(0);
   });
 
+  test('takes over a pre-start protocol handoff with the verified legacy bridge', async () => {
+    const run = await create(true);
+    await run.apply();
+    const runtimePath = join(
+      run.fixture.options.stateDirectory,
+      '.tale/runtime.json',
+    );
+    const current = run.receipt();
+    writeFileSync(
+      runtimePath,
+      JSON.stringify({
+        ...current,
+        phase: 'pending',
+        revision: 'f'.repeat(40),
+        bundleSha256: 'e'.repeat(64),
+        images: current.images.map((image: Record<string, unknown>) =>
+          (image.services as string[]).includes('backend-api')
+            ? {
+                ...image,
+                digest: `sha256:${'f'.repeat(64)}`,
+                reference: `${image.repository}@sha256:${'f'.repeat(64)}`,
+                revision: 'f'.repeat(40),
+                automationWriterProtocol: 2,
+              }
+            : image,
+        ),
+      }),
+    );
+    const pending = run.receipt();
+    expect(await run.apply(true)).toMatchObject({ changed: true });
+    expect(run.receipt()).toEqual(pending);
+    expect(await run.apply()).toMatchObject({ changed: true });
+    expect(run.receipt()).toMatchObject({
+      phase: 'ready',
+      revision: current.revision,
+    });
+  });
+
+  test.each(['cutover receipt', 'pending writer image'] as const)(
+    'refuses a pre-start protocol takeover when %s proves the handoff began',
+    async (reason) => {
+      const run = await create(true);
+      await run.apply();
+      const runtimePath = join(
+        run.fixture.options.stateDirectory,
+        '.tale/runtime.json',
+      );
+      const current = run.receipt();
+      const images = current.images.map((image: Record<string, unknown>) =>
+        (image.services as string[]).includes('backend-api')
+          ? {
+              ...image,
+              revision: 'f'.repeat(40),
+              automationWriterProtocol: 2,
+              ...(reason === 'pending writer image'
+                ? {}
+                : {
+                    digest: `sha256:${'f'.repeat(64)}`,
+                    reference: `${image.repository}@sha256:${'f'.repeat(64)}`,
+                  }),
+            }
+          : image,
+      );
+      writeFileSync(
+        runtimePath,
+        JSON.stringify({
+          ...current,
+          phase: 'pending',
+          revision: 'f'.repeat(40),
+          bundleSha256: 'e'.repeat(64),
+          images,
+        }),
+      );
+      if (reason === 'cutover receipt')
+        writeFileSync(
+          join(
+            run.fixture.options.stateDirectory,
+            '.tale/automation-cutover.json',
+          ),
+          '{}',
+        );
+      await expect(run.apply()).rejects.toThrow(
+        'different runtime operation is pending',
+      );
+    },
+  );
+
   test('refuses a replaced pending directory before any image pull or activation', async () => {
     const { fixture, docker, apply, receipt } = await create(true);
     docker.upFailure = true;
