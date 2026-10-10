@@ -42,6 +42,9 @@ export interface McpCaller {
 export function callerFromRest(c: Context<RestEnv>): McpCaller {
   const apiKeyId = restApiKeyId(c);
   const requestId = requestIdOf(c);
+  // A key made for someone or something else says so: what it reaches ends
+  // at its own organization (`domains/api_keys/owners.ts`).
+  const owner = c.get('apiKeyOwner')?.kind;
   return {
     organizationId: c.get('organizationId'),
     orgSlug: c.get('orgSlug'),
@@ -50,6 +53,7 @@ export function callerFromRest(c: Context<RestEnv>): McpCaller {
     credential: {
       kind: 'api-key',
       ...(apiKeyId !== undefined ? { apiKeyId } : {}),
+      ...(owner !== undefined ? { owner } : {}),
     },
     ...(requestId !== undefined ? { requestId } : {}),
   };

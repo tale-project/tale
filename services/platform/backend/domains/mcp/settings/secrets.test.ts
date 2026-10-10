@@ -226,3 +226,165 @@ describe('a credential stored where no secret belongs', () => {
     });
   });
 });
+
+/**
+ * Credentials the run recorder withholds from people, assembled at run time
+ * so no scanner reads this file as holding one.
+ */
+const WITHHELD = {
+  google: ['AIza', 'SyA', '0'.repeat(32)].join(''),
+  payment: ['sk', 'live', '0'.repeat(24)].join('_'),
+  githubFineGrained: ['github', 'pat', `11A${'0'.repeat(30)}`].join('_'),
+  gitlab: ['glpat', '0'.repeat(20)].join('-'),
+  webToken: [
+    'eyJhbGciOiJIUzI1NiJ9',
+    'eyJzdWIiOiIxMjM0NTY3ODkwIn0',
+    'c2lnbmF0dXJlLXZhbHVlLXZhbHVl',
+  ].join('.'),
+};
+
+/** Opaque values a header holds, of the shape vendors issue. */
+const HEADER_VALUE = '0123456789abcdef0123456789abcdef';
+
+/** A moderation provider configured in Tale with its keys typed into the
+ * headers and the address, beside the headers that name the stored secret. */
+const moderation = {
+  enabled: true,
+  endpoint: {
+    url: 'https://bot:s3cretpassw0rd@moderation.example.invalid/v1',
+    headers: {
+      'Ocp-Apim-Subscription-Key': HEADER_VALUE,
+      'x-api-key': HEADER_VALUE,
+      'X-Goog-Api-Key': WITHHELD.google,
+      client_secret: `GOCSPX-${HEADER_VALUE}`,
+      access_token: `ya29.${HEADER_VALUE}`,
+      Authorization: 'Bearer {{secret}}',
+      'X-Signature-Key': '{{secret}}',
+      'Content-Type': 'application/json',
+    },
+    requestTemplate: '{"input": {{text}}}',
+  },
+};
+
+describe('a credential the run recorder would withhold [MCP-R12]', () => {
+  it('is masked under every header that names a key, and in an address that carries a password', () => {
+    expect(maskedPlaces(moderation, []).sort()).toEqual([
+      '/endpoint/headers/Ocp-Apim-Subscription-Key',
+      '/endpoint/headers/X-Goog-Api-Key',
+      '/endpoint/headers/access_token',
+      '/endpoint/headers/client_secret',
+      '/endpoint/headers/x-api-key',
+      '/endpoint/url',
+    ]);
+    const masked = maskSecrets(moderation, []);
+    for (const value of [HEADER_VALUE, WITHHELD.google, 's3cretpassw0rd']) {
+      expect(JSON.stringify(masked)).not.toContain(value);
+    }
+    // A header that only names the secret Tale stores keeps showing it.
+    expect(masked).toMatchObject({
+      endpoint: {
+        headers: {
+          Authorization: 'Bearer {{secret}}',
+          'X-Signature-Key': '{{secret}}',
+          'Content-Type': 'application/json',
+        },
+        requestTemplate: '{"input": {{text}}}',
+      },
+    });
+  });
+
+  it.each(Object.entries(WITHHELD))(
+    'masks a %s pasted into an instruction, and refuses one in a change',
+    (_shape, credential) => {
+      const config = {
+        projectId: 'p1',
+        instructions: `Use ${credential} for the calls.`,
+      };
+      expect(maskSecrets(config, [])).toEqual({
+        projectId: 'p1',
+        instructions: { masked: true, preview: 'Use …s.' },
+      });
+      const refusal = secretArgumentRefusal({ config }, []);
+      expect(refusal?.data).toEqual({
+        places: [{ pointer: '/config/instructions', kind: expect.any(String) }],
+      });
+      expect(JSON.stringify(refusal)).not.toContain(credential);
+    },
+  );
+
+  it('refuses a key typed into a header or an address, and takes a header that names the stored secret', () => {
+    const refusal = secretArgumentRefusal({ config: moderation }, []);
+    expect(refusal?.code).toBe('SECRET_ARGUMENT_REFUSED');
+    const typed = [
+      '/config/endpoint/headers/Ocp-Apim-Subscription-Key',
+      '/config/endpoint/headers/X-Goog-Api-Key',
+      '/config/endpoint/headers/access_token',
+      '/config/endpoint/headers/client_secret',
+      '/config/endpoint/headers/x-api-key',
+      '/config/endpoint/url',
+    ];
+    expect(refusal?.data?.places).toHaveLength(typed.length);
+    expect(refusal?.data?.places).toEqual(
+      expect.arrayContaining(
+        typed.map((pointer) => expect.objectContaining({ pointer })),
+      ),
+    );
+    expect(
+      secretArgumentRefusal(
+        {
+          config: {
+            endpoint: {
+              url: 'https://moderation.example.invalid/v1',
+              headers: {
+                Authorization: 'Bearer {{secret}}',
+                'Ocp-Apim-Subscription-Key': '{{secret}}',
+              },
+            },
+          },
+        },
+        [],
+      ),
+    ).toBeNull();
+  });
+
+  it('keeps every masked header when the read is sent back', () => {
+    const sent = maskSecrets({ ...moderation, enabled: false }, []);
+    expect(secretArgumentRefusal({ config: sent }, [])).toBeNull();
+    expect(restoreMaskedSecrets(sent, moderation, [])).toEqual({
+      config: { ...moderation, enabled: false },
+    });
+  });
+
+  it('judges a field its kind declares by its text alone', () => {
+    const provider = { name: 'local', auth: [{ method: 'api-key' }] };
+    const embedding = {
+      providerSlug: 'local',
+      credentialId: 'c2f5e0b4-5d0e-4c3c-9f4e-2f1d0b9a7e61',
+      maxTokensPerMinute: 60_000,
+    };
+    const declared = new Set([
+      'name',
+      'auth',
+      'method',
+      'providerSlug',
+      'credentialId',
+      'maxTokensPerMinute',
+    ]);
+    expect(maskedPlaces(provider, [], declared)).toEqual([]);
+    expect(maskedPlaces(embedding, [], declared)).toEqual([]);
+    expect(
+      secretArgumentRefusal({ config: embedding }, [], declared),
+    ).toBeNull();
+    // Undeclared, the same members read as secrets by their names.
+    expect(maskedPlaces(provider, [])).toEqual(['/auth']);
+    expect(maskedPlaces(embedding, [])).toEqual(['/credentialId']);
+    // A declared field still holds no credential.
+    expect(
+      maskedPlaces(
+        { ...embedding, credentialId: WITHHELD.gitlab },
+        [],
+        declared,
+      ),
+    ).toEqual(['/credentialId']);
+  });
+});

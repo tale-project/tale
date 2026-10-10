@@ -210,16 +210,18 @@ applied, what failed and what was skipped.
 
 ### MCP-R12 · No secret goes into or comes out of a settings call
 
-A stored secret reads as masked, with a short excerpt at most, and so does a credential found
-anywhere else in a stored setting — a key someone pasted into an instruction or a header in
-Tale. A change may send a masked value back to keep what is stored there, and nothing else in
-its place; a credential anywhere else in a change — a key pasted into a description — refuses
-the change, naming where it was found and never the value (`SECRET_ARGUMENT_REFUSED`). A person
-enters a new secret in Tale.
+A stored secret reads as masked, with a short excerpt at most, and so does anything else in a
+stored setting that a run's record never shows — a key someone pasted into an instruction, a key
+typed into a header whose name says it holds one, a password in an address. A header that only
+names the stored secret (`Bearer {{secret}}`) reads as written. A change may send a masked value
+back to keep what is stored there, and nothing else in its place; a credential anywhere else in a
+change — a key pasted into a description — refuses the change, naming where it was found and
+never the value (`SECRET_ARGUMENT_REFUSED`). A person enters a new secret in Tale.
 
-- **Example**: Ada's agent reads a provider whose key is stored → the key reads as masked; it
-  changes the address and sends the masked key back → the stored key is kept; it sends a key it
-  typed instead → refused, and the answer names the field, not the key.
+- **Example**: Ben typed a key into the moderation provider's `x-api-key` header in Tale. Ada's
+  agent reads the policy → the header reads as masked, and `Authorization: Bearer {{secret}}`
+  reads as written; it sends the read back → the key is kept; it types a key into another header
+  instead → refused, and the answer names the header, not the key.
 - **Example**: Ben once pasted an API key into the organization's system prompt in Tale. Ada's
   agent reads the policy → the prompt reads as masked; the agent changes another field and sends
   the masked prompt back → the prompt is kept as Ben wrote it.
@@ -236,6 +238,19 @@ is queued again. The similarity floor and the serving limits change at any time.
 - **Example**: Ada's agent proposes a larger embedding model while 40 documents are indexed →
   refused, naming the 40 documents; her agent lowers the similarity floor instead → it is
   changed, and nothing is indexed again.
+
+### MCP-R29 · Only a person's own key reaches the deployment's settings
+
+The deployment's settings are every organization's, and who may read and change them is decided
+by a person's standing in every organization they belong to. A key made for a member, a team, a
+project or the organization works in its own organization alone, so it reads and changes none of
+them, and `get_settings` says so for the kind (`FORBIDDEN_INSTANCE_ADMIN`). A person's own key
+reads and changes them as the person may in the app.
+
+- **Example**: Mia is a developer at Acme and an admin of Beta, and her address is on the
+  deployment's editor allowlist. Ada, an admin at Acme, makes the key "Billing sync" for Mia;
+  Ada's agent reads the deployment's settings with it → refused, and a change of the sandbox
+  runtime is refused too. Mia's own key reads and changes them.
 
 ## Answers and refusals
 

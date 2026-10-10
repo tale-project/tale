@@ -12,12 +12,15 @@
 
 import { cyrb53 } from '@tale/ui/data/hash';
 import { inferSchema } from '@tale/ui/data/infer-schema';
-import { pointerOf } from '@tale/ui/data/json-pointer';
 import { jsonNormalize, stableStringify } from '@tale/ui/data/stable-stringify';
 import { summaryOf, type ValueSummary } from '@tale/ui/data/value-summary';
 
+import {
+  looksLikeCredential,
+  secretMemberName,
+  withholdSecrets,
+} from '../../../shared/secret-scan';
 import { boundJsonOutOfBand } from '../../../shared/utils/bound-json';
-import { looksLikeCredential, secretMemberName } from '../secret-patterns';
 import type { Json, NodeTrace } from '../types';
 import {
   RECORD_HASH_MAX_BYTES,
@@ -77,10 +80,6 @@ export const RECORD_RUN_BUDGET = 2_097_152;
 /** Entries kept in a record's `redacted` and `elided` lists. */
 const RECORD_MAX_MARKS = 100;
 
-/** Member names longer than this are left out: no reader needs the name
- * whole, and it would ride along in every pointer below it. */
-const MAX_MEMBER_NAME = 256;
-
 /** How shapes are read for a record: lists by their first 20 items, six
  * levels deep, fifty fields per object. */
 const SHAPE_OPTIONS = {
@@ -111,27 +110,11 @@ export function utf8Bytes(text: string): number {
   return encoder.encode(text).length;
 }
 
-/** Set `key` on `target` as its own member, `__proto__` included. */
-function setOwn(target: Record<string, Json>, key: string, value: Json): void {
-  Object.defineProperty(target, key, {
-    value,
-    enumerable: true,
-    writable: true,
-    configurable: true,
-  });
-}
-
 /**
- * `value` as plain JSON with every secret withheld:
- *  - a member whose name marks a secret outright (`password`, `apiKey`,
- *    `pin`, …) holds `null` unless it held a flag or nothing — a numeric
- *    PIN is a secret too;
- *  - a member whose name only mentions a token (`nextPageToken`) holds
- *    `null` when it held text, and is read member by member otherwise
- *    (`prompt_tokens_details`); a count such as `inputTokens` stays;
- *  - text that looks like a credential is `null`, wherever it sits;
- *  - a member whose name looks like a credential, or is longer than any
- *    reader needs, is left out.
+ * `value` as plain JSON with every secret withheld by the one walker a
+ * reader's view is held to (`withholdSecrets`, `lib/shared/secret-scan.ts`):
+ * a member whose name marks a secret, text that looks like a credential,
+ * and a member whose name looks like one or is longer than any reader needs.
  * Each place is listed, up to {@link RECORD_MAX_MARKS}; `total` counts them
  * all.
  */
@@ -142,61 +125,20 @@ export function redactValue(value: unknown): {
 } {
   const redacted: ValueRedaction[] = [];
   let total = 0;
-  const path: Array<string | number> = [];
-  const mark = (why: ValueRedaction['why']): null => {
-    total++;
-    if (redacted.length < RECORD_MAX_MARKS) {
-      redacted.push({ pointer: pointerOf(path), why });
-    }
-    return null;
-  };
-  const walk = (entry: Json, key?: string): Json => {
-    if (typeof entry === 'string') {
-      return looksLikeCredential(entry, key) ? mark('pattern') : entry;
-    }
-    if (Array.isArray(entry)) {
-      return entry.map((item, index) => {
-        path.push(index);
-        const out = walk(item);
-        path.pop();
-        return out;
-      });
-    }
-    if (entry !== null && typeof entry === 'object') {
-      const out: Record<string, Json> = {};
-      let leftOut = false;
-      for (const [member, item] of Object.entries(entry)) {
-        if (member.length > MAX_MEMBER_NAME || looksLikeCredential(member)) {
-          leftOut = true;
-          continue;
-        }
-        path.push(member);
-        setOwn(
-          out,
-          member,
-          withheld(member, item) ? mark('key') : walk(item, member),
-        );
-        path.pop();
-      }
-      if (leftOut) mark('name');
-      return out;
-    }
-    return entry;
-  };
   const plain = toJson(value);
   return {
-    value: plain === undefined ? undefined : walk(plain),
+    value:
+      plain === undefined
+        ? undefined
+        : withholdSecrets(plain, ({ pointer, why }) => {
+            total++;
+            if (redacted.length < RECORD_MAX_MARKS) {
+              redacted.push({ pointer, why });
+            }
+          }),
     redacted,
     total,
   };
-}
-
-/** Whether the member `name` holding `item` is withheld whole. */
-function withheld(name: string, item: Json): boolean {
-  if (item === null || typeof item === 'boolean') return false;
-  const kind = secretMemberName(name);
-  if (kind === 'strong') return true;
-  return kind === 'weak' && typeof item === 'string';
 }
 
 /**

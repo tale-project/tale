@@ -1,31 +1,17 @@
-import { brandingFormSchema } from '@tale/shared/schemas/branding';
-import { deploymentConfigSchema } from '@tale/shared/schemas/deployment';
 import {
   FILE_POLICY_TYPES,
   POLICY_SCHEMAS,
 } from '@tale/shared/schemas/governance';
-import { knowledgeEmbeddingWriteSchema } from '@tale/shared/schemas/knowledge';
-import {
-  managedAgentInstructionsSchema,
-  managedAgentModelSchema,
-  managedAgentToolsSchema,
-  managedProjectInstructionsSchema,
-  managedTaskInstructionsSchema,
-  managedTaskReviewContextSchema,
-} from '@tale/shared/schemas/managed-configuration';
-import {
-  providerDefinitionSchema,
-  providerEnvironmentCredentialSchema,
-} from '@tale/shared/schemas/providers';
 import {
   GOVERNANCE_KEYS_NOT_OVER_MCP,
   SETTINGS_EFFECTS,
   SETTINGS_KINDS,
   SETTINGS_KINDS_NOT_OVER_MCP,
   type SettingsEffect,
-  type SettingsKind,
 } from '@tale/shared/schemas/settings-kinds';
 import { z } from 'zod';
+
+import { SETTINGS_CONFIG_SCHEMAS } from '../settings-schemas';
 
 /**
  * The settings reference (`get_docs {topic: "settings"}`,
@@ -70,7 +56,7 @@ const REFUSALS: ReadonlyArray<readonly [code: string, meaning: string]> = [
   ],
   [
     'SETTINGS_INVALID',
-    "A config is not the kind's: data.issues names every problem by its pointer, a field the setting does not have among them.",
+    "A config is not the kind's: data.issues names every problem by its pointer — a field the setting does not have among them, and text Tale cannot store (a NUL character, half a surrogate pair; code unstorable_text).",
   ],
   [
     'SETTINGS_ID_REQUIRED',
@@ -151,24 +137,6 @@ const REFUSALS: ReadonlyArray<readonly [code: string, meaning: string]> = [
   ],
 ];
 
-/** The schema each kind's config is read through; `governance` reads each
- * policy through its own. */
-const CONFIG_SCHEMAS: Readonly<
-  Record<Exclude<SettingsKind, 'governance'>, z.ZodType>
-> = {
-  provider: providerDefinitionSchema,
-  'provider-credential': providerEnvironmentCredentialSchema,
-  'knowledge-embedding': knowledgeEmbeddingWriteSchema,
-  branding: brandingFormSchema,
-  'project-instructions': managedProjectInstructionsSchema,
-  'agent-instructions': managedAgentInstructionsSchema,
-  'agent-tools': managedAgentToolsSchema,
-  'agent-model': managedAgentModelSchema,
-  'task-instructions': managedTaskInstructionsSchema,
-  'task-review-context': managedTaskReviewContextSchema,
-  deployment: deploymentConfigSchema,
-};
-
 /** A config's fields as JSON Schema, compact. A check JSON Schema cannot
  * state reads as no constraint: the writer still makes it. */
 function fieldsOf(schema: z.ZodType): string {
@@ -194,7 +162,7 @@ const WORKFLOW = [
   '',
   '## Secrets',
   '',
-  'No secret goes into or comes out of a settings call. A stored secret, and any credential found in a stored setting, reads as `{masked: true, preview}`; send that value back unchanged to keep what is stored there. A secret in a change is refused, naming where it was found. A person enters a new secret in Tale.',
+  "No secret goes into or comes out of a settings call. A stored secret reads as `{masked: true, preview}`, and so does anything else a run's record never shows: a key pasted into an instruction, a key typed into a header whose name says it holds one, a password in an address. A header that only names the stored secret (`Bearer {{secret}}`) reads as written; a key inside a longer text masks the whole text. Send a masked value back unchanged to keep what is stored there, or replace the whole value. A secret in a change is refused, naming where it was found. A person enters a new secret in Tale.",
 ];
 
 function effectsSection(): string[] {
@@ -226,7 +194,7 @@ function kindSection(descriptor: (typeof SETTINGS_KINDS)[number]): string[] {
       ...header,
       'Config:',
       '',
-      fieldsOf(CONFIG_SCHEMAS[descriptor.kind]),
+      fieldsOf(SETTINGS_CONFIG_SCHEMAS[descriptor.kind]),
       '',
     ];
   }
