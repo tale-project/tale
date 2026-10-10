@@ -18,11 +18,6 @@ import {
   type SandboxScriptRunner,
   type WorkflowConversationStore,
 } from '../../../lib/connectors/natives/index.ts';
-import {
-  hasCodeRunner,
-  setCodeRunner,
-} from '../../../lib/engine/core/runner.ts';
-import { nodeVmRunner } from '../../../lib/engine/runners/node-vm.ts';
 import { AUTOMATION_SUBJECT_ID } from '../../../lib/shared/constants/usage.ts';
 import {
   ingestEmails,
@@ -31,6 +26,7 @@ import {
   querySyncCursor,
   syncMailbox,
 } from '../../core/conversations/sync_mailbox.ts';
+import { installCodeRunner } from '../../lib/code-runner.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { evaluateApprovalGate } from '../approvals/gate.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -288,7 +284,7 @@ function connectorUsageSink(
 /** Install the seams one invocation needs — cheap and idempotent (the
  * catalog read is stat-memoized). */
 function assembleConnectorHost(sql: Sql): void {
-  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+  installCodeRunner();
   loadConnectorCatalog();
   registerNativeConnectors({
     webdav: pgWebdavStore(sql),

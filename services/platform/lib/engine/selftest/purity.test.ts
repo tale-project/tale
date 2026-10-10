@@ -13,8 +13,8 @@ import { describe, expect, it } from 'vitest';
  * flows through the slots. The backends under `runners/` are the ONE
  * sanctioned exception — `node-vm.ts` exists to wrap `node:vm` and to
  * supervise the child process (`node-vm-child.ts`) it evaluates in; test
- * files and the test-support modules under `selftest/` are host code and
- * exempt.
+ * and bench files and the test-support modules under `selftest/` are host
+ * code and exempt.
  */
 
 const ENGINE_ROOT = path.join(
@@ -51,7 +51,11 @@ function sourceFiles(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(full));
-    else if (entry.name.endsWith('.ts') && !entry.name.includes('.test.')) {
+    else if (
+      entry.name.endsWith('.ts') &&
+      !entry.name.includes('.test.') &&
+      !entry.name.includes('.bench.')
+    ) {
       out.push(full);
     }
   }
@@ -223,11 +227,13 @@ describe('engine purity', () => {
       ]),
     );
     // The supervisor forks and talks to its child; the child wraps node:vm;
-    // the sandbox-exec backend reaches nothing on the host at all.
+    // the pool's tenant rides on the host's async context; the sandbox-exec
+    // backend reaches nothing on the host at all.
     expect(nodeImportsByFile).toEqual({
       'node-vm-child.ts': ['node:vm'],
       'node-vm.ts': ['node:child_process', 'node:net', 'node:url', 'node:vm'],
       'sandbox-exec.ts': [],
+      'tenant.ts': ['node:async_hooks'],
     });
   });
 });

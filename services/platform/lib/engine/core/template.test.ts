@@ -22,6 +22,7 @@ import {
   RENDERED_SPANS_PER_FIELD,
   runCode,
 } from './template';
+import { configureTemplates } from './template-fast';
 
 beforeEach(() => {
   setCodeRunner(nodeVmRunner());
@@ -103,6 +104,15 @@ describe('evalCondition', () => {
 });
 
 describe('the scope handed to the runner', () => {
+  // What the runner is handed: the fast path, which reads a plain path
+  // without it, is off here.
+  beforeEach(() => {
+    configureTemplates({ fastPath: false });
+  });
+  afterEach(() => {
+    configureTemplates({ fastPath: true });
+  });
+
   let seen: Record<string, unknown> | undefined;
   const scope = {
     input: { n: 1 },

@@ -25,7 +25,6 @@ import {
 } from '../../../lib/engine/core/record/recorder';
 import { END_PATH, type UnitKey } from '../../../lib/engine/core/record/types';
 import { recordBudget } from '../../../lib/engine/core/record/value';
-import { hasCodeRunner, setCodeRunner } from '../../../lib/engine/core/runner';
 import {
   evalTemplates,
   evalTemplatesRendered,
@@ -41,8 +40,9 @@ import {
   type NodeDef,
   type NodeTrace,
 } from '../../../lib/engine/core/types';
-import { nodeVmRunner } from '../../../lib/engine/runners/node-vm';
+import { withRunnerTenant } from '../../../lib/engine/runners/tenant.ts';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
+import { installCodeRunner } from '../../lib/code-runner.ts';
 import { processShutdown, type ShutdownState } from '../../lib/shutdown';
 import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
@@ -2271,7 +2271,11 @@ export async function stepRunImpl(
   args: { organizationId: string; runId: Id<'automationRuns'> },
   options: StepRunOptions = {},
 ): Promise<{ status: string }> {
-  const turn = stepRunTurn(ctx, args, options);
+  // The turn's evaluations queue as its organization's, so the runner
+  // serves organizations in turn rather than in arrival order.
+  const turn = withRunnerTenant(args.organizationId, () =>
+    stepRunTurn(ctx, args, options),
+  );
   liveTurns.add(turn);
   const forget = () => {
     liveTurns.delete(turn);
@@ -2288,7 +2292,7 @@ async function stepRunTurn(
   // The engine's sandbox seam for untrusted JavaScript (templates, transform
   // bodies). The bundled backend is deterministic and data-only; a deployment
   // that installs a real sandbox backend keeps it.
-  if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
+  installCodeRunner();
 
   const claim = await ctx.runMutation(internal.automations.mutations.claimRun, {
     organizationId: args.organizationId,
